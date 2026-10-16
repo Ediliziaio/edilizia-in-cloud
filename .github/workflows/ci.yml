@@ -129,6 +129,9 @@ jobs:
           bunx vitest run --maxWorkers=1
           src/test/logic/queryTimeoutCancellation.test.ts
           src/test/logic/heavyReadLimit.test.ts
+          src/test/logic/heavyReadDeadline.test.ts
+          src/test/logic/primePagineCancellabili.test.ts
+          src/test/logic/kanbanCancellazioneCoda.test.tsx
           src/test/logic/shareSubscription.test.ts
           src/test/ui/chatUnreadSharedRealtime.test.tsx
           src/test/logic/edgeWarmupConsoleSafety.test.ts

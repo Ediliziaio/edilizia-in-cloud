@@ -39,6 +39,12 @@ export function withHeavyDatabaseRead<T>(
   task: (signal: AbortSignal) => PromiseLike<T>, label = 'Richiesta',
   timeoutMs = DEFAULT_QUERY_TIMEOUT_MS, parentSignal?: AbortSignal,
 ): Promise<T> {
-  // Il timeout della rete parte quando c'è uno slot, non durante l'attesa locale.
-  return heavyReads(() => withAbortableClientTimeout(task, label, timeoutMs, parentSignal), parentSignal);
+  // Il budget include la coda. Il timeout interno libera anche lo slot attivo
+  // se il trasporto non conclude la promise dopo l'annullamento del fetch.
+  return withAbortableClientTimeout(
+    (deadlineSignal) => heavyReads(
+      () => withAbortableClientTimeout(task, label, timeoutMs, deadlineSignal),
+      deadlineSignal,
+    ), label, timeoutMs, parentSignal,
+  );
 }

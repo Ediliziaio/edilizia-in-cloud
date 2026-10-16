@@ -9,6 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withAbortableClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
+import { creaPrimePagineCancellabili } from "@/lib/marketing/primePagineCancellabili";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 import { createLiveRefresh } from "@/lib/realtime/createLiveRefresh";
 import { stessaColonna, type FiltriServerOpportunita } from "@/lib/marketingOpportunities";
@@ -290,61 +291,30 @@ async function paginaOpportunita(args: {
  * millisecondi, con gli stessi filtri e lo stesso ordinamento, partono insieme
  * e ognuna riceve la sua colonna.
  */
-type AttesaColonna = { resolve: (righe: any[]) => void; reject: (errore: unknown) => void };
-const primePagineInAttesa = new Map<string, {
-  args: { pipelineId: string; filtri: FiltriServerOpportunita; sortField: string; sortDir: string };
-  colonne: Map<string, AttesaColonna[]>;
-}>();
-
-async function inviaPrimePagine(chiave: string) {
-  const gruppo = primePagineInAttesa.get(chiave);
-  primePagineInAttesa.delete(chiave);
-  if (!gruppo) return;
-  const fasi = [...gruppo.colonne.keys()];
-  try {
+type PrimaPaginaArgs = {
+  pipelineId: string; filtri: FiltriServerOpportunita;
+  sortField: string; sortDir: string; stageId: string;
+};
+const primaPaginaColonna = creaPrimePagineCancellabili<PrimaPaginaArgs, any>(
+  args => JSON.stringify([args.pipelineId, args.filtri, args.sortField, args.sortDir]),
+  async (args, fasi, signal) => {
     const { data, error } = await withHeavyDatabaseRead(
       (requestSignal) => (supabase as any).rpc("opportunita_kanban", {
-        p_pipeline: gruppo.args.pipelineId,
-        p_filtri: gruppo.args.filtri,
+        p_pipeline: args.pipelineId,
+        p_filtri: args.filtri,
         p_fasi: fasi,
-        p_ordine: gruppo.args.sortField,
-        p_direzione: gruppo.args.sortDir,
+        p_ordine: args.sortField,
+        p_direzione: args.sortDir,
         p_quante: SCHEDE_PER_PAGINA_FASE,
       }).abortSignal(requestSignal),
       "Caricamento opportunità",
       20_000,
+      signal,
     ) as { data: unknown; error: unknown };
     if (error) throw error;
-    const perFase = (data && typeof data === "object" ? data : {}) as Record<string, any[]>;
-    for (const [fase, attese] of gruppo.colonne) {
-      const righe = Array.isArray(perFase[fase]) ? perFase[fase] : [];
-      attese.forEach((a) => a.resolve(righe));
-    }
-  } catch (errore) {
-    for (const attese of gruppo.colonne.values()) attese.forEach((a) => a.reject(errore));
-  }
-}
-
-function primaPaginaColonna(args: {
-  pipelineId: string;
-  filtri: FiltriServerOpportunita;
-  sortField: string;
-  sortDir: string;
-  stageId: string;
-}): Promise<any[]> {
-  const chiave = JSON.stringify([args.pipelineId, args.filtri, args.sortField, args.sortDir]);
-  let gruppo = primePagineInAttesa.get(chiave);
-  if (!gruppo) {
-    gruppo = { args, colonne: new Map() };
-    primePagineInAttesa.set(chiave, gruppo);
-    // 15 ms: abbastanza per raccogliere le colonne che si accendono insieme,
-    // troppo poco per accorgersene.
-    setTimeout(() => { void inviaPrimePagine(chiave); }, 15);
-  }
-  const attese = gruppo.colonne.get(args.stageId) ?? [];
-  gruppo.colonne.set(args.stageId, attese);
-  return new Promise((resolve, reject) => attese.push({ resolve, reject }));
-}
+    return (data && typeof data === "object" ? data : {}) as Record<string, any[]>;
+  },
+);
 
 /** Le pagine si caricano con un «salta N»: se nel frattempo una scheda cambia
  *  colonna, la stessa può ricomparire nella pagina dopo. Si tiene la prima. */
@@ -376,7 +346,7 @@ export function useStageOpportunities({ pipelineId, stageId, filtri, sortField, 
     // La prima pagina viaggia insieme a quelle delle altre colonne; le
     // successive (scorrendo) una per volta.
     queryFn: ({ pageParam, signal }) => pageParam === 0
-      ? primaPaginaColonna({ pipelineId: pipelineId!, filtri, sortField, sortDir, stageId })
+      ? primaPaginaColonna({ pipelineId: pipelineId!, filtri, sortField, sortDir, stageId }, signal)
       : paginaOpportunita({
         pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE, signal,
       }),
