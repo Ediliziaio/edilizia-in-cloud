@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+import { isLateWork, type WorkState } from "@/lib/cruscottoMetrics";
 /**
  * "Come stiamo andando" — la logica dietro la schermata unica.
  *
@@ -23,29 +25,17 @@ export interface CantiereMargine {
   consuntivo: number | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  work_state: WorkState;
+  expected_date?: string | null;
 }
 
-/**
- * Un cantiere è aperto se è cominciato e non è ancora finito.
- *
- * Le due sfumature che contano:
- *  - senza data di inizio non è cominciato: è ancora un contratto, non un
- *    cantiere, e mescolarlo falserebbe il margine "di quello che sto facendo";
- *  - senza data di fine è aperto (fine non ancora pianificata), non chiuso.
- */
-export function eAperto(c: Pick<CantiereMargine, "work_start_date" | "work_end_date">, oggi = new Date()): boolean {
-  if (!c.work_start_date) return false;
-  const giorno = oggi.toISOString().slice(0, 10);
-  if (c.work_start_date > giorno) return false;      // comincia più avanti
-  if (!c.work_end_date) return true;                  // fine non pianificata
-  return c.work_end_date >= giorno;
+/** Active started works, including overdue ones. A scheduled end is not closure. */
+export function eAperto(c: Pick<CantiereMargine, "work_start_date" | "work_end_date" | "work_state">, oggi = new Date()): boolean {
+  return c.work_state === "open" && !!c.work_start_date && c.work_start_date <= format(oggi, "yyyy-MM-dd");
 }
 
-/** Un cantiere aperto la cui fine pianificata è già passata è in ritardo. */
-export function eInRitardo(c: Pick<CantiereMargine, "work_start_date" | "work_end_date">, oggi = new Date()): boolean {
-  if (!c.work_start_date || !c.work_end_date) return false;
-  const giorno = oggi.toISOString().slice(0, 10);
-  return c.work_start_date <= giorno && c.work_end_date < giorno;
+export function eInRitardo(c: Pick<CantiereMargine, "work_start_date" | "work_end_date" | "work_state" | "expected_date">, oggi = new Date()): boolean {
+  return isLateWork({ ...c, expected_date: c.expected_date ?? null }, oggi);
 }
 
 export interface MargineCantieriAperti {

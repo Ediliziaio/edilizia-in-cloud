@@ -102,7 +102,7 @@ export function valutaCopertura(
   }
   if (mancanti.length > 0) return nd(mancanti);
 
-  const giorni = saldo / (fissiMensili / 30);
+  const giorni = Math.max(0, saldo / (fissiMensili / 30));
   const s = SOGLIE_INDICATORI;
   const stato: StatoIndicatore =
     giorni < s.coperturaGiorniAllarme ? "allarme"
@@ -122,7 +122,7 @@ export function valutaCopertura(
   return {
     valore: Math.round(giorni),
     stato,
-    dettaglio: `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} giorni senza incassare.${lettura}`,
+    dettaglio: saldo < 0 ? `Il saldo registrato è negativo (${eur(saldo)}): non copre ulteriori giorni di costi fissi.` : `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} giorni senza incassare.${lettura}`,
   };
 }
 

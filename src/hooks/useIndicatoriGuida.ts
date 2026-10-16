@@ -11,6 +11,8 @@
 // primi ordini fornitore). La valutazione con le soglie sta nella lib pura
 // src/lib/indicatoriGuida.ts; qui solo raccolta e aggregazione.
 // ============================================================================
+import { useCruscottoWorkOrders } from "@/hooks/useCruscottoWorkOrders";
+import { isLateWork } from "@/lib/cruscottoMetrics";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +93,7 @@ export function useIndicatoriGuida(): IndicatoriGuidaData {
 
   // Fonti condivise (già usate altrove nella stessa pagina → nessun costo extra)
   const margin = useMarginData();
+  const workQuery = useCruscottoWorkOrders(companyId);
   const { saldo, isSaldoLoading } = usePrimaNota();
   const personale = useCostiPersonale(companyId, new Date());
 
@@ -223,15 +226,14 @@ export function useIndicatoriGuida(): IndicatoriGuidaData {
     // ── Puntualità: stessa semantica del Cruscotto (expected_date = promessa,
     //    work_end_date = fine lavori effettiva; "in ritardo" = promessa
     //    superata e lavori non chiusi) ──
+    const workById = new Map((workQuery.data ?? []).map(o => [o.id, o]));
     const chiuse12m = commesse.filter(
-      (o) => o.expected_date && o.work_end_date && o.work_end_date >= unAnnoFa,
+      (o) => ["completed", "support"].includes(workById.get(o.id)?.work_state ?? "") && o.expected_date && o.work_end_date && o.work_end_date >= unAnnoFa && o.work_end_date <= oggi,
     );
     const chiuseNeiTempi = chiuse12m.filter(
       (o) => o.work_end_date! <= o.expected_date!,
     ).length;
-    const inRitardoOra = commesse.filter(
-      (o) => o.expected_date && o.expected_date < oggi && !o.work_end_date,
-    ).length;
+    const inRitardoOra = (workQuery.data ?? []).filter(o => isLateWork(o, new Date(`${oggi}T12:00:00`))).length;
     const neiTempi = valutaNeiTempi(chiuse12m.length, chiuseNeiTempi, inRitardoOra);
 
     // ── Saturazione squadra del mese corrente ──
@@ -268,6 +270,7 @@ export function useIndicatoriGuida(): IndicatoriGuidaData {
 
     return {
       isLoading:
+        workQuery.isLoading ||
         margin.isLoading ||
         isSaldoLoading ||
         personale.isLoading ||
@@ -284,6 +287,7 @@ export function useIndicatoriGuida(): IndicatoriGuidaData {
       firmaOrdine,
     };
   }, [
+    workQuery.data, workQuery.isLoading,
     margin.isLoading,
     margin.totalFixedCostsMonthly,
     margin.breakEvenAnnual,

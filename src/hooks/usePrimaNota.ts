@@ -251,6 +251,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     totalPages,
     saldo: saldoQuery.data,
     isSaldoLoading: saldoQuery.isLoading,
+    saldoError: saldoQuery.error,
     monthlyChart: monthlyChartQuery.data,
     create: createMutation,
     remove: deleteMutation,

@@ -8,7 +8,7 @@ import { format, subDays } from "date-fns";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(n);
 }
 
 type FocusPreset = "today" | "yesterday" | "last7" | "last30";
@@ -45,6 +45,7 @@ function detectPreset(dateFrom: string, dateTo: string): FocusPreset {
 
 interface Props {
   todayData: TodayData | null;
+  compactOperations?: boolean;
   isLoading?: boolean;
   dateFrom: string;
   dateTo: string;
@@ -53,7 +54,7 @@ interface Props {
 
 
 
-export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
+export function TodayFocus({ compactOperations = false, todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
   const activePreset = detectPreset(dateFrom, dateTo);
   const dynamicLabel = FOCUS_PRESETS.find(p => p.value === activePreset)?.dynamicLabel ?? "oggi";
@@ -77,7 +78,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
       icon: <TrendingUp className="h-4 w-4" />,
       iconClass: "text-primary",
       bgClass: "bg-primary/10 border-primary/20",
-      label: "Fatturato",
+      label: "Venduto commesse",
       value: fmtEur(data.revenueInRange),
       valueClass: "text-primary",
     },
@@ -85,7 +86,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
       icon: <Wallet className="h-4 w-4" />,
       iconClass: "text-emerald-600 dark:text-emerald-400",
       bgClass: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40",
-      label: "Incassato",
+      label: "Incassato commesse",
       value: fmtEur(data.collectedInRange),
       valueClass: "text-emerald-600 dark:text-emerald-400",
     },
@@ -167,26 +168,23 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
       </div>
 
       {/* Enhanced mini-stats + sparkline */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className={cn("grid gap-2", compactOperations ? "grid-cols-2 lg:grid-cols-5" : "grid-cols-2 lg:grid-cols-4")}>
         {miniStats.map((s) => (
           <div
             key={s.label}
             className={cn(
-              "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+              "flex min-w-0 items-center gap-2 rounded-xl border p-3 transition-colors",
               s.bgClass
             )}
           >
             <div className={cn("shrink-0", s.iconClass)}>{s.icon}</div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
-              <p className={cn("text-lg font-bold tracking-tight", s.valueClass)}>{s.value}</p>
+              <p className={cn("text-sm font-bold tracking-tight sm:text-lg", s.valueClass)}>{s.value}</p>
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {tiles.map((t) => (
+        {tiles.filter(t => !compactOperations || !t.alertBg).map((t) => (
           <button
             key={t.label}
             onClick={() => navigate(t.link)}
@@ -201,7 +199,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
               </div>
               <span className="text-[11px] font-medium text-muted-foreground">{t.label}</span>
             </div>
-            <p className={cn("text-lg font-bold", t.alert ? "text-destructive" : "text-foreground")}>{t.value}</p>
+            <p className={cn("text-sm font-bold sm:text-lg", t.alert ? "text-destructive" : "text-foreground")}>{t.value}</p>
             <p className="text-[11px] text-muted-foreground">{t.sub}</p>
           </button>
         ))}
@@ -215,9 +213,9 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
           </CardHeader>
           <CardContent className="p-3 pt-0 px-4 pb-2 pt-0">
             <div className="divide-y divide-border">
-              {data.suppliersDue.slice(0, 5).map((s) => (
+              {data.suppliersDue.map((s) => (
                 <div key={s.id} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm font-medium text-foreground truncate">{s.name || "Fornitore"}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm font-medium text-foreground" title={s.name}>{s.name || "Fornitore"}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                     {fmtEur(s.amount)} · {new Date(s.due_date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
                   </span>
