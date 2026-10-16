@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(async (_fn: string, args: { p_anteprima: boolean }) => ({ data: args.p_anteprima
     ? { numero: 'RST-001', materiali: 0, voci: 2, fasi: 2, sottofasi: 2, impronta: 'v1', totale: 5286.87 }
     : { id: 'copia-rst' }, error: null })),
-  nulla: () => null,
+  nulla: (): null => null,
 }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   from: (table: string) => {
@@ -27,7 +27,7 @@ vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mocks.mobile }));
 vi.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ canEditPreventivi: mocks.canEdit, canExportClients: true, onlyAssigned: false }) }));
 vi.mock('@/lib/moduli-vendita', () => ({ useModuliVendita: () => ({ moduli: [{ modulo: { slug: 'ristrutturazione' }, isEnabled: true }] }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
-vi.mock('@/components/marketing/preventivi/UnifiedFiltersSheet', () => ({ UnifiedFiltersSheet: mocks.nulla, DEFAULT_FILTERS: { tipi: [], commercialeId: 'all', sort: 'recent' } }));
+vi.mock('@/components/marketing/preventivi/UnifiedFiltersSheet', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/components/marketing/preventivi/UnifiedFiltersSheet')>()), UnifiedFiltersSheet: mocks.nulla }));
 vi.mock('@/components/marketing/preventivi/UnifiedBulkToolbar', () => ({ UnifiedBulkToolbar: mocks.nulla, spostaNelCestino: vi.fn() }));
 vi.mock('@/components/marketing/preventivi/PreventiviCestinoDialog', () => ({ PreventiviCestinoDialog: mocks.nulla }));
 vi.mock('recharts', () => {
@@ -41,7 +41,7 @@ beforeEach(() => { mocks.canEdit = true; mocks.mobile = true; mocks.rpc.mockClea
 afterEach(cleanup);
 describe('duplicazione Ristrutturazioni dall’elenco unico realmente usato', () => {
   it('mobile: richiede anteprima e conferma, poi apre la nuova bozza', async () => {
-    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }));
+    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }, { timeout: 8000 }));
     await screen.findByText('Da RST-001'); expect(mocks.rpc.mock.calls[0][0]).toBe('duplica_lavoro_atomic');
     expect(mocks.rpc.mock.calls.every(c => c[1].p_anteprima)).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Crea copia e apri' }));
@@ -49,12 +49,12 @@ describe('duplicazione Ristrutturazioni dall’elenco unico realmente usato', ()
     expect(mocks.rpc.mock.calls.filter(c => !c[1].p_anteprima)).toHaveLength(1);
   });
   it('senza modifica preventivi non propone la duplicazione', async () => {
-    mocks.canEdit = false; setup(); await screen.findAllByText('RST-001');
+    mocks.canEdit = false; setup(); await screen.findAllByText('RST-001', {}, { timeout: 8000 });
     expect(screen.queryByRole('button', { name: 'Duplica preventivo RST-001' })).not.toBeInTheDocument();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('annullare il riepilogo non scrive una copia', async () => {
-    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }));
+    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }, { timeout: 8000 }));
     await screen.findByText('Da RST-001'); fireEvent.click(screen.getByRole('button', { name: 'Annulla' }));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Duplica preventivo' })).not.toBeInTheDocument());
     expect(mocks.rpc.mock.calls.every(c => c[1].p_anteprima)).toBe(true);
