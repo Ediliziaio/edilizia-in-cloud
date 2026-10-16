@@ -24,7 +24,10 @@ BEGIN
    LIMIT 1;
 
   IF v_company_id IS NULL THEN
-    RAISE EXCEPTION 'Company "Ke Bei Serramenti" non trovata. Crearla prima oppure adattare la query del seed.';
+    -- Le anteprime senza dati non contengono le aziende di produzione.
+    -- Il listino di un cliente non è un prerequisito dello schema comune.
+    RAISE NOTICE 'Ke Bei Serramenti assente: seed del listino specifico saltato.';
+    RETURN;
   END IF;
   RAISE NOTICE 'Company Ke Bei id = %', v_company_id;
 
