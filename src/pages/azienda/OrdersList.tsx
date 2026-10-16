@@ -1517,7 +1517,7 @@ function OrdersListInner() {
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            {!isGlobalStatsError && !isStatusesError && <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
