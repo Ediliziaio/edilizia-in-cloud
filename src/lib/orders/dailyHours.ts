@@ -1,4 +1,7 @@
 export interface DailyHoursPerson { id: string; name: string }
+export function assertDailyHoursCompany(data:{company_id?:unknown}|null|undefined,companyId:string):void {
+ if(data?.company_id!==companyId)throw new Error('L’azienda attiva è cambiata. Ricarica la pagina prima di consultare le ore.');
+}
 export interface DailyHoursOrder { id: string; name: string }
 export interface DailyHoursRecord {
  id: string; order_id: string; data_lavoro: string; stato: string; updated_at: string;
