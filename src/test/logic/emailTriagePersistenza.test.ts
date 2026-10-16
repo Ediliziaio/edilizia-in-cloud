@@ -22,7 +22,7 @@ const client = () => ({
     const q = {
       eq: (k:string,v:unknown) => { filters.push([k,v]); return q; },
       is: () => q, select: () => q,
-      maybeSingle: async () => {
+      maybeSingle: async (): Promise<{data:{id:string}|null;error:{code:string}|null}> => {
         if (failUpdates) return {data:null as null,error:{code:'23514'}};
         const keys = Object.keys(values);
         const params = [...Object.values(values), ...filters.map(([,v])=>v)];
