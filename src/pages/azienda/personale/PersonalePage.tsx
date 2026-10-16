@@ -14,6 +14,7 @@ const TabOrganigramma = lazy(() => import("./tabs/TabOrganigramma").then(m => ({
 const TabUffici = lazy(() => import("./tabs/TabUffici").then(m => ({ default: m.TabUffici })));
 const TabTimbrature = lazy(() => import("./tabs/TabTimbrature").then(m => ({ default: m.TabTimbrature })));
 const TabPresenze = lazy(() => import("./tabs/TabPresenze").then(m => ({ default: m.TabPresenze })));
+const RegistroOreGiornaliere = lazy(() => import("@/components/personale/DailyHoursPanel").then(m => ({ default: m.DailyHoursPanel })));
 const TabRichieste = lazy(() => import("./tabs/TabRichieste").then(m => ({ default: m.TabRichieste })));
 const TabSedi = lazy(() => import("./tabs/TabSedi").then(m => ({ default: m.TabSedi })));
 const TabFestivita = lazy(() => import("./tabs/TabFestivita").then(m => ({ default: m.TabFestivita })));
@@ -215,7 +216,12 @@ export default function PersonalePage() {
         <TabsContent value="organigramma"><Suspense fallback={<TabFallback />}><TabOrganigramma /></Suspense></TabsContent>
         <TabsContent value="uffici"><Suspense fallback={<TabFallback />}><TabUffici /></Suspense></TabsContent>
         <TabsContent value="profili"><Suspense fallback={<TabFallback />}><TabProfili /></Suspense></TabsContent>
-        <TabsContent value="timbrature"><Suspense fallback={<TabFallback />}><TabTimbrature /></Suspense></TabsContent>
+        <TabsContent value="timbrature"><Suspense fallback={<TabFallback />}>
+          <div className="space-y-4">
+            {isMobile && <RegistroOreGiornaliere />}
+            <TabTimbrature />
+          </div>
+        </Suspense></TabsContent>
         <TabsContent value="presenze"><Suspense fallback={<TabFallback />}><TabPresenze /></Suspense></TabsContent>
         <TabsContent value="richieste"><Suspense fallback={<TabFallback />}><TabRichieste /></Suspense></TabsContent>
         <TabsContent value="sedi"><Suspense fallback={<TabFallback />}><TabSedi /></Suspense></TabsContent>
