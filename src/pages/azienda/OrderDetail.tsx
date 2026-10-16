@@ -1470,7 +1470,7 @@ function OrderDetailInner() {
 
             {/* Cantiere da organizzare: cosa manca a una commessa appena nata (indirizzo, date, fasi,
                 chi lavora, pagamenti), secondo le scelte dell'azienda. Sparisce da solo. */}
-            {order.status !== "completato" && order.order_type !== "appaltatore_lavoro" && (
+            {contractLink.data?.workflow_kind !== "contratto" && order.status !== "completato" && order.order_type !== "appaltatore_lavoro" && (
               <CantiereDaOrganizzare
                 orderId={id!}
                 indirizzo={order.indirizzo_lavori || order.work_address}

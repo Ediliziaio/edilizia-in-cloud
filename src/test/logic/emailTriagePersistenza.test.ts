@@ -16,7 +16,7 @@ afterAll(() => db.close());
 beforeEach(async () => { await db.exec('RESET ROLE;TRUNCATE email_inbox'); await db.query('INSERT INTO email_inbox(id,company_id) VALUES($1,$2)',[id,company]); });
 let failUpdates = false;
 const client = () => ({
-  rpc: async (_: string, args: {p_email_id:string;p_company_id:string}) => ({ data: (await db.query<{n:number|null}>('SELECT claim_email_triage($1,$2) AS n',[args.p_email_id,args.p_company_id])).rows[0].n, error: null as null }),
+  rpc: async (_: string, args: {p_email_id:string;p_company_id:string}) => ({ data: (await db.query<{n:number|null}>('SELECT claim_email_triage($1,$2) AS n',[args.p_email_id,args.p_company_id])).rows[0].n, error: null as null as null }),
   from: () => ({ update: (values: Record<string,unknown>) => {
     const filters: Array<[string,unknown]> = [];
     const q = {

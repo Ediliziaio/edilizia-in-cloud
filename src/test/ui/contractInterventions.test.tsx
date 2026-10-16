@@ -7,9 +7,9 @@ vi.mock("@/hooks/useOrderContractLink",()=>({useOrderContractLink:()=>({data:{wo
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"company-a"}})}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:true})}));
 vi.mock("@/hooks/useContractWorkflowProfile",()=>({useContractWorkflowProfile:()=>({data:"manutenzione_stradale_su_ordine"})}));
-vi.mock("@/hooks/useModelliFasi",()=>({useModelliFasi:()=>({modelli:[]})}));
+vi.mock("@/hooks/useModelliFasi",()=>({useModelliFasi:()=>({modelli:[] as never[]})}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:m.rpc}}));
-vi.mock("@tanstack/react-query",()=>({useQuery:()=>({data:[],isError:false,isLoading:false}),useQueryClient:()=>({invalidateQueries:vi.fn()}),useMutation:(c:any)=>({isPending:false,mutate:async()=>{try{const d=await c.mutationFn();c.onSuccess?.(d);}catch(e){c.onError?.(e);}}})}));
+vi.mock("@tanstack/react-query",()=>({useQuery:()=>({data:[] as never[],isError:false,isLoading:false}),useQueryClient:()=>({invalidateQueries:vi.fn()}),useMutation:(c:any)=>({isPending:false,mutate:async()=>{try{const d=await c.mutationFn();c.onSuccess?.(d);}catch(e){c.onError?.(e);}}})}));
 beforeEach(()=>{m.kind="contratto";m.rpc.mockReset();m.navigate.mockReset();m.rpc.mockResolvedValue({data:"child",error:null});});afterEach(cleanup);
 describe("contratto e interventi operativi",()=>{
  it("un intervento rimanda al contratto e separa gli importi dalle lavorazioni",()=>{
