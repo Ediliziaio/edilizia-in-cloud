@@ -18,7 +18,7 @@ interface Props {
   fonteLabel: string | null;
   regione: string | null;
   isLoading: boolean;
-  indisponibile: "regione-mancante" | "prezzario-mancante" | null;
+  indisponibile: "regione-mancante" | "prezzario-mancante" | "errore-ricerca" | null;
   /** Layout compatto per la barra sotto al computo. */
   compatto?: boolean;
 }
@@ -34,6 +34,8 @@ export function PrezzoDiZonaRiepilogo({
           <span>
             {indisponibile === "regione-mancante"
               ? "Per confrontare i prezzi col mercato serve sapere in che regione lavori: compila la provincia della sede in Impostazioni → Profilo aziendale."
+              : indisponibile === "errore-ricerca"
+                ? "Confronto col prezzario temporaneamente non disponibile. Nessun prezzo del preventivo è stato modificato."
               : `Non c'è un prezzario pubblicato per ${regione}. Non confronto con quello di un'altra regione: sarebbe peggio che non confrontare.`}
           </span>
         </CardContent>

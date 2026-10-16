@@ -176,3 +176,79 @@ describe("Filtri e tooltip del grafico", () => {
     );
   });
 });
+
+describe("Confronto facoltativo del grafico", () => {
+  const prior = {
+    year: 2025,
+    venduto: 100,
+    incassato: 50,
+    daIncassare: 45,
+    commesse: 1,
+  };
+  const options = {
+    year: 2025,
+    enabled: true,
+    onToggle: vi.fn(),
+    loading: false,
+    error: false,
+    onRetry: vi.fn(),
+    label: "1 gennaio – 16 ottobre",
+  };
+  it("aggiunge serie tratteggiate e dati consultabili, mantenendo il clic sull’anno corrente", () => {
+    const select = vi.fn();
+    render(
+      <OrdersMonthlyChart
+        months={[{ ...months[0], comparison: prior }, months[1]]}
+        period="2026"
+        comparison={options}
+        onSelectMonth={select}
+      />,
+    );
+    expect(
+      screen.getAllByTestId("series").map((el) => el.textContent),
+    ).toContain("Venduto 2025");
+    expect(screen.getByText(/Stesso periodo:/)).toHaveTextContent("16 ottobre");
+    fireEvent.click(screen.getByTestId("plot"));
+    expect(select).toHaveBeenLastCalledWith("2026-10");
+    fireEvent.click(screen.getByRole("button", { name: "Numero commesse" }));
+    expect(screen.getAllByTestId("series").map((el) => el.textContent)).toEqual(
+      ["Commesse 2025", "Numero commesse"],
+    );
+    fireEvent.click(screen.getByText("Dati mese per mese"));
+    expect(screen.getByRole("rowheader", { name: "ott · 2025" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Confronta 2025" }));
+    expect(options.onToggle).toHaveBeenCalledOnce();
+  });
+  it("non presenta dati falsi durante errore e offre un nuovo tentativo", () => {
+    render(
+      <OrdersMonthlyChart
+        months={months}
+        period="2026"
+        comparison={{ ...options, error: true }}
+      />,
+    );
+    expect(screen.getAllByTestId("series")).toHaveLength(2);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Confronto non disponibile",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Riprova confronto" }));
+    expect(options.onRetry).toHaveBeenCalledOnce();
+  });
+  it("mostra entrambi gli anni nel tooltip e non calcola percentuali su base zero", () => {
+    render(
+      <OrderMonthDetails
+        active
+        payload={[
+          {
+            payload: {
+              ...orderChartMonths(months)[0],
+              comparison: { ...prior, venduto: 0 },
+            },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/Confronto 2025/)).toBeVisible();
+    expect(screen.getByText("Base precedente assente")).toBeVisible();
+  });
+});

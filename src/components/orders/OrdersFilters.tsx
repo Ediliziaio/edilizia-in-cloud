@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Search, X, CalendarDays, CheckCircle2, SlidersHorizontal } from "lucide-react";
+import {
+  Search,
+  X,
+  CalendarDays,
+  CheckCircle2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,8 +25,18 @@ interface Status {
 }
 
 const MONTHS = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+  "Gennaio",
+  "Febbraio",
+  "Marzo",
+  "Aprile",
+  "Maggio",
+  "Giugno",
+  "Luglio",
+  "Agosto",
+  "Settembre",
+  "Ottobre",
+  "Novembre",
+  "Dicembre",
 ];
 
 interface OrdersFiltersProps {
@@ -33,7 +49,9 @@ interface OrdersFiltersProps {
   onYearFilterChange: (value: string) => void;
   availableYears: number[];
   paymentFilter: "all" | "pending" | "paid" | "overdue";
-  onPaymentFilterChange: (value: "all" | "pending" | "paid" | "overdue") => void;
+  onPaymentFilterChange: (
+    value: "all" | "pending" | "paid" | "overdue",
+  ) => void;
   monthFilter: string;
   onMonthFilterChange: (value: string) => void;
   hasAnyFilter: boolean;
@@ -69,17 +87,17 @@ export function OrdersFilters({
     // aprivano da soli e il badge diceva sempre «1».
     yearFilter !== "all" && yearFilter !== "corrente",
     monthFilter !== "all",
+    hideCompleted,
   ].filter(Boolean).length;
 
-  // Mobile: filtri avanzati collassati di default, aperti se ci sono filtri attivi
+  // I controlli secondari si aprono se la vista iniziale contiene filtri attivi.
   const [advancedOpen, setAdvancedOpen] = useState(advancedFiltersCount > 0);
 
   return (
-    // Da tablet una riga sola sullo sfondo (ricerca, stato, pagamenti, anno,
-    // mese, «In corso»): era un riquadro su due righe. Su telefono com'era.
-    <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-      {/* Search + In Corso + Toggle filtri avanzati (mobile) — sempre visibili */}
-      <div className="flex items-center gap-2 sm:contents">
+    // Ricerca sempre visibile, controlli secondari raccolti su tutti i dispositivi.
+    <div className="space-y-2">
+      {/* Ricerca e accesso ai filtri rimangono sempre visibili. */}
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -90,24 +108,31 @@ export function OrdersFilters({
             aria-label="Cerca per codice, descrizione o cliente"
           />
         </div>
-        {/* Mobile: i filtri (stato, pagamento, anno, mese) dietro un bottone
-            sulla stessa riga, chiusi; prima avevano una riga loro. */}
+
         <Button
           variant={advancedOpen ? "secondary" : "outline"}
           size="sm"
           onClick={() => setAdvancedOpen((v) => !v)}
-          className="tap-compact relative h-9 w-9 shrink-0 bg-white p-0 sm:hidden"
+          className="tap-compact relative h-9 shrink-0 gap-2 bg-white px-3"
           aria-expanded={advancedOpen}
-          aria-label="Filtri"
+          aria-label="Filtri elenco"
         >
           <SlidersHorizontal className="h-4 w-4" />
+          <span>Filtri elenco</span>
           {advancedFiltersCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
               {advancedFiltersCount}
             </span>
           )}
         </Button>
-        {/* In Corso toggle — visibile sempre */}
+      </div>
+      <div
+        hidden={!advancedOpen}
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          !advancedOpen && "hidden",
+        )}
+      >
         <Button
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
@@ -121,74 +146,109 @@ export function OrdersFilters({
           <span className="hidden sm:inline">Nascondi completate</span>
         </Button>
         {hasAnyFilter && (
-          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7 sm:order-last sm:h-9 sm:w-9" aria-label="Cancella tutti i filtri">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClearAllFilters}
+            className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7 sm:order-last sm:h-9 sm:w-9"
+            aria-label="Cancella tutti i filtri"
+          >
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
 
-      {/* Filtri avanzati: collapsed mobile (controllato), sempre visibili desktop */}
-      <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:contents", !advancedOpen && "max-sm:hidden")}>
-          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-            <SelectTrigger aria-label="Stato commessa" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
-              <SelectValue placeholder="Stato" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="__da_completare__">Da completare</SelectItem>
-              <SelectItem value="__completati__">Completati</SelectItem>
-              <SelectItem value="__assistenza__">In assistenza</SelectItem>
-              {statuses.map((status) => (
-                <SelectItem key={status.id} value={status.id}>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: status.color }}
-                    />
-                    {status.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={paymentFilter} onValueChange={(val) => onPaymentFilterChange(val as "all" | "pending" | "paid" | "overdue")}>
-            <SelectTrigger aria-label="Stato pagamento" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
-              <SelectValue placeholder="Pagamenti" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i pagamenti</SelectItem>
-              <SelectItem value="pending">Da incassare</SelectItem>
-              <SelectItem value="paid">Saldato</SelectItem>
-              <SelectItem value="overdue">Rate scadute</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={yearFilter} onValueChange={onYearFilterChange}>
-            <SelectTrigger aria-label="Periodo commesse" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto">
-              <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
-              <SelectValue placeholder="Anno" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* La scelta di partenza della pagina: senza questa voce, col
+      {/* I filtri attivi restano segnalati dal badge anche quando i controlli sono chiusi. */}
+      <div
+        hidden={!advancedOpen}
+        className={cn(
+          "grid grid-cols-2 gap-2 sm:flex sm:flex-wrap",
+          !advancedOpen && "!hidden",
+        )}
+      >
+        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+          <SelectTrigger
+            aria-label="Stato commessa"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]"
+          >
+            <SelectValue placeholder="Stato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            <SelectItem value="__da_completare__">Da completare</SelectItem>
+            <SelectItem value="__completati__">Completati</SelectItem>
+            <SelectItem value="__assistenza__">In assistenza</SelectItem>
+            {statuses.map((status) => (
+              <SelectItem key={status.id} value={status.id}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: status.color }}
+                  />
+                  {status.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={paymentFilter}
+          onValueChange={(val) =>
+            onPaymentFilterChange(val as "all" | "pending" | "paid" | "overdue")
+          }
+        >
+          <SelectTrigger
+            aria-label="Stato pagamento"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]"
+          >
+            <SelectValue placeholder="Pagamenti" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i pagamenti</SelectItem>
+            <SelectItem value="pending">Da incassare</SelectItem>
+            <SelectItem value="paid">Saldato</SelectItem>
+            <SelectItem value="overdue">Rate scadute</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={yearFilter} onValueChange={onYearFilterChange}>
+          <SelectTrigger
+            aria-label="Periodo commesse"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto"
+          >
+            <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
+            <SelectValue placeholder="Anno" />
+          </SelectTrigger>
+          <SelectContent>
+            {/* La scelta di partenza della pagina: senza questa voce, col
                   valore «corrente» il campo restava vuoto (solo l'icona). */}
-              <SelectItem value="corrente">{new Date().getFullYear()} + precedenti da gestire</SelectItem>
-              <SelectItem value="all">Tutti gli anni</SelectItem>
-              {availableYears.map((year) => (
-                <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={monthFilter} onValueChange={onMonthFilterChange}>
-            <SelectTrigger aria-label="Mese commesse" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px]">
-              <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
-              <SelectValue placeholder="Mese" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i mesi</SelectItem>
-              {MONTHS.map((name, i) => (
-                <SelectItem key={i} value={i.toString()}>{name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <SelectItem value="corrente">
+              {new Date().getFullYear()} + precedenti da gestire
+            </SelectItem>
+            <SelectItem value="all">Tutti gli anni</SelectItem>
+            {availableYears.map((year) => (
+              <SelectItem key={year} value={String(year)}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={monthFilter} onValueChange={onMonthFilterChange}>
+          <SelectTrigger
+            aria-label="Mese commesse"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px]"
+          >
+            <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
+            <SelectValue placeholder="Mese" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i mesi</SelectItem>
+            {MONTHS.map((name, i) => (
+              <SelectItem key={i} value={i.toString()}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

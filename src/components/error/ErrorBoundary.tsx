@@ -128,18 +128,23 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private async reportError(error: Error, errorInfo: React.ErrorInfo) {
     try {
-      await supabase.from("system_health_metrics").insert({
+      // Il crash può avvenire proprio prima del login. Non inviare INSERT anon
+      // destinate a fallire; il reporter Sentry indipendente è chiamato sopra.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user?.id) return;
+      const { error: reportError } = await supabase.from("system_health_metrics").insert({
         metric_type: "client_error",
         function_name: "ErrorBoundary",
         error_message: `${error.name}: ${error.message}`.substring(0, 500),
         metadata: {
           stack: error.stack?.substring(0, 1000),
           componentStack: errorInfo.componentStack?.substring(0, 500),
-          url: window.location.href,
+          url: window.location.origin + window.location.pathname,
           userAgent: navigator.userAgent,
           timestamp: new Date().toISOString(),
         },
       });
+      if (reportError && import.meta.env.DEV) logger.warn('[ErrorBoundary] Telemetria non salvata');
     } catch {
       // Silent — never let error reporting cause more errors
     }
