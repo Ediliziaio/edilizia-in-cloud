@@ -16,14 +16,14 @@ afterAll(() => db.close());
 beforeEach(async () => { await db.exec('RESET ROLE;TRUNCATE email_inbox'); await db.query('INSERT INTO email_inbox(id,company_id) VALUES($1,$2)',[id,company]); });
 let failUpdates = false;
 const client = () => ({
-  rpc: async (_: string, args: {p_email_id:string;p_company_id:string}) => ({ data: (await db.query<{n:number|null}>('SELECT claim_email_triage($1,$2) AS n',[args.p_email_id,args.p_company_id])).rows[0].n, error: null }),
+  rpc: async (_: string, args: {p_email_id:string;p_company_id:string}) => ({ data: (await db.query<{n:number|null}>('SELECT claim_email_triage($1,$2) AS n',[args.p_email_id,args.p_company_id])).rows[0].n, error: null as null }),
   from: () => ({ update: (values: Record<string,unknown>) => {
     const filters: Array<[string,unknown]> = [];
     const q = {
       eq: (k:string,v:unknown) => { filters.push([k,v]); return q; },
       is: () => q, select: () => q,
       maybeSingle: async () => {
-        if (failUpdates) return {data:null,error:{code:'23514'}};
+        if (failUpdates) return {data:null as {id:string}|null,error:{code:'23514'}};
         const keys = Object.keys(values);
         const params = [...Object.values(values), ...filters.map(([,v])=>v)];
         const sql = `UPDATE email_inbox SET ${keys.map((k,i)=>`${k}=$${i+1}`).join(',')} WHERE ${filters.map(([k],i)=>`${k}=$${keys.length+i+1}`).join(' AND ')} AND ai_processed_at IS NULL RETURNING id`;
