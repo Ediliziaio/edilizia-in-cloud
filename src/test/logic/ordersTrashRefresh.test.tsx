@@ -5,7 +5,7 @@ import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import { queryKeys } from '@/lib/queryKeys';
 
 const database = vi.hoisted(() => ({ rows: [] as Array<{id:string;order_code:string;description:string;deleted_at:string}> }));
-vi.mock('@/integrations/supabase/client', () => ({supabase:{from:()=>({select:()=>({eq:()=>({not:()=>({order:()=>({limit:async()=>({data:database.rows,error:null})})})})})})}}));
+vi.mock('@/integrations/supabase/client', () => ({supabase:{from:()=>({select:()=>({eq:()=>({not:()=>({order:()=>({limit:async()=>({data:database.rows,error:null as null})})})})})})}}));
 vi.mock('sonner',()=>({toast:{success:vi.fn(),error:vi.fn()}}));
 afterEach(cleanup);
 
