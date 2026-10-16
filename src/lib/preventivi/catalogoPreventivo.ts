@@ -2,13 +2,19 @@ import type { CatalogCategory, CatalogItem } from "@/types/catalogItem";
 import { eAsseLinea } from "@/lib/listino/schedeLinea";
 import { formatPrezzoUnitario } from "@/lib/tariffe/economiaTariffa";
 import { chiaveTesto } from "@/lib/listino/areeStandard";
+import type { MacroListino } from '@/lib/listino/lineeListino';
+import { lineaBestInfissi } from '@/lib/listino/bestInfissiLinee';
 
 export function categoriaProdottoCatalogo(
   item: CatalogItem,
   categorie: CatalogCategory[],
+  macros: readonly MacroListino[] = [],
 ) {
   const categoria = categorie.find((c) => c.id === item.categoria_id);
-  if (categoria) return { id: categoria.id, nome: categoria.nome };
+  const macro = macros.find(m => m.id === categoria?.macrocategoria_id);
+  if (categoria) return { id: categoria.id, nome: macro && macro.nome !== categoria.nome ? `${macro.nome} · ${categoria.nome}` : categoria.nome };
+  const modello = item.source === 'family' ? lineaBestInfissi(item.family) : null;
+  if (modello) return {id:`linea:${modello}`, nome:modello};
   const legacy =
     item.source === "article" ? item.article?.category?.trim() : null;
   return legacy
@@ -19,6 +25,7 @@ export function categoriaProdottoCatalogo(
 export function dettagliProdottoCatalogo(
   item: CatalogItem,
   categorie: CatalogCategory[],
+  macros: readonly MacroListino[] = [],
 ) {
   const categoria =
     categorie.find((c) => c.id === item.categoria_id)?.nome ??
@@ -34,11 +41,12 @@ export function dettagliProdottoCatalogo(
               .map((v) => v.label || v.valore),
           )
       : [];
-  const linea = [...new Set(linee)]
-    .filter((n) => n && n !== categoria)
+  const modello = item.source === 'family' ? lineaBestInfissi(item.family) : null;
+  const macro = item.source === 'family' ? macros.find(m => m.id === item.family.macrocategoria_id) : null;
+  const linea = [...new Set([modello, ...linee.filter(n => n !== categoria)].filter((n): n is string => !!n))]
     .join(" · ");
   return {
-    categoria,
+    categoria: categoria === modello && macro ? macro.nome : categoria,
     codice,
     linea,
     marca: item.source === "article" ? item.marca : null,
@@ -64,8 +72,10 @@ export function corrispondeProdottoCatalogo(
   item: CatalogItem,
   categorie: CatalogCategory[],
   cerca: string,
+  macros: readonly MacroListino[] = [],
 ) {
-  const dettagli = dettagliProdottoCatalogo(item, categorie);
+  const dettagli = dettagliProdottoCatalogo(item, categorie, macros);
+  const modello = item.source === 'family' ? lineaBestInfissi(item.family) : null;
   const testo = [
     item.nome,
     item.descrizione,
@@ -73,6 +83,7 @@ export function corrispondeProdottoCatalogo(
     dettagli.codice,
     dettagli.linea,
     dettagli.marca,
+    modello,
   ]
     .filter(Boolean)
     .join(" ")

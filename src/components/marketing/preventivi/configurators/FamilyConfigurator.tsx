@@ -50,6 +50,7 @@ import { variantiTecnicheVisibili, riepilogoVariantiTecniche, type VarianteTecni
 import { variantiBestInfissi, modelloBestInfissi } from "@/lib/listino/bestInfissiVarianti";
 
 import { VariantiTecnicheProdotto } from "@/components/listino/VariantiTecnicheProdotto";
+import { SchedaModelloBestInfissi } from '@/components/listino/SchedaModelloBestInfissi';
 
 interface FamilyConfiguratorProps {
   confirmLabel?: string;
@@ -213,7 +214,9 @@ export function FamilyConfigurator({
   const avvisi = [
     ...pricing.warnings,
     ...(!pricing.fuori_listino && misureValide && pricing.unit_price_vendita <= 0
-      ? ["Il prezzo di questo prodotto non è impostato nel listino: scrivilo nella riga del preventivo."]
+      ? [family.modalita_prezzo_base === 'griglia'
+          ? 'Griglia prezzo da completare: questo prodotto non può essere aggiunto finché il listino non contiene il prezzo per la configurazione scelta.'
+          : "Il prezzo di questo prodotto non è impostato nel listino: scrivilo nella riga del preventivo."]
       : []),
   ];
 
@@ -310,6 +313,7 @@ export function FamilyConfigurator({
 
   return (
     <div className="space-y-4">
+      <SchedaModelloBestInfissi famiglia={famigliaCompleta} />
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="max-sm:-ml-2 max-sm:h-8">
           <ArrowLeft className="mr-1 h-4 w-4" /> Prodotti
@@ -425,7 +429,7 @@ export function FamilyConfigurator({
           className={`space-y-1 rounded-md border px-3 py-2 text-xs ${
             pricing.fuori_listino
               ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
-              : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300 max-sm:hidden"
+              : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
           }`}
         >
           {avvisi.map((a) => (

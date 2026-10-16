@@ -368,16 +368,13 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
 }
 
 export async function deleteOrderCascading(orderId: string, companyId: string): Promise<void> {
-  // Cancellazione a cascata ATOMICA lato DB (RPC delete_order_cascading):
-  // pre-check blockers (fatture/costi/scadenze) + delete di tutte le tabelle
-  // figlie + delete commessa, tutto in UNA transazione. Prima erano 10+ delete
-  // via Promise.all senza rollback → in caso di errore la commessa restava
-  // svuotata a metà. companyId è ora OBBLIGATORIO e lo scoping company è
-  // imposto server-side: l'ownership check non è più skippabile.
-  // Cast `as any`: la RPC non è ancora nei types generati (migration non applicata).
-  const { error } = await (supabase as any).rpc("delete_order_cascading", {
+  // Nome mantenuto per i chiamanti esistenti: l'azione ora sposta nel cestino.
+  // Controlli azienda, permesso e movimenti effettivi sono atomici lato database.
+  // Rate previste e righe restano conservate per il ripristino.
+  const { error } = await (supabase as any).rpc("set_order_trashed", {
     p_order_id: orderId,
     p_company_id: companyId,
+    p_trashed: true,
   });
   if (error) throw error;
 }

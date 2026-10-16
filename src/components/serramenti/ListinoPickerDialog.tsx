@@ -24,6 +24,7 @@
  * commerciale (UX policy).
  */
 import { VariantiTecnicheProdotto } from "@/components/listino/VariantiTecnicheProdotto";
+import { SchedaModelloBestInfissi } from '@/components/listino/SchedaModelloBestInfissi';
 import { variantiBestInfissi } from "@/lib/listino/bestInfissiVarianti";
 import { variantiTecnicheVisibili, riepilogoVariantiTecniche, snapshotVariantiTecniche, riprendiVariantiTecniche } from "@/lib/listino/variantiTecnicheConfermate";
 import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/components/serramenti/MisureForma";
@@ -975,6 +976,7 @@ export function ListinoPickerDialog({
               </Card>
             )}
 
+            {famigliaRiga && <SchedaModelloBestInfissi famiglia={famigliaRiga} />}
             {famigliaRiga && <VariantiTecnicheProdotto famiglia={famigliaRiga} selezione={axisSelection} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />}
 
             {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}

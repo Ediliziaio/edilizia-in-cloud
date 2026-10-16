@@ -169,6 +169,16 @@ jobs:
           src/test/logic/variantiTecnicheConfermate.test.ts
           src/test/logic/verificaVarianti.test.ts
           src/test/logic/manodoperaEsplicita.test.ts
+          src/test/logic/bestInfissiLinee.test.ts
+          src/test/logic/bestInfissiRiordinoDatabase.test.ts
+          src/test/logic/riordinaModelli.test.ts
+          src/test/ui/catalogoPreventivoUX.test.tsx
+
+      - name: Run recoverable worksite deletion regressions
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/ordersTrash.test.ts
+          src/test/ui/ordersTrashConfirm.test.tsx
 
       - name: Run auth session regression tests
         run: >-

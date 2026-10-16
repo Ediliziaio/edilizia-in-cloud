@@ -1,0 +1,37 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFileSync} from 'node:fs';
+export const TRASH_COMPANY='10000000-0000-4000-8000-000000000001';
+export const TRASH_ORDER='10000000-0000-4000-8000-000000000002';
+export const ORDERS_TRASH_MIGRATION='supabase/migrations/20281016150613_commesse_cestino_con_permesso.sql';
+export async function ordersTrashDatabase(){
+ const db=new PGlite();
+ await db.exec(`create schema auth;create role anon;create role authenticated;
+ create type public.app_role as enum('super_admin');
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.user',true),'')::uuid$$;
+ create function public.get_my_company_id() returns uuid language sql stable as $$select nullif(current_setting('test.company',true),'')::uuid$$;
+ create function public.has_role(uuid,public.app_role) returns boolean language sql stable as $$select coalesce(current_setting('test.admin',true),'false')='true'$$;
+ create function public.utente_bloccato() returns boolean language sql stable as $$select coalesce(current_setting('test.blocked',true),'false')='true'$$;
+ create function public.utente_e_cliente_esterno() returns boolean language sql stable as $$select coalesce(current_setting('test.external',true),'false')='true'$$;
+ create function public.aziende_con_permesso(text) returns uuid[] language sql stable as $$select case when current_setting('test.permission',true)='true' then array[public.get_my_company_id()] else array[]::uuid[] end$$;
+ create function public.can_see_order(uuid,uuid,uuid) returns boolean language sql stable as $$select coalesce(current_setting('test.visible',true),'true')='true'$$;
+ create table orders(id uuid primary key,company_id uuid,assigned_to uuid,destination_warehouse_id uuid,parent_contract_id uuid,deleted_at timestamptz,deleted_by uuid,total_amount numeric,description text,order_code text,deposit_paid boolean,deposit_2_paid boolean,balance_paid boolean,financing_paid boolean);
+ create table order_employees(order_id uuid,hours_worked numeric,total_cost numeric);
+ create table order_external_teams(order_id uuid,total_cost numeric);
+ create table order_salespeople(order_id uuid,is_paid boolean);
+ create table invoices(id uuid,order_id uuid);
+ create table documenti_fiscali(id uuid,ordine_id uuid,deleted_at timestamptz);
+ create table fattura_ordine(ordine_id uuid);
+ create table company_costs(order_id uuid);
+ create table purchase_orders(order_id uuid);
+ create table contratti_subappalto(order_id uuid);
+ create table stock_units(reserved_order_id uuid,delivered_to_order_id uuid);
+ create table order_installments(id uuid default gen_random_uuid(),order_id uuid,amount numeric,is_paid boolean default false,invoice_id uuid,documento_fiscale_id uuid);
+ create table campo_rapportini(order_id uuid,stato text);
+ create table order_items(order_id uuid,price numeric,deposit_paid boolean default false);
+ select set_config('test.company','${TRASH_COMPANY}',false),set_config('test.user','10000000-0000-4000-8000-000000000003',false),set_config('test.permission','true',false);
+ insert into orders(id,company_id,total_amount,order_code,description) values('${TRASH_ORDER}','${TRASH_COMPANY}',1234.56,'PROVA-1','Commessa locale di prova');
+ insert into order_installments(order_id,amount) values('${TRASH_ORDER}',100),('${TRASH_ORDER}',1134.56);
+ insert into order_items(order_id,price) values('${TRASH_ORDER}',1234.56);`);
+ await db.exec(readFileSync(ORDERS_TRASH_MIGRATION,'utf8'));
+ return db;
+}

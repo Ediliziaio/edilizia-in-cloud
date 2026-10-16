@@ -101,6 +101,7 @@ export default function CustomerOrders() {
         )
         .eq("company_id", companyId)
         .eq("customer_id", user!.id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(100);
 
@@ -137,6 +138,7 @@ export default function CustomerOrders() {
           head: true,
         })
         .eq("orders.customer_id", user!.id)
+        .is("orders.deleted_at", null)
         .eq("is_paid", false)
         .gte("expected_date", now)
         .lte("expected_date", in7days);
@@ -218,7 +220,8 @@ export default function CustomerOrders() {
           status:order_statuses(name, color, icon)
         `
         )
-        .eq("orders.customer_id", user!.id)
+        .eq("order.customer_id", user!.id)
+        .is("order.deleted_at", null)
         .order("changed_at", { ascending: false })
         .limit(5);
 

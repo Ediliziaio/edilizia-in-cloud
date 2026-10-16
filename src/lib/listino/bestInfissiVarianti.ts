@@ -1,20 +1,13 @@
 import type { FamilyWithAxes } from '@/types/articleFamily';
 import type { VarianteTecnicaConfermata } from './variantiTecnicheConfermate';
 import { verificaVarianti } from './verificaVarianti';
+import { lineaBestInfissi } from './bestInfissiLinee';
 
 const BEST_INFISSI = '421f4929-04bc-406d-b0fd-3ff4d57a64ee';
 const QFORT = 'https://qfort.it/finestre/';
 const ANGER = 'https://www.portefinestreanger.it/prodotti/infissi-in-legno-alluminio/';
-const MODELLI: Record<string, string> = {
-  'a1405c07-659d-45a5-bd00-584f0e4f6ed0':'4Stars',
-  '5066bc5e-0bc7-4826-8c27-dd81e014767d':'Epiq',
-  '2fffb7ed-e5ee-457d-9de0-f950b23eff0e':'Arrogance',
-  '27fce4ed-2e45-4834-8348-0973a49a0089':'5Stars',
-  'f23795ea-5821-4259-b854-61c59360f817':'Legno-Alluminio',
-  '8db9814d-c202-42a0-922c-c24272d633c6':'Agreen Home',
-};
 export function modelloBestInfissi(famiglia: FamilyWithAxes): string | null {
-  return famiglia.company_id === BEST_INFISSI ? MODELLI[famiglia.macrocategoria_id ?? ''] ?? null : null;
+  return lineaBestInfissi(famiglia);
 }
 const variante = (codice: string, nome: string, fonte: string, nomi: readonly string[]): VarianteTecnicaConfermata => ({
   codice, nome, fonte, valori: nomi.map((nome, i) => ({codice: `${codice}_${i + 1}`, nome})),

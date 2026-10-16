@@ -1,0 +1,16 @@
+import {describe,it,expect} from 'vitest';
+import {riordinaModelli, type PianoRiordinoModelli} from '@/lib/listino/riordinaModelli';
+import {articoloEsempio,asseEsempio,valoreEsempio} from '@/lib/listino/esempiListino';
+import {costruisciListino} from '@/lib/listino/lineeListino';
+const f=articoloEsempio('f','Finestra 1 Anta',{macrocategoria_id:'serie',company_id:'esempio',modalita_prezzo_base:'griglia',axes:[asseEsempio('colore','Colore',[valoreEsempio('v','Pellicolato',{maggiorazione_tipo:'fisso_mq',maggiorazione_valore:150})])]});
+const catalogo: Parameters<typeof riordinaModelli>[0]={famiglie:[f],macrocategorie:[{id:'serie',nome:'Serie A',tipologia:'serramenti',verticali_abilitati:['serramentista']}],categorie:[]};
+const piano:PianoRiordinoModelli={companyId:'esempio',serramenti:{id:'serr',nome:'Serramenti',tipologia:'serramenti',verticali_abilitati:['serramentista']},modelli:[{macroId:'serie',categoriaId:'cat-serie',nome:'Serie A'}],assegnazioni:{}};
+describe('Riordino modelli serramenti',()=>{
+ it('ricompone Serramenti → modello → tipologie nel navigatore esistente',()=>{const r=riordinaModelli(catalogo,piano);const aree=costruisciListino(r.famiglie,r.macrocategorie,r.categorie);expect(aree).toHaveLength(1);expect(aree[0].tipologie).toHaveLength(1);expect(aree[0].tipologie[0].linee[0].nome).toBe('Serie A');expect(aree[0].tipologie[0].linee[0].righe[0].famiglia.id).toBe('f');});
+ it('preserva ID, prezzi e tutte le opzioni senza mutare la sorgente',()=>{const original=structuredClone(catalogo);const r=riordinaModelli(catalogo,piano);expect(r.famiglie[0]).toEqual({...f,macrocategoria_id:'serr',categoria_id:'cat-serie'});expect(catalogo).toEqual(original);expect(r.famiglie[0].axes).toBe(f.axes);expect(r.famiglie[0].modalita_prezzo_base).toBe('griglia');});
+ it('riporta la serie nella descrizione senza perdere il testo originale',()=>{const r=riordinaModelli(catalogo,{...piano,scriviModelloInDescrizione:true});expect(r.famiglie[0].descrizione).toBe([f.descrizione,'Modello: Serie A'].filter(Boolean).join('\n'));expect(r.famiglie[0].prezzo_base_vendita).toBe(f.prezzo_base_vendita);});
+ it('ferma un catalogo di un’altra azienda',()=>{expect(()=>riordinaModelli(catalogo,{...piano,companyId:'altra'})).toThrow('una sola azienda');});
+ it('non deduce assegnazioni di prodotti orfani',()=>{const orphan: typeof f={...f,id:'orfano',macrocategoria_id:null};expect(riordinaModelli({...catalogo,famiglie:[orphan]},piano).famiglie[0]).toEqual(orphan);});
+ it('consente una riassegnazione esplicita conservando l’articolo originale',()=>{const orphan: typeof f={...f,id:'orfano',macrocategoria_id:null};const r=riordinaModelli({...catalogo,famiglie:[orphan]},{...piano,assegnazioni:{orfano:{macroId:'serr',categoriaId:'cat-serie'}}});expect(r.famiglie[0].id).toBe('orfano');expect(r.famiglie[0].categoria_id).toBe('cat-serie');});
+ it('rifiuta riferimenti di destinazione inesistenti e categorie duplicate',()=>{expect(()=>riordinaModelli(catalogo,{...piano,assegnazioni:{f:{macroId:'errata',categoriaId:'cat-serie'}}})).toThrow('Destinazione');expect(()=>riordinaModelli({...catalogo,categorie:[{id:'cat-serie',nome:'Già presente',macrocategoria_id:'serie'}]},piano)).toThrow('già presente');});
+});

@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useCatalogItems } from "@/hooks/useCatalogItems";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
+import { useCatalogAree } from '@/hooks/useCatalogAree';
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { CatalogCategory, CatalogItem } from "@/types/catalogItem";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
@@ -57,6 +58,8 @@ export function ProductPicker({
   onToggleItem,
 }: Props) {
   const [cerca, setCerca] = useState("");
+  const [filtroLinea, setFiltroLinea] = useState({ambito, nome:''});
+  const linea = filtroLinea.ambito === ambito ? filtroLinea.nome : '';
   const [filtroCategoria, setFiltroCategoria] = useState({ ambito, id: "" });
   const [filtroPagina, setFiltroPagina] = useState({ ambito, numero: 0 });
   const categoria = filtroCategoria.ambito === ambito ? filtroCategoria.id : "";
@@ -64,6 +67,7 @@ export function ProductPicker({
   const setPagina = (numero: number) => setFiltroPagina({ ambito, numero });
   const categorieQuery = useCatalogCategories();
   const categorie = categorieQuery.data ?? CATEGORIE_VUOTE;
+  const macros = useCatalogAree().data ?? [];
   const { items: tutti, isLoading, error, refetch } = useCatalogItems();
   const items = prodotti ?? tutti;
   const isMobile = useIsMobile();
@@ -73,10 +77,11 @@ export function ProductPicker({
       items.filter(
         (i) =>
           (!categoriaId ||
-            categoriaProdottoCatalogo(i, categorie).id === categoriaId) &&
-          corrispondeProdottoCatalogo(i, categorie, cerca),
+            categoriaProdottoCatalogo(i, categorie, macros).id === categoriaId) &&
+          (!linea || dettagliProdottoCatalogo(i,categorie,macros).linea === linea) &&
+          corrispondeProdottoCatalogo(i, categorie, cerca, macros),
       ),
-    [items, categorie, categoriaId, cerca],
+    [items, categorie, macros, categoriaId, cerca, linea],
   );
   const paginaCorrente = Math.min(
     pagina,
@@ -96,7 +101,7 @@ export function ProductPicker({
       { id: string; nome: string; conteggio: number }
     >();
     for (const item of items) {
-      const c = categoriaProdottoCatalogo(item, categorie);
+      const c = categoriaProdottoCatalogo(item, categorie, macros);
       const gruppo = gruppi.get(c.id) ?? { ...c, conteggio: 0 };
       gruppo.conteggio++;
       gruppi.set(c.id, gruppo);
@@ -108,7 +113,8 @@ export function ProductPicker({
           ? -1
           : a.nome.localeCompare(b.nome, "it"),
     );
-  }, [items, categorie]);
+  }, [items, categorie, macros]);
+  const linee = [...new Set(items.map(i => dettagliProdottoCatalogo(i,categorie,macros).linea).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'it'));
   const nomeCategoria =
     category?.nome ??
     categorieNavigabili.find((c) => c.id === categoriaId)?.nome ??
@@ -200,6 +206,10 @@ export function ProductPicker({
                 </button>
               )}
             </div>
+            {linee.length > 0 && <select aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
+              <option value="">Tutte le linee</option>
+              {linee.map(nome=><option key={nome} value={nome}>{nome}</option>)}
+            </select>}
             {!category && (
               <select
                 aria-label="Filtra per categoria"
@@ -272,6 +282,7 @@ export function ProductPicker({
                   variant="link"
                   onClick={() => {
                     setCerca("");
+                    setFiltroLinea({ambito,nome:''});
                     cambiaCategoria("");
                   }}
                 >
@@ -310,7 +321,7 @@ export function ProductPicker({
                   </div>
                 )}
                 {visibili.map((item) => {
-                  const d = dettagliProdottoCatalogo(item, categorie);
+                  const d = dettagliProdottoCatalogo(item, categorie, macros);
                   return (
                     <div
                       key={`${item.source}-${item.id}`}

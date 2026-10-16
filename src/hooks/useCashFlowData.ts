@@ -47,6 +47,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
           order:orders!inner(id, order_code, company_id, customer:profiles!orders_customer_id_fkey(first_name, last_name))
         `)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .lte("expected_date", endDate)
         .order("position", { ascending: true })
         .limit(1000);
@@ -71,6 +72,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data as ExternalTeamPayment[];
@@ -93,6 +95,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data || [];
@@ -136,6 +139,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .in("status", ["da_ordinare", "ordinato"])
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data || [];
@@ -167,6 +171,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data || [];
@@ -230,6 +235,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data || [];
@@ -252,6 +258,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       return data || [];
@@ -279,6 +286,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .limit(1000);
       if (error) throw error;
       // Filter only items with at least one payment made
@@ -330,14 +338,14 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
-        .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_code)")
+        .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_code, deleted_at)")
         .eq("company_id", companyId!)
         .in("status", ["da_pagare", "parziale"])
         .lte("due_date", endDate)
         .order("due_date", { ascending: true })
         .limit(1000);
       if (error) throw error;
-      return data || [];
+      return (data || []).filter(row => !row.order_id || (row.orders && row.orders.deleted_at == null));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
