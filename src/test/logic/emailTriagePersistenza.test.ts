@@ -28,7 +28,7 @@ const client = () => ({
         const params = [...Object.values(values), ...filters.map(([,v])=>v)];
         const sql = `UPDATE email_inbox SET ${keys.map((k,i)=>`${k}=$${i+1}`).join(',')} WHERE ${filters.map(([k],i)=>`${k}=$${keys.length+i+1}`).join(' AND ')} AND ai_processed_at IS NULL RETURNING id`;
         const rows = (await db.query<{id:string}>(sql,params)).rows;
-        return {data:rows[0]??null,error:null};
+        return {data:rows[0]??null,error:null as null};
       },
     }; return q;
   }}),
@@ -38,7 +38,7 @@ const row = async () => (await db.query<{ai_triage_attempts:number;ai_processed_
 describe('triage: claim, persistenza e tentativi limitati',()=>{
   it('newsletter viene salvata e conta come successo solo dopo persistenza',async()=>{
     expect((await salvaTriage(client(),id,company,async()=>result)).state).toBe('saved');
-    expect(await row()).toMatchObject({ai_category:'newsletter',status:'triaged',ai_triage_attempts:1,ai_error:null});
+    expect(await row()).toMatchObject({ai_category:'newsletter',status:'triaged',ai_triage_attempts:1,ai_error:null as null});
   });
   it('due worker eseguono una sola classificazione',async()=>{
     const classify=vi.fn(async()=>result);
