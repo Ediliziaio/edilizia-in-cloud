@@ -750,7 +750,7 @@ export function FinancialSummary({
                 >
                   <SelectTrigger><SelectValue placeholder="Seleziona numero rate" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Da confermare · nessuna rata impostata</SelectItem>
+                    {daContratto && <SelectItem value="0">Da confermare · nessuna rata impostata</SelectItem>}
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                       <SelectItem key={n} value={n.toString()}>
                         {n === 1 ? "1 (solo Saldo, nessun acconto)" : `${n} rate (${n - 1} ${n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)`}
