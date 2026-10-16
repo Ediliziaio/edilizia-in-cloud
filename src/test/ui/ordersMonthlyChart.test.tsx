@@ -12,11 +12,11 @@ vi.mock("recharts", () => ({
   Line: ({ name }: { name: string }) => (
     <span data-testid="series">{name}</span>
   ),
-  CartesianGrid: () => null,
-  ReferenceLine: () => null,
-  Tooltip: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
+  CartesianGrid: (): null => null,
+  ReferenceLine: (): null => null,
+  Tooltip: (): null => null,
+  XAxis: (): null => null,
+  YAxis: (): null => null,
 }));
 import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 beforeEach(() => {
