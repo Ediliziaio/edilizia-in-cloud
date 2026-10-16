@@ -31,6 +31,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { salvaTriage, type TriageResult } from "./persistenza.ts";
 
 interface IngestBody {
   from: { email: string; name?: string };
@@ -105,14 +106,6 @@ Output JSON ESATTO:
   "extracted": { ... },
   "suggested_action": "..."
 }`;
-
-interface TriageResult {
-  category: string;
-  priority: string;
-  summary: string;
-  extracted: Record<string, unknown>;
-  suggested_action: string;
-}
 
 // Enum CHIUSI: l'LLM può sbagliare o inventare un valore fuori lista. Validiamo
 // SEMPRE prima di scrivere in DB, così la UI/i filtri non ricevono mai categorie
@@ -408,47 +401,27 @@ async function processIngest(
   }
 
   // Triage immediato (best-effort)
-  const result = await triageOneEmail(
+  const outcome = await salvaTriage(supa, inserted.id, companyId, () => triageOneEmail(
     supa, inserted.id, companyId,
     body.subject ?? "", body.text ?? "", body.from.email,
-  );
-
-  if (result) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supa as any).from("email_inbox").update({
-      ai_category: result.category,
-      ai_priority: result.priority,
-      ai_summary: result.summary?.substring(0, 200),
-      ai_extracted: result.extracted ?? {},
-      ai_suggested_action: result.suggested_action,
-      ai_processed_at: new Date().toISOString(),
-      status: "triaged",
-    }).eq("id", inserted.id);
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supa as any).from("email_inbox").update({
-      ai_error: "triage failed",
-      ai_processed_at: new Date().toISOString(),
-    }).eq("id", inserted.id);
-  }
+  ));
+  const result = outcome.state === 'saved' ? outcome.result : null;
 
   return new Response(JSON.stringify({
     success: true, email_id: inserted.id, triaged: result !== null,
     category: result?.category, priority: result?.priority,
-  }), { headers: cors });
+  }), { headers: cors, status: outcome.state === 'failed' ? 202 : 200 });
 }
 
 async function processTriagePending(
   supa: SupabaseClient,
   body: TriageBody,
 ): Promise<Response> {
-  const limit = Math.min(body.limit ?? 10, 50);
+  const requested = Number(body.limit ?? 10);
+  const limit = Number.isFinite(requested) ? Math.max(1, Math.min(Math.floor(requested), 50)) : 10;
   const dal = new Date(Date.now() - FINESTRA_TRIAGE_GIORNI * 24 * 60 * 60 * 1000).toISOString();
-  // `ai_processed_at IS NULL` = mai tentato. Senza questo filtro, un'email che
-  // fallisce sempre il triage resta status='new' e viene ripescata a ogni run
-  // → loop infinito + starvation delle email nuove dietro. Così ogni email
-  // riceve UN tentativo, poi resta parcheggiata con ai_error (visibile in UI)
-  // invece di intasare la coda.
+  // Tre tentativi massimi con backoff; lease persistente per recuperare un crash
+  // senza analisi concorrenti e senza ripagare la stessa email a ogni cron.
   //
   // Solo posta in arrivo degli ultimi FINESTRA_TRIAGE_GIORNI, la più recente
   // per prima. Finché in config.toml mancava la voce di questa funzione il
@@ -465,6 +438,9 @@ async function processTriagePending(
     .select("id, company_id, subject, raw_text, from_email")
     .eq("status", "new")
     .is("ai_processed_at", null)
+    .lt("ai_triage_attempts", 3)
+    .or(`ai_triage_retry_at.is.null,ai_triage_retry_at.lte.${new Date().toISOString()}`)
+    .or(`ai_triage_claimed_at.is.null,ai_triage_claimed_at.lt.${new Date(Date.now()-600_000).toISOString()}`)
     .eq("mailbox_folder", "inbox")
     .gte("received_at", dal)
     .order("received_at", { ascending: false })
@@ -480,36 +456,19 @@ async function processTriagePending(
 
   let triaged = 0;
   let failed = 0;
+  let skipped = 0;
   for (const row of pending ?? []) {
-    const result = await triageOneEmail(
+    const outcome = await salvaTriage(supa, row.id, row.company_id, () => triageOneEmail(
       supa, row.id, row.company_id,
       row.subject ?? "", row.raw_text ?? "", row.from_email,
-    );
-    if (result) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supa as any).from("email_inbox").update({
-        ai_category: result.category,
-        ai_priority: result.priority,
-        ai_summary: result.summary?.substring(0, 200),
-        ai_extracted: result.extracted ?? {},
-        ai_suggested_action: result.suggested_action,
-        ai_processed_at: new Date().toISOString(),
-        status: "triaged",
-      }).eq("id", row.id);
-      triaged++;
-    } else {
-      // Marca il tentativo fallito così non rientra nella coda (vedi filtro sopra).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supa as any).from("email_inbox").update({
-        ai_error: "triage failed",
-        ai_processed_at: new Date().toISOString(),
-      }).eq("id", row.id);
-      failed++;
-    }
+    ));
+    if (outcome.state === 'saved') triaged++;
+    else if (outcome.state === 'failed') failed++;
+    else skipped++;
   }
 
   return new Response(JSON.stringify({
-    processed: (pending ?? []).length, triaged, failed,
+    processed: triaged + failed, triaged, failed, skipped,
   }), { headers: { "Content-Type": "application/json" } });
 }
 

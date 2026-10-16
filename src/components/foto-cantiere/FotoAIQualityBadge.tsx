@@ -16,7 +16,7 @@
  * ogni foto nuova caricata, dando risposta visiva immediata sull'allineamento
  * sicurezza/qualità del cantiere.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -78,16 +78,19 @@ export function FotoAIQualityBadge({
   variant = "compact",
   className,
 }: Props) {
-  const [optimisticAnalyzed, setOptimisticAnalyzed] = useState(false);
+  const autoAttempt = useRef<string | null>(null);
 
   // Fetch corrente stato AI della foto
   const { data: foto, refetch } = useQuery({
-    queryKey: ["foto-ai-quality", fotoId],
+    queryKey: ["foto-ai-quality", companyId, fotoId],
+    enabled: !!fotoId && !!companyId,
+    retry: false,
     queryFn: async (): Promise<FotoQualityRow | null> => {
       const { data, error } = await supabase
         .from("foto_cantiere" as never)
-        .select("id, ai_qualita_score, ai_qualita_livello, ai_dpi_compliance, ai_problemi, ai_riassunto, ai_analyzed_at")
+        .select("id, ai_qualita_score, ai_qualita_livello, ai_dpi_compliance, ai_problemi:ai_problemi_rilevati, ai_riassunto, ai_analyzed_at:ai_analizzata_at")
         .eq("id", fotoId)
+        .eq("company_id", companyId)
         .maybeSingle();
       if (error || !data) return null;
       return data as unknown as FotoQualityRow;
@@ -114,11 +117,12 @@ export function FotoAIQualityBadge({
   // Auto-trigger una sola volta se foto è caricata ma non ancora analizzata
   useEffect(() => {
     if (!foto) return;
-    if (optimisticAnalyzed) return;
+    const identity = `${companyId}:${fotoId}`;
+    if (autoAttempt.current === identity) return;
     if (foto.ai_qualita_score != null || foto.ai_analyzed_at != null) return;
     if (analyze.isPending) return;
     if (!autoAnalyze) return;
-    setOptimisticAnalyzed(true);
+    autoAttempt.current = identity;
     analyze.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [foto, autoAnalyze]);
