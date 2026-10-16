@@ -1,6 +1,6 @@
 import { valutaCopertura } from "@/lib/indicatoriGuida";
 import { describe, expect, it } from "vitest";
-import { registeredCostAmount, classifyWorkOrders, isLateWork, recordedMonthIncome, scheduledMonthFlows, type WorkOrder } from "@/lib/cruscottoMetrics";
+import { upcomingWorkDeliveries, registeredCostAmount, classifyWorkOrders, isLateWork, recordedMonthIncome, scheduledMonthFlows, type WorkOrder } from "@/lib/cruscottoMetrics";
 import { eAperto } from "@/lib/comeStiamoAndando";
 const now = new Date(2026, 9, 16, 12);
 const statuses = [{id:"start",position:1},{id:"done",position:2},{id:"help",position:3,is_support_phase:true}];
@@ -59,3 +59,8 @@ describe("cruscotto: registrato e previsto",()=>{
 it("nei flussi applica l’IVA registrata per costo, rispettando esenzioni e arrotondamento",()=>{expect(registeredCostAmount({amount:100,vat_rate:22})).toBe(122);expect(registeredCostAmount({amount:100,vat_rate:0})).toBe(100);expect(registeredCostAmount({amount:100,vat_rate:null})).toBe(100);expect(scheduledMonthFlows([],[{amount:100,due_date:"2026-10-16",vat_rate:22}],now).outgoing).toBe(122);});
 
 it("la copertura di Sintesi e Finanza non diventa negativa quando la cassa è negativa",()=>{const result=valutaCopertura(-390967,true,115791);expect(result.valore).toBe(0);expect(result.stato).toBe("allarme");expect(result.dettaglio).toContain("negativo");});
+
+it("le consegne previste non scompaiono quando una commessa aperta ha già una fine lavori pianificata",()=>{
+ const rows=classifyWorkOrders([order({expected_date:"2026-10-17",work_end_date:"2026-10-18"}),order({id:"b",current_status_id:"done",expected_date:"2026-10-17"}),order({id:"c",expected_date:"2026-10-24"})],statuses);
+ expect(upcomingWorkDeliveries(rows,"2026-10-16","2026-10-23")).toBe(1);
+});

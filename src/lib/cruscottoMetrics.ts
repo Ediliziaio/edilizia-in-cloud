@@ -67,3 +67,7 @@ export function recordedMonthIncome(rows: Array<{amount: number | null; is_paid:
   const until = format(new Date(today.getFullYear(), today.getMonth() + 1, 1), "yyyy-MM-dd");
   return rows.reduce((sum, row) => row.is_paid && row.paid_date && row.paid_date.slice(0, 10) >= from && row.paid_date.slice(0, 10) < until && row.paid_date.slice(0, 10) <= format(today, "yyyy-MM-dd") ? sum + safeNumber(row.amount) : sum, 0);
 }
+
+export function upcomingWorkDeliveries(orders: Pick<WorkSnapshot, "work_state" | "expected_date">[], from: string, until: string): number {
+  return orders.filter(o => o.work_state === "open" && !!o.expected_date && o.expected_date >= from && o.expected_date <= until).length;
+}

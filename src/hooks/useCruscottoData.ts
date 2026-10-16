@@ -1,4 +1,4 @@
-import { isLateWork, scheduledMonthFlows, recordedMonthIncome, registeredCostAmount } from "@/lib/cruscottoMetrics";
+import { isLateWork, scheduledMonthFlows, recordedMonthIncome, registeredCostAmount, upcomingWorkDeliveries } from "@/lib/cruscottoMetrics";
 import { useCruscottoWorkOrders } from "@/hooks/useCruscottoWorkOrders";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useQuery } from "@tanstack/react-query";
@@ -361,21 +361,16 @@ export function useCruscottoData() {
       const weekEnd = addDays(now, 7);
       const weekEndStr = format(weekEnd, "yyyy-MM-dd");
 
-      const [costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
+      const [costsRes, appointmentsRes] = await Promise.all([
         supabase.from("company_costs").select("amount, due_date, vat_rate")
           .eq("company_id", companyId!).eq("is_paid", false)
           .gte("due_date", todayStr).lte("due_date", weekEndStr),
-        supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!)
-          .is("deleted_at", null)
-          .gte("expected_date", todayStr).lte("expected_date", weekEndStr)
-          .is("work_end_date", null),
         excludeArchivedOrders(supabase.from("appointments").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .eq("is_blocked_slot", false)
           .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr), archivedIds, "order_id"),
       ]);
-      throwIfSupabaseError(costsRes.error, deliveriesRes.error, appointmentsRes.error);
+      throwIfSupabaseError(costsRes.error, appointmentsRes.error);
 
       let dueCosts = 0;
       costsRes.data?.forEach(c => { dueCosts += registeredCostAmount(c); });
@@ -383,7 +378,7 @@ export function useCruscottoData() {
       return {
         dueCosts,
         dueCostsCount: costsRes.data?.length || 0,
-        deliveries: deliveriesRes.count || 0,
+        deliveries: 0,
         appointments: appointmentsRes.count || 0,
       };
     },
@@ -408,8 +403,8 @@ export function useCruscottoData() {
       }
     });
 
-    return { ...base, incomingPayments, incomingPaymentsCount };
-  }, [rawWeeklyData, paymentsData]);
+    return { ...base, deliveries: upcomingWorkDeliveries(workQuery.data ?? [], todayStr, weekEndStr), incomingPayments, incomingPaymentsCount };
+  }, [rawWeeklyData, paymentsData, workQuery.data]);
 
   // Today focus filter state (separate from main filters)
   const [todayDateFrom, setTodayDateFrom] = useState<string>(format(new Date(), "yyyy-MM-dd"));
