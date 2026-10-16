@@ -11,6 +11,8 @@
  * I numeri arrivano da `useCruscottoData`, che c'era già: questa pagina non
  * rifà le query, le mette in fila.
  */
+import { isLateWork } from "@/lib/cruscottoMetrics";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -23,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowRight, Banknote, HardHat, Clock, TrendingDown, CheckCircle2, Info } from "lucide-react";
-import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, eInRitardo } from "@/lib/comeStiamoAndando";
+import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, type CantiereMargine, type VoceAttenzione } from "@/lib/comeStiamoAndando";
 
 /** Un numero grosso con la sua riga di contesto. Il contesto non è decorazione. */
 function Numero({
@@ -74,43 +76,44 @@ function Numero({
 export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione?: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { operations, finance, todayData, companyTargets, isLoading, error } = useCruscottoData();
+  const { operations, finance, todayData, companyTargets, workOrders, isLoading, error } = useCruscottoData();
 
   // Marginalità dei cantieri: la vista esiste già ed è quella che alimenta
   // Marginalità cantieri. Qui serve solo per i cantieri APERTI.
-  const { data: cantieri = [], isLoading: cantieriLoading, error: cantieriError } = useQuery<CantiereMargine[]>({
+  const { data: cantieriRaw = [], isLoading: cantieriLoading, error: cantieriError } = useQuery<Omit<CantiereMargine, "work_state">[]>({
     queryKey: ["come-stiamo-andando-marginalita", companyId],
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
       const archivedIds = await loadArchivedOrderIds(companyId!);
-      const { data, error: err } = await excludeArchivedOrders(supabase
+      return readAllOrderRows<Omit<CantiereMargine, "work_state">>((from, to) => excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
         .select("id, order_code, description, cliente_nome, margine, margine_perc, preventivo_totale, consuntivo, work_start_date, work_end_date")
-        .eq("company_id", companyId!)
-        .limit(1000), archivedIds);
-      if (err) throw err;
-      return (data ?? []) as CantiereMargine[];
+        .eq("company_id", companyId!).order("id").range(from, to), archivedIds));
     },
   });
 
+  const cantieri = useMemo<CantiereMargine[]>(() => {
+    const byId = new Map(workOrders.map(o => [o.id, o]));
+    return cantieriRaw.map(c => ({ ...c, work_state: byId.get(c.id ?? "")?.work_state ?? "unknown" }));
+  }, [cantieriRaw, workOrders]);
   const margini = useMemo(() => margineCantieriAperti(cantieri), [cantieri]);
-  const inRitardo = useMemo(() => cantieri.filter((c) => eInRitardo(c)), [cantieri]);
+  const inRitardo = useMemo(() => workOrders.filter((c) => isLateWork(c)), [workOrders]);
 
   const incassi = useMemo(
     () => andamentoIncassi(
-      finance.thisMonthIncome ?? 0,
-      companyTargets?.monthly_revenue_target ?? null,
+      finance.collectedThisMonth ?? 0,
+      null, // A revenue target is not a collection forecast.
     ),
-    [finance.thisMonthIncome, companyTargets?.monthly_revenue_target],
+    [finance.collectedThisMonth],
   );
 
   /** L'unico elenco: cosa richiede attenzione oggi, e dove si va a rimediare. */
   const attenzioni = useMemo(() => {
     const voci: VoceAttenzione[] = [];
 
-    const scadutoEuro = todayData?.overdueAmount ?? operations.overdueAmount ?? 0;
-    const scadutoQuanti = todayData?.overdueCount ?? operations.overduePayments ?? 0;
+    const scadutoEuro = operations.overdueAmount ?? 0;
+    const scadutoQuanti = operations.overduePayments ?? 0;
     if (scadutoQuanti > 0) {
       voci.push({
         id: "scaduto",
@@ -232,14 +235,14 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
         <div className="grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-4">
           <Numero
             icona={Banknote}
-            etichetta="Incassato questo mese"
+            etichetta="Incassato commesse · mese"
             valore={formatCurrency(incassi.incassato)}
             tono={incassi.sottoRitmo === true ? "attenzione" : incassi.sottoRitmo === false ? "buono" : "neutro"}
             contesto={
               incassi.previsione == null ? (
                 // Nessuna pagina delle impostazioni scrive la previsione (companies.monthly_revenue_target): finché non
                 // c'è un posto dove metterla, qui è solo una constatazione, senza rimando.
-                "Nessuna previsione impostata"
+                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data escluse dal mese · IVA inclusa` : "Rate registrate per data pagamento · IVA inclusa"
               ) : (
                 <>
                   <Progress value={Math.min(100, incassi.percentuale ?? 0)} className="my-1 h-1.5" />
@@ -251,7 +254,7 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
           />
           <Numero
             icona={HardHat}
-            etichetta="Margine cantieri aperti"
+            etichetta="Margine cantieri avviati"
             valore={margini.marginePerc == null ? "—" : `${margini.marginePerc.toFixed(1)}%`}
             tono={
               margini.marginePerc == null ? "neutro"
@@ -268,9 +271,9 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
           <Numero
             icona={TrendingDown}
             etichetta="Scaduto da incassare"
-            valore={formatCurrency(todayData?.overdueAmount ?? operations.overdueAmount ?? 0)}
-            tono={(todayData?.overdueCount ?? operations.overduePayments ?? 0) > 0 ? "male" : "buono"}
-            contesto={`${todayData?.overdueCount ?? operations.overduePayments ?? 0} scadenze oltre il termine`}
+            valore={formatCurrency(operations.overdueAmount ?? 0)}
+            tono={(operations.overduePayments ?? 0) > 0 ? "male" : "buono"}
+            contesto={`${operations.overduePayments ?? 0} scadenze oltre il termine`}
           />
           <Numero
             icona={Clock}

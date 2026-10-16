@@ -18,7 +18,7 @@ export function PrimaNotaScadenzarioWidget() {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Prima Nota Saldo */}
       <Card>
-        <CardContent className="p-3 pt-0 pt-4 pb-3">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-primary" />
@@ -56,11 +56,11 @@ export function PrimaNotaScadenzarioWidget() {
 
       {/* Scadenzario urgenze */}
       <Card>
-        <CardContent className="p-3 pt-0 pt-4 pb-3">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-primary" />
-              <p className="text-sm font-medium">Scadenze</p>
+              <p className="text-sm font-medium">Scadenzario · entrate e uscite</p>
             </div>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate("/azienda/scadenzario")}>
               Vai <ArrowRight className="h-3 w-3" />

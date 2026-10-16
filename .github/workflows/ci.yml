@@ -240,6 +240,12 @@ jobs:
           src/test/ui/ordersUnavailableCosts.test.tsx
           src/test/ui/useURLFiltersPiuSetterDiFila.test.tsx
 
+      - name: Run dashboard economics and operational UI regressions
+        run: >-
+          TZ=Europe/Rome bunx vitest run --maxWorkers=2
+          src/test/logic/cruscottoMetrics.test.ts
+          src/test/logic/comeStiamoAndando.test.ts
+          src/test/ui/cruscottoFinanzaOperations.test.tsx
       - name: Run cash forecast regression tests
         run: >-
           TZ=Europe/Rome bunx vitest run

@@ -1,3 +1,6 @@
+import { isLateWork, scheduledMonthFlows, recordedMonthIncome, registeredCostAmount } from "@/lib/cruscottoMetrics";
+import { useCruscottoWorkOrders } from "@/hooks/useCruscottoWorkOrders";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
@@ -49,6 +52,11 @@ export interface FinanceData {
   thisMonthOutflow: number;
   pendingRevenue: number;
   supplierDebt: number;
+  collectedThisMonth?: number | null;
+  priorReceivables?: number;
+  priorPayables?: number;
+  collectedUndatedCount?: number;
+  costsMissingVatCount?: number;
 }
 
 export interface WeeklyAgendaData {
@@ -150,59 +158,57 @@ export function useCruscottoData() {
   });
 
   // Installments — fires independently, no waterfall
-  const { data: paymentsData, error: paymentsError } = useQuery({
+  const { data: paymentsData, isLoading: paymentsLoading, error: paymentsError } = useQuery({
     queryKey: queryKeys.cruscotto.installments(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      return readAllOrderRows<InstallmentRow>((from, to) => supabase
         .from("order_installments")
-        .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
-        .eq("order.company_id", companyId!)
-        .is("order.deleted_at", null)
-        .eq("is_paid", false)
-        .limit(5000);
-      if (error) throw error;
-      return data as InstallmentRow[];
+        .select("id, amount, is_paid, expected_date, order:orders!inner(company_id)")
+        .eq("order.company_id", companyId!).eq("is_paid", false)
+        .order("id").range(from, to));
     },
     enabled: !!companyId,
     staleTime: 120_000,
   });
 
-  // Operations data — fires immediately, NO dependency on paymentsData
-  const { data: rawOpsData, isLoading: opsLoading, error: opsError } = useQuery({
-    queryKey: queryKeys.cruscotto.operations(companyId, filters.statusId),
-    queryFn: async () => {
-      const now = new Date();
-      const todayStr = format(now, "yyyy-MM-dd");
-
-      let activeOrdersQuery = supabase.from("orders").select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!).is("deleted_at", null);
-      if (filters.statusId) activeOrdersQuery = activeOrdersQuery.eq("current_status_id", filters.statusId);
-
-      const [activeOrdersRes, lateOrdersRes, openTicketsRes] = await Promise.all([
-        activeOrdersQuery,
-        supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!)
-          .is("deleted_at", null)
-          .lt("expected_date", todayStr)
-          .is("work_end_date", null),
-        supabase.from("tickets").select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!).eq("status", "aperto"),
-      ]);
-      throwIfSupabaseError(activeOrdersRes.error, lateOrdersRes.error, openTicketsRes.error);
-
-      return {
-        activeOrders: activeOrdersRes.count || 0,
-        lateOrders: lateOrdersRes.count || 0,
-        openTickets: openTicketsRes.count || 0,
-      };
-    },
+  const workQuery = useCruscottoWorkOrders(companyId);
+  const { data: ticketCount = 0, isLoading: opsLoading, error: opsError } = useQuery({
+    queryKey: [...queryKeys.cruscotto.operations(companyId, filters.statusId), "tickets-v2"],
     enabled: !!companyId,
     staleTime: 120_000,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("tickets").select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!).eq("status", "aperto");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+  const todayDate = format(new Date(), "yyyy-MM-dd");
+  const nextMonth = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1), "yyyy-MM-dd");
+  const collectionsQuery = useQuery({
+    queryKey: ["cruscotto", "recorded-income-v1", companyId, monthStart, todayDate],
+    enabled: !!companyId,
+    staleTime: 120_000,
+    queryFn: async () => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const [rows, undated] = await Promise.all([readAllOrderRows<{amount: number; is_paid: boolean; paid_date: string | null}>((from, to) => supabase
+        .from("order_installments").select("id, amount, is_paid, paid_date, order:orders!inner(company_id)")
+        .eq("order.company_id", companyId!).eq("is_paid", true)
+        .gte("paid_date", monthStart).lt("paid_date", nextMonth).lte("paid_date", todayDate).order("id").range(from, to)),
+        supabase.from("order_installments").select("id, order:orders!inner(company_id)", { count: "exact", head: true })
+          .eq("order.company_id", companyId!).eq("is_paid", true).is("paid_date", null),
+      ]);
+      if (undated.error) throw undated.error;
+      return { amount: recordedMonthIncome(rows), undated: undated.count ?? 0 };
+    },
   });
 
   // Merge ops + payments via useMemo (no waterfall)
   const opsData = useMemo<OperationsData>(() => {
-    const base = rawOpsData || { activeOrders: 0, lateOrders: 0, openTickets: 0 };
+    const open = (workQuery.data ?? []).filter(o => o.work_state === "open" && (!filters.statusId || o.current_status_id === filters.statusId));
+    const base = { activeOrders: open.length, lateOrders: open.filter(o => isLateWork(o)).length, openTickets: ticketCount };
     const todayStr = format(new Date(), "yyyy-MM-dd");
     let overduePayments = 0;
     let overdueAmount = 0;
@@ -214,15 +220,12 @@ export function useCruscottoData() {
       }
     });
     return { ...base, overduePayments, overdueAmount };
-  }, [rawOpsData, paymentsData]);
+  }, [workQuery.data, ticketCount, filters.statusId, paymentsData]);
 
   // Finance data
   const { data: rawFinanceData, isLoading: financeLoading, error: financeError } = useQuery({
-    queryKey: queryKeys.cruscotto.finance(companyId, dateRange.from.toISOString(), dateRange.to.toISOString()),
+    queryKey: [...queryKeys.cruscotto.finance(companyId, dateRange.from.toISOString(), dateRange.to.toISOString()), "scheduled-month-v2"],
     queryFn: async () => {
-      const now = new Date();
-      const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const thisMonthEndStr = format(thisMonthEnd, "yyyy-MM-dd");
       const dateFromStr = dateRange.from.toISOString();
       const dateToStr = dateRange.to.toISOString();
       const durationMs = dateRange.to.getTime() - dateRange.from.getTime();
@@ -230,22 +233,21 @@ export function useCruscottoData() {
       const prevToStr = new Date(dateRange.from.getTime() - 1).toISOString();
 
       const [currentOrdersRes, prevOrdersRes, costsRes] = await Promise.all([
-        supabase.from("orders")
+        readAllOrderRows<OrderCostRow>((from, to) => supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .gte("created_at", dateFromStr).lte("created_at", dateToStr)
-          .limit(5000),
-        supabase.from("orders")
+          .order("id").range(from, to)),
+        readAllOrderRows<OrderCostRow>((from, to) => supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .gte("created_at", prevFromStr).lte("created_at", prevToStr)
-          .limit(5000),
-        supabase.from("company_costs").select("amount, due_date, is_paid")
-          .eq("company_id", companyId!).eq("is_paid", false),
+          .order("id").range(from, to)),
+        readAllOrderRows<{amount: number; due_date: string | null; is_paid: boolean; vat_rate: number | null}>((from, to) => supabase.from("company_costs").select("id, amount, due_date, is_paid, vat_rate")
+          .eq("company_id", companyId!).eq("is_paid", false).order("id").range(from, to)),
       ]);
-      throwIfSupabaseError(currentOrdersRes.error, prevOrdersRes.error, costsRes.error);
 
       const calc = (orders: OrderCostRow[]) => {
         let totalRevenue = 0;
@@ -268,74 +270,43 @@ export function useCruscottoData() {
         return { revenue: totalRevenue, margin };
       };
 
-      const curr = calc((currentOrdersRes.data ?? []) as unknown as OrderCostRow[]);
-      const prev = calc((prevOrdersRes.data ?? []) as unknown as OrderCostRow[]);
-
-      let supplierDebt = 0;
-      let unpaidCosts = 0;
-      costsRes.data?.forEach(cost => {
-        const amount = safeNumber(cost.amount);
-        supplierDebt += amount;
-        if (cost.due_date && cost.due_date <= thisMonthEndStr) unpaidCosts += amount;
-      });
+      const curr = calc(currentOrdersRes);
+      const prev = calc(prevOrdersRes);
 
       return {
         revenueThisMonth: curr.revenue,
         revenuePrevMonth: prev.revenue,
         marginThisMonth: curr.margin,
         marginPrevMonth: prev.margin,
-        unpaidCosts,
-        supplierDebt,
+        costs: costsRes,
+        supplierDebt: costsRes.reduce((sum, cost) => sum + registeredCostAmount(cost), 0),
       };
     },
     enabled: !!companyId,
     staleTime: 120_000,
   });
 
-  // Merge finance + payments via useMemo
-  // P2.5 fix — il calcolo precedente sommava TUTTE le rate scadute (senza
-  // limite inferiore) in `thisMonthIncome` e in `pendingRevenue`, quindi
-  // su dati storici inconsistenti (es. €1.4M legacy installments) la
-  // "Cassa netta mese" diventava assurda. Ora:
-  //  - `thisMonthIncome` = rate attese SOLO dentro il mese corrente
-  //    (start of month → end of month). È un valore *previsionale* e va
-  //    presentato come tale.
-  //  - `pendingRevenue` = totale residuo non incassato (rimane unfiltered
-  //    perché rappresenta il credito complessivo).
+  // Financial history remains included even when a job is archived. Operational counts exclude it.
   const financeData = useMemo<FinanceData>(() => {
-    const base = rawFinanceData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, unpaidCosts: 0, supplierDebt: 0 };
-    const now = new Date();
-    const thisMonthStartStr = format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
-    const thisMonthEndStr = format(new Date(now.getFullYear(), now.getMonth() + 1, 0), "yyyy-MM-dd");
-
-    let pendingRevenue = 0;
-    let thisMonthIncome = 0;
-    paymentsData?.forEach((inst) => {
-      const amount = safeNumber(inst.amount);
-      if (amount > 0) {
-        pendingRevenue += amount;
-        if (
-          inst.expected_date &&
-          inst.expected_date >= thisMonthStartStr &&
-          inst.expected_date <= thisMonthEndStr
-        ) {
-          thisMonthIncome += amount;
-        }
-      }
-    });
-
+    const base = rawFinanceData;
+    const flows = scheduledMonthFlows(paymentsData ?? [], base?.costs ?? []);
     return {
-      revenueThisMonth: base.revenueThisMonth,
-      revenuePrevMonth: base.revenuePrevMonth,
-      marginThisMonth: base.marginThisMonth,
-      marginPrevMonth: base.marginPrevMonth,
-      cashFlowNet: safeNumber(thisMonthIncome - base.unpaidCosts),
-      thisMonthIncome,
-      thisMonthOutflow: base.unpaidCosts,
-      pendingRevenue,
-      supplierDebt: base.supplierDebt,
+      revenueThisMonth: base?.revenueThisMonth ?? 0,
+      revenuePrevMonth: base?.revenuePrevMonth ?? 0,
+      marginThisMonth: base?.marginThisMonth ?? 0,
+      marginPrevMonth: base?.marginPrevMonth ?? 0,
+      cashFlowNet: flows.net,
+      thisMonthIncome: flows.incoming,
+      thisMonthOutflow: flows.outgoing,
+      costsMissingVatCount: (base?.costs ?? []).filter(c => c.vat_rate == null).length,
+      collectedUndatedCount: collectionsQuery.data?.undated ?? 0,
+      priorReceivables: flows.priorReceivables,
+      priorPayables: flows.priorPayables,
+      collectedThisMonth: collectionsQuery.data?.amount ?? null,
+      pendingRevenue: (paymentsData ?? []).reduce((sum, row) => sum + Math.max(0, safeNumber(row.amount)), 0),
+      supplierDebt: base?.supplierDebt ?? 0,
     };
-  }, [rawFinanceData, paymentsData]);
+  }, [rawFinanceData, paymentsData, collectionsQuery.data]);
 
   // Invoice stats from RPC
   const { data: invoiceStats, error: invoiceStatsError } = useQuery({
@@ -379,7 +350,7 @@ export function useCruscottoData() {
 
   // Weekly agenda — fires immediately, NO dependency on paymentsData
   const { data: rawWeeklyData, isLoading: weeklyLoading, error: weeklyError } = useQuery({
-    queryKey: queryKeys.cruscotto.weekly(companyId),
+    queryKey: [...queryKeys.cruscotto.weekly(companyId), "gross-costs-v2"],
     queryFn: async () => {
       const archivedIds = await loadArchivedOrderIds(companyId!);
       const now = new Date();
@@ -388,7 +359,7 @@ export function useCruscottoData() {
       const weekEndStr = format(weekEnd, "yyyy-MM-dd");
 
       const [costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
-        supabase.from("company_costs").select("amount, due_date")
+        supabase.from("company_costs").select("amount, due_date, vat_rate")
           .eq("company_id", companyId!).eq("is_paid", false)
           .gte("due_date", todayStr).lte("due_date", weekEndStr),
         supabase.from("orders").select("id", { count: "exact", head: true })
@@ -404,7 +375,7 @@ export function useCruscottoData() {
       throwIfSupabaseError(costsRes.error, deliveriesRes.error, appointmentsRes.error);
 
       let dueCosts = 0;
-      costsRes.data?.forEach(c => { dueCosts += safeNumber(c.amount); });
+      costsRes.data?.forEach(c => { dueCosts += registeredCostAmount(c); });
 
       return {
         dueCosts,
@@ -448,7 +419,7 @@ export function useCruscottoData() {
 
   // Today data — parameterized by todayDateFrom/todayDateTo for leads & appointments
   const { data: todayData, isLoading: todayLoading, error: todayError } = useQuery<TodayData>({
-    queryKey: queryKeys.cruscotto.today(companyId, todayDateFrom, todayDateTo),
+    queryKey: [...queryKeys.cruscotto.today(companyId, todayDateFrom, todayDateTo), "financial-history-v2"],
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -469,12 +440,11 @@ export function useCruscottoData() {
         supabase.from("order_installments")
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
-          .is("order.deleted_at", null)
           .eq("is_paid", false)
           .lt("expected_date", nowStr)
           .limit(5000),
         supabase.from("company_costs")
-          .select("id, name, amount, due_date, category")
+          .select("id, name, amount, due_date, category, vat_rate")
           .eq("company_id", companyId!)
           .eq("is_paid", false)
           .gte("due_date", nowStr)
@@ -491,13 +461,12 @@ export function useCruscottoData() {
         supabase.from("order_installments")
           .select("amount, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
-          .is("order.deleted_at", null)
           .eq("is_paid", true)
           .gte("paid_date", todayDateFrom)
           .lte("paid_date", todayDateTo),
         // Costs paid in range
         supabase.from("company_costs")
-          .select("amount")
+          .select("amount, vat_rate")
           .eq("company_id", companyId!)
           .eq("is_paid", true)
           .gte("paid_date", todayDateFrom)
@@ -515,12 +484,12 @@ export function useCruscottoData() {
 
       const overdueCount = overdueRes.data?.length ?? 0;
       const overdueAmount = ((overdueRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
-      const suppliersDue = (suppliersRes.data ?? []) as Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+      const suppliersDue = (suppliersRes.data ?? []).map(row => ({ ...row, amount: registeredCostAmount(row) }));
       const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
 
       const revenueInRange = ((revenueRes.data ?? []) as Array<{ total_amount: number | null }>).reduce((s, r) => s + safeNumber(r.total_amount), 0);
       const collectedInRange = ((collectedRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
-      const costsPaidInRange = ((costsPaidRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
+      const costsPaidInRange = (costsPaidRes.data ?? []).reduce((s, r) => s + registeredCostAmount(r), 0);
 
       return {
         leadsToday: leadsRes.count ?? 0,
@@ -603,6 +572,8 @@ export function useCruscottoData() {
   }, []);
 
   const firstError =
+    workQuery.error ||
+    collectionsQuery.error ||
     marketingError ||
     paymentsError ||
     opsError ||
@@ -617,7 +588,11 @@ export function useCruscottoData() {
   return {
     marketing: marketingData || null,
     operations: opsData,
+    workOrders: workQuery.data ?? [],
     finance: financeData,
+    financeError: financeError || paymentsError || collectionsQuery.error,
+    operationsError: workQuery.error || opsError || paymentsError,
+    todayError,
     weeklyAgenda,
     invoiceStats: invoiceStats || null,
     companyTargets: companyTargets || null,
@@ -626,7 +601,7 @@ export function useCruscottoData() {
     todayDateFrom,
     todayDateTo,
     updateTodayDateRange,
-    isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading || todayLoading || forecastLoading,
+    isLoading: paymentsLoading || collectionsQuery.isLoading || workQuery.isLoading || marketingLoading || opsLoading || financeLoading || weeklyLoading || todayLoading || forecastLoading,
     error: firstError as Error | null,
     filters,
     updateFilters,

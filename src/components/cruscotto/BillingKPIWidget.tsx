@@ -54,7 +54,7 @@ export function BillingKPIWidget() {
       onClick: () => navigate("/azienda/documenti/report"),
     },
     {
-      label: "Incassato Mese",
+      label: "Incassato fatture · mese",
       value: formatCurrencyCompact(kpi.incassato_mese),
       sub: "Pagamenti registrati nel mese · IVA inclusa",
       icon: Wallet,
@@ -63,15 +63,15 @@ export function BillingKPIWidget() {
     {
       label: "Da Incassare",
       value: formatCurrencyCompact(kpi.da_incassare_totale),
-      sub: `Totale residuo aperto`,
+      sub: `Residuo fatture aperte`,
       icon: Clock,
       onClick: () => navigate("/azienda/documenti?tab=incassi"),
     },
     {
       label: "Scaduto",
-      value: formatCurrencyCompact(kpi.scaduto),
+      value: formatCurrency(kpi.scaduto),
       sub: kpi.fatture_scadute_count > 0
-        ? `${kpi.fatture_scadute_count} fatture scadute`
+        ? `${kpi.fatture_scadute_count} fatture scadute · Gestisci →`
         : "Nessuna scaduta",
       icon: AlertTriangle,
       alert: kpi.scaduto > 0,
@@ -82,20 +82,23 @@ export function BillingKPIWidget() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Receipt className="w-3.5 h-3.5" />
           Fatturazione — {meseLabel}
         </span>
+        <div className="flex flex-wrap items-center gap-2">
+        {kpi.fatture_in_bozza > 0 && <Button variant="outline" size="sm" className="h-9 gap-1 text-xs text-amber-700" onClick={() => navigate("/azienda/documenti?stato=bozza")}><FileText className="h-3.5 w-3.5" />{kpi.fatture_in_bozza} bozze · Emetti</Button>}
         <Button
           variant="ghost"
           size="sm"
-          className="text-xs h-7 gap-1"
+          className="text-xs h-9 gap-1"
           onClick={() => navigate("/azienda/documenti")}
         >
           Vai alla fatturazione
           <ChevronRight className="w-3 h-3" />
         </Button>
+        </div>
       </div>
 
       {kpi.fatture_importate_incassi_da_verificare > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">Il fatturato include lo storico importato. Per {kpi.fatture_importate_incassi_da_verificare} fatture esterne gli incassi vanno verificati: non sono inclusi automaticamente negli insoluti.</p>}
@@ -109,6 +112,9 @@ export function BillingKPIWidget() {
               "cursor-pointer transition-colors hover:bg-muted/50",
               (c as any).alert && "border-destructive/30 bg-destructive/5"
             )}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.onClick(); } }}
             onClick={c.onClick}
           >
             <CardContent className="p-3">
@@ -141,49 +147,6 @@ export function BillingKPIWidget() {
         ))}
       </div>
 
-      {/* Alerts */}
-      {kpi.fatture_scadute_count > 0 && (
-        <div className="rounded-xl px-4 py-3 flex items-start gap-3 bg-destructive/8 border border-destructive/20">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-destructive">
-              {kpi.fatture_scadute_count} fatture scadute —{" "}
-              {formatCurrency(kpi.scaduto)} da recuperare
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-xs h-7 gap-1"
-            onClick={() => navigate("/azienda/documenti?tab=incassi")}
-          >
-            Gestisci
-            <ChevronRight className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
-
-      {kpi.fatture_in_bozza > 0 && (
-        <div className="rounded-xl px-4 py-3 flex items-start gap-3 bg-amber-500/8 border border-amber-500/20">
-          <FileText className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-              {kpi.fatture_in_bozza} fatture in bozza da emettere
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-xs h-7 gap-1"
-            onClick={() =>
-              navigate("/azienda/documenti?stato=bozza")
-            }
-          >
-            Emetti
-            <ChevronRight className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

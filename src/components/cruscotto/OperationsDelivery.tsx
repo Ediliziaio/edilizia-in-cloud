@@ -12,22 +12,23 @@ interface Props {
   operations: OperationsData;
   weeklyAgenda: WeeklyAgendaData;
   isLoading: boolean;
+  dataError?: unknown;
 }
 
-export const OperationsDelivery = memo(function OperationsDelivery({ operations, weeklyAgenda, isLoading }: Props) {
+export const OperationsDelivery = memo(function OperationsDelivery({ operations, weeklyAgenda, isLoading, dataError }: Props) {
   const items = [
     {
-      label: "Ordini Attivi",
+      label: "Commesse da completare",
       value: operations.activeOrders,
       icon: ClipboardList,
-      link: "/azienda/ordini",
+      link: "/azienda/ordini?anno=all&status=__da_completare__",
       alert: false,
     },
     {
-      label: "Ordini in Ritardo",
+      label: "Commesse in ritardo",
       value: operations.lateOrders,
       icon: AlertTriangle,
-      link: "/azienda/ordini",
+      link: "/azienda/ordini?anno=all&status=__da_completare__",
       alert: operations.lateOrders > 0,
     },
     {
@@ -38,7 +39,7 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
       alert: operations.openTickets > 5,
     },
     {
-      label: "Pagamenti Scaduti",
+      label: "Rate commesse scadute",
       value: operations.overduePayments,
       icon: CreditCard,
       link: "/azienda/ordini",
@@ -46,9 +47,10 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
     },
   ];
 
+  if (dataError) return <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">Situazione commesse non disponibile. Riprova dal messaggio in alto.</p>;
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Operations & Delivery</h3>
+      <h3 className="text-sm font-semibold text-muted-foreground">Situazione commesse · tutti gli anni</h3>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {items.map(item => {
@@ -71,21 +73,12 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
                     {item.value}
                   </div>
                 )}
+                {item.label === "Rate commesse scadute" && !isLoading && <p className="mt-0.5 text-sm font-semibold tabular-nums text-destructive">{fmtCur(operations.overdueAmount)}</p>}
               </Card>
             </Link>
           );
         })}
       </div>
-
-      {/* Overdue amount detail */}
-      {operations.overdueAmount > 0 && (
-        <Card className="p-3 border-destructive/30 bg-destructive/5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Importo Pagamenti Scaduti</span>
-            <span className="text-lg font-bold tabular-nums text-destructive">{fmtCur(operations.overdueAmount)}</span>
-          </div>
-        </Card>
-      )}
 
       {/* Weekly Snapshot */}
       <WeeklySnapshot data={weeklyAgenda} isLoading={isLoading} />

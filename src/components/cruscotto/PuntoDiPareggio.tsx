@@ -432,6 +432,8 @@ export function PuntoDiPareggio() {
             </CardContent>
           </Card>
 
+          <details className="rounded-lg border bg-background">
+            <summary className="cursor-pointer px-3 py-3 text-sm font-medium">Costi fissi e calcolo del pareggio · {formatCurrency(totalFixedCostsMonthly)}/mese</summary>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* ── Sezione C: Breakdown Costi Fissi ──────────────────────── */}
             <Card>
@@ -492,6 +494,7 @@ export function PuntoDiPareggio() {
               </CardContent>
             </Card>
           </div>
+          </details>
 
           {/* ── Sezione D: Storico Anni ──────────────────────────────────── */}
           <Card>

@@ -89,10 +89,10 @@ export default function CruscottoAziendale() {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const {
-    marketing, operations, finance, weeklyAgenda, companyTargets,
+    marketing, operations, finance, workOrders, weeklyAgenda, companyTargets,
     todayData, cashFlowForecast,
     todayDateFrom, todayDateTo, updateTodayDateRange,
-    isLoading, error, filters, updateFilters,
+    isLoading, error, financeError, operationsError, todayError, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
   // P3.3 — persistenza tab attiva tra navigazioni (sessione corrente).
@@ -192,7 +192,7 @@ export default function CruscottoAziendale() {
 
   const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
     const eur = (v: number) =>
-      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true });
     return [
       { key: "venduto", label: "Venduto", color: "hsl(var(--chart-1))", formatter: eur },
       { key: "incassato", label: "Incassato", color: "hsl(var(--chart-3))", formatter: eur },
@@ -206,10 +206,10 @@ export default function CruscottoAziendale() {
     ];
   }, []);
 
-  const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
+  const hasOrders = workOrders.length > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
   const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
-  const isDataEmpty = !hasOrders && !hasLeads && !hasCosts;
+  const isDataEmpty = !hasOrders && !hasLeads && !hasCosts && finance.pendingRevenue === 0 && !(finance.collectedThisMonth ?? 0) && !billingKPI?.fatture_emesse_mese;
 
   // Il riepilogo direzionale a una voce sola e' stato rimosso con il blocco che
   // lo mostrava: ripeteva il primo punto di "Da guardare oggi", che ora apre la
@@ -230,9 +230,9 @@ export default function CruscottoAziendale() {
       // P2.5 — il valore è previsionale (entrate attese del mese - costi
       // pianificati). Il vecchio nome "Cassa netta mese" suggeriva un dato
       // consuntivo a rendiconto.
-      label: "Saldo previsto mese",
+      label: "Saldo scadenze mese",
       value: `${finance.cashFlowNet >= 0 ? "+" : ""}${eur(finance.cashFlowNet)}`,
-      hint: `attesi ${eur(finance.thisMonthIncome)} · pianificati ${eur(finance.thisMonthOutflow)}`,
+      hint: `Rate aperte ${eur(finance.thisMonthIncome)} − costi aperti ${eur(finance.thisMonthOutflow)} · esclusi arretrati precedenti`,
       icon: Wallet,
       tone: finance.cashFlowNet >= 0 ? "green" as ExecutiveTone : "red" as ExecutiveTone,
       drilldown: null as DrilldownType,
@@ -370,7 +370,7 @@ export default function CruscottoAziendale() {
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                          <span className="block truncate text-lg font-bold tabular-nums text-white sm:text-xl">{item.value}</span>
+                          <span className="block truncate text-lg font-bold tabular-nums text-white sm:text-xl">{isLoading ? "…" : item.value}</span>
                           <span className="mt-0.5 block text-xs leading-snug text-blue-50/70">{item.hint}</span>
                         </span>
                       </div>
@@ -446,7 +446,8 @@ export default function CruscottoAziendale() {
                       className="cursor-pointer"
                       onClick={(state) => {
                         // Drill-down: click sul mese -> commesse del periodo
-                        const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                        const index = state?.activeTooltipIndex;
+                        const key = index == null ? undefined : executiveTrend[Number(index)]?.key;
                         if (!key) return;
                         const [anno, mese] = key.split("-");
                         navigate(`/azienda/ordini?anno=${anno}&mese=${Number(mese) - 1}`);
@@ -553,7 +554,8 @@ export default function CruscottoAziendale() {
         </SectionErrorBoundary>
       )}
 
-      {!isDataEmpty && (
+      {!perms.isLoading && (
+        // Sezioni consultabili anche senza commesse aperte: restano utili gli incassi e le fatture storiche.
         // Mobile: senza riquadro esterno, la card «I numeri che comandano» ne ha già uno.
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {/* Mobile: niente intestazione e niente cinque schede; resta la sintesi
@@ -563,10 +565,10 @@ export default function CruscottoAziendale() {
               linguette subito sotto («Approfondisci solo quello che ti serve
               ora», «La sintesi resta sopra…»): le linguette bastano. */}
 
-          <Tabs value={isMobile ? "sintesi" : cruscottoTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={cruscottoTab} onValueChange={handleTabChange} className="w-full">
             {/* Mobile: riga unica scorrevole (niente griglia a 3 file con l'ultima
                 voce spaiata). Da sm: griglia a 5 colonne come prima. */}
-            <TabsList className="hidden h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-5">
+            <TabsList className="sticky top-0 z-10 flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:static sm:grid sm:grid-cols-5">
               <TabsTrigger value="sintesi" className="shrink-0 rounded-lg">Sintesi</TabsTrigger>
               <TabsTrigger value="finanza" className="shrink-0 rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
               <TabsTrigger value="operations" className="shrink-0 rounded-lg" disabled={!showOperazioni}>Operations</TabsTrigger>
@@ -593,9 +595,9 @@ export default function CruscottoAziendale() {
               {companyTargets?.monthly_revenue_target && (
                 <SectionErrorBoundary sectionName="Target Mensile">
                   <TargetProgressBar
-                    current={finance.revenueThisMonth}
+                    current={cashFlowForecast?.monthRevenue ?? 0}
                     target={companyTargets.monthly_revenue_target}
-                    label="Target Fatturato Mensile"
+                    label="Target venduto · mese corrente"
                   />
                 </SectionErrorBoundary>
               )}
@@ -628,7 +630,7 @@ export default function CruscottoAziendale() {
                     {/* Incassi su una fascia compatta; bilancio e grafico affiancati sotto. */}
                     <div className="space-y-3">
                       <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
-                      <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+                      <FinanzaCashFlow finance={finance} isLoading={isLoading} dataError={financeError} />
                     </div>
                     <div className="mt-3">
                       <PrimaNotaScadenzarioWidget />
@@ -648,10 +650,10 @@ export default function CruscottoAziendale() {
               {showOperazioni && (
                 <>
                   <SectionErrorBoundary sectionName="Focus Oggi">
-                    <TodayFocus todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />
+                    {todayError ? <p role="alert" className="p-3 text-sm text-destructive">Focus non disponibile. Riprova dal messaggio in alto.</p> : <TodayFocus compactOperations todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />}
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Operazioni">
-                    <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
+                    <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} dataError={operationsError} />
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Marginalità Cantieri">
                     <MarginalitaWidget />

@@ -22,46 +22,46 @@ function cantiere(p: Partial<CantiereMargine>): CantiereMargine {
     id: "1", order_code: null, description: null, cliente_nome: null,
     margine: null, margine_perc: null, preventivo_totale: null,
     consuntivo: null,
-    work_start_date: null, work_end_date: null,
+    work_start_date: null, work_end_date: null, work_state: "open",
     ...p,
   };
 }
 
 describe("eAperto", () => {
   it("cominciato e non ancora finito", () => {
-    expect(eAperto({ work_start_date: "2026-09-01", work_end_date: "2026-09-30" }, OGGI)).toBe(true);
+    expect(eAperto({ work_state: "open", work_start_date: "2026-09-01", work_end_date: "2026-09-30" }, OGGI)).toBe(true);
   });
 
   it("senza data di fine è aperto: la fine non è pianificata, non è passata", () => {
-    expect(eAperto({ work_start_date: "2026-09-01", work_end_date: null }, OGGI)).toBe(true);
+    expect(eAperto({ work_state: "open", work_start_date: "2026-09-01", work_end_date: null }, OGGI)).toBe(true);
   });
 
   it("senza data di inizio NON è aperto: è un contratto, non un cantiere", () => {
     // Mescolarlo falserebbe il margine "di quello che sto facendo adesso".
-    expect(eAperto({ work_start_date: null, work_end_date: "2026-12-31" }, OGGI)).toBe(false);
+    expect(eAperto({ work_state: "open", work_start_date: null, work_end_date: "2026-12-31" }, OGGI)).toBe(false);
   });
 
   it("che comincia più avanti non è aperto oggi", () => {
-    expect(eAperto({ work_start_date: "2026-10-01", work_end_date: null }, OGGI)).toBe(false);
+    expect(eAperto({ work_state: "open", work_start_date: "2026-10-01", work_end_date: null }, OGGI)).toBe(false);
   });
 
-  it("finito ieri non è più aperto; che finisce oggi lo è ancora", () => {
-    expect(eAperto({ work_start_date: "2026-08-01", work_end_date: "2026-09-14" }, OGGI)).toBe(false);
-    expect(eAperto({ work_start_date: "2026-08-01", work_end_date: "2026-09-15" }, OGGI)).toBe(true);
+  it("la data pianificata passata non chiude una commessa ancora aperta", () => {
+    expect(eAperto({ work_state: "open", work_start_date: "2026-08-01", work_end_date: "2026-09-14" }, OGGI)).toBe(true);
+    expect(eAperto({ work_state: "open", work_start_date: "2026-08-01", work_end_date: "2026-09-15" }, OGGI)).toBe(true);
   });
 });
 
 describe("eInRitardo", () => {
   it("cominciato e con la fine già passata", () => {
-    expect(eInRitardo({ work_start_date: "2026-08-01", work_end_date: "2026-09-10" }, OGGI)).toBe(true);
+    expect(eInRitardo({ work_state: "open", work_start_date: "2026-08-01", work_end_date: "2026-09-10" }, OGGI)).toBe(true);
   });
 
   it("senza fine pianificata non è in ritardo: non c'è una scadenza da mancare", () => {
-    expect(eInRitardo({ work_start_date: "2026-08-01", work_end_date: null }, OGGI)).toBe(false);
+    expect(eInRitardo({ work_state: "open", work_start_date: "2026-08-01", work_end_date: null }, OGGI)).toBe(false);
   });
 
-  it("non ancora cominciato non è in ritardo", () => {
-    expect(eInRitardo({ work_start_date: null, work_end_date: "2026-01-01" }, OGGI)).toBe(false);
+  it("anche un lavoro non iniziato può avere una scadenza già superata", () => {
+    expect(eInRitardo({ work_state: "open", work_start_date: null, work_end_date: "2026-01-01" }, OGGI)).toBe(true);
   });
 });
 
@@ -70,7 +70,7 @@ describe("margineCantieriAperti", () => {
     cantiere({ id: "a", work_start_date: "2026-09-01", work_end_date: "2026-09-30", margine: 20_000, preventivo_totale: 200_000, consuntivo: 180_000, margine_perc: 10 }),
     cantiere({ id: "b", work_start_date: "2026-09-01", work_end_date: null, margine: 800, preventivo_totale: 2_000, consuntivo: 1_200, margine_perc: 40 }),
     // chiuso: non deve entrare
-    cantiere({ id: "c", work_start_date: "2026-01-01", work_end_date: "2026-02-01", margine: 999_999, preventivo_totale: 1, margine_perc: 99 }),
+    cantiere({ id: "c", work_state: "completed", work_start_date: "2026-01-01", work_end_date: "2026-02-01", margine: 999_999, preventivo_totale: 1, margine_perc: 99 }),
   ];
 
   it("conta solo gli aperti", () => {
