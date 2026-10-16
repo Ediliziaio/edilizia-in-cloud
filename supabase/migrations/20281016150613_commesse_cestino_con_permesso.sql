@@ -1,4 +1,4 @@
--- Locale, da verificare prima della pubblicazione. Nessuna cancellazione fisica.
+-- Cestino commesse reversibile con il permesso dedicato esistente. Nessuna cancellazione fisica.
 create or replace function public.set_order_trashed(p_order_id uuid, p_company_id uuid, p_trashed boolean)
 returns void language plpgsql security definer set search_path = '' as $$
 declare

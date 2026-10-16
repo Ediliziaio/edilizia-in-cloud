@@ -647,7 +647,7 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
-      toast.success("Commessa eliminata");
+      toast.success("Commessa spostata nel cestino");
       navigate("/azienda/ordini");
     },
     onError: (error) => {

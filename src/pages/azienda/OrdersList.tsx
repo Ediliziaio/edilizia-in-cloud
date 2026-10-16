@@ -746,7 +746,7 @@ function OrdersListInner() {
     onSuccess: () => {
       refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Commessa eliminata", description: "La commessa è stata eliminata con successo" });
+      toast({ title: "Commessa nel cestino", description: "Puoi ripristinarla dal cestino dell’elenco commesse" });
     },
     onError: (error) => {
       toast({
@@ -821,19 +821,19 @@ function OrdersListInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       if (failed === 0) {
         toast({
-          title: "Commesse eliminate",
-          description: `${ok} ordin${ok === 1 ? "e eliminato" : "i eliminati"} con successo`,
+          title: "Commesse nel cestino",
+          description: `${ok} commess${ok === 1 ? "a spostata" : "e spostate"} nel cestino`,
         });
       } else if (ok === 0) {
         toast({
           title: "Eliminazione fallita",
-          description: `Nessuna commessa eliminata. Verifica permessi o riprova.`,
+          description: `Nessuna commessa spostata nel cestino. Verifica permessi o riprova.`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Eliminazione parziale",
-          description: `${ok} eliminati · ${failed} falliti. Le righe fallite sono ancora presenti.`,
+          description: `${ok} nel cestino · ${failed} non spostati. Le righe non spostate sono ancora presenti.`,
           variant: "destructive",
         });
       }
