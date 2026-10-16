@@ -231,7 +231,7 @@ it("le policy commesse attendono gli helper magazzino senza perdere i vincoli di
     ).toEqual({ assigned: true, other: false });
     expect(
       (
-        await db.query(
+        await db.query<{ qual: string }>(
           "select qual from pg_policies where policyname='orders_warehouse_user_view'",
         )
       ).rows[0].qual,
@@ -455,6 +455,34 @@ it("crea il Test Lab prima della policy di maggio senza richiedere l’azienda d
       0,
     );
     expect((await db.query("select * from companies")).rows).toHaveLength(0);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("completa il seed delle fonti normative e il riepilogo per categoria", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth;create table auth.users(id uuid primary key);
+      create table companies(id uuid primary key);create table ai_brain_documents(id uuid primary key);`);
+    const foundation = readFileSync(
+      "supabase/migrations/20260508250000_kb_multilang_and_external_sources.sql",
+      "utf8",
+    );
+    const ddl = foundation.match(
+      /CREATE TABLE IF NOT EXISTS public.ai_kb_external_sources\s*\([\s\S]*?\n\);/,
+    );
+    expect(ddl).not.toBeNull();
+    await db.exec(ddl![0]);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260509220000_kb_seed_external_sources_ue.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (await db.query("select name from ai_kb_external_sources")).rows,
+    ).toHaveLength(5);
   } finally {
     await db.close();
   }
