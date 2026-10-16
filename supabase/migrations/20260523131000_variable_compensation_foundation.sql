@@ -2,6 +2,11 @@
 -- Keeps the current order_salespeople model compatible while opening the domain
 -- to technicians, partners, referrers, external teams and other beneficiaries.
 
+-- Il campo compensation_mode arriva nella fondazione preventivi di ottobre.
+-- Il backfill legge il valore opzionale dalla riga JSON anche negli schemi precedenti.
+SET LOCAL lock_timeout = '3s';
+SET LOCAL statement_timeout = '60s';
+
 CREATE TABLE IF NOT EXISTS public.compensation_beneficiaries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -251,7 +256,7 @@ SELECT
   s.commission_type,
   s.commission_value,
   s.is_active,
-  jsonb_build_object('legacy_salesperson_id', s.id, 'compensation_mode', COALESCE(s.compensation_mode, 'only_commission'))
+  jsonb_build_object('legacy_salesperson_id', s.id, 'compensation_mode', COALESCE(to_jsonb(s)->>'compensation_mode', 'only_commission'))
 FROM public.salespeople s
 ON CONFLICT (company_id, source_type, source_id) DO UPDATE
 SET display_name = EXCLUDED.display_name,

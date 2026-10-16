@@ -699,3 +699,46 @@ it("inizializza i cataloghi render protetti prima dei relativi seed", async () =
     await db.close();
   }
 }, 60000);
+
+it("il backfill compensi supporta anche lo schema precedente a compensation_mode", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth;create role authenticated;create type app_role as enum ('super_admin');
+   create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+   create function has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+   create function has_permission(uuid,text) returns boolean language sql stable as $$select false$$;
+   create function get_user_company_id(uuid) returns uuid language sql stable as $$select null::uuid$$;
+   create function update_updated_at_column() returns trigger language plpgsql as $$begin new.updated_at=now();return new;end$$;
+   create table auth.users(id uuid primary key);create table companies(id uuid primary key);
+   create table orders(id uuid primary key,company_id uuid);
+   create table salespeople(id uuid primary key,company_id uuid,first_name text,last_name text,email text,phone text,commission_type text,commission_value numeric,is_active boolean);
+   create table order_salespeople(id uuid primary key,order_id uuid,salesperson_id uuid,commission_type text,commission_value numeric,commission_amount numeric,deduction_amount numeric,is_paid boolean,payment_expected_date date,paid_date date);
+   insert into companies values ('10000000-0000-4000-8000-000000000001');
+   insert into salespeople values ('10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','Mario','Rossi',null,null,'fixed',10,true);`);
+    const migration = readFileSync(
+      "supabase/migrations/20260523131000_variable_compensation_foundation.sql",
+      "utf8",
+    );
+    await db.exec(migration);
+    expect(
+      (
+        await db.query(
+          "select metadata->>'compensation_mode' as mode from compensation_beneficiaries",
+        )
+      ).rows,
+    ).toEqual([{ mode: "only_commission" }]);
+    await db.exec(
+      "alter table salespeople add column compensation_mode text;insert into salespeople values ('10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','Anna','Verdi',null,null,'fixed',20,true,'fixed_only')",
+    );
+    await db.exec(migration);
+    expect(
+      (
+        await db.query(
+          "select metadata->>'compensation_mode' as mode from compensation_beneficiaries order by source_id",
+        )
+      ).rows,
+    ).toEqual([{ mode: "only_commission" }, { mode: "fixed_only" }]);
+  } finally {
+    await db.close();
+  }
+}, 60000);
