@@ -25,6 +25,21 @@ VALUES
   ('onboarding_wizard',  'Wizard onboarding',        'Mostra checklist onboarding alle nuove aziende',    'global', false, false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Completa il flag email rinviato dalla fondazione di maggio.
+INSERT INTO public.feature_flags (key, label, description, scope, is_active, default_value)
+VALUES (
+  'email_client',
+  'Email Client (Beta)',
+  'Client email integrato stile Gmail: connetti Google/Outlook/IMAP, leggi, classifica con AI, scrivi e invia. Per-utente isolato.',
+  'company',
+  true,
+  false  -- default OFF per tutte le aziende, override esplicito per le abilitate
+)
+ON CONFLICT (key) DO UPDATE SET
+  label = EXCLUDED.label,
+  description = EXCLUDED.description,
+  is_active = true;
+
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION public.set_feature_flags_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$

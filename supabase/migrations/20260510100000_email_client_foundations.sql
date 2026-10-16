@@ -13,12 +13,18 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+SET LOCAL lock_timeout = '3s';
+SET LOCAL statement_timeout = '60s';
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- 1) FEATURE FLAG 'email_client'
 -- ───────────────────────────────────────────────────────────────────────────
 
 -- Catalogo legacy 'feature_flags' (compat hook locale)
+-- Il catalogo legacy viene creato nel 20260709100000.
+DO $email_flag_dependency$
+BEGIN
+ IF to_regclass('public.feature_flags') IS NOT NULL THEN
 INSERT INTO public.feature_flags (key, label, description, scope, is_active, default_value)
 VALUES (
   'email_client',
@@ -32,6 +38,8 @@ ON CONFLICT (key) DO UPDATE SET
   label = EXCLUDED.label,
   description = EXCLUDED.description,
   is_active = true;
+ END IF;
+END $email_flag_dependency$;
 
 -- Catalogo authoritative 'platform_feature_flags' (usato da resolve_company_features
 -- — è da QUESTA tabella che la sidebar legge i flag, non da feature_flags).

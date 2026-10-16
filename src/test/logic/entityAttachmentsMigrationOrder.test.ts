@@ -487,3 +487,78 @@ it("completa il seed delle fonti normative e il riepilogo per categoria", async 
     await db.close();
   }
 }, 60000);
+
+it("ricostruisce il client email prima del catalogo legacy dei flag", async () => {
+  const db = new PGlite();
+  const ddl = (path: string, table: string) => {
+    const match = readFileSync(`supabase/migrations/${path}.sql`, "utf8").match(
+      new RegExp(
+        `CREATE TABLE(?: IF NOT EXISTS)? (?:public\\.)?${table}\\s*\\([\\s\\S]*?\\n\\);`,
+      ),
+    );
+    expect(match, table).not.toBeNull();
+    return match![0];
+  };
+  try {
+    await db.exec(`create schema auth; create schema storage; create role authenticated;create role service_role;
+      create type app_role as enum ('company_admin','super_admin');
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function get_my_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create function is_super_admin() returns boolean language sql stable as $$select false$$;
+      create function has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+      create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;
+      create table auth.users(id uuid primary key);create table companies(id uuid primary key,name text);
+      create table profiles(id uuid primary key,company_id uuid);create table orders(id uuid primary key);
+      create table user_roles(user_id uuid,role text);create table ai_action_proposals(id uuid primary key);
+      create table platform_feature_flags(key text primary key,name text,description text,category text,is_beta boolean,default_value boolean,sort_order int,icon text);
+      create table company_feature_overrides(company_id uuid,feature_key text,is_enabled boolean,override_reason text,override_by uuid,unique(company_id,feature_key));
+      create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint);create table storage.objects(bucket_id text,name text);`);
+    await db.exec(
+      ddl(
+        "20260223070844_72a46932-5604-41ae-97de-f8f3d84abf18",
+        "email_folders",
+      ),
+    );
+    await db.exec(ddl("20260510030000_email_triage_inbox", "email_inbox"));
+    await db.exec(
+      ddl("20260510050000_email_oauth_connections", "email_oauth_connections"),
+    );
+    // La fondazione inbox precedente abilita RLS dopo la CREATE TABLE.
+    await db.exec("alter table email_inbox enable row level security");
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260510100000_email_client_foundations.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260709100000_feature_flags_admin.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await db.query(
+          "select default_value from feature_flags where key='email_client'",
+        )
+      ).rows,
+    ).toEqual([{ default_value: false }]);
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='email_inbox'::regclass",
+        )
+      ).rows[0],
+    ).toEqual({ relrowsecurity: true });
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where tablename='email_threads' and policyname='email_threads_owner'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+  } finally {
+    await db.close();
+  }
+}, 60000);
