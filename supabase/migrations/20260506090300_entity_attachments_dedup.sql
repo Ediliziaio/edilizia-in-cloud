@@ -13,6 +13,9 @@
 DO $attachment_dependency$
 BEGIN
  IF to_regclass('public.entity_attachments') IS NOT NULL THEN
+  -- Limita i lock anche quando la migrazione viene ripetuta su una preview esistente.
+  SET LOCAL lock_timeout = '3s';
+  SET LOCAL statement_timeout = '60s';
 -- Step 1: marca soft-deleted i duplicati pregressi (mantieni il più recente)
 WITH ranked AS (
   SELECT id,

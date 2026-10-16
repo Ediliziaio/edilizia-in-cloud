@@ -76,6 +76,8 @@ COMMENT ON TABLE public.entity_attachments IS
   'Document Linker: polymorphic table to attach a document_uploads to any entity (purchase_orders, orders, suppliers, customers, ...)';
 
 -- Completa il FIX 13 anche quando la migrazione storica precedeva la tabella.
+SET LOCAL lock_timeout = '3s';
+SET LOCAL statement_timeout = '60s';
 -- Step 1: marca soft-deleted i duplicati pregressi (mantieni il più recente)
 WITH ranked AS (
   SELECT id,
