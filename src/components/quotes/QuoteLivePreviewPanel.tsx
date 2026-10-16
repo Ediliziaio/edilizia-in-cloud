@@ -103,7 +103,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
                 {!['nota', 'subtotale'].includes(item.item_category) && <p className="mt-1 text-[10px] text-slate-500">{item.quantity} {item.unit_of_measure || 'pz'}{prices && ` × ${formatCurrency(item.unit_price)}`}{prices && props.showDiscounts && item.discount_percent > 0 && ` · Sconto ${item.discount_percent}%`}</p>}
                 {props.showMeasurements && item.misura_x && item.misura_y ? <p className="text-[10px] text-slate-500">Misure: {item.misura_x} × {item.misura_y} mm</p> : null}
                 {item.item_category === 'subtotale' && !props.manualPrice && <p className="text-right font-semibold">{formatCurrency(subtotaleFinoA(visibleItems, index))}</p>}
-                {item.is_optional && <p className="mt-1 text-[10px] font-medium text-amber-700">Opzionale · escluso dal totale</p>}
+                {item.is_optional && !["nota", "subtotale"].includes(item.item_category) && <p className="mt-1 text-[10px] font-medium text-amber-700">Opzionale · escluso dal totale</p>}
               </div>)}
             </div>}</>}
             <div className="mt-6 space-y-2">

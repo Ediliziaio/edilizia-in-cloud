@@ -1,3 +1,4 @@
+import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
@@ -2690,6 +2691,7 @@ export default function QuoteBuilder() {
               <CardHeader className="max-sm:p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="max-sm:text-base">Prodotti e lavori</CardTitle>
+                  <Button type="button" size="sm" variant="outline" onClick={() => addItemPro("nota")}><StickyNote className="mr-2 h-4 w-4" />Aggiungi descrizione</Button>
                   {preventivatoreUnifiedOn ? (
                     // Sprint A: entry point unificato. Le azioni secondarie
                     // (Riga libera/Sconto/Subtotale) sono dentro il dialog
@@ -2726,7 +2728,7 @@ export default function QuoteBuilder() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
-                            <StickyNote className="h-4 w-4 mr-2" /> Nota
+                            <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
                           </DropdownMenuItem>
                           {tariffe.filter((t) => t.tipo === "trasporto")
                             .length > 0 && (
@@ -2788,7 +2790,7 @@ export default function QuoteBuilder() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
-                            <StickyNote className="h-4 w-4 mr-2" /> Nota
+                            <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => addItemPro("sconto")}
@@ -2963,16 +2965,9 @@ export default function QuoteBuilder() {
                               </Button>
                             </div>
                           ) : isNota ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-start gap-2">
                               <StickyNote className="h-4 w-4 text-amber-500 shrink-0" />
-                              <Input
-                                value={item.name}
-                                onChange={(e) =>
-                                  updateItem(idx, "name", e.target.value)
-                                }
-                                placeholder="Testo nota..."
-                                className="flex-1 border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0"
-                              />
+                              <QuoteDescriptionFields name={item.name} description={item.description || ""} onChange={(field,value)=>updateItem(idx,field,value)} />
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3007,6 +3002,7 @@ export default function QuoteBuilder() {
                                 })()}
                                 <div className="flex-1 min-w-0">
                               {!isSconto && <QuoteLineKindFields item={item} onChange={patch => setItems(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))} />}
+                              {!isSconto && item.unit_price === 0 && <Button type="button" variant="ghost" size="sm" onClick={() => updateItem(idx, "item_category", "nota")}>Usa come descrizione senza prezzo</Button>}
                               {/* Nome a larghezza piena: i campi numerici restano leggibili anche con l'anteprima a destra. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12">

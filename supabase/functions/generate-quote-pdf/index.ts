@@ -1734,7 +1734,7 @@ Deno.serve(async (req) => {
         tipo: { isNota: boolean; isSubtotale: boolean; isChild: boolean; isOptional: boolean },
       ) => {
         if (tipo.isNota) {
-          const righe = righeDi([{ testo: String(item.name || ""), stile: { f: fontItalic, size: 8, c: grigioEdC } }], cImportoR - cDescX);
+          const righe = righeDi([{ testo: [item.name, item.description].filter(Boolean).join("\n"), stile: { f: fontItalic, size: 8, c: grigioEdC } }], cImportoR - cDescX);
           stampaFlusso(righe.map(r => ({ altezza: 10.5, disegna: base => disegnaRiga(page, r, cDescX, base) })), 6, () => {}, 22, true);
           return;
         }
@@ -1870,7 +1870,7 @@ Deno.serve(async (req) => {
 
           // Nota row: italic text only
           if (isNota) {
-            const righe = righeDi([{ testo: String(item.name || ""), stile: { f: fontItalic, size: sz(8), c: grayC } }], itemWidth - 30);
+            const righe = righeDi([{ testo: [item.name, item.description].filter(Boolean).join("\n"), stile: { f: fontItalic, size: sz(8), c: grayC } }], itemWidth - 30);
             stampaFlusso(righe.map(r => ({ altezza: 11, disegna: base => disegnaRiga(page, r, descX, base) })), 6, () => {}, 22, true);
             continue;
           }

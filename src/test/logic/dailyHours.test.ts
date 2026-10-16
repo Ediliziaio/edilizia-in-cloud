@@ -1,0 +1,28 @@
+import { beforeAll,afterAll,beforeEach,afterEach,it,expect } from 'vitest';
+import { createDailyHoursDatabase,HC,HU,HO,HE,HJ } from '../fixtures/dailyHoursDatabase';
+import { dailyHoursError,dailyHoursLines,type DailyHoursRecord } from '@/lib/orders/dailyHours';
+let db:Awaited<ReturnType<typeof createDailyHoursDatabase>>;
+beforeAll(async()=>{db=await createDailyHoursDatabase();},60000);afterAll(async()=>{await db?.close();});
+beforeEach(async()=>{await db.exec('begin');});afterEach(async()=>{await db.exec('rollback');});
+const day='2026-10-01',id='10000000-0000-4000-8000-000000000006',id2='10000000-0000-4000-8000-000000000007';
+async function save(request=id,order=HO,hours=7.5){return(await db.query<{r:any}>('select ufficio_registra_ore($1,$2,$3,$4,$5,$6) r',[request,order,HE,day,hours,'Prova ufficio'])).rows[0].r;}
+async function ledger(){return (await db.query<any>('select * from order_employees')).rows;}
+it('dipendente senza app: la conferma applica trigger reale una sola volta',async()=>{expect(await save()).toMatchObject({stato:'approvato'});expect((await ledger())[0]).toMatchObject({hours_worked:'7.5',total_cost:'187.50'});await save();expect((await ledger())[0].total_cost).toBe('187.50');});
+it('tariffa mancante: ore in attesa, nessun falso costo zero nel registro economico',async()=>{await db.exec('update employees set costo_orario=null');expect(await save()).toMatchObject({stato:'inviato',da_valorizzare:true});expect(await ledger()).toHaveLength(0);});
+it('si completa tariffa e approva: costo applicato una sola volta',async()=>{await db.exec('update employees set costo_orario=null');await save();await db.exec(`update employees set costo_orario=30;update campo_rapportini set stato='approvato' where id='${id}'`);expect((await ledger())[0].total_cost).toBe('225.00');});
+it('un altro inserimento sullo stesso giorno e cantiere non duplica',async()=>{await save();await expect(save(id2)).rejects.toThrow('già ore');});
+it('giornata su due cantieri consentita, costi separati',async()=>{await save(id,HO,4);await save(id2,HJ,3.5);expect(await ledger()).toHaveLength(2);});
+it('24 ore includono anche richieste in attesa',async()=>{await db.exec('update employees set costo_orario=null');await save(id,HO,18);await expect(save(id2,HJ,7)).rejects.toThrow('24 ore');});
+it('annullare storna tariffa storica, non la nuova tariffa',async()=>{await save();await db.exec('update employees set costo_orario=40');await db.query('select ufficio_annulla_ore(id,updated_at) from campo_rapportini where id=$1',[id]);expect((await ledger())[0]).toMatchObject({hours_worked:'0',total_cost:'0'});expect((await db.query<any>('select stato from campo_rapportini')).rows[0].stato).toBe('rifiutato');});
+it('dopo annullamento si può correggere la giornata senza rimuovere la traccia',async()=>{await save();await db.query('select ufficio_annulla_ore(id,updated_at) from campo_rapportini where id=$1',[id]);await save(id2,HO,6);expect((await ledger())[0].total_cost).toBe('150.00');});
+it('annullamento con versione obsoleta rifiutato',async()=>{await save();await expect(db.query('select ufficio_annulla_ore($1,$2)',[id,'2000-01-01'])).rejects.toThrow('cambiata');});
+it.each([0,-1,25,NaN,Infinity,1.111])('ore non valide %s rifiutate',async n=>{await expect(save(id,HO,n)).rejects.toThrow();});
+it('data futura respinta',async()=>{await expect(db.query('select ufficio_registra_ore($1,$2,$3,$4,$5)',[id,HO,HE,'2999-01-01',8])).rejects.toThrow('non futura');});
+it('dipendente di altra azienda respinto',async()=>{await db.exec(`update employees set company_id='${HJ}'`);await expect(save()).rejects.toThrow('Dipendente non disponibile');});
+it('azienda diversa dalla scheda respinta',async()=>{await db.exec(`select set_config('test.company','${HJ}',false)`);await expect(save()).rejects.toThrow('non accessibile');});
+it.each(['can_edit_orders','can_view_orders','can_view_employees','can_view_giornale_lavori'])('conserva il permesso %s',async permission=>{await db.query('select set_config($1,$2,false)',['test.deny_permission',permission]);await expect(save()).rejects.toThrow('permesso');});
+it('solo assegnati: commessa non visibile respinta',async()=>{await db.exec("select set_config('test.visible','false',false)");await expect(save()).rejects.toThrow('permesso');});
+it('anon non esegue RPC',async()=>{await db.exec('set local role anon');await expect(save()).rejects.toThrow('permission denied');});
+it('utente bloccato respinto',async()=>{await db.exec("select set_config('test.blocked','true',false)");await expect(save()).rejects.toThrow('non autorizzata');});
+it('read model non trasforma tariffa assente in zero',()=>{const row:DailyHoursRecord={id,order_id:HO,data_lavoro:day,stato:'inviato',updated_at:'now',ufficio_employee_id:HE,presenze:[{employee_id:HE,ore:8}],presenze_registrate:null,costo_registrato_at:null,note:null};expect(dailyHoursLines([row])[0]).toMatchObject({pending:true,cost:null,hours:8});});
+it('form accetta virgola e non accetta zeri',()=>{expect(dailyHoursError(day,'7,5',HE,HO,'2026-10-16')).toBeNull();expect(dailyHoursError(day,'0',HE,HO,'2026-10-16')).toContain('maggiori');});

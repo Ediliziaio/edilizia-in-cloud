@@ -1,3 +1,4 @@
+import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { useState, useMemo } from "react";
 import { useGiornateSummary, type GiornataWithProfilo } from "@/hooks/useGiornate";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
@@ -89,6 +90,7 @@ export function TabPresenze() {
 
   return (
     <div className="space-y-4">
+      <DailyHoursPanel />
       {/* KPI Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>

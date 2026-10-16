@@ -3,12 +3,13 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 
+vi.mock("@/components/personale/DailyHoursPanel", () => ({ DailyHoursPanel: () => null }));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), retryEmployees: vi.fn(), retryTeams: vi.fn() }));
 vi.mock("@/hooks/useOrderLaborEconomics", () => ({ useOrderLaborEconomics: mocks.read }));
 const employee = { id: "e1", user_id: "u1", first_name: "Mario", last_name: "Rossi", costo_orario: 30 };
 const ledger = { id: "r1", employee_id: "e1", employee, hours_worked: 4, total_cost: 100, cost_preventivo: 120, hourly_rate: 25 };
 const query = (data: unknown[], refetch: unknown) => ({ data, refetch, isPending: false, isFetching: false, isError: false });
-const state = () => ({ allowed: true, readRates: true, employees: query([ledger], mocks.retryEmployees), teams: query([], mocks.retryTeams) });
+const state = () => ({ allowed: true, readRates: true, canCheckPending:true, pendingReports:{data:0,isPending:false,isError:false}, employees: query([ledger], mocks.retryEmployees), teams: query([], mocks.retryTeams) });
 const view = () => render(<MemoryRouter><OrderLaborEconomics orderId="order" /></MemoryRouter>);
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); mocks.read.mockReturnValue(state()); });
@@ -61,3 +62,5 @@ describe("Manodopera e subappalti in Economia e pagamenti", () => {
     expect(screen.queryByRole("button", { name: /Salva|Paga|Approva/ })).not.toBeInTheDocument();
   });
 });
+
+it("rapportini in attesa non mostrano uno scostamento completo",()=>{const s=state();s.pendingReports.data=1;mocks.read.mockReturnValue(s);view();expect(screen.getByText(/Rapportini in attesa: 1/)).toBeInTheDocument();expect(screen.getByText("Scostamento attuale dal budget").parentElement).toHaveTextContent("—");});

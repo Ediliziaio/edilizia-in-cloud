@@ -17,6 +17,8 @@ export interface PhaseAssignment {
   source: AssignmentSource; // employee = order_employees, team = order_external_teams
   phase_id: string | null;
   executor_type: ExecutorType;
+  planned_hours?: number | null;
+  planned_hourly_rate?: number | null;
   employee_id: string | null;
   external_team_id: string | null;
   cost_preventivo: number;
@@ -206,6 +208,8 @@ const db = supabase as any;
 export interface AddAssignmentPayload {
   phase_id: string | null;
   executor_type: ExecutorType;
+  planned_hours?: number | null;
+  planned_hourly_rate?: number | null;
   employee_id: string | null;
   external_team_id: string | null;
   cost_preventivo: number;
@@ -485,6 +489,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           phase_id: a.phase_id,
           total_cost: a.cost_consuntivo,
           cost_preventivo: a.cost_preventivo,
+          planned_hours: a.planned_hours ?? null,
+          planned_hourly_rate: a.planned_hourly_rate ?? null,
           hours_worked: a.hours ?? 0,
           hourly_rate: 0,
           notes: a.notes,

@@ -10,7 +10,7 @@ import type { ExternalLaborRow, LaborLedgerRow } from "@/lib/orders/laborEconomi
 export function useOrderLaborEconomics(orderId: string) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { canViewCosts, canViewEmployees, isLoading } = usePermissions();
+  const { canViewCosts, canViewEmployees, canViewGiornaleLavori, isLoading } = usePermissions();
   const readRates = canViewCosts && canViewEmployees && !isLoading;
   const enabled = !!orderId && !!companyId && canViewCosts && !isLoading;
   const employees = useQuery({
@@ -21,7 +21,7 @@ export function useOrderLaborEconomics(orderId: string) {
         ? "id,user_id,first_name,last_name,costo_orario,gross_salary,inps_rate,monthly_hours"
         : "id,first_name,last_name";
       const { data, error } = await supabase.from("order_employees")
-        .select(`id,employee_id,hours_worked,total_cost,cost_preventivo,hourly_rate,employee:employees(${employeeFields}),orders!inner(company_id)`)
+        .select(`id,employee_id,hours_worked,total_cost,cost_preventivo,planned_hours,planned_hourly_rate,hourly_rate,employee:employees(${employeeFields}),orders!inner(company_id)`)
         .eq("order_id", orderId).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!);
       if (error) throw error;
       return (data ?? []) as unknown as LaborLedgerRow[];
@@ -38,5 +38,9 @@ export function useOrderLaborEconomics(orderId: string) {
       return (data ?? []) as unknown as ExternalLaborRow[];
     },
   });
-  return { employees, teams, readRates, allowed: canViewCosts && !isLoading };
+  const pendingReports = useQuery({
+    queryKey: ["order-labor-pending",orderId,companyId], enabled:enabled && canViewGiornaleLavori === true,
+    queryFn:async()=>{const {count,error}=await supabase.from("campo_rapportini").select("id",{count:"exact",head:true}).eq("order_id",orderId).eq("company_id",companyId!).eq("stato","inviato");if(error)throw error;return count??0;},
+  });
+  return { employees, teams, pendingReports, canCheckPending:canViewGiornaleLavori === true, readRates, allowed: canViewCosts && !isLoading };
 }

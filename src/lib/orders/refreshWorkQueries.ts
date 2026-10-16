@@ -23,6 +23,7 @@ export function refreshWorkQueries(
     "oes-employees",
     "oes-external-teams",
     "order-labor-economics",
+    "order-labor-pending",
     "order-subcontract-economics",
     "order-subcontract-statistics",
     "order-campo-assignments",
