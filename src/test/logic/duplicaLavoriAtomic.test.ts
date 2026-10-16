@@ -20,7 +20,7 @@ beforeEach(async()=>{
 afterEach(async()=>db.exec('rollback'));
 async function rpc(type='commessa',preview=true,hash:string|null=null,keep=false,req=request){return(await db.query<any>('select duplica_lavoro_atomic($1,$2,$3,$4,$5,$6) r',[type,type==='rst'?Q:orderId,keep,preview,hash,req])).rows[0].r;}
 async function copy(type='commessa',keep=false){const p=await rpc(type,true,null,keep);return rpc(type,false,p.impronta,keep);}
-describe('duplicazione locale atomica',()=>{
+describe('duplicazione atomica',()=>{
  it('anteprima riassume materiali, fasi e sottofasi senza creare nulla',async()=>{const p=await rpc();expect(p).toMatchObject({materiali:1,fasi:2,sottofasi:1});expect((await db.query<any>('select count(*) n from orders')).rows[0].n).toBe(1);});
  it('commessa: conserva contratto e struttura, azzera avanzamenti/costi/incassi e scollega origine',async()=>{
   const r=await copy();const o=(await db.query<any>('select * from orders where id=$1',[r.id])).rows[0];expect(Number(o.total_amount)).toBe(10000);expect(o.quote_id).toBeNull();expect(o.fv_progetto_id).toBeNull();expect(o.client_name).toBeNull();expect(o.deposit_paid).toBe(false);expect(o.work_start_date).toBeNull();expect(Number(o.financing_cost)).toBe(0);
@@ -35,6 +35,12 @@ describe('duplicazione locale atomica',()=>{
  it('origine cambiata richiede nuovo riepilogo',async()=>{const p=await rpc();await db.query("update orders set description='Cambiato' where id=$1",[orderId]);await expect(rpc('commessa',false,p.impronta)).rejects.toThrow('cambiata');});
  it('errore sottofase annulla anche la copia e il registro richieste',async()=>{const p=await rpc();await db.exec("alter table order_work_subphases add constraint prova check(not(name='Collaudo' and fatta=false));savepoint tentativo");await expect(rpc('commessa',false,p.impronta)).rejects.toThrow();await db.exec('rollback to tentativo');expect((await db.query<any>('select count(*) n from orders')).rows[0].n).toBe(1);expect((await db.query<any>('select count(*) n from private.work_copy_requests')).rows[0].n).toBe(0);});
  it('solo assegnati non duplica un lavoro altrui',async()=>{await db.exec("select set_config('test.assigned','true',false);select set_config('test.admin','false',false)");await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values($1,$2,true,true)',[U,A]);await expect(rpc()).rejects.toThrow('permesso');});
+ it('visibilità magazzino: rispetta la destinazione originale e rende visibile la copia al creatore',async()=>{
+  await db.exec("select set_config('test.warehouse','true',false);select set_config('test.admin','false',false)");
+  await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders,only_my_warehouse) values($1,$2,true,true,true)',[U,A]);
+  await db.query("update orders set destination_warehouse_id='80000000-0000-0000-0000-000000000001' where id=$1",[orderId]);
+  const r=await copy();expect((await db.query<any>('select can_see_order(id,assigned_to,destination_warehouse_id) visible from orders where id=$1',[r.id])).rows[0].visible).toBe(true);
+ });
  it('utente bloccato respinto',async()=>{await db.exec("select set_config('test.blocked','true',false)");await expect(rpc()).rejects.toThrow('autorizzata');});
  it('azienda secondaria autorizzata supportata senza nuovi permessi',async()=>{await db.exec(`update profiles set company_id='${B}';insert into multi_company_access values('${U}','${A}','active',null,'company_staff');insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values('${U}','${A}',true,true)`);expect((await copy()).id).toBeTruthy();});
  it('chi vede solo le proprie commesse ritrova la copia appena creata',async()=>{await db.exec("select set_config('test.assigned','true',false);select set_config('test.admin','false',false)");await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values($1,$2,true,true)',[U,A]);await db.query('update orders set assigned_to=$1 where id=$2',[U,orderId]);const r=await copy();expect((await db.query<any>('select assigned_to from orders where id=$1',[r.id])).rows[0].assigned_to).toBe(U);});

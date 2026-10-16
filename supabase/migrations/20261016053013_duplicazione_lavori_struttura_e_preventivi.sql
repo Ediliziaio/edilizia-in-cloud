@@ -1,4 +1,4 @@
--- Anteprima locale: duplicazione consapevole, senza consuntivi e senza legami al vecchio cantiere.
+-- Duplicazione consapevole, senza consuntivi e senza legami al vecchio cantiere.
 alter table public.rst_progetti add column if not exists fasi_previste jsonb not null default '[]';
 create schema if not exists private;
 create table if not exists private.work_copy_requests (
@@ -36,7 +36,7 @@ begin
  if p_tipo='commessa' then
   if public.has_permission_for_company(auth.uid(),'can_edit_orders',azienda) is not true
    or public.has_permission_for_company(auth.uid(),'can_view_orders',azienda) is not true
-   or public.can_see_order(p_source_id,(q->>'assigned_to')::uuid,null) is not true then
+   or public.can_see_order(p_source_id,(q->>'assigned_to')::uuid,(q->>'destination_warehouse_id')::uuid) is not true then
    raise exception 'Non hai il permesso di duplicare questa commessa.' using errcode='42501'; end if;
   ordine_origine:=p_source_id;
   select coalesce(jsonb_agg(to_jsonb(i) order by position,id),'[]') into materiali from public.order_items i where order_id=p_source_id;
@@ -48,7 +48,7 @@ begin
   select coalesce(jsonb_agg(to_jsonb(v) order by v.ordine,v.id),'[]') into voci from public.rst_computo_voci v where progetto_id=p_source_id and company_id=azienda;
   if (q->>'ordine_id') is not null and public.has_permission_for_company(auth.uid(),'can_view_orders',azienda) then
    select id into ordine_origine from public.orders o where id=(q->>'ordine_id')::uuid and company_id=azienda and deleted_at is null
-    and public.can_see_order(o.id,o.assigned_to,null);
+    and public.can_see_order(o.id,o.assigned_to,o.destination_warehouse_id);
   end if;
  end if;
  if ordine_origine is not null then
@@ -87,7 +87,9 @@ begin
    'description',q->>'description','total_amount',q->'total_amount','vat_rate',q->'vat_rate',
    'deposit_amount',q->'deposit_amount','deposit_2_amount',q->'deposit_2_amount',
    'financing_amount',q->'financing_amount','balance_amount',q->'balance_amount','payment_type',q->>'payment_type',
-   'assigned_to',case when public.solo_assegnati_attivo() then auth.uid() else null end,
+   'assigned_to',case when public.solo_assegnati_attivo() or exists(
+     select 1 from public.staff_permissions where user_id=auth.uid() and company_id=azienda and only_my_warehouse)
+     then auth.uid() else null end,
    'customer_id',case when p_mantieni_cliente then q->'customer_id' else null end);
   select coalesce(jsonb_agg(jsonb_build_object('name',i->>'name','description',i->>'description','quantity',(i->>'quantity')::integer,
    'unit_price',i->'unit_price','discount_percent',i->'discount_percent','vat_rate',i->'vat_rate',

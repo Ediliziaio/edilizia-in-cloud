@@ -85,6 +85,13 @@ jobs:
           src/test/logic/convertiAvvio.test.ts
           src/test/logic/avviaCommessa.test.ts
 
+      - name: Run worksite and quote duplication regressions
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/duplicaLavoriAtomic.test.ts
+          src/test/ui/duplicaLavoroDialog.test.tsx
+          src/test/ui/ristrutturazioneDuplicaFlusso.test.tsx
+
       - name: Run sidebar preview regression tests
         run: >-
           bunx vitest run --maxWorkers=1
