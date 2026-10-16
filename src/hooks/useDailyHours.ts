@@ -15,17 +15,15 @@ export function useDailyHours(orderId?:string) {
  const [month,setMonth]=useState(oggiRoma().slice(0,7));
  const query=useQuery({queryKey:['daily-hours',companyId,orderId,month,p.canViewCosts],enabled:allowed,queryFn:async()=>{
   const start=month+'-01'; const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
-  let reports=(supabase as any).from('campo_rapportini').select(`id,order_id,user_id,ore_lavorate,ore_straordinario,data_lavoro,stato,updated_at,ufficio_employee_id,presenze,${p.canViewCosts ? 'presenze_registrate,' : ''}costo_registrato_at,note`)
-   .eq('company_id',companyId!).gte('data_lavoro',start).lte('data_lavoro',`${month}-${end}`).in('stato',['inviato','approvato']).order('data_lavoro',{ascending:false}).limit(1000);
-  if(orderId) reports=reports.eq('order_id',orderId);
+  const reports=(supabase as any).rpc('ufficio_leggi_ore',{p_order_id:orderId??null,p_da:start,p_a:`${month}-${end}`,p_solo_riepilogo:false});
   let jobsQuery=supabase.from('orders').select('id,order_code,description').eq('company_id',companyId!).is('deleted_at',null).order('created_at',{ascending:false}).limit(1000);
   if(orderId)jobsQuery=jobsQuery.eq('id',orderId);
   const [people,jobs,rows]=await Promise.all([
    supabase.from('employees').select('id,user_id,first_name,last_name,is_active').eq('company_id',companyId!).order('first_name').limit(1000),
    jobsQuery,reports]);
   if(people.error) throw people.error;if(jobs.error) throw jobs.error;if(rows.error) throw rows.error;
-  if([people.data,jobs.data,rows.data].some(r=>(r?.length??0)>=1000)) throw new Error('Troppi risultati: restringi il periodo o apri la singola commessa.');
-  const normalized=(rows.data??[]).map((row: DailyHoursRecord & {user_id:string|null;ore_lavorate:number|null;ore_straordinario:number|null})=>{
+  if([people.data,jobs.data].some(r=>(r?.length??0)>=1000)) throw new Error('Troppi risultati: restringi il periodo o apri la singola commessa.');
+  const normalized=(rows.data?.records??[]).map((row: DailyHoursRecord & {user_id:string|null;ore_lavorate:number|null;ore_straordinario:number|null})=>{
    if(Array.isArray(row.presenze)&&row.presenze.length)return row;
    const employee=(people.data??[]).find(e=>!!row.user_id&&e.user_id===row.user_id);
    return employee?{...row,presenze:[{employee_id:employee.id,ore:Number(row.ore_lavorate??0)+Number(row.ore_straordinario??0)}]}:row;

@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 
-vi.mock("@/components/personale/DailyHoursPanel", () => ({ DailyHoursPanel: () => null }));
+vi.mock("@/components/personale/DailyHoursPanel", () => ({ DailyHoursPanel: (): null => null }));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), retryEmployees: vi.fn(), retryTeams: vi.fn() }));
 vi.mock("@/hooks/useOrderLaborEconomics", () => ({ useOrderLaborEconomics: mocks.read }));
 const employee = { id: "e1", user_id: "u1", first_name: "Mario", last_name: "Rossi", costo_orario: 30 };

@@ -28,6 +28,7 @@ export async function createDailyHoursDatabase(){
  await db.exec(readFileSync('supabase/migrations/20281004150000_rapportino_conflitto_ore_anticipato.sql','utf8'));
  await db.exec(`create trigger registra before update on campo_rapportini for each row execute function fn_rapportino_costo_manodopera();`);
  await db.exec(readFileSync(HOURS_MIGRATION,'utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261016114410_lettura_ore_ufficio_verificata.sql','utf8'));
  await db.exec(`insert into profiles values('${HU}','Admin','Prova');insert into employees values('${HE}','${HC}',null,'Mario','Rossi',true,25);insert into orders values('${HO}','${HC}','${HU}',null),('${HJ}','${HC}','${HU}',null);select set_config('test.user','${HU}',false);select set_config('test.company','${HC}',false);grant usage on schema public,auth to authenticated,anon;`);
  return db;
 }

@@ -40,7 +40,7 @@ export function useOrderLaborEconomics(orderId: string) {
   });
   const pendingReports = useQuery({
     queryKey: ["order-labor-pending",orderId,companyId], enabled:enabled && canViewGiornaleLavori === true,
-    queryFn:async()=>{const {count,error}=await supabase.from("campo_rapportini").select("id",{count:"exact",head:true}).eq("order_id",orderId).eq("company_id",companyId!).eq("stato","inviato");if(error)throw error;return count??0;},
+    queryFn:async()=>{const {data,error}=await (supabase as any).rpc("ufficio_leggi_ore",{p_order_id:orderId,p_solo_riepilogo:true});if(error)throw error;return Number(data?.pending??0);},
   });
   return { employees, teams, pendingReports, canCheckPending:canViewGiornaleLavori === true, readRates, allowed: canViewCosts && !isLoading };
 }

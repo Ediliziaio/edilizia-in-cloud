@@ -95,6 +95,7 @@ jobs:
       - name: Run daily hours and quote descriptions regressions
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/entityAttachmentsMigrationOrder.test.ts
           src/test/logic/dailyHours.test.ts
           src/test/ui/dailyHours.test.tsx
           src/test/ui/orderLaborEconomics.test.tsx
