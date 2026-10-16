@@ -1,3 +1,4 @@
+import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -2110,6 +2111,7 @@ function OrderDetailInner() {
             </>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24">
+              <DailyHoursPanel orderId={id!} />
               <OrdineRapportiniCampo orderId={id!} />
             </div>
             <div id="section-foto" className="space-y-4 scroll-mt-24">

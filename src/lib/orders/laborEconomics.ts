@@ -4,7 +4,7 @@ import { calculateNetFromGross } from "@/lib/vatUtils";
 type Amount = number | string | null | undefined;
 export interface LaborLedgerRow {
   id: string; employee_id: string; hours_worked: Amount; total_cost: Amount;
-  cost_preventivo: Amount; hourly_rate: Amount;
+  cost_preventivo: Amount; hourly_rate: Amount; planned_hours?: Amount; planned_hourly_rate?: Amount;
   employee: LaborEmployee | null;
 }
 export interface ExternalLaborRow {
@@ -50,7 +50,7 @@ export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boo
     const unpriced = entries.some(r => (laborAmount(r.hours_worked) ?? 0) > 0 && laborAmount(r.total_cost) === 0);
     return {
       id, name: [employee?.first_name, employee?.last_name].filter(Boolean).join(" ") || "Dipendente non disponibile",
-      hours, cost, budget, rate, unpriced,
+      hours, cost, budget, rate, unpriced, plannedHours: sumLaborAmounts(entries.map(r=>r.planned_hours)),
       // Saved rounded rates cannot be multiplied again to reconstruct historical money.
       averageRate: hours != null && hours > 0 && cost != null && laborAmount(cost / hours) != null ? laborHourlyCost(cost, hours) : null,
       overBudget: budget != null && cost != null && cost > budget,
@@ -59,6 +59,7 @@ export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boo
   return {
     people,
     hours: sumLaborAmounts(rows.map(r => r.hours_worked)),
+    plannedHours: rows.length ? sumLaborAmounts(rows.map(r=>r.planned_hours)) : null,
     cost: sumLaborAmounts(rows.map(r => r.total_cost)),
     budget: rows.length ? sumLaborAmounts(rows.map(r => r.cost_preventivo)) : null,
     unpricedPeople: people.filter(p => p.unpriced).length,

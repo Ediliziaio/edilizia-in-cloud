@@ -8,6 +8,11 @@
 --   2) UNIQUE PARTIAL INDEX su (company_id, entity_table, entity_id, storage_path)
 --      WHERE deleted_at IS NULL — consente upsert client-side via onConflict.
 
+-- Su un database nuovo la fondazione Document Linker arriva nel 20270103.
+-- La stessa deduplica viene eseguita anche dopo la creazione della tabella.
+DO $attachment_dependency$
+BEGIN
+ IF to_regclass('public.entity_attachments') IS NOT NULL THEN
 -- Step 1: marca soft-deleted i duplicati pregressi (mantieni il più recente)
 WITH ranked AS (
   SELECT id,
@@ -33,3 +38,6 @@ CREATE UNIQUE INDEX uniq_entity_attachments_dedup
 
 COMMENT ON INDEX public.uniq_entity_attachments_dedup IS
   'FIX 13 (C7): anti-duplicate per upsert client-side. Consente onConflict=company_id,entity_table,entity_id,storage_path.';
+
+ END IF;
+END $attachment_dependency$;

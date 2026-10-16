@@ -387,7 +387,7 @@ export default function QuoteSignPage() {
                       return (
                         <TableRow key={idx}>
                           <TableCell colSpan={colonneTabella} className="text-xs italic" style={{ color: "#71717a" }}>
-                            {item.name}
+                            <p className="whitespace-pre-wrap font-medium">{item.name}</p>{item.description && <p className="mt-1 whitespace-pre-wrap">{item.description}</p>}
                           </TableCell>
                         </TableRow>
                       );

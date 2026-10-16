@@ -314,7 +314,7 @@ export default function AccettaPreventivo() {
                   // Una nota è solo testo: niente quantità, prezzo e IVA.
                   if (genere === "nota") {
                     return (
-                      <p key={idx} className="py-2 text-xs italic text-muted-foreground">{item.name}</p>
+                      <div key={idx} className="space-y-1 py-3"><p className="whitespace-pre-wrap font-medium">{item.name}</p>{item.description && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{item.description}</p>}</div>
                     );
                   }
                   const lineTotal =

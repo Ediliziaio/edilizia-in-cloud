@@ -75,6 +75,33 @@ CREATE POLICY "entity_attachments_modify"
 COMMENT ON TABLE public.entity_attachments IS
   'Document Linker: polymorphic table to attach a document_uploads to any entity (purchase_orders, orders, suppliers, customers, ...)';
 
+-- Completa il FIX 13 anche quando la migrazione storica precedeva la tabella.
+-- Step 1: marca soft-deleted i duplicati pregressi (mantieni il più recente)
+WITH ranked AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY company_id, entity_table, entity_id, storage_path
+           ORDER BY attached_at DESC, id DESC
+         ) AS rn
+    FROM public.entity_attachments
+   WHERE deleted_at IS NULL
+)
+UPDATE public.entity_attachments e
+   SET deleted_at = now(),
+       deleted_by = NULL
+  FROM ranked r
+ WHERE e.id = r.id
+   AND r.rn > 1;
+
+-- Step 2: UNIQUE INDEX parziale per consentire onConflict
+DROP INDEX IF EXISTS public.uniq_entity_attachments_dedup;
+CREATE UNIQUE INDEX uniq_entity_attachments_dedup
+  ON public.entity_attachments (company_id, entity_table, entity_id, storage_path)
+  WHERE deleted_at IS NULL;
+
+COMMENT ON INDEX public.uniq_entity_attachments_dedup IS
+  'FIX 13 (C7): anti-duplicate per upsert client-side. Consente onConflict=company_id,entity_table,entity_id,storage_path.';
+
 -- ─── 2. document_link_suggestions ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.document_link_suggestions (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),

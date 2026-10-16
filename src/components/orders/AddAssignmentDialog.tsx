@@ -256,6 +256,8 @@ export function AddAssignmentDialog({
     const payload: AddAssignmentPayload = {
       phase_id: selectedPhase || null,
       executor_type: tipo,
+      planned_hours: tipo === "interno" && plannedHours.trim() ? hoursPlan : null,
+      planned_hourly_rate: tipo === "interno" && plannedHours.trim() ? currentRate : null,
       employee_id: tipo === "interno" ? executorId : null,
       external_team_id: tipo === "esterno" ? executorId : null,
       cost_preventivo: budget,

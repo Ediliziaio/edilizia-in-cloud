@@ -92,6 +92,19 @@ jobs:
           src/test/ui/duplicaLavoroDialog.test.tsx
           src/test/ui/ristrutturazioneDuplicaFlusso.test.tsx
 
+      - name: Run daily hours and quote descriptions regressions
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/entityAttachmentsMigrationOrder.test.ts
+          src/test/logic/dailyHours.test.ts
+          src/test/ui/dailyHours.test.tsx
+          src/test/ui/orderLaborEconomics.test.tsx
+          src/test/ui/orderLaborEconomicsQueries.test.tsx
+          src/test/ui/quoteLivePreview.test.tsx
+          src/test/ui/offertaPubblicaPagine.test.tsx
+          src/test/logic/laborEconomics.test.ts
+          src/test/logic/offertaPubblicaLinkERighe.test.ts
+
       - name: Run bounded reads, Kanban and shared Realtime regressions
         run: >-
           bunx vitest run --maxWorkers=1
