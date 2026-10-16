@@ -121,7 +121,7 @@ export function MarginalitaWidget() {
 
   return (
     <Card>
-      <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="p-3 pb-2 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             {avgPerc >= 15 ? (
@@ -131,7 +131,7 @@ export function MarginalitaWidget() {
             )}
             Marginalità Cantieri
           </CardTitle>
-          <div className="flex items-center gap-3 mt-0.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
             <span className={cn("text-sm font-semibold", margineColor(avgPerc))}>
               Media: {avgPerc.toFixed(1)}%
             </span>
