@@ -519,7 +519,7 @@ export function FinancialSummary({
           value={rawAmountInputs[inst.position] ?? ""}
           onChange={(e) => setRawAmountInputs(prev => ({ ...prev, [inst.position]: e.target.value }))}
           onBlur={() => handleInstallmentAmountBlur(inst.position)}
-          className="pl-8" placeholder={daContratto ? "Importo di competenza da confermare" : "0.00"}
+          className="pl-8" placeholder="0.00"
           disabled={readOnly}
         />
       </div>
@@ -638,7 +638,7 @@ export function FinancialSummary({
               value={rawTotalInput}
               onChange={(e) => setRawTotalInput(e.target.value)}
               onBlur={handleTotalBlur}
-              className="pl-8" placeholder="0.00"
+              className="pl-8" placeholder={daContratto ? "Importo di competenza da confermare" : "0.00"}
               disabled={readOnly}
             />
           </div>
