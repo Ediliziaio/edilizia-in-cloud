@@ -121,3 +121,53 @@ it("il seed del listino non richiede aziende di produzione e non usa altre azien
     await db.close();
   }
 }, 60000);
+
+it("ricostruisce anche le estensioni cedolini prima della relativa tabella base", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth; create role anon; create role authenticated; create role service_role;
+      create type app_role as enum ('company_admin','super_admin');
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function public.has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+      create function public.get_my_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create table auth.users(id uuid primary key);
+      create table companies(id uuid primary key);
+      create table employees(id uuid primary key,company_id uuid,user_id uuid);
+      create table profiles(id uuid,company_id uuid);`);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260506093500_cedolini_presenze_auto.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260916000015_create_hr_cedolini.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='hr_cedolini' and column_name in ('generation_method','validation_warnings','ore_ordinarie')",
+        )
+      ).rows,
+    ).toHaveLength(3);
+    expect(
+      (
+        await db.query(
+          "select indexname from pg_indexes where indexname='idx_cedolini_pending_review'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='hr_cedolini'::regclass",
+        )
+      ).rows[0],
+    ).toEqual({ relrowsecurity: true });
+  } finally {
+    await db.close();
+  }
+}, 60000);

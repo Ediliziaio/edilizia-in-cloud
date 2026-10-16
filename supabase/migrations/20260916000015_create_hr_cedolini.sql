@@ -21,6 +21,39 @@ CREATE TABLE IF NOT EXISTS public.hr_cedolini (
   UNIQUE(employee_id, anno, mese)
 );
 
+-- Completa le estensioni AI che nello storico precedevano la tabella base.
+ALTER TABLE public.hr_cedolini
+  ADD COLUMN IF NOT EXISTS generation_method text NOT NULL DEFAULT 'manual'
+    CHECK (generation_method IN ('manual','auto_ai','imported')),
+  ADD COLUMN IF NOT EXISTS ai_persona_used text DEFAULT 'hr',
+  ADD COLUMN IF NOT EXISTS ai_cost_billed_eur numeric(10,4),
+  ADD COLUMN IF NOT EXISTS ai_confidence numeric(3,2),
+
+  -- Aggregati origine
+  ADD COLUMN IF NOT EXISTS source_rapportini_ids uuid[],
+
+  -- Breakdown ore dettagliato
+  ADD COLUMN IF NOT EXISTS ore_ordinarie numeric(6,2),
+  ADD COLUMN IF NOT EXISTS ore_straordinario_25 numeric(6,2),
+  ADD COLUMN IF NOT EXISTS ore_straordinario_50 numeric(6,2),
+  ADD COLUMN IF NOT EXISTS ore_straordinario_100 numeric(6,2),
+  ADD COLUMN IF NOT EXISTS ore_assenza_giustificate numeric(6,2),
+  ADD COLUMN IF NOT EXISTS ore_assenza_non_giustificate numeric(6,2),
+
+  -- Indennità CCNL Edile
+  ADD COLUMN IF NOT EXISTS indennita_trasferta_eur numeric(8,2),
+  ADD COLUMN IF NOT EXISTS indennita_alta_quota_eur numeric(8,2),
+  ADD COLUMN IF NOT EXISTS indennita_disagio_eur numeric(8,2),
+
+  -- Validazione consulente
+  ADD COLUMN IF NOT EXISTS consulente_reviewed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS consulente_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS validation_warnings jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_cedolini_pending_review
+  ON public.hr_cedolini(company_id, anno, mese)
+  WHERE generation_method = 'auto_ai' AND consulente_reviewed_at IS NULL;
+
 -- Indici
 CREATE INDEX IF NOT EXISTS idx_hr_cedolini_employee ON public.hr_cedolini(employee_id);
 CREATE INDEX IF NOT EXISTS idx_hr_cedolini_company ON public.hr_cedolini(company_id);
