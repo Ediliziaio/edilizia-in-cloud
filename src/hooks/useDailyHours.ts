@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { refreshWorkQueries } from '@/lib/orders/refreshWorkQueries';
-import { dailyHoursLines, type DailyHoursPerson, type DailyHoursOrder, type DailyHoursRecord } from '@/lib/orders/dailyHours';
+import { assertDailyHoursCompany, dailyHoursLines, type DailyHoursPerson, type DailyHoursOrder, type DailyHoursRecord } from '@/lib/orders/dailyHours';
 import { oggiRoma } from '@/hooks/useOperai';
 
 export function useDailyHours(orderId?:string) {
@@ -22,6 +22,7 @@ export function useDailyHours(orderId?:string) {
    supabase.from('employees').select('id,user_id,first_name,last_name,is_active').eq('company_id',companyId!).order('first_name').limit(1000),
    jobsQuery,reports]);
   if(people.error) throw people.error;if(jobs.error) throw jobs.error;if(rows.error) throw rows.error;
+  assertDailyHoursCompany(rows.data,companyId!);
   if([people.data,jobs.data].some(r=>(r?.length??0)>=1000)) throw new Error('Troppi risultati: restringi il periodo o apri la singola commessa.');
   const normalized=(rows.data?.records??[]).map((row: DailyHoursRecord & {user_id:string|null;ore_lavorate:number|null;ore_straordinario:number|null})=>{
    if(Array.isArray(row.presenze)&&row.presenze.length)return row;
