@@ -2,10 +2,12 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import type { AppRole } from "@/types/auth";
 
 const testAuth = vi.hoisted(() => ({
+  role: "company_staff" as AppRole,
   listener: null as null | ((event: AuthChangeEvent, session: Session | null) => void),
   getSession: vi.fn(),
   setSession: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       const result: { data: unknown; error: null } = {
         data: table === "profiles"
           ? { id: "user", company_id: "company", company: { id: "company", name: "Azienda" } }
-          : table === "user_roles" ? [{ role: "company_staff" }] : [],
+          : table === "user_roles" ? [{ role: testAuth.role }] : [],
         error: null,
       };
       const query: Record<string, unknown> = {};
@@ -62,6 +64,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { SUPER_ADMIN_EMAIL_ALLOWLIST } from "@/config/superAdmin";
 
 const STORAGE_KEY = "sb-test-auth-token";
 const session = {
@@ -76,6 +79,26 @@ function AuthProbe() {
   const auth = useAuth();
   useEffect(() => { refreshAuth = auth.refreshAuth; }, [auth.refreshAuth]);
   return <output data-testid="auth-state">{auth.isLoading ? "verifica" : auth.user ? "autenticato" : "disconnesso"}</output>;
+}
+
+// La stessa decisione di CompanyAppGuard: un superadmin senza impersonazione
+// non può entrare nell'area aziendale. Non si allentano i permessi per il test.
+function CompanyGuardProbe() {
+  const { role, isImpersonating } = useAuth();
+  return role === "super_admin" && !isImpersonating
+    ? <Navigate to="/admin" replace />
+    : <p>Gestionale aperto</p>;
+}
+
+function openImpersonationHandoff() {
+  window.history.replaceState(null, "", "/#_at=test-access&_rt=test-refresh&_it=imp-test&_ic=target-company");
+  render(<MemoryRouter initialEntries={["/azienda"]}><AuthProvider>
+    <AuthProbe />
+    <Routes>
+      <Route path="/azienda" element={<ProtectedRoute><CompanyGuardProbe /></ProtectedRoute>} />
+      <Route path="/admin" element={<p>Dashboard Admin</p>} />
+    </Routes>
+  </AuthProvider></MemoryRouter>);
 }
 
 function openApp(savedSession = true) {
@@ -118,6 +141,7 @@ describe("Ripristino dell'accesso con rete lenta", () => {
     sessionStorage.clear();
     window.history.replaceState(null, "", "/");
     testAuth.listener = null;
+    testAuth.role = "company_staff";
     testAuth.getSession.mockImplementation(() => new Promise(() => {}));
     testAuth.setSession.mockImplementation(() => new Promise(() => {}));
     testAuth.signOut.mockResolvedValue({ error: null });
@@ -191,6 +215,33 @@ describe("Ripristino dell'accesso con rete lenta", () => {
     expect(screen.queryByText("Inserisci email e password")).not.toBeInTheDocument();
     await emit("SIGNED_IN", session);
     expect(screen.getByText("Gestionale aperto")).toBeInTheDocument();
+  });
+
+  it("attende il relay aziendale anche se SIGNED_IN conferma prima il ruolo superadmin", async () => {
+    testAuth.role = "super_admin";
+    let complete: (value: { error: null }) => void = () => {};
+    testAuth.setSession.mockImplementation(() => new Promise<{ error: null }>((resolve) => { complete = resolve; }));
+    openImpersonationHandoff();
+    await emit("SIGNED_IN", { ...session, user: { ...session.user, email: SUPER_ADMIN_EMAIL_ALLOWLIST[0] } });
+    expect(screen.getByTestId("auth-state")).toHaveTextContent("verifica");
+    expect(screen.queryByText("Dashboard Admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gestionale aperto")).not.toBeInTheDocument();
+    await act(async () => { complete({ error: null }); });
+    expect(screen.getByText("Gestionale aperto")).toBeInTheDocument();
+    expect(sessionStorage.getItem("imp_company_id")).toBe("target-company");
+    expect(screen.queryByText("Dashboard Admin")).not.toBeInTheDocument();
+  });
+
+  it("un relay rifiutato non concede impersonazione e non lascia la verifica bloccata", async () => {
+    testAuth.role = "super_admin";
+    let complete: (value: { error: Error }) => void = () => {};
+    testAuth.setSession.mockImplementation(() => new Promise<{ error: Error }>((resolve) => { complete = resolve; }));
+    openImpersonationHandoff();
+    await emit("SIGNED_IN", { ...session, user: { ...session.user, email: SUPER_ADMIN_EMAIL_ALLOWLIST[0] } });
+    await act(async () => { complete({ error: new Error("Relay rejected") }); });
+    expect(screen.getByText("Dashboard Admin")).toBeInTheDocument();
+    expect(sessionStorage.getItem("imp_company_id")).toBeNull();
+    expect(sessionStorage.getItem("imp_token")).toBeNull();
   });
 
   it("un refreshAuth in timeout conserva il token e la verifica", async () => {

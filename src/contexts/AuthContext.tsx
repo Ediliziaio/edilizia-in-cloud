@@ -306,6 +306,15 @@ async function endSession() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
+  // SIGNED_IN può rendere disponibile il ruolo prima che setSession().then
+  // abbia applicato azienda e token del relay. Le route devono attendere
+  // entrambi: altrimenti vedono un superadmin non ancora impersonato e
+  // lo rimandano ad Admin. Il relay non concede ruoli o permessi.
+  const [impersonationRelayPending, setImpersonationRelayPending] = useState(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    return Boolean(params.get('_at') && params.get('_rt') && params.get('_it') && params.get('_ic'));
+  });
+
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
@@ -1257,7 +1266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setImpersonatedCompanyId(ic);
             }
           })
-          .catch(() => refreshAuth());
+          .catch(() => refreshAuth())
+          .finally(() => setImpersonationRelayPending(false));
 
         return () => {
           window.clearTimeout(authBootstrapWatchdog);
@@ -1970,6 +1980,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(
     () => ({
       ...state,
+      isLoading: state.isLoading || impersonationRelayPending,
       role: ruoloArea,
       areaCorrente,
       areeDisponibili,
@@ -1993,7 +2004,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, impersonationRelayPending, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (
