@@ -1,6 +1,6 @@
 import { beforeAll,afterAll,beforeEach,afterEach,it,expect } from 'vitest';
 import { createDailyHoursDatabase,HC,HU,HO,HE,HJ } from '../fixtures/dailyHoursDatabase';
-import { dailyHoursError,dailyHoursLines,type DailyHoursRecord } from '@/lib/orders/dailyHours';
+import { assertDailyHoursCompany,dailyHoursError,dailyHoursLines,type DailyHoursRecord } from '@/lib/orders/dailyHours';
 let db:Awaited<ReturnType<typeof createDailyHoursDatabase>>;
 beforeAll(async()=>{db=await createDailyHoursDatabase();},60000);afterAll(async()=>{await db?.close();});
 beforeEach(async()=>{await db.exec('begin');});afterEach(async()=>{await db.exec('rollback');});
@@ -31,5 +31,8 @@ it('lettura ufficio supera solo il limite legacy del superadmin, mantenendo azie
 it('lettura senza visibilità costi elimina gli importi dal risultato del server',async()=>{await save();await db.query('select set_config($1,$2,false)',['test.deny_permission','can_view_costs']);const r=(await db.query<{r:any}>('select ufficio_leggi_ore($1,$2,$3,false) r',[HO,day,day])).rows[0].r;expect(r.records[0].presenze_registrate[0]).toEqual({employee_id:HE,ore:7.5});});
 it('lettura rispetta permesso giornale e commesse assegnate',async()=>{await save();await db.query('select set_config($1,$2,false)',['test.deny_permission','can_view_giornale_lavori']);await expect(db.query('select ufficio_leggi_ore($1,$2,$3,false)',[HO,day,day])).rejects.toThrow('permesso');});
 it('lettura limitata alla commessa richiesta',async()=>{await save();expect((await db.query<{r:any}>('select ufficio_leggi_ore($1,$2,$3,false) r',[HJ,day,day])).rows[0].r.records).toEqual([]);});
-it('riepilogo conta i rapportini ancora da valorizzare',async()=>{await db.exec('update employees set costo_orario=null');await save();expect((await db.query<{r:any}>('select ufficio_leggi_ore($1,null,null,true) r',[HO])).rows[0].r).toEqual({pending:1,records:[]});});
+it('riepilogo conta i rapportini ancora da valorizzare',async()=>{await db.exec('update employees set costo_orario=null');await save();expect((await db.query<{r:any}>('select ufficio_leggi_ore($1,null,null,true) r',[HO])).rows[0].r).toEqual({company_id:HC,pending:1,records:[]});});
 it('riepilogo NULL non elude il permesso dipendenti',async()=>{await db.query('select set_config($1,$2,false)',['test.deny_permission','can_view_employees']);await expect(db.query('select ufficio_leggi_ore($1,$2,$3,null)',[HO,day,day])).rejects.toThrow('permesso');});
+
+it('risposta del registro identifica l’azienda anche senza ore',async()=>{const r=(await db.query<{r:any}>('select ufficio_leggi_ore(null,$1,$2,false) r',[day,day])).rows[0].r;expect(r.company_id).toBe(HC);expect(r.records).toEqual([]);expect(()=>assertDailyHoursCompany(r,HC)).not.toThrow();});
+it('respinge risposte di un’altra azienda anche vuote o senza identità',()=>{expect(()=>assertDailyHoursCompany({company_id:HJ},HC)).toThrow('azienda attiva');expect(()=>assertDailyHoursCompany({},HC)).toThrow('azienda attiva');expect(()=>assertDailyHoursCompany(null,HC)).toThrow('azienda attiva');});
