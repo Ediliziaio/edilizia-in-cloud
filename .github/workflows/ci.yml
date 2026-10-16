@@ -166,6 +166,8 @@ jobs:
           src/test/logic/commesseListScope.test.ts
           src/test/logic/commesseAnnualScope.test.ts
           src/test/ui/ordersAnnualScope.test.tsx
+          src/test/logic/commesseMonthlyChart.test.ts
+          src/test/ui/ordersMonthlyChart.test.tsx
           src/test/logic/commesseListQuery.test.ts
           src/test/logic/commessePaymentFilters.test.ts
           src/test/logic/commesseIncassatoDaRate.test.ts

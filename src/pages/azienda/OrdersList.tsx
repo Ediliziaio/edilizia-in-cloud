@@ -33,16 +33,7 @@ import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -166,9 +157,9 @@ function OrdersListInner() {
   const [importOpen, setImportOpen] = useState(false);
   const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Blocco analitico a richiesta, con memoria (audit UX 2026-09).
+  // Visibile al primo accesso; conserva la scelta esplicita di nasconderlo.
   const [analisiAperta, setAnalisiAperta] = useState(() => {
-    try { return localStorage.getItem("orders-analisi-aperta") === "1"; } catch { return false; }
+    try { return localStorage.getItem("orders-analisi-aperta") !== "0"; } catch { return true; }
   });
   const toggleAnalisi = useCallback(() => {
     setAnalisiAperta((v) => {
@@ -1503,8 +1494,7 @@ function OrdersListInner() {
       )}
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
-        {/* 50/50: a 0.58fr il pannello blu strozzava i numeri ("1.794.1…"). */}
-        <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
+        <div className="grid gap-0">
           <div className="bg-eic-navy-deep p-3 sm:p-5 md:p-6 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
@@ -1527,7 +1517,7 @@ function OrdersListInner() {
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid gap-2 sm:gap-3 grid-cols-2 ${analisiAperta ? "" : "lg:grid-cols-4"}`}>
+            {!isGlobalStatsError && !isStatusesError && <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
@@ -1652,83 +1642,12 @@ function OrdersListInner() {
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">
-                  {isYearCorrente ? `Anno ${currentYear}` : hasSelectedYear ? `Anno ${selectedYear}` : "Ultimi 12 mesi"}
-                </p>
-                <h3 className="mt-1 text-base font-semibold text-slate-950">Commesse per mese di creazione</h3>
+          <aside id="orders-annual-chart" className="border-t border-slate-200 bg-white p-3 sm:p-5">
+            {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
+              <div aria-label="Caricamento andamento" className="flex h-[260px] items-end gap-3 px-4 pb-4">
+                {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
-                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
-                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Incassato</span>
-                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-900" /> N. commesse</span>
-              </div>
-            </div>
-
-            <div className="mt-4 h-[240px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-              {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
-                <div className="flex h-full items-end gap-2 px-2 pb-4">
-                  {[60, 92, 48, 130, 78, 155, 105, 184].map((height, index) => (
-                    <Skeleton key={index} className="flex-1 rounded-t-md" style={{ height }} />
-                  ))}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={monthlySalesChart} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
-                    <YAxis
-                      yAxisId="money"
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={10}
-                      stroke="#94a3b8"
-                      tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
-                    />
-                    <YAxis
-                      yAxisId="count"
-                      orientation="right"
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={10}
-                      stroke="#94a3b8"
-                      allowDecimals={false}
-                    />
-                    <RechartsTooltip
-                      cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                      }}
-                      formatter={(value, name) => {
-                        if (name === "commesse") {
-                          return [Number(value).toLocaleString("it-IT"), "N. commesse"];
-                        }
-                        return [
-                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
-                          name === "venduto" ? "Venduto" : "Incassato",
-                        ];
-                      }}
-                      labelFormatter={(label) => `Mese: ${label}`}
-                    />
-                    <Bar yAxisId="money" dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Bar yAxisId="money" dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Line
-                      yAxisId="count"
-                      type="monotone"
-                      dataKey="commesse"
-                      stroke="#0f172a"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
-                      activeDot={{ r: 4 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            ) : <OrdersMonthlyChart months={monthlySalesChart} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"} />}
           </aside>
           )}
         </div>
