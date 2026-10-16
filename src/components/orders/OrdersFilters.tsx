@@ -1,11 +1,4 @@
-import { useState } from "react";
-import {
-  Search,
-  X,
-  CalendarDays,
-  CheckCircle2,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Search, X, CalendarDays, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 interface Status {
   id: string;
@@ -78,25 +70,8 @@ export function OrdersFilters({
   hideCompleted,
   onHideCompletedChange,
 }: OrdersFiltersProps) {
-  // Conta filtri attivi (escluso "In Corso" e search) per mostrare badge
-  const advancedFiltersCount = [
-    statusFilter !== "all",
-    paymentFilter !== "all",
-    // «corrente» (anno in corso + precedenti da gestire) è il valore di partenza,
-    // non un filtro scelto: contato come attivo, su mobile i filtri si
-    // aprivano da soli e il badge diceva sempre «1».
-    yearFilter !== "all" && yearFilter !== "corrente",
-    monthFilter !== "all",
-    hideCompleted,
-  ].filter(Boolean).length;
-
-  // I controlli secondari si aprono se la vista iniziale contiene filtri attivi.
-  const [advancedOpen, setAdvancedOpen] = useState(advancedFiltersCount > 0);
-
   return (
-    // Ricerca sempre visibile, controlli secondari raccolti su tutti i dispositivi.
     <div className="space-y-2">
-      {/* Ricerca e accesso ai filtri rimangono sempre visibili. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -110,61 +85,35 @@ export function OrdersFilters({
         </div>
 
         <Button
-          variant={advancedOpen ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setAdvancedOpen((v) => !v)}
-          className="tap-compact relative h-9 shrink-0 gap-2 bg-white px-3"
-          aria-expanded={advancedOpen}
-          aria-label="Filtri elenco"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          <span>Filtri elenco</span>
-          {advancedFiltersCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-              {advancedFiltersCount}
-            </span>
-          )}
-        </Button>
-      </div>
-      <div
-        hidden={!advancedOpen}
-        className={cn(
-          "flex flex-wrap items-center gap-2",
-          !advancedOpen && "hidden",
-        )}
-      >
-        <Button
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
-          className="tap-compact h-10 shrink-0 max-sm:h-9 max-sm:w-9 max-sm:p-0 sm:order-last sm:h-9"
+          className="tap-compact h-9 shrink-0 gap-2"
           aria-label="Nascondi commesse con lavori completati"
           aria-pressed={hideCompleted}
           title="Nascondi commesse con lavori completati"
         >
-          <CheckCircle2 className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Nascondi completate</span>
+          <CheckCircle2 className="h-4 w-4" />
+          <span>Nascondi completate</span>
         </Button>
         {hasAnyFilter && (
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onClearAllFilters}
-            className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7 sm:order-last sm:h-9 sm:w-9"
+            className="tap-compact h-9 shrink-0 gap-2 text-muted-foreground"
             aria-label="Cancella tutti i filtri"
           >
             <X className="h-3.5 w-3.5" />
+            <span>Azzera filtri</span>
           </Button>
         )}
       </div>
 
-      {/* I filtri attivi restano segnalati dal badge anche quando i controlli sono chiusi. */}
       <div
-        hidden={!advancedOpen}
-        className={cn(
-          "grid grid-cols-2 gap-2 sm:flex sm:flex-wrap",
-          !advancedOpen && "!hidden",
-        )}
+        className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"
+        role="group"
+        aria-label="Filtri commesse"
       >
         <Select value={statusFilter} onValueChange={onStatusFilterChange}>
           <SelectTrigger
