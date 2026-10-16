@@ -18,6 +18,7 @@
  * Mapping stati cross-modulo → 5 unified states (bozza, in_corso, vinto, perso, altro).
  * Filtri persistenti in URL (?stato=…&tipo=…) per refresh/back-friendly.
  */
+import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -141,7 +142,7 @@ export function UnifiedPreventiviList() {
   const companyId = useEffectiveCompanyId();
   // Numero, cliente e totale dei preventivi: si esportano solo con «Esporta
   // Clienti» (gli amministratori ce l'hanno sempre). Il database lo ricontrolla.
-  const { canExportClients, onlyAssigned } = usePermissions();
+  const { canExportClients, onlyAssigned, canEditPreventivi } = usePermissions();
   const queryClient = useQueryClient();
   const sel = useTableSelection();
   const { moduli } = useModuliVendita();
@@ -164,10 +165,16 @@ export function UnifiedPreventiviList() {
   const [daCestinare, setDaCestinare] = useState<UnifiedRow | null>(null);
   const [inDuplicazione, setInDuplicazione] = useState<string | null>(null);
 
+  const [ristrutturazioneDaDuplicare, setRistrutturazioneDaDuplicare] = useState<string | null>(null);
+
   /** Tipi che si sanno duplicare dall'elenco: la copia nasce in bozza, senza firme né invii, e si apre per adattarla. */
-  const sapDuplicare = (r: UnifiedRow) => r.tipo === "classico" || r.tipo === "serramenti" || r.tipo === "fotovoltaico";
+  const sapDuplicare = (r: UnifiedRow) => r.tipo === "classico" || r.tipo === "serramenti" || r.tipo === "fotovoltaico" || (r.tipo === "ristrutturazione" && canEditPreventivi);
   const duplica = async (r: UnifiedRow) => {
     if (inDuplicazione || !companyId) return;
+    if (r.tipo === "ristrutturazione") {
+      if (canEditPreventivi) setRistrutturazioneDaDuplicare(r.id);
+      return;
+    }
     setInDuplicazione(r.id);
     try {
       let vai: string;
@@ -1497,15 +1504,21 @@ export function UnifiedPreventiviList() {
                     : r.stato_unif === "in_corso" ? "text-blue-700"
                     : "text-muted-foreground";
                   return (
-                    <RigaMobile
-                      key={`${r.tipo}-${r.id}`}
+                    <div key={`${r.tipo}-${r.id}`} className="flex items-center">
+                    <div className="min-w-0 flex-1"><RigaMobile
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
                       sottotitolo={[senzaCliente ? null : r.numero, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
-                    />
+                    /></div>
+                    {r.tipo === "ristrutturazione" && canEditPreventivi && <Button
+                      variant="ghost" size="icon" className="mr-2 h-11 w-11 shrink-0"
+                      aria-label={`Duplica preventivo ${r.numero}`} onClick={() => void duplica(r)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>}
+                    </div>
                   );
                 })}
               </div>
@@ -1551,6 +1564,14 @@ export function UnifiedPreventiviList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DuplicaLavoroDialog tipo="rst" sourceId={ristrutturazioneDaDuplicare ?? ""}
+        open={!!ristrutturazioneDaDuplicare}
+        onOpenChange={(open) => { if (!open) setRistrutturazioneDaDuplicare(null); }}
+        onDuplicato={(id) => {
+          void queryClient.invalidateQueries({ queryKey: ["unified-prev-ristrutturazione", companyId] });
+          navigate(`/azienda/ristrutturazione/${id}/modifica`);
+        }} />
 
       {/* ─── Sheet filtri laterale ─── */}
       <UnifiedFiltersSheet
