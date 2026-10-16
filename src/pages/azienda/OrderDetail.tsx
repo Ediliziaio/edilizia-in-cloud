@@ -1,4 +1,5 @@
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
+import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
@@ -1378,7 +1379,7 @@ function OrderDetailInner() {
           collectedGross={collectedGross}
           cashTotalGross={cashTotalGross}
           canViewAmounts={permissions.canViewOrderAmounts}
-          canViewMargins={permissions.canViewMargins}
+          canViewMargins={permissions.canViewMargins && contractLink.data?.workflow_kind !== "contratto"}
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
         />}
@@ -1443,6 +1444,7 @@ function OrderDetailInner() {
           </QuoteCard>
         </OrderCommessaSummary>
         </OrderHeaderSummary>
+        {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
           value={activeTab}
@@ -1700,7 +1702,7 @@ function OrderDetailInner() {
                un errore in una NON può buttare giù il dettaglio commessa. ── */}
             {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
             {/* Conto economico = costi + margine → solo a chi può vederli. */}
-            {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && (
+            {activeEconomiaView === "margini" && contractLink.data?.workflow_kind !== "contratto" && (permissions.canViewCosts || permissions.canViewMargins) && (
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Conto economico non disponibile. Ricarica la pagina per riprovare.</p>}>
                 <OrderEconomicsSummary
                   orderId={id!}

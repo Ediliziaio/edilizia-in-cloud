@@ -18,7 +18,15 @@ Le migrazioni canoniche sono le versioni 20261016114116, 20261016115423 e 202610
 
 Gli ordini distinguono `workflow_kind` commessa/contratto/intervento. Un intervento ha un `parent_contract_id` della stessa azienda e un riferimento all’ordine/PED. La creazione tramite `create_contract_intervention` è atomica e usa un id stabile per i tentativi successivi: ordine, fasi e sottofasi vengono creati una sola volta. Lo standard deve appartenere all’azienda. Nessuna data viene dedotta automaticamente.
 
-Gli interventi sono schede operative: importo tecnico zero e IVA nulla sono imposti dal database per evitare duplicazioni dei ricavi. Economia, SAL e pagamenti restano sul contratto. I costi e i rapportini degli interventi rimangono nei singoli interventi: non è ancora implementato un consolidamento automatico dei costi sul contratto. L’avanzamento dell’ufficio non modifica quello delle lavorazioni.
+Gli interventi sono schede operative: importo tecnico zero e IVA nulla sono imposti dal database per evitare duplicazioni dei ricavi. Economia, SAL e pagamenti restano sul contratto. I costi e i rapportini degli interventi rimangono nei singoli interventi. L’avanzamento dell’ufficio non modifica quello delle lavorazioni.
+
+### Consolidamento dei costi
+
+`contract_cost_snapshot` legge in un’unica fotografia il contratto e gli interventi collegati della stessa azienda, tramite `v_ordine_marginalita`, rispettando RLS e permessi di lettura dei costi. Non crea registrazioni, non modifica importi e non cambia la vista additiva usata nei totali aziendali. Il riepilogo del contratto è una presentazione non additiva: costo proprio del contratto + costo di ogni intervento una sola volta. Include gli interventi conclusi; esclude le schede nel cestino. Si riferisce al perimetro accessibile al ruolo corrente.
+
+Il riepilogo si aggiorna all’apertura, al ritorno nella finestra, dopo le mutazioni e ogni 30 secondi mentre è visibile. Mostra dettaglio per intervento e categoria, senza aggiungere fatture/pagamenti agli acquisti già registrati. Gli acquisti e i consumi di magazzino mantengono la riconciliazione esistente; le ore confermate arrivano dal registro della manodopera, senza aggiungere nuovamente i rapportini. Stime dei mezzi e importi in attesa non diventano costi effettivi. La fonte economica canonica resta quella già condivisa con il Controllo di Gestione.
+
+I ricavi si leggono solo dal contratto e solo con permessi su importi e margini. Il margine consolidato resta provvisorio e non viene mostrato quando i dati economici del contratto sono da confermare. IVA e rate non vengono inferite. Un errore di caricamento non viene sostituito con un totale parziale o zero. Le commesse ordinarie conservano il proprio conto economico.
 
 Il contratto può essere salvato in bozza anche senza cliente di fatturazione, quota economica, IVA e pagamenti confermati. I valori mancanti sono indicati nelle note e non generano ricavi o rate. Le normali commesse mantengono i controlli di conferma prima della creazione.
 
