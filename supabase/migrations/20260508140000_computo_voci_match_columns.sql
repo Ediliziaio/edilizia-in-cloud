@@ -4,6 +4,10 @@
 -- L'utente può poi cambiare/sovrascrivere dal ComputoPreviewEditor UI
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- La fondazione del computo arriva nel 20260915000001.
+DO $computo_dependency$
+BEGIN
+ IF to_regclass('public.computo_voci_estratte') IS NOT NULL THEN
 ALTER TABLE public.computo_voci_estratte
   ADD COLUMN IF NOT EXISTS matched_template_id uuid,
   ADD COLUMN IF NOT EXISTS matched_family_id uuid,
@@ -23,3 +27,5 @@ COMMENT ON COLUMN public.computo_voci_estratte.match_type IS
   'alias=lookup deterministico product_aliases, vector=pgvector similarity, manual=utente, none=non trovato.';
 COMMENT ON COLUMN public.computo_voci_estratte.match_confidence IS
   'Score di similarità del match (0-1). 1.0 per alias esatti, <1 per vector.';
+ END IF;
+END $computo_dependency$;

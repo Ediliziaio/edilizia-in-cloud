@@ -240,3 +240,54 @@ it("le policy commesse attendono gli helper magazzino senza perdere i vincoli di
     await db.close();
   }
 }, 60000);
+
+it("ricostruisce il computo con le colonne di abbinamento e le policy aziendali", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth; create schema storage;
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;
+      create table auth.users(id uuid primary key);
+      create table companies(id uuid primary key);
+      create table profiles(id uuid,company_id uuid);
+      create table quotes(id uuid primary key);
+      create table quote_items(id uuid primary key);
+      create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+      create table storage.objects(bucket_id text,name text);`);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260508140000_computo_voci_match_columns.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260915000001_computo_metrico_ai.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='computo_voci_estratte' and column_name in ('matched_template_id','matched_family_id','match_confidence')",
+        )
+      ).rows,
+    ).toHaveLength(3);
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='computo_voci_estratte'::regclass",
+        )
+      ).rows[0],
+    ).toEqual({ relrowsecurity: true });
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where tablename='computo_voci_estratte'",
+        )
+      ).rows,
+    ).toHaveLength(4);
+  } finally {
+    await db.close();
+  }
+}, 60000);
