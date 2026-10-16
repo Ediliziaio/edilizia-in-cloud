@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,14 @@ export function TabRatingBancario({ anno }: TabRatingBancarioProps) {
           <CardTitle className="text-base">Rating bancario {data.anno}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
-          <RatingGauge score={data.score} classe={data.classe} />
+          {data.attendibile === true ? <RatingGauge score={data.score} classe={data.classe} /> : (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">Valutazione interna provvisoria</p>
+              <p className="mt-1">Punteggio indicativo: {data.classe} · {data.score}/100. Non validato.</p>
+              {(data.motivi ?? ["Verifica la completezza e la riconciliazione dei dati."]).map(m=><p key={m} className="mt-2">{m}</p>)}
+              <Link className="mt-3 inline-block underline" to="/azienda/controllo-gestione/health">Apri controlli e riconciliazione</Link>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground text-center">
             Trend storico disponibile dal 2° mese di tracciamento
           </p>

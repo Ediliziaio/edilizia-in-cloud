@@ -6,6 +6,8 @@ export interface CommessaRiga {
   description: string;
   cliente: string | null;
   status: string | null;
+  work_state?: "open" | "completed" | "support" | "cancelled";
+  creation_year?: number;
   pct_avanzamento: number;
   work_start: string | null;
   work_end: string | null;
@@ -32,6 +34,10 @@ export interface CommesseKPI {
   n_commesse: number;
   n_in_corso: number;
   n_completate: number;
+  n_assistenza?: number;
+  n_annullate?: number;
+  n_anno?: number;
+  n_pregresso?: number;
   preventivo_totale: number;
   consuntivo_totale: number;
   margine_totale: number;
@@ -118,7 +124,10 @@ export function normalizeMarginalitaCommesse(input: MarginalitaCommesseResult, l
   result.kpi.n_in_perdita = valutabili.filter((r) => (r.margine_atteso ?? 0) < 0).length;
   // Stessa svista di scala su in corso/completate: con pct 0–100 la RPC vedeva
   // "completata" qualsiasi commessa ≥1% (mostrava 0 in corso · 22 completate).
-  result.kpi.n_in_corso = righe.filter((r) => r.pct_avanzamento > 0 && r.pct_avanzamento < 1).length;
-  result.kpi.n_completate = righe.filter((r) => r.pct_avanzamento >= 1).length;
+  result.kpi.n_commesse = righe.length;
+  result.kpi.n_in_corso = righe.filter((r) => r.work_state ? r.work_state === "open" : r.pct_avanzamento > 0 && r.pct_avanzamento < 1).length;
+  result.kpi.n_assistenza = righe.filter(r => r.work_state === "support").length;
+  result.kpi.n_annullate = righe.filter(r => r.work_state === "cancelled").length;
+  result.kpi.n_completate = righe.filter((r) => r.work_state ? r.work_state === "completed" : r.pct_avanzamento >= 1).length;
   return result;
 }

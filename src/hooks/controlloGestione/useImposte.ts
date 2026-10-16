@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Imposte stimate IRES + IRAP separate.
  */
@@ -34,8 +35,10 @@ export interface ImposteResult {
 }
 
 export function useImposte(anno: number) {
+  const companyId=useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "imposte", anno] as const,
+    queryKey: ["cg", "imposte", anno, "reconciled-v1", companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<ImposteResult> => {
             const { data, error } = await cgRpc("cg_get_imposte_dettaglio_safe", { p_anno: anno });
       if (error) throw error;
@@ -59,11 +62,8 @@ export function useUpsertAliquote() {
       return data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cg", "imposte"] });
-      // Le aliquote IRES/IRAP determinano utile post-imposte e DSCR mostrati
-      // negli Indici avanzati: senza questa, cambiando aliquota quei numeri
-      // restavano fermi fino allo staleTime.
-      qc.invalidateQueries({ queryKey: ["cg", "indici-avanzati"] });
+      // Aliquote affect CE, SP, rating, DSCR and reconciliation together.
+      qc.invalidateQueries({ queryKey: ["cg"] });
     },
   });
 }

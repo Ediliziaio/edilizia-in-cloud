@@ -114,8 +114,8 @@ export function TabHealthCheck({ anno }: Props) {
                   <p
                     className={cn(
                       "mt-1 text-4xl font-bold tabular-nums",
-                      h.data.percentuale >= 80 ? "text-emerald-700"
-                      : h.data.percentuale >= 50 ? "text-amber-700" : "text-rose-700",
+                      h.data.checks.some(c => c.status === "critical") ? "text-rose-700"
+                      : h.data.report_ready === true ? "text-emerald-700" : "text-amber-700",
                     )}
                   >
                     {h.data.score}/{h.data.max_score}
@@ -139,10 +139,13 @@ export function TabHealthCheck({ anno }: Props) {
                       {h.data.checks.filter((c) => c.status === "critical").length} critici (richiedono intervento)
                     </li>
                   </ul>
-                  {h.data.percentuale >= 80 && (
+                  {h.data.report_ready === true && (
                     <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-700">
-                      Dati pronti per produrre report bancabili.
+                      Controlli disponibili superati. Verifica le fonti prima di condividere il report.
                     </p>
+                  )}
+                  {h.data.report_ready !== true && (
+                    <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Dati da verificare: completa la riconciliazione e risolvi le anomalie prima di validare rating e report.</p>
                   )}
                   {h.data.percentuale < 50 && (
                     <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-700">

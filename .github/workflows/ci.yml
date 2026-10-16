@@ -286,6 +286,13 @@ jobs:
           node scripts/test-company-economics.mjs
           node scripts/test-company-consumption.mjs
 
+      - name: Run CG SQL reconciliation and rating regressions
+        run: >-
+          TZ=Europe/Rome bunx vitest run --maxWorkers=1 --testTimeout=20000
+          src/test/logic/cgReconciliation.test.ts
+          src/test/ui/cgRatingQuality.test.tsx
+          src/test/logic/silvioOrderReport.test.ts
+
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy changed edge functions (main only, after checks pass)
   # ─────────────────────────────────────────────────────────────────────────

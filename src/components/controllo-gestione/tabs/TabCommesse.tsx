@@ -63,7 +63,7 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 };
 
 export function TabCommesse({ anno }: Props) {
-  const [filter, setFilter] = useState<"all" | "in_corso" | "completato">("all");
+  const [filter, setFilter] = useState<"all" | "in_corso" | "completato" | "assistenza">("all");
   const [sortBy, setSortBy] = useState<"preventivo" | "manodopera">("preventivo");
   // Mobile: numeri senza spiegazioni, filtro di stato e una riga per cantiere
   // (nome, cliente, margine a fine lavori). Ordinamento, semaforo riassunto,
@@ -156,11 +156,12 @@ export function TabCommesse({ anno }: Props) {
     <TooltipProvider delayDuration={150}>
     <div className="space-y-4">
       {/* KPI bar */}
+      <p className="text-xs text-muted-foreground">{anno}: {kpi.n_anno ?? kpi.n_commesse} commesse · Pregresso da gestire: {kpi.n_pregresso ?? 0}. Archiviate escluse; stati ricavati dal workflow, avanzamento separato.</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
         <KPIMini
           label="Commesse"
           value={String(kpi.n_commesse)}
-          sub={`${kpi.n_in_corso} in corso · ${kpi.n_completate} completate`}
+          sub={`${kpi.n_in_corso} da completare · ${kpi.n_completate} completate · ${kpi.n_assistenza ?? 0} in assistenza`}
         />
         <KPIMini
           label="Preventivato"
@@ -237,7 +238,8 @@ export function TabCommesse({ anno }: Props) {
             onValueChange={(v) => v && setFilter(v as typeof filter)}
           >
             <ToggleGroupItem value="all" variant="outline" size="sm" className="tap-compact">Tutte</ToggleGroupItem>
-            <ToggleGroupItem value="in_corso" variant="outline" size="sm" className="tap-compact">In corso</ToggleGroupItem>
+            <ToggleGroupItem value="in_corso" variant="outline" size="sm" className="tap-compact">Da completare</ToggleGroupItem>
+            <ToggleGroupItem value="assistenza" variant="outline" size="sm">Assistenza</ToggleGroupItem>
             <ToggleGroupItem value="completato" variant="outline" size="sm" className="tap-compact">Completate</ToggleGroupItem>
           </ToggleGroup>
           <div className="flex items-center gap-1.5 max-sm:hidden">

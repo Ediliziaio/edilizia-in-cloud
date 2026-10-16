@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Marginalita per commessa/cantiere.
  */
@@ -13,8 +14,10 @@ export function useMarginalitaCommesse(
   anno: number | null = null,
   statusFilter: string | null = null,
 ) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "commesse", anno, statusFilter] as const,
+    queryKey: ["cg", "commesse", anno, statusFilter, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<MarginalitaCommesseResult> => {
       const { data, error } = await cgRpc("cg_get_marginalita_commesse_safe", { p_anno: anno, p_status_filter: statusFilter });
       if (error) throw error;
