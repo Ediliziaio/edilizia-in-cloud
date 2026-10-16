@@ -63,6 +63,7 @@ const SECTION_TABS = {
   "section-assistenza": "cantiere",
   "section-sopralluoghi": "cantiere",
   "section-note": "panoramica",
+  "section-ufficio": "panoramica",
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
   "section-pianificazione": "cantiere",

@@ -326,6 +326,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
 // ── FinancialSummary (editable) ─────────────────────────────────
 
 interface FinancialSummaryProps {
+  daContratto?: boolean;
   totalAmount: string;
   vatRate: string;
   paymentType: PaymentType;
@@ -365,16 +366,18 @@ export function FinancialSummary({
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
-  datiCausale, dateCommessa, statiCommessa, nuova,}: FinancialSummaryProps) {
+  datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
   const [rawAmountInputs, setRawAmountInputs] = useState<Record<number, string>>({});
 
-  const vat = parseFloat(vatRate) || 22;
+  const ivaConfermata = vatRate.trim() !== "";
+  const vat = ivaConfermata ? parseDecimalIT(vatRate) : 0;
   const total = parseDecimalIT(totalAmount) || 0;
   const vatAmount = total * (vat / 100);
   const totalWithVat = total + vatAmount;
+  useEffect(() => { if (!ivaConfermata) setInputMode('net'); }, [ivaConfermata]);
 
   // Sync raw total input
   useEffect(() => {
@@ -550,16 +553,17 @@ export function FinancialSummary({
   // Render balance section
   const renderBalance = (labelText: string) => {
     const balanceInst = installments.find(i => i.type === 'balance');
+    const balanceShown = balanceInst?.amount_from_contract ? balanceInst.amount : balance;
     return (
       <div className="pt-4 border-t space-y-3">
         <div className="flex justify-between items-center text-lg font-semibold">
           <span>{labelText}</span>
-          <span>{formatCurrency(balance)}</span>
+          <span>{formatCurrency(balanceShown)}</span>
         </div>
-        {balance > 0 && balanceInst && (
+        {balanceShown > 0 && balanceInst && (
           <PaymentStatusRow
             label="Stato Saldo"
-            amount={balance}
+            amount={balanceShown}
             paid={balanceInst.is_paid}
             paidDate={balanceInst.paid_date ? new Date(balanceInst.paid_date) : undefined}
             expectedDate={balanceInst.expected_date ? new Date(balanceInst.expected_date) : undefined}
@@ -597,12 +601,12 @@ export function FinancialSummary({
         <div className="space-y-2">
           <Label>Tipo Pagamento</Label>
           <Select
-            value={paymentType}
+            value={daContratto && installments.length === 0 ? "" : paymentType}
             onValueChange={(value: PaymentType) => onPaymentTypeChange(value)}
             disabled={readOnly}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Condizioni da confermare" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="standard">Standard (Acconti)</SelectItem>
@@ -616,7 +620,7 @@ export function FinancialSummary({
           <Tabs value={inputMode} onValueChange={(v) => handleInputModeChange(v as AmountInputMode)}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="net">Imponibile</TabsTrigger>
-              <TabsTrigger value="gross">IVA Inclusa</TabsTrigger>
+              <TabsTrigger value="gross" disabled={!ivaConfermata}>IVA Inclusa</TabsTrigger>
             </TabsList>
           </Tabs>
         )}
@@ -634,7 +638,7 @@ export function FinancialSummary({
               value={rawTotalInput}
               onChange={(e) => setRawTotalInput(e.target.value)}
               onBlur={handleTotalBlur}
-              className="pl-8" placeholder="0.00"
+              className="pl-8" placeholder={daContratto ? "Importo di competenza da confermare" : "0.00"}
               disabled={readOnly}
             />
           </div>
@@ -644,9 +648,11 @@ export function FinancialSummary({
         <div className="space-y-2">
           <Label>Aliquota IVA</Label>
           <Select value={vatRate} onValueChange={handleVatRateChange} disabled={readOnly}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Aliquota IVA"><SelectValue placeholder="Da confermare dal contratto" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="0">0% · da confermare il regime</SelectItem>
               <SelectItem value="4">4%</SelectItem>
+              <SelectItem value="5">5%</SelectItem>
               <SelectItem value="10">10%</SelectItem>
               <SelectItem value="22">22%</SelectItem>
             </SelectContent>
@@ -685,15 +691,15 @@ export function FinancialSummary({
         <div className="p-3 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
             <span>Imponibile</span>
-            <span>{formatCurrency(total)}</span>
+            <span>{daContratto && !totalAmount.trim() ? "Da confermare" : formatCurrency(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>IVA ({vat}%)</span>
-            <span>{formatCurrency(vatAmount)}</span>
+            <span>{ivaConfermata ? `IVA (${vat}%)` : "IVA da confermare"}</span>
+            <span>{ivaConfermata ? formatCurrency(vatAmount) : "—"}</span>
           </div>
           <div className="flex justify-between font-medium border-t pt-2">
             <span>Totale con IVA</span>
-            <span>{formatCurrency(totalWithVat)}</span>
+            <span>{ivaConfermata ? formatCurrency(totalWithVat) : "Da definire dopo conferma IVA"}</span>
           </div>
           {hasBuildingBonus && (() => {
             // Il /1.22 di prima era GIUSTO: la banca non conosce l'aliquota
@@ -744,6 +750,7 @@ export function FinancialSummary({
                 >
                   <SelectTrigger><SelectValue placeholder="Seleziona numero rate" /></SelectTrigger>
                   <SelectContent>
+                    {daContratto && <SelectItem value="0">Da confermare · nessuna rata impostata</SelectItem>}
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                       <SelectItem key={n} value={n.toString()}>
                         {n === 1 ? "1 (solo Saldo, nessun acconto)" : `${n} rate (${n - 1} ${n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)`}
@@ -770,7 +777,7 @@ export function FinancialSummary({
             {installments.filter(i => i.type === 'deposit').map(inst => renderInstallmentInput(inst))}
 
             {/* Balance */}
-            {renderBalance("Saldo da Pagare")}
+            {installments.length > 0 ? renderBalance("Saldo da Pagare") : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.</p>}
           </>
         ) : (
           <>

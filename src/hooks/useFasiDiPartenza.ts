@@ -15,8 +15,9 @@ export function useFasiDiPartenza() {
   const { modelli, inizializzati } = useModelliFasi();
   const { modelloFasi } = useImpostazioniAvvio();
   const [scelto, setScelto] = useState<string | null>(null);
-  const offerti = useMemo(() => modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES), [inizializzati, modelli]);
+  const perContratto = useMemo(() => modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES), [inizializzati, modelli]);
+  const offerti = useMemo(() => perContratto.filter(m=>m.ambito !== "contratto"),[perContratto]);
   const modello: ModelloFasi | null = modelloDiAvvio(offerti, scelto, modelloFasi);
   const scegli = useCallback((id: string | null) => setScelto(id), []);
-  return { offerti, modello, scelta: modello?.id ?? "", scelto, scegli };
+  return { offerti, perContratto, modello, scelta: modello?.id ?? "", scelto, scegli };
 }

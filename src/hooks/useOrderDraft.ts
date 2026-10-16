@@ -6,6 +6,9 @@ import type { BonusLine } from "@/lib/orders/bonusFiscali";
 import type { FaseModello } from "@/lib/orders/modelliFasi";
 
 export interface OrderDraftData {
+  officeAssignments?: Record<string,string>;
+  contractSource?: import("@/lib/orders/contractPreparation").StoredContractFile | null;
+  contractExtract?: import("@/lib/orders/contractExtract").ContractExtract | null;
   customerId: string;
   orderCode: string;
   description: string;

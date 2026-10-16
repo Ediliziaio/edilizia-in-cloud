@@ -14,6 +14,7 @@ export interface ModelloFasi {
   /** uuid del modello dell'azienda; i modelli di partenza non ancora suoi hanno «partenza:<chiave>». */
   id: string;
   origine: OrigineModello;
+  ambito?: "cantiere" | "contratto";
   nome: string;
   descrizione: string;
   fasi: FaseModello[];
@@ -69,7 +70,7 @@ export const totaleSottofasi = (m: Pick<ModelloFasi, "fasi">): number =>
   m.fasi.reduce((n, f) => n + f.sottofasi.length, 0);
 
 // ── dalle tre tabelle all'albero ────────────────────────────────────────────
-export interface RigaModello { id: string; name: string; hint: string | null; position: number }
+export interface RigaModello { id: string; name: string; hint: string | null; position: number; template_scope?: string }
 export interface RigaFaseModello { id: string; template_id: string; name: string; position: number }
 export interface RigaSottofaseModello { id: string; template_phase_id: string; name: string; position: number; peso: number }
 
@@ -84,7 +85,7 @@ export function assemblaModelli(
   const fasiPerModello = new Map<string, RigaFaseModello[]>();
   for (const f of fasi) fasiPerModello.set(f.template_id, [...(fasiPerModello.get(f.template_id) ?? []), f]);
   return [...modelli].sort(perPosizione).map((m): ModelloFasi => ({
-    id: m.id, origine: "azienda", nome: m.name, descrizione: m.hint ?? "",
+    id: m.id, origine: "azienda", ambito: m.template_scope === "contratto" ? "contratto" : "cantiere", nome: m.name, descrizione: m.hint ?? "",
     fasi: [...(fasiPerModello.get(m.id) ?? [])].sort(perPosizione).map((f) => ({
       nome: f.name,
       sottofasi: [...(sottoPerFase.get(f.id) ?? [])].sort(perPosizione).map((s) => ({ nome: s.name, peso: s.peso })),
@@ -134,7 +135,8 @@ export function validaBozza(b: BozzaModello): EsitoBozza {
 }
 
 /** Quello che arriva a «aggiungi_fasi_commessa» per un modello scelto. */
-export function fasiPerCommessa(m: Pick<ModelloFasi, "fasi">): FaseModello[] {
+export function fasiPerCommessa(m: Pick<ModelloFasi, "fasi"> & Partial<Pick<ModelloFasi,"ambito">>): FaseModello[] {
+  if(m.ambito === "contratto") return [];
   return m.fasi.map((f) => ({ nome: f.nome, sottofasi: f.sottofasi.map((s) => ({ nome: s.nome, peso: pesoIntero(s.peso) })) }));
 }
 

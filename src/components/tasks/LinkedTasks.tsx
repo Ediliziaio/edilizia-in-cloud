@@ -30,6 +30,7 @@ interface LinkedTasksProps {
    *  L'elenco compare sotto solo quando c'è qualcosa (commessa, Lavorazioni). */
   compatta?: boolean;
   editable?: boolean;
+  excludeOffice?: boolean;
 }
 
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
@@ -55,7 +56,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta, editable = true }: LinkedTasksProps) {
+export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta, editable = true, excludeOffice = false }: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -68,8 +69,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
   const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
-  const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: [...queryKeys.tasks.linked(filterKey), companyId],
+  const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: [...queryKeys.tasks.linked(filterKey), companyId, excludeOffice],
     queryFn: async () => {
       if (!companyId) return [];
 
@@ -159,6 +160,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     },
     enabled: !!companyId && !!(orderId || stockItemId || costId || contactId || opportunityId || ticketId),
   });
+
+  const tasks = excludeOffice ? allTasks.filter((t: any) => t.activity_scope !== "ufficio") : allTasks;
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {

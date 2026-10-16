@@ -10,7 +10,7 @@ const baseOrderSchema = z.object({
   customer_id: z.string().min(1, "Seleziona un cliente"),
   order_code: z.string().max(50).optional().default(""),
   description: z.string().min(3, "La descrizione deve avere almeno 3 caratteri").max(1000),
-  internal_notes: z.string().max(1000).optional().default(""),
+  internal_notes: z.string().max(20000).optional().default(""),
   status_id: z.string().optional().default(""),
   salesperson_id: z.string().optional().default(""),
   salesperson_data: z.object({

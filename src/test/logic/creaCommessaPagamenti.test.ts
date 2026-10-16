@@ -35,8 +35,8 @@ describe("il modello di pagamento nel modulo di nuova commessa", () => {
   });
   it("lo zero dell'IVA non viene trasformato in 22% nei totali, nel salvataggio o nelle rate", () => {
     expect(SORGENTE).not.toMatch(/parseDecimalIT\([^)]*\)\s*\|\|\s*22/);
-    expect(SORGENTE).toContain('const vat = parseDecimalIT(vatRate?.trim() ? vatRate : "22")');
-    expect(SORGENTE).toContain('const vatValue = parseDecimalIT(values.vat_rate?.trim() ? values.vat_rate : "22")');
-    expect(SORGENTE).toContain('parseDecimalIT(val.trim() ? val : "22")');
+    expect(SORGENTE).not.toContain('vatRate?.trim() ? vatRate : "22"');
+    expect(SORGENTE).not.toContain('values.vat_rate?.trim() ? values.vat_rate : "22"');
+    expect(SORGENTE).not.toContain('val.trim() ? val : "22"');
   });
 });

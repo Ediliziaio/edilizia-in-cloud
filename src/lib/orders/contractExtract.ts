@@ -27,6 +27,18 @@ export interface ContractExtractAltroCosto {
   importo_eur: number;
 }
 export interface ContractExtract {
+  appalto_pubblico?: {
+    presente: boolean;
+    ruolo_azienda_importatrice: string | null;
+    quota_azienda_eur: number | null;
+    importo_totale_appalto_eur: number | null;
+    durata_giorni: number | null;
+    contratto_applicativo: string | null;
+    cig: string | null;
+    cig_derivato: string | null;
+    sil: string | null;
+    informazioni_da_confermare: string[];
+  };
   cliente: ContractExtractClient;
   descrizione_lavori: string;
   indirizzo_cantiere: string | null;
@@ -79,7 +91,18 @@ export function parseContractExtract(raw: unknown): ContractExtract {
   const c = (r.cliente && typeof r.cliente === "object" ? r.cliente : {}) as Record<string, unknown>;
   const voci = Array.isArray(r.voci) ? r.voci : [];
   const fasi = Array.isArray(r.fasi_pagamento) ? r.fasi_pagamento : [];
+  const a = (r.appalto_pubblico && typeof r.appalto_pubblico === "object" ? r.appalto_pubblico : {}) as Record<string, unknown>;
   return {
+    appalto_pubblico: {
+      presente: a.presente === true,
+      ruolo_azienda_importatrice: toStr(a.ruolo_azienda_importatrice),
+      quota_azienda_eur: toNum(a.quota_azienda_eur),
+      importo_totale_appalto_eur: toNum(a.importo_totale_appalto_eur),
+      durata_giorni: toNum(a.durata_giorni),
+      contratto_applicativo: toStr(a.contratto_applicativo),
+      cig: toStr(a.cig), cig_derivato: toStr(a.cig_derivato), sil: toStr(a.sil),
+      informazioni_da_confermare: Array.isArray(a.informazioni_da_confermare) ? a.informazioni_da_confermare.filter((v): v is string => typeof v === "string") : [],
+    },
     cliente: {
       nome_completo: toStr(c.nome_completo) ?? "",
       email: toStr(c.email),
@@ -179,6 +202,7 @@ export function deriveIvaPct(extract: ContractExtract): number | null {
  *   4. il solo totale ivato (meglio di niente).
  */
 export function contractImponibile(extract: ContractExtract): number | null {
+  if (extract.appalto_pubblico?.ruolo_azienda_importatrice === "mandante") return null;
   const iva = deriveIvaPct(extract);
   // Anche con IVA 0 lo scorporo vale (imponibile = ivato): il "Totale
   // Pagamento" e' il numero piu' affidabile del documento, mentre il campo
@@ -301,7 +325,7 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
       );
     }
   }
-  if (extract.voci.length === 0) {
+  if (extract.voci.length === 0 && !extract.appalto_pubblico?.presente) {
     out.push("Nessuna voce estratta: su un ordine con articoli è quasi certamente un'estrazione incompleta.");
   }
   if (extract.iva_pct == null && deriveIvaPct(extract) == null) {
@@ -312,18 +336,19 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
 
 /** Fasi del contratto → rate della commessa (Installment). Tipo inferito dal testo. */
 export function contractToInstallments(extract: ContractExtract, total: number): Installment[] {
+  if (extract.appalto_pubblico?.ruolo_azienda_importatrice === "mandante") return [];
   const phases = extract.fasi_pagamento;
   if (phases.length === 0) return [];
-  return phases.map((p, idx) => {
+  return phases.filter(p => (p.importo_eur != null && p.importo_eur > 0) || (p.percentuale != null && p.percentuale > 0 && total > 0)).map((p, idx, dichiarate) => {
     const low = p.descrizione.toLowerCase();
     const type: Installment["type"] =
       /saldo|a fine|balance/.test(low) ? "balance"
       : /finanz/.test(low) ? "financing"
-      : idx === phases.length - 1 ? "balance" : "deposit";
+      : idx === dichiarate.length - 1 && /saldo/.test(low) ? "balance" : "deposit";
     const amount =
       p.importo_eur != null ? round2(p.importo_eur)
       : p.percentuale != null && total > 0 ? round2((total * p.percentuale) / 100)
       : 0;
-    return { position: idx, label: p.descrizione, type, amount, is_paid: false };
+    return { position: idx, label: p.descrizione, type, amount, is_paid: false, amount_from_contract: true };
   });
 }
