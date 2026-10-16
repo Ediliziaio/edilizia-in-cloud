@@ -1,4 +1,5 @@
 import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
+import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
@@ -82,6 +83,8 @@ function OrdersListInner() {
   const refreshOrderScope = useCallback(() => {
     for (const key of ["orders", "orders-global-stats", "orders-pipeline", "orders-monthly-sales-chart"])
       void queryClient.invalidateQueries({queryKey:[key]});
+    for (const queryKey of [queryKeys.calendarOrders.all, queryKeys.dashboard.all, queryKeys.cruscotto.all, queryKeys.cashflow.all])
+      void queryClient.invalidateQueries({queryKey});
   }, [queryClient]);
   const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
@@ -727,6 +730,7 @@ function OrdersListInner() {
   // (can_delete_orders) — prima il toggle esisteva nella dialog ma non era
   // applicato da nessuna parte.
   const canDeleteOrders = orderPerms.isAdmin || orderPerms.canDeleteOrders;
+  const [trashOpen,setTrashOpen]=useState(false);
   // Creare una commessa scrive su orders: la RLS chiede can_edit_orders, che
   // in DB segue la visibilità salvo «Sola lettura». Il bottone legge lo stesso.
   const canCreateOrders = orderPerms.canEditOrders;
@@ -742,7 +746,7 @@ function OrdersListInner() {
     onSuccess: () => {
       refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Commessa eliminata", description: "La commessa è stata eliminata con successo" });
+      toast({ title: "Commessa nel cestino", description: "Puoi ripristinarla dal cestino dell’elenco commesse" });
     },
     onError: (error) => {
       toast({
@@ -817,19 +821,19 @@ function OrdersListInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       if (failed === 0) {
         toast({
-          title: "Commesse eliminate",
-          description: `${ok} ordin${ok === 1 ? "e eliminato" : "i eliminati"} con successo`,
+          title: "Commesse nel cestino",
+          description: `${ok} commess${ok === 1 ? "a spostata" : "e spostate"} nel cestino`,
         });
       } else if (ok === 0) {
         toast({
           title: "Eliminazione fallita",
-          description: `Nessuna commessa eliminata. Verifica permessi o riprova.`,
+          description: `Nessuna commessa spostata nel cestino. Verifica permessi o riprova.`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Eliminazione parziale",
-          description: `${ok} eliminati · ${failed} falliti. Le righe fallite sono ancora presenti.`,
+          description: `${ok} nel cestino · ${failed} non spostati. Le righe non spostate sono ancora presenti.`,
           variant: "destructive",
         });
       }
@@ -1347,6 +1351,7 @@ function OrdersListInner() {
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
+      {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
           Commessa» andava a capo e la testata occupava due righe). Si va a capo
@@ -1368,6 +1373,7 @@ function OrdersListInner() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
+          {canDeleteOrders && <Button variant="outline" size="sm" onClick={()=>setTrashOpen(true)}>Cestino</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
@@ -1890,15 +1896,16 @@ function OrdersListInner() {
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
               <OrdersTable
+                canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
-                onDelete={(id) => deleteOrderMutation.mutate(id)}
+                onDelete={(id) => deleteOrderMutation.mutateAsync(id)}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
                 costsState={scopeMarginsError || isGlobalStatsError ? "error" : scopeMarginsPending ? "loading" : "ready"}
                 statuses={statuses}
                 onBulkStatusChange={handleBulkStatusChange}
-                onBulkDelete={handleBulkDelete}
+                onBulkDelete={canDeleteOrders ? handleBulkDelete : undefined}
                 isBulkUpdating={isBulkUpdating}
                 visibleColumns={new Set([...visibleColumns].filter(isColumnAllowed))}
                 salespeopleMap={salespeopleMap}

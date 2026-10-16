@@ -157,6 +157,7 @@ export function useCruscottoData() {
         .from("order_installments")
         .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .eq("is_paid", false)
         .limit(5000);
       if (error) throw error;
@@ -468,6 +469,7 @@ export function useCruscottoData() {
         supabase.from("order_installments")
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
+          .is("order.deleted_at", null)
           .eq("is_paid", false)
           .lt("expected_date", nowStr)
           .limit(5000),
@@ -489,6 +491,7 @@ export function useCruscottoData() {
         supabase.from("order_installments")
           .select("amount, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
+          .is("order.deleted_at", null)
           .eq("is_paid", true)
           .gte("paid_date", todayDateFrom)
           .lte("paid_date", todayDateTo),
@@ -549,6 +552,7 @@ export function useCruscottoData() {
         .from("order_installments")
         .select("amount, expected_date, order:orders!inner(company_id)")
         .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null)
         .eq("is_paid", false)
         .gte("expected_date", todayStr)
         .lte("expected_date", in90);

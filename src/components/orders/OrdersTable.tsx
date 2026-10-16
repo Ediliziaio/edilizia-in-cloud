@@ -1,3 +1,4 @@
+import {OrderTrashConfirmDialog} from './OrderTrashConfirmDialog';
 import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -47,9 +48,10 @@ export interface OrderCosts {
 }
 
 interface OrdersTableProps {
+  canDelete?: boolean;
   orders: OrderWithDetails[];
   previousReasons?: Record<string,string[]>;
-  onDelete: (orderId: string) => void;
+  onDelete: (orderId: string) => void | Promise<unknown>;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
   costsState?: "ready" | "loading" | "error";
@@ -64,6 +66,7 @@ interface OrdersTableProps {
 }
 
 export const OrdersTable = React.memo(function OrdersTable({
+  canDelete = true,
   orders,
   previousReasons = {},
   onDelete,
@@ -269,7 +272,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   <AlertDialogDescription>
                     Sei sicuro di voler eliminare <strong>{selectedIds.size}</strong> ordin{selectedIds.size === 1 ? "e" : "i"}?
                     <br />
-                    L'azione verra bloccata automaticamente se una commessa ha fatture, costi o scadenze collegate.
+                    Le commesse verranno spostate nel cestino e potranno essere ripristinate. Fatture e movimenti effettivi restano protetti; le sole rate previste non impediscono il cestinamento.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -549,14 +552,15 @@ export const OrdersTable = React.memo(function OrdersTable({
                         <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${order.id}/modifica`)}>
                           <Pencil className="h-4 w-4 mr-2" />Modifica
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
+                        {canDelete && <DropdownMenuSeparator />}
+                        {canDelete &&
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           disabled={isDeleting}
                           onClick={() => setConfirmDelete(order)}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />Elimina
-                        </DropdownMenuItem>
+                        </DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -569,31 +573,7 @@ export const OrdersTable = React.memo(function OrdersTable({
       </div>{/* end hidden sm:block */}
 
       {/* Conferma eliminazione unica, pilotata dal menu ⋮ delle righe. */}
-      <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminazione sicura commessa</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare la commessa{" "}
-              <strong>{confirmDelete?.order_code || confirmDelete?.description}</strong>?
-              <br />
-              Se esistono fatture, costi o scadenze collegate, il sistema blocchera l'eliminazione per proteggere report e storico.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (confirmDelete) onDelete(confirmDelete.id);
-                setConfirmDelete(null);
-              }}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OrderTrashConfirmDialog open={!!confirmDelete} onOpenChange={v=>!v&&setConfirmDelete(null)} label={confirmDelete?.order_code||confirmDelete?.description} onConfirm={()=>{if(confirmDelete)return onDelete(confirmDelete.id);}} />
     </Card>
   );
 });

@@ -71,6 +71,7 @@ export default function CustomerInstallments() {
         `)
         .eq("order.customer_id", user!.id)
         .eq("order.company_id", companyId)
+        .is("order.deleted_at", null)
         .order("position", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as Installment[];

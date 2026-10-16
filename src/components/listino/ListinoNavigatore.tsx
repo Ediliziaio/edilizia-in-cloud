@@ -705,9 +705,10 @@ function RigaSchedaLinea({
           )}
         </p>
         {scheda.descrizione && (
-          <p className="line-clamp-1 text-xs text-muted-foreground" title={scheda.descrizione}>
-            {scheda.descrizione}
-          </p>
+          <details className="mt-1 text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-primary">Descrizione e verifiche della linea</summary>
+            <p className="mt-2 whitespace-pre-wrap leading-relaxed">{scheda.descrizione}</p>
+          </details>
         )}
       </div>
       {scheda.scheda_tecnica_url && (

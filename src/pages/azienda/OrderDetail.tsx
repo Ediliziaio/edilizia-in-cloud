@@ -1,3 +1,4 @@
+import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDialog';
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
 import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
@@ -36,10 +37,6 @@ import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { OrderItem } from "@/components/orders/OrderItemsList";
 import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTrackingCard";
 import { PaymentType } from "@/components/orders/FinancialSummary";
@@ -650,7 +647,7 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
-      toast.success("Commessa eliminata");
+      toast.success("Commessa spostata nel cestino");
       navigate("/azienda/ordini");
     },
     onError: (error) => {
@@ -1335,7 +1332,7 @@ function OrderDetailInner() {
         onDownloadPDF={handleDownloadPDF}
         isGeneratingPDF={pdfPreparing || isGeneratingPDF}
         canEdit={permissions.canEditOrders && !operationalIntervention}
-        canDelete={permissions.canEditOrders}
+        canDelete={permissions.isAdmin || permissions.canDeleteOrders}
         azioniTelefono={isMobile ? azioniRapide : undefined}
       />
 
@@ -2257,23 +2254,7 @@ function OrderDetailInner() {
       )}
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la commessa?</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteOrderMutation.mutate()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OrderTrashConfirmDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen} label={order.order_code} onConfirm={()=>deleteOrderMutation.mutateAsync()} />
 
       {/* Status Change Dialog */}
       <Dialog

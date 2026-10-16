@@ -482,3 +482,24 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(stato.refetch).toHaveBeenCalledTimes(2);
   });
 });
+
+it('trova Epiq per linea e distingue le categorie con lo stesso nome', () => {
+  const company_id='421f4929-04bc-406d-b0fd-3ff4d57a64ee';
+  stato.items=[
+    {...prodotto('EPIQ','epiq-cat'),company_id,prezzo_base_vendita:400,family:{company_id,macrocategoria_id:'5066bc5e-0bc7-4826-8c27-dd81e014767d',codice:'EPIQ',axes:[]}},
+    {...prodotto('4STARS','4stars-cat'),company_id,prezzo_base_vendita:400,family:{company_id,macrocategoria_id:'a1405c07-659d-45a5-bd00-584f0e4f6ed0',codice:'4STARS',axes:[]}},
+  ] as CatalogItem[];
+  stato.macros=[{id:'5066bc5e-0bc7-4826-8c27-dd81e014767d',nome:'Epiq'},{id:'a1405c07-659d-45a5-bd00-584f0e4f6ed0',nome:'4Stars'}];
+  stato.categorie=[{id:'epiq-cat',nome:'Finestre',macrocategoria_id:stato.macros[0].id},{id:'4stars-cat',nome:'Finestre',macrocategoria_id:stato.macros[1].id}] as CatalogCategory[];
+  const select=catalogo();
+  expect(screen.getByRole('option',{name:'Epiq · Finestre (1)'})).toBeInTheDocument();
+  expect(screen.getByRole('option',{name:'4Stars · Finestre (1)'})).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:'Epiq finestra'}});
+  expect(screen.getByRole('status')).toHaveTextContent('1 prodotto');
+  fireEvent.change(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:''}});
+  fireEvent.change(screen.getByRole('combobox',{name:'Filtra per linea'}),{target:{value:'Epiq'}});
+  expect(screen.getByRole('status')).toHaveTextContent('1 prodotto');
+  fireEvent.click(screen.getByRole('button',{name:/Finestra 1 Anta Finestre · Epiq/}));
+  expect(select.mock.calls[0][0]).toBe(stato.items[0]);
+  expect(stato.items[0].prezzo_base_vendita).toBe(400);
+});
