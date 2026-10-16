@@ -75,7 +75,7 @@ describe('solo code dovute, senza perdere recupero e approvazioni', () => {
     expect(await due('process-scheduled-campaigns')).toBe(true);
   });
   it('preserva cadenze, job spenti, comandi fuori ambito ed è idempotente', async () => {
-    const before = (await db.query('select * from cron.job order by jobid')).rows;
+    const before = (await db.query<{command:string}>('select * from cron.job order by jobid')).rows;
     await db.exec(`BEGIN;${migration}${emailMigration}COMMIT;`);
     expect((await db.query('select * from cron.job order by jobid')).rows).toEqual(before);
     expect(before[0]).toMatchObject({active:true,schedule:'1-59/10 * * * *'});
