@@ -1,0 +1,52 @@
+import { PGlite } from '@electric-sql/pglite';
+import {beforeAll,afterAll,beforeEach,afterEach,describe,it,expect} from 'vitest';
+import {moduleConversionSchema,moduleMigration,seedModules,A,B,U,Q} from '../fixtures/moduleConversionDatabase';
+import {workCopySchema,workCopyMigration} from '../fixtures/workCopyDatabase';
+let db:PGlite;let orderId:string;
+const request='90000000-0000-0000-0000-000000000001';
+beforeAll(async()=>{db=new PGlite();await db.exec(moduleConversionSchema);await db.exec(moduleMigration);await db.exec(workCopySchema);await db.exec(workCopyMigration);},60000);
+afterAll(async()=>db?.close());
+beforeEach(async()=>{
+ await db.exec('begin;'+seedModules);
+ const p=(await db.query<any>(`select converti_modulo_commessa_atomic('fv',$1,false,true) r`,[Q])).rows[0].r;
+ orderId=(await db.query<any>(`select converti_modulo_commessa_atomic('fv',$1,false,false,$2) r`,[Q,p.impronta])).rows[0].r.id;
+ await db.query(`update orders set quote_id=$2,client_name='Cliente origine',deposit_paid=true,work_start_date='2026-10-01',financing_cost=100 where id=$1`,[orderId,Q]);
+ await db.query("update order_work_phases set status='completata',percentuale=100,importo_venduto=1500,start_date='2026-10-01',end_date='2026-10-02' where order_id=$1",[orderId]);
+ await db.query("insert into order_work_subphases(phase_id,name,position,peso,fatta,fatta_il,fatta_da) select id,'Collaudo',0,30,true,now(),$2 from order_work_phases where order_id=$1 order by position limit 1",[orderId,U]);
+ await db.query('update order_items set phase_id=(select id from order_work_phases where order_id=$1 order by position limit 1),is_paid=true,purchase_price=999 where order_id=$1',[orderId]);
+ await db.query('update rst_progetti set ordine_id=$1,cliente_nome=$2,prezzo_manuale=4815,sconto_pct=10',[orderId,'Cliente origine']);
+ await db.exec(`update rst_computo_voci set company_id='${A}',immagine_url='https://example.test/prodotto.jpg',descrizione_estesa='Descrizione completa'`);
+});
+afterEach(async()=>db.exec('rollback'));
+async function rpc(type='commessa',preview=true,hash:string|null=null,keep=false,req=request){return(await db.query<any>('select duplica_lavoro_atomic($1,$2,$3,$4,$5,$6) r',[type,type==='rst'?Q:orderId,keep,preview,hash,req])).rows[0].r;}
+async function copy(type='commessa',keep=false){const p=await rpc(type,true,null,keep);return rpc(type,false,p.impronta,keep);}
+describe('duplicazione atomica',()=>{
+ it('anteprima riassume materiali, fasi e sottofasi senza creare nulla',async()=>{const p=await rpc();expect(p).toMatchObject({materiali:1,fasi:2,sottofasi:1});expect((await db.query<any>('select count(*) n from orders')).rows[0].n).toBe(1);});
+ it('commessa: conserva contratto e struttura, azzera avanzamenti/costi/incassi e scollega origine',async()=>{
+  const r=await copy();const o=(await db.query<any>('select * from orders where id=$1',[r.id])).rows[0];expect(Number(o.total_amount)).toBe(10000);expect(o.quote_id).toBeNull();expect(o.fv_progetto_id).toBeNull();expect(o.client_name).toBeNull();expect(o.deposit_paid).toBe(false);expect(o.work_start_date).toBeNull();expect(Number(o.financing_cost)).toBe(0);
+  const f=(await db.query<any>('select * from order_work_phases where order_id=$1 order by position',[r.id])).rows;expect(f).toHaveLength(2);expect(f.every(x=>Number(x.importo_venduto)===1500)).toBe(true);expect(f.every(x=>x.status==='da_iniziare'&&Number(x.percentuale)===0&&x.start_date===null)).toBe(true);
+  const sub=(await db.query<any>('select s.* from order_work_subphases s join order_work_phases f on f.id=s.phase_id where f.order_id=$1',[r.id])).rows[0];expect(sub).toMatchObject({name:'Collaudo',peso:30,fatta:false,fatta_da:null,fatta_il:null});
+  const m=(await db.query<any>('select * from order_items where order_id=$1',[r.id])).rows[0];expect(m.phase_id).toBe(f[0].id);expect(Number(m.unit_price)).toBe(140);expect(Number(m.purchase_price)).toBe(0);expect(m.is_paid).toBe(false);expect(m.stock_item_id).toBeNull();
+ });
+ it('cliente si mantiene solo su scelta esplicita',async()=>{const r=await copy('commessa',true);expect((await db.query<any>('select client_name from orders where id=$1',[r.id])).rows[0].client_name).toBe('Cliente origine');});
+ it('preventivo: copia computo, prezzi, immagini e fasi del lavoro in una nuova bozza indipendente',async()=>{const r=await copy('rst');const q=(await db.query<any>('select * from rst_progetti where id=$1',[r.id])).rows[0];expect(q).toMatchObject({stato:'bozza',ordine_id:null,created_by:U,cliente_nome:null});expect(Number(q.prezzo_manuale)).toBe(4815);expect(Number(q.totale_imponibile)).toBe(4333.5);expect(q.fasi_previste).toHaveLength(2);expect(q.fasi_previste[0].sottofasi).toHaveLength(1);const v=(await db.query<any>('select * from rst_computo_voci where progetto_id=$1 order by ordine',[r.id])).rows;expect(v).toHaveLength(2);expect(Number(v[1].quantita)).toBe(85.5);expect(v[0].immagine_url).toBe('https://example.test/prodotto.jpg');expect(v[0].descrizione_estesa).toBe('Descrizione completa');});
+ it('preventivo copiato: conversione mantiene le fasi e sottofasi personalizzate',async()=>{const r=await copy('rst');const p=(await db.query<any>(`select converti_modulo_commessa_atomic('rst',$1,true,true) r`,[r.id])).rows[0].r;expect(p.fasi[0].name).toBe('Pratica di connessione');expect(Number(p.fasi[0].importo_venduto)).toBe(1500);const o=(await db.query<any>(`select converti_modulo_commessa_atomic('rst',$1,true,false,$2) r`,[r.id,p.impronta])).rows[0].r;expect((await db.query<any>('select count(*) n from order_work_subphases s join order_work_phases f on f.id=s.phase_id where f.order_id=$1',[o.id])).rows[0].n).toBe(1);});
+ it('retry della stessa richiesta restituisce la stessa copia',async()=>{const p=await rpc();const a=await rpc('commessa',false,p.impronta);const b=await rpc('commessa',false,p.impronta);expect(b.id).toBe(a.id);expect(b.gia_creata).toBe(true);expect((await db.query<any>('select count(*) n from orders')).rows[0].n).toBe(2);});
+ it('origine cambiata richiede nuovo riepilogo',async()=>{const p=await rpc();await db.query("update orders set description='Cambiato' where id=$1",[orderId]);await expect(rpc('commessa',false,p.impronta)).rejects.toThrow('cambiata');});
+ it('errore sottofase annulla anche la copia e il registro richieste',async()=>{const p=await rpc();await db.exec("alter table order_work_subphases add constraint prova check(not(name='Collaudo' and fatta=false));savepoint tentativo");await expect(rpc('commessa',false,p.impronta)).rejects.toThrow();await db.exec('rollback to tentativo');expect((await db.query<any>('select count(*) n from orders')).rows[0].n).toBe(1);expect((await db.query<any>('select count(*) n from private.work_copy_requests')).rows[0].n).toBe(0);});
+ it('solo assegnati non duplica un lavoro altrui',async()=>{await db.exec("select set_config('test.assigned','true',false);select set_config('test.admin','false',false)");await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values($1,$2,true,true)',[U,A]);await expect(rpc()).rejects.toThrow('permesso');});
+ it('visibilità magazzino: rispetta la destinazione originale e rende visibile la copia al creatore',async()=>{
+  await db.exec("select set_config('test.warehouse','true',false);select set_config('test.admin','false',false)");
+  await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders,only_my_warehouse) values($1,$2,true,true,true)',[U,A]);
+  await db.query("update orders set destination_warehouse_id='80000000-0000-0000-0000-000000000001' where id=$1",[orderId]);
+  const r=await copy();expect((await db.query<any>('select can_see_order(id,assigned_to,destination_warehouse_id) visible from orders where id=$1',[r.id])).rows[0].visible).toBe(true);
+ });
+ it('utente bloccato respinto',async()=>{await db.exec("select set_config('test.blocked','true',false)");await expect(rpc()).rejects.toThrow('autorizzata');});
+ it('azienda secondaria autorizzata supportata senza nuovi permessi',async()=>{await db.exec(`update profiles set company_id='${B}';insert into multi_company_access values('${U}','${A}','active',null,'company_staff');insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values('${U}','${A}',true,true)`);expect((await copy()).id).toBeTruthy();});
+ it('chi vede solo le proprie commesse ritrova la copia appena creata',async()=>{await db.exec("select set_config('test.assigned','true',false);select set_config('test.admin','false',false)");await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders) values($1,$2,true,true)',[U,A]);await db.query('update orders set assigned_to=$1 where id=$2',[U,orderId]);const r=await copy();expect((await db.query<any>('select assigned_to from orders where id=$1',[r.id])).rows[0].assigned_to).toBe(U);});
+ it('senza permesso di lettura delle commesse non si copiano le note del cantiere dentro il preventivo',async()=>{await db.exec("select set_config('test.admin','false',false)");await db.query('insert into staff_permissions(user_id,company_id,can_edit_orders,can_view_orders,can_edit_preventivi) values($1,$2,false,false,true)',[U,A]);const r=await copy('rst');expect((await db.query<any>('select fasi_previste from rst_progetti where id=$1',[r.id])).rows[0].fasi_previste).toEqual([]);});
+ it('la stessa chiave non può duplicare un tipo di documento diverso',async()=>{await copy();const p=await rpc('rst');await expect(rpc('rst',false,p.impronta)).rejects.toThrow('Richiesta non valida');});
+ it('computo modificato dopo anteprima richiede nuova verifica',async()=>{const p=await rpc('rst');await db.exec('update rst_computo_voci set quantita=123');await expect(rpc('rst',false,p.impronta)).rejects.toThrow('cambiata');});
+ it('l’originale conserva cliente, prezzi, collegamenti e avanzamento',async()=>{const before=(await db.query<any>('select to_jsonb(p) r from rst_progetti p where id=$1',[Q])).rows[0].r;await copy('rst');expect((await db.query<any>('select to_jsonb(p) r from rst_progetti p where id=$1',[Q])).rows[0].r).toEqual(before);expect((await db.query<any>('select bool_and(percentuale=100) ok from order_work_phases where order_id=$1',[orderId])).rows[0].ok).toBe(true);});
+ it('anon non esegue la RPC',async()=>{await db.exec('set local role anon');await expect(rpc()).rejects.toThrow('permission denied for function');});
+});

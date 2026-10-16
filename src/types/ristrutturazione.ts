@@ -28,6 +28,7 @@ export interface RstComputoVoce {
   descrizione_estesa?: string | null;
 }
 export interface RstProgetto {
+  fasi_previste?: Array<{ name: string; notes: string | null; sottofasi: Array<{ name: string; peso: number }> }>;
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
   modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<RstTemplatePdf> | null;
   /** Le esigenze del cliente scelte per QUESTO preventivo (facoltative): se ce ne sono, nel PDF escono loro; se no, lo standard del modello. */

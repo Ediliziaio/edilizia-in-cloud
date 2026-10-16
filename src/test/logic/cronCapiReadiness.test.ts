@@ -45,9 +45,9 @@ describe('Meta CAPI solo con destinazione attiva e coda utile', () => {
     expect(await run()).toBe(0);
   });
   it('è idempotente e preserva gli altri job e la pianificazione', async () => {
-    const before = (await db.query('select * from cron.job order by jobid')).rows;
+    const before = (await db.query<{jobid:number;jobname:string;command:string;active:boolean;schedule:string}>('select * from cron.job order by jobid')).rows;
     await db.exec(`BEGIN;${sql}COMMIT;`);
-    expect((await db.query('select * from cron.job order by jobid')).rows).toEqual(before);
+    expect((await db.query<{jobid:number;jobname:string;command:string;active:boolean;schedule:string}>('select * from cron.job order by jobid')).rows).toEqual(before);
     expect(before[0]).toMatchObject({active:true,schedule:'6-59/10 * * * *'});
     expect(before[1].command).toBe('select 1');
   });
