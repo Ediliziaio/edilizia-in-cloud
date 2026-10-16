@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  annualComparisonPeriod,
+  comparableOrderMonths,
   clickedOrderChartMonth,
   orderChartMonthFilter,
   orderChartMonths,
@@ -101,5 +103,57 @@ describe("Selezione mensile del grafico", () => {
       { activeTooltipIndex: 1 },
     ])
       expect(clickedOrderChartMonth(event, data)).toBeNull();
+  });
+});
+
+describe("Confronto annuale a parità di periodo", () => {
+  it("include il giorno corrente nei due anni ed esclude i giorni successivi", () => {
+    const period = annualComparisonPeriod(2026, today)!;
+    expect(period.to).toEqual(new Date(2026, 9, 17));
+    expect(period.previousTo).toEqual(new Date(2025, 9, 17));
+    const row = (year: number, day: number) => ({
+      created_at: new Date(year, 9, day, 12).toISOString(),
+      venduto: 100,
+      incassato: 40,
+      daIncassare: 60,
+    });
+    const data = comparableOrderMonths(
+      [month("2026-10"), month("2026-11")],
+      [row(2026, 16), row(2026, 17)],
+      [row(2025, 16), row(2025, 17)],
+      period,
+    );
+    expect(data[0]).toMatchObject({
+      commesse: 1,
+      venduto: 100,
+      comparison: { year: 2025, commesse: 1, venduto: 100 },
+    });
+    expect(data[1].comparison).toBeUndefined();
+    expect(orderChartMonths(data, today)[1].count).toBeNull();
+  });
+  it("gestisce anno bisestile, anni conclusi e anno futuro senza sforare il mese", () => {
+    const leap = annualComparisonPeriod(2024, new Date(2024, 1, 29))!;
+    expect(leap.to).toEqual(new Date(2024, 2, 1));
+    expect(leap.previousTo).toEqual(new Date(2023, 2, 1));
+    const closed = annualComparisonPeriod(2025, today)!;
+    expect(closed.to).toEqual(new Date(2026, 0, 1));
+    expect(closed.previousTo).toEqual(new Date(2025, 0, 1));
+    expect(annualComparisonPeriod(2027, today)).toBeNull();
+    expect(annualComparisonPeriod(NaN, today)).toBeNull();
+  });
+  it("mantiene gli zeri reali in assenza di commesse e non modifica il riepilogo originale", () => {
+    const template = [month("2026-09", 2)];
+    const data = comparableOrderMonths(
+      template,
+      [],
+      [],
+      annualComparisonPeriod(2026, today)!,
+    );
+    expect(data[0]).toMatchObject({
+      venduto: 0,
+      comparison: { venduto: 0, commesse: 0 },
+    });
+    expect(template[0].venduto).toBe(200);
+    expect(template[0]).not.toHaveProperty("comparison");
   });
 });

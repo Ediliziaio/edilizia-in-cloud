@@ -56,6 +56,35 @@ export function OrderMonthDetails({
         <dt className="text-slate-600">Commesse</dt>
         <dd className="text-right font-semibold">{month.commesse}</dd>
       </dl>
+      {month.comparison && (
+        <div className="mt-3 border-t border-slate-200 pt-2">
+          <p className="mb-2 font-semibold">
+            Confronto {month.comparison.year} · stesso periodo
+          </p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 tabular-nums">
+            <dt>Venduto</dt>
+            <dd className="text-right">
+              {chartMoney(month.comparison.venduto)}
+            </dd>
+            <dt>Incassato</dt>
+            <dd className="text-right">
+              {chartMoney(month.comparison.incassato)}
+            </dd>
+            <dt>Da incassare</dt>
+            <dd className="text-right">
+              {chartMoney(month.comparison.daIncassare)}
+            </dd>
+            <dt>Commesse</dt>
+            <dd className="text-right">{month.comparison.commesse}</dd>
+            <dt>Variazione venduto</dt>
+            <dd className="text-right font-semibold">
+              {month.comparison.venduto > 0
+                ? `${new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1, signDisplay: "always" }).format((month.venduto - month.comparison.venduto) / month.comparison.venduto)}`
+                : "Base precedente assente"}
+            </dd>
+          </dl>
+        </div>
+      )}
       <p className="mt-2 max-w-60 text-[11px] leading-relaxed text-slate-500">
         Commesse create nel mese · IVA inclusa
       </p>
@@ -68,7 +97,17 @@ export function OrdersMonthlyChart({
   period,
   selectedMonth = null,
   onSelectMonth,
+  comparison,
 }: {
+  comparison?: {
+    year: number;
+    enabled: boolean;
+    onToggle: () => void;
+    loading: boolean;
+    error: boolean;
+    onRetry: () => void;
+    label: string;
+  };
   months: OrderChartMonth[];
   period: string;
   selectedMonth?: string | null;
@@ -80,6 +119,11 @@ export function OrdersMonthlyChart({
   const [animateInteraction, setAnimateInteraction] = useState(true);
   const gradient = useId().replace(/:/g, "");
   const data = useMemo(() => orderChartMonths(months), [months]);
+  const comparing =
+    comparison?.enabled &&
+    !comparison.loading &&
+    !comparison.error &&
+    data.some((month) => month.comparison);
   const current = data.find((month) => month.current);
   const selected = data.find((month) => month.key === selectedMonth);
   const hasFuture = data.some((month) => month.count === null);
@@ -154,6 +198,48 @@ export function OrdersMonthlyChart({
           </div>
         )}
       </div>
+      {comparison && (
+        <div className="mt-3">
+          <button
+            type="button"
+            aria-pressed={comparison.enabled}
+            onClick={(event) => {
+              setAnimateInteraction(event.detail > 0);
+              comparison.onToggle();
+            }}
+            className={`orders-chart-control rounded-lg border px-3 py-1.5 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
+          >
+            Confronta {comparison.year}
+          </button>
+          {comparison.enabled && (
+            <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              <p>
+                Stesso periodo: {comparison.label}, nei due anni. Linee
+                tratteggiate: {comparison.year}.
+              </p>
+              <p>
+                Incassi e residui aggiornati a oggi, non saldi storici. I filtri
+                dell’elenco non cambiano.
+              </p>
+              {comparison.loading && (
+                <p role="status">Caricamento confronto…</p>
+              )}
+              {comparison.error && (
+                <p role="alert">
+                  Confronto non disponibile.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={comparison.onRetry}
+                  >
+                    Riprova confronto
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div
         className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
         aria-label="Legenda grafico"
@@ -273,6 +359,45 @@ export function OrdersMonthlyChart({
               filterNull
               isAnimationActive={false}
             />
+            {comparing &&
+              (view === "money" ? (
+                <>
+                  <Line
+                    dataKey="comparison.venduto"
+                    name={`Venduto ${comparison!.year}`}
+                    type="monotone"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                    connectNulls={false}
+                    {...animation}
+                  />
+                  <Line
+                    dataKey="comparison.incassato"
+                    name={`Incassato ${comparison!.year}`}
+                    type="monotone"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                    connectNulls={false}
+                    {...animation}
+                  />
+                </>
+              ) : (
+                <Line
+                  dataKey="comparison.commesse"
+                  name={`Commesse ${comparison!.year}`}
+                  type="monotone"
+                  stroke="#1e293b"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  dot={false}
+                  connectNulls={false}
+                  {...animation}
+                />
+              ))}
             {view === "money" ? (
               shape === "bars" ? (
                 <>
@@ -418,13 +543,14 @@ export function OrdersMonthlyChart({
                 </tr>
               </thead>
               <tbody>
-                {data.map((month) => (
+                {data.flatMap((month) => [
                   <tr key={month.key} className="border-t border-slate-100">
                     <th
                       scope="row"
                       className="whitespace-nowrap px-3 py-2 font-normal"
                     >
                       {month.mese}
+                      {comparing ? ` · ${period}` : ""}
                       {month.current ? " · in corso" : ""}
                     </th>
                     <td className="whitespace-nowrap px-3 py-2">
@@ -443,8 +569,35 @@ export function OrdersMonthlyChart({
                         : chartMoney(month.daIncassare)}
                     </td>
                     <td className="px-3 py-2">{month.count ?? "—"}</td>
-                  </tr>
-                ))}
+                  </tr>,
+                  ...(month.comparison
+                    ? [
+                        <tr
+                          key={`${month.key}-previous`}
+                          className="border-t border-slate-100 bg-slate-50"
+                        >
+                          <th
+                            scope="row"
+                            className="whitespace-nowrap px-3 py-2 font-normal"
+                          >
+                            {month.mese.split(" ")[0]} · {month.comparison.year}
+                          </th>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {chartMoney(month.comparison.venduto)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {chartMoney(month.comparison.incassato)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {chartMoney(month.comparison.daIncassare)}
+                          </td>
+                          <td className="px-3 py-2">
+                            {month.comparison.commesse}
+                          </td>
+                        </tr>,
+                      ]
+                    : []),
+                ])}
               </tbody>
             </table>
           </div>
