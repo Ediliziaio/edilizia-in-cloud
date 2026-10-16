@@ -1,4 +1,3 @@
-import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 /**
  * RistrutturazioneIndex — landing del modulo Ristrutturazione.
  *
@@ -44,6 +43,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   useRistrutturazioneProgetti,
   useDeleteProgetto,
+  useClonaProgetto,
 } from "@/hooks/useRistrutturazioneProgetto";
 import { RST_STATI_LABEL } from "./RistrutturazioneWizard/helpers";
 import type { RstStato } from "@/types/ristrutturazione";
@@ -58,6 +58,7 @@ export default function RistrutturazioneIndex() {
   const sel = useTableSelection();
   const { data: progetti = [], isLoading, isError, refetch } = useRistrutturazioneProgetti();
   const deleteMut = useDeleteProgetto();
+  const cloneMut = useClonaProgetto();
 
   const [search, setSearch] = useState("");
   const [filtroStato, setFiltroStato] = useState<string>("all");
@@ -101,9 +102,22 @@ export default function RistrutturazioneIndex() {
     }
   };
 
-  const handleClone = (sourceId: string) => {
+  const handleClone = async (sourceId: string) => {
     setCloningId(sourceId);
-    setCloneOpen(false);
+    try {
+      const nuovo = await cloneMut.mutateAsync(sourceId);
+      toast.success("Preventivo duplicato", {
+        description: "Computo e condizioni copiati. Compila il cliente del nuovo preventivo.",
+      });
+      setCloneOpen(false);
+      navigate(`/azienda/ristrutturazione/${nuovo.id}/modifica`);
+    } catch (e) {
+      toast.error("Duplicazione fallita", {
+        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      });
+    } finally {
+      setCloningId(null);
+    }
   };
 
   return (
@@ -157,11 +171,11 @@ export default function RistrutturazioneIndex() {
               <Button
                 variant="outline"
                 onClick={() => setCloneOpen(true)}
-                className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white max-sm:hidden"
               >
                 <CopyPlus className="h-4 w-4 mr-1.5" />
-                <span className="sm:hidden">Duplica</span>
-                <span className="hidden sm:inline">Duplica preventivo</span>
+                <span className="sm:hidden">Da esistente</span>
+                <span className="hidden sm:inline">Inizia da esistente</span>
               </Button>
             )}
             <Button
@@ -360,10 +374,6 @@ export default function RistrutturazioneIndex() {
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-1 justify-end">
-                                <Button size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
-                                  onClick={() => handleClone(p.id)} aria-label={`Duplica preventivo ${p.code ?? ""}`}>
-                                  <CopyPlus className="h-3.5 w-3.5" />
-                                </Button>
                                 <Button
                                   size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
                                   onClick={() => setToDelete({ id: p.id, code: p.code })}
@@ -409,12 +419,12 @@ export default function RistrutturazioneIndex() {
       </div>
 
       {/* Inizia da un preventivo esistente — clona computo + condizioni */}
-      <Dialog open={cloneOpen} onOpenChange={setCloneOpen}>
+      <Dialog open={cloneOpen} onOpenChange={(o) => { if (!cloneMut.isPending) setCloneOpen(o); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Scegli il preventivo da duplicare</DialogTitle>
+            <DialogTitle>Inizia da un preventivo esistente</DialogTitle>
             <DialogDescription>
-              Scegli il preventivo di partenza. Nel riepilogo potrai conservare anche le fasi e scegliere se mantenere il cliente.
+              Copia computo e condizioni di un preventivo passato in uno nuovo. Cliente, cantiere e immobile restano da compilare.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-1.5 overflow-y-auto px-0.5">
@@ -430,7 +440,7 @@ export default function RistrutturazioneIndex() {
                   <button
                     key={p.id}
                     type="button"
-                    disabled={false}
+                    disabled={cloneMut.isPending}
                     onClick={() => handleClone(p.id)}
                     className="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:border-orange-300 hover:bg-orange-50/50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -456,13 +466,6 @@ export default function RistrutturazioneIndex() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <DuplicaLavoroDialog tipo="rst" sourceId={cloningId ?? ""} open={!!cloningId}
-        onOpenChange={(v) => { if (!v) setCloningId(null); }}
-        onDuplicato={(nuovoId) => {
-          void refetch();
-          navigate(`/azienda/ristrutturazione/${nuovoId}/modifica`);
-        }} />
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
