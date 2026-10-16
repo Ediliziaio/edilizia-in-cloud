@@ -1,0 +1,20 @@
+import { cleanup,render,screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach,beforeEach,expect,it,vi } from 'vitest';
+const state=vi.hoisted(()=>({mobile:true,scopri:false}));
+vi.mock('@/hooks/use-mobile',()=>({useIsMobile:()=>state.mobile}));
+vi.mock('@/hooks/useFleetTrackAccess',()=>({useFleetTrackAccess:()=>false}));
+vi.mock('@/hooks/useSubscriptionLimits',()=>({useSubscriptionLimits:()=>({isScopriPlan:state.scopri})}));
+vi.mock('@/components/subscription/UpgradeScopriBanner',()=>({UpgradeScopriWall:()=> <p>Piano HR richiesto</p>}));
+vi.mock('@/components/personale/DailyHoursPanel',()=>({DailyHoursPanel:()=> <section aria-label="Registro ore di cantiere">Registro ore</section>}));
+vi.mock('@/pages/azienda/personale/tabs/TabTimbrature',()=>({TabTimbrature:()=> <section aria-label="Timbrature">Timbrature</section>}));
+vi.mock('@/pages/azienda/personale/tabs/TabPresenze',()=>({TabPresenze:()=> <section aria-label="Presenze desktop">Presenze desktop</section>}));
+import PersonalePage from '@/pages/azienda/personale/PersonalePage';
+beforeEach(()=>{state.mobile=true;state.scopri=false;});
+afterEach(cleanup);
+function mount(tab:string){render(<MemoryRouter initialEntries={[`/azienda/personale?tab=${tab}`]}><PersonalePage/></MemoryRouter>);}
+it('il link Presenze da telefono apre Oggi con registro ore e timbrature',async()=>{mount('presenze');expect(await screen.findByRole('region',{name:'Registro ore di cantiere'})).toBeInTheDocument();expect(await screen.findByRole('region',{name:'Timbrature'})).toBeInTheDocument();expect(screen.getByRole('tab',{name:/Oggi/})).toHaveAttribute('data-state','active');});
+it('il registro è raggiungibile dalla scheda mobile predefinita',async()=>{mount('');expect(await screen.findByRole('region',{name:'Registro ore di cantiere'})).toBeInTheDocument();});
+it('sul computer il registro non viene duplicato nelle timbrature',async()=>{state.mobile=false;mount('timbrature');await screen.findByRole('region',{name:'Timbrature'});expect(screen.queryByRole('region',{name:'Registro ore di cantiere'})).not.toBeInTheDocument();});
+it('Presenze sul computer conserva la sua pagina completa',async()=>{state.mobile=false;mount('presenze');expect(await screen.findByRole('region',{name:'Presenze desktop'})).toBeInTheDocument();});
+it('il blocco HR del piano Scopri resta applicato anche da telefono',()=>{state.scopri=true;mount('presenze');expect(screen.getByText('Piano HR richiesto')).toBeInTheDocument();expect(screen.queryByRole('region',{name:'Registro ore di cantiere'})).not.toBeInTheDocument();});
