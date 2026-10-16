@@ -1183,6 +1183,10 @@ function OrderDetailInner() {
     </section>;
   }
 
+  const operationalIntervention = contractLink.data?.workflow_kind === "intervento";
+  const contractFinancePending = contractLink.data?.workflow_kind === "contratto" && (order.vat_rate == null || agreedAmount <= 0);
+  const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
+
   const collectedAmount = calculateCollectedNetFromInstallments({
     installments: displayInstallments,
     totalAmount: agreedAmount,
@@ -1328,7 +1332,7 @@ function OrderDetailInner() {
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
         isGeneratingPDF={pdfPreparing || isGeneratingPDF}
-        canEdit={permissions.canEditOrders}
+        canEdit={permissions.canEditOrders && !operationalIntervention}
         canDelete={permissions.canEditOrders}
         azioniTelefono={isMobile ? azioniRapide : undefined}
       />
@@ -1353,14 +1357,14 @@ function OrderDetailInner() {
               {avanzamentoPct != null && !!phaseProgress?.total && (
                 <VoceRiepilogo etichetta="Avanzamento" senzaEtichettaMobile>{Math.round(Math.min(100, Math.max(0, avanzamentoPct)))}%</VoceRiepilogo>
               )}
-              {permissions.canViewOrderAmounts && <>
+              {permissions.canViewOrderAmounts && !contractFinancePending && !operationalIntervention && <>
                 <VoceRiepilogo etichetta="Incassato" soloDesktop>{formatCurrency(collectedGross)} <span className="font-normal text-slate-500">su {formatCurrency(cashTotalGross)}</span></VoceRiepilogo>
                 <VoceRiepilogo etichetta="Residuo" tono={saldoResiduoGross > 0.01 ? "attenzione" : "ok"}>{saldoResiduoGross > 0.01 ? formatCurrency(saldoResiduoGross) : "Saldato"}</VoceRiepilogo>
               </>}
             </span>
           }
         >
-        <OrderFinancialOverview
+        {operationalIntervention || contractFinancePending ? contractFinanceNotice : <OrderFinancialOverview
           orderId={id!}
           totalAmount={agreedAmount}
           vatRate={order.vat_rate ?? 22}
@@ -1376,7 +1380,7 @@ function OrderDetailInner() {
           canViewMargins={permissions.canViewMargins}
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
-        />
+        />}
         <OrderCommessaSummary
           statusName={statuses.find(status => status.id === order.current_status_id)?.name}
           statusColor={statuses.find(status => status.id === order.current_status_id)?.color}
@@ -1678,7 +1682,7 @@ function OrderDetailInner() {
 
           {/* Tab: Finanza */}
           <TabsContent value="finanza" className="space-y-4 mt-4">
-            {contractLink.data?.workflow_kind === "intervento" ? <ContractInterventions key={id} orderId={id!} /> : <>
+            {operationalIntervention || contractFinancePending ? contractFinanceNotice : <>
             <div id="economia-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>

@@ -77,6 +77,7 @@ interface OrderData {
   expected_date: string | null;
   internal_notes: string | null;
   vat_rate: number;
+  workflow_kind?: "commessa" | "contratto" | "intervento";
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
@@ -176,7 +177,7 @@ function EditOrderInner() {
 
   // Calculate balance
   const total = parseDecimalIT(totalAmount);
-  const vat = parseDecimalIT(vatRate) || 22;
+  const vat = parseDecimalIT(vatRate);
   const fCostForBalance = paymentType === "financing" ? (parseDecimalIT(financingCost)) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
@@ -194,6 +195,7 @@ function EditOrderInner() {
 
   const handleNumInstallmentsChange = (num: number) => {
     setNumInstallments(num);
+    if (num === 0) { setInstallments([]); return; }
     const newInstallments = createDefaultInstallments(paymentType, num);
     const existingDeposits = installments.filter(i => i.type === 'deposit');
     const existingFinancing = installments.find(i => i.type === 'financing');
@@ -209,7 +211,7 @@ function EditOrderInner() {
       }
     });
     // Date previste suggerite a 30/60/90gg per le rate nuove (modificabili)
-    setInstallments(prefillExpectedDates(newInstallments));
+    setInstallments(order?.workflow_kind === "contratto" ? newInstallments : prefillExpectedDates(newInstallments));
   };
 
   // Stati commessa dell'azienda: servono alla rata che scade "quando la
@@ -350,11 +352,11 @@ function EditOrderInner() {
       setWorkEndDate(isoToDate(draft.workEndDate));
       setPaymentType(draft.paymentType || "standard");
       setTotalAmount(draft.totalAmount || "");
-      setVatRate(draft.vatRate || "22");
+      setVatRate(draft.vatRate ?? (order.workflow_kind === "contratto" ? "" : "22"));
       setFinancingCost(draft.financingCost || "");
       setHasBuildingBonus(draft.hasBuildingBonus || false);
       if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
-      if (draft.installments?.length) {
+      if (Array.isArray(draft.installments)) {
         setInstallments(draft.installments);
         setNumInstallments(draft.installments.length);
       }
@@ -380,7 +382,7 @@ function EditOrderInner() {
     setTotalAmount(formatDecimalIT(order.total_amount));
     setPaymentType((order.payment_type as PaymentType) || 'standard');
     setInternalNotes(order.internal_notes || "");
-    setVatRate((order.vat_rate || 22).toString());
+    setVatRate(order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
     if (order.expected_date) setExpectedDate(new Date(order.expected_date));
     if (order.warehouse_arrival_date) setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
@@ -417,7 +419,7 @@ function EditOrderInner() {
       })));
       setNumInstallments(dbInstallments.length);
     } else {
-      const legacyInstallments = buildInstallmentsFromLegacy(order);
+      const legacyInstallments = order.workflow_kind === "contratto" && !order.deposit_amount && !order.deposit_2_amount && !order.balance_amount && !order.financing_amount ? [] : buildInstallmentsFromLegacy(order);
       setInstallments(legacyInstallments);
       setNumInstallments(legacyInstallments.length);
     }
@@ -510,7 +512,7 @@ function EditOrderInner() {
       setTotalAmount(formatDecimalIT(order.total_amount));
       setPaymentType((order.payment_type as PaymentType) || 'standard');
       setInternalNotes(order.internal_notes || "");
-      setVatRate((order.vat_rate || 22).toString());
+      setVatRate(order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
       setExpectedDate(order.expected_date ? new Date(order.expected_date) : undefined);
       setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
       setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
@@ -527,7 +529,7 @@ function EditOrderInner() {
         })));
         setNumInstallments(dbInstallments.length);
       } else {
-        const legacyInstallments = buildInstallmentsFromLegacy(order);
+        const legacyInstallments = order.workflow_kind === "contratto" && !order.deposit_amount && !order.deposit_2_amount && !order.balance_amount && !order.financing_amount ? [] : buildInstallmentsFromLegacy(order);
         setInstallments(legacyInstallments);
         setNumInstallments(legacyInstallments.length);
       }
@@ -575,6 +577,8 @@ function EditOrderInner() {
     // vuoto scritto a DB quando scatta l'auto-heal della race cliente).
     mutationFn: async (args?: { customerId?: string }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
+      if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
+      if (order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
       const installmentsForSave = installments.map(i =>
         i.type === 'balance' ? { ...i, amount: balance } : i
       );
@@ -857,6 +861,8 @@ function EditOrderInner() {
     );
   }
 
+  if (order.workflow_kind === "intervento") return <section className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento operativo</h1><p>Modifica lavorazioni, date, squadra e mezzi dal cantiere. I dati economici si gestiscono sul contratto di origine.</p><Button onClick={()=>navigate(`/azienda/ordini/${id}?tab=cantiere`)}>Apri il cantiere dell’intervento</Button></section>;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -966,7 +972,7 @@ function EditOrderInner() {
             </div>
           </QuoteCard>
 
-          <FinancialSummary
+          <FinancialSummary daContratto={order.workflow_kind === "contratto"}
             dateCommessa={{
               warehouse_arrival_date: warehouseArrivalDate ? warehouseArrivalDate.toLocaleDateString("en-CA") : null,
               work_start_date: workStartDate ? workStartDate.toLocaleDateString("en-CA") : null,
