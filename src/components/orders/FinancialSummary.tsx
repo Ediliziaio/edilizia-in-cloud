@@ -519,7 +519,7 @@ export function FinancialSummary({
           value={rawAmountInputs[inst.position] ?? ""}
           onChange={(e) => setRawAmountInputs(prev => ({ ...prev, [inst.position]: e.target.value }))}
           onBlur={() => handleInstallmentAmountBlur(inst.position)}
-          className="pl-8" placeholder="0.00"
+          className="pl-8" placeholder={daContratto ? "Importo di competenza da confermare" : "0.00"}
           disabled={readOnly}
         />
       </div>
@@ -691,7 +691,7 @@ export function FinancialSummary({
         <div className="p-3 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
             <span>Imponibile</span>
-            <span>{formatCurrency(total)}</span>
+            <span>{daContratto && !totalAmount.trim() ? "Da confermare" : formatCurrency(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span>{ivaConfermata ? `IVA (${vat}%)` : "IVA da confermare"}</span>
