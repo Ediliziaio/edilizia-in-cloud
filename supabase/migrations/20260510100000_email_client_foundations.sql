@@ -16,6 +16,43 @@ BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '60s';
 
+-- Il client e i moduli successivi richiedono già il catalogo legacy dei flag.
+-- Anticipa la stessa definizione della fondazione di luglio, RLS inclusa.
+DO $feature_flags_foundation$
+BEGIN
+ IF to_regclass('public.feature_flags') IS NULL THEN
+CREATE TABLE IF NOT EXISTS public.feature_flags (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  key           text UNIQUE NOT NULL,
+  label         text NOT NULL,
+  description   text,
+  scope         text NOT NULL DEFAULT 'global' CHECK (scope IN ('global', 'company')),
+  is_active     boolean NOT NULL DEFAULT false,
+  default_value boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+-- RLS
+ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
+
+-- Super admin: full access
+CREATE POLICY "super_admin_all" ON public.feature_flags
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'super_admin'
+    )
+  );
+
+-- Authenticated users: read-only (needed by the app to check flags)
+CREATE POLICY "authenticated_read" ON public.feature_flags
+  FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+ END IF;
+END $feature_flags_foundation$;
+
 -- ───────────────────────────────────────────────────────────────────────────
 -- 1) FEATURE FLAG 'email_client'
 -- ───────────────────────────────────────────────────────────────────────────
