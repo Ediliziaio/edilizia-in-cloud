@@ -1,3 +1,4 @@
+import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { useState, useMemo } from "react";
 import { useGiornateSummary, type GiornataWithProfilo } from "@/hooks/useGiornate";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
@@ -89,6 +90,8 @@ export function TabPresenze() {
 
   return (
     <div className="space-y-4">
+      <DailyHoursPanel />
+      <p className="text-sm text-muted-foreground">Il registro cantieri alimenta i costi delle commesse. Il calendario qui sotto mostra le presenze HR e le timbrature: i due conteggi hanno fonti diverse.</p>
       {/* KPI Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
@@ -102,7 +105,7 @@ export function TabPresenze() {
           <CardContent className="p-3 text-center">
             <Clock className="h-5 w-5 mx-auto text-primary mb-1" />
             <p className="text-xl font-bold">{Math.round(summary.oreTotali)}h</p>
-            <p className="text-[10px] text-muted-foreground">Ore Lavorate</p>
+            <p className="text-[10px] text-muted-foreground">Ore da presenze HR</p>
           </CardContent>
         </Card>
         <Card>

@@ -12,7 +12,7 @@ Lo standard viene proposto solo fra i modelli della stessa azienda; in caso di a
 
 Le aziende con profilo standard mantengono la scelta delle proprie fasi: nessuna checklist stradale o assegnazione automatica del profilo Pistilli.
 
-La migrazione è riordinata dopo le migrazioni 2028 che creano company_fasi_settings, poiché il repository usa già versioni future. Non include identificativi o documenti del cliente. L’abilitazione di Pistilli è una configurazione separata dei dati.
+Le migrazioni canoniche sono le versioni 20261016114116, 20261016115423 e 20261016120017 recuperate dallo storico effettivo del database sul ramo principale. Le copie locali con versioni future sono state rimosse durante l’integrazione per evitare DDL duplicato. Non includono identificativi o documenti del cliente. L’abilitazione di Pistilli è una configurazione separata dei dati.
 
 ## Contratto e interventi
 

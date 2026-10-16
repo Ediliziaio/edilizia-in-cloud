@@ -86,3 +86,15 @@ describe("Prezzo manuale individuabile e reversibile", () => {
     manualFlag.data = false;
   });
 });
+
+describe('Descrizioni senza prezzo',()=>{
+ it('mantiene titolo e testo completo e non mostra numeri o opzionale sulla nota',()=>{
+  render(<QuoteLivePreviewPanel {...props} items={[line({name:'Descrizione scavo',description:'Strato di sabbia e rinterro.\nAttraversamenti compresi.',item_category:'nota',quantity:0,unit_price:0,is_optional:true})]}/>);
+  const title=screen.getByText('Descrizione scavo');const row=title.parentElement!.parentElement!;
+  expect(row.textContent).toContain('Strato di sabbia e rinterro.');expect(row.textContent).not.toContain('0,00');expect(row.textContent).not.toContain('pz');expect(row.textContent).not.toContain('Opzionale');
+ });
+ it('un materiale gratuito rimane una riga economica visibile',()=>{
+  render(<QuoteLivePreviewPanel {...props} items={[line({name:'Materiale in omaggio',unit_price:0,quantity:1})]}/>);
+  const row=screen.getByText('Materiale in omaggio').parentElement!.parentElement!;expect(row.textContent).toContain('0,00');expect(row.textContent).toContain('pz');
+ });
+});

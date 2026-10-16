@@ -1,3 +1,4 @@
+import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { Link } from "react-router-dom";
 import { Building2, RefreshCw, UsersRound } from "lucide-react";
 import { useOrderLaborEconomics } from "@/hooks/useOrderLaborEconomics";
@@ -13,32 +14,38 @@ function Value({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{value}</dd></div>;
 }
 
-/** Consultation, not another payroll/payment or cost-writing entry point. */
+/** Registro giornaliero condiviso; stipendi e pagamenti restano separati. */
 export function OrderLaborEconomics({ orderId }: { orderId: string }) {
-  const { employees, teams, readRates, allowed } = useOrderLaborEconomics(orderId);
+  const { employees, teams, pendingReports, canCheckPending, readRates, allowed } = useOrderLaborEconomics(orderId);
   if (!allowed) return <p className="rounded-lg border p-4 text-sm">Il tuo ruolo non permette di consultare i costi della manodopera.</p>;
   if (employees.isPending || teams.isPending) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento ore e costi…</p>;
-  const retry = () => { void employees.refetch(); void teams.refetch(); };
+  const retry = () => { void employees.refetch(); void teams.refetch(); void pendingReports?.refetch?.(); };
   if (employees.isError || teams.isError) return <div role="alert" className="rounded-lg border p-4">
     <p>Impossibile caricare tutti i costi della manodopera. Nessun totale parziale viene mostrato.</p>
     <Button className="mt-2" variant="outline" onClick={retry}>Riprova</Button>
   </div>;
   const internal = laborEconomics(employees.data ?? [], readRates);
+  const pendingUnknown = canCheckPending === false || !!pendingReports?.isPending || !!pendingReports?.isError;
+  const pending = pendingReports?.data ?? 0;
+  const incomplete = internal.unpricedPeople > 0 || pending > 0 || pendingUnknown;
   const external = teams.data ?? [];
   const subcontractNet = sumLaborAmounts(external.map(externalLaborNet));
   return <div id="section-manodopera-costi" className="scroll-mt-24 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-sm text-muted-foreground">Ore e costi della commessa, separati da stipendi e pagamenti alle ditte.</p>
+      <p className="text-sm text-muted-foreground">Il previsto è il budget. Il costo effettivo deriva dalle ore confermate, con la tariffa registrata: non è lo stipendio pagato.</p>
       <Button variant="outline" size="sm" onClick={retry} disabled={employees.isFetching || teams.isFetching}><RefreshCw className="mr-2 h-4 w-4" />Aggiorna costi</Button>
     </div>
     <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><UsersRound className="h-4 w-4" />Dipendenti e operai interni</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <dl className="grid grid-cols-2 gap-4 rounded-lg bg-muted/40 p-3 sm:grid-cols-4">
-          <Value label="Ore registrate" value={hours(internal.hours)} />
-          <Value label="Costo registrato" value={money(internal.cost)} />
-          <Value label="Budget manodopera" value={internal.budget == null ? "Da completare" : money(internal.budget)} />
-          <Value label="Scostamento dal budget" value={internal.budget == null || internal.cost == null ? "—" : formatCurrency(internal.cost - internal.budget)} />
+          <Value label="Ore previste" value={internal.plannedHours == null ? "Non specificate" : hours(internal.plannedHours)} />
+          <Value label="Ore effettive registrate" value={hours(internal.hours)} />
+          <Value label="Costo effettivo registrato" value={internal.unpricedPeople ? "Da completare" : money(internal.cost)} />
+          <Value label="Costo previsto (budget)" value={internal.budget == null ? "Da completare" : money(internal.budget)} />
+          <Value label="Scostamento attuale dal budget" value={internal.budget == null || internal.cost == null || incomplete || internal.hours === 0 ? "—" : formatCurrency(internal.cost - internal.budget)} />
         </dl>
+        {pendingUnknown && <p role="status" className="rounded-lg border p-3 text-sm">Le ore in attesa non sono verificabili in questo momento. Il costo registrato non rappresenta il costo finale della commessa.</p>}
+        {pending > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Rapportini in attesa: {pending}. Il costo effettivo è ancora parziale. Lo scostamento sarà disponibile dopo la verifica.</p>}
         {internal.unpricedPeople > 0 && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Ore registrate a costo zero per {internal.unpricedPeople} persone: verifica i costi storici. Impostare la tariffa oggi non valorizza retroattivamente quelle ore.</p>}
         {!internal.people.length && <p className="text-sm text-muted-foreground">Nessuna riga di manodopera interna in questa commessa.</p>}
         {internal.people.map(person => <section key={person.id} aria-label={`Costi di ${person.name}`} className="rounded-lg border p-3">
@@ -47,11 +54,11 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
           </div>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Value label="Ore registrate" value={hours(person.hours)} />
-            <Value label="Costo registrato" value={money(person.cost)} />
-            <Value label="Costo medio registrato / h" value={person.averageRate == null ? "—" : `${money(person.averageRate)} / h`} />
+            <Value label="Costo effettivo registrato" value={person.unpriced ? "Da completare" : money(person.cost)} />
+            <Value label="Costo medio registrato / h" value={person.averageRate == null || person.unpriced ? "—" : `${money(person.averageRate)} / h`} />
             <Value label="Tariffa attuale / h" value={!readRates ? "Riservata" : person.rate?.amount == null ? "Da impostare" : `${money(person.rate.amount)} / h`} />
           </dl>
-          <p className="mt-3 text-xs text-muted-foreground">Budget: {person.budget == null ? "da completare" : money(person.budget)}
+          <p className="mt-3 text-xs text-muted-foreground">Ore previste: {person.plannedHours == null ? "non specificate" : hours(person.plannedHours)} · Budget: {person.budget == null ? "da completare" : money(person.budget)}
             {person.rate && <> · {person.rate.source === "manuale" ? "tariffa manuale" : person.rate.source === "calcolato" ? "tariffa calcolata dalla scheda" : "tariffa non determinabile"}</>}
           </p>
         </section>)}
@@ -79,6 +86,7 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
         <p className="text-xs text-muted-foreground">Le presenze del subappaltatore non applicano il costo orario dei dipendenti. Il costo deriva dall'affidamento registrato; non equivale a una fattura pagata.</p>
       </CardContent>
     </Card>
+    <DailyHoursPanel orderId={orderId} />
     <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">Come si formano questi costi</summary>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
         <li>I rapportini approvati e le rettifiche manuali alimentano le ore e i costi registrati. Le ore possono quindi esistere anche senza un rapportino: verifica le rettifiche nelle assegnazioni. I rapportini in attesa non vengono aggiunti di nuovo.</li>

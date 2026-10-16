@@ -65,3 +65,8 @@ describe("Subappalti separati dalla tariffa dipendente", () => {
   it("solo IVA mancante usa il fallback storico", () => expect(externalLaborNet({ ...team, vat_rate: null })).toBe(100));
   it.each([-1, "NaN", 101])("IVA non valida %s non produce un netto falso", vat_rate => expect(externalLaborNet({ ...team, vat_rate })).toBeNull());
 });
+
+describe("Previsione ore separata dal consuntivo",()=>{
+ it("conserva ore previste senza trasformarle in ore lavorate",()=>{const r=laborEconomics([row({planned_hours:16,planned_hourly_rate:25,cost_preventivo:400,hours_worked:0,total_cost:0})],true);expect(r.plannedHours).toBe(16);expect(r.hours).toBe(0);expect(r.budget).toBe(400);expect(r.cost).toBe(0);});
+ it("le vecchie assegnazioni non inventano ore previste dalla tariffa attuale",()=>{expect(laborEconomics([row()],true).plannedHours).toBeNull();});
+});

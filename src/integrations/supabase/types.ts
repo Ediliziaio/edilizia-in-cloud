@@ -56460,6 +56460,8 @@ export type Database = {
           notes: string | null
           order_id: string
           paid_date: string | null
+          planned_hours: number | null
+          planned_hourly_rate: number | null
           phase_id: string | null
           total_cost: number
         }
@@ -56474,6 +56476,8 @@ export type Database = {
           notes?: string | null
           order_id: string
           paid_date?: string | null
+          planned_hours?: number | null
+          planned_hourly_rate?: number | null
           phase_id?: string | null
           total_cost?: number
         }
@@ -56488,6 +56492,8 @@ export type Database = {
           notes?: string | null
           order_id?: string
           paid_date?: string | null
+          planned_hours?: number | null
+          planned_hourly_rate?: number | null
           phase_id?: string | null
           total_cost?: number
         }
