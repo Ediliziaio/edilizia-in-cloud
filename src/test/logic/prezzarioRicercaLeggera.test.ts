@@ -35,7 +35,7 @@ describe('prezzario: nessuna scansione ripetuta o inutile',()=>{
     expect(f.calls).toEqual(['codici']);expect(result.get('v')?.confidenza).toBe('certa');
   });
   it('cache isolata per identità/azienda e fonte',async()=>{
-    const f=fake(Array.from({length:3},()=>({data:[rif],error:null})));const memo=creaCacheConfronti();
+    const f=fake(Array.from({length:3},()=>({data:[rif],error:null as null})));const memo=creaCacheConfronti();
     for(const [scope,source] of [['a','f'],['b','f'],['a','g']]) await cercaConfronti(f.db,scope,source,[voce()],new AbortController().signal,memo);
     expect(f.calls).toHaveLength(3);
   });

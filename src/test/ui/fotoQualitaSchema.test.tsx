@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocks=vi.hoisted(()=>({select:vi.fn(),invoke:vi.fn()}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{from:()=>{
-  const q={select:(s:string)=>{mocks.select(s);return q;},eq:()=>q,maybeSingle:async()=>({data:{id:'f',ai_qualita_score:8,ai_qualita_livello:'buono',ai_dpi_compliance:{},ai_problemi:[],ai_riassunto:'Foto già analizzata',ai_analyzed_at:'2026-10-16'},error:null})};return q;
+  const q={select:(s:string)=>{mocks.select(s);return q;},eq:()=>q,maybeSingle:async()=>({data:{id:'f',ai_qualita_score:8,ai_qualita_livello:'buono',ai_dpi_compliance:{},ai_problemi:[] as string[],ai_riassunto:'Foto già analizzata',ai_analyzed_at:'2026-10-16'},error:null as null})};return q;
 },functions:{invoke:mocks.invoke}}}));
 import { FotoAIQualityBadge } from '@/components/foto-cantiere/FotoAIQualityBadge';
 afterEach(()=>{cleanup();vi.clearAllMocks();});
