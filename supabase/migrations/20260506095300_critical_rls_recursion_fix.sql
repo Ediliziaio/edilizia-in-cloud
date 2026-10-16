@@ -62,6 +62,13 @@ GRANT EXECUTE ON FUNCTION public.order_has_salesperson_for_user(uuid, uuid) TO a
 -- Helper 3: order_has_item_in_my_warehouse
 -- Bypass RLS per spezzare loop orders ↔ order_items via warehouse policy
 -- ────────────────────────────────────────────────────────────────────────────
+-- Gli helper delle assegnazioni arrivano nella fondazione magazzino di settembre.
+DO $warehouse_dependency$
+BEGIN
+ IF to_regprocedure('public.get_my_warehouse_ids()') IS NOT NULL
+    AND EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'order_items'
+        AND column_name = 'destination_warehouse_id') THEN
 CREATE OR REPLACE FUNCTION public.order_has_item_in_my_warehouse(_order_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -78,12 +85,19 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.order_has_item_in_my_warehouse(uuid) TO authenticated;
+ END IF;
+END $warehouse_dependency$;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- FIX 1 — orders.orders_warehouse_user_view
 -- Era: EXISTS (SELECT FROM order_items oi WHERE ...) → ciclo
 -- Ora: usa helper SECURITY DEFINER
 -- ════════════════════════════════════════════════════════════════════════════
+DO $warehouse_policy_dependency$
+BEGIN
+ IF to_regprocedure('public.get_my_warehouse_ids()') IS NOT NULL
+    AND to_regprocedure('public.is_warehouse_user()') IS NOT NULL
+    AND to_regprocedure('public.order_has_item_in_my_warehouse(uuid)') IS NOT NULL THEN
 DROP POLICY IF EXISTS orders_warehouse_user_view ON public.orders;
 CREATE POLICY orders_warehouse_user_view ON public.orders
   FOR SELECT
@@ -92,6 +106,8 @@ CREATE POLICY orders_warehouse_user_view ON public.orders
     AND public.is_warehouse_user()
     AND public.order_has_item_in_my_warehouse(id)
   );
+ END IF;
+END $warehouse_policy_dependency$;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- FIX 2 — orders."Employees can view their assigned orders"

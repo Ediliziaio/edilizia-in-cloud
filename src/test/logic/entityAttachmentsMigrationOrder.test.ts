@@ -171,3 +171,72 @@ it("ricostruisce anche le estensioni cedolini prima della relativa tabella base"
     await db.close();
   }
 }, 60000);
+
+it("le policy commesse attendono gli helper magazzino senza perdere i vincoli di accesso", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth; create role authenticated;
+      create type app_role as enum ('company_admin','super_admin');
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function public.has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+      create function public.get_my_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create function public.get_user_company_id(uuid) returns uuid language sql stable as $$select null::uuid$$;
+      create function public.get_order_customer_id(uuid) returns uuid language sql stable as $$select null::uuid$$;
+      create function public.get_order_company_id(uuid) returns uuid language sql stable as $$select null::uuid$$;
+      create table orders(id uuid primary key,company_id uuid);
+      create table employees(id uuid,user_id uuid);
+      create table salespeople(id uuid,user_id uuid);
+      create table order_employees(order_id uuid,employee_id uuid);
+      create table order_salespeople(order_id uuid,salesperson_id uuid);
+      create table order_items(order_id uuid);`);
+    const fix = readFileSync(
+      "supabase/migrations/20260506095300_critical_rls_recursion_fix.sql",
+      "utf8",
+    );
+    await db.exec(fix);
+    expect(
+      (
+        await db.query(
+          "select to_regprocedure('order_has_item_in_my_warehouse(uuid)') as helper",
+        )
+      ).rows[0],
+    ).toEqual({ helper: null });
+    await db.exec(`alter table order_items add column destination_warehouse_id uuid;
+      create function get_my_warehouse_ids() returns uuid[] language sql stable as $$select array['10000000-0000-4000-8000-000000000010'::uuid]$$;
+      create function is_warehouse_user() returns boolean language sql stable as $$select true$$;`);
+    const warehouse = readFileSync(
+      "supabase/migrations/20260921000001_warehouse_assignments_and_rls.sql",
+      "utf8",
+    );
+    const start = warehouse.indexOf(
+      "CREATE OR REPLACE FUNCTION public.order_has_item_in_my_warehouse",
+    );
+    const end = warehouse.indexOf(
+      "-- ============================================================================\n-- 3.3",
+      start,
+    );
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    await db.exec(warehouse.slice(start, end));
+    await db.exec(fix);
+    await db.exec(
+      `insert into order_items values ('10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000010'),('10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000011')`,
+    );
+    expect(
+      (
+        await db.query(
+          "select order_has_item_in_my_warehouse('10000000-0000-4000-8000-000000000001') as assigned,order_has_item_in_my_warehouse('10000000-0000-4000-8000-000000000002') as other",
+        )
+      ).rows[0],
+    ).toEqual({ assigned: true, other: false });
+    expect(
+      (
+        await db.query(
+          "select qual from pg_policies where policyname='orders_warehouse_user_view'",
+        )
+      ).rows[0].qual,
+    ).toContain("company_id = get_my_company_id()");
+  } finally {
+    await db.close();
+  }
+}, 60000);
