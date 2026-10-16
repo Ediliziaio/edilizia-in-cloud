@@ -222,6 +222,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     { label: "Importo valido", done: total > 0 && !overAllocatedPayments },
     { label: "Stato iniziale", done: !!statusId },
     { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
+    ...(contrattoImportato ? [{ label: "IVA confermata", done: !!vatRate?.trim() }, { label: "Pagamenti confermati", done: installments.length > 0 }] : []),
   ];
 
   // Payment type change handler
