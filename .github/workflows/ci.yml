@@ -107,10 +107,12 @@ jobs:
           src/test/ui/duplicaLavoroDialog.test.tsx
           src/test/ui/ristrutturazioneDuplicaFlusso.test.tsx
 
+      - name: Run Supabase preview replay regressions
+        run: bunx vitest run --config vitest.supabase.config.ts
+
       - name: Run daily hours and quote descriptions regressions
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
-          src/test/logic/entityAttachmentsMigrationOrder.test.ts
           src/test/ui/personaleOreMobile.test.tsx
           src/test/logic/dailyHours.test.ts
           src/test/ui/dailyHours.test.tsx

@@ -326,7 +326,7 @@ it("ricostruisce le estensioni successive di FV, bundle, SMS e audit firma", asy
       create table article_templates(id uuid primary key);
       create table articoli_native(id uuid primary key,company_id uuid);
       create table tariffe_aziendali(id uuid primary key);
-      create table signature_requests(id uuid primary key);
+      create table signature_requests(id uuid primary key,tipo_documento text);
       create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
       create table storage.objects(bucket_id text,name text);`);
     const hardening = migration(
@@ -346,6 +346,7 @@ it("ricostruisce le estensioni successive di FV, bundle, SMS e audit firma", asy
       "20260704061843_fv_template_usp_cronoprogramma",
       "20260613043724_adjust_credits_atomic_sms_support",
       "20260703125722_fea_p1_audit_restrict_and_expiry",
+      "20260703132132_fea_fix_fv_tipo_documento_and_audit_insert",
     ]) {
       await db.exec(migration(name));
     }
@@ -377,6 +378,20 @@ it("ricostruisce le estensioni successive di FV, bundle, SMS e audit firma", asy
     await db.exec(
       migration("20260713133837_preventivi_only_assigned_visibilita"),
     );
+    const feaFoundation = migration("20260818000001_fea_documenti_sistema");
+    const policyStart = feaFoundation.indexOf(
+      "-- Completa la policy audit autenticata rinviata da luglio 2026.",
+    );
+    expect(policyStart).toBeGreaterThan(0);
+    await db.exec("alter table fea_audit_log enable row level security");
+    await db.exec(feaFoundation.slice(policyStart));
+    expect(
+      (
+        await db.query(
+          "select roles = array['authenticated']::name[] as restricted from pg_policies where tablename='fea_audit_log' and policyname='fea_audit_insert'",
+        )
+      ).rows,
+    ).toEqual([{ restricted: true }]);
     await db.exec(migration("20261027120000_fv_modulo_wave1"));
     expect(
       (
@@ -738,6 +753,222 @@ it("il backfill compensi supporta anche lo schema precedente a compensation_mode
         )
       ).rows,
     ).toEqual([{ mode: "only_commission" }, { mode: "fixed_only" }]);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("completa profilo contratto e ambito modelli quando vengono create le tabelle fasi", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth;create role authenticated;create role anon;
+   create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+   create function has_permission_for_company(uuid,text,uuid) returns boolean language sql stable as $$select false$$;
+   create function utente_bloccato() returns boolean language sql stable as $$select false$$;
+   create table companies(id uuid primary key);create table orders(id uuid primary key,company_id uuid);`);
+    const profile = readFileSync(
+      "supabase/migrations/20261016114116_company_contract_workflow_profile.sql",
+      "utf8",
+    );
+    const scope = readFileSync(
+      "supabase/migrations/20261016120017_contract_template_scope.sql",
+      "utf8",
+    );
+    await db.exec(profile);
+    await db.exec(scope);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20281007140000_modelli_fasi_azienda.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(profile);
+    await db.exec(scope);
+    await db.exec(
+      "insert into companies values ('10000000-0000-4000-8000-000000000001');insert into company_fasi_settings(company_id) values ('10000000-0000-4000-8000-000000000001');insert into work_phase_templates(company_id,name) values ('10000000-0000-4000-8000-000000000001','Standard')",
+    );
+    expect(
+      (
+        await db.query(
+          "select contract_workflow_profile from company_fasi_settings",
+        )
+      ).rows,
+    ).toEqual([{ contract_workflow_profile: "standard" }]);
+    expect(
+      (await db.query("select template_scope from work_phase_templates")).rows,
+    ).toEqual([{ template_scope: "cantiere" }]);
+    expect(
+      (
+        await db.query(
+          "select has_table_privilege('authenticated','work_phase_templates','insert') as allowed",
+        )
+      ).rows,
+    ).toEqual([{ allowed: false }]);
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='work_phase_templates'::regclass",
+        )
+      ).rows,
+    ).toEqual([{ relrowsecurity: true }]);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("conferma accountant prima delle policy dell’audit, senza assegnare ruoli", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth;create schema cron;create role authenticated;
+   create type app_role as enum ('super_admin','company_admin','subcontractor');
+   create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+   create function get_user_company_id(uuid) returns uuid language sql stable as $$select null::uuid$$;
+   create function has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+   create function has_permission(uuid,text) returns boolean language sql stable as $$select false$$;
+   create function get_dashboard_kpis(uuid,timestamptz,timestamptz,uuid) returns int language sql volatile as $$select 1$$;
+   create table cron.job(jobid bigint,jobname text);create table invoices(id uuid,company_id uuid);create table user_roles(user_id uuid,role app_role);`);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260527122753_db_perf_stable_dedup_indexes.sql",
+        "utf8",
+      ),
+    );
+    const audit = readFileSync(
+      "supabase/migrations/20260527135644_rls_hardening_audit_2026_05_27.sql",
+      "utf8",
+    );
+    await db.exec(`create function get_my_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create function check_staff_visibility(uuid,uuid) returns boolean language sql stable as $$select false$$;
+      create table companies(id uuid primary key);create table ai_model_config(company_id uuid);
+      create table invoice_lines(invoice_id uuid);create table invoice_payments(company_id uuid);
+      create table customer_documents(company_id uuid);
+      create table customer_messages(company_id uuid,sender_role text,sender_id uuid);
+      create table contact_messages(company_id uuid,sent_by uuid);create table profiles(id uuid,company_id uuid);
+      create table employees(id uuid,user_id uuid);create table expense_reports(id uuid,company_id uuid,employee_id uuid);
+      create table expense_report_items(report_id uuid);create table appointments(company_id uuid,assigned_to uuid);
+      create table cedolini(id uuid);create table hr_assenze(employee_id uuid);`);
+    await db.exec(audit);
+    const customer = readFileSync(
+      "supabase/migrations/20270526200000_customer_os_data_layer.sql",
+      "utf8",
+    );
+    const tableStart = customer.indexOf(
+      "CREATE TABLE IF NOT EXISTS public.customer_interactions",
+    );
+    const tableEnd = customer.indexOf(
+      "-- INSERT solo via service_role",
+      tableStart,
+    );
+    expect(tableStart).toBeGreaterThan(0);
+    expect(tableEnd).toBeGreaterThan(tableStart);
+    await db.exec(customer.slice(tableStart, tableEnd));
+    expect(
+      (
+        await db.query<{ qual: string }>(
+          "select qual from pg_policies where tablename='customer_interactions' and policyname='customer_interactions_select'",
+        )
+      ).rows[0].qual,
+    ).toContain("check_staff_visibility");
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where tablename='customer_interactions' and policyname='interactions_company_select'",
+        )
+      ).rows,
+    ).toHaveLength(0);
+
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where policyname='invoices_billing_view'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    const people = readFileSync(
+      "supabase/migrations/20260815000001_persone_accessi_redesign.sql",
+      "utf8",
+    );
+    const worker = people.match(
+      /ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'worker'[^;]*;/,
+    );
+    expect(worker).not.toBeNull();
+    await db.exec(worker![0]);
+    expect(
+      (
+        await db.query(
+          "select enumlabel from pg_enum where enumtypid='app_role'::regtype order by enumsortorder",
+        )
+      ).rows.map((row: { enumlabel: string }) => row.enumlabel),
+    ).toEqual([
+      "super_admin",
+      "company_admin",
+      "subcontractor",
+      "worker",
+      "accountant",
+    ]);
+    expect((await db.query("select * from user_roles")).rows).toHaveLength(0);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("gli indici storici attendono le colonne e restano idempotenti", async () => {
+  const db = new PGlite();
+  try {
+    const migration = readFileSync(
+      "supabase/migrations/20260527203601_db_perf_missing_fk_indexes.sql",
+      "utf8",
+    );
+    await db.exec(migration);
+    await db.exec(`create table order_events(actor_id uuid);create table hr_talent_answers(company_id uuid,question_id uuid,assessment_version uuid);
+   create table profiles(blocked_by uuid);create table company_activity_log(brain_doc_id uuid,actor_user_id uuid);`);
+    await db.exec(migration);
+    await db.exec(migration);
+    expect(
+      (
+        await db.query(
+          "select indexname from pg_indexes where schemaname='public'",
+        )
+      ).rows,
+    ).toHaveLength(7);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("l’initplan modifica solo policy esistenti e conserva l’isolamento del servizio", async () => {
+  const db = new PGlite();
+  try {
+    const migration = readFileSync(
+      "supabase/migrations/20260605082009_rls_initplan_perf.sql",
+      "utf8",
+    );
+    await db.exec(migration);
+    await db.exec(`create role authenticated;create role service_role;
+   create table referral_signup_attempts(id int);insert into referral_signup_attempts values (1);
+   alter table referral_signup_attempts enable row level security;
+   create policy service_role_all_access on referral_signup_attempts for all
+    using(current_setting('role',true)='service_role') with check(current_setting('role',true)='service_role');
+   grant select on referral_signup_attempts to authenticated,service_role;`);
+    await db.exec(migration);
+    await db.exec("set role authenticated");
+    expect(
+      (await db.query("select * from referral_signup_attempts")).rows,
+    ).toHaveLength(0);
+    await db.exec("set role service_role");
+    expect(
+      (await db.query("select * from referral_signup_attempts")).rows,
+    ).toEqual([{ id: 1 }]);
+    expect(
+      JSON.stringify(
+        (
+          await db.query(
+            "explain (format json) select * from referral_signup_attempts",
+          )
+        ).rows,
+      ),
+    ).toContain("InitPlan");
+    await db.exec("reset role");
   } finally {
     await db.close();
   }

@@ -1,5 +1,10 @@
 -- Contract organization templates are not executable work-site phases.
-alter table public.work_phase_templates add column template_scope text not null default 'cantiere' check(template_scope in ('cantiere','contratto'));
+DO $contract_scope_dependency$
+BEGIN
+ IF to_regclass('public.work_phase_templates') IS NOT NULL THEN
+alter table public.work_phase_templates add column if not exists template_scope text not null default 'cantiere' check(template_scope in ('cantiere','contratto'));
+ END IF;
+END $contract_scope_dependency$;
 
 create or replace function public.create_contract_intervention(p_company_id uuid,p_contract_id uuid,p_id uuid,p_dati jsonb,p_template_id uuid default null)
 returns uuid language plpgsql security invoker set search_path=public as $$

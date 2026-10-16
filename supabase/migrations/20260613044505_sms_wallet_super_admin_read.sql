@@ -6,6 +6,9 @@
 -- (email/ai/whatsapp): il super_admin deve poter LEGGERE il saldo SMS di
 -- qualsiasi azienda dal pannello /admin/aziende/:id (tab Billing). Senza
 -- questa policy la query lato browser tornava 0 righe → saldo SMS mostrato a 0.
+DO $later_policy_dependency$
+BEGIN
+ IF to_regclass('public.sms_wallet') IS NOT NULL AND to_regclass('public.sms_wallet_transazioni') IS NOT NULL THEN
 DROP POLICY IF EXISTS sms_wallet_super_admin_read ON public.sms_wallet;
 CREATE POLICY sms_wallet_super_admin_read
 ON public.sms_wallet
@@ -29,3 +32,5 @@ USING (
       AND user_roles.role = 'super_admin'::app_role
   )
 );
+ END IF;
+END $later_policy_dependency$;

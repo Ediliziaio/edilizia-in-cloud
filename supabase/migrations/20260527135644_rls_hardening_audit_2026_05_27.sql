@@ -160,6 +160,10 @@ CREATE POLICY customer_documents_staff_write ON public.customer_documents
   );
 
 -- ─── S3 customer_interactions ───────────────────────────────
+-- La fondazione Customer OS viene ricostruita più avanti nello storico.
+DO $interactions_dependency$
+BEGIN
+ IF to_regclass('public.customer_interactions') IS NOT NULL THEN
 DROP POLICY IF EXISTS interactions_company_select ON public.customer_interactions;
 CREATE POLICY customer_interactions_select ON public.customer_interactions
   FOR SELECT TO authenticated
@@ -168,6 +172,8 @@ CREATE POLICY customer_interactions_select ON public.customer_interactions
       AND check_staff_visibility(auth.uid(), staff_user_id))
     OR has_role(auth.uid(), 'super_admin'::app_role)
   );
+ END IF;
+END $interactions_dependency$;
 
 -- ─── S4 customer_messages ───────────────────────────────────
 DROP POLICY IF EXISTS staff_company_messages ON public.customer_messages;

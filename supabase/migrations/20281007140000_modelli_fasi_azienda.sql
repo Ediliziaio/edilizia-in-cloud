@@ -64,6 +64,10 @@ create table if not exists public.company_fasi_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Completa le estensioni dei contratti che nello storico precedevano le tabelle.
+alter table public.work_phase_templates add column if not exists template_scope text not null default 'cantiere' check(template_scope in ('cantiere','contratto'));
+alter table public.company_fasi_settings add column if not exists contract_workflow_profile text not null default 'standard' constraint company_fasi_settings_contract_workflow_check check (contract_workflow_profile in ('standard', 'manutenzione_stradale_su_ordine'));
+
 -- ---------------------------------------------------------------------------
 -- RLS: solo lettura per i client; si scrive con le RPC
 -- ---------------------------------------------------------------------------

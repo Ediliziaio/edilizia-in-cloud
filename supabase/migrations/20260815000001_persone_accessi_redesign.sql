@@ -31,5 +31,6 @@ UPDATE public.staff_permissions SET
 WHERE true;
 
 -- 3. Aggiungi nuovi valori all'enum app_role (idempotente)
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'worker';
+-- Conserva l'ordine dei ruoli esistente anche con accountant anticipato per il replay.
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'worker' BEFORE 'accountant';
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'subcontractor';

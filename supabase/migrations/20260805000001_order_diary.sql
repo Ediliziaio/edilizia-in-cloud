@@ -266,3 +266,6 @@ CREATE TRIGGER after_installment_paid
 -- ── SUPABASE REALTIME ─────────────────────────────────────────────────────────
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_events;
+
+-- Completa gli indici FK rinviati dalla ricostruzione di maggio 2026.
+CREATE INDEX IF NOT EXISTS idx_order_events_actor_id ON public.order_events(actor_id);

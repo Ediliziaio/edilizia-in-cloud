@@ -367,3 +367,15 @@ WHERE NOT EXISTS (SELECT 1 FROM public.article_family_templates);
 
 COMMENT ON TABLE public.article_family_templates IS
   'Template articoli pre-confezionati, gestiti da super_admin. Cloneable in article_families via import_article_family_template().';
+
+-- Completa la lettura amministratore rinviata da giugno 2026.
+drop policy if exists aft_select_super_admin_all on public.article_family_templates;
+create policy aft_select_super_admin_all
+on public.article_family_templates
+for select
+to authenticated
+using (
+  exists (select 1 from public.user_roles
+          where user_roles.user_id = (select auth.uid())
+            and user_roles.role = 'super_admin'::app_role)
+);

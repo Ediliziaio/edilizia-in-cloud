@@ -187,3 +187,9 @@ CREATE INDEX IF NOT EXISTS idx_doc_sessioni_company ON public.documento_sessioni
 CREATE INDEX IF NOT EXISTS idx_doc_sessioni_template ON public.documento_sessioni(template_id);
 CREATE INDEX IF NOT EXISTS idx_fea_audit_request ON public.fea_audit_log(request_id);
 CREATE INDEX IF NOT EXISTS idx_sig_req_sessione ON public.signature_requests(sessione_id);
+
+-- Completa la policy audit autenticata rinviata da luglio 2026.
+DROP POLICY IF EXISTS fea_audit_insert ON public.fea_audit_log;
+CREATE POLICY fea_audit_insert ON public.fea_audit_log
+  FOR INSERT TO authenticated
+  WITH CHECK (company_id = public.get_my_company_id());

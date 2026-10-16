@@ -127,16 +127,15 @@ CREATE INDEX IF NOT EXISTS idx_interactions_sentiment
 
 ALTER TABLE public.customer_interactions ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "interactions_company_select" ON public.customer_interactions;
-CREATE POLICY "interactions_company_select" ON public.customer_interactions
+-- Completa l'hardening rinviato dalla migrazione di maggio 2026.
+DROP POLICY IF EXISTS customer_interactions_select ON public.customer_interactions;
+DROP POLICY IF EXISTS interactions_company_select ON public.customer_interactions;
+CREATE POLICY customer_interactions_select ON public.customer_interactions
   FOR SELECT TO authenticated
   USING (
-    company_id IN (
-      SELECT company_id FROM public.profiles WHERE id = auth.uid()
-      UNION
-      SELECT company_id FROM public.multi_company_access WHERE user_id = auth.uid()
-    )
-    OR public.has_role(auth.uid(), 'super_admin'::public.app_role)
+    (company_id = get_my_company_id()
+      AND check_staff_visibility(auth.uid(), staff_user_id))
+    OR has_role(auth.uid(), 'super_admin'::app_role)
   );
 
 -- INSERT solo via service_role (edge functions) — niente client direct
