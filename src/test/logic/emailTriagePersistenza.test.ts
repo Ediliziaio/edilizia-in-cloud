@@ -23,7 +23,7 @@ const client = () => ({
       eq: (k:string,v:unknown) => { filters.push([k,v]); return q; },
       is: () => q, select: () => q,
       maybeSingle: async () => {
-        if (failUpdates) return {data:null as {id:string}|null,error:{code:'23514'}};
+        if (failUpdates) return {data:null as null,error:{code:'23514'}};
         const keys = Object.keys(values);
         const params = [...Object.values(values), ...filters.map(([,v])=>v)];
         const sql = `UPDATE email_inbox SET ${keys.map((k,i)=>`${k}=$${i+1}`).join(',')} WHERE ${filters.map(([k],i)=>`${k}=$${keys.length+i+1}`).join(' AND ')} AND ai_processed_at IS NULL RETURNING id`;
