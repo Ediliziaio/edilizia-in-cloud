@@ -1346,7 +1346,7 @@ function OrdersListInner() {
 
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
-    <div className="orders-workspace flex flex-col gap-4 max-sm:gap-3">
+    <div className="orders-workspace flex flex-col gap-3">
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
           Commessa» andava a capo e la testata occupava due righe). Si va a capo
@@ -1527,16 +1527,16 @@ function OrdersListInner() {
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
-          <div className="bg-eic-navy-deep p-3 sm:p-4 text-white">
+          <div className="bg-eic-navy-deep p-3 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                <div className="flex h-9 w-9 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
-                  <h2 className="mt-0.5 sm:mt-1 text-base sm:text-xl font-semibold text-white">Vista economica e operativa</h2>
-                  <p className="hidden sm:block mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
+                  <h2 className="mt-0.5 sm:mt-1 text-base sm:text-lg font-semibold text-white">Vista economica e operativa</h2>
+                  <p className="hidden sm:block mt-0.5 max-w-xl text-xs leading-4 text-blue-50/85">
                     {isYearCorrente ? `Valori delle commesse ${currentYear} · IVA inclusa. Pregresso separato qui sotto.` : "Valori delle commesse nel periodo selezionato, indipendenti dai filtri sotto."}
                   </p>
                 </div>
@@ -1549,10 +1549,10 @@ function OrdersListInner() {
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid grid-cols-2 gap-2 sm:gap-3 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <ShoppingBag className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
@@ -1564,7 +1564,7 @@ function OrdersListInner() {
                       </>
                     ) : (
                       <>
-                        <span className="block truncate text-xl font-bold text-white">{isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders}</span>
+                        <span className="block truncate text-lg font-bold text-white">{isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders}</span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
                         </span>
@@ -1578,9 +1578,9 @@ function OrdersListInner() {
               {/* "Totale venduto" e "Incassato" sono metriche da scrivania:
                   su mobile confondono e allungano l'header → visibili da sm in su.
                   Restano "Commesse totali" e "Da incassare" (operativi). */}
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
                     <Euro className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
@@ -1592,7 +1592,7 @@ function OrdersListInner() {
                       </>
                     ) : (
                       <>
-                        <span className="block truncate text-xl font-bold text-white">
+                        <span className="block truncate text-lg font-bold text-white">
                           {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
@@ -1604,9 +1604,9 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
                     <TrendingUp className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
@@ -1618,7 +1618,7 @@ function OrdersListInner() {
                       </>
                     ) : (
                       <>
-                        <span className="block truncate text-xl font-bold text-white">
+                        <span className="block truncate text-lg font-bold text-white">
                           {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
@@ -1630,9 +1630,9 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <AlertCircle className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
@@ -1644,7 +1644,7 @@ function OrdersListInner() {
                       </>
                     ) : (
                       <>
-                        <span className="block truncate text-xl font-bold text-white">
+                        <span className="block truncate text-lg font-bold text-white">
                           {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
@@ -1659,7 +1659,7 @@ function OrdersListInner() {
             </div>}
             {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && <OrdersCarryoverSummary
               previous={globalStats.previous} reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
-            <details className="mt-3 text-xs text-blue-100">
+            <details className="mt-2 text-xs text-blue-100">
               <summary className="cursor-pointer rounded py-1 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">Come vengono calcolati?</summary>
               <p className="mt-2 max-w-3xl leading-relaxed">L’anno della commessa è quello di creazione. Il riepilogo annuale include anche le completate e rimane indipendente dai filtri dell’elenco. Gli importi sono IVA inclusa. “Incassato” indica quanto riscosso su quelle commesse, non i movimenti di cassa avvenuti nell’anno. I motivi del pregresso possono sovrapporsi senza duplicare le commesse.</p>
             </details>
@@ -1674,9 +1674,9 @@ function OrdersListInner() {
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="min-w-0 border-t border-slate-200 bg-white p-3 sm:p-5 xl:border-l xl:border-t-0">
+          <aside id="orders-annual-chart" className="min-w-0 border-t border-slate-200 bg-white p-3 xl:border-l xl:border-t-0">
             {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
-              <div aria-label="Caricamento andamento" className="flex h-[260px] items-end gap-3 px-4 pb-4">
+              <div aria-label="Caricamento andamento" className="flex h-[220px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
             ) : <OrdersMonthlyChart months={chartWithComparison}
@@ -1714,11 +1714,12 @@ function OrdersListInner() {
       />
 
       <div className="order-3 space-y-2 sm:order-none">
+          <div className="flex flex-wrap items-start gap-2">
           {isYearCorrente && <OrdersAnnualScope year={currentYear} annualCount={globalStats?.annual.count ?? 0} previousCount={globalStats?.previous.count ?? 0}
             selected={scopeGroup} onChange={setScopeGroup} loading={isLoadingGlobalStats || isLoadingStatuses || !globalStats}
             failed={isGlobalStatsError || isStatusesError} />}
-          <details className="rounded-xl border border-slate-200 bg-white text-sm">
-            <summary className="cursor-pointer rounded-xl px-3 py-2.5 font-medium text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
+          <details className="shrink-0 rounded-xl border border-slate-200 bg-white text-sm open:basis-full">
+            <summary className="cursor-pointer rounded-xl px-3 py-2 font-medium text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
               Stati e margini {controlFocus !== "all" || statusFilter !== "all" ? "· filtro attivo" : ""}
             </summary>
       <OrdersPeriodSummary counts={listScopeCounts}
@@ -1726,6 +1727,7 @@ function OrdersListInner() {
         showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
         focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
           </details>
+          </div>
           <OrdersFilters
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -1994,7 +1996,7 @@ export default function OrdersList() {
   }, [activeTab, requestedTab, setSearchParams]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
+    <div className="space-y-3 overflow-x-hidden">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <nav

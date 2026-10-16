@@ -144,7 +144,7 @@ export function OrdersMonthlyChart({
         Per mese di creazione. Incassato su quelle commesse, indipendentemente
         dalla data dell’incasso.
       </p>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <div
           role="group"
           aria-label="Visualizzazione andamento"
@@ -197,9 +197,7 @@ export function OrdersMonthlyChart({
             ))}
           </div>
         )}
-      </div>
-      {comparison && (
-        <div className="mt-3">
+        {comparison && (
           <button
             type="button"
             aria-pressed={comparison.enabled}
@@ -211,37 +209,40 @@ export function OrdersMonthlyChart({
           >
             Confronta {comparison.year}
           </button>
-          {comparison.enabled && (
-            <div className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              <p>
-                Stesso periodo: {comparison.label}, nei due anni. Linee
-                tratteggiate: {comparison.year}.
-              </p>
-              <p>
-                Incassi e residui aggiornati a oggi, non saldi storici. I filtri
-                dell’elenco non cambiano.
-              </p>
-              {comparison.loading && (
-                <p role="status">Caricamento confronto…</p>
-              )}
-              {comparison.error && (
-                <p role="alert">
-                  Confronto non disponibile.{" "}
-                  <button
-                    type="button"
-                    className="underline"
-                    onClick={comparison.onRetry}
-                  >
-                    Riprova confronto
-                  </button>
-                </p>
-              )}
-            </div>
+        )}
+      </div>
+      {comparison?.enabled && (
+        <div className="text-[11px] text-slate-500">
+          <details className="mt-1 text-[11px] leading-relaxed text-slate-500">
+            <summary className="cursor-pointer">
+              Confronto a parità di periodo · dettagli
+            </summary>
+            <p>
+              Stesso periodo: {comparison.label}, nei due anni. Linee
+              tratteggiate: {comparison.year}.
+            </p>
+            <p>
+              Incassi e residui aggiornati a oggi, non saldi storici. I filtri
+              dell’elenco non cambiano.
+            </p>
+          </details>
+          {comparison.loading && <p role="status">Caricamento confronto…</p>}
+          {comparison.error && (
+            <p role="alert">
+              Confronto non disponibile.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={comparison.onRetry}
+              >
+                Riprova confronto
+              </button>
+            </p>
           )}
         </div>
       )}
       <div
-        className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
+        className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
         aria-label="Legenda grafico"
       >
         {view === "money" ? (
@@ -268,7 +269,7 @@ export function OrdersMonthlyChart({
         )}
       </div>
       <div
-        className={`mt-2 h-[300px] ${onSelectMonth ? "cursor-pointer" : ""}`}
+        className={`mt-1 h-[220px] ${onSelectMonth ? "cursor-pointer" : ""}`}
         role="img"
         aria-label={
           view === "money"
@@ -464,9 +465,8 @@ export function OrdersMonthlyChart({
       </div>
       {onSelectMonth && (
         <div className="mt-2">
-          <p className="mb-2 text-[11px] text-slate-500">
-            Clicca un mese nel grafico o qui sotto per filtrare l’elenco. Gli
-            altri filtri restano attivi.
+          <p className="mb-1 text-[11px] text-slate-500">
+            Seleziona un mese per filtrare l’elenco.
           </p>
           <div
             role="group"
@@ -486,7 +486,7 @@ export function OrdersMonthlyChart({
                     : monthName(month)
                 }
                 onClick={() => select(month.key)}
-                className="orders-month-chip rounded-md border border-slate-200 py-1.5 text-[11px] text-slate-600"
+                className="orders-month-chip rounded-md border border-slate-200 py-1 text-[11px] text-slate-600"
               >
                 {/^\d{4}$/.test(period) ? month.mese.split(" ")[0] : month.mese}
               </button>
@@ -508,7 +508,7 @@ export function OrdersMonthlyChart({
           )}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
         <p>
           {hasFuture
             ? "I mesi futuri senza dati restano vuoti; il mese in corso è parziale."
