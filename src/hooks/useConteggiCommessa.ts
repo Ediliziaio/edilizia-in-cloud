@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
 
 export interface ConteggiCommessa {
   lavorazioni: number | null;
@@ -26,10 +27,14 @@ export function useConteggiCommessa(orderId: string | undefined, companyId: stri
     queryKey: ["order-conteggi-viste", orderId, companyId],
     enabled: !!orderId && !!companyId && abilitato,
     staleTime: 30_000,
-    queryFn: async () => {
+    retry: false,
+    queryFn: async ({ signal }) => {
       // La funzione non è ancora nei tipi generati.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("ordine_conteggi_viste", { p_order_id: orderId });
+      const { data, error } = await withHeavyDatabaseRead(
+        (requestSignal) => (supabase as any).rpc("ordine_conteggi_viste", { p_order_id: orderId }).abortSignal(requestSignal),
+        "Conteggi commessa", 8000, signal,
+      ) as { data: unknown; error: unknown };
       const r = (error ? {} : data ?? {}) as Record<string, unknown>;
       return {
         lavorazioni: numero(r.lavorazioni),

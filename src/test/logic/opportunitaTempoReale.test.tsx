@@ -72,14 +72,14 @@ describe("opportunità in tempo reale", () => {
     ]);
   });
 
-  it("una raffica di eventi della pipeline aperta diventa UNA ricarica dopo un secondo", () => {
+  it("una raffica di eventi della pipeline aperta diventa UNA ricarica dopo un secondo", async () => {
     monta(queryClient);
     arriva("INSERT", { new: { id: "o1", pipeline_id: "p1" } });
     arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
     arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
-    vi.advanceTimersByTime(999);
+    await vi.advanceTimersByTimeAsync(999);
     expect(invalida).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
+    await vi.advanceTimersByTimeAsync(1);
     expect(invalida).toHaveBeenCalledTimes(1);
 
     // Ricarica solo riepilogo, colonne e lista di QUESTA pipeline.
@@ -112,7 +112,7 @@ describe("opportunità in tempo reale", () => {
     expect(invalida).not.toHaveBeenCalled();
 
     arriva("UPDATE", { new: { id: "a-schermo", pipeline_id: "p2" } });
-    vi.advanceTimersByTime(1_000);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(invalida).toHaveBeenCalledTimes(1);
 
     arriva("DELETE", { old: { id: "a-schermo" } });
@@ -142,7 +142,7 @@ describe("opportunità in tempo reale", () => {
     arriva("INSERT", { new: { id: "o1", pipeline_id: "p1" } });
     await vi.advanceTimersByTimeAsync(1_000);          // t = 1 s: parte la prima e resta appesa
     expect(invalida).toHaveBeenCalledTimes(1);
-    expect(invalida.mock.calls[0][1]).toEqual({ cancelRefetch: false });
+    expect(invalida.mock.calls[0][1]).toEqual({ cancelRefetch: false, throwOnError: true });
     arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
     await vi.advanceTimersByTimeAsync(60_000);         // t = 61 s: la prima non è ancora finita
     expect(invalida).toHaveBeenCalledTimes(1);
@@ -153,7 +153,7 @@ describe("opportunità in tempo reale", () => {
     expect(invalida).toHaveBeenCalledTimes(2);
   });
 
-  it("con la scheda del browser nascosta non ricarica; al ritorno sì", () => {
+  it("con la scheda del browser nascosta non ricarica; al ritorno sì", async () => {
     monta(queryClient);
     nascondi(true);
     arriva("INSERT", { new: { id: "o1", pipeline_id: "p1" } });
@@ -161,28 +161,28 @@ describe("opportunità in tempo reale", () => {
     expect(invalida).not.toHaveBeenCalled();
     nascondi(false);
     document.dispatchEvent(new Event("visibilitychange"));
-    vi.advanceTimersByTime(3_000);
+    await vi.advanceTimersByTimeAsync(3_000);
     expect(invalida).toHaveBeenCalledTimes(1);
   });
 
-  it("aspetta che uno spostamento in corso finisca di salvare", () => {
+  it("aspetta che uno spostamento in corso finisca di salvare", async () => {
     const inCorso = vi.spyOn(queryClient, "isMutating").mockReturnValue(1);
     monta(queryClient);
     arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
     vi.advanceTimersByTime(10_000);
     expect(invalida).not.toHaveBeenCalled();
     inCorso.mockReturnValue(0);
-    vi.advanceTimersByTime(3_000);
+    await vi.advanceTimersByTimeAsync(3_000);
     expect(invalida).toHaveBeenCalledTimes(1);
   });
 
-  it("dopo una riconnessione ricarica (il primo aggancio no), e smontando chiude il canale", () => {
+  it("dopo una riconnessione ricarica (il primo aggancio no), e smontando chiude il canale", async () => {
     const { unmount } = monta(queryClient);
     canale.stato?.("SUBSCRIBED");
     vi.advanceTimersByTime(5_000);
     expect(invalida).not.toHaveBeenCalled();
     canale.stato?.("SUBSCRIBED");
-    vi.advanceTimersByTime(3_000);
+    await vi.advanceTimersByTimeAsync(3_000);
     expect(invalida).toHaveBeenCalledTimes(1);
     unmount();
     expect(canale.rimossi).toBe(1);

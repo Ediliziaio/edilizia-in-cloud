@@ -28,6 +28,10 @@ function builder(tabella: string) {
   chiamate.push(chiamata);
   const b: Record<string, unknown> = {};
   b.select = vi.fn(() => b);
+  b.abortSignal = vi.fn((signal: AbortSignal) => {
+    expect(signal).toBeInstanceOf(AbortSignal);
+    return b;
+  });
   b.update = vi.fn((dati: Record<string, unknown>) => { chiamata.operazione = "update"; chiamata.dati = dati; return b; });
   b.delete = vi.fn(() => { chiamata.operazione = "delete"; return b; });
   for (const m of ["eq", "in", "is", "not", "order", "limit"]) {
