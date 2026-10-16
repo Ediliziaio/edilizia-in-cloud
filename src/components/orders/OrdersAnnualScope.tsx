@@ -6,7 +6,7 @@ interface GroupProps {
 }
 /** Navigation counts describe the base scope; other filters remain explicit. */
 export function OrdersAnnualScope({year,annualCount,previousCount,selected,onChange,loading,failed}: GroupProps) {
-  return <section aria-label="Filtra anno corrente e pregresso" className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 text-sm">
+  return <section aria-label="Filtra anno corrente e pregresso" className="flex min-w-0 flex-1 basis-full flex-wrap sm:basis-auto items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 text-sm">
     {([{value:"annual",label:String(year),count:annualCount},{value:"previous",label:"Pregresso",count:previousCount},{value:"all",label:"Totale",count:annualCount+previousCount}] as const).map(group =>
       <button key={group.value} type="button" aria-pressed={selected===group.value} disabled={loading || failed}
         className="orders-stat-chip" onClick={()=>onChange(group.value)}>
