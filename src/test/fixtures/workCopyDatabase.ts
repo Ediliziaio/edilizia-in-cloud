@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-export const workCopyMigration=readFileSync('supabase/migrations/20261016053013_duplicazione_lavori_struttura_e_preventivi.sql','utf8');
+export const workCopyMigration=readFileSync('supabase/migrations/20261016053013_duplicazione_lavori_struttura_e_preventivi.sql','utf8')+'\n'+readFileSync('supabase/migrations/20261016053149_duplicazione_importi_fasi.sql','utf8');
 export const workCopySchema=`
 alter table orders add client_company text,add client_address text,add deleted_at timestamptz,add destination_warehouse_id uuid,add quote_id uuid,add updated_at timestamptz default now();
 alter table order_items add phase_id uuid;
