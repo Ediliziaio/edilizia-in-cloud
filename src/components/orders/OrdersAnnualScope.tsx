@@ -1,24 +1,32 @@
-import type {orderEconomics} from "@/lib/orders/annualScope";
+import type {orderEconomics, OrderScopeGroup} from "@/lib/orders/annualScope";
 type Economics = ReturnType<typeof orderEconomics>;
-interface Props {
-  year: number; annual: Economics; previous: Economics; showAmounts: boolean;
-  reasons: {work: number; support: number; payment: number};
+interface GroupProps {
+  year: number; annualCount: number; previousCount: number; selected: OrderScopeGroup;
+  onChange: (group: OrderScopeGroup) => void; loading?: boolean; failed?: boolean;
+}
+/** Navigation counts describe the base scope; other filters remain explicit. */
+export function OrdersAnnualScope({year,annualCount,previousCount,selected,onChange,loading,failed}: GroupProps) {
+  return <section aria-label="Filtra anno corrente e pregresso" className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-sm">
+    {([{value:"annual",label:String(year),count:annualCount},{value:"previous",label:"Pregresso",count:previousCount},{value:"all",label:"Totale",count:annualCount+previousCount}] as const).map(group =>
+      <button key={group.value} type="button" aria-pressed={selected===group.value} disabled={loading || failed}
+        className="orders-stat-chip" onClick={()=>onChange(group.value)}>
+        {group.label} <strong className="tabular-nums">{failed?"—":loading?"…":group.count}</strong>
+      </button>)}
+    <span className="text-xs text-muted-foreground">Conteggi prima degli altri filtri, che restano attivi.</span>
+  </section>;
 }
 const money = (amount: number) => amount.toLocaleString("it-IT", {style:"currency",currency:"EUR",maximumFractionDigits:0});
-export function OrdersAnnualScope({year,annual,previous,reasons,showAmounts}: Props) {
-  return <section aria-label="Anno corrente e precedenti da gestire" className="rounded-xl border border-slate-200 bg-white p-3 text-sm space-y-3">
-    <div className="flex flex-wrap gap-x-5 gap-y-2 font-medium">
-      <span>{year}: <strong>{annual.count}</strong></span>
-      <span>Anni precedenti da gestire: <strong>{previous.count}</strong></span>
-      <span>Totale nella vista: <strong>{annual.count + previous.count}</strong></span>
+export function OrdersCarryoverSummary({previous,reasons,showAmounts}: {previous:Economics;reasons:{work:number;support:number;payment:number};showAmounts:boolean}) {
+  return <details className="mt-3 rounded-xl border border-white/15 bg-white/5 text-blue-50">
+    <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 rounded-xl p-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
+      <span className="font-semibold">Pregresso da gestire · {previous.count} commesse</span>
+      <span className="text-xs text-blue-100">{reasons.work} lavori aperti · {reasons.support} assistenze · {reasons.payment} con saldo</span>
+      {showAmounts && <span className="font-semibold sm:ml-auto">Da incassare {money(previous.pending)}</span>}
+      <span className="text-xs underline underline-offset-2">Dettagli</span>
+    </summary>
+    <div className="space-y-2 px-3 pb-3 text-xs text-blue-100">
+      {showAmounts && <p>Venduto {money(previous.sold)} · Incassato {money(previous.collected)} · IVA inclusa</p>}
+      <p>Commesse degli anni precedenti con lavori, assistenza o incassi ancora da gestire. Una commessa può avere più motivi, ma viene contata una volta sola.</p>
     </div>
-    <p className="text-xs text-muted-foreground">Tutte le commesse del {year}, anche completate. Il pregresso resta solo per lavori aperti ({reasons.work}), assistenza aperta ({reasons.support}) o saldo da incassare ({reasons.payment}). Una commessa può avere più motivi, ma viene contata una volta sola.</p>
-    {showAmounts && <div className="grid gap-3 sm:grid-cols-2 text-xs">
-      {[{label:`Commesse ${year}`,value:annual},{label:"Pregresso da gestire",value:previous}].map(({label,value}) => <div key={label} className="rounded-lg bg-slate-50 p-3 space-y-1">
-        <p className="font-semibold">{label} · IVA inclusa</p>
-        <p>Venduto <strong>{money(value.sold)}</strong> · Incassato <strong>{money(value.collected)}</strong> · Da incassare <strong>{money(value.pending)}</strong></p>
-      </div>)}
-      <p className="sm:col-span-2 text-muted-foreground">Importi riferiti alle commesse di ciascun gruppo, indipendenti dai filtri sotto. “Incassato” indica quanto riscosso su quelle commesse, non i movimenti di cassa avvenuti nell’anno.</p>
-    </div>}
-  </section>;
+  </details>;
 }
