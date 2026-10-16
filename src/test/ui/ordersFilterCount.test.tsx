@@ -25,45 +25,60 @@ describe("Conteggio dei risultati nel pannello filtri", () => {
 });
 
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
-describe("Controlli secondari dell’elenco", () => {
-  it("lascia la ricerca visibile e conserva i filtri quando i comandi vengono richiusi", () => {
-    const payment = vi.fn();
-    render(
-      <OrdersFilters
-        searchQuery=""
-        onSearchChange={vi.fn()}
-        statusFilter="all"
-        onStatusFilterChange={vi.fn()}
-        statuses={[]}
-        yearFilter="corrente"
-        onYearFilterChange={vi.fn()}
-        availableYears={[2026, 2025]}
-        paymentFilter="pending"
-        onPaymentFilterChange={payment}
-        monthFilter="all"
-        onMonthFilterChange={vi.fn()}
-        hasAnyFilter
-        onClearAllFilters={vi.fn()}
-        hideCompleted={false}
-        onHideCompletedChange={vi.fn()}
-      />,
-    );
-    const toggle = screen.getByRole("button", { name: "Filtri elenco" });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(toggle).toHaveTextContent("1");
-    expect(
-      screen.getByRole("combobox", { name: "Stato pagamento" }),
-    ).toHaveTextContent("Da incassare");
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByRole("combobox", { name: "Stato pagamento" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toBeVisible();
-    expect(payment).not.toHaveBeenCalled();
-    fireEvent.click(toggle);
-    expect(
-      screen.getByRole("combobox", { name: "Stato pagamento" }),
-    ).toHaveTextContent("Da incassare");
-  });
+describe("Filtri dell’elenco sempre disponibili", () => {
+  it.each(["all", "pending"] as const)(
+    "mostra i controlli senza aprire un pannello, anche con pagamento %s",
+    (paymentFilter) => {
+      const payment = vi.fn();
+      const clear = vi.fn();
+      const hideCompleted = vi.fn();
+      render(
+        <OrdersFilters
+          searchQuery=""
+          onSearchChange={vi.fn()}
+          statusFilter="all"
+          onStatusFilterChange={vi.fn()}
+          statuses={[]}
+          yearFilter="corrente"
+          onYearFilterChange={vi.fn()}
+          availableYears={[2026, 2025]}
+          paymentFilter={paymentFilter}
+          onPaymentFilterChange={payment}
+          monthFilter="all"
+          onMonthFilterChange={vi.fn()}
+          hasAnyFilter={paymentFilter !== "all"}
+          onClearAllFilters={clear}
+          hideCompleted={false}
+          onHideCompletedChange={hideCompleted}
+        />,
+      );
+      for (const name of [
+        "Stato commessa",
+        "Stato pagamento",
+        "Periodo commesse",
+        "Mese commesse",
+      ]) {
+        expect(screen.getByRole("combobox", { name })).toBeVisible();
+      }
+      expect(screen.getByRole("textbox")).toBeVisible();
+      expect(
+        screen.getByRole("combobox", { name: "Stato pagamento" }),
+      ).toHaveTextContent(
+        paymentFilter === "pending" ? "Da incassare" : "Tutti i pagamenti",
+      );
+      expect(payment).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Nascondi commesse con lavori completati",
+        }),
+      );
+      expect(hideCompleted).toHaveBeenCalledWith(true);
+      if (paymentFilter !== "all") {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Cancella tutti i filtri" }),
+        );
+        expect(clear).toHaveBeenCalledOnce();
+      }
+    },
+  );
 });
