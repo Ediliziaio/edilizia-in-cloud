@@ -5,6 +5,8 @@ import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
+  /** Importo esplicito del contratto: non ricalcolare un saldo non dichiarato. Solo stato del modulo. */
+  amount_from_contract?: boolean;
   id?: string;
   position: number;
   label: string;

@@ -43,6 +43,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
 import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { ContractOfficeTasks } from "@/components/orders/ContractOfficeTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
@@ -1516,6 +1517,7 @@ function OrderDetailInner() {
                   <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>Registro della commessa <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
                 </QuoteCard>
               <div id="section-note" className="scroll-mt-24">
+                <ContractOfficeTasks orderId={id} />
                 {permissions.canEditOrders ? (
                   <OrdineNote
                     notes={order.internal_notes}

@@ -7,7 +7,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
-import { contractImponibile, contractToInstallments, deriveIvaPct, type ContractExtract } from "@/lib/orders/contractExtract";
+import { contractImponibile, contractToInstallments, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
+import { prepareContract, contractPreparationNotes, storedContractFromDraft, type StoredContractFile } from "@/lib/orders/contractPreparation";
+import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
+import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -169,6 +172,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
   const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [contrattoImportato, setContrattoImportato] = useState<ContractExtract | null>(null);
+  const [contractSource, setContractSource] = useState<StoredContractFile | null>(null);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -195,7 +200,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Calculate balance (deduct financing_cost for financing payment type)
   const total = parseDecimalIT(totalAmount);
   // Lo zero è un'aliquota valida, non l'assenza di un valore.
-  const vat = parseDecimalIT(vatRate?.trim() ? vatRate : "22");
+  const vat = vatRate?.trim() ? parseDecimalIT(vatRate) : 0;
   const fCostForBalance = paymentType === 'financing' ? (parseDecimalIT(financingCost || "")) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
@@ -230,6 +235,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Number of installments change handler
   const handleNumInstallmentsChange = (num: number) => {
     setNumInstallments(num);
+    if (num === 0) { setInstallments([]); return; }
     const newInstallments = createDefaultInstallments(paymentType, num);
     const existingDeposits = installments.filter(i => i.type === 'deposit');
     const existingFinancing = installments.find(i => i.type === 'financing');
@@ -245,7 +251,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
     });
     // Date previste suggerite a 30/60/90gg per le rate nuove (modificabili)
-    setInstallments(prefillExpectedDates(newInstallments));
+    setInstallments(contrattoImportato ? newInstallments : prefillExpectedDates(newInstallments));
   };
 
   // ── Draft auto-save ─────────────────────────────────────────
@@ -253,11 +259,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
   const fasiDiPartenza = useFasiDiPartenza();
+  const pianoContratto = useMemo(() => contrattoImportato ? prepareContract(contrattoImportato, fasiDiPartenza.offerti) : null, [contrattoImportato, fasiDiPartenza.offerti]);
+  const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
   const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
   const fasiDaCreare = useMemo(() => fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiPerCommessa(fasiDiPartenza.modello) : []), [fasiPersonalizzate, fasiDiPartenza.modello]);
   const [durataLavori, setDurataLavori] = useState("");
   const [settimanaLavorativa, setSettimanaLavorativa] = useState<SettimanaLavorativa>(5);
+  useEffect(() => {
+    if (!pianoContratto || !fasiDiPartenza.offerti.length || standardApplicatoRef.current === contrattoImportato) return;
+    standardApplicatoRef.current = contrattoImportato;
+    scegliModelloFasi(pianoContratto.organizzazione === "interventi_su_ordine" ? "" : pianoContratto.standardId ?? "");
+    setFasiPersonalizzate(pianoContratto.cantiere);
+  }, [pianoContratto, contrattoImportato, fasiDiPartenza.offerti.length, scegliModelloFasi]);
   const [cantiereAddress, setCantiereAddress] = useState("");
   const [cantiereAddressData, setCantiereAddressData] = useState<AddressData | null>(null);
   const cantiereTouchedRef = useRef(false);
@@ -275,6 +289,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setOrderItems([]);
     setBonusLines([]);
     setPendingFiles([]);
+    setContrattoImportato(null);
+    setContractSource(null);
+    standardApplicatoRef.current = null;
     setDraftRestored(false);
     fasiDiPartenza.scegli(null);
     setFasiPersonalizzate(null);
@@ -303,13 +320,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       work_end_date: isoToDate(draft.workEndDate),
       payment_type: draft.paymentType || "standard",
       total_amount: draft.totalAmount || "",
-      vat_rate: draft.vatRate || "22",
+      vat_rate: draft.vatRate ?? "22",
       financing_cost: draft.financingCost || "",
       has_building_bonus: draft.hasBuildingBonus || false,
     });
-    if (draft.installments?.length) {
+    if (Array.isArray(draft.installments)) {
       setInstallments(draft.installments);
       setNumInstallments(draft.installments.length);
+    }
+    if (draft.contractSource) setContractSource(storedContractFromDraft(draft.contractSource, effectiveCompany.id));
+    if (draft.contractExtract) {
+      const ex = parseContractExtract(draft.contractExtract);
+      standardApplicatoRef.current = ex; // Conserva eventuali adattamenti manuali della bozza.
+      setContrattoImportato(ex);
     }
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
     if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
@@ -331,6 +354,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
 
+  // Recupera il contratto privato già analizzato dopo una riapertura della bozza.
+  useEffect(() => {
+    if (!contractSource || !effectiveCompany?.id || pendingFiles.some(p => p.file.name === contractSource.name)) return;
+    if (contractSource.bucket !== "order-attachments" || !contractSource.path.startsWith(`${effectiveCompany.id}/`) || contractSource.path.includes("..")) return;
+    let cancelled = false;
+    void supabase.storage.from(contractSource.bucket).download(contractSource.path).then(({data,error}) => {
+      if (cancelled) return;
+      if (error || !data) { toast.error("Contratto della bozza non recuperato", { description: "Ricarica il contratto prima di creare la commessa." }); return; }
+      const file = new File([data], contractSource.name, {type: contractSource.mime});
+      setPendingFiles(prev => prev.some(p => p.file.name === file.name) ? prev : [...prev, {file, visibleToCustomer:false}]);
+    });
+    return () => { cancelled = true; };
+    // pendingFiles non è una dipendenza: togliere un allegato a mano deve restare una scelta dell'utente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractSource, effectiveCompany?.id]);
+
   // Prefill da preventivo: applicato una volta quando i dati sono pronti.
   // Gira dopo il draft-restore (fetch async) → ha la precedenza voluta
   // (chi arriva da un preventivo vuole quei dati). Se non c'è ?quote_id,
@@ -339,6 +378,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (!quotePrefill || !selectedQuoteId) return;
     if (appliedQuoteRef.current === selectedQuoteId) return; // una volta per preventivo scelto
     appliedQuoteRef.current = selectedQuoteId;
+    setContrattoImportato(null);
+    setContractSource(null);
     if (quotePrefill.description) setValue("description", quotePrefill.description);
     setValue("total_amount", String(quotePrefill.totalAmount));
     setValue("vat_rate", String(quotePrefill.vatRate));
@@ -419,7 +460,21 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   };
 
   // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
-  const applyContractExtract = (ex: ContractExtract, sourceFile?: File | null) => {
+  const applyContractExtract = (ex: ContractExtract, sourceFile?: File | null, source?: StoredContractFile | null) => {
+    setContractSource(source ?? null);
+    setContrattoImportato(ex);
+    standardApplicatoRef.current = null;
+    const piano = prepareContract(ex, fasiDiPartenza.offerti);
+    setValue("internal_notes", contractPreparationNotes(piano));
+    setValue("customer_id", "");
+    setValue("financing_cost", "");
+    setValue("has_building_bonus", false);
+    setValue("payment_type", "standard");
+    for (const campo of ["work_start_date", "work_end_date", "expected_date", "warehouse_arrival_date"] as const) setValue(campo, undefined);
+    setDurataLavori("");
+    setOrderItems([]);
+    const verifica = statuses.find(s => /da verificare/i.test(s.name));
+    if (verifica) setValue("status_id", verifica.id);
     // Il contratto firmato va nei Documenti della commessa: entra nei file in
     // coda (non visibile al cliente) e viene caricato alla creazione.
     if (sourceFile) {
@@ -443,20 +498,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         titolo = full.slice(0, cut).replace(/[\s,;:]+$/, "");
       }
       setValue("description", titolo);
-      if (titolo !== full) {
-        const nota = `Descrizione completa dal contratto:\n${full}`;
-        setValue("internal_notes", internalNotes?.trim() ? `${internalNotes}\n\n${nota}` : nota);
-      }
     }
     const imp = contractImponibile(ex);
     // Formato IT: l'imponibile arriva dall'estrazione AI del contratto e
     // `String(1.234)` produrrebbe una stringa riletta poi come 1234.
-    if (imp != null) setValue("total_amount", formatDecimalIT(imp));
+    setValue("total_amount", imp != null ? formatDecimalIT(imp) : "");
     // Aliquota: dichiarata dal documento, o DEDOTTA dai totali (ivato/imponibile
     // → agganciata a 4/5/10/22). L'aritmetica del modello qui aveva già mentito.
-    const ivaEffettiva = deriveIvaPct(ex);
-    if (ivaEffettiva != null) setValue("vat_rate", String(ivaEffettiva));
-    if (ex.voci.length > 0) {
+    setValue("vat_rate", ex.iva_pct != null ? String(ex.iva_pct) : "");
+    if (ex.voci.length > 0 && ex.appalto_pubblico?.ruolo_azienda_importatrice !== "mandante") {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
@@ -502,9 +552,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       setOrderItems([...itemsMerce, ...itemsAltriCosti]);
     }
     const insts = contractToInstallments(ex, imp ?? 0);
-    if (insts.length > 0) setInstallments(prefillExpectedDates(insts));
+    setInstallments(insts);
+    setNumInstallments(insts.length);
     if ((ex.modalita_pagamento ?? "").toLowerCase().includes("finanz")) setValue("payment_type", "financing");
-    if (ex.cliente.nome_completo.trim()) {
+    if (ex.cliente.nome_completo.trim() && ex.appalto_pubblico?.ruolo_azienda_importatrice !== "mandante") {
       // Match sull'anagrafica PRIMA di proporre "nuovo cliente" (audit
       // 2026-09, punto 4): se il cliente esiste già — nome uguale, anche
       // invertito ("Mandelli Riccardo") — lo si aggancia e basta. Il dialog
@@ -533,6 +584,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   };
 
   const datiBozza = useMemo<Omit<OrderDraftData, "savedAt">>(() => ({
+        contractExtract: contrattoImportato,
+        contractSource,
         customerId: customerId || "",
         orderCode: orderCode || "",
         description: description || "",
@@ -556,7 +609,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         settimanaLavorativa,
         paymentType: paymentType,
         totalAmount: totalAmount || "",
-        vatRate: vatRate || "22",
+        vatRate: vatRate ?? "22",
         financingCost: financingCost || "",
         hasBuildingBonus: hasBuildingBonus || false,
         bonusLines,
@@ -570,7 +623,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       hasBuildingBonus, bonusLines,
       orderItems, dateToIso, cantiereAddress, cantiereAddressData,
       fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare,
-      durataLavori, settimanaLavorativa]);
+      durataLavori, settimanaLavorativa, contrattoImportato, contractSource]);
 
   // Anche il completamento usa questa fotografia: dopo la RPC la bozza conserva l'id già creato.
   useEffect(() => {
@@ -581,6 +634,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   }, [createdOrderId, saveDraft, datiBozza]);
 
   const handleClearDraft = useCallback(() => {
+    setContrattoImportato(null);
+    setContractSource(null);
+    standardApplicatoRef.current = null;
     clearDraft();
     reset(orderDefaultValues);
     setInstallments(rateDiPartenza(modelloIniziale));
@@ -783,12 +839,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (!cantiereAddress.trim()) throw new Error("Conferma l’indirizzo effettivo del cantiere: non viene dedotto dalla fattura.");
       }
       const totalVal = parseDecimalIT(values.total_amount);
-      const vatValue = parseDecimalIT(values.vat_rate?.trim() ? values.vat_rate : "22");
+      if (!values.vat_rate.trim()) throw new Error("Conferma l’IVA prima di salvare.");
+      if (contrattoImportato && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
+      const vatValue = parseDecimalIT(values.vat_rate);
       const fCost = parseDecimalIT(values.financing_cost || "");
 
       // Compute legacy columns from installments for backward compat
       const installmentsForSave = installments.map(i =>
-        i.type === 'balance' ? { ...i, amount: balance } : i
+        !i.amount_from_contract && i.type === 'balance' ? { ...i, amount: balance } : i
       );
       const legacy = installmentsToLegacyColumns(installmentsForSave);
 
@@ -978,6 +1036,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
       // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
+      if (pianoContratto?.ufficio.length && result.id) {
+        try {
+          await saveContractOfficeTasks(effectiveCompany.id, result.id, user!.id, pianoContratto.ufficio);
+        } catch (error) {
+          toast.error("Commessa creata, adempimenti di ufficio da completare", { description: "Non creare una seconda commessa. Il riepilogo è nelle note interne: verifica le attività della commessa.", duration: 15000 });
+          logger.error("Salvataggio adempimenti contratto", error);
+        }
+      }
       if (!selectedQuoteId && fasiDaCreare.length && result.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiDaCreare, (nome, args) => (supabase as any).rpc(nome, args));
@@ -1116,6 +1182,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const onSubmit = (values: OrderFormValues) => {
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
+    if (contrattoImportato && !installments.length) {
+      toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
+      return;
+    }
     if (!selectedQuoteId && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
       toast.error("Completa i nomi delle fasi", { description: "Dai un nome a ogni fase oppure rimuovi quelle che non servono." });
       return;
@@ -1283,6 +1353,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       <CreateOrderChecklist checks={completionChecks} />
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
+        {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
         {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}
         <div className="flex flex-col gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-orange-900/40 dark:bg-orange-950/20">
@@ -1449,7 +1520,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                       {...field}
                       placeholder="Note visibili solo all'azienda..."
                       rows={3}
-                      maxLength={1000}
+                      maxLength={20000}
                     />
                   </div>
                 )}
@@ -1500,6 +1571,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
           <FinancialSummary
             nuova
+            daContratto={!!contrattoImportato}
             dateCommessa={{
               created_at: new Date().toISOString(),
               warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),
@@ -1509,7 +1581,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             }}
             statiCommessa={statuses}
             totalAmount={totalAmount || ""}
-            vatRate={vatRate || "22"}
+            vatRate={vatRate ?? ""}
             paymentType={paymentType}
             installments={installments}
             onInstallmentsChange={setInstallments}
@@ -1522,7 +1594,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             }}
             onVatRateChange={(val) => {
               setValue("vat_rate", val);
-              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + parseDecimalIT(val.trim() ? val : "22") / 100)));
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (val.trim() ? parseDecimalIT(val) : 0) / 100)));
             }}
             onPaymentTypeChange={handlePaymentTypeChange}
             balance={balance}
