@@ -8,15 +8,16 @@ export function useOfficePeople(companyId?: string) {
     queryKey: ["office-employees", companyId], enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase.from("employees").select("id,first_name,last_name,user_id,area")
-        .eq("company_id",companyId!).eq("is_active",true).neq("area","cantiere");
+        .eq("company_id",companyId!).eq("is_active",true);
       if(error) throw error;
       return data ?? [];
     },
   });
-  const officeIds = new Set((employees.data ?? []).map(e=>e.user_id).filter(Boolean));
+  const officeIds = new Set((employees.data ?? []).filter(e=>e.area!=="cantiere").map(e=>e.user_id).filter(Boolean));
+  const fieldIds = new Set((employees.data ?? []).filter(e=>e.area==="cantiere").map(e=>e.user_id).filter(Boolean));
   return {
-    people: (staff.data ?? []).filter(p => officeIds.has(p.id) || p.roles?.some(r=>["company_admin","company_staff"].includes(r))).map(p=>({...p, label:`${p.first_name??""} ${p.last_name??""} · ${officeIds.has(p.id)?"Personale collegato":"Utente aziendale"}`.trim()})),
-    unlinked: (employees.data ?? []).filter(e=>!e.user_id),
+    people: (staff.data ?? []).filter(p => officeIds.has(p.id) || (!fieldIds.has(p.id) && p.roles?.some(r=>["company_admin","company_staff"].includes(r)))).map(p=>({...p, label:`${p.first_name??""} ${p.last_name??""} · ${officeIds.has(p.id)?"Personale collegato":"Utente aziendale"}`.trim()})),
+    unlinked: (employees.data ?? []).filter(e=>e.area!=="cantiere" && !e.user_id),
     isLoading: staff.isLoading || employees.isLoading,
     isError: staff.isError || employees.isError,
   };

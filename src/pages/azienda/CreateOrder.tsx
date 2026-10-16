@@ -1253,7 +1253,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
     });
 
-    createOrderMutation.mutate();
+    createOrderMutation.mutate({});
   };
 
   // Gli errori vanno presi dall'argomento che passa react-hook-form, non dalla
