@@ -2,6 +2,10 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- La copia canonica 20270618030000_signature_requests_fv_progetto.sql completa questa operazione dopo le fondazioni.
+DO $vertical_dependencies$
+BEGIN
+ IF to_regclass('public.fv_progetti') IS NOT NULL THEN
 -- Firma elettronica (FEA) per il preventivo Fotovoltaico.
 -- Aggancia signature_requests al preventivo FV (fv_progetti) con una colonna
 -- dedicata, coerente con order_id / quote_id / sessione_id già presenti.
@@ -16,3 +20,6 @@ CREATE INDEX IF NOT EXISTS idx_signature_requests_fv_progetto
 CREATE INDEX IF NOT EXISTS idx_signature_requests_company_fv
   ON public.signature_requests(company_id, fv_progetto_id)
   WHERE fv_progetto_id IS NOT NULL;
+
+ END IF;
+END $vertical_dependencies$;

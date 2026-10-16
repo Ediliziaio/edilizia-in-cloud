@@ -159,12 +159,12 @@ GRANT SELECT, INSERT, UPDATE ON public.ai_test_quota TO service_role;
 
 -- Seed default quota per Demo Azienda
 INSERT INTO public.ai_test_quota (company_id, daily_calls_cap, monthly_cost_cap_usd, notes)
-VALUES (
+SELECT
   '778a2c76-1253-49f2-a5e8-283363ac3e29'::uuid,
   200,
   50.00,
   'AI Test Lab — quota di sicurezza giornaliera/mensile'
-)
+WHERE EXISTS (SELECT 1 FROM public.companies WHERE id = '778a2c76-1253-49f2-a5e8-283363ac3e29')
 ON CONFLICT (company_id) DO NOTHING;
 
 COMMENT ON TABLE public.ai_test_quota IS

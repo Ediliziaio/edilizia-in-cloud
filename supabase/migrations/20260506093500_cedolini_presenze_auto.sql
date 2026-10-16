@@ -8,6 +8,11 @@
 -- 1) Estensione hr_cedolini
 -- ────────────────────────────────────────────────────────────────────────────
 
+-- La tabella base arriva nel 20260916000015: su una preview vuota
+-- l'estensione viene completata lì, appena la tabella è disponibile.
+DO $cedolini_dependency$
+BEGIN
+  IF to_regclass('public.hr_cedolini') IS NOT NULL THEN
 ALTER TABLE public.hr_cedolini
   ADD COLUMN IF NOT EXISTS generation_method text NOT NULL DEFAULT 'manual'
     CHECK (generation_method IN ('manual','auto_ai','imported')),
@@ -39,6 +44,8 @@ ALTER TABLE public.hr_cedolini
 CREATE INDEX IF NOT EXISTS idx_cedolini_pending_review
   ON public.hr_cedolini(company_id, anno, mese)
   WHERE generation_method = 'auto_ai' AND consulente_reviewed_at IS NULL;
+  END IF;
+END $cedolini_dependency$;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 2) hr_assenze (ferie/permessi/malattia/infortunio)

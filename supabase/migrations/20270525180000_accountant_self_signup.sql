@@ -109,3 +109,6 @@ BEGIN
   RETURN v_deleted;
 END;
 $$;
+
+-- Completa l’initplan RLS rinviato dalla ricostruzione di giugno 2026.
+ALTER POLICY service_role_all_access ON public.accountant_signup_attempts USING (((select current_setting('role'::text, true)) = 'service_role'::text)) WITH CHECK (((select current_setting('role'::text, true)) = 'service_role'::text));

@@ -37,3 +37,8 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'cron.alter_job failed: %', SQLERRM;
 END $$;
+
+-- L'audit RLS immediatamente successivo usa già questo ruolo. La definizione
+-- deve essere confermata in una migrazione precedente alle policy che lo citano.
+-- Non assegna il ruolo né aggiunge permessi ad alcun utente.
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'accountant';

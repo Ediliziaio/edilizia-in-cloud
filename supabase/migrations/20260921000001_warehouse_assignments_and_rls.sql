@@ -176,6 +176,24 @@ GRANT EXECUTE ON FUNCTION public.get_my_warehouse_ids()              TO authenti
 GRANT EXECUTE ON FUNCTION public.is_assigned_to_warehouse(uuid)      TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_warehouse_user()                 TO authenticated;
 
+-- Completa lo helper anti-ricorsione rinviato dalla migrazione di maggio.
+CREATE OR REPLACE FUNCTION public.order_has_item_in_my_warehouse(_order_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.order_items oi
+    WHERE oi.order_id = _order_id
+      AND oi.destination_warehouse_id = ANY(public.get_my_warehouse_ids())
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.order_has_item_in_my_warehouse(uuid) TO authenticated;
+
 -- ============================================================================
 -- 3.3 — Trigger auto-grant staff_permissions (upsert; NON revoca)
 -- Fa emergere "Magazzino" e "Ordini" nella sidebar del magazziniere senza

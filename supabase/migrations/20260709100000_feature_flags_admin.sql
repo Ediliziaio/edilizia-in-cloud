@@ -34,6 +34,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_feature_flags_updated_at ON public.feature_flags;
 CREATE TRIGGER trg_feature_flags_updated_at
   BEFORE UPDATE ON public.feature_flags
   FOR EACH ROW EXECUTE FUNCTION public.set_feature_flags_updated_at();
@@ -42,6 +43,7 @@ CREATE TRIGGER trg_feature_flags_updated_at
 ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
 
 -- Super admin: full access
+DROP POLICY IF EXISTS "super_admin_all" ON public.feature_flags;
 CREATE POLICY "super_admin_all" ON public.feature_flags
   FOR ALL
   USING (
@@ -52,6 +54,7 @@ CREATE POLICY "super_admin_all" ON public.feature_flags
   );
 
 -- Authenticated users: read-only (needed by the app to check flags)
+DROP POLICY IF EXISTS "authenticated_read" ON public.feature_flags;
 CREATE POLICY "authenticated_read" ON public.feature_flags
   FOR SELECT
   USING (auth.uid() IS NOT NULL);

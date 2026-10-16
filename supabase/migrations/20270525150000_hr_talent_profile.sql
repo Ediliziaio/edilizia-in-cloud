@@ -430,4 +430,10 @@ SET
   active = true,
   updated_at = now();
 
+
+-- Completa gli indici FK rinviati dalla ricostruzione di maggio 2026.
+CREATE INDEX IF NOT EXISTS idx_hr_talent_answers_company_id ON public.hr_talent_answers(company_id);
+CREATE INDEX IF NOT EXISTS idx_hr_talent_answers_question_id ON public.hr_talent_answers(question_id);
+CREATE INDEX IF NOT EXISTS idx_hr_talent_answers_assessment_version ON public.hr_talent_answers(assessment_version);
+
 COMMIT;

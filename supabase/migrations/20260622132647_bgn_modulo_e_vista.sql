@@ -133,6 +133,12 @@ BEGIN
       USING (company_id = get_user_company_id(auth.uid())) WITH CHECK (company_id = get_user_company_id(auth.uid()))$q$, t);
   END LOOP;
 END $$;
+-- La copia canonica 20271101030000_v_preventivi_unificati_bgn.sql completa questa operazione dopo le fondazioni.
+DO $vertical_dependencies$
+BEGIN
+ IF to_regclass('public.sr_progetti') IS NOT NULL
+    AND to_regclass('public.fv_progetti') IS NOT NULL
+    AND to_regclass('public.rst_progetti') IS NOT NULL THEN
 CREATE OR REPLACE VIEW public.v_preventivi_unificati
 WITH (security_invoker = true) AS
   SELECT q.id, q.company_id, 'classico'::text AS tipo, COALESCE(q.quote_number, '—') AS numero,
@@ -192,3 +198,6 @@ WITH (security_invoker = true) AS
     g.totale::numeric AS totale, g.opportunita_id AS opportunity_id, g.cliente_id AS contact_id,
     COALESCE(g.created_at, g.updated_at) AS data, g.created_at, g.updated_at
   FROM public.bgn_progetti g;
+
+ END IF;
+END $vertical_dependencies$;

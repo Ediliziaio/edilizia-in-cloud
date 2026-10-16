@@ -142,3 +142,6 @@ create policy "persiane_results_insert_service"
     bucket_id = 'persiane-results'
     and auth.role() = 'service_role'
   );
+
+-- Completa l’initplan RLS rinviato dalla ricostruzione di giugno 2026.
+ALTER POLICY rps_service_role_all ON public.render_persiane_sessions USING (((select auth.role()) = 'service_role'::text));

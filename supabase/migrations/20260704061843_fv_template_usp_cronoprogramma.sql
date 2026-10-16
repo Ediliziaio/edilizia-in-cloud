@@ -6,6 +6,12 @@
 -- Stessi shape jsonb degli altri verticali:
 --   usp            = [{titolo, descrizione}]
 --   cronoprogramma = [{fase, durata, descrizione}]
+-- Anteprima vuota: completa questa estensione nella fondazione della tabella.
+DO $fv_template_dependency$
+BEGIN
+ IF to_regclass('public.fv_template_pdf') IS NOT NULL THEN
 ALTER TABLE public.fv_template_pdf
   ADD COLUMN IF NOT EXISTS usp jsonb,
   ADD COLUMN IF NOT EXISTS cronoprogramma jsonb;
+ END IF;
+END $fv_template_dependency$;

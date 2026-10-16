@@ -14,6 +14,42 @@
 -- ────────────────────────────────────────────────────────────────────────────
 -- Drop tutte le policy SELECT esistenti su ai_test_runs (nome variato in
 -- diverse migrations: ai_test_runs_select, ai_test_runs_demo_select).
+-- La policy e la vista di maggio richiedono già la tabella del Test Lab.
+-- Usa la stessa definizione idempotente della fondazione successiva.
+CREATE TABLE IF NOT EXISTS public.ai_test_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+
+  -- Quale entry point AI ha originato la chiamata
+  feature text NOT NULL,                    -- 'silvio_chat', 'ai_orchestrator', 'ai_council', 'silvio_execute', ...
+  task_key text,                             -- task_key di ai_router_config (es. 'persona_silvio')
+  persona_key text,                          -- persona AI che ha generato (es. 'silvio', 'cfo')
+
+  -- Modello effettivamente usato
+  model_id text NOT NULL,                    -- 'moonshotai/kimi-k2', 'anthropic/claude-sonnet-4.5', ...
+  provider text NOT NULL,                    -- 'moonshotai', 'anthropic', 'openai', 'google', ...
+  forced_by_user boolean DEFAULT false,      -- true se l'utente demo ha scelto manualmente il modello
+
+  -- Performance
+  input_tokens int,
+  output_tokens int,
+  cost_usd numeric(10, 6) NOT NULL DEFAULT 0, -- da OpenRouter usage.cost
+  latency_ms int,
+
+  -- Audit / debug
+  openrouter_generation_id text,
+  prompt_excerpt text,                       -- primi 300 char del prompt (solo demo, no GDPR issue)
+  response_excerpt text,                     -- primi 300 char della risposta
+  error text,                                -- nullable, popolato se la chiamata è fallita
+
+  -- Future V2: rating utente (👍/👎/⭐ 1-5)
+  user_rating smallint CHECK (user_rating IS NULL OR user_rating BETWEEN 1 AND 5),
+  rating_notes text
+);
+ALTER TABLE public.ai_test_runs ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS ai_test_runs_select ON public.ai_test_runs;
 DROP POLICY IF EXISTS ai_test_runs_demo_select ON public.ai_test_runs;
 DROP POLICY IF EXISTS ai_test_runs_select_v2 ON public.ai_test_runs;

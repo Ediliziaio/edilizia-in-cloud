@@ -2,6 +2,12 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- La copia canonica 20271023000000_opportunity_value_autosync.sql completa questa operazione dopo le fondazioni.
+DO $vertical_dependencies$
+BEGIN
+ IF to_regclass('public.sr_progetti') IS NOT NULL
+    AND to_regclass('public.fv_progetti') IS NOT NULL
+    AND to_regclass('public.rst_progetti') IS NOT NULL THEN
 
 -- ============================================================
 -- Auto-sync "valore opportunità" dai preventivi collegati.
@@ -147,3 +153,6 @@ begin
   end loop;
 end;
 $bf$;
+
+ END IF;
+END $vertical_dependencies$;

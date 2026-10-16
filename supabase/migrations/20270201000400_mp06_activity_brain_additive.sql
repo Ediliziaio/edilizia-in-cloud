@@ -261,3 +261,7 @@ GRANT INSERT, UPDATE ON public.company_activity_summary TO service_role;
 
 COMMENT ON TABLE public.company_activity_summary IS
   'MP-06: riassunti compatti settimanali/mensili dell''attività aziendale, popolata da edge function ai-activity-summarize-weekly (sessione successiva).';
+
+-- Completa gli indici FK rinviati dalla ricostruzione di maggio 2026.
+CREATE INDEX IF NOT EXISTS idx_company_activity_log_brain_doc_id ON public.company_activity_log(brain_doc_id);
+CREATE INDEX IF NOT EXISTS idx_company_activity_log_actor_user_id ON public.company_activity_log(actor_user_id);

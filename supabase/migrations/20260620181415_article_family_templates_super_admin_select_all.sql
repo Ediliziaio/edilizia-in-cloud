@@ -5,6 +5,9 @@
 
 -- Permette al super_admin di vedere TUTTI i template (anche is_active=false)
 -- nella pagina di gestione. Gli altri authenticated continuano a vedere solo i attivi.
+DO $later_policy_dependency$
+BEGIN
+ IF to_regclass('public.article_family_templates') IS NOT NULL THEN
 drop policy if exists aft_select_super_admin_all on public.article_family_templates;
 create policy aft_select_super_admin_all
 on public.article_family_templates
@@ -15,3 +18,5 @@ using (
           where user_roles.user_id = (select auth.uid())
             and user_roles.role = 'super_admin'::app_role)
 );
+ END IF;
+END $later_policy_dependency$;

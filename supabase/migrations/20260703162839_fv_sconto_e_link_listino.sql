@@ -7,11 +7,16 @@
 -- Sconto sul preventivo: tipo ('pct' | 'importo') + valore inserito dal venditore.
 -- sconto_eur_applicato è l'importo effettivamente applicato dall'edge dopo il
 -- clamp server-side sulle discount_rules (audit di cosa è stato concesso).
+-- Anteprima vuota: completa questa estensione nella fondazione della tabella.
+DO $fv_project_dependency$
+BEGIN
+ IF to_regclass('public.fv_progetti') IS NOT NULL THEN
 ALTER TABLE public.fv_progetti
   ADD COLUMN IF NOT EXISTS sconto_tipo text CHECK (sconto_tipo IN ('pct','importo')),
   ADD COLUMN IF NOT EXISTS sconto_valore numeric,
   ADD COLUMN IF NOT EXISTS sconto_eur_applicato numeric;
-
+ END IF;
+END $fv_project_dependency$;
 -- Provenienza del componente FV dal listino (article_families): serve per
 -- l'import bulk anti-duplicato e per risalire alla scheda prodotto originale.
 ALTER TABLE public.articoli_native

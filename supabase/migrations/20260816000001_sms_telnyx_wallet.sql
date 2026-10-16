@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS sms_wallet_transazioni (
   id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id                UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   tipo                      TEXT NOT NULL
-                              CHECK (tipo IN ('ricarica','addebito_sms','addebito_numero','rimborso','bonus')),
+                              CHECK (tipo IN ('ricarica','addebito_sms','addebito_numero','rimborso','bonus','rettifica_admin')),
   importo                   NUMERIC(12,6) NOT NULL,
   saldo_dopo                NUMERIC(12,2) NOT NULL,
   descrizione               TEXT NOT NULL,
@@ -325,3 +325,28 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER sms_wallet_transazioni_after_insert
   AFTER INSERT ON sms_wallet_transazioni
   FOR EACH ROW EXECUTE FUNCTION public.aggiorna_totali_wallet();
+
+-- Completa la lettura amministratore dei wallet rinviata da giugno 2026.
+DROP POLICY IF EXISTS sms_wallet_super_admin_read ON public.sms_wallet;
+CREATE POLICY sms_wallet_super_admin_read
+ON public.sms_wallet
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_roles.user_id = (SELECT auth.uid())
+      AND user_roles.role = 'super_admin'::app_role
+  )
+);
+
+DROP POLICY IF EXISTS sms_wallet_transazioni_super_admin_read ON public.sms_wallet_transazioni;
+CREATE POLICY sms_wallet_transazioni_super_admin_read
+ON public.sms_wallet_transazioni
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_roles.user_id = (SELECT auth.uid())
+      AND user_roles.role = 'super_admin'::app_role
+  )
+);

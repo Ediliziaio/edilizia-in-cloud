@@ -14,7 +14,12 @@ ALTER TABLE public.signature_requests
 -- API key) di inquinare il log probatorio. Lo restringo agli utenti autenticati
 -- della stessa azienda (il client admin logga davvero: useFEASessioni.ts). Il
 -- service_role delle edge continua a bypassare la RLS.
+DO $later_policy_dependency$
+BEGIN
+ IF to_regclass('public.fea_audit_log') IS NOT NULL THEN
 DROP POLICY IF EXISTS fea_audit_insert ON public.fea_audit_log;
 CREATE POLICY fea_audit_insert ON public.fea_audit_log
   FOR INSERT TO authenticated
   WITH CHECK (company_id = public.get_my_company_id());
+ END IF;
+END $later_policy_dependency$;

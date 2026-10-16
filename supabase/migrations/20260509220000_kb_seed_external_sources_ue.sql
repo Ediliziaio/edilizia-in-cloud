@@ -83,7 +83,7 @@ DECLARE
 BEGIN
   SELECT COUNT(*)::int INTO total_count FROM public.ai_kb_external_sources;
   SELECT jsonb_object_agg(
-    split_part(target_category_path, '/', 1),
+    cat,
     cnt
   ) INTO by_category
   FROM (

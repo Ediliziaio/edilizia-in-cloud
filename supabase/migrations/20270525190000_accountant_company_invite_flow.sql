@@ -135,3 +135,6 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.list_company_accountant_invites(uuid) TO authenticated;
+
+-- Completa l’initplan RLS rinviato dalla ricostruzione di giugno 2026.
+ALTER POLICY accountant_notifications_service_role_all ON public.accountant_notifications USING (((select current_setting('role'::text, true)) = 'service_role'::text)) WITH CHECK (((select current_setting('role'::text, true)) = 'service_role'::text));
