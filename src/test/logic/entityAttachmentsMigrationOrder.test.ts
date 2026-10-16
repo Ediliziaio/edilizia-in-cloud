@@ -657,3 +657,45 @@ it("attiva il flag serramenti solo se esiste la demo destinataria", async () => 
     await db.close();
   }
 }, 60000);
+
+it("inizializza i cataloghi render protetti prima dei relativi seed", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth;create role authenticated;create type app_role as enum ('super_admin');
+   create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+   create function has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+   create table platform_settings(key text primary key,value text);`);
+    for (const file of [
+      "20260515072000_render_provider_gemini_openrouter_openai_chain",
+      "20260515080000_fix_openrouter_openai_image_model",
+    ]) {
+      await db.exec(readFileSync(`supabase/migrations/${file}.sql`, "utf8"));
+    }
+    expect(
+      (
+        await db.query(
+          "select relname,relrowsecurity from pg_class where relname in ('render_provider_config','render_provider_pricing') order by relname",
+        )
+      ).rows,
+    ).toEqual([
+      { relname: "render_provider_config", relrowsecurity: true },
+      { relname: "render_provider_pricing", relrowsecurity: true },
+    ]);
+    expect(
+      (
+        await db.query(
+          "select value from platform_settings where key='render_default_provider'",
+        )
+      ).rows,
+    ).toEqual([{ value: "gemini" }]);
+    expect(
+      (
+        await db.query(
+          "select provider_key from render_provider_config where is_default=true",
+        )
+      ).rows,
+    ).toEqual([{ provider_key: "gemini" }]);
+  } finally {
+    await db.close();
+  }
+}, 60000);
