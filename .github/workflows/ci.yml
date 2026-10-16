@@ -72,11 +72,14 @@ jobs:
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/contractPreparation.test.ts
           src/test/logic/contractOfficeTasks.test.ts
+          src/test/logic/contractCosts.test.ts
           src/test/logic/contractExtract.test.ts
           src/test/logic/modelliFasi.test.ts
           src/test/ui/contractPreparation.test.tsx
           src/test/ui/contractOfficePeople.test.tsx
           src/test/ui/contractInterventions.test.tsx
+          src/test/ui/contractCosts.test.tsx
+          src/test/ui/contractCostsQueries.test.tsx
           src/test/ui/linkedTasksLoading.test.tsx
           src/test/ui/modelliFasiPicker.test.tsx
           src/test/logic/creaCommessaFasi.test.ts
