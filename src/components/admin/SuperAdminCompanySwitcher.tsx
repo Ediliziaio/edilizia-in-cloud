@@ -95,7 +95,6 @@ export function SuperAdminCompanySwitcher() {
     try {
       const token = await impersonateCompany(newCompanyId, permissions);
       if (!token) {
-        toast.error("Impossibile cambiare azienda");
         return;
       }
       setOpen(false);

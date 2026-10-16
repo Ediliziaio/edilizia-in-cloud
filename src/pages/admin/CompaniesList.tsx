@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon, Filter } from "lucide-react";
@@ -1147,6 +1147,7 @@ export default function CompaniesList() {
     });
     if (!confirmed) return;
     const impToken = await impersonateCompany(companyId, permissions);
+    if (!impToken) return;
     if (impToken) {
       // Use the module-level cached tokens — they are kept up-to-date by
       // onAuthStateChange and never require acquiring the Supabase storage lock.
@@ -1185,7 +1186,7 @@ export default function CompaniesList() {
         return;
       }
     }
-    navigateToSubdomain("/azienda/attivita", "app", navigate);
+    toast.error("Sessione non disponibile", { description: "Aggiorna la pagina e riprova. Non sei entrato nell’azienda." });
   };
 
   const queryClient = useQueryClient();

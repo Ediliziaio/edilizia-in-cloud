@@ -64,33 +64,27 @@ Deno.serve(conMetriche("secure-impersonation", async (req) => {
           });
         }
 
-        // ── Rate limit: max 10 impersonations per hour per admin ──
-        // Il conteggio DEVE stare su admin_audit_log, che è append-only:
-        // contarlo su active_impersonations era inefficace, perché poche righe
-        // più sotto questa stessa funzione cancella le impersonation precedenti
-        // dell'admin prima di inserire la nuova — il contatore non superava mai 1.
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { count: recentCount } = await supabaseAdmin
-          .from("admin_audit_log")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("action", "impersonation_start")
-          .gte("created_at", oneHourAgo);
-
-        if ((recentCount ?? 0) >= 10) {
-          // Il superamento va a registro: prima finiva su `audit_log`, tabella
-          // inesistente, con .catch(() => {}) che ne nascondeva il fallimento.
+        // Solo antiraffica atomico: nessun tetto di accessi nell'ora.
+        const { data: burst, error: burstError } = await supabaseAdmin
+          .rpc("impersonation_start_burst", { p_admin_id: user.id });
+        if (burstError || typeof burst?.allowed !== "boolean") {
+          return new Response(JSON.stringify({ error: "Verifica accesso temporaneamente non disponibile" }), {
+            status: 503, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+        if (!burst.allowed) {
+          const retryAfter = Math.min(10, Math.max(1, Number(burst.retry_after_seconds) || 1));
           await supabaseAdmin.from("admin_audit_log").insert({
             user_id: user.id,
             action: "impersonation_rate_limited",
             target_type: "company",
             target_id: companyId,
-            details: { company_id: companyId, count: recentCount, ip_address: clientIp },
+            details: { company_id: companyId, reason: "burst", retry_after_seconds: retryAfter, ip_address: clientIp },
             ip_address: clientIp,
           });
           return new Response(
-            JSON.stringify({ error: "Rate limit: massimo 10 impersonazioni per ora" }),
-            { status: 429, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+            JSON.stringify({ error: "Troppi accessi ravvicinati. Riprova tra pochi secondi.", code: "impersonation_burst", retry_after_seconds: retryAfter }),
+            { status: 429, headers: { ...getCorsHeaders(req), "Content-Type": "application/json", "Retry-After": String(retryAfter), "Access-Control-Expose-Headers": "Retry-After" } }
           );
         }
 

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
+import { toast } from "sonner";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -372,7 +373,6 @@ function AdminMainSidebar() {
   // figlia risultano evidenziate entrambe.
   const urlHaFigli = (url: string) =>
     TUTTE_LE_VOCI_NAV.some((u) => u !== url && u.startsWith(url + "/"));
-  const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -426,6 +426,7 @@ function AdminMainSidebar() {
     setPopoverOpen(false);
     setCompanySearch("");
     const impToken = await impersonateCompany(companyId, permissions);
+    if (!impToken) return;
     if (impToken) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -441,7 +442,7 @@ function AdminMainSidebar() {
         return;
       }
     }
-    navigateToSubdomain("/azienda/attivita", "app", navigate);
+    toast.error("Sessione non disponibile", { description: "Aggiorna la pagina e riprova. Non sei entrato nell’azienda." });
   };
 
   // Sidebar SuperAdmin — palette blu (brand) + accenti arancio (active).

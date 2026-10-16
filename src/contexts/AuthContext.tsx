@@ -18,6 +18,7 @@ import { useLocation } from "react-router-dom";
 import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
 import type { AppArea } from "@/lib/auth/aree";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
 
 /**
  * Velocity Protocol — V1/V2
@@ -1393,6 +1394,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   
 
+  const avvioImpersonazioneInCorso = useRef(false);
   const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }): Promise<string | null> => {
     if (state.role !== "super_admin") {
       logger.error("Only super_admin can impersonate companies");
@@ -1423,6 +1425,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    if (avvioImpersonazioneInCorso.current) return null;
+    avvioImpersonazioneInCorso.current = true;
     try {
       const { data, error } = await supabase.functions.invoke("secure-impersonation", {
         body: { action: "start", companyId },
@@ -1430,7 +1434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error || !data?.token) {
         logger.error("Failed to start secure impersonation:", error);
-        toast.error("Errore impersonazione", { description: "Impossibile avviare la sessione aziendale. Riprova." });
+        toast.error("Accesso aziendale non riuscito", { description: await erroreImpersonazione(error) });
         return null;
       }
 
@@ -1442,7 +1446,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return data.token;
     } catch (err) {
       logger.error("Impersonation error:", err);
+      toast.error("Accesso aziendale non riuscito", { description: await erroreImpersonazione(err) });
       return null;
+    } finally {
+      avvioImpersonazioneInCorso.current = false;
     }
   }, [state.role, queryClient]);
 

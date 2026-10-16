@@ -4,7 +4,7 @@ import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSubdomainUrl, navigateToSubdomain } from "@/utils/subdomainNav";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { useAuth, getCachedTokens } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -295,6 +295,7 @@ export default function CompanyDetail() {
   const handleImpersonate = async () => {
     if (!h.company) return;
     const impToken = await h.handleImpersonate();
+    if (!impToken) return;
     if (impToken) {
       const { accessToken, refreshToken } = getCachedTokens();
       if (accessToken && refreshToken) {
@@ -330,7 +331,7 @@ export default function CompanyDetail() {
         return;
       }
     }
-    navigateToSubdomain("/azienda/attivita", "app", navigate);
+    toast.error("Sessione non disponibile", { description: "Aggiorna la pagina e riprova. Non sei entrato nell’azienda." });
   };
 
   const handleDeleteCompany = async () => {

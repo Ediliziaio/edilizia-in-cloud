@@ -12,9 +12,8 @@
  * Admin" per uscire. Niente più doppio meccanismo.
  */
 import { useState, useEffect } from "react";
-import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
-import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2, Search, Loader2, LogIn, ChevronsUpDown } from "lucide-react";
@@ -45,7 +44,6 @@ function useDebounce(value: string, delay: number) {
 }
 
 export function CompanyQuickEnterPopover() {
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -96,6 +94,7 @@ export function CompanyQuickEnterPopover() {
       // sessione + impersonazione senza perdere il token (sessionStorage non
       // attraversa i subdomain).
       const impToken = await impersonateCompany(company.id, permissions ?? undefined);
+      if (!impToken) return;
       if (impToken) {
         const { accessToken, refreshToken } = getCachedTokens();
         if (accessToken && refreshToken) {
@@ -122,11 +121,7 @@ export function CompanyQuickEnterPopover() {
           return;
         }
       }
-      // Fallback: nessun token in cache o impersonation non riuscita → naviga
-      // comunque (AuthContext riproverà a ricostruire l'impersonazione).
-      setOpen(false);
-      setSearch("");
-      navigateToSubdomain("/azienda/attivita", "app", (path) => navigate(path, { replace: true }));
+      toast.error("Sessione non disponibile", { description: "Aggiorna la pagina e riprova. Non sei entrato nell’azienda." });
     } catch (err) {
       logger.error("Enter company error:", err);
       toast.error("Impossibile entrare nell'azienda");
