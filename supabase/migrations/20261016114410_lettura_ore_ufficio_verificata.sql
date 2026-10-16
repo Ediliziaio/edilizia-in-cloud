@@ -1,3 +1,4 @@
+set local lock_timeout='3s';
 -- Stessi ruoli/permessi dell'ufficio; nessuna policy RLS o permesso di piano modificato.
 -- La lettura diretta legacy dei rapportini non riconosce il superadmin in azienda.
 create or replace function public.ufficio_leggi_ore(p_order_id uuid default null,p_da date default null,p_a date default null,p_solo_riepilogo boolean default false)

@@ -1,3 +1,4 @@
+set local lock_timeout='3s'; set local statement_timeout='60s';
 -- Locale: riusa il registro rapportini e il suo trigger dei costi. Nessuna policy o permesso di piano cambiato.
 alter table public.campo_rapportini add column if not exists ufficio_employee_id uuid references public.employees(id);
 alter table public.campo_rapportini add column if not exists ufficio_created_by uuid references public.profiles(id);
