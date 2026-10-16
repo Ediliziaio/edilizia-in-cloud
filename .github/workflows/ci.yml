@@ -125,6 +125,17 @@ jobs:
           src/test/logic/cronWorkerCoda.test.ts
           src/test/logic/cronCapiReadiness.test.ts
 
+      - name: Run email loop and lightweight regional price regressions
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/emailTriagePersistenza.test.ts
+          src/test/logic/prezzarioRicercaLeggera.test.ts
+          src/test/logic/prezzarioPermessiInitplan.test.ts
+          src/test/logic/listeValutazioneUnica.test.ts
+          src/test/logic/errorBoundaryTelemetria.test.ts
+          src/test/ui/supabaseRichiesteAutorizzate.test.tsx
+          src/test/ui/fotoQualitaSchema.test.tsx
+
       - name: Run sidebar preview regression tests
         run: >-
           bunx vitest run --maxWorkers=1

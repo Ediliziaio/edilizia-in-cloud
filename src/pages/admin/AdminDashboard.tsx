@@ -6,6 +6,8 @@ import { ArrowRight, Mail, MessageCircle, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useAuth } from "@/contexts/AuthContext";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,13 +83,16 @@ const GIORNO_MS = 24 * 60 * 60 * 1000;
  * migliaia di clienti; con 18 aziende dicevano lo stesso MRR sei volte.
  */
 export default function AdminDashboard() {
-  const { permissions } = useSuperAdminPermissions();
+  const { permissions, isLoading: permissionsLoading } = useSuperAdminPermissions();
+  const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  const enabled = !!user?.id && !authLoading && !permissionsLoading && permissions.can_view_platform_stats;
 
-  const soldi = useQuery({ queryKey: CHIAVI.soldi, queryFn: () => rpc<Soldi>("admin_home_soldi"), staleTime: 5 * 60_000 });
-  const aziende = useQuery({ queryKey: CHIAVI.aziende, queryFn: () => rpc<Azienda[]>("admin_home_aziende"), staleTime: 5 * 60_000 });
-  const outreach = useQuery({ queryKey: CHIAVI.outreach, queryFn: () => rpc<Outreach>("admin_home_outreach"), staleTime: 2 * 60_000 });
+  const soldi = useQuery({ queryKey: [...CHIAVI.soldi, user?.id], enabled, retry: retryAuthorizedRead, queryFn: () => rpc<Soldi>("admin_home_soldi"), staleTime: 5 * 60_000 });
+  const aziende = useQuery({ queryKey: [...CHIAVI.aziende, user?.id], enabled, retry: retryAuthorizedRead, queryFn: () => rpc<Azienda[]>("admin_home_aziende"), staleTime: 5 * 60_000 });
+  const outreach = useQuery({ queryKey: [...CHIAVI.outreach, user?.id], enabled, retry: retryAuthorizedRead, queryFn: () => rpc<Outreach>("admin_home_outreach"), staleTime: 2 * 60_000 });
 
+  if (authLoading || permissionsLoading) return <DashboardSkeleton />;
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const isRefreshing = soldi.isFetching || aziende.isFetching || outreach.isFetching;

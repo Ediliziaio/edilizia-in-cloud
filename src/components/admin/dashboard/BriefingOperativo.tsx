@@ -7,6 +7,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 
 interface Voce {
   urgenza: number;
@@ -67,8 +70,12 @@ function stileUrgenza(urgenza: number) {
  * leggerebbe, e tanto varrebbe non averlo.
  */
 export function BriefingOperativo() {
+  const { user, isLoading: authLoading } = useAuth();
+  const { permissions, isLoading: permissionsLoading } = useSuperAdminPermissions();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin-briefing-operativo"],
+    queryKey: ["admin-briefing-operativo", user?.id],
+    enabled: !!user?.id && !authLoading && !permissionsLoading && permissions.can_view_platform_stats,
+    retry: retryAuthorizedRead,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("admin_briefing_operativo" as never);
       if (error) throw error;

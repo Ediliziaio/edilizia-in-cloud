@@ -33,6 +33,7 @@ import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
+import { annualComparisonPeriod, comparableOrderMonths, orderChartMonthFilter } from "@/lib/orders/monthlyChart";
 import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -390,6 +391,27 @@ function OrdersListInner() {
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
+  });
+
+  const [compareChart, setCompareChart] = useState(false);
+  const comparisonPeriod = annualComparisonPeriod(isYearCorrente ? currentYear : hasSelectedYear ? selectedYear! : NaN);
+  const comparisonEnabled = compareChart && !!comparisonPeriod;
+  const {data: previousChartOrders = [], isPending: comparisonPending, isError: comparisonError, refetch: retryComparison} = useQuery({
+    queryKey: ["orders-monthly-sales-chart", "comparison-v1", effectiveCompany?.id, comparisonPeriod?.previousFrom.toISOString(), comparisonPeriod?.previousTo.toISOString()],
+    enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
+    queryFn: async () => {
+      if (!effectiveCompany?.id || !comparisonPeriod) return [];
+      const query = supabase.from("orders").select(`
+        id, created_at, total_amount, vat_rate, payment_type, financing_cost,
+        deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid,
+        balance_amount, balance_paid, financing_amount, financing_paid,
+        installments:order_installments(position, type, amount, is_paid)
+      `).eq("company_id", effectiveCompany.id).is("deleted_at", null)
+        .gte("created_at", comparisonPeriod.previousFrom.toISOString())
+        .lt("created_at", comparisonPeriod.previousTo.toISOString());
+      return readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to));
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: monthlyOrders = [], isLoading: isLoadingMonthlyOrders, isError: isMonthlyOrdersError } = useQuery({
@@ -985,6 +1007,7 @@ function OrdersListInner() {
         venduto: 0,
         incassato: 0,
         commesse: 0,
+        daIncassare: 0,
       };
     });
     const byKey = new Map(months.map((month) => [month.key, month]));
@@ -999,10 +1022,20 @@ function OrdersListInner() {
       month.commesse += 1;
       month.venduto += getGrossOrderAmount(order as any);
       month.incassato += getAmountCollected(order as any);
+      month.daIncassare += getAmountDue(order as any);
     });
 
     return months;
   }, [monthlyOrders, hasSelectedYear, selectedYear, isYearCorrente, currentYear]);
+
+  const chartWithComparison = useMemo(() => {
+    if (!comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
+    const values = (rows: typeof monthlyOrders) => rows.map(order => ({
+      created_at: order.created_at!, venduto: getGrossOrderAmount(order as any),
+      incassato: getAmountCollected(order as any), daIncassare: getAmountDue(order as any),
+    }));
+    return comparableOrderMonths(monthlySalesChart, values(monthlyOrders), values(previousChartOrders), comparisonPeriod);
+  }, [comparisonEnabled, comparisonPeriod?.to.getTime(), comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders]);
 
   const monthlySalesTotals = useMemo(() => {
     return monthlySalesChart.reduce(
@@ -1220,7 +1253,6 @@ function OrdersListInner() {
   // Export schede clienti PDF: apre dialog con quantity selector + progress bar
   // (vedi CustomerSheetsExportDialog per il fix del bug "1000 schede").
   const openCustomerSheetsDialog = useCallback(() => setCustomerSheetsOpen(true), []);
-
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -1494,8 +1526,8 @@ function OrdersListInner() {
       )}
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
-        <div className="grid gap-0">
-          <div className="bg-eic-navy-deep p-3 sm:p-5 md:p-6 text-white">
+        <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
+          <div className="bg-eic-navy-deep p-3 sm:p-4 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                 <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
@@ -1510,15 +1542,15 @@ function OrdersListInner() {
                 </div>
               </div>
               {orderPerms.canViewOrderAmounts && !isMobile && <button type="button" onClick={toggleAnalisi}
-                aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
+                title={analisiAperta ? "Nascondi andamento" : "Mostra andamento"} aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
-                <PieChart className="h-3.5 w-3.5" />{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}
+                <PieChart className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}</span>
                 <ChevronDown className={`h-3.5 w-3.5 ${analisiAperta ? "rotate-180" : ""}`} />
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid grid-cols-2 gap-2 sm:gap-3 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <ShoppingBag className="h-4 w-4" />
@@ -1546,7 +1578,7 @@ function OrdersListInner() {
               {/* "Totale venduto" e "Incassato" sono metriche da scrivania:
                   su mobile confondono e allungano l'header → visibili da sm in su.
                   Restano "Commesse totali" e "Da incassare" (operativi). */}
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
                     <Euro className="h-4 w-4" />
@@ -1572,7 +1604,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
                     <TrendingUp className="h-4 w-4" />
@@ -1598,7 +1630,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <AlertCircle className="h-4 w-4" />
@@ -1642,20 +1674,19 @@ function OrdersListInner() {
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="border-t border-slate-200 bg-white p-3 sm:p-5">
+          <aside id="orders-annual-chart" className="min-w-0 border-t border-slate-200 bg-white p-3 sm:p-5 xl:border-l xl:border-t-0">
             {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
               <div aria-label="Caricamento andamento" className="flex h-[260px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
-            ) : <OrdersMonthlyChart months={monthlySalesChart} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"} />}
+            ) : <OrdersMonthlyChart months={chartWithComparison}
+              comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
+              selectedMonth={hasMonth ? `${monthYear}-${String(month+1).padStart(2,"0")}` : null}
+              onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} />}
           </aside>
           )}
         </div>
       </section>
-      <OrdersPeriodSummary counts={listScopeCounts}
-        loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
-        showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
-        focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
 
       <OrdersFilterSidebar
         filters={sidebarFilters}
@@ -1682,7 +1713,19 @@ function OrdersListInner() {
         onExpectedDateRangeChange={setExpectedDateRange}
       />
 
-      <div className="order-3 space-y-4 sm:order-none">
+      <div className="order-3 space-y-2 sm:order-none">
+          {isYearCorrente && <OrdersAnnualScope year={currentYear} annualCount={globalStats?.annual.count ?? 0} previousCount={globalStats?.previous.count ?? 0}
+            selected={scopeGroup} onChange={setScopeGroup} loading={isLoadingGlobalStats || isLoadingStatuses || !globalStats}
+            failed={isGlobalStatsError || isStatusesError} />}
+          <details className="rounded-xl border border-slate-200 bg-white text-sm">
+            <summary className="cursor-pointer rounded-xl px-3 py-2.5 font-medium text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
+              Stati e margini {controlFocus !== "all" || statusFilter !== "all" ? "· filtro attivo" : ""}
+            </summary>
+      <OrdersPeriodSummary counts={listScopeCounts}
+        loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
+        showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
+        focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
+          </details>
           <OrdersFilters
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -1706,30 +1749,11 @@ function OrdersListInner() {
           />
 
           <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
-          {isYearCorrente && <OrdersAnnualScope year={currentYear} annualCount={globalStats?.annual.count ?? 0} previousCount={globalStats?.previous.count ?? 0}
-            selected={scopeGroup} onChange={setScopeGroup} loading={isLoadingGlobalStats || isLoadingStatuses || !globalStats}
-            failed={isGlobalStatsError || isStatusesError} />}
 
           <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
             <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
             {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
           </div>
-
-          {controlFocus !== "all" && (
-            <div className="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-orange-900">
-                <span className="font-semibold">
-                  {ORDER_FOCUS_LABELS[controlFocus]}
-                </span>
-                <span className="ml-1 text-orange-800/80">
-                  {visibleTotalCount} commess{visibleTotalCount === 1 ? "a" : "e"} corrispondenti in tutto il periodo.
-                </span>
-              </div>
-              <Button variant="outline" size="sm" className="border-orange-200 bg-white" onClick={() => setControlFocus("all")}>
-                Mostra tutte
-              </Button>
-            </div>
-          )}
 
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
