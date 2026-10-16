@@ -1400,46 +1400,6 @@ function OrdersListInner() {
               <Columns3 className="h-3.5 w-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
-          {/* Colonne visibili */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden sm:flex h-8 px-2.5 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                <Columns className="h-3.5 w-3.5" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-[280px] p-3">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Colonne visibili</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVisibleColumns(new Set(DEFAULT_COLUMNS));
-                      localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...DEFAULT_COLUMNS]));
-                    }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline"
-                  >
-                    Ripristina
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-                  {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
-                    <label
-                      key={col.key}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                    >
-                      <Checkbox
-                        checked={visibleColumns.has(col.key)}
-                        onCheckedChange={() => toggleColumn(col.key)}
-                        className="shrink-0"
-                      />
-                      <span className="text-xs truncate">{col.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
           {/* Esportazioni: nascoste su mobile (download file poco pratici da telefono/app). */}
           {!isMobile && (
           <DropdownMenu>
@@ -1729,6 +1689,92 @@ function OrdersListInner() {
           </details>
           </div>
           <OrdersFilters
+            trailingControls={viewMode === "table" ? (
+              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
+                <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
+                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+                  <SelectTrigger aria-label="Ordina commesse per" className="h-8 w-[126px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Data creazione</SelectItem>
+                    <SelectItem value="order_code">Codice commessa</SelectItem>
+                    <SelectItem value="description">Descrizione</SelectItem>
+                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
+                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
+                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
+                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
+                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[172px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↓ Più recente / grande"
+                        : "↓ Z → A"
+                    }</SelectItem>
+                    <SelectItem value="asc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↑ Più vecchio / piccolo"
+                        : "↑ A → Z"
+                    }</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" /><span>Colonne</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[280px] p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Colonne visibili</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
+                            try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                        >
+                          Ripristina
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
+                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
+                          <label
+                            key={col.key}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            <Checkbox
+                              checked={visibleColumns.has(col.key)}
+                              onCheckedChange={() => toggleColumn(col.key)}
+                              className="shrink-0"
+                            />
+                            <span className="text-xs truncate">{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {(sortField !== "created_at" || sortDir !== "desc") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="col-span-2 h-8 text-xs sm:col-span-1"
+                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
+                  >
+                    Ripristina
+                  </Button>
+                )}
+              </div>
+            ) : undefined}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
@@ -1752,9 +1798,11 @@ function OrdersListInner() {
 
           <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
 
-          <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
-            <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
-            {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
+            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">
+              <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
+              {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
+            </div>
           </div>
 
           {/* Content */}
@@ -1841,55 +1889,6 @@ function OrdersListInner() {
             />
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
-              {/* 🆕 Sort selector — server-side sort dell'intero dataset
-                  (non solo della pagina visibile). Persisted in localStorage. */}
-              {/* Mobile no: resta l'ordine di partenza (più recenti in cima). */}
-              <div className="grid grid-cols-2 items-center gap-2 px-1 sm:flex sm:flex-wrap max-sm:hidden">
-                <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
-                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger className="h-9 w-full text-xs sm:h-8 sm:w-auto sm:min-w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at">Data creazione</SelectItem>
-                    <SelectItem value="order_code">Codice commessa</SelectItem>
-                    <SelectItem value="description">Descrizione</SelectItem>
-                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
-                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
-                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
-                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
-                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger className="h-9 w-full text-xs sm:h-8 sm:w-auto sm:min-w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Più recente / grande"
-                        : "↓ Z → A"
-                    }</SelectItem>
-                    <SelectItem value="asc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Più vecchio / piccolo"
-                        : "↑ A → Z"
-                    }</SelectItem>
-                  </SelectContent>
-                </Select>
-                {(sortField !== "created_at" || sortDir !== "desc") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="col-span-2 h-8 text-xs sm:col-span-1"
-                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
-                  >
-                    Ripristina
-                  </Button>
-                )}
-              </div>
-
               <OrdersTable
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}

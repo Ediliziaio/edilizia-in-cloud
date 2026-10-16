@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Search, X, CalendarDays, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ const MONTHS = [
 ];
 
 interface OrdersFiltersProps {
+  trailingControls?: ReactNode;
   searchQuery: string;
   onSearchChange: (value: string) => void;
   statusFilter: string;
@@ -53,6 +55,7 @@ interface OrdersFiltersProps {
 }
 
 export function OrdersFilters({
+  trailingControls,
   searchQuery,
   onSearchChange,
   statusFilter,
@@ -72,17 +75,17 @@ export function OrdersFilters({
 }: OrdersFiltersProps) {
   return (
     <div
-      className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap"
+      className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5"
       role="group"
       aria-label="Filtri commesse"
     >
-      <div className="relative col-span-2 min-w-0 sm:w-[240px] sm:shrink-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative col-span-2 min-w-0 sm:w-[180px] sm:shrink-0">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
           placeholder="Cerca commessa…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-10 border-slate-200 bg-white pl-10 shadow-none max-sm:h-9 sm:h-9"
+          className="h-10 border-slate-200 bg-white pl-7 shadow-none max-sm:h-9 sm:h-8 sm:text-xs"
           aria-label="Cerca per codice, descrizione o cliente"
         />
       </div>
@@ -90,7 +93,7 @@ export function OrdersFilters({
       <Select value={statusFilter} onValueChange={onStatusFilterChange}>
         <SelectTrigger
           aria-label="Stato commessa"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px] sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <SelectValue placeholder="Stato" />
         </SelectTrigger>
@@ -120,7 +123,7 @@ export function OrdersFilters({
       >
         <SelectTrigger
           aria-label="Stato pagamento"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px] sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[142px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <SelectValue placeholder="Pagamenti" />
         </SelectTrigger>
@@ -134,10 +137,19 @@ export function OrdersFilters({
       <Select value={yearFilter} onValueChange={onYearFilterChange}>
         <SelectTrigger
           aria-label="Periodo commesse"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto sm:shrink-0"
+          title={
+            yearFilter === "corrente"
+              ? `${new Date().getFullYear()} + precedenti da gestire`
+              : undefined
+          }
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[160px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
-          <SelectValue placeholder="Anno" />
+          <SelectValue placeholder="Anno">
+            {yearFilter === "corrente"
+              ? `${new Date().getFullYear()} + pregresso`
+              : undefined}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {/* La scelta di partenza della pagina: senza questa voce, col
@@ -156,7 +168,7 @@ export function OrdersFilters({
       <Select value={monthFilter} onValueChange={onMonthFilterChange}>
         <SelectTrigger
           aria-label="Mese commesse"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px] sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[140px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
           <SelectValue placeholder="Mese" />
@@ -174,20 +186,21 @@ export function OrdersFilters({
         variant={hideCompleted ? "default" : "outline"}
         size="sm"
         onClick={() => onHideCompletedChange(!hideCompleted)}
-        className="tap-compact col-span-2 h-9 shrink-0 gap-2"
+        className="tap-compact col-span-2 h-9 shrink-0 gap-1.5 sm:h-8 sm:px-2 sm:text-xs"
         aria-label="Nascondi commesse con lavori completati"
         aria-pressed={hideCompleted}
         title="Nascondi commesse con lavori completati"
       >
-        <CheckCircle2 className="h-4 w-4" />
+        <CheckCircle2 className="h-3.5 w-3.5" />
         <span>Nascondi completate</span>
       </Button>
+      {trailingControls}
       {hasAnyFilter && (
         <Button
           variant="ghost"
           size="sm"
           onClick={onClearAllFilters}
-          className="tap-compact h-9 shrink-0 gap-2 text-muted-foreground"
+          className="tap-compact h-9 shrink-0 gap-1.5 text-muted-foreground sm:h-8 sm:px-2 sm:text-xs"
           aria-label="Cancella tutti i filtri"
         >
           <X className="h-3.5 w-3.5" />
