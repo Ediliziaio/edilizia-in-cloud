@@ -114,6 +114,7 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/entityAttachmentsMigrationOrder.test.ts
+          src/test/logic/hrCedoliniPreview.test.ts
           src/test/ui/personaleOreMobile.test.tsx
           src/test/ui/quoteDetailItems.test.tsx
           src/test/logic/dailyHours.test.ts
