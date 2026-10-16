@@ -44,7 +44,9 @@ describe("Cruscotto: Finanza e Operations",()=>{
   expect(screen.queryByText("Differenza prevista")).not.toBeInTheDocument();
  });
  it("mantiene numero e importo degli scaduti nella stessa scheda",()=>{
-  renderUI(<OperationsDelivery operations={{activeOrders:35,lateOrders:16,openTickets:1,overduePayments:75,overdueAmount:1558837}} weeklyAgenda={weekly} isLoading={false}/>);
+  renderUI(<OperationsDelivery operations={{totalOrders:179,completedOrders:123,supportOrders:21,activeOrders:35,lateOrders:16,openTickets:1,overduePayments:75,overdueAmount:1558837}} weeklyAgenda={weekly} isLoading={false}/>);
+  expect(screen.getByText("Completate:")).toHaveTextContent("123");
+  expect(screen.getByText("Fase assistenza:")).toHaveTextContent("21");
   const overdue=screen.getByRole("link",{name:/Rate commesse scadute/});
   expect(overdue).toHaveTextContent("75");expect(overdue).toHaveTextContent("1.558.837");
   expect(screen.queryByText("Importo Pagamenti Scaduti")).not.toBeInTheDocument();

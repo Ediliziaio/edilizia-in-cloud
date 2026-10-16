@@ -52,6 +52,7 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-muted-foreground">Situazione commesse · tutti gli anni</h3>
 
+      {!isLoading && operations.totalOrders != null && <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>Completate: <strong>{operations.completedOrders ?? 0}</strong></span><span>Fase assistenza: <strong>{operations.supportOrders ?? 0}</strong></span><span>Totale non archiviate: <strong>{operations.totalOrders}</strong></span></p>}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {items.map(item => {
           const Icon = item.icon;

@@ -36,6 +36,9 @@ export interface CruscottoFiltersState {
 
 export interface OperationsData {
   activeOrders: number;
+  completedOrders?: number;
+  supportOrders?: number;
+  totalOrders?: number;
   lateOrders: number;
   openTickets: number;
   overduePayments: number;
@@ -208,7 +211,7 @@ export function useCruscottoData() {
   // Merge ops + payments via useMemo (no waterfall)
   const opsData = useMemo<OperationsData>(() => {
     const open = (workQuery.data ?? []).filter(o => o.work_state === "open" && (!filters.statusId || o.current_status_id === filters.statusId));
-    const base = { activeOrders: open.length, lateOrders: open.filter(o => isLateWork(o)).length, openTickets: ticketCount };
+    const base = { totalOrders: workQuery.data?.length ?? 0, completedOrders: (workQuery.data ?? []).filter(o => o.work_state === "completed").length, supportOrders: (workQuery.data ?? []).filter(o => o.work_state === "support").length, activeOrders: open.length, lateOrders: open.filter(o => isLateWork(o)).length, openTickets: ticketCount };
     const todayStr = format(new Date(), "yyyy-MM-dd");
     let overduePayments = 0;
     let overdueAmount = 0;
