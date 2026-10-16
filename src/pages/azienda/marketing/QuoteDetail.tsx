@@ -32,9 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { QuoteDetailItems } from "@/components/quotes/QuoteDetailItems";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText, FileCheck,
   MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch, Trash2,
@@ -546,72 +544,11 @@ export default function QuoteDetail() {
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-4 mt-4 sm:space-y-6">
-          <QuoteCard title="Prodotti e Servizi" icon={<Package className="h-4 w-4" />} className="max-sm:p-3">
+          <QuoteCard title="Prodotti e lavorazioni" icon={<Package className="h-4 w-4" />} className="max-sm:p-3">
               {items.length === 0 ? (
-                <p className="text-slate-500 text-sm">Nessun prodotto</p>
+                <p className="text-slate-500 text-sm">Nessuna voce</p>
               ) : (
-                <>
-                  {/* Desktop: tabella completa a 7 colonne */}
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Prodotto</TableHead>
-                          <TableHead>Descrizione</TableHead>
-                          <TableHead className="text-right">Qtà</TableHead>
-                          <TableHead className="text-right">Prezzo</TableHead>
-                          <TableHead className="text-right">Sconto</TableHead>
-                          <TableHead className="text-right">IVA</TableHead>
-                          <TableHead className="text-right">Totale</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                              {item.description || "—"}
-                            </TableCell>
-                            <TableCell className="text-right">{item.quantity} {item.unit_of_measure}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                            <TableCell className="text-right">
-                              {item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}
-                            </TableCell>
-                            <TableCell className="text-right">{item.vat_rate}%</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(item.line_total || 0)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Mobile: una riga per voce (nome e importo; quantità × prezzo e
-                      IVA sotto). Via la descrizione, che ripeteva il nome, e il
-                      riquadro intorno a ogni voce. */}
-                  <div className="md:hidden divide-y divide-border">
-                    {items.map((item) => (
-                      <div key={item.id} className="py-2 first:pt-0 last:pb-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="font-medium text-[13px] leading-snug">{item.name}</p>
-                          <p className="shrink-0 font-semibold text-[13px] tabular-nums text-slate-900">
-                            {formatCurrency(item.line_total || 0)}
-                          </p>
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="tabular-nums">
-                            {item.quantity} {item.unit_of_measure} × {formatCurrency(item.unit_price)}
-                          </span>
-                          {item.discount_percent > 0 && (
-                            <span className="text-orange-600">−{item.discount_percent}%</span>
-                          )}
-                          <span>IVA {item.vat_rate}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <QuoteDetailItems items={items} />
               )}
 
               <div className="mt-4 flex flex-col items-end gap-3">

@@ -1,0 +1,8 @@
+import { cleanup,render,screen } from '@testing-library/react';
+import { afterEach,expect,it } from 'vitest';
+import { QuoteDetailItems,type QuoteDetailItem } from '@/components/quotes/QuoteDetailItems';
+afterEach(cleanup);
+const item=(overrides:Partial<QuoteDetailItem>={}):QuoteDetailItem=>({id:'r',name:'Scavo',description:'Prima fase\nSeconda fase',item_category:'nota',quantity:0,unit_price:0,discount_percent:0,vat_rate:22,unit_of_measure:'pz',line_total:0,...overrides});
+it('descrizioni complete in tabella e su telefono senza quantità o prezzi a zero',()=>{render(<QuoteDetailItems items={[item()]}/>);expect(screen.getAllByText('Scavo')).toHaveLength(2);expect(screen.getAllByText(/Prima fase/)).toHaveLength(2);expect(screen.getAllByText(/Seconda fase/)).toHaveLength(2);expect(screen.queryByText(/0,00/)).not.toBeInTheDocument();expect(screen.queryByText(/pz ×/)).not.toBeInTheDocument();expect(screen.getByRole('cell')).toHaveAttribute('colspan','7');});
+it('un materiale gratuito conserva quantità, IVA e importo zero',()=>{render(<QuoteDetailItems items={[item({item_category:'prodotto',quantity:1})]}/>);expect(screen.getAllByText(/0,00/).length).toBeGreaterThan(0);expect(screen.getByText(/pz ×/)).toBeInTheDocument();expect(screen.getByText('IVA 22%')).toBeInTheDocument();});
+it('una lavorazione con prezzo conserva cifre e descrizione anche da telefono',()=>{const r=Object.freeze(item({item_category:'posa',quantity:2,unit_price:120,line_total:240}));render(<QuoteDetailItems items={[r]}/>);expect(screen.getAllByText(/120,00/).length).toBeGreaterThan(0);expect(screen.getAllByText(/240,00/)).toHaveLength(2);expect(screen.getAllByText(/Seconda fase/)).toHaveLength(2);expect(r).toMatchObject({quantity:2,unit_price:120,line_total:240});});
