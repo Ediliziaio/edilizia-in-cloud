@@ -38,6 +38,45 @@ export function retryListQuery(failureCount: number, error: unknown): boolean {
   return failureCount < 2;
 }
 
+/**
+ * Per le letture cancellabili: il timeout interrompe anche il fetch, non
+ * soltanto l'attesa. La factory deve passare il signal a .abortSignal().
+ * Le scritture restano sul vecchio helper: un abort non garantisce rollback.
+ */
+export function withAbortableClientTimeout<T>(
+  task: (signal: AbortSignal) => PromiseLike<T>,
+  label = "Richiesta",
+  timeoutMs = DEFAULT_QUERY_TIMEOUT_MS,
+  parentSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController();
+  const parentReason = () => parentSignal?.reason ?? new DOMException("Richiesta annullata", "AbortError");
+  if (parentSignal?.aborted) return Promise.reject(parentReason());
+
+  let rejectAbort: (reason: unknown) => void;
+  const aborted = new Promise<T>((_, reject) => { rejectAbort = reject; });
+  const abort = (reason: unknown) => {
+    // Prima rigettiamo con la causa originale: PostgREST può risolvere
+    // l'abort come { error } invece di rigettare la sua promise.
+    rejectAbort(reason);
+    controller.abort(reason);
+  };
+  const abortFromParent = () => abort(parentReason());
+  parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  const timeoutId = setTimeout(() => abort(new Error(
+    `${label}: timeout dopo ${Math.round(timeoutMs / 1000)} secondi`,
+  )), timeoutMs);
+
+  const request = Promise.resolve().then(() => {
+    if (controller.signal.aborted) throw controller.signal.reason;
+    return task(controller.signal);
+  });
+  return Promise.race([request, aborted]).finally(() => {
+    clearTimeout(timeoutId);
+    parentSignal?.removeEventListener("abort", abortFromParent);
+  });
+}
+
 export function withClientTimeout<T>(
   task: PromiseLike<T>,
   label = "Richiesta",

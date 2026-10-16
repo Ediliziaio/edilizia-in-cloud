@@ -9,10 +9,11 @@
  * Realtime: subscription su `internal_chat_messages` filtrata sul company_id
  * → invalidate query al primo INSERT per refresh badge senza polling stretto.
  */
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { shareSubscription } from "@/lib/realtime/shareSubscription";
 
 interface SidebarRow {
   channel_id: string;
@@ -26,12 +27,8 @@ export function useInternalChatUnreadTotal() {
   const companyId = effectiveCompany?.id;
   const userId = profile?.id;
   const queryClient = useQueryClient();
-  // Ogni componente che usa il hook apre il SUO canale realtime. Con lo stesso
-  // nome, supabase-js restituisce il canale già sottoscritto e il secondo .on()
-  // lancia «cannot add postgres_changes callbacks … after subscribe()», che
-  // faceva crollare tutta l'area azienda (28/09/2026: badge «Chat» nella
-  // sidebar + pulsante Chat in alto, montati insieme).
-  const istanza = useRef(Math.random().toString(36).slice(2, 10)).current;
+  // Sidebar e pulsante mobile condividono il canale tramite ref-count:
+  // nessun secondo .on() su un canale già sottoscritto, nessun duplicato.
 
   const { data: unreadTotal = 0 } = useQuery({
     queryKey: [QUERY_KEY, companyId, userId],
@@ -66,28 +63,31 @@ export function useInternalChatUnreadTotal() {
   // dell'azienda corrente. Refetch automatico → badge sempre fresco.
   useEffect(() => {
     if (!companyId || !userId) return;
-    const channel = supabase
-      .channel(`chat-unread-total-${companyId}-${userId}-${istanza}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "internal_chat_messages",
-          filter: `company_id=eq.${companyId}`,
-        },
-        (payload) => {
-          // Ignora i messaggi inviati da me — non contano come "non letti".
-          const senderId = (payload.new as { sender_id?: string } | null)?.sender_id;
-          if (senderId === userId) return;
-          queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId, userId] });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [companyId, userId, queryClient, istanza]);
+    return shareSubscription(queryClient, `chat-unread:${companyId}:${userId}`, () => {
+      const istanza = Math.random().toString(36).slice(2, 10);
+      const channel = supabase
+        .channel(`chat-unread-total-${companyId}-${userId}-${istanza}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "internal_chat_messages",
+            filter: `company_id=eq.${companyId}`,
+          },
+          (payload) => {
+            // Ignora i messaggi inviati da me — non contano come "non letti".
+            const senderId = (payload.new as { sender_id?: string } | null)?.sender_id;
+            if (senderId === userId) return;
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId, userId] });
+          },
+        )
+        .subscribe();
+      return () => {
+        void supabase.removeChannel(channel);
+      };
+    });
+  }, [companyId, userId, queryClient]);
 
   return unreadTotal;
 }

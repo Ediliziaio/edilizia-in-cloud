@@ -7,7 +7,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
+import { withAbortableClientTimeout, retryListQuery } from "@/lib/query-timeout";
+import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 import { createLiveRefresh } from "@/lib/realtime/createLiveRefresh";
 import { stessaColonna, type FiltriServerOpportunita } from "@/lib/marketingOpportunities";
@@ -19,14 +20,16 @@ export function usePipelines() {
 
   return useQuery({
     queryKey: queryKeys.pipelines.list(companyId),
-    queryFn: async () => {
-      const { data, error } = await withClientTimeout(
-        supabase
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withAbortableClientTimeout(
+        (requestSignal) => supabase
           .from("marketing_pipelines")
           .select("*, marketing_pipeline_stages(id, name, position, auto_status, stalled_threshold_days)")
           .eq("company_id", companyId!)
-          .order("position"),
+          .order("position").abortSignal(requestSignal),
         "Caricamento pipeline opportunità",
+        undefined,
+        signal,
       );
       if (error) throw error;
       return data.map((p: any) => ({
@@ -230,11 +233,12 @@ export function useOpportunitySummary(pipelineId: string | null, filtri: FiltriS
 
   return useQuery({
     queryKey: queryKeys.opportunities.riepilogo(companyId, pipelineId, filtri),
-    queryFn: async () => {
-      const { data, error } = await withClientTimeout(
-        (supabase as any).rpc("opportunita_riepilogo", { p_pipeline: pipelineId, p_filtri: filtri }),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withHeavyDatabaseRead(
+        (requestSignal) => (supabase as any).rpc("opportunita_riepilogo", { p_pipeline: pipelineId, p_filtri: filtri }).abortSignal(requestSignal),
         "Conteggio opportunità",
         20_000,
+        signal,
       ) as { data: unknown; error: unknown };
       if (error) throw error;
       return normalizzaRiepilogo(data);
@@ -258,9 +262,10 @@ async function paginaOpportunita(args: {
   sortDir: string;
   da: number;
   quante: number;
+  signal?: AbortSignal;
 }): Promise<any[]> {
-  const { data, error } = await withClientTimeout(
-    (supabase as any).rpc("opportunita_pagina", {
+  const { data, error } = await withHeavyDatabaseRead(
+    (requestSignal) => (supabase as any).rpc("opportunita_pagina", {
       p_pipeline: args.pipelineId,
       p_filtri: args.filtri,
       p_fase: args.stageId,
@@ -268,9 +273,10 @@ async function paginaOpportunita(args: {
       p_direzione: args.sortDir,
       p_da: args.da,
       p_quante: args.quante,
-    }),
+    }).abortSignal(requestSignal),
     "Caricamento opportunità",
     20_000,
+    args.signal,
   ) as { data: unknown; error: unknown };
   if (error) throw error;
   return Array.isArray(data) ? data : [];
@@ -296,15 +302,15 @@ async function inviaPrimePagine(chiave: string) {
   if (!gruppo) return;
   const fasi = [...gruppo.colonne.keys()];
   try {
-    const { data, error } = await withClientTimeout(
-      (supabase as any).rpc("opportunita_kanban", {
+    const { data, error } = await withHeavyDatabaseRead(
+      (requestSignal) => (supabase as any).rpc("opportunita_kanban", {
         p_pipeline: gruppo.args.pipelineId,
         p_filtri: gruppo.args.filtri,
         p_fasi: fasi,
         p_ordine: gruppo.args.sortField,
         p_direzione: gruppo.args.sortDir,
         p_quante: SCHEDE_PER_PAGINA_FASE,
-      }),
+      }).abortSignal(requestSignal),
       "Caricamento opportunità",
       20_000,
     ) as { data: unknown; error: unknown };
@@ -369,10 +375,10 @@ export function useStageOpportunities({ pipelineId, stageId, filtri, sortField, 
     queryKey: queryKeys.opportunities.fase(companyId, pipelineId, stageId, filtri, `${sortField}:${sortDir}`),
     // La prima pagina viaggia insieme a quelle delle altre colonne; le
     // successive (scorrendo) una per volta.
-    queryFn: ({ pageParam }) => pageParam === 0
+    queryFn: ({ pageParam, signal }) => pageParam === 0
       ? primaPaginaColonna({ pipelineId: pipelineId!, filtri, sortField, sortDir, stageId })
       : paginaOpportunita({
-        pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE,
+        pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE, signal,
       }),
     initialPageParam: 0,
     getNextPageParam: (ultima, _tutte, ultimoDa) =>
@@ -398,8 +404,8 @@ export function useOpportunityList({ pipelineId, stageId, filtri, sortField, sor
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.opportunities.lista(companyId, pipelineId, stageId, filtri, `${sortField}:${sortDir}`),
-    queryFn: ({ pageParam }) => paginaOpportunita({
-      pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: RIGHE_PER_PAGINA_LISTA,
+    queryFn: ({ pageParam, signal }) => paginaOpportunita({
+      pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: RIGHE_PER_PAGINA_LISTA, signal,
     }),
     initialPageParam: 0,
     getNextPageParam: (ultima, _tutte, ultimoDa) =>
@@ -420,8 +426,8 @@ export function useOpportunityList({ pipelineId, stageId, filtri, sortField, sor
 
 /** Gli id di tutte le opportunità filtrate (o di una colonna): «Seleziona tutti». */
 export async function idsOpportunita(pipelineId: string, filtri: FiltriServerOpportunita, stageId: string | null = null): Promise<string[]> {
-  const { data, error } = await withClientTimeout(
-    (supabase as any).rpc("opportunita_ids", { p_pipeline: pipelineId, p_filtri: filtri, p_fase: stageId }),
+  const { data, error } = await withAbortableClientTimeout(
+    (signal) => (supabase as any).rpc("opportunita_ids", { p_pipeline: pipelineId, p_filtri: filtri, p_fase: stageId }).abortSignal(signal),
     "Selezione opportunità",
     20_000,
   ) as { data: unknown; error: unknown };
@@ -875,16 +881,18 @@ export function useOpportunitaCestino(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.opportunities.cestino(companyId),
     enabled: enabled && !!companyId,
-    queryFn: async (): Promise<OpportunitaNelCestino[]> => {
-      const { data, error } = await withClientTimeout(
-        supabase
+    queryFn: async ({ signal }): Promise<OpportunitaNelCestino[]> => {
+      const { data, error } = await withAbortableClientTimeout(
+        (requestSignal) => supabase
           .from("marketing_opportunities")
           .select("id, name, value, deleted_at, deleted_by, marketing_contacts(first_name, last_name, company_name), marketing_pipelines(name), marketing_pipeline_stages(name)")
           .eq("company_id", companyId!)
           .not("deleted_at", "is", null)
           .order("deleted_at", { ascending: false })
-          .limit(LIMITE_CESTINO),
+          .limit(LIMITE_CESTINO).abortSignal(requestSignal),
         "Caricamento cestino opportunità",
+        undefined,
+        signal,
       );
       if (error) throw error;
       const righe = (data || []) as unknown as RigaCestinoGrezza[];
