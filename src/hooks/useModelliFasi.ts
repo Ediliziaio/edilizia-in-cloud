@@ -48,7 +48,7 @@ export function useModelliFasi() {
     queryFn: async (): Promise<ModelliAzienda> => {
       // Una lettura fallita deve restare distinguibile dall'assenza di modelli.
         const [m, f, s, impostazioni] = await Promise.all([
-          db.from("work_phase_templates").select("id, name, hint, position").eq("company_id", companyId!).order("position"),
+          db.from("work_phase_templates").select("id, name, hint, position, template_scope").eq("company_id", companyId!).order("position"),
           db.from("work_phase_template_phases").select("id, template_id, name, position").eq("company_id", companyId!).order("position"),
           db.from("work_phase_template_subphases").select("id, template_phase_id, name, position, peso").eq("company_id", companyId!).order("position"),
           db.from("company_fasi_settings").select("modelli_inizializzati").eq("company_id", companyId!).maybeSingle(),

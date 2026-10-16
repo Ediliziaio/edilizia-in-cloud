@@ -78,7 +78,7 @@ describe("assemblaModelli", () => {
     );
     expect(m.map((x) => x.id)).toEqual(["m1", "m2"]);
     expect(m[0]).toEqual({
-      id: "m1", origine: "azienda", nome: "A", descrizione: "uno",
+      id: "m1", origine: "azienda", ambito: "cantiere", nome: "A", descrizione: "uno",
       fasi: [
         { nome: "Prima", sottofasi: [{ nome: "Prima", peso: 1 }, { nome: "Poi", peso: 2 }] },
         { nome: "Seconda", sottofasi: [] },
@@ -170,4 +170,11 @@ describe("riordino", () => {
     expect(rimuovi(l, 0)).toEqual([{ n: "b" }]);
     expect(l).toEqual([{ n: "a" }, { n: "b" }]);
   });
+});
+
+describe("ambito dei modelli",()=>{
+ it("un modello del contratto non diventa una lavorazione esecutiva",()=>{
+  const [m]=assemblaModelli([{id:"c",name:"Contratto",hint:null,position:0,template_scope:"contratto"}],[{id:"f",template_id:"c",name:"Contabilità",position:0}],[]);
+  expect(m.ambito).toBe("contratto");expect(fasiPerCommessa(m)).toEqual([]);
+ });
 });

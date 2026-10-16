@@ -62,7 +62,7 @@ function fmtBytes(b: number): string {
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId }: Props) {
   const { effectiveCompany } = useAuth();
   const workflowProfilo = useContractWorkflowProfile();
-  const { offerti: modelliFasi } = useFasiDiPartenza();
+  const { perContratto: modelliFasi } = useFasiDiPartenza();
   const [file, setFile] = useState<File | null>(null);
   // Il file dell'analisi Silvio (se si arriva da lì): riusato da storage.
   const { data: remoteFile = null } = useQuery<RemoteFileRef | null>({

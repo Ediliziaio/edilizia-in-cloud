@@ -31,3 +31,5 @@ Ogni adempimento può essere assegnato a una persona d’ufficio con account azi
 Il cliente non ha ancora confermato i responsabili: le attività restano esplicitamente “Da assegnare”. Non si possono completare senza responsabile, né agganciare a un avanzamento automatico delle lavorazioni. Nessuna scadenza viene inventata. La scelta dei responsabili proposta in importazione viene conservata nella bozza.
 
 Verifica database con ruolo authenticated e rollback: creazione con 8 fasi, ripetizione senza duplicati, ricavi/VAT del figlio isolati, rifiuto azienda errata, rifiuto completamento di attività non assegnata, importi del contratto invariati. Nessun dato di prova temporaneo della verifica resta salvato.
+
+Gli standard hanno un ambito esplicito `work_phase_templates.template_scope`: contratto oppure cantiere. Lo standard organizzativo ANAS non è selezionabile come lavorazione dell’intervento, anche lato server. Gli standard esecutivi Pistilli sono stati ripuliti da verifiche economiche, SAL e saldo: sul campo restano ricognizione, esecuzione, misure, foto e riconsegna; la contabilità rimane all’ufficio. Le commesse reali preesistenti non vengono riscritte.

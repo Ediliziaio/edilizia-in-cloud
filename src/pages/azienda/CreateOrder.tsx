@@ -264,7 +264,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const fasiDiPartenza = useFasiDiPartenza();
   const workflowProfilo = useContractWorkflowProfile();
   const [officeAssignments,setOfficeAssignments] = useState<Record<string,string>>({});
-  const pianoContratto = useMemo(() => contrattoImportato && workflowProfilo.data ? prepareContract(contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data) : null, [contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data]);
+  const pianoContratto = useMemo(() => contrattoImportato && workflowProfilo.data ? prepareContract(contrattoImportato, fasiDiPartenza.perContratto, workflowProfilo.data) : null, [contrattoImportato, fasiDiPartenza.perContratto, workflowProfilo.data]);
   const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
   const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
@@ -474,7 +474,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setContractSource(source ?? null);
     setContrattoImportato(ex);
     standardApplicatoRef.current = null;
-    const piano = prepareContract(ex, fasiDiPartenza.offerti, workflowProfilo.data);
+    const piano = prepareContract(ex, fasiDiPartenza.perContratto, workflowProfilo.data);
     setValue("internal_notes", contractPreparationNotes(piano));
     setValue("customer_id", "");
     setValue("financing_cost", "");

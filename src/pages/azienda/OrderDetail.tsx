@@ -1391,7 +1391,7 @@ function OrderDetailInner() {
           taskError={taskError}
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "cantiere", section: "section-pianificazione" })}
-          onOpenTasks={() => navigateTo({ tab: "cantiere", section: "section-attivita" })}
+          onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"panoramica",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
         >
           <OrderStatusWorkflow
             key={id}
@@ -1522,7 +1522,7 @@ function OrderDetailInner() {
                   <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>Registro della commessa <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
                 </QuoteCard>
               <div id="section-note" className="scroll-mt-24">
-                <ContractOfficeTasks orderId={id} />
+                <div id="section-ufficio" className="scroll-mt-24"><ContractOfficeTasks key={id} orderId={id} /></div>
                 {permissions.canEditOrders ? (
                   <OrdineNote
                     notes={order.internal_notes}
@@ -2140,7 +2140,7 @@ function OrderDetailInner() {
                 key={id}
                 orderId={id!}
                 companyId={companyId}
-                onOpenTasks={() => navigateTo({ tab: "cantiere", section: "section-attivita" })}
+                onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"panoramica",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
                 customer={order.customer
                   ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
                   : order.client_name || ""}
