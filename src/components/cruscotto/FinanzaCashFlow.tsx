@@ -54,10 +54,10 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
 
   if (isEmpty) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Finanza & Cash Flow</h3>
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <CardContent className="p-3 pt-0 flex flex-col items-center justify-center py-8 text-center">
             <TrendingDown className="h-10 w-10 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">Nessun dato finanziario</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Inserisci ordini e costi per visualizzare il cash flow</p>
@@ -68,14 +68,14 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Finanza & Cash Flow</h3>
+    <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground xl:col-span-2">Finanza & Cash Flow</h3>
 
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="text-base">Bilancio Mese Corrente</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-6 w-32" />
@@ -83,7 +83,7 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
               <Skeleton className="h-4 w-40" />
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Net Cash Flow */}
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Cash Flow Netto</div>
@@ -207,10 +207,10 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
 
       {/* Visual bar chart: Income vs Outflow */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="text-base">Entrate vs Uscite</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

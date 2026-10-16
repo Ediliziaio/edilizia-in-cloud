@@ -273,7 +273,7 @@ export function PuntoDiPareggio() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
@@ -288,20 +288,20 @@ export function PuntoDiPareggio() {
   const noData = avgMarginPercent === 0 || totalFixedCostsMonthly === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
 
       {/* ── Sezione A: KPI Cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
         {/* Card 1: Break-even mensile */}
         <Card className={`border ${isAboveBreakEven ? "border-emerald-200 dark:border-emerald-900" : "border-red-200 dark:border-red-900"}`}>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
               <Banknote className="h-4 w-4" />
               Punto di Pareggio Mensile
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="p-3 pt-0 space-y-1">
             <div className="text-2xl font-bold">
               {noData ? "—" : formatCurrency(breakEvenRevenue)}
             </div>
@@ -322,13 +322,13 @@ export function PuntoDiPareggio() {
 
         {/* Card 2: Break-even annuale */}
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
               <Target className="h-4 w-4" />
               Punto di Pareggio Annuale
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="p-3 pt-0 space-y-1">
             <div className="text-2xl font-bold">
               {noData ? "—" : formatCurrency(breakEvenAnnual)}
             </div>
@@ -350,13 +350,13 @@ export function PuntoDiPareggio() {
             ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50/30 dark:bg-emerald-950/20"
             : "border-amber-200 dark:border-amber-900 bg-amber-50/30 dark:bg-amber-950/20"
         }`}>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
               <CalendarDays className="h-4 w-4" />
               Mese di Pareggio
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="p-3 pt-0 space-y-1">
             {noData ? (
               <div className="text-muted-foreground text-sm">Dati insufficienti</div>
             ) : breakEvenMonthOfYear > 12 ? (
@@ -404,7 +404,7 @@ export function PuntoDiPareggio() {
 
       {noData && (
         <Card className="border-dashed border-amber-300 bg-amber-50/30 dark:bg-amber-950/20">
-          <CardContent className="py-6 text-center">
+          <CardContent className="p-3 pt-0 py-6 text-center">
             <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
               Per calcolare il punto di pareggio sono necessari ordini con i costi di acquisto e costi fissi aziendali configurati.
@@ -417,13 +417,13 @@ export function PuntoDiPareggio() {
         <>
           {/* ── Sezione B: Calendario dell'Anno ──────────────────────────── */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="p-3 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" />
                 Calendario dell'Anno — Quando inizi a guadagnare per te
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-0">
               <CalendarioAnno
                 breakEvenMonth={breakEvenMonthOfYear}
                 monthlyContribution={currentMonthlyRevenue * (avgMarginPercent / 100)}
@@ -435,13 +435,13 @@ export function PuntoDiPareggio() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* ── Sezione C: Breakdown Costi Fissi ──────────────────────── */}
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-primary" />
                   Struttura dei Costi Fissi
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <BreakdownCostiFissi
                   fixedCosts={fixedCosts}
                   salariesMonthly={salariesMonthly}
@@ -453,12 +453,12 @@ export function PuntoDiPareggio() {
 
             {/* ── Formula di calcolo ────────────────────────────────────── */}
             <Card className="bg-muted/20">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   🧮 Come viene calcolato
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <CardContent className="p-3 pt-0 space-y-3 text-sm text-muted-foreground">
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
                     <span>Costi fissi mensili</span>
@@ -495,7 +495,7 @@ export function PuntoDiPareggio() {
 
           {/* ── Sezione D: Storico Anni ──────────────────────────────────── */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="p-3 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
                 Storico Annuale — Fatturato vs Punto di Pareggio
@@ -504,7 +504,7 @@ export function PuntoDiPareggio() {
                 L'etichetta sopra ogni barra indica il mese in cui quell'anno hai raggiunto il pareggio.
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-0">
               {loadingHist ? (
                 <Skeleton className="h-44 w-full" />
               ) : (

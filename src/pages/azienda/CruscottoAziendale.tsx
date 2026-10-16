@@ -262,7 +262,7 @@ export default function CruscottoAziendale() {
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-3">
       {/* Su telefono la barra col nome e il selettore delle dashboard. Da
           tablet il selettore sta accanto al titolo della testata: la barra
           sopra ripeteva «Cruscotto Aziendale» una riga prima del titolo. */}
@@ -276,6 +276,7 @@ export default function CruscottoAziendale() {
         icon={LayoutDashboard}
         leftAccessory={<DashboardSelectorBar title="Cruscotto Aziendale" soloSelettore />}
         compactTitle
+        density="compact"
         toolbar={<CruscottoFilters filters={filters} onUpdate={updateFilters} compact />}
         actions={
           <Button
@@ -328,15 +329,15 @@ export default function CruscottoAziendale() {
       {!isDataEmpty && (
         <SectionErrorBoundary sectionName="Executive Summary">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200">
-            {/* Da 1280px la colonna blu è di 260px e i due numeri se la dividono
+            {/* Da 1280px la colonna blu è di 240px e i due numeri se la dividono
                 in altezza: a 1440 era larga 330px con i riquadri in mezzo e due
                 fasce blu vuote sopra e sotto. */}
-            <div className="grid gap-0 xl:grid-cols-[260px_minmax(0,1fr)]">
+            <div className="grid gap-0 xl:grid-cols-[240px_minmax(0,1fr)]">
               {/* Il pannello si allunga per stare al passo col grafico accanto.
                   Con quattro riquadri lo riempivano; rimastine due, meta' blu
                   restava vuota. Ora la colonna e' piu' stretta e i due riquadri
                   si distribuiscono sull'altezza invece di ammucchiarsi in alto. */}
-              <div className="flex flex-col bg-eic-navy-deep p-4 text-white sm:p-6">
+              <div className="flex flex-col bg-eic-navy-deep p-3 text-white sm:p-4">
                 {/* Il richiamo urgente che stava qui — "Incassi da sbloccare,
                     279k € scaduti" — diceva la stessa cosa del primo punto di
                     "Da guardare oggi", poche righe piu' su, che pero' ne mostra
@@ -346,12 +347,12 @@ export default function CruscottoAziendale() {
                   Numeri del periodo
                 </p>
 
-                <div className="mt-3 grid flex-1 grid-cols-2 content-center gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-1 xl:content-stretch">
+                <div className="mt-3 grid flex-1 grid-cols-2 content-center gap-2 xl:grid-cols-1 xl:content-stretch">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
                     const clickable = !!item.drilldown;
                     const cardClass = cn(
-                      "rounded-xl border border-white/12 bg-white/9 p-3 text-left transition-colors sm:p-4 xl:flex xl:items-center",
+                      "rounded-xl border border-white/12 bg-white/9 p-3 text-left transition-colors xl:flex xl:items-center",
                       clickable && "cursor-pointer hover:border-orange-300/40 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-orange-300/40",
                     );
                     const inner = (
@@ -369,8 +370,8 @@ export default function CruscottoAziendale() {
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                          <span className="block truncate text-lg font-bold tabular-nums text-white sm:text-xl xl:text-2xl">{item.value}</span>
-                          <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
+                          <span className="block truncate text-lg font-bold tabular-nums text-white sm:text-xl">{item.value}</span>
+                          <span className="mt-0.5 block text-xs leading-snug text-blue-50/70">{item.hint}</span>
                         </span>
                       </div>
                     );
@@ -395,7 +396,7 @@ export default function CruscottoAziendale() {
                   e incassato appena scritti sopra. L'andamento completo resta
                   su tablet/desktop e nel Controllo di Gestione. */}
               {isMobile ? null : (
-              <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+              <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-4 xl:border-l xl:border-t-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
@@ -431,7 +432,7 @@ export default function CruscottoAziendale() {
                   </div>
                 </div>
 
-                <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <div className="mt-3 h-[220px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                   {trendIsEmpty ? (
                     <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
                       <p className="text-sm font-medium text-slate-500">Ancora nessun movimento negli ultimi 12 mesi</p>
@@ -554,7 +555,7 @@ export default function CruscottoAziendale() {
 
       {!isDataEmpty && (
         // Mobile: senza riquadro esterno, la card «I numeri che comandano» ne ha già uno.
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {/* Mobile: niente intestazione e niente cinque schede; resta la sintesi
               (i numeri che comandano e gli avvisi). Gli approfondimenti per area
               sono lavoro da scrivania. */}
@@ -617,20 +618,19 @@ export default function CruscottoAziendale() {
               </SectionErrorBoundary>
             </TabsContent>
 
-            <TabsContent value="finanza" className="mt-4 space-y-4">
+            <TabsContent value="finanza" className="mt-3 space-y-3">
               {showFinanza && (
                 <>
                   <SectionErrorBoundary sectionName="Fatturazione KPI">
                     <BillingKPIWidget />
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Finanza">
-                    {/* items-start: il riquadro corto non si allunga fino all'altezza
-                        dei due accanto (restava mezzo vuoto). */}
-                    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+                    {/* Incassi su una fascia compatta; bilancio e grafico affiancati sotto. */}
+                    <div className="space-y-3">
                       <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
                       <FinanzaCashFlow finance={finance} isLoading={isLoading} />
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-3">
                       <PrimaNotaScadenzarioWidget />
                     </div>
                   </SectionErrorBoundary>
@@ -644,7 +644,7 @@ export default function CruscottoAziendale() {
               )}
             </TabsContent>
 
-            <TabsContent value="operations" className="mt-4 space-y-4">
+            <TabsContent value="operations" className="mt-3 space-y-3">
               {showOperazioni && (
                 <>
                   <SectionErrorBoundary sectionName="Focus Oggi">
@@ -660,11 +660,11 @@ export default function CruscottoAziendale() {
               )}
             </TabsContent>
 
-            <TabsContent value="vendite" className="mt-4 space-y-4">
+            <TabsContent value="vendite" className="mt-3 space-y-3">
               {showCommerciale && (
                 <>
                   <SectionErrorBoundary sectionName="Vendite">
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
                       <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
                     </div>
@@ -679,10 +679,10 @@ export default function CruscottoAziendale() {
               )}
             </TabsContent>
 
-            <TabsContent value="team" className="mt-4 space-y-4">
+            <TabsContent value="team" className="mt-3 space-y-3">
               {showHR && (
                 <SectionErrorBoundary sectionName="HR & Trend">
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
                     <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
                   </div>
@@ -691,7 +691,7 @@ export default function CruscottoAziendale() {
 
               {showFinanza && sediVisibili.length > 0 && (
                 <SectionErrorBoundary sectionName="Analytics per Sede">
-                  <div className="space-y-4 rounded-lg border bg-white p-4">
+                  <div className="space-y-3 rounded-lg border bg-white p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
                       <SedeFilterBar />

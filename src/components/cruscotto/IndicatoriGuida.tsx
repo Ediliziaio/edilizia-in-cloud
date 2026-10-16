@@ -179,7 +179,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
       className={cn(
         // Mobile: due per riga, solo titolo, numero e stato. Soglia, spiegazione
         // e «come si calcola» (un tooltip, che col dito non si apre) no.
-        "rounded-xl border border-l-4 bg-card p-3 flex flex-col gap-1.5 transition-all sm:p-4 sm:gap-2",
+        "rounded-xl border border-l-4 bg-card p-3 flex flex-col gap-1.5 transition-all",
         ui.bordo,
         cliccabile &&
           "cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -262,7 +262,7 @@ export function IndicatoriGuida() {
   return (
     <TooltipProvider delayDuration={150}>
       <Card>
-        <CardHeader className="p-3 pb-2 sm:p-6 sm:pb-3">
+        <CardHeader className="p-3 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <CircleGauge className="h-4 w-4 text-primary" />
@@ -290,7 +290,7 @@ export function IndicatoriGuida() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+        <CardContent className="p-3 pt-0">
           {dati.isLoading ? (
             <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -306,7 +306,7 @@ export function IndicatoriGuida() {
               {/* DSCR e ciclo di cassa vivono nel CdG: una fonte sola, qui solo il ponte. */}
               <Link
                 to="/azienda/controllo-gestione"
-                className="hidden rounded-xl border border-dashed bg-muted/30 p-4 sm:flex flex-col justify-between gap-2 transition-all hover:-translate-y-0.5 hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="hidden rounded-xl border border-dashed bg-muted/30 p-3 sm:flex flex-col justify-between gap-2 transition-all hover:-translate-y-0.5 hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex items-center gap-2">
                   <CircleGauge className="h-4 w-4 text-muted-foreground" />

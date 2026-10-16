@@ -13,11 +13,11 @@ export const CruscottoTrend = memo(function CruscottoTrend({ trend, isLoading }:
   const isEmpty = !isLoading && (!trend || trend.length === 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Trend Temporale</h3>
       {isEmpty ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <CardContent className="p-3 pt-0 flex flex-col items-center justify-center py-8 text-center">
             <TrendingUp className="h-10 w-10 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">Dati insufficienti per mostrare il trend</p>
             <p className="text-xs text-muted-foreground/60 mt-1">I dati appariranno dopo aver registrato attività nel periodo selezionato</p>

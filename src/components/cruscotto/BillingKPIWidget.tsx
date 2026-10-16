@@ -111,7 +111,7 @@ export function BillingKPIWidget() {
             )}
             onClick={c.onClick}
           >
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground font-medium">
                   {c.label}

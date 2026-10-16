@@ -68,10 +68,10 @@ export function MarginalitaWidget() {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-3 pb-2">
           <Skeleton className="h-5 w-40" />
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="p-3 pt-0 space-y-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
         </CardContent>
       </Card>
@@ -82,13 +82,13 @@ export function MarginalitaWidget() {
   if (summary.nCommesse === 0) {
     return (
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             Marginalità Cantieri
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           <p className="text-sm text-muted-foreground">
             Nessuna commessa con dati economici nel periodo: la marginalità comparirà qui con la prima commessa.
           </p>
@@ -100,13 +100,13 @@ export function MarginalitaWidget() {
   if (summary.nConCosti === 0) {
     return (
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             Marginalità Cantieri
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="p-3 pt-0 space-y-2">
           <p className="text-sm font-medium text-amber-800">Costi da completare</p>
           <p className="text-sm text-muted-foreground">
             {summary.nDaCompletare} {summary.nDaCompletare === 1 ? "commessa ha" : "commesse hanno"} un contratto, ma nessun costo registrato. Il margine non viene stimato.
@@ -121,7 +121,7 @@ export function MarginalitaWidget() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+      <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between gap-2">
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             {avgPerc >= 15 ? (
@@ -162,7 +162,7 @@ export function MarginalitaWidget() {
         </Button>
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="p-3 pt-0 space-y-3">
         {topRows.map((row) => {
           const causa = row.cause[0];
           return (

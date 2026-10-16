@@ -18,13 +18,13 @@ export function ClienteSituazioneWidget() {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="p-3 pb-2">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
           Situazione Top Clienti (anno corrente)
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="p-3 pt-0 pt-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

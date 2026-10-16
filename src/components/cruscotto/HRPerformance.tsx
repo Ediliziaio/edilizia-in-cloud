@@ -19,17 +19,17 @@ export const HRPerformance = memo(function HRPerformance({ sales, isLoading }: P
   }, [sales]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Performance Venditori</h3>
 
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-4 w-4 text-amber-500" />
             Ranking Commerciali
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           {isLoading ? (
             <Skeleton className="h-32 w-full" />
           ) : ranked.length === 0 ? (

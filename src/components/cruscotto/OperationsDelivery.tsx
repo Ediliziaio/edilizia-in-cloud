@@ -47,16 +47,16 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Operations & Delivery</h3>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {items.map(item => {
           const Icon = item.icon;
           return (
             <Link key={item.label} to={item.link}>
               <Card className={cn(
-                "p-4 hover:shadow-md transition-shadow cursor-pointer",
+                "p-3 hover:shadow-md transition-shadow cursor-pointer",
                 item.alert && "border-destructive/50 bg-destructive/5"
               )}>
                 <div className="flex items-center gap-2 mb-1">
@@ -79,7 +79,7 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
 
       {/* Overdue amount detail */}
       {operations.overdueAmount > 0 && (
-        <Card className="p-4 border-destructive/30 bg-destructive/5">
+        <Card className="p-3 border-destructive/30 bg-destructive/5">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Importo Pagamenti Scaduti</span>
             <span className="text-lg font-bold tabular-nums text-destructive">{fmtCur(operations.overdueAmount)}</span>

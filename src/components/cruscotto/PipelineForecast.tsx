@@ -15,15 +15,15 @@ export const PipelineForecast = memo(function PipelineForecast({ kpi, funnel, is
   const weightedPipeline = Number(kpi?.weighted_pipeline ?? 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Pipeline & Forecast</h3>
 
       {/* Weighted pipeline value */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="text-base">Pipeline Pesata (Probabilistica)</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           {isLoading ? <Skeleton className="h-8 w-32" /> : (
             <div className="text-2xl font-bold tabular-nums text-primary">{fmtCur(weightedPipeline)}</div>
           )}
@@ -36,10 +36,10 @@ export const PipelineForecast = memo(function PipelineForecast({ kpi, funnel, is
       {/* Funnel value per stage */}
       {!isLoading && funnel && funnel.length > 0 && (
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-2">
             <CardTitle className="text-base">Valore per Fase</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="p-3 pt-0 space-y-2">
             {funnel.map(stage => (
               <div key={stage.stage_id} className="flex items-center justify-between py-1">
                 <span className="text-sm">{stage.name}</span>
