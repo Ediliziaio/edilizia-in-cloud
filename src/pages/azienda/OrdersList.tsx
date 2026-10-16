@@ -1689,39 +1689,11 @@ function OrdersListInner() {
           </details>
           </div>
           <OrdersFilters
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            statuses={statuses}
-            yearFilter={yearFilter}
-            onYearFilterChange={handleYearChange}
-            availableYears={availableYears}
-            paymentFilter={paymentFilter}
-            onPaymentFilterChange={setPaymentFilter}
-            monthFilter={monthFilter}
-            onMonthFilterChange={handleMonthChange}
-            hasAnyFilter={hasAnyFilter}
-            onClearAllFilters={clearAllFilters}
-            hideCompleted={hideCompleted && statusFilter === "all"}
-            onHideCompletedChange={(value) => {
-              setHideCompleted(value);
-              if (value) setStatusFilter("all");
-            }}
-          />
-
-          <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
-
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
-            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">
-              <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
-              {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
-            </div>
-            {viewMode === "table" && (
-              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center gap-2 sm:flex sm:flex-wrap">
+            trailingControls={viewMode === "table" ? (
+              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
                 <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
                 <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" className="h-8 w-auto min-w-[180px] text-xs">
+                  <SelectTrigger aria-label="Ordina commesse per" className="h-8 w-[126px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1736,7 +1708,7 @@ function OrdersListInner() {
                   </SelectContent>
                 </Select>
                 <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-auto min-w-[140px] text-xs">
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[172px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1754,8 +1726,8 @@ function OrdersListInner() {
                 </Select>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" /><span>Colonne visibili</span>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" /><span>Colonne</span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[280px] p-3">
@@ -1802,7 +1774,35 @@ function OrdersListInner() {
                   </Button>
                 )}
               </div>
-            )}
+            ) : undefined}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statuses={statuses}
+            yearFilter={yearFilter}
+            onYearFilterChange={handleYearChange}
+            availableYears={availableYears}
+            paymentFilter={paymentFilter}
+            onPaymentFilterChange={setPaymentFilter}
+            monthFilter={monthFilter}
+            onMonthFilterChange={handleMonthChange}
+            hasAnyFilter={hasAnyFilter}
+            onClearAllFilters={clearAllFilters}
+            hideCompleted={hideCompleted && statusFilter === "all"}
+            onHideCompletedChange={(value) => {
+              setHideCompleted(value);
+              if (value) setStatusFilter("all");
+            }}
+          />
+
+          <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
+            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">
+              <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
+              {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
+            </div>
           </div>
 
           {/* Content */}
