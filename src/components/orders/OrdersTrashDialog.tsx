@@ -9,7 +9,7 @@ export function OrdersTrashDialog({open,onOpenChange,companyId,onChanged}: {
   open:boolean; onOpenChange:(v:boolean)=>void; companyId:string; onChanged:()=>void;
 }) {
   const [restoring,setRestoring]=useState<string|null>(null);
-  const query=useQuery({queryKey:['orders-trash',companyId],enabled:open&&!!companyId,queryFn:async()=>{
+  const query=useQuery({queryKey:['orders','trash',companyId],staleTime:0,enabled:open&&!!companyId,queryFn:async()=>{
     const {data,error}=await supabase.from('orders').select('id,order_code,description,deleted_at')
       .eq('company_id',companyId).not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(101);
     if(error)throw error;
