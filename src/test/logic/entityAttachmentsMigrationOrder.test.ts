@@ -562,3 +562,42 @@ it("ricostruisce il client email prima del catalogo legacy dei flag", async () =
     await db.close();
   }
 }, 60000);
+
+it("le copie anticipate di viste e firma attendono le fondazioni dei verticali", async () => {
+  const db = new PGlite();
+  try {
+    for (const name of [
+      "20260604042649_signature_requests_fv_progetto",
+      "20260616064141_v_preventivi_unificati",
+      "20260616194437_v_preventivi_unificati_rst",
+      "20260620134206_opportunity_value_autosync_from_preventivi",
+      "20260622133211_v_preventivi_unificati_completa",
+    ]) {
+      await db.exec(readFileSync(`supabase/migrations/${name}.sql`, "utf8"));
+    }
+    await db.exec(
+      "create table signature_requests(id uuid primary key,company_id uuid);create table fv_progetti(id uuid primary key)",
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260604042649_signature_requests_fv_progetto.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20270618030000_signature_requests_fv_progetto.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await db.query(
+          "select conname from pg_constraint where conrelid='signature_requests'::regclass and contype='f'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+  } finally {
+    await db.close();
+  }
+}, 60000);

@@ -2,6 +2,11 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- La copia canonica 20270915000000_v_preventivi_unificati.sql completa questa operazione dopo le fondazioni.
+DO $vertical_dependencies$
+BEGIN
+ IF to_regclass('public.sr_progetti') IS NOT NULL
+    AND to_regclass('public.fv_progetti') IS NOT NULL THEN
 CREATE OR REPLACE VIEW public.v_preventivi_unificati
 WITH (security_invoker = true) AS
   SELECT
@@ -100,3 +105,6 @@ COMMENT ON VIEW public.v_preventivi_unificati IS
   'Convergenza preventivi cross-modulo (classico/serramenti/fotovoltaico). security_invoker=true: eredita RLS delle tabelle base (isolamento per azienda). Mirror server-side del merge di UnifiedPreventiviList.';
 
 GRANT SELECT ON public.v_preventivi_unificati TO authenticated;
+
+ END IF;
+END $vertical_dependencies$;
