@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -12,12 +14,18 @@ import {
 } from "recharts";
 import {
   chartMoney,
+  clickedOrderChartMonth,
   orderChartMonths,
   type DisplayChartMonth,
   type OrderChartMonth,
 } from "@/lib/orders/monthlyChart";
+const monthName = (month: OrderChartMonth) =>
+  new Date(`${month.key}-01T12:00:00`).toLocaleDateString("it-IT", {
+    month: "long",
+    year: "numeric",
+  });
 
-function MonthDetails({
+export function OrderMonthDetails({
   active,
   payload,
 }: {
@@ -25,14 +33,11 @@ function MonthDetails({
   payload?: readonly { payload?: DisplayChartMonth }[];
 }) {
   const month = payload?.[0]?.payload;
-  if (!active || !month) return null;
+  if (!active || !month || month.count === null) return null;
   return (
-    <div className="min-w-56 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg">
+    <div className="min-w-56 rounded-xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl backdrop-blur-sm">
       <p className="mb-2 font-semibold capitalize text-slate-950">
-        {new Date(`${month.key}-01T12:00:00`).toLocaleDateString("it-IT", {
-          month: "long",
-          year: "numeric",
-        })}
+        {monthName(month)}
         {month.current && " · in corso"}
       </p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 tabular-nums">
@@ -43,6 +48,10 @@ function MonthDetails({
         <dt className="text-orange-700">Incassato</dt>
         <dd className="text-right font-semibold">
           {chartMoney(month.incassato)}
+        </dd>
+        <dt className="text-slate-600">Da incassare</dt>
+        <dd className="text-right font-semibold">
+          {chartMoney(month.daIncassare)}
         </dd>
         <dt className="text-slate-600">Commesse</dt>
         <dd className="text-right font-semibold">{month.commesse}</dd>
@@ -57,31 +66,45 @@ function MonthDetails({
 export function OrdersMonthlyChart({
   months,
   period,
+  selectedMonth = null,
+  onSelectMonth,
 }: {
   months: OrderChartMonth[];
   period: string;
+  selectedMonth?: string | null;
+  onSelectMonth?: (month: string | null) => void;
 }) {
   const [view, setView] = useState<"money" | "count">("money");
+  const [shape, setShape] = useState<"lines" | "bars">("lines");
+  const reducedMotion = useReducedMotion();
+  const [animateInteraction, setAnimateInteraction] = useState(true);
+  const gradient = useId().replace(/:/g, "");
   const data = useMemo(() => orderChartMonths(months), [months]);
   const current = data.find((month) => month.current);
-  const future = data.filter((month) => month.count === null);
+  const selected = data.find((month) => month.key === selectedMonth);
+  const hasFuture = data.some((month) => month.count === null);
+  const select = (key: string) =>
+    onSelectMonth?.(key === selectedMonth ? null : key);
+  const animation = {
+    isAnimationActive: reducedMotion === false && animateInteraction,
+    animationDuration: 240,
+    animationEasing: "ease-out" as const,
+  };
   return (
     <section aria-label="Andamento commesse" className="min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold tracking-tight text-slate-950">
-            Andamento commesse{" "}
-            <span className="font-normal text-slate-500">· {period}</span>
-          </h3>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            Per mese di creazione. Incassato su quelle commesse,
-            indipendentemente dalla data dell’incasso.
-          </p>
-        </div>
+      <h3 className="text-base font-semibold tracking-tight text-slate-950">
+        Andamento commesse{" "}
+        <span className="font-normal text-slate-500">· {period}</span>
+      </h3>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        Per mese di creazione. Incassato su quelle commesse, indipendentemente
+        dalla data dell’incasso.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div
           role="group"
           aria-label="Visualizzazione andamento"
-          className="inline-flex shrink-0 gap-1 rounded-lg bg-slate-100 p-1"
+          className="inline-flex gap-1 rounded-lg bg-slate-100 p-1"
         >
           {(
             [
@@ -93,16 +116,46 @@ export function OrdersMonthlyChart({
               type="button"
               key={item.value}
               aria-pressed={view === item.value}
-              onClick={() => setView(item.value)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500 ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+              onClick={(event) => {
+                setAnimateInteraction(event.detail > 0);
+                setView(item.value);
+              }}
+              className={`orders-chart-control rounded-md px-3 py-1.5 text-xs font-medium ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
             >
               {item.label}
             </button>
           ))}
         </div>
+        {view === "money" && (
+          <div
+            role="group"
+            aria-label="Stile grafico"
+            className="inline-flex gap-1 rounded-lg border border-slate-200 p-0.5"
+          >
+            {(
+              [
+                { value: "lines", label: "Linee" },
+                { value: "bars", label: "Barre" },
+              ] as const
+            ).map((item) => (
+              <button
+                type="button"
+                key={item.value}
+                aria-pressed={shape === item.value}
+                onClick={(event) => {
+                  setAnimateInteraction(event.detail > 0);
+                  setShape(item.value);
+                }}
+                className={`orders-chart-control rounded-md px-2 py-1.5 text-xs ${shape === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-slate-500"}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div
-        className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
+        className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
         aria-label="Legenda grafico"
       >
         {view === "money" ? (
@@ -124,16 +177,12 @@ export function OrdersMonthlyChart({
         )}
         {current && (
           <span className="ml-auto text-slate-500">
-            {new Date(`${current.key}-01T12:00:00`).toLocaleDateString(
-              "it-IT",
-              { month: "long" },
-            )}
-            : mese in corso
+            {monthName(current).replace(/ \d{4}$/, "")}: in corso
           </span>
         )}
       </div>
       <div
-        className="mt-2 h-[260px]"
+        className={`mt-2 h-[300px] ${onSelectMonth ? "cursor-pointer" : ""}`}
         role="img"
         aria-label={
           view === "money"
@@ -144,9 +193,35 @@ export function OrdersMonthlyChart({
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: 18, right: 12, left: 4, bottom: 0 }}
+            margin={{ top: 18, right: 12, left: 0, bottom: 0 }}
             accessibilityLayer
+            onClick={(state) => {
+              const key = clickedOrderChartMonth(state, data);
+              if (key) select(key);
+            }}
           >
+            <defs>
+              {[
+                { id: "sold", color: "#2563eb" },
+                { id: "collected", color: "#f97316" },
+              ].map((item) => (
+                <linearGradient
+                  key={item.id}
+                  id={`${gradient}-${item.id}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={item.color} stopOpacity={0.16} />
+                  <stop
+                    offset="100%"
+                    stopColor={item.color}
+                    stopOpacity={0.01}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
             <CartesianGrid
               vertical={false}
               stroke="#e2e8f0"
@@ -156,16 +231,16 @@ export function OrdersMonthlyChart({
               dataKey="mese"
               tickLine={false}
               axisLine={false}
-              tick={{ fontSize: 11, fill: "#64748b" }}
-              minTickGap={12}
+              tick={{ fontSize: 10, fill: "#64748b" }}
+              minTickGap={8}
               tickMargin={10}
             />
             <YAxis
               key={view}
               tickLine={false}
               axisLine={false}
-              width={66}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              width={76}
+              tick={{ fontSize: 10, fill: "#64748b" }}
               allowDecimals={view === "money"}
               tickFormatter={(value) =>
                 view === "money"
@@ -173,61 +248,149 @@ export function OrdersMonthlyChart({
                   : String(value)
               }
             />
-            {current && (
+            {current && current.key !== selected?.key && (
               <ReferenceLine
                 x={current.mese}
                 stroke="#94a3b8"
                 strokeDasharray="4 4"
               />
             )}
+            {selected && (
+              <ReferenceLine
+                x={selected.mese}
+                stroke="#f97316"
+                strokeWidth={2}
+                strokeDasharray="3 3"
+              />
+            )}
             <Tooltip
-              content={<MonthDetails />}
-              cursor={{ fill: "#f1f5f9", fillOpacity: 0.6 }}
+              content={<OrderMonthDetails />}
+              cursor={
+                shape === "bars" && view === "money"
+                  ? { fill: "#f1f5f9", fillOpacity: 0.6 }
+                  : { stroke: "#94a3b8", strokeDasharray: "3 3" }
+              }
               filterNull
+              isAnimationActive={false}
             />
             {view === "money" ? (
-              <>
-                <Bar
-                  dataKey="sold"
-                  name="Venduto"
-                  fill="#2563eb"
-                  radius={[5, 5, 0, 0]}
-                  maxBarSize={28}
-                  isAnimationActive={false}
-                />
-                <Bar
-                  dataKey="collected"
-                  name="Incassato"
-                  fill="#f97316"
-                  radius={[5, 5, 0, 0]}
-                  maxBarSize={28}
-                  isAnimationActive={false}
-                />
-              </>
+              shape === "bars" ? (
+                <>
+                  <Bar
+                    dataKey="sold"
+                    name="Venduto"
+                    fill="#2563eb"
+                    radius={[5, 5, 0, 0]}
+                    maxBarSize={24}
+                    {...animation}
+                  />
+                  <Bar
+                    dataKey="collected"
+                    name="Incassato"
+                    fill="#f97316"
+                    radius={[5, 5, 0, 0]}
+                    maxBarSize={24}
+                    {...animation}
+                  />
+                </>
+              ) : (
+                <>
+                  <Area
+                    dataKey="sold"
+                    name="Venduto"
+                    type="monotone"
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    fill={`url(#${gradient}-sold)`}
+                    dot={false}
+                    activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }}
+                    connectNulls={false}
+                    {...animation}
+                  />
+                  <Area
+                    dataKey="collected"
+                    name="Incassato"
+                    type="monotone"
+                    stroke="#f97316"
+                    strokeWidth={2.5}
+                    fill={`url(#${gradient}-collected)`}
+                    dot={false}
+                    activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }}
+                    connectNulls={false}
+                    {...animation}
+                  />
+                </>
+              )
             ) : (
               <Line
                 dataKey="count"
                 name="Numero commesse"
-                type="linear"
+                type="monotone"
                 stroke="#1e293b"
                 strokeWidth={2.5}
                 dot={{ r: 3, fill: "#fff", strokeWidth: 2 }}
                 activeDot={{ r: 5 }}
                 connectNulls={false}
-                isAnimationActive={false}
+                {...animation}
               />
             )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-2 text-xs text-slate-500">
+      {onSelectMonth && (
+        <div className="mt-2">
+          <p className="mb-2 text-[11px] text-slate-500">
+            Clicca un mese nel grafico o qui sotto per filtrare l’elenco. Gli
+            altri filtri restano attivi.
+          </p>
+          <div
+            role="group"
+            aria-label="Filtra commesse per mese"
+            className="grid grid-cols-6 gap-1 2xl:grid-cols-12"
+          >
+            {data.map((month) => (
+              <button
+                key={month.key}
+                type="button"
+                disabled={month.count === null}
+                aria-pressed={selectedMonth === month.key}
+                aria-label={`Filtra commesse di ${monthName(month)}`}
+                title={
+                  month.count === null
+                    ? "Mese futuro senza dati"
+                    : monthName(month)
+                }
+                onClick={() => select(month.key)}
+                className="orders-month-chip rounded-md border border-slate-200 py-1.5 text-[11px] text-slate-600"
+              >
+                {/^\d{4}$/.test(period) ? month.mese.split(" ")[0] : month.mese}
+              </button>
+            ))}
+          </div>
+          {selected && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-orange-50 px-2.5 py-2 text-xs text-orange-900">
+              <span role="status">
+                Elenco filtrato: <strong>{monthName(selected)}</strong>
+              </span>
+              <button
+                type="button"
+                className="orders-chart-control rounded underline underline-offset-2"
+                onClick={() => onSelectMonth(null)}
+              >
+                Rimuovi filtro mese
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
         <p>
-          {future.length > 0
+          {hasFuture
             ? "I mesi futuri senza dati restano vuoti; il mese in corso è parziale."
             : "Gli importi si riferiscono alle commesse create in ciascun mese."}
         </p>
         <details className="min-w-0 max-w-full">
-          <summary className="cursor-pointer rounded text-slate-600 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
+          <summary className="orders-chart-control cursor-pointer rounded text-slate-600 underline underline-offset-2">
             Dati mese per mese
           </summary>
           <div className="mt-3 max-w-full overflow-x-auto rounded-lg border border-slate-200">
@@ -237,7 +400,13 @@ export function OrdersMonthlyChart({
               </caption>
               <thead className="bg-slate-50">
                 <tr>
-                  {["Mese", "Venduto", "Incassato", "Commesse"].map((label) => (
+                  {[
+                    "Mese",
+                    "Venduto",
+                    "Incassato",
+                    "Da incassare",
+                    "Commesse",
+                  ].map((label) => (
                     <th
                       key={label}
                       scope="col"
@@ -267,6 +436,11 @@ export function OrdersMonthlyChart({
                       {month.collected === null
                         ? "—"
                         : chartMoney(month.incassato)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {month.count === null
+                        ? "—"
+                        : chartMoney(month.daIncassare)}
                     </td>
                     <td className="px-3 py-2">{month.count ?? "—"}</td>
                   </tr>

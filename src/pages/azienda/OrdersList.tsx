@@ -33,6 +33,7 @@ import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
+import { orderChartMonthFilter } from "@/lib/orders/monthlyChart";
 import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -985,6 +986,7 @@ function OrdersListInner() {
         venduto: 0,
         incassato: 0,
         commesse: 0,
+        daIncassare: 0,
       };
     });
     const byKey = new Map(months.map((month) => [month.key, month]));
@@ -999,6 +1001,7 @@ function OrdersListInner() {
       month.commesse += 1;
       month.venduto += getGrossOrderAmount(order as any);
       month.incassato += getAmountCollected(order as any);
+      month.daIncassare += getAmountDue(order as any);
     });
 
     return months;
@@ -1494,8 +1497,8 @@ function OrdersListInner() {
       )}
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
-        <div className="grid gap-0">
-          <div className="bg-eic-navy-deep p-3 sm:p-5 md:p-6 text-white">
+        <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
+          <div className="bg-eic-navy-deep p-3 sm:p-4 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                 <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
@@ -1510,15 +1513,15 @@ function OrdersListInner() {
                 </div>
               </div>
               {orderPerms.canViewOrderAmounts && !isMobile && <button type="button" onClick={toggleAnalisi}
-                aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
+                title={analisiAperta ? "Nascondi andamento" : "Mostra andamento"} aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
-                <PieChart className="h-3.5 w-3.5" />{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}
+                <PieChart className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}</span>
                 <ChevronDown className={`h-3.5 w-3.5 ${analisiAperta ? "rotate-180" : ""}`} />
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid grid-cols-2 gap-2 sm:gap-3 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <ShoppingBag className="h-4 w-4" />
@@ -1546,7 +1549,7 @@ function OrdersListInner() {
               {/* "Totale venduto" e "Incassato" sono metriche da scrivania:
                   su mobile confondono e allungano l'header → visibili da sm in su.
                   Restano "Commesse totali" e "Da incassare" (operativi). */}
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
                     <Euro className="h-4 w-4" />
@@ -1572,7 +1575,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
                     <TrendingUp className="h-4 w-4" />
@@ -1598,7 +1601,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <AlertCircle className="h-4 w-4" />
@@ -1642,12 +1645,14 @@ function OrdersListInner() {
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="border-t border-slate-200 bg-white p-3 sm:p-5">
+          <aside id="orders-annual-chart" className="min-w-0 border-t border-slate-200 bg-white p-3 sm:p-5 xl:border-l xl:border-t-0">
             {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
               <div aria-label="Caricamento andamento" className="flex h-[260px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
-            ) : <OrdersMonthlyChart months={monthlySalesChart} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"} />}
+            ) : <OrdersMonthlyChart months={monthlySalesChart} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
+              selectedMonth={hasMonth ? `${monthYear}-${String(month+1).padStart(2,"0")}` : null}
+              onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} />}
           </aside>
           )}
         </div>
