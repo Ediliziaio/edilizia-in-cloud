@@ -10,13 +10,13 @@ export async function contractOfficeTaskId(orderId: string, nome: string): Promi
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 
-export async function saveContractOfficeTasks(companyId: string, orderId: string, userId: string, steps: OfficeStep[]): Promise<void> {
+export async function saveContractOfficeTasks(companyId: string, orderId: string, userId: string, steps: OfficeStep[], assignments: Record<string,string> = {}): Promise<void> {
   if (!steps.length) return;
   const rows = await Promise.all(steps.map(async s => ({
     id: await contractOfficeTaskId(orderId, s.nome), company_id: companyId, order_id: orderId,
     title: CONTRACT_OFFICE_PREFIX+s.nome, notes: `Adempimento di ufficio proposto dal contratto, da verificare e assegnare. Non concorre all’avanzamento delle lavorazioni.\n${s.controlli.map(c => `- ${c}`).join("\n")}`,
     status: "da_fare", priority: "normale", category: "ordini", created_by: userId,
-    assigned_to: null as string | null, due_date: null as string | null,
+    activity_scope: "ufficio", assigned_to: assignments[s.nome] || null, due_date: null as string | null,
   })));
   const ids = rows.map(r => r.id);
   const { data, error } = await supabase.from("tasks").select("id").eq("company_id",companyId).eq("order_id",orderId).in("id",ids);
@@ -24,7 +24,7 @@ export async function saveContractOfficeTasks(companyId: string, orderId: string
   const existing = new Set((data ?? []).map(r => r.id));
   const missing = rows.filter(r => !existing.has(r.id));
   if (!missing.length) return;
-  const inserted = await supabase.from("tasks").insert(missing);
+  const inserted = await supabase.from("tasks").insert(missing as never);
   if (!inserted.error) return;
   if (inserted.error.code === "23505") {
     const check = await supabase.from("tasks").select("id").eq("company_id",companyId).eq("order_id",orderId).in("id",ids);

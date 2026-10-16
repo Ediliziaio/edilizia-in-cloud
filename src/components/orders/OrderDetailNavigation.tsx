@@ -9,7 +9,7 @@ const icons = {
   finanza: Wallet,
 };
 
-export function OrderDetailNavigation() {
+export function OrderDetailNavigation({operational=false}:{operational?:boolean}) {
   return (
     <div
       id="order-detail-sections"
@@ -19,7 +19,7 @@ export function OrderDetailNavigation() {
         aria-label="Aree della commessa"
         className="grid h-auto w-full grid-cols-4 items-stretch gap-1 rounded-lg border bg-white p-1 shadow-sm"
       >
-        {ORDER_DETAIL_TABS.map((tab) => {
+        {ORDER_DETAIL_TABS.filter(tab=>!operational || tab.value!=="finanza").map((tab) => {
           const Icon = icons[tab.value];
           return (
             <TabsTrigger

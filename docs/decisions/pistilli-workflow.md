@@ -14,4 +14,20 @@ Le aziende con profilo standard mantengono la scelta delle proprie fasi: nessuna
 
 La migrazione è riordinata dopo le migrazioni 2028 che creano company_fasi_settings, poiché il repository usa già versioni future. Non include identificativi o documenti del cliente. L’abilitazione di Pistilli è una configurazione separata dei dati.
 
-Limite attuale: il profilo distingue la preparazione del contratto e le attività d’ufficio; non introduce ancora un registro completo degli ordini di intervento collegati al contratto.
+## Contratto e interventi
+
+Gli ordini distinguono `workflow_kind` commessa/contratto/intervento. Un intervento ha un `parent_contract_id` della stessa azienda e un riferimento all’ordine/PED. La creazione tramite `create_contract_intervention` è atomica e usa un id stabile per i tentativi successivi: ordine, fasi e sottofasi vengono creati una sola volta. Lo standard deve appartenere all’azienda. Nessuna data viene dedotta automaticamente.
+
+Gli interventi sono schede operative: importo tecnico zero e IVA nulla sono imposti dal database per evitare duplicazioni dei ricavi. Economia, SAL e pagamenti restano sul contratto. I costi e i rapportini degli interventi rimangono nei singoli interventi: non è ancora implementato un consolidamento automatico dei costi sul contratto. L’avanzamento dell’ufficio non modifica quello delle lavorazioni.
+
+Il contratto può essere salvato in bozza anche senza cliente di fatturazione, quota economica, IVA e pagamenti confermati. I valori mancanti sono indicati nelle note e non generano ricavi o rate. Le normali commesse mantengono i controlli di conferma prima della creazione.
+
+## Attività d’ufficio per ogni azienda
+
+`tasks.activity_scope` distingue ufficio/cantiere/generale. Il riquadro Ufficio è disponibile per tutte le aziende; i modelli stradali rimangono opt-in per Pistilli. Si riusa il flusso di lavoro aziendale esistente per configurare modelli e uffici, senza introdurre una seconda libreria di modelli.
+
+Ogni adempimento può essere assegnato a una persona d’ufficio con account aziendale. Le persone senza account collegato sono evidenziate e non diventano destinatari fittizi. Nomi uguali non vengono uniti automaticamente; gli account vengono distinti fra personale collegato e utenti aziendali.
+
+Il cliente non ha ancora confermato i responsabili: le attività restano esplicitamente “Da assegnare”. Non si possono completare senza responsabile, né agganciare a un avanzamento automatico delle lavorazioni. Nessuna scadenza viene inventata. La scelta dei responsabili proposta in importazione viene conservata nella bozza.
+
+Verifica database con ruolo authenticated e rollback: creazione con 8 fasi, ripetizione senza duplicati, ricavi/VAT del figlio isolati, rifiuto azienda errata, rifiuto completamento di attività non assegnata, importi del contratto invariati. Nessun dato di prova temporaneo della verifica resta salvato.

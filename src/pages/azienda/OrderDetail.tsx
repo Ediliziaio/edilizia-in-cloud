@@ -1,3 +1,5 @@
+import { ContractInterventions } from "@/components/orders/ContractInterventions";
+import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -330,6 +332,7 @@ function OrderDetailInner() {
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
+  const contractLink = useOrderContractLink(id);
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   const queryClient = useQueryClient();
 
@@ -1435,16 +1438,18 @@ function OrderDetailInner() {
           </QuoteCard>
         </OrderCommessaSummary>
         </OrderHeaderSummary>
+        {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
             if (isOrderDetailTab(value)) navigateTo({ tab: value });
           }}
         >
-          <OrderDetailNavigation />
+          <OrderDetailNavigation operational={contractLink.data?.workflow_kind === "intervento"} />
 
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="space-y-4 mt-4">
+            {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
               <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950">Da controllare</h2>
               <div className="divide-y divide-slate-100">
@@ -1673,6 +1678,7 @@ function OrderDetailInner() {
 
           {/* Tab: Finanza */}
           <TabsContent value="finanza" className="space-y-4 mt-4">
+            {contractLink.data?.workflow_kind === "intervento" ? <ContractInterventions key={id} orderId={id!} /> : <>
             <div id="economia-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
@@ -2045,10 +2051,12 @@ function OrderDetailInner() {
               </div>
             </QuoteCard>
             </div>}
+            </>}
           </TabsContent>
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
           <TabsContent value="cantiere" className="mt-2 space-y-3 sm:mt-4 sm:space-y-4">
+            {contractLink.data?.workflow_kind === "contratto" ? <ContractInterventions key={id} orderId={id!} /> : <>
             <div id="cantiere-workspace" className="scroll-mt-24">
               <CantiereViewNav
                 value={vistaCantiere}
@@ -2106,7 +2114,7 @@ function OrderDetailInner() {
                   <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
               </section>
             <div id="section-attivita" className="scroll-mt-24 empty:hidden">
-              <LinkedTasks key={id} orderId={id} category="ordini" compatta editable={permissions.canEditOrders} />
+              <LinkedTasks key={id} orderId={id} category="ordini" excludeOffice compatta editable={permissions.canEditOrders} />
             </div>
             <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard orderId={id!} /></ErrorBoundary></div>
             </>}
@@ -2138,6 +2146,7 @@ function OrderDetailInner() {
                   : order.client_name || ""}
               />
               <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} /></div>
+            </>}
             </>}
           </TabsContent>
         </Tabs>

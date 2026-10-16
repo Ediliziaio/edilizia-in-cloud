@@ -1,3 +1,4 @@
+import { ContractOfficeAssignments } from "@/components/orders/ContractOfficeAssignments";
 import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
@@ -262,6 +263,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
   const fasiDiPartenza = useFasiDiPartenza();
   const workflowProfilo = useContractWorkflowProfile();
+  const [officeAssignments,setOfficeAssignments] = useState<Record<string,string>>({});
   const pianoContratto = useMemo(() => contrattoImportato && workflowProfilo.data ? prepareContract(contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data) : null, [contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data]);
   const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
@@ -293,6 +295,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setBonusLines([]);
     setPendingFiles([]);
     setContrattoImportato(null);
+    setOfficeAssignments({});
     setContractSource(null);
     standardApplicatoRef.current = null;
     setDraftRestored(false);
@@ -332,10 +335,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       setNumInstallments(draft.installments.length);
     }
     if (draft.contractSource) setContractSource(storedContractFromDraft(draft.contractSource, effectiveCompany.id));
+    if (draft.officeAssignments && typeof draft.officeAssignments === "object") setOfficeAssignments(draft.officeAssignments);
     if (draft.contractExtract) {
       const ex = parseContractExtract(draft.contractExtract);
       standardApplicatoRef.current = ex; // Conserva eventuali adattamenti manuali della bozza.
       setContrattoImportato(ex);
+    setOfficeAssignments({});
     }
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
     if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
@@ -382,6 +387,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (appliedQuoteRef.current === selectedQuoteId) return; // una volta per preventivo scelto
     appliedQuoteRef.current = selectedQuoteId;
     setContrattoImportato(null);
+    setOfficeAssignments({});
     setContractSource(null);
     if (quotePrefill.description) setValue("description", quotePrefill.description);
     setValue("total_amount", String(quotePrefill.totalAmount));
@@ -589,6 +595,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   const datiBozza = useMemo<Omit<OrderDraftData, "savedAt">>(() => ({
         contractExtract: contrattoImportato,
+      officeAssignments,
         contractSource,
         customerId: customerId || "",
         orderCode: orderCode || "",
@@ -627,7 +634,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       hasBuildingBonus, bonusLines,
       orderItems, dateToIso, cantiereAddress, cantiereAddressData,
       fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare,
-      durataLavori, settimanaLavorativa, contrattoImportato, contractSource]);
+      durataLavori, settimanaLavorativa, contrattoImportato, contractSource, officeAssignments]);
 
   // Anche il completamento usa questa fotografia: dopo la RPC la bozza conserva l'id già creato.
   useEffect(() => {
@@ -639,6 +646,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   const handleClearDraft = useCallback(() => {
     setContrattoImportato(null);
+    setOfficeAssignments({});
     setContractSource(null);
     standardApplicatoRef.current = null;
     clearDraft();
@@ -829,14 +837,35 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const toDateStr = (d: Date | undefined): string | null =>
     d ? format(d, "yyyy-MM-dd") : null;
 
+  const contractDraftIdRef = useRef<string | null>(null);
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (options?: {contractDraft?: boolean}) => {
       if (createdOrderIdRef.current) return { id: createdOrderIdRef.current, success: true };
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
       if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
       const values = getValues();
+      if (options?.contractDraft) {
+        if (!pianoContratto || pianoContratto.organizzazione !== "interventi_su_ordine" || values.description.trim().length < 3) throw new Error("Importa e verifica il contratto prima di salvarlo in bozza.");
+        contractDraftIdRef.current ??= crypto.randomUUID();
+        const draftId = contractDraftIdRef.current;
+        const {error} = await (supabase as any).from("orders").insert({id:draftId,company_id:effectiveCompany.id,created_by:user!.id,
+          workflow_kind:"contratto",description:values.description.trim(),order_code:values.order_code.trim()||null,
+          internal_notes:contractPreparationNotes(pianoContratto),work_description:pianoContratto.extract.descrizione_lavori,
+          status:"bozza",current_status_id:statuses.find(s=>/da verificare/i.test(s.name))?.id??null,
+          total_amount:0,vat_rate:null,payment_type:null,customer_id:null});
+        if(error && error.code!=="23505") throw error;
+        if(error) {
+          const check=await (supabase as any).from("orders").select("id").eq("id",draftId).eq("company_id",effectiveCompany.id).eq("workflow_kind","contratto").single();
+          if(check.error || !check.data) throw error;
+        }
+        createdOrderIdRef.current=draftId; setCreatedOrderId(draftId);
+        saveDraft({...datiBozza,commessaCreataId:draftId});
+        try { await saveContractOfficeTasks(effectiveCompany.id,draftId,user!.id,pianoContratto.ufficio,officeAssignments); }
+        catch { toast.warning("Bozza salvata: verifica gli adempimenti d’ufficio nel dettaglio prima di proseguire."); }
+        return {id:draftId,success:true};
+      }
       if (invoiceId) {
         if (!invoiceSource.data || isNotaCredito(invoiceSource.data.document_type)) throw new Error("Questa fattura non può generare una nuova commessa.");
         const fresh = await riconciliaEmessa(effectiveCompany.id,invoiceId);
@@ -1039,11 +1068,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (cantErr) console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message);
       }
 
+      if (pianoContratto?.organizzazione === "interventi_su_ordine" && result.id) {
+        const {error: contractKindError} = await (supabase as any).from("orders").update({workflow_kind:"contratto"}).eq("id",result.id).eq("company_id",effectiveCompany.id);
+        if(contractKindError) toast.warning("Commessa creata: usa «Organizza come contratto con interventi» nel dettaglio per completare il collegamento.");
+      }
       // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
       // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
       if (pianoContratto?.ufficio.length && result.id) {
         try {
-          await saveContractOfficeTasks(effectiveCompany.id, result.id, user!.id, pianoContratto.ufficio);
+          await saveContractOfficeTasks(effectiveCompany.id, result.id, user!.id, pianoContratto.ufficio, officeAssignments);
         } catch (error) {
           toast.error("Commessa creata, adempimenti di ufficio da completare", { description: "Non creare una seconda commessa. Il riepilogo è nelle note interne: verifica le attività della commessa.", duration: 15000 });
           logger.error("Salvataggio adempimenti contratto", error);
@@ -1091,7 +1124,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (effectiveCompany?.id) {
           const { data: comp } = await supabase
             .from("companies").select("playbook_auto_apply").eq("id", effectiveCompany.id).maybeSingle();
-          if ((comp as { playbook_auto_apply?: boolean } | null)?.playbook_auto_apply) {
+          if (pianoContratto?.organizzazione !== "interventi_su_ordine" && (comp as { playbook_auto_apply?: boolean } | null)?.playbook_auto_apply) {
             await applyPlaybookToOrder({ companyId: effectiveCompany.id, orderId: order.id, vertical, baseDate: new Date(), assignedTo: getValues("assigned_to") || null });
           }
         }
@@ -1360,6 +1393,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
         {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
         {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
+        {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>Salva bozza del contratto da verificare</Button></div>}
+        {pianoContratto?.ufficio.length ? <ContractOfficeAssignments companyId={effectiveCompany?.id} steps={pianoContratto.ufficio} value={officeAssignments} onChange={setOfficeAssignments} /> : null}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
         {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}
         <div className="flex flex-col gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-orange-900/40 dark:bg-orange-950/20">
