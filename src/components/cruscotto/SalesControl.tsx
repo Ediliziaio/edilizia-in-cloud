@@ -18,12 +18,12 @@ export const SalesControl = memo(function SalesControl({ sales, kpi, isLoading }
   const avgCycle = Number(kpi?.avg_lead_to_won_days ?? 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Sales Control</h3>
 
       {/* Sales KPI cards */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="p-4">
+        <Card className="p-3">
           <div className="flex items-center gap-2 mb-1">
             <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Pipeline Attiva</span>
@@ -32,7 +32,7 @@ export const SalesControl = memo(function SalesControl({ sales, kpi, isLoading }
             <div className="text-lg font-bold tabular-nums">{fmtCur(pipeline)}</div>
           )}
         </Card>
-        <Card className="p-4">
+        <Card className="p-3">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Forecast 30gg</span>
@@ -41,7 +41,7 @@ export const SalesControl = memo(function SalesControl({ sales, kpi, isLoading }
             <div className="text-lg font-bold tabular-nums">{fmtCur(forecast30)}</div>
           )}
         </Card>
-        <Card className="p-4">
+        <Card className="p-3">
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Ciclo Medio</span>

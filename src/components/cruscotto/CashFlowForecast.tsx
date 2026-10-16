@@ -26,7 +26,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
 
   if (isLoading) return (
     <Card>
-      <CardContent className="p-5 space-y-3">
+      <CardContent className="p-3 space-y-3">
         <Skeleton className="h-5 w-48" />
         <Skeleton className="h-20 w-full" />
       </CardContent>
@@ -38,7 +38,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
 
   return (
     <Card>
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+      <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-sm font-semibold">Incassi attesi</CardTitle>
         <button
           onClick={() => navigate("/azienda/scadenzario")}
@@ -47,12 +47,12 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
           Dettaglio →
         </button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="p-3 pt-0 space-y-3">
         {/* Forecast bars */}
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Rate di pagamento programmate</p>
           {forecast.incoming90 > 0 ? (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 { label: "Entro 30gg", value: forecast.incoming30 },
                 { label: "Entro 60gg", value: forecast.incoming60 },

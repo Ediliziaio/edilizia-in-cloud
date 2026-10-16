@@ -17,6 +17,8 @@ type DashboardPageHeaderProps = {
    * recupera spazio verticale). Su ≥sm il titolo torna visibile.
    */
   compactTitle?: boolean;
+  /** Compact spacing for dense operational dashboards. */
+  density?: "default" | "compact";
 };
 
 export function DashboardPageHeader({
@@ -28,6 +30,7 @@ export function DashboardPageHeader({
   actions,
   className,
   compactTitle = false,
+  density = "default",
 }: DashboardPageHeaderProps) {
   const hasControls = Boolean(toolbar || actions);
   // Su mobile filtri+azioni sono pesanti e occupavano troppo spazio verticale
@@ -42,10 +45,11 @@ export function DashboardPageHeader({
         // Mobile senza titolo resta solo il bottone «Filtri»: niente riquadro
         // intorno, che spendeva una card intera per un bottone.
         compactTitle && "max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none",
+        density === "compact" && "sm:px-4 sm:py-3",
         className,
       )}
     >
-      <div className="flex flex-col gap-2.5 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className={cn("flex flex-col gap-2.5 sm:gap-4 xl:flex-row xl:items-center xl:justify-between", density === "compact" && "sm:gap-3")}>
         <div className={cn("flex min-w-0 items-start gap-3", compactTitle && "hidden sm:flex")}>
           {Icon && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -54,7 +58,7 @@ export function DashboardPageHeader({
           )}
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className={cn("text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl", density === "compact" && "sm:text-xl")}>
                 {title}
               </h1>
               {leftAccessory}

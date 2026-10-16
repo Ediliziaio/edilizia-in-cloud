@@ -210,10 +210,10 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
       {/* Suppliers list */}
       {data.suppliersDue.length > 0 && (
         <Card className="border-dashed">
-          <CardHeader className="py-2 px-4">
+          <CardHeader className="p-3 py-2 px-4">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Prossimi pagamenti fornitori</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-2 pt-0">
+          <CardContent className="p-3 pt-0 px-4 pb-2 pt-0">
             <div className="divide-y divide-border">
               {data.suppliersDue.slice(0, 5).map((s) => (
                 <div key={s.id} className="flex items-center justify-between py-1.5">

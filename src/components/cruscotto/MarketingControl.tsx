@@ -34,10 +34,10 @@ export const MarketingControl = memo(function MarketingControl({ sources, funnel
 
   if (isEmpty) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Marketing Control</h3>
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <CardContent className="p-3 pt-0 flex flex-col items-center justify-center py-8 text-center">
             <BarChartIcon className="h-10 w-10 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">Nessun dato marketing nel periodo</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Importa contatti o registra campagne per visualizzare funnel e ROI</p>
@@ -48,17 +48,17 @@ export const MarketingControl = memo(function MarketingControl({ sources, funnel
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Marketing Control</h3>
       <DashboardFunnel funnel={funnel} isLoading={isLoading} />
 
       {/* ROI per source chart */}
       {roiData.length > 0 && (
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-2">
             <CardTitle className="text-base">ROI per Sorgente</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 pt-0">
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={roiData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>

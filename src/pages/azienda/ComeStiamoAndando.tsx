@@ -58,7 +58,7 @@ function Numero({
             incassare" diventava "SCADUTO DA IN...", che non dice cosa sia.
             Le schede stanno in una griglia, quindi si allineano comunque. */}
         <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-slate-500">{etichetta}</p>
-        <p className={`mt-1 text-lg font-bold leading-none tabular-nums sm:text-xl md:text-[26px] ${stile.valore}`}>{valore}</p>
+        <p className={`mt-1 text-lg font-bold leading-none tabular-nums sm:text-xl md:text-2xl ${stile.valore}`}>{valore}</p>
         <div className="mt-1 hidden text-[11px] leading-4 text-slate-500 sm:block">{contesto}</div>
       </div>
     </div>
@@ -212,7 +212,7 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
   const caricando = isLoading || cantieriLoading;
 
   return (
-    <div className={comeSezione ? "space-y-4" : "space-y-4 p-3 md:p-6"}>
+    <div className={comeSezione ? "space-y-3" : "space-y-4 p-3 md:p-6"}>
       {!comeSezione && (
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Come stiamo andando</h1>
@@ -317,11 +317,12 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
             Niente che richieda attenzione: nessuno scaduto, nessun cantiere oltre la data.
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-slate-100 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-slate-100"}>
             {attenzioni.map((v) => (
-              <li key={v.id}>
+              <li key={v.id} className={comeSezione ? "lg:border-b lg:border-slate-100 lg:odd:border-r" : undefined}>
                 <Link
                   to={v.url}
+                  title={`${v.titolo} — ${v.dettaglio}`}
                   className="group flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-slate-50"
                   style={{
                     borderLeftColor:
