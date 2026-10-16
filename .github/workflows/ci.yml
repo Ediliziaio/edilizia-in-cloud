@@ -92,6 +92,24 @@ jobs:
           src/test/ui/duplicaLavoroDialog.test.tsx
           src/test/ui/ristrutturazioneDuplicaFlusso.test.tsx
 
+      - name: Run bounded reads, Kanban and shared Realtime regressions
+        run: >-
+          bunx vitest run --maxWorkers=1
+          src/test/logic/queryTimeoutCancellation.test.ts
+          src/test/logic/heavyReadLimit.test.ts
+          src/test/logic/shareSubscription.test.ts
+          src/test/ui/chatUnreadSharedRealtime.test.tsx
+          src/test/logic/edgeWarmupConsoleSafety.test.ts
+          src/test/logic/opportunitaTempoReale.test.tsx
+          src/test/ui/opportunitaCestino.test.tsx
+          src/test/logic/fasiPermessiInitplan.test.ts
+          src/test/logic/fasiVisibilityInvoker.test.ts
+          src/test/logic/mktMaterializedMetrics.test.ts
+          src/test/logic/kanbanCardsAggregation.test.ts
+          src/test/logic/cronLavoroReale.test.ts
+          src/test/logic/cronWorkerCoda.test.ts
+          src/test/logic/cronCapiReadiness.test.ts
+
       - name: Run sidebar preview regression tests
         run: >-
           bunx vitest run --maxWorkers=1

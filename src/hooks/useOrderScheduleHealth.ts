@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
 
 /**
  * Semaforo tempi commessa (Fase C spec 2026-07-03-rapportino-flow-design):
@@ -36,12 +37,13 @@ export function useOrderScheduleHealth(orderId: string | null | undefined) {
     queryKey: ["order-schedule-health", orderId],
     enabled: !!orderId,
     staleTime: 60_000,
-    queryFn: async (): Promise<OrderScheduleHealth> => {
+    retry: false,
+    queryFn: async ({ signal }): Promise<OrderScheduleHealth> => {
       // RPC creata via migration, non ancora nei tipi generati → cast
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("order_schedule_health", {
+      const { data, error } = await withHeavyDatabaseRead((requestSignal) => (supabase.rpc as any)("order_schedule_health", {
         p_order_id: orderId,
-      });
+      }).abortSignal(requestSignal), "Avanzamento commessa", 8000, signal) as { data: unknown; error: unknown };
       if (error) throw error;
       const parsed = (data ?? null) as OrderScheduleHealth | null;
       if (!parsed || !parsed.stato) return EMPTY;
