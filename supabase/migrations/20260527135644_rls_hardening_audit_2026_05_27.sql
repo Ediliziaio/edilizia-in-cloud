@@ -19,6 +19,10 @@ CREATE POLICY ai_model_config_read_own ON public.ai_model_config
   );
 
 -- ─── L2 fv_function_logs: RLS disabled ──────────────────────
+-- Anteprima vuota: completa questa estensione nella fondazione della tabella.
+DO $fv_logs_dependency$
+BEGIN
+ IF to_regclass('public.fv_function_logs') IS NOT NULL THEN
 ALTER TABLE public.fv_function_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS fv_function_logs_company ON public.fv_function_logs;
 CREATE POLICY fv_function_logs_company ON public.fv_function_logs
@@ -31,6 +35,8 @@ DROP POLICY IF EXISTS fv_function_logs_service ON public.fv_function_logs;
 CREATE POLICY fv_function_logs_service ON public.fv_function_logs
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
+ END IF;
+END $fv_logs_dependency$;
 
 -- ─── S1 invoices: cantiere vede fatturato ───────────────────
 DROP POLICY IF EXISTS company_invoices ON public.invoices;

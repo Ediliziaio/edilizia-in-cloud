@@ -45,6 +45,14 @@ CREATE TABLE public.bundle_voci (
   CONSTRAINT bundle_voci_ha_item CHECK (prodotto_id IS NOT NULL OR tariffa_id IS NOT NULL)
 );
 
+-- Completa le estensioni storiche che precedevano la tabella.
+ALTER TABLE public.bundle_voci
+  ADD COLUMN IF NOT EXISTS immagine_url text;
+
+COMMENT ON COLUMN public.bundle_voci.immagine_url IS
+  'Foto del prodotto della voce bundle, mostrata nella pagina kit del preventivo PDF.';
+
+
 ALTER TABLE public.bundle_prodotti ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bundle_voci ENABLE ROW LEVEL SECURITY;
 

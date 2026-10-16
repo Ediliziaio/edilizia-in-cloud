@@ -291,3 +291,171 @@ it("ricostruisce il computo con le colonne di abbinamento e le policy aziendali"
     await db.close();
   }
 }, 60000);
+
+it("ricostruisce le estensioni successive di FV, bundle, SMS e audit firma", async () => {
+  const db = new PGlite();
+  const migration = (name: string) =>
+    readFileSync(`supabase/migrations/${name}.sql`, "utf8");
+  const tableDDL = (sql: string, name: string) => {
+    const match = sql.match(
+      new RegExp(
+        `CREATE TABLE(?: IF NOT EXISTS)? (?:public\\.)?${name}\\s*\\([\\s\\S]*?\\n\\);`,
+      ),
+    );
+    expect(match, name).not.toBeNull();
+    return match![0];
+  };
+  try {
+    await db.exec(`create schema auth; create schema storage; create schema cron;
+      create role authenticated; create role service_role;
+      create type app_role as enum ('company_admin','super_admin');
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function has_role(uuid,app_role) returns boolean language sql stable as $$select false$$;
+      create function get_my_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create function get_effective_company_id() returns uuid language sql stable as $$select null::uuid$$;
+      create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;
+      create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;
+      create function cron.unschedule(text) returns boolean language sql as $$select true$$;
+      create table cron.job(jobname text);
+      create table auth.users(id uuid primary key);
+      create table companies(id uuid primary key);
+      create table marketing_contacts(id uuid primary key,first_name text,last_name text);
+      create table marketing_opportunities(id uuid primary key);
+      create table orders(id uuid primary key);
+      create table article_families(id uuid primary key);
+      create table article_templates(id uuid primary key);
+      create table articoli_native(id uuid primary key,company_id uuid);
+      create table tariffe_aziendali(id uuid primary key);
+      create table signature_requests(id uuid primary key);
+      create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+      create table storage.objects(bucket_id text,name text);`);
+    const hardening = migration(
+      "20260527135644_rls_hardening_audit_2026_05_27",
+    );
+    const block = hardening.match(
+      /DO \$fv_logs_dependency\$[\s\S]*?END \$fv_logs_dependency\$;/,
+    );
+    expect(block).not.toBeNull();
+    await db.exec(block![0]);
+    for (const name of [
+      "20260620063026_fv_progetti_dati_tetto",
+      "20260620063036_fv_perdita_ombreggiamento",
+      "20260628142253_fv_progetti_modalita_pagamento",
+      "20260628172238_fv_componenti_bundle_immagini",
+      "20260703162839_fv_sconto_e_link_listino",
+      "20260704061843_fv_template_usp_cronoprogramma",
+      "20260613043724_adjust_credits_atomic_sms_support",
+      "20260703125722_fea_p1_audit_restrict_and_expiry",
+    ]) {
+      await db.exec(migration(name));
+    }
+    await db.exec(migration("20260708000000_sconti_quantita_bundle"));
+    await db.exec(
+      tableDDL(
+        migration("20260816000001_sms_telnyx_wallet"),
+        "sms_wallet_transazioni",
+      ),
+    );
+    await db.exec(
+      tableDDL(
+        migration("20260818000001_fea_documenti_sistema"),
+        "fea_audit_log",
+      ),
+    );
+    await db.exec(migration("20261027120000_fv_modulo_wave1"));
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='fv_progetti' and column_name in ('layout_tetto','modalita_pagamento','sconto_valore','perdita_ombreggiamento_pct')",
+        )
+      ).rows,
+    ).toHaveLength(4);
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='fv_template_pdf' and column_name in ('usp','cronoprogramma')",
+        )
+      ).rows,
+    ).toHaveLength(2);
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='bundle_voci' and column_name='immagine_url'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='fv_function_logs'::regclass",
+        )
+      ).rows[0],
+    ).toEqual({ relrowsecurity: true });
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where tablename='fv_function_logs'",
+        )
+      ).rows,
+    ).toHaveLength(2);
+    expect(
+      (
+        await db.query(
+          "select confdeltype from pg_constraint where conname='fea_audit_log_request_id_fkey'",
+        )
+      ).rows[0],
+    ).toEqual({ confdeltype: "r" });
+    await db.exec(
+      "insert into companies values ('10000000-0000-4000-8000-000000000001'); insert into sms_wallet_transazioni(company_id,tipo,importo,saldo_dopo,descrizione) values ('10000000-0000-4000-8000-000000000001','rettifica_admin',1,1,'Verifica')",
+    );
+    expect(
+      (await db.query("select tipo from sms_wallet_transazioni")).rows,
+    ).toEqual([{ tipo: "rettifica_admin" }]);
+  } finally {
+    await db.close();
+  }
+}, 60000);
+
+it("crea il Test Lab prima della policy di maggio senza richiedere l’azienda demo", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create schema auth; create role authenticated; create role service_role;
+      create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
+      create function is_silvio_superadmin(uuid default auth.uid()) returns boolean language sql stable as $$select false$$;
+      create table auth.users(id uuid primary key);
+      create table companies(id uuid primary key);
+      create table profiles(id uuid,company_id uuid);`);
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260509200000_ai_admin_restructure_fixes.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20270309000000_ai_test_lab_demo_only.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await db.query(
+          "select relrowsecurity from pg_class where oid='ai_test_runs'::regclass",
+        )
+      ).rows[0],
+    ).toEqual({ relrowsecurity: true });
+    expect(
+      (
+        await db.query(
+          "select policyname from pg_policies where policyname='ai_test_runs_select_v2'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect((await db.query("select * from ai_test_quota")).rows).toHaveLength(
+      0,
+    );
+    expect((await db.query("select * from companies")).rows).toHaveLength(0);
+  } finally {
+    await db.close();
+  }
+}, 60000);

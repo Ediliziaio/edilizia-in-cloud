@@ -145,6 +145,29 @@ CREATE TABLE IF NOT EXISTS public.fv_progetti (
     (longitudine IS NULL OR (longitudine >= 6 AND longitudine <= 19))
 );
 
+-- Completa le estensioni storiche che precedevano la tabella.
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS azimut_tetto numeric;
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS inclinazione_tetto numeric;
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS layout_tetto jsonb;
+COMMENT ON COLUMN public.fv_progetti.azimut_tetto IS 'F16 — Orientamento prevalente della falda in gradi (0=Nord, 90=Est, 180=Sud, 270=Ovest). Da Google Solar API.';
+COMMENT ON COLUMN public.fv_progetti.inclinazione_tetto IS 'F16 — Inclinazione (pendenza) della falda prevalente in gradi. Da Google Solar API.';
+COMMENT ON COLUMN public.fv_progetti.layout_tetto IS 'F16 — Layout reale dei pannelli (coordinate/segmenti) suggerito dalla Solar API.';
+
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS perdita_ombreggiamento_pct numeric NOT NULL DEFAULT 0;
+COMMENT ON COLUMN public.fv_progetti.perdita_ombreggiamento_pct IS 'Perdita frazionaria 0..1 da ombreggiamento vicino (alberi/edifici adiacenti). 0 = nessuno. L''orizzonte lontano è già in PVGIS H(i)_y.';
+
+ALTER TABLE public.fv_progetti
+  ADD COLUMN IF NOT EXISTS modalita_pagamento jsonb;
+
+COMMENT ON COLUMN public.fv_progetti.modalita_pagamento IS
+  'Schema pagamento diretto: {"tranche":[{"label","pct"}],"note":string|null}. Le % sommano a 100; gli importi € si ricalcolano sul prezzo di vendita IVA inclusa.';
+
+ALTER TABLE public.fv_progetti
+  ADD COLUMN IF NOT EXISTS sconto_tipo text CHECK (sconto_tipo IN ('pct','importo')),
+  ADD COLUMN IF NOT EXISTS sconto_valore numeric,
+  ADD COLUMN IF NOT EXISTS sconto_eur_applicato numeric;
+
+
 CREATE INDEX IF NOT EXISTS idx_fv_progetti_company ON public.fv_progetti(company_id) WHERE annullato = false;
 CREATE INDEX IF NOT EXISTS idx_fv_progetti_cliente ON public.fv_progetti(cliente_id) WHERE annullato = false;
 CREATE INDEX IF NOT EXISTS idx_fv_progetti_stato ON public.fv_progetti(company_id, stato) WHERE annullato = false;
@@ -375,6 +398,21 @@ CREATE TABLE IF NOT EXISTS public.fv_function_logs (
   created_at timestamptz DEFAULT now()
 );
 
+-- Completa le estensioni storiche che precedevano la tabella.
+ALTER TABLE public.fv_function_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS fv_function_logs_company ON public.fv_function_logs;
+CREATE POLICY fv_function_logs_company ON public.fv_function_logs
+  FOR SELECT TO authenticated
+  USING (
+    company_id = get_my_company_id()
+    OR has_role(auth.uid(), 'super_admin'::app_role)
+  );
+DROP POLICY IF EXISTS fv_function_logs_service ON public.fv_function_logs;
+CREATE POLICY fv_function_logs_service ON public.fv_function_logs
+  FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+
 CREATE INDEX IF NOT EXISTS idx_fv_logs_function ON public.fv_function_logs(function_name, created_at desc);
 CREATE INDEX IF NOT EXISTS idx_fv_logs_company ON public.fv_function_logs(company_id, created_at desc);
 CREATE INDEX IF NOT EXISTS idx_fv_logs_errors ON public.fv_function_logs(response_status) WHERE response_status >= 400;
@@ -509,6 +547,12 @@ CREATE TABLE IF NOT EXISTS public.fv_template_pdf (
   acconto_pct integer DEFAULT 30,
   updated_at timestamptz DEFAULT now()
 );
+
+-- Completa le estensioni storiche che precedevano la tabella.
+ALTER TABLE public.fv_template_pdf
+  ADD COLUMN IF NOT EXISTS usp jsonb,
+  ADD COLUMN IF NOT EXISTS cronoprogramma jsonb;
+
 
 DROP TRIGGER IF EXISTS trg_fv_template_pdf_updated_at ON public.fv_template_pdf;
 CREATE TRIGGER trg_fv_template_pdf_updated_at

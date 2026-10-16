@@ -98,7 +98,7 @@ ALTER TABLE public.signature_requests
 -- fea_audit_log (immutabile)
 CREATE TABLE IF NOT EXISTS public.fea_audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  request_id UUID NOT NULL REFERENCES public.signature_requests(id) ON DELETE CASCADE,
+  request_id UUID NOT NULL REFERENCES public.signature_requests(id) ON DELETE RESTRICT,
   company_id UUID NOT NULL,
   evento TEXT NOT NULL CHECK (evento IN (
     'sessione_creata','link_inviato','link_aperto',

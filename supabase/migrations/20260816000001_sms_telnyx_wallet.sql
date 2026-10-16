@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS sms_wallet_transazioni (
   id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id                UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   tipo                      TEXT NOT NULL
-                              CHECK (tipo IN ('ricarica','addebito_sms','addebito_numero','rimborso','bonus')),
+                              CHECK (tipo IN ('ricarica','addebito_sms','addebito_numero','rimborso','bonus','rettifica_admin')),
   importo                   NUMERIC(12,6) NOT NULL,
   saldo_dopo                NUMERIC(12,2) NOT NULL,
   descrizione               TEXT NOT NULL,

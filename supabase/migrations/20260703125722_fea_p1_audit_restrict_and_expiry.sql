@@ -7,11 +7,17 @@
 -- 1) L'audit trail (prova legale, CAD) non deve sparire se si cancella la
 --    richiesta: da CASCADE a RESTRICT. Ora una signature_request con audit
 --    non è cancellabile (si usa lo stato 'cancelled', non il DELETE).
+-- Anteprima vuota: completa questa estensione nella fondazione della tabella.
+DO $fea_dependency$
+BEGIN
+ IF to_regclass('public.fea_audit_log') IS NOT NULL THEN
 ALTER TABLE public.fea_audit_log
   DROP CONSTRAINT IF EXISTS fea_audit_log_request_id_fkey;
 ALTER TABLE public.fea_audit_log
   ADD CONSTRAINT fea_audit_log_request_id_fkey
   FOREIGN KEY (request_id) REFERENCES public.signature_requests(id) ON DELETE RESTRICT;
+ END IF;
+END $fea_dependency$;
 
 -- 2) Scadenza automatica: le richieste 'pending'/'otp_verified' scadute
 --    passano a 'expired' + evento audit 'sessione_scaduta'. Prima restavano

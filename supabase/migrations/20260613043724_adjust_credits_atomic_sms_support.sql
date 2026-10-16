@@ -4,11 +4,17 @@
 
 -- Aggiunge il tipo 'rettifica_admin' alle transazioni SMS (aggiustamento
 -- manuale di un super_admin, distinto da ricarica Stripe / addebiti d'uso).
+-- Anteprima vuota: completa questa estensione nella fondazione della tabella.
+DO $sms_dependency$
+BEGIN
+ IF to_regclass('public.sms_wallet_transazioni') IS NOT NULL THEN
 ALTER TABLE public.sms_wallet_transazioni
   DROP CONSTRAINT IF EXISTS sms_wallet_transazioni_tipo_check;
 ALTER TABLE public.sms_wallet_transazioni
   ADD CONSTRAINT sms_wallet_transazioni_tipo_check
   CHECK (tipo = ANY (ARRAY['ricarica','addebito_sms','addebito_numero','rimborso','bonus','rettifica_admin']));
+ END IF;
+END $sms_dependency$;
 
 -- Estende adjust_credits_atomic per gestire service='sms' sul wallet
 -- sms_wallet (colonna `crediti`, EUR) + traccia in sms_wallet_transazioni.
