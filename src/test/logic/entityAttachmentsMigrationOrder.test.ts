@@ -97,3 +97,27 @@ it("deduplica una tabella preesistente senza eliminare lo storico né unire azie
     await db.close();
   }
 }, 60000);
+
+// Tenant-specific catalogue data is optional when rebuilding an empty branch.
+it("il seed del listino non richiede aziende di produzione e non usa altre aziende", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(
+      "create table companies(id uuid primary key, name text, created_at timestamptz default now())",
+    );
+    const seed = readFileSync(
+      "supabase/migrations/20260506090500_seed_listino_piu_luce_kebei.sql",
+      "utf8",
+    );
+    await db.exec(seed);
+    await db.exec(
+      "insert into companies(id,name) values (gen_random_uuid(),'Altra azienda')",
+    );
+    await db.exec(seed);
+    expect((await db.query("select name from companies")).rows).toEqual([
+      { name: "Altra azienda" },
+    ]);
+  } finally {
+    await db.close();
+  }
+}, 60000);

@@ -24,7 +24,9 @@ BEGIN
    LIMIT 1;
 
   IF v_company_id IS NULL THEN
-    RAISE EXCEPTION 'Company "Ke Bei Serramenti" non trovata. Crearla prima oppure adattare la query del seed.';
+    -- Le preview ricostruiscono lo schema senza copiare le aziende di produzione.
+    RAISE NOTICE 'Seed PIU LUCE saltato: azienda destinataria assente.';
+    RETURN;
   END IF;
   RAISE NOTICE 'Company Ke Bei id = %', v_company_id;
 
