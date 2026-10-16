@@ -10,7 +10,13 @@
 -- figlie) — il purge le gestisce esplicitamente.
 
 alter table public.sr_progetti  add column if not exists deleted_at timestamptz;
-alter table public.fv_progetti  add column if not exists deleted_at timestamptz;
+-- La tabella FV è fondata in ottobre: la colonna viene completata lì.
+DO $fv_trash_dependency$
+BEGIN
+ IF to_regclass('public.fv_progetti') IS NOT NULL THEN
+  alter table public.fv_progetti add column if not exists deleted_at timestamptz;
+ END IF;
+END $fv_trash_dependency$;
 alter table public.rst_progetti add column if not exists deleted_at timestamptz;
 alter table public.bgn_progetti add column if not exists deleted_at timestamptz;
 alter table public.tet_progetti add column if not exists deleted_at timestamptz;

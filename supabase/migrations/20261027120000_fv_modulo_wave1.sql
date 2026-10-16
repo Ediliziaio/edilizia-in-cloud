@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS public.fv_progetti (
 );
 
 -- Completa le estensioni storiche che precedevano la tabella.
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS azimut_tetto numeric;
 ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS inclinazione_tetto numeric;
 ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS layout_tetto jsonb;
@@ -847,5 +848,15 @@ UPDATE public.fv_incentivi_catalogo SET
   cumulabile_con = ARRAY['IVA_10','RID']::text[],
   non_cumulabile_con = ARRAY['DETR_50_PRIMA','DETR_36_SECONDA','REDDITO_ENERGETICO']::text[]
   WHERE codice = 'TRANSIZIONE_5_0';
+
+-- Completa anche la visibilità assegnata rinviata dalla migrazione di luglio.
+drop policy if exists "co_fv_progetti_all" on public.fv_progetti;
+create policy "co_fv_progetti_all" on public.fv_progetti
+for all using (
+  company_id = get_effective_company_id()
+  and check_staff_visibility((select auth.uid()), created_by)
+) with check (
+  company_id = get_effective_company_id()
+);
 
 COMMIT;

@@ -362,7 +362,36 @@ it("ricostruisce le estensioni successive di FV, bundle, SMS e audit firma", asy
         "fea_audit_log",
       ),
     );
+    await db.exec(`create function check_staff_visibility(uuid,uuid) returns boolean language sql stable as $$select true$$;
+      create function is_super_admin() returns boolean language sql stable as $$select false$$;
+      create table sr_progetti(id uuid,company_id uuid,created_by uuid,consulente_id uuid);
+      create table rst_progetti(id uuid,company_id uuid,created_by uuid);
+      create table bgn_progetti(id uuid,company_id uuid,created_by uuid);
+      create table tet_progetti(id uuid,company_id uuid,created_by uuid);
+      create table clm_progetti(id uuid,company_id uuid,created_by uuid);
+      create table ele_progetti(id uuid,company_id uuid,created_by uuid);
+      create table idr_progetti(id uuid,company_id uuid,created_by uuid);
+      create table pav_progetti(id uuid,company_id uuid,created_by uuid);
+      create table pis_progetti(id uuid,company_id uuid,created_by uuid);`);
+    await db.exec(migration("20260713131656_cestino_preventivi_30gg"));
+    await db.exec(
+      migration("20260713133837_preventivi_only_assigned_visibilita"),
+    );
     await db.exec(migration("20261027120000_fv_modulo_wave1"));
+    expect(
+      (
+        await db.query<{ qual: string }>(
+          "select qual from pg_policies where tablename='fv_progetti' and policyname='co_fv_progetti_all'",
+        )
+      ).rows[0].qual,
+    ).toContain("check_staff_visibility");
+    expect(
+      (
+        await db.query(
+          "select column_name from information_schema.columns where table_name='fv_progetti' and column_name='deleted_at'",
+        )
+      ).rows,
+    ).toHaveLength(1);
     expect(
       (
         await db.query(

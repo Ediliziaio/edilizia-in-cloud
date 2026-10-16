@@ -10,6 +10,9 @@
 -- Bonus: i moduli passano a get_effective_company_id() (multi-azienda ok).
 
 -- fv_progetti
+DO $fv_visibility_dependency$
+BEGIN
+ IF to_regclass('public.fv_progetti') IS NOT NULL THEN
 drop policy if exists "co_fv_progetti_all" on public.fv_progetti;
 create policy "co_fv_progetti_all" on public.fv_progetti
 for all using (
@@ -18,6 +21,8 @@ for all using (
 ) with check (
   company_id = get_effective_company_id()
 );
+ END IF;
+END $fv_visibility_dependency$;
 
 -- sr_progetti (consulente_id = venditore assegnato)
 drop policy if exists "sr_progetti_select" on public.sr_progetti;
