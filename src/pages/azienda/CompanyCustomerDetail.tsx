@@ -1024,7 +1024,10 @@ export default function CompanyCustomerDetail() {
         Usato `order-*` CSS per ribaltare l'ordine senza duplicare markup.
         Il min-h timeline è limitato su mobile per evitare scroll infinito.
       */}
-      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:min-h-[70vh]">
+      {/* Altezza LIMITATA su desktop (come la scheda contatti): così la timeline
+          scrolla dentro il pannello e la barra «scrivi email / WhatsApp» resta
+          FISSA in basso invece di finire in coda allo scroll della pagina. */}
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-18rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
         <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">
           <CustomerProfileCard
@@ -1043,17 +1046,21 @@ export default function CompanyCustomerDetail() {
 
         {/* ─── CENTER timeline + compose (su mobile è il PRIMO blocco) ─── */}
         <div className="order-1 lg:order-none flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden min-h-[50vh] lg:min-h-0">
-          <CustomerActivityTimeline
-            customerId={customer.id}
-            orders={orders}
-            tickets={tickets}
-            appuntamenti={appuntamenti}
-            fatture={fattureCliente}
-            emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
-            diaryMessages={diaryMessagesForTimeline}
-            messaggi={conversazioniMessaggi}
-            customerCreatedAt={customer.created_at}
-          />
+          {/* Wrapper flex-1 min-h-0: la timeline (h-full) scrolla qui dentro,
+              lasciando il composer fisso in basso (come UnifiedContactTimeline). */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <CustomerActivityTimeline
+              customerId={customer.id}
+              orders={orders}
+              tickets={tickets}
+              appuntamenti={appuntamenti}
+              fatture={fattureCliente}
+              emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
+              diaryMessages={diaryMessagesForTimeline}
+              messaggi={conversazioniMessaggi}
+              customerCreatedAt={customer.created_at}
+            />
+          </div>
           <CustomerComposeBar
             customerId={customer.id}
             customerEmail={formatCustomerEmail(customer.email)}
