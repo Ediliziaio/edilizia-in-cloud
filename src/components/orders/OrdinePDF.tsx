@@ -261,7 +261,7 @@ export interface OrdinePDFProps {
 }
 
 /* ── Component ───────────────────────────────────────────── */
-export function OrdinePDF({
+export function createOrdinePDFDocument({
   order,
   items = [],
   laborEmployees = [],
@@ -1126,4 +1126,9 @@ export function OrdinePDF({
       </Page>
     </Document>
   );
+}
+
+/** React component entry point; the lazy download uses the same document factory. */
+export function OrdinePDF(props: OrdinePDFProps) {
+  return createOrdinePDFDocument(props);
 }

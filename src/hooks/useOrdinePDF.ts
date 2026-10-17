@@ -21,7 +21,6 @@ export interface OrdinePDFProps {
   order: {
     id?: string;
     order_code?: string;
-    [key: string]: unknown;
   };
   items?: unknown[];
   laborEmployees?: unknown[];
@@ -61,16 +60,12 @@ export function useOrdinePDF() {
 
   // Genera il Blob del PDF (code-split: la lib pesante è caricata on-demand qui).
   const buildBlob = async (opts: OrdinePDFProps): Promise<Blob> => {
-    const [{ pdf }, { OrdinePDF }, React] = await Promise.all([
+    const [{ pdf }, { createOrdinePDFDocument }] = await Promise.all([
       import("@react-pdf/renderer"),
       import("@/components/orders/OrdinePDF"),
-      import("react"),
     ]);
-    // Cast a any: OrdinePDF definisce i suoi props con `any` per compatibilità
-    // con tutti i tipi esistenti nel codebase; i tipi runtime sono validati dal
-    // componente stesso.
-    const element = React.createElement(OrdinePDF, opts as never);
-    return await pdf(element).toBlob();
+    // The factory returns the actual Document root expected by react-pdf.
+    return await pdf(createOrdinePDFDocument(opts)).toBlob();
   };
 
   const pdfFileName = (opts: OrdinePDFProps) => `Ordine-${opts.order?.order_code ?? "dettaglio"}.pdf`;

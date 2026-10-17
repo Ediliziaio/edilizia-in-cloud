@@ -218,6 +218,7 @@ export interface Profile {
 }
 
 export interface Company {
+  brand_logo_dark_url?: string | null;
   id: string;
   name: string;
   email: string;

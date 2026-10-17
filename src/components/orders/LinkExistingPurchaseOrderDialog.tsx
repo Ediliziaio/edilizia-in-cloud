@@ -80,7 +80,7 @@ export function LinkExistingPurchaseOrderDialog({
     mutationFn: async (poId: string) => {
       const { error } = await supabase
         .from("purchase_orders")
-        .update({ order_id: orderId } as Record<string, unknown>)
+        .update({ order_id: orderId })
         .eq("id", poId);
       if (error) throw error;
 

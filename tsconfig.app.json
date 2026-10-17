@@ -9,6 +9,7 @@
     // essere indietro, non il codice.
     "lib": [
       "ES2022",
+      "ES2023.Intl",
       "DOM",
       "DOM.Iterable"
     ],

@@ -1,3 +1,4 @@
+import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
@@ -222,7 +223,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id">> {
   id: string;
   order_code: string | null;
   description: string;
@@ -307,6 +308,7 @@ export interface OrderCustomer {
 }
 
 export interface OrderItemData {
+  delivery_date?: Tables<"order_items">["delivery_date"];
   natura_riga?: "materiale" | "lavorazione" | "descrizione";
   id: string;
   name: string;

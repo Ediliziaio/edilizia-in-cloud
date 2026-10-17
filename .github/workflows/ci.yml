@@ -235,6 +235,9 @@ jobs:
           src/test/ui/squadreReadOnlyQuery.test.tsx
           src/test/ui/orderSerialsDisclosure.test.tsx
 
+      - name: Run order PDF type boundary regressions
+        run: bunx vitest run --maxWorkers=1 src/test/logic/ordinePdfTypeBoundary.test.tsx
+
       - name: Run commesse scope and filter regressions
         run: >-
           bunx vitest run --maxWorkers=2

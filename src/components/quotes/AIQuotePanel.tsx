@@ -114,6 +114,7 @@ export default function AIQuotePanel({
   const [descrizione, setDescrizione] = useState("");
   const [misure, setMisure] = useState<Misura[]>([]);
   const [stato, setStato] = useState<"idle" | "generando" | "risultato" | "errore">("idle");
+  const isGenerating = stato === "generando";
   const [risultato, setRisultato] = useState<SezioneGenerata[] | null>(null);
   const [avvertenze, setAvvertenze] = useState<string[]>([]);
   const [note, setNote] = useState("");
@@ -514,7 +515,7 @@ export default function AIQuotePanel({
 
                 <Button
                   onClick={genera}
-                  disabled={stato === "generando" || !descrizione.trim()}
+                  disabled={isGenerating || !descrizione.trim()}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
@@ -563,7 +564,7 @@ export default function AIQuotePanel({
                   {trascrizione && (
                     <Button
                       onClick={genera}
-                      disabled={stato === "generando"}
+                      disabled={isGenerating}
                       className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                     >
                       <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
@@ -653,7 +654,7 @@ export default function AIQuotePanel({
 
                 <Button
                   onClick={generaDaFoto}
-                  disabled={fotoFiles.length === 0 || stato === "generando"}
+                  disabled={fotoFiles.length === 0 || isGenerating}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   <Sparkles className="h-4 w-4 mr-2" /> Estrai e genera preventivo →

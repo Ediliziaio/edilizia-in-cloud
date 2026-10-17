@@ -1,3 +1,4 @@
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { LegacyWorkReview } from "@/components/orders/LegacyWorkReview";
 import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDialog';
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
@@ -226,7 +227,7 @@ function getOrderAlerts(
 
 // ── Types ────────────────────────────────────────────────────────
 
-interface OrderDetail {
+interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" | "customer_id" | "assigned_to"> {
   deleted_at?: string | null;
   id: string;
   order_code: string | null;
@@ -772,9 +773,10 @@ function OrderDetailInner() {
       if (!installment.id) throw new Error("Rata non ancora salvata");
       // en-CA = YYYY-MM-DD locale (mai toISOString: bug UTC serale)
       const value = date ? date.toLocaleDateString('en-CA') : null;
+      const patch: Pick<TablesUpdate<"order_installments">, 'paid_date' | 'expected_date'> = { [field]: value };
       const { error } = await supabase
         .from("order_installments")
-        .update({ [field]: value })
+        .update(patch)
         .eq("id", installment.id);
       if (error) throw error;
     },
@@ -927,7 +929,7 @@ function OrderDetailInner() {
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({ status_id: h.status_id, changed_at: h.changed_at }));
 
   const materialItems = orderItems.filter(item => !item.natura_riga || item.natura_riga === "materiale");
-  const displayItems: OrderItem[] = materialItems.map(item => ({
+  const displayItems: (OrderItem & { id: string })[] = materialItems.map(item => ({
     id: item.id, name: item.name, description: item.description || undefined,
     quantity: item.quantity, status: item.status as OrderItem['status'], position: item.position,
     supplier_id: item.supplier_id || undefined, purchase_price: item.purchase_price || undefined,

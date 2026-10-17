@@ -278,7 +278,7 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
           resolution_notes: resolutionNotes || null,
           resolved_by: user?.id || null,
           resolved_at: new Date().toISOString(),
-        } as Record<string, unknown>)
+        })
         .eq("id", d.id);
       if (error) throw error;
     },

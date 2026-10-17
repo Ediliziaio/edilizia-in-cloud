@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -254,7 +255,7 @@ export function usePurchaseOrders() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (params: { id: string; updates: Record<string, any> }) => {
+    mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_orders"> }) => {
       const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id);
       if (error) throw error;
     },
@@ -339,7 +340,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: async (params: { id: string; updates: Record<string, any> }) => {
+    mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_order_items"> }) => {
       const { error } = await supabase.from("purchase_order_items").update(params.updates).eq("id", params.id);
       if (error) throw error;
     },
