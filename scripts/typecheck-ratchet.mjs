@@ -77,6 +77,11 @@ function contaPerFile(output) {
 }
 
 const output = eseguiTsc();
+// Persist diagnostics only after the compiler completed; failed/OOM runs above
+// must never produce a reusable artifact or a misleading zero-error baseline.
+if (process.env.TYPECHECK_DIAGNOSTICS_FILE) {
+  writeFileSync(process.env.TYPECHECK_DIAGNOSTICS_FILE, output);
+}
 const attuale = contaPerFile(output);
 const totale = Object.values(attuale).reduce((s, n) => s + n, 0);
 

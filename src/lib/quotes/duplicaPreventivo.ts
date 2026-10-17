@@ -11,6 +11,7 @@
  * builder cosi' la gerarchia padre/figlio delle voci si ricostruisce intera.
  */
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { allegaSchedeTecniche, type SchedaNonAllegata } from "@/lib/quotes/allegatiPreventivo";
 
 /** Gli errori PostgREST sono oggetti semplici: si estrae un messaggio leggibile. */
@@ -98,8 +99,8 @@ export function costruisciCopiaQuote(
  * Pura: testabile a tavolino.
  */
 export function costruisciPayloadRighe(
-  righe: Array<Record<string, unknown>>,
-): Array<Record<string, unknown>> {
+  righe: Array<Pick<Tables<"quote_items">, "id" | "name" | "item_type"> & Partial<Tables<"quote_items">>>,
+) {
   return righe.map((r, idx) => ({
     sort_order: idx,
     client_temp_id: String(r.id),
@@ -124,7 +125,7 @@ export function costruisciPayloadRighe(
     axis_selections: r.axis_selections ?? null,
     supplier_catalog_id: r.supplier_catalog_id ?? null,
     supplier_product_line_id: r.supplier_product_line_id ?? null,
-  }));
+  })) satisfies Json[];
 }
 
 export interface EsitoCopia {
@@ -219,7 +220,7 @@ export async function duplicaPreventivo(
     const { error: eRpc } = await supabase.rpc("save_quote_items_atomic", {
       p_quote_id: nuovo.id,
       p_company_id: companyId,
-      p_items: costruisciPayloadRighe(righe as Array<Record<string, unknown>>),
+      p_items: costruisciPayloadRighe(righe),
     });
     if (eRpc) throw comeErrore(eRpc, "Copia righe non riuscita");
   }

@@ -1,3 +1,4 @@
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -435,7 +436,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         }
       }
 
-      const payload: Record<string, unknown> = {
+      const payload: Omit<TablesInsert<"tasks">, "created_by"> = {
         company_id: companyId,
         title: title.trim(),
         notes: notes.trim() || null,
@@ -481,10 +482,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         });
         toast.success("Attività aggiornata");
       } else {
-        payload.created_by = user.id;
+        const createPayload = { ...payload, created_by: user.id };
         const { data: createdTask, error } = await supabase
           .from("tasks")
-          .insert(payload as any)
+          .insert(createPayload)
           .select("id, title")
           .single();
         if (error) throw error;
@@ -507,7 +508,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           taskTitle: createdTask?.title || title.trim(),
           eventType: "task_created",
           description: "ha creato l'attività",
-          afterSnapshot: payload,
+          afterSnapshot: createPayload,
         });
         toast.success("Attività creata");
       }

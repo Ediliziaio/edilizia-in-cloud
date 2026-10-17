@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -364,7 +365,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
+    mutationFn: async (updates: TablesUpdate<"tasks">) => {
       const { error } = await supabase
         .from("tasks")
         .update({ ...updates, updated_at: new Date().toISOString() })

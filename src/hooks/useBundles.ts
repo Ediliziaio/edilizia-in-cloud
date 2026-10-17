@@ -116,7 +116,7 @@ export function useBundlesList(filters?: { vertical?: string; tipoLavoro?: Bundl
     queryKey: queryKeys.bundles.list(companyId ?? undefined, filters),
     enabled: !!companyId,
     queryFn: async (): Promise<Bundle[]> => {
-      let q = supabase.from("bundle_prodotti" as never)
+      let q = supabase.from("bundle_prodotti")
         .select(SELECT_BUNDLE_CON_VOCI)
         .eq("company_id", companyId!)
         .order("nome");
@@ -146,7 +146,7 @@ export function useBundle(bundleId: string | null | undefined) {
     queryKey: queryKeys.bundles.detail(bundleId ?? undefined),
     enabled: !!bundleId,
     queryFn: async (): Promise<Bundle | null> => {
-      const { data, error } = await supabase.from("bundle_prodotti" as never)
+      const { data, error } = await supabase.from("bundle_prodotti")
         .select(SELECT_BUNDLE_CON_VOCI)
         .eq("id", bundleId!)
         .maybeSingle();
@@ -190,12 +190,12 @@ export function useUpsertBundle() {
 
       let bundleId = input.id;
       if (bundleId) {
-        const { error } = await supabase.from("bundle_prodotti" as never)
+        const { error } = await supabase.from("bundle_prodotti")
           .update(masterPayload)
           .eq("id", bundleId);
         if (error) throw new Error(error.message);
       } else {
-        const { data, error } = await supabase.from("bundle_prodotti" as never)
+        const { data, error } = await supabase.from("bundle_prodotti")
           .insert(masterPayload)
           .select("id")
           .single();
@@ -220,13 +220,13 @@ export function useUpsertBundle() {
           sort_order: v.sort_order ?? idx,
           immagine_url: v.immagine_url ?? null,
         }));
-        const { data: inserite, error: insErr } = await supabase.from("bundle_voci" as never)
+        const { data: inserite, error: insErr } = await supabase.from("bundle_voci")
           .insert(voceRows)
           .select("id");
         if (insErr) throw new Error(insErr.message);
         nuoveIds = ((inserite ?? []) as Array<{ id: string }>).map((r) => r.id);
       }
-      let vecchie = supabase.from("bundle_voci" as never)
+      let vecchie = supabase.from("bundle_voci")
         .delete()
         .eq("bundle_id", bundleId!);
       if (nuoveIds.length > 0) vecchie = vecchie.not("id", "in", `(${nuoveIds.join(",")})`);
@@ -250,7 +250,7 @@ export function useDeleteBundle() {
 
   return useMutation({
     mutationFn: async (bundleId: string) => {
-      const { error } = await supabase.from("bundle_prodotti" as never)
+      const { error } = await supabase.from("bundle_prodotti")
         .delete()
         .eq("id", bundleId);
       if (error) throw new Error(error.message);
@@ -271,7 +271,7 @@ export function useToggleBundleAttivo() {
 
   return useMutation({
     mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
-      const { error } = await supabase.from("bundle_prodotti" as never)
+      const { error } = await supabase.from("bundle_prodotti")
         .update({ attivo })
         .eq("id", id);
       if (error) throw new Error(error.message);

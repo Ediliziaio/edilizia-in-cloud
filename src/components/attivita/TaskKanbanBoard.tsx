@@ -62,7 +62,7 @@ export function TaskKanbanBoard({ tasks, statusOptions, onTaskSelect, onAddTaskT
   });
 
   const grouped = useMemo(() => {
-    const map: Record<string, any[]> = Object.fromEntries(columns.map((column) => [column.value, []]));
+    const map: Record<string, typeof tasks> = Object.fromEntries(columns.map((column): [string, typeof tasks] => [column.value, []]));
     tasks.forEach((t) => {
       if (map[t.status]) map[t.status].push(t);
     });

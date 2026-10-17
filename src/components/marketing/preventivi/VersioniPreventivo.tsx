@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { parseQuoteVersionSnapshot, type VersionSnapshot } from "@/lib/quotes/versionSnapshot";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -30,37 +31,6 @@ import {
 import { Loader2, History, Eye, Save } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface SnapshotItem {
-  id?: string;
-  name: string;
-  description?: string;
-  quantity: number;
-  unit_of_measure?: string;
-  unit_price: number;
-  discount_percent?: number;
-  vat_rate: number;
-  line_total?: number;
-  sort_order?: number;
-}
-
-interface SnapshotQuote {
-  quote_number?: string;
-  title?: string;
-  status?: string;
-  subtotal?: number;
-  discount_percent?: number;
-  discount_amount?: number;
-  vat_amount?: number;
-  total?: number;
-  notes?: string;
-}
-
-interface VersionSnapshot {
-  quote: SnapshotQuote;
-  items: SnapshotItem[];
-  saved_at: string;
-}
 
 interface QuoteVersion {
   id: string;
@@ -227,7 +197,10 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
         .order("version_num", { ascending: false });
 
       if (qErr) throw qErr;
-      return (data ?? []) as QuoteVersion[];
+      return (data ?? []).map(version => ({
+        ...version,
+        snapshot: parseQuoteVersionSnapshot(version.snapshot),
+      }));
     },
   });
 

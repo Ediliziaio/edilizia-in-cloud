@@ -3,12 +3,13 @@
  * e come si ricostruisce la gerarchia delle righe.
  */
 import { describe, it, expect } from "vitest";
+import type { Json } from "@/integrations/supabase/types";
 import {
   costruisciCopiaQuote,
   costruisciPayloadRighe,
 } from "@/lib/quotes/duplicaPreventivo";
 
-const originale = {
+const originale: { [key: string]: Json | undefined } = {
   id: "q-1",
   company_id: "c-1",
   title: "Bagno completo Rossi",
@@ -88,6 +89,19 @@ describe("costruisciCopiaQuote — nuova revisione", () => {
 });
 
 describe("costruisciPayloadRighe — la gerarchia sopravvive alla copia", () => {
+  it("trasporta quantità, misure e prezzi originali senza arrotondarli o mutarli", () => {
+    const original = Object.freeze({
+      id: "r-decimale", name: "Lavorazione", item_type: "product", item_category: "lavorazione",
+      quantity: 33.75, unit_price: 54.125, discount_percent: 2.5, vat_rate: 10,
+      prezzo_acquisto: 20.123, misura_x: 1.35, misura_y: 2.75,
+      axis_selections: { apertura: "sinistra" },
+    });
+    const [payload] = costruisciPayloadRighe([original]);
+    const { id, ...values } = original;
+    expect(payload).toMatchObject({ ...values, client_temp_id: id });
+    expect(JSON.parse(JSON.stringify(payload))).toMatchObject(values);
+  });
+
   it("client_temp_id = vecchio id, parent_temp_id = vecchio parent", () => {
     const payload = costruisciPayloadRighe([
       { id: "r-1", parent_item_id: null, item_type: "product", name: "Kit doccia", quantity: 1, unit_price: 500, unit_of_measure: "pz" },

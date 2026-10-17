@@ -59,7 +59,7 @@ export default function AddressAutocomplete({ value, onChange, label = "Luogo", 
   const [activePrediction, setActivePrediction] = useState(-1);
   const requestRef = useRef(0);
   const inputId = useId();
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wrapperRef = useRef<HTMLFieldSetElement>(null);
   const lastEmittedRef = useRef(value);
   const emitAddress = (next: AddressData) => { lastEmittedRef.current = next; onChange(next); };

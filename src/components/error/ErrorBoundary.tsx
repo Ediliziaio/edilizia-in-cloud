@@ -225,9 +225,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations()
               .then(regs => Promise.all(regs.map(r => r.unregister())))
-              .then(() => typeof caches !== 'undefined'
-                ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-                : Promise.resolve())
+              .then(async () => {
+                if (typeof caches !== 'undefined') {
+                  const keys = await caches.keys();
+                  await Promise.all(keys.map(k => caches.delete(k)));
+                }
+              })
               .then(doReload)
               .catch(doReload);
           } else {

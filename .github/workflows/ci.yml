@@ -46,7 +46,18 @@ jobs:
       # non segue i rimandi e compila ZERO file: il job era verde per
       # costruzione e ha lasciato passare 1.542 errori di tipo.
       - name: Controllo tipi (con cricchetto)
+        env:
+          TYPECHECK_DIAGNOSTICS_FILE: typecheck-diagnostics.log
         run: bun run typecheck:ci
+
+      - name: Save completed TypeScript diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics-${{ github.sha }}
+          path: typecheck-diagnostics.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Critical unit tests
@@ -237,6 +248,18 @@ jobs:
 
       - name: Run order PDF type boundary regressions
         run: bunx vitest run --maxWorkers=1 src/test/logic/ordinePdfTypeBoundary.test.tsx
+
+      - name: Run typed quote, task and catalogue data regressions
+        run: >-
+          bunx vitest run --maxWorkers=2 --testTimeout=30000
+          src/test/logic/quoteVersionSnapshot.test.ts
+          src/test/logic/taskActivityPayload.test.ts
+          src/test/logic/duplicaPreventivo.test.ts
+          src/test/logic/duplicaPreventivoNumeroEFirma.test.ts
+          src/test/logic/bundleMutationSenzaDoppioAvviso.test.tsx
+          src/test/logic/applyBundleIvaCosti.test.tsx
+          src/test/ui/addressAutocompleteCommessa.test.tsx
+          src/test/logic/smartDocumentImport.test.ts
 
       - name: Run commesse scope and filter regressions
         run: >-

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { logger } from "@/utils/logger";
 
 export const TASK_FIELD_LABELS: Record<string, string> = {
@@ -22,6 +23,8 @@ export const TASK_FIELD_LABELS: Record<string, string> = {
   completed_at: "completamento",
 };
 
+type ActivityData = { [key: string]: Json | undefined };
+
 type TaskActivityParams = {
   companyId?: string | null;
   userId?: string | null;
@@ -29,10 +32,10 @@ type TaskActivityParams = {
   taskTitle?: string | null;
   eventType: string;
   description: string;
-  changes?: Record<string, unknown> | null;
-  beforeSnapshot?: Record<string, unknown> | null;
-  afterSnapshot?: Record<string, unknown> | null;
-  metadata?: Record<string, unknown>;
+  changes?: ActivityData | null;
+  beforeSnapshot?: ActivityData | null;
+  afterSnapshot?: ActivityData | null;
+  metadata?: ActivityData;
   importance?: "low" | "normal" | "high" | "critical";
 };
 

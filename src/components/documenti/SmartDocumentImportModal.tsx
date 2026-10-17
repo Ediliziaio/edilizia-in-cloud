@@ -317,7 +317,7 @@ export function SmartDocumentImportModal({
 
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
-    if (!ACCEPTED_EXT.includes(ext)) {
+    if (!ACCEPTED_EXT.some(accepted => accepted === ext)) {
       toast.error("Formato non supportato. Usa PDF, immagine, Excel, XPWE o DCF.");
       return;
     }
@@ -607,9 +607,8 @@ export function SmartDocumentImportModal({
   const undoLastAttach = async () => {
     if (!lastAttachId) return;
     await supabase
-      .from("entity_attachments" as never)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id } as any)
+      .from("entity_attachments")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
       .eq("id", lastAttachId);
     toast.info("Allegato annullato");
     setLastAttachId(null);

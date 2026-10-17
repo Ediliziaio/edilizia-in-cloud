@@ -228,7 +228,7 @@ export function SmartDocumentInboxDialog({ open, onOpenChange, onComputoReady, o
     }
 
     toast.info(action.label, {
-      description: action.hint ?? "Apri il documento dal modulo dedicato o ripeti l'analisi se mancano dati.",
+      description: ("hint" in action ? action.hint : undefined) ?? "Apri il documento dal modulo dedicato o ripeti l'analisi se mancano dati.",
     });
   };
 
