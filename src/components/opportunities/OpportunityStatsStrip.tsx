@@ -87,7 +87,7 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
     // Tablet (sotto i 1024px): una riga che scorre invece di tre righe di
     // riquadri sopra la pipeline. Dal computer resta la griglia: cinque per
     // riga fino a 1280 (a quattro erano tre righe, l'ultima con un riquadro solo).
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-2 max-lg:flex max-lg:overflow-x-auto max-lg:scrollbar-none">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-1.5 max-lg:flex max-lg:overflow-x-auto max-lg:scrollbar-none">
       {STATS_CONFIG.map(({ key, label, icon: Icon, colorClass }) => {
         const isCurrency = key === "pipeline_value" || key === "weighted_value" || key === "won_value";
         const value = stats[key];
@@ -130,7 +130,7 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
         );
 
         const classi = cn(
-          "flex items-center gap-2 rounded-md border-l-2 bg-muted/30 px-2.5 py-1.5 max-lg:min-w-[128px] max-lg:shrink-0",
+          "flex items-center gap-2 rounded-md border-l-2 bg-muted/30 px-2 py-1 max-lg:min-w-[128px] max-lg:shrink-0",
           colorClass.split(" ")[0],
           cliccabile && "cursor-pointer transition-colors hover:bg-muted/60",
           attivo && "ring-1 ring-primary bg-primary/5",
