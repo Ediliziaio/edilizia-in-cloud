@@ -48,3 +48,12 @@ jobs:
           PROVA: ${{ inputs.prova }}
           SOGLIA_LENTO_MS: "8000"
         run: node scripts/sentinella-database.mjs
+      # Memoria del server (17/10/2026): il 15/10 RAM e swap si sono riempiti e il server si è riavviato da solo.
+      # Avvisa quando la memoria resta alta per un minuto, PRIMA del blocco. Soglie in scripts/sentinella-memoria.mjs.
+      - name: Controlla la memoria del server
+        if: always()
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: rsbrguhkodgnqfomrevo
+          PROVA: ${{ inputs.prova }}
+        run: node scripts/sentinella-memoria.mjs
