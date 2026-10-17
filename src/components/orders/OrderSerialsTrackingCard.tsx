@@ -36,9 +36,9 @@ export function OrderSerialsTrackingCard({
   const [expanded, setExpanded] = useState(false);
   const contentId = useId();
 
-  // Filtra righe con quantity > 0 — niente da tracciare per qty=0
+  // Solo materiali fisici con quantità positiva possono avere matricole.
   const trackableItems = useMemo(
-    () => orderItems.filter((it) => (it.quantity ?? 0) > 0),
+    () => orderItems.filter((it) => (!it.natura_riga || it.natura_riga === "materiale") && (it.quantity ?? 0) > 0),
     [orderItems],
   );
 

@@ -36,4 +36,10 @@ describe("Comando esplicito seriali", () => {
     render(<OrderSerialsTrackingCard orderId="order" orderItems={[{ ...item, quantity: 0 }]} />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+  it("non propone seriali per lavorazioni e descrizioni riclassificate", () => {
+    render(<OrderSerialsTrackingCard orderId="order" orderItems={[{ ...item, natura_riga: "lavorazione" }, { ...item, id: "d", natura_riga: "descrizione" }]} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(query).toHaveBeenLastCalledWith([]);
+  });
+
 });

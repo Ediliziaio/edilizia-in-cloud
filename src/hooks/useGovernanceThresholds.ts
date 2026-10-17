@@ -3,7 +3,7 @@
  *
  * Legge/scrive `company_governance_settings` (1 riga per company). La tabella
  * non è ancora nei tipi generati di Supabase finché la migration non viene
- * applicata in prod, quindi usiamo un cast localizzato (`sbAny`) e — punto
+ * applicata in prod, quindi usiamo un cast localizzato (`governanceDb`) e — punto
  * chiave — un fallback difensivo ai DEFAULT su qualsiasi errore, così la UI
  * resta sicura e funzionante anche PRIMA che lo schema sia applicato.
  *
@@ -11,6 +11,7 @@
  * src/lib/governance/thresholds.ts (testata in isolamento).
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -22,10 +23,24 @@ import {
   type GovernanceSettingsRow,
 } from "@/lib/governance/thresholds";
 
-// Tabella non ancora nei tipi generati (schema applicato a release #40): cast localizzato.
-const sbAny = supabase as unknown as {
-  from: (t: string) => ReturnType<typeof supabase.from>;
+// Contratto locale della sola tabella non ancora inclusa nei tipi generati.
+// Nessuna modifica al client, all'autenticazione o alle regole RLS.
+type GovernanceRow = { [K in keyof GovernanceSettingsRow]: GovernanceSettingsRow[K] } & { company_id: string; updated_at: string };
+type GovernanceDatabase = {
+  public: {
+    Tables: {
+      company_governance_settings: {
+        Row: GovernanceRow;
+        Insert: Partial<GovernanceRow> & { company_id: string };
+        Update: Partial<GovernanceRow>;
+        Relationships: [];
+      };
+    };
+    Views: {};
+    Functions: {};
+  };
 };
+const governanceDb = supabase as unknown as SupabaseClient<GovernanceDatabase>;
 
 const GOVERNANCE_QUERY_KEY = (companyId: string | undefined) =>
   ["company-governance-settings", companyId] as const;
@@ -43,7 +58,7 @@ export function useGovernanceThresholds(companyId: string | undefined) {
     queryFn: async (): Promise<GovernanceThresholds> => {
       if (!companyId) return { ...DEFAULT_GOVERNANCE_THRESHOLDS };
       try {
-        const { data, error } = await sbAny
+        const { data, error } = await governanceDb
           .from("company_governance_settings")
           .select(
             "company_id, preventivo_doppia_firma_enabled, preventivo_soglia_importo, sal_scostamento_enabled, sal_tolleranza_perc, marginalita_alert_enabled, marginalita_soglia_perc",
@@ -70,11 +85,11 @@ export function useSaveGovernanceThresholds(companyId: string | undefined) {
     mutationFn: async (cfg: GovernanceThresholds) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const row = governanceToRow(normalizeGovernanceThresholds(cfg));
-      const { error } = await sbAny
+      const { error } = await governanceDb
         .from("company_governance_settings")
         .upsert(
-          { company_id: companyId, ...row, updated_at: new Date().toISOString() } as never,
-          { onConflict: "company_id" } as never,
+          { company_id: companyId, ...row, updated_at: new Date().toISOString() },
+          { onConflict: "company_id" },
         );
       if (error) throw error;
     },

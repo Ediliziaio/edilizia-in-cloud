@@ -30,6 +30,8 @@ export function costoSforato(e: EconomiaFase): boolean {
  * farebbe un margine finto, più alto del vero.
  */
 export function margineDaMostrare(e: EconomiaFase, completata: boolean): { pct: number | null; su: "consuntivo" | "previsto" } {
+  // Senza budget né costi registrati, un 100% sarebbe un margine apparente.
+  if (!completata && e.costoPrevisto === 0 && e.costoConsuntivo === 0) return { pct: null, su: "previsto" };
   return completata || costoSforato(e)
     ? { pct: e.margineConsuntivoPct, su: "consuntivo" }
     : { pct: e.marginePrevistoPct, su: "previsto" };
@@ -93,7 +95,7 @@ export function CampoVenduto({
   };
 
   return (
-    <span className="relative inline-flex items-center">
+    <span className="relative inline-flex max-w-full items-center">
       <Input
         value={testo}
         inputMode="decimal"
@@ -115,7 +117,7 @@ export function CampoVenduto({
           }
         }}
         className={cn(
-          "h-8 w-36 pr-7 text-right font-semibold tabular-nums placeholder:font-normal",
+          "h-8 w-36 max-sm:w-full min-w-0 pr-7 text-right font-semibold tabular-nums placeholder:font-normal",
           inTabella && "border-transparent bg-transparent shadow-none hover:border-input focus-visible:border-input",
           errore && "border-rose-400 focus-visible:ring-rose-400",
         )}
@@ -139,7 +141,7 @@ function Cifra({ titolo, children, nota, className }: { titolo: string; children
  * Riga «Economia» di una fase (06/10/2026): venduto, costo previsto, costo
  * consuntivo e margine in colonna, ognuno col suo permesso. Il venduto si
  * scrive qui (con `onSalvaVenduto`). Le voci dei costi stanno nell'elenco di
- * persone e ditte subito sotto e nel titolo delle cifre. Da telefono non c'è.
+ * persone e ditte subito sotto e nel titolo delle cifre. Disponibile anche da telefono.
  */
 export function EconomiaFaseRiga({
   economia,
@@ -173,8 +175,8 @@ export function EconomiaFaseRiga({
         : null;
 
   return (
-    <div className="flex flex-wrap items-start gap-2 max-sm:hidden">
-      <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Economia</span>
+    <div className="flex flex-wrap items-start gap-2">
+      <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full">Economia</span>
       <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-8 gap-y-3 lg:grid-cols-4">
         {vedeVenduto && (
           <Cifra titolo="Venduto" nota={notaVenduto}>
@@ -185,7 +187,7 @@ export function EconomiaFaseRiga({
         )}
         {vedeCosti && (
           <Cifra titolo="Costo previsto">
-            <span title={dettaglioVoci(economia.previsto)}>{eur.format(economia.costoPrevisto)}</span>
+            <span title={dettaglioVoci(economia.previsto)}>{!completata && economia.costoPrevisto === 0 && economia.costoConsuntivo === 0 ? "Da pianificare" : eur.format(economia.costoPrevisto)}</span>
           </Cifra>
         )}
         {vedeCosti && (

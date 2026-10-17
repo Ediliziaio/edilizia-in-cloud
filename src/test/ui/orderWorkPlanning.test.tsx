@@ -1,3 +1,4 @@
+vi.mock("@/components/orders/NewPhaseMaterial", () => ({NewPhaseMaterial: () => <button>Nuovo materiale</button>}));
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

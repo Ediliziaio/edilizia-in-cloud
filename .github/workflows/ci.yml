@@ -224,6 +224,17 @@ jobs:
           src/test/ui/chatHubNavigation.test.tsx
           src/test/ui/emailLayoutState.test.tsx
 
+      - name: Run phase notes and materials regressions
+        run: >-
+          bunx vitest run --maxWorkers=2 --testTimeout=20000
+          src/test/logic/fasiMaterialiClassificazione.test.ts
+          src/test/logic/duplicaLavorazioniStoriche.test.ts
+          src/test/ui/phaseNotesMaterials.test.tsx
+          src/test/ui/orderWorkPlanning.test.tsx
+          src/test/ui/economiaFasi.test.tsx
+          src/test/ui/squadreReadOnlyQuery.test.tsx
+          src/test/ui/orderSerialsDisclosure.test.tsx
+
       - name: Run commesse scope and filter regressions
         run: >-
           bunx vitest run --maxWorkers=2

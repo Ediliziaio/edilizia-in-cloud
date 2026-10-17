@@ -660,6 +660,8 @@ export function usePermissions(): Permissions {
           .eq("user_id", user!.id)
           .eq("company_id", effectiveCompanyId!)
           .abortSignal(signal)
+          // Dynamic column projection: keep the transport row typed without changing SQL or grants.
+          .returns<Record<string, unknown>[]>()
           .maybeSingle(),
         "Verifica permessi aziendali",
       );
@@ -699,6 +701,8 @@ export function usePermissions(): Permissions {
           .eq("user_id", viewAsUserId!)
           .eq("company_id", effectiveCompanyId!)
           .abortSignal(signal)
+          // Dynamic column projection: keep the transport row typed without changing SQL or grants.
+          .returns<Record<string, unknown>[]>()
           .maybeSingle(),
         "Verifica permessi visualizza come",
       );

@@ -1,3 +1,4 @@
+import { LegacyWorkReview } from "@/components/orders/LegacyWorkReview";
 import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDialog';
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
 import { ContractCosts } from "@/components/orders/ContractCosts";
@@ -925,7 +926,8 @@ function OrderDetailInner() {
 
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({ status_id: h.status_id, changed_at: h.changed_at }));
 
-  const displayItems: OrderItem[] = orderItems.map(item => ({
+  const materialItems = orderItems.filter(item => !item.natura_riga || item.natura_riga === "materiale");
+  const displayItems: OrderItem[] = materialItems.map(item => ({
     id: item.id, name: item.name, description: item.description || undefined,
     quantity: item.quantity, status: item.status as OrderItem['status'], position: item.position,
     supplier_id: item.supplier_id || undefined, purchase_price: item.purchase_price || undefined,
@@ -1553,6 +1555,7 @@ function OrderDetailInner() {
 
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
           <TabsContent value="articoli" className="space-y-4 mt-4">
+            {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
@@ -1622,7 +1625,7 @@ function OrderDetailInner() {
               orderId={id!}
               orderCode={order.order_code}
               displayItems={displayItems}
-              orderItems={orderItems}
+              orderItems={materialItems}
               companyId={effectiveCompany?.id || ""}
               onItemsChange={(newItems) => {
                 const newItem = newItems.find((ni) => !ni.id);
@@ -1653,7 +1656,7 @@ function OrderDetailInner() {
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
               <OrderUsciteCard orderId={id!} />
-              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+              <OrderSerialsTrackingCard orderId={id!} orderItems={materialItems} />
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
               <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} />
@@ -1889,7 +1892,7 @@ function OrderDetailInner() {
                 lavori", lontani dagli incassi. Qui il quadro è completo. */}
             {activeEconomiaView === "pagamenti" && permissions.canViewCosts && (
               <SupplierPaymentsCard
-                items={orderItems}
+                items={materialItems}
                 companyId={effectiveCompany?.id || ""}
                 orderId={id!}
               />

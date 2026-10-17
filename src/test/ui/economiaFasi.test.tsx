@@ -124,18 +124,18 @@ describe("economia delle lavorazioni (la tabella in cima)", () => {
     expect(riga("Demolizioni")).toHaveTextContent("8.000,00 €6.300,00 €6.600,00 €+300,00 €17,5%");
     // righe senza prezzo di vendita: il venduto non c'è, non è zero
     expect(riga("Massetti")).toHaveTextContent("—480,00 €0,00 €—");
-    expect(riga("Totale lavorazioni")).toHaveTextContent("8.000,00 €6.780,00 €6.600,00 €—");
+    expect(riga("Totale fasi")).toHaveTextContent("8.000,00 €6.780,00 €6.600,00 €—");
     expect(riga("Fuori dalle fasi")).toHaveTextContent("—100,00 €0,00 €");
     expect(screen.getByText("da ripartire 77.000,00 €")).toBeInTheDocument();
     expect(screen.getByText("77.000,00 € del contratto da ripartire")).toBeInTheDocument();
-    expect(screen.getByText(/1 lavorazione senza venduto/)).toBeInTheDocument();
+    expect(screen.getByText(/1 fase senza venduto/)).toBeInTheDocument();
   });
 
   it("nessuna lavorazione col venduto: un trattino, non zero euro, e tutto il contratto da ripartire", () => {
     const senza = economiaFasi({ fasi: [{ id: "f1" }], righe: [], assegnazioni: [{ phase_id: "f1", source: "employee", cost_preventivo: 100, cost_consuntivo: 0 }] });
     render(<RiepilogoEconomicoFasi economia={senza} fasi={[{ id: "f1", name: "Demolizioni", status: "in_corso" }]} importoContratto={85000} vedeVenduto vedeCosti vedeMargini />);
     expect(screen.getByText("Venduto", { selector: "summary span" }).querySelector("b")).toHaveTextContent("—");
-    expect(riga("Totale lavorazioni")).toHaveTextContent("—100,00 €0,00 €—");
+    expect(riga("Totale fasi")).toHaveTextContent("—100,00 €0,00 €—");
     expect(screen.getByText("85.000,00 € del contratto da ripartire")).toBeInTheDocument();
   });
 
@@ -157,4 +157,11 @@ describe("economia delle lavorazioni (la tabella in cima)", () => {
     rerender(<RiepilogoEconomicoFasi economia={conti} fasi={fasiTabella} vedeVenduto={false} vedeCosti={false} vedeMargini />);
     expect(container).toBeEmptyDOMElement();
   });
+});
+
+it("non presenta un margine del 100% quando la fase non ha ancora costi pianificati", () => {
+ const e=economiaFasi({fasi:[{id:"f1",importo_venduto:1800}],righe:[],assegnazioni:[]}).perFase.get("f1")!;
+ render(<EconomiaFaseRiga economia={e} nomeFase="Scavo" vedeVenduto vedeCosti vedeMargini />);
+ expect(screen.getByText("Da pianificare")).toBeInTheDocument();
+ expect(screen.queryByText("100%")).not.toBeInTheDocument();
 });

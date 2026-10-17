@@ -282,7 +282,7 @@ export function useSquadre(abilitato = true) {
   return useQuery({
     queryKey: chiaviOperai.squadre(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("manodopera_squadre", { p_company_id: companyId! });
+      const { data, error } = await supabase.rpc("manodopera_squadre", { p_company_id: companyId! }, { get: true });
       if (error) throw error;
       return (data ?? []) as unknown as Squadra[];
     },
@@ -339,7 +339,7 @@ export function useSquadreCommessa(orderId: string | undefined) {
   return useQuery({
     queryKey: chiaviOperai.squadreCommessa(orderId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("manodopera_squadre_commessa", { p_order_id: orderId! });
+      const { data, error } = await supabase.rpc("manodopera_squadre_commessa", { p_order_id: orderId! }, { get: true });
       if (error) throw error;
       return (data ?? []) as unknown as SquadraInCommessa[];
     },

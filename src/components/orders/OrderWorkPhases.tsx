@@ -1,3 +1,4 @@
+import { NewPhaseMaterial } from "./NewPhaseMaterial";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HardHat,
@@ -349,7 +350,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Aggiungi una lavorazione</DialogTitle>
+                  <DialogTitle>Aggiungi una fase</DialogTitle>
                   <DialogDescription>Scrivi una fase oppure usa un modello con più fasi.</DialogDescription>
                 </DialogHeader>
 
@@ -1158,6 +1159,10 @@ function PhaseCard({
             className="overflow-hidden"
           >
             <CardContent id={`phase-body-${phase.id}`} className={cn("px-3 sm:px-4", isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0")}>
+              {phase.notes && <details className="text-sm text-muted-foreground">
+                <summary className="cursor-pointer">Descrizione</summary>
+                <p className="mt-2 whitespace-pre-wrap leading-relaxed">{phase.notes}</p>
+              </details>}
               {/* ── Quando ── */}
               <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1295,7 +1300,7 @@ function PhaseCard({
               </div>
 
               {/* ── Materiali della fase (order_items.phase_id) ── */}
-              {(materials.length > 0 || unassignedMaterials.length > 0) && (
+              {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                   <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                     Materiali
@@ -1364,14 +1369,14 @@ function PhaseCard({
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="tap-compact h-8">
                           <Plus className="mr-1 h-4 w-4" />
-                          <span className="max-sm:hidden">Aggiungi materiale</span>
+                          <span className="max-sm:hidden">Collega materiale esistente</span>
                           <span className="sm:hidden">Materiale</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align="start" className="w-72 p-1">
                         {unassignedMaterials.length === 0 ? (
                           <p className="p-2 text-xs text-muted-foreground">
-                            Nessun articolo senza fase.
+                            Nessun materiale da collegare. Puoi crearne uno con «Nuovo materiale».
                           </p>
                         ) : (
                           unassignedMaterials.map((m) => (
@@ -1388,6 +1393,7 @@ function PhaseCard({
                       </PopoverContent>
                     </Popover>}
 
+                    {canEditOrders && <NewPhaseMaterial orderId={orderId} phaseId={phase.id} phaseName={phase.name} />}
                     {canEditOrders && missingMaterials.length > 0 && (
                       <CreatePurchaseOrderButton
                         orderId={orderId}

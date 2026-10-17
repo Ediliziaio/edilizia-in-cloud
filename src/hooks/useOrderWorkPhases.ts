@@ -1,3 +1,4 @@
+import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -229,7 +230,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   // Ogni mutation fallita mostra un toast (prima: fallimenti silenziosi → spinner
   // infinito nel dialog "Aggiungi esecutore" e input che tornano indietro senza avviso).
   const onError = (e: unknown) =>
-    toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova.");
+    toast.error(messaggioErrore(e));
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["order_work_phases", orderId, companyId],
@@ -349,6 +350,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       const { data: items, error } = await db
         .from("order_items")
         .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost")
+        .filter("natura_riga", "eq", "materiale")
         .eq("order_id", orderId!);
       if (error) throw error;
       const rows = (items ?? []) as Record<string, unknown>[];
@@ -580,6 +582,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       const { data: original, error } = await db
         .from("order_items")
         .select("id, order_id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, phase_id")
+        .filter("natura_riga", "eq", "materiale")
         .eq("id", itemId)
         .single();
       if (error) throw error;

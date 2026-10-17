@@ -307,6 +307,7 @@ export interface OrderCustomer {
 }
 
 export interface OrderItemData {
+  natura_riga?: "materiale" | "lavorazione" | "descrizione";
   id: string;
   name: string;
   description: string | null;

@@ -54,7 +54,7 @@ export function RiepilogoEconomicoFasi({
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 text-sm tabular-nums [&::-webkit-details-marker]:hidden">
         <span className="font-medium">
           <span aria-hidden="true" className="mr-1.5 inline-block text-muted-foreground transition-transform group-open:rotate-90">▸</span>
-          Economia delle lavorazioni
+          Economia delle fasi
         </span>
         {vedeVenduto && <span className="text-muted-foreground">Venduto <b className="font-semibold text-foreground">{vendutoTotale}</b></span>}
         {vedeCosti && <span className="text-muted-foreground">Costo previsto <b className="font-semibold text-foreground">{eur.format(t.costoPrevisto)}</b></span>}
@@ -72,8 +72,8 @@ export function RiepilogoEconomicoFasi({
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/40 text-[11px] text-muted-foreground">
             <tr>
-              <th scope="col" className="px-3 py-1.5 text-left font-medium">Lavorazione</th>
-              {vedeVenduto && <th scope="col" className={TH} title="Quanto paga il cliente per la lavorazione: scritto qui, o dalle righe del contratto collegate alla fase">Venduto</th>}
+              <th scope="col" className="px-3 py-1.5 text-left font-medium">Fase</th>
+              {vedeVenduto && <th scope="col" className={TH} title="Quota del venduto attribuita alla fase: scritto qui, o dalle righe del contratto collegate alla fase">Venduto</th>}
               {vedeCosti && <th scope="col" className={TH} title="Persone, ditte e costo d'acquisto delle righe della fase">Costo previsto</th>}
               {vedeCosti && <th scope="col" className={TH} title="Il costo sostenuto: ore e ditte registrate, acquisti emessi, scarichi di magazzino">Costo consuntivo</th>}
               {colMargine && <th scope="col" className={TH} title="Sul consuntivo per le fasi chiuse o già oltre il previsto, altrimenti previsto">Margine</th>}
@@ -113,12 +113,12 @@ export function RiepilogoEconomicoFasi({
           </tbody>
           <tfoot className="border-t bg-muted/20">
             <tr className="font-semibold">
-              <th scope="row" className="px-3 py-1.5 text-left">Totale lavorazioni</th>
+              <th scope="row" className="px-3 py-1.5 text-left">Totale fasi</th>
               {vedeVenduto && <td className={TD}>{vendutoTotale}</td>}
               {vedeCosti && <td className={TD}>{eur.format(t.costoPrevisto)}</td>}
               {vedeCosti && <td className={cn(TD, sforato && "text-rose-700")}>{eur.format(t.costoConsuntivo)}</td>}
               {colMargine && (
-                <td className={TD} title={economia.fasiSenzaVenduto > 0 ? `${economia.fasiSenzaVenduto} lavorazioni senza venduto` : undefined}>
+                <td className={TD} title={economia.fasiSenzaVenduto > 0 ? `${economia.fasiSenzaVenduto} fasi senza venduto` : undefined}>
                   {margineTotale?.pct != null ? <>{pct(margineTotale.pct)}{margineTotale.su === "previsto" && <span className="ml-1 text-[11px] font-normal text-muted-foreground">prev.</span>}</> : "—"}
                 </td>
               )}
@@ -139,14 +139,14 @@ export function RiepilogoEconomicoFasi({
       {contratto != null && (
         <p className="border-t px-3 py-2 text-xs text-muted-foreground tabular-nums">
           Contratto <b className="font-semibold text-foreground">{eur.format(contratto)}</b>
-          {" · "}nelle lavorazioni {eur.format(t.venduto)}
+          {" · "}nelle fasi {eur.format(t.venduto)}
           {" · "}
           {daRipartire > 0
             ? <span className="font-medium text-amber-700">da ripartire {eur.format(daRipartire)}</span>
             : daRipartire < 0
               ? <span className="font-medium text-rose-700">oltre il contratto di {eur.format(-daRipartire)}</span>
               : <span className="font-medium text-emerald-700">tutto ripartito</span>}
-          {economia.fasiSenzaVenduto > 0 && <> · {economia.fasiSenzaVenduto === 1 ? "1 lavorazione senza venduto" : `${economia.fasiSenzaVenduto} lavorazioni senza venduto`}</>}
+          {economia.fasiSenzaVenduto > 0 && <> · {economia.fasiSenzaVenduto === 1 ? "1 fase senza venduto" : `${economia.fasiSenzaVenduto} fasi senza venduto`}</>}
         </p>
       )}
     </details>

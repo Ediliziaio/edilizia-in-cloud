@@ -58,13 +58,13 @@ export function NoteCantiere({
   /** Dentro una fase: niente titolo, bottone piccolo. */
   compatta?: boolean;
 }) {
-  const { data = [], isLoading, error } = useNoteCantiere(orderId);
+  const { data = [], isLoading, error, refetch } = useNoteCantiere(orderId);
   const elimina = useEliminaNota(orderId);
   const [aperta, setAperta] = useState<NotaCantiere | "nuova" | null>(null);
 
   const note = useMemo(() => data.filter((n) => (n.phase_id ?? null) === phaseId), [data, phaseId]);
 
-  if (error) return null;
+  if (error) return <div role="alert" className="space-y-2 rounded-lg border border-amber-200 p-3 text-xs"><p>Le note non sono disponibili. Riprova prima di aggiungerne una, per evitare duplicati.</p><Button variant="outline" size="sm" onClick={() => void refetch()}>Ricarica note</Button></div>;
 
   return (
     <div className="space-y-2">
