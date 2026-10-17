@@ -18,6 +18,7 @@ export async function fattureMaterialiDatabase() {
  create function utente_sola_lettura(uuid) returns boolean language sql stable as $$select current_setting('test.readonly',true)='true'$$;
  create function puo_vedere_documenti_fornitore() returns boolean language sql stable as $$select current_setting('test.documents',true)='true'$$;
  create function aziende_con_permesso(text) returns uuid[] language sql stable as $$select case when current_setting('test.permission',true)='true' then array['${COMPANY}'::uuid] else array[]::uuid[] end$$;
+ create function has_permission_for_company(uuid,text,uuid) returns boolean language sql stable as $$select current_setting('test.permission',true)='true' or current_setting('test.superadmin',true)='true'$$;
  create function assert_company_access(uuid) returns void language plpgsql as $$begin if $1<>'${COMPANY}' then raise exception 'Azienda non valida';end if;end$$;
  create function can_see_order(uuid,uuid,uuid) returns boolean language sql stable as $$select current_setting('test.visible',true)='true'$$;
  create table companies(id uuid primary key);
@@ -54,5 +55,6 @@ export async function fattureMaterialiDatabase() {
  insert into orders(id,company_id,total_amount,order_code,description) values('${ORDER}','${COMPANY}',3522.5,'O-0001','Cantiere Palma — copia locale'),('${OTHER_ORDER}','${COMPANY}',5000,'O-0002','Secondo cantiere di prova');
  insert into fatture_ricevute(id,company_id,stato,tipo_documento,imponibile_totale,iva_totale,totale_documento,numero_fattura,data_fattura,cedente_ragione_sociale,righe) values('${INVOICE}','${COMPANY}','letta','TD01',1000,220,1220,'FT-42','2026-10-16','Fornitore di prova','[{"descrizione":"Tubi corrugati","quantita":100,"imponibile":600,"aliquota_iva":22},{"descrizione":"Pozzetti","quantita":4,"imponibile":400,"aliquota_iva":22}]');`);
   await db.exec(readFileSync(MATERIALS_MIGRATION, "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20281017071500_fasi_storiche_permesso_esistente.sql", "utf8"));
   return db;
 }
