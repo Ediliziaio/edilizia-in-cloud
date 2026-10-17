@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { controllaMemoria, leggiMemoria, livello, livelloPersistente } from "../../../scripts/sentinella-memoria.mjs";
+import { controllaMemoria, leggiMemoria, livello, livelloPersistente, testoFoto } from "../../../scripts/sentinella-memoria.mjs";
 
 const GiB = 2 ** 30;
 const metriche = (v: { impegnata: number; disponibile: number; swapLibero?: number }) => {
@@ -51,6 +51,7 @@ describe("sentinella della memoria del database", () => {
   it("usa la chiave di servizio solo verso le metriche e fa tre letture", async () => {
     const send = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.includes("api-keys")) return Response.json([{ name: "anon", api_key: "a" }, { name: "service_role", api_key: "segreta" }]);
+      if (url.endsWith("/database/query")) return Response.json([{ foto: { query_attive: 0 } }]);
       expect(url).toBe("https://rsbrguhkodgnqfomrevo.supabase.co/customer/v1/privileged/metrics");
       expect((init?.headers as Record<string, string>).Authorization).toBe("Basic " + Buffer.from("service_role:segreta").toString("base64"));
       return new Response(metriche({ impegnata: 4.7, disponibile: 0.5 }));
@@ -64,8 +65,59 @@ describe("sentinella della memoria del database", () => {
 
   it("la prova fallisce sempre, anche con memoria sana", async () => {
     const send = vi.fn(async (url: string) =>
-      url.includes("api-keys") ? Response.json([{ name: "service_role", api_key: "k" }]) : new Response(metriche({ impegnata: 2, disponibile: 6 })));
+      url.includes("api-keys") ? Response.json([{ name: "service_role", api_key: "k" }])
+        : url.endsWith("/database/query") ? Response.json([{ foto: { query_attive: 0 } }])
+        : new Response(metriche({ impegnata: 2, disponibile: 6 })));
     expect((await controllaMemoria({ TOKEN: "t", REF: "rsbrguhkodgnqfomrevo", PROVA: "true" }, send, vi.fn())).livello).toBe("critico");
+  });
+
+  it("un picco in UNA sola lettura basta per la foto, ma non per l'avviso", async () => {
+    let n = 0;
+    const chiamate: string[] = [];
+    const send = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("api-keys")) return Response.json([{ name: "service_role", api_key: "k" }]);
+      if (url.endsWith("/database/query")) {
+        chiamate.push(String(init?.body));
+        return Response.json([{ foto: { query_attive: 3, cron_in_corso: [{ jobname: "mkt-motore-regole", da_s: 40 }] } }]);
+      }
+      n += 1;
+      return new Response(metriche(n === 2 ? { impegnata: 4.7, disponibile: 0.5 } : { impegnata: 3, disponibile: 4 }));
+    });
+    const r = await controllaMemoria({ TOKEN: "t", REF: "rsbrguhkodgnqfomrevo" }, send, vi.fn());
+    expect(r.livello).toBe("ok");
+    expect(r.foto?.query_attive).toBe(3);
+    expect(chiamate).toHaveLength(1);
+    expect(chiamate[0]).toContain("memoria_scatta_foto('critico'");
+  });
+
+  it("con memoria tranquilla non disturba il database", async () => {
+    const send = vi.fn(async (url: string) =>
+      url.includes("api-keys") ? Response.json([{ name: "service_role", api_key: "k" }]) : new Response(metriche({ impegnata: 3, disponibile: 4 })));
+    const r = await controllaMemoria({ TOKEN: "t", REF: "rsbrguhkodgnqfomrevo" }, send, vi.fn());
+    expect(r.foto).toBeNull();
+    expect(send.mock.calls.some(([u]) => String(u).endsWith("/database/query"))).toBe(false);
+  });
+
+  it("il riepilogo pubblico della foto non contiene il testo delle query", () => {
+    const t = testoFoto({
+      connessioni: [{ app: "postgrest", utente: "authenticator", n: 40, attive: 12, ferme_in_transazione: 0, attiva_da_s: 30 }],
+      query_attive: 12,
+      piu_lunghe: [{ app: "postgrest", stato: "active", attesa: null, durata_s: 30, query_id: "-885" }],
+      cron_in_corso: [{ jobname: "liste-automatiche-nightly", da_s: 90 }],
+    });
+    expect(t).toContain("liste-automatiche-nightly (90 s)");
+    expect(t).toContain("| postgrest | 40 | 12 | 0 | 30 |");
+    expect(t).not.toMatch(/select|insert|update/i);
+    expect(testoFoto(null)).toBe("");
+  });
+
+  it("la funzione della foto è chiusa e il testo delle query resta nel database", () => {
+    const sql = readFileSync("supabase/migrations/20281017090000_memoria_foto_picchi.sql", "utf8");
+    expect(sql).toContain("revoke all on function public.memoria_scatta_foto(text, jsonb) from public, anon, authenticated");
+    expect(sql).toContain("revoke all on public.memoria_foto_picchi from public, anon, authenticated");
+    expect(sql).toContain("statement_timeout = '5s'");
+    const ritorno = sql.slice(sql.indexOf("return jsonb_build_object"));
+    expect(ritorno).not.toContain("'query'");
   });
 
   it("il workflow lancia il controllo della memoria anche se il database è giù", () => {
