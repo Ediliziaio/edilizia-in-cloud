@@ -1,5 +1,6 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -58,6 +59,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // SECURITY (audit run-1, HIGH IDOR cross-tenant): l'ordine e' caricato col
+    // service role (bypassa RLS). Senza questo controllo qualsiasi utente
+    // autenticato potrebbe creare una richiesta di firma su un ordine di
+    // un'altra azienda. Legare l'ordine all'azienda del chiamante, come fa
+    // send-quote-signature. requireCompanyAccess lancia una Response (403) se
+    // l'utente non appartiene a order.company_id.
+    await requireCompanyAccess(supabaseAdmin, user.id, order.company_id, getCorsHeaders(req));
+
     // Create signature request
     const { data: sigRequest, error: insertError } = await supabaseAdmin
       .from("signature_requests")
@@ -87,6 +96,8 @@ Deno.serve(async (req) => {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error) {
+    // requireCompanyAccess/requireAuth lanciano una Response gia' pronta (403/401).
+    if (error instanceof Response) return error;
     const message = error instanceof Error ? error.message : "Errore imprevisto";
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

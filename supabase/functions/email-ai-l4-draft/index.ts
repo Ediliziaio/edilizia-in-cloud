@@ -26,6 +26,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -177,6 +178,13 @@ Deno.serve(async (req) => {
 
     if (error || !email) return json({ error: "Email not found" }, 404, corsHeaders);
 
+    // SECURITY (audit run-1, HIGH cross-tenant): l'email e' caricata col service
+    // role (RLS bypassata) per il solo email_id. Senza legare l'email all'azienda
+    // del chiamante, un utente autenticato di un'altra azienda leggerebbe
+    // oggetto/corpo/thread/contesto CRM altrui e farebbe fatturare l'AI alla
+    // vittima (email.company_id). requireCompanyAccess lancia una Response 403.
+    await requireCompanyAccess(supabase, userResp.user.id, email.company_id as string, corsHeaders);
+
     const categoria: string = (email.categoria as string) || (email.ai_category as string) || "altro";
 
     // ─── Categorie che non richiedono risposta → niente Sonnet ──────────────
@@ -309,6 +317,8 @@ ISTRUZIONE: scrivi la bozza seguendo la playbook "${playbook.key}". Output SOLO 
       model: SONNET_MODEL,
     }, 200, corsHeaders);
   } catch (e) {
+    // requireCompanyAccess lancia una Response gia' pronta (403): rispettarla.
+    if (e instanceof Response) return e;
     console.error("[email-ai-l4-draft] error", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, corsHeaders);
   }

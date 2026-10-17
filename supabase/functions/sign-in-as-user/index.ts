@@ -93,6 +93,39 @@ Deno.serve(async (req) => {
           { status: 403, headers: { ...corsH, "Content-Type": "application/json" } },
         );
       }
+
+      // SECURITY (audit run-1, CRITICAL): non basta che il target sia super_admin.
+      // Il ritorno all'admin va concesso SOLO se quel super_admin ha davvero
+      // impersonato QUESTO chiamante di recente — altrimenti un utente qualsiasi
+      // potrebbe farsi rilasciare un magic link per un super_admin arbitrario
+      // (takeover). La prova e' la riga scritta in admin_audit_log al momento
+      // dell'impersonificazione: { user_id: <super_admin>, action: "sign_in_as_user",
+      // target_id: <email del caller impersonato> }.
+      const { data: callerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email")
+        .eq("id", callerId)
+        .maybeSingle();
+      const callerEmail = callerProfile?.email ?? null;
+      const impersonationSince = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { data: impersonation } = callerEmail
+        ? await supabaseAdmin
+            .from("admin_audit_log")
+            .select("id")
+            .eq("user_id", targetUserId)
+            .eq("action", "sign_in_as_user")
+            .eq("target_id", callerEmail)
+            .gte("created_at", impersonationSince)
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
+      if (!impersonation) {
+        statusCode = 403;
+        return new Response(
+          JSON.stringify({ error: "No active impersonation to return from" }),
+          { status: 403, headers: { ...corsH, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // 4. Generate magic link
