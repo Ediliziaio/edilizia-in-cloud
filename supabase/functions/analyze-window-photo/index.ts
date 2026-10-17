@@ -402,6 +402,43 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // ── SSRF guard (audit run-1): valida image_url PRIMA del fetch server-side ──
+    // Senza, un utente poteva far scaricare al server un URL arbitrario (loopback,
+    // reti private, endpoint metadata del cloud) usando la funzione come proxy
+    // cieco. Ammessi solo https verso host pubblici, redirect bloccati.
+    let safeImageUrl: URL;
+    try {
+      safeImageUrl = new URL(image_url);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "invalid_image_url", message: "image_url non valido" }),
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
+    {
+      const host = safeImageUrl.hostname.toLowerCase();
+      const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+      const privateIpv4 = !!ipv4 && ((): boolean => {
+        const a = Number(ipv4[1]); const b = Number(ipv4[2]);
+        return a === 127 || a === 10 || a === 0 ||
+          (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
+          (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+      })();
+      // IPv6 letterali (bracketed): loopback ::1, ULA fc00::/7, link-local fe80::/10
+      const blockedIpv6 = host === "[::1]" || host.startsWith("[fc") || host.startsWith("[fd") || host.startsWith("[fe80");
+      const blockedHost = host === "localhost" || host.endsWith(".local") ||
+        host.endsWith(".internal") || host === "metadata.google.internal";
+      if (
+        safeImageUrl.protocol !== "https:" || safeImageUrl.username || safeImageUrl.password ||
+        privateIpv4 || blockedIpv6 || blockedHost
+      ) {
+        return new Response(
+          JSON.stringify({ error: "invalid_image_url", message: "image_url non consentito" }),
+          { status: 400, headers: { ...corsH, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // ── Scarica immagine e converte in base64 ───────────────────────────────
     const imgController = new AbortController();
     const imgTimeout = setTimeout(() => imgController.abort(), 30_000);
@@ -409,7 +446,7 @@ Deno.serve(async (req: Request) => {
     let mimeType = "image/jpeg";
 
     try {
-      const imgResp = await fetch(image_url, { signal: imgController.signal });
+      const imgResp = await fetch(safeImageUrl, { signal: imgController.signal, redirect: "error" });
       clearTimeout(imgTimeout);
       if (!imgResp.ok) throw new Error(`Fetch immagine fallito: ${imgResp.status}`);
       const contentType = imgResp.headers.get("content-type") ?? "image/jpeg";

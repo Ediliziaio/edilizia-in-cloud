@@ -57,7 +57,13 @@ Deno.serve(async (req) => {
     // We normalize to: tool_name + parameters
     const toolName: string = body.tool_name || body.name || body.tool || "";
     const params: Record<string, unknown> = body.parameters || body.params || body.input || body;
-    if (!params.company_id && companyFromUrl) params.company_id = companyFromUrl;
+    // SECURITY (audit run-1, cross-tenant): se la chiamata e' autenticata con la
+    // chiave URL derivata di un'azienda, quell'azienda e' AUTORITATIVA. Forziamo
+    // company_id al tenant del canale e ignoriamo qualsiasi company_id passato dal
+    // modello: senza questo, chi possiede la chiave di un'azienda potrebbe operare
+    // su un'altra scegliendo company_id/contact_id/order_id. Quando companyFromUrl
+    // non e' noto (master secret / chiamante interno) resta il valore fornito.
+    if (companyFromUrl) params.company_id = companyFromUrl;
 
     if (!toolName) {
       return errorResponse("tool_name is required", 400);
@@ -138,9 +144,13 @@ async function identifyCaller(admin: AdminClient, params: Record<string, unknown
   let contacts = exact.data ?? [];
   if (contacts.length === 0) {
     const suffix = phone.replace(/\+/g, "").slice(-9);
+    // SECURITY (audit run-1, HIGH cross-tenant): il fallback fuzzy DEVE restare
+    // dentro l'azienda del canale, come il match esatto. Senza filtro, un suffisso
+    // telefonico restituiva PII di contatti di altre aziende.
     const fuzzy = await admin
       .from("marketing_contacts")
       .select("id, first_name, last_name, email, phone, company_id, tags, score, assigned_to")
+      .match(typeof params.company_id === "string" ? { company_id: params.company_id } : {})
       .ilike("phone", `%${suffix}%`)
       .limit(1);
     contacts = fuzzy.data ?? [];
@@ -228,6 +238,8 @@ async function getClientInfo(admin: AdminClient, params: Record<string, unknown>
 async function getOrderStatus(admin: AdminClient, params: Record<string, unknown>) {
   const contactId = String(params.contact_id || "");
   const orderId = params.order_id ? String(params.order_id) : null;
+  // SECURITY (audit run-1, HIGH cross-tenant): vincola la ricerca al tenant del canale.
+  const scoped = typeof params.company_id === "string" && params.company_id ? String(params.company_id) : null;
 
   let query = admin
     .from("orders")
@@ -240,6 +252,7 @@ async function getOrderStatus(admin: AdminClient, params: Record<string, unknown
   } else {
     return { error: "contact_id o order_id richiesto" };
   }
+  if (scoped) query = query.eq("company_id", scoped);
 
   const { data: orders } = await query;
   const order = orders?.[0];
@@ -279,11 +292,15 @@ async function getOrderStatus(admin: AdminClient, params: Record<string, unknown
 async function getOrdersList(admin: AdminClient, params: Record<string, unknown>) {
   const contactId = String(params.contact_id || "");
   if (!contactId) return { error: "contact_id richiesto" };
+  const scoped = typeof params.company_id === "string" && params.company_id ? String(params.company_id) : null;
 
-  const { data: orders } = await admin
+  let query = admin
     .from("orders")
     .select("id, order_code, description, total_amount, expected_date, work_start_date, created_at")
-    .eq("customer_id", contactId)
+    .eq("customer_id", contactId);
+  // SECURITY (audit run-1, HIGH cross-tenant): vincola al tenant del canale.
+  if (scoped) query = query.eq("company_id", scoped);
+  const { data: orders } = await query
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -298,13 +315,17 @@ async function getAppointmentInfo(admin: AdminClient, params: Record<string, unk
   if (!contactId) return { error: "contact_id richiesto" };
 
   const today = new Date().toISOString().split("T")[0];
+  const scoped = typeof params.company_id === "string" && params.company_id ? String(params.company_id) : null;
 
-  const { data: appointments } = await admin
+  let query = admin
     .from("appointments")
     .select("id, title, appointment_date, appointment_time, appointment_end_time, appointment_type, status, description")
     .eq("contact_id", contactId)
     .gte("appointment_date", today)
-    .eq("is_blocked_slot", false)
+    .eq("is_blocked_slot", false);
+  // SECURITY (audit run-1, HIGH cross-tenant): vincola al tenant del canale.
+  if (scoped) query = query.eq("company_id", scoped);
+  const { data: appointments } = await query
     .order("appointment_date", { ascending: true })
     .limit(5);
 
@@ -327,6 +348,7 @@ async function createNote(admin: AdminClient, params: Record<string, unknown>) {
     .single();
 
   if (!contact) return { error: "Contatto non trovato" };
+  if (fuoriTenant(params, contact)) return { error: "Contatto non trovato" };
 
   // is_private NON esiste su marketing_contact_notes: con quella colonna
   // PostgREST rifiutava l'intero insert e la nota non veniva mai creata.
@@ -363,6 +385,7 @@ async function createActivity(admin: AdminClient, params: Record<string, unknown
     .single();
 
   if (!contact) return { error: "Contatto non trovato" };
+  if (fuoriTenant(params, contact)) return { error: "Contatto non trovato" };
 
   const assignedTo = params.assigned_to ? String(params.assigned_to) : contact.assigned_to;
 
@@ -397,7 +420,8 @@ async function updateOrderDate(admin: AdminClient, params: Record<string, unknow
   const newDate = String(params.new_date || "");
   if (!orderId || !newDate) return { error: "order_id e new_date richiesti" };
 
-  const { error } = await admin
+  const scoped = typeof params.company_id === "string" && params.company_id ? String(params.company_id) : null;
+  let upd = admin
     .from("orders")
     .update({
       expected_date: newDate,
@@ -407,6 +431,10 @@ async function updateOrderDate(admin: AdminClient, params: Record<string, unknow
       updated_at: new Date().toISOString(),
     })
     .eq("id", orderId);
+  // SECURITY (audit run-1, HIGH cross-tenant write): non scrivere su ordini di
+  // un'altra azienda. Vincola l'update al tenant del canale.
+  if (scoped) upd = upd.eq("company_id", scoped);
+  const { error } = await upd;
 
   if (error) return { error: error.message };
 
@@ -487,6 +515,7 @@ async function createSupportTicket(admin: AdminClient, params: Record<string, un
     .single();
 
   if (!contact) return { error: "Contatto non trovato" };
+  if (fuoriTenant(params, contact)) return { error: "Contatto non trovato" };
 
   // Create as activity with type "ticket"
   const { data: ticket, error } = await admin
@@ -527,6 +556,7 @@ async function scheduleCallback(admin: AdminClient, params: Record<string, unkno
     .single();
 
   if (!contact) return { error: "Contatto non trovato" };
+  if (fuoriTenant(params, contact)) return { error: "Contatto non trovato" };
 
   const contactName = `${contact.first_name || ""} ${contact.last_name || ""}`.trim();
   const reason = params.reason ? String(params.reason) : "Richiamo programmato dall'agente AI";
@@ -558,6 +588,20 @@ async function scheduleCallback(admin: AdminClient, params: Record<string, unkno
 }
 
 // ==================== HELPERS ====================
+
+/**
+ * SECURITY (audit run-1): true se il contatto appartiene a un'azienda diversa
+ * dal tenant del canale (params.company_id forzato a companyFromUrl quando
+ * l'auth e' la chiave URL derivata di un'azienda). Blocca le scritture CRM
+ * cross-tenant derivate dal contact_id fornito dal modello.
+ */
+function fuoriTenant(
+  params: Record<string, unknown>,
+  contact: { company_id?: string | null } | null,
+): boolean {
+  const scoped = typeof params.company_id === "string" && params.company_id ? String(params.company_id) : null;
+  return !!(scoped && contact && contact.company_id !== scoped);
+}
 
 function normalizePhone(phone: string): string {
   // Remove spaces, dashes, parentheses

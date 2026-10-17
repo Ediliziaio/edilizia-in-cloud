@@ -37,6 +37,7 @@
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import {
   componiEsito,
   corpoAttornoAlFile,
@@ -76,7 +77,11 @@ async function autorizzato(req: Request, db: SupabaseClient): Promise<boolean> {
   const { data: utente } = await db.auth.getUser(jwt);
   if (!utente?.user) return false;
   const { data: ruoli } = await db.from("user_roles").select("role").eq("user_id", utente.user.id);
-  return (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
+  const eSuperAdmin = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
+  // SECURITY (audit run-1, MEDIUM): l'allowlist email e' l'ultima parola sulla
+  // revoca di un super_admin (la riga user_roles sopravvive alla revoca, vedi
+  // src/config/superAdmin.ts). Richiederla anche qui, come secure-impersonation.
+  return eSuperAdmin && isSuperAdminEmailAllowed(utente.user.email);
 }
 
 function json(corpo: unknown, status = 200): Response {

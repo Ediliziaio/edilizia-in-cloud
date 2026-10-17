@@ -19,6 +19,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 const MAX_BATCH = 50;          // processa max 50 righe per turno
 const MAX_RETRIES = 10;         // dopo 10 tentativi: alert super_admin
@@ -28,12 +30,20 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  // Auth: accetta x-cron-secret oppure JWT (compat con chiamate manuali admin)
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestCronSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
-  if (cronSecret && requestCronSecret !== cronSecret && !authHeader?.startsWith("Bearer ")) {
-    return errorResponse("Unauthorized", 401);
+  // Auth (audit run-1, bypass CONFERMATO): il vecchio gate lasciava passare
+  // qualsiasi "Authorization: Bearer <stringa>" senza verificare il JWT — su una
+  // funzione che accredita crediti col service role. Ora: cron secret /
+  // service-role (chiamataInternaValida) OPPURE un JWT super_admin verificato
+  // per il trigger manuale admin.
+  if (!chiamataInternaValida(req)) {
+    const corsH = getCorsHeaders(req);
+    try {
+      const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+      await requireRole(supabaseAdmin, userId, ["super_admin"], corsH);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      return rispostaNonAutorizzata(corsH);
+    }
   }
 
   try {
@@ -60,6 +70,23 @@ Deno.serve(async (req) => {
     let alerted = 0;
 
     for (const row of pending ?? []) {
+      // SECURITY (audit run-1): presa in carico ATOMICA prima dell'accredito,
+      // SENZA introdurre uno stato fuori dal CHECK della tabella
+      // (status IN 'pending'/'credited'/'failed'). Lock ottimistico: incrementiamo
+      // retry_count condizionando su id + status='failed' + retry_count corrente.
+      // Se due invocazioni concorrenti leggono la stessa riga, solo la prima
+      // matcha il retry_count vecchio e vince; l'altra trova zero righe e salta,
+      // evitando il doppio accredito via add_email_credits_with_log.
+      const nextRetry = row.retry_count + 1;
+      const { data: claimed } = await supabase
+        .from("topup_outbox")
+        .update({ retry_count: nextRetry })
+        .eq("id", row.id)
+        .eq("status", "failed")
+        .eq("retry_count", row.retry_count)
+        .select("id");
+      if (!claimed || claimed.length === 0) continue; // gia' presa da un altro turno
+
       const { error: rpcErr } = await supabase.rpc("add_email_credits_with_log", {
         p_company_id: row.company_id,
         p_amount: row.amount_eur,
@@ -82,12 +109,11 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Ancora fallito: incrementa retry_count e aggiorna last_error.
-      const nextRetry = row.retry_count + 1;
+      // Ancora fallito: il retry_count e' gia' stato incrementato dal claim
+      // atomico qui sopra (lo status resta 'failed'); aggiorna solo last_error.
       await supabase
         .from("topup_outbox")
         .update({
-          retry_count: nextRetry,
           last_error: rpcErr.message ?? String(rpcErr),
         })
         .eq("id", row.id);

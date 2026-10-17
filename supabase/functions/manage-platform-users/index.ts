@@ -9,6 +9,7 @@ import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import { PRESET_CALLCENTER_ADMIN } from "../_shared/callcenterPiattaforma.ts";
 import { sincronizzaAccessoCrm } from "../_shared/accessoCrmPiattaforma.ts";
 
@@ -139,6 +140,16 @@ serveConMetriche("manage-platform-users", async (req) => {
       .maybeSingle();
 
     if (!callerRole) {
+      return errorResponse("Forbidden: not a super admin", 403);
+    }
+
+    // SECURITY (audit run-1, HIGH): la revoca di un super_admin toglie l'email
+    // dall'allowlist (src/config/superAdmin.ts) lasciando la riga user_roles.
+    // Un gate basato solo su user_roles lascerebbe operare un super_admin
+    // revocato (creazione utenti piattaforma, multi_company_access cross-tenant).
+    // L'allowlist email e' l'ultima parola, come in requireRole / secure-impersonation.
+    const { data: callerAuth } = await supabaseAdmin.auth.admin.getUserById(callerId);
+    if (!isSuperAdminEmailAllowed(callerAuth?.user?.email)) {
       return errorResponse("Forbidden: not a super admin", 403);
     }
 
