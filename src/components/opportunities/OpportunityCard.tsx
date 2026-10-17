@@ -238,8 +238,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         data-scheda-opportunita=""
         className={cn(
           // Densità: padding e interlinea ridotti rispetto a p-3/space-y-2 per
-          // far stare più schede nella stessa altezza di schermo.
-          "bg-background border rounded-lg p-2 md:p-2.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-1 md:space-y-1.5 border-l-[3px]",
+          // far stare più schede nella stessa altezza di schermo. (run density:
+          // ulteriore giro di stretta — p-1.5/md:p-2, interlinea md a 1.)
+          "bg-background border rounded-lg p-1.5 md:p-2 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-1 md:space-y-1 border-l-[3px]",
           opportunity.status === "open" && "border-l-blue-500",
           opportunity.status === "won" && "border-l-green-500",
           opportunity.status === "lost" && "border-l-red-500",
@@ -262,7 +263,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <div className="flex items-center gap-1 min-w-0">
                 <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity createdAt={contact.created_at} compact />
                 <p
-                  className="text-xs md:text-sm font-bold leading-tight line-clamp-2 break-words cursor-pointer hover:underline"
+                  className="text-[11px] md:text-xs font-bold leading-tight truncate min-w-0 flex-1 cursor-pointer hover:underline"
                   title={displayName}
                   onClick={(e) => { e.stopPropagation(); navigate(`${routePrefix}/contatti/${contact.id}`); }}
                   onPointerDown={(e) => e.stopPropagation()}
@@ -271,7 +272,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 </p>
               </div>
             ) : (
-              <p className="text-sm font-bold leading-tight line-clamp-2 break-words" title={displayName}>{displayName}</p>
+              <p className="text-[11px] md:text-xs font-bold leading-tight truncate min-w-0" title={displayName}>{displayName}</p>
             )}
           </div>
           <div className="flex items-center gap-1.5">
@@ -305,10 +306,6 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
           </div>
         </div>
 
-        {/* Ha già fatto richiesta: è rientrato nello stesso flusso, non è un lead nuovo.
-            Sta sotto il nome, non accanto: accanto gli toglieva lo spazio. */}
-        <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} className="self-start" />
-
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} />
 
@@ -335,6 +332,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 {daysInStage}gg in stage
               </span>
             )}
+            {/* Badge «già cliente / richiesta ripetuta»: in basso, a lato e compatto
+                (solo icona), così non ruba spazio al nome del contatto. */}
+            <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} compatta className="ml-auto" />
           </div>
         )}
 

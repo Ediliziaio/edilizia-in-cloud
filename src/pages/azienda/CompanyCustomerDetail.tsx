@@ -700,9 +700,9 @@ export default function CompanyCustomerDetail() {
   const openTickets = tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ───── Hero header stile MarketingContactDetail ───── */}
-      <div className="rounded-2xl border bg-card p-4 md:p-5 shadow-sm">
+      <div className="rounded-2xl border bg-card p-3 md:p-4 shadow-sm">
         <div className="flex items-start gap-3 md:gap-4">
           {/* Mobile: la freccia c'è già nella barra in alto. */}
           <Button
@@ -934,7 +934,7 @@ export default function CompanyCustomerDetail() {
         </div>
 
         {/* DESKTOP: KPI strip full (border bg-card + icon corner + subtext) */}
-        <div className="mt-3 hidden md:grid md:grid-cols-4 gap-2">
+        <div className="mt-2 hidden md:grid md:grid-cols-4 gap-2">
           <KpiCard
             icon={ShoppingBag}
             iconColor="text-blue-500"
@@ -1024,7 +1024,10 @@ export default function CompanyCustomerDetail() {
         Usato `order-*` CSS per ribaltare l'ordine senza duplicare markup.
         Il min-h timeline è limitato su mobile per evitare scroll infinito.
       */}
-      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:min-h-[70vh]">
+      {/* Altezza LIMITATA su desktop (come la scheda contatti): così la timeline
+          scrolla dentro il pannello e la barra «scrivi email / WhatsApp» resta
+          FISSA in basso invece di finire in coda allo scroll della pagina. */}
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-18rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
         <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">
           <CustomerProfileCard
@@ -1043,17 +1046,21 @@ export default function CompanyCustomerDetail() {
 
         {/* ─── CENTER timeline + compose (su mobile è il PRIMO blocco) ─── */}
         <div className="order-1 lg:order-none flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden min-h-[50vh] lg:min-h-0">
-          <CustomerActivityTimeline
-            customerId={customer.id}
-            orders={orders}
-            tickets={tickets}
-            appuntamenti={appuntamenti}
-            fatture={fattureCliente}
-            emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
-            diaryMessages={diaryMessagesForTimeline}
-            messaggi={conversazioniMessaggi}
-            customerCreatedAt={customer.created_at}
-          />
+          {/* Wrapper flex-1 min-h-0: la timeline (h-full) scrolla qui dentro,
+              lasciando il composer fisso in basso (come UnifiedContactTimeline). */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <CustomerActivityTimeline
+              customerId={customer.id}
+              orders={orders}
+              tickets={tickets}
+              appuntamenti={appuntamenti}
+              fatture={fattureCliente}
+              emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
+              diaryMessages={diaryMessagesForTimeline}
+              messaggi={conversazioniMessaggi}
+              customerCreatedAt={customer.created_at}
+            />
+          </div>
           <CustomerComposeBar
             customerId={customer.id}
             customerEmail={formatCustomerEmail(customer.email)}
@@ -1232,18 +1239,18 @@ function KpiCard({
   subtext?: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card px-3 py-2">
+    <div className="rounded-lg border bg-card px-3 py-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
           {label}
         </span>
         <Icon className={`h-3 w-3 ${iconColor ?? "text-muted-foreground"}`} />
       </div>
-      <div className="flex items-baseline gap-1.5 mt-1">
-        <span className="text-xl font-bold tabular-nums truncate">{value}</span>
+      <div className="flex items-baseline gap-1.5 mt-0.5">
+        <span className="text-lg font-bold tabular-nums truncate">{value}</span>
       </div>
       {subtext && (
-        <p className="text-[10px] text-muted-foreground mt-1 truncate">{subtext}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtext}</p>
       )}
     </div>
   );

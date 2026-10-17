@@ -833,7 +833,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       // bianco fino in fondo, e sul tablet niente altezza fissa che taglia).
       compatta && !chatMobile && "min-h-0 md:h-auto md:overflow-visible",
     )}>
-      <div className="px-3 pt-2">
+      {/* empty:hidden → quando non ci sono problemi API il banner non rende nulla
+          e il contenitore collassa, senza lasciare spazio bianco in cima. */}
+      <div className="px-3 pt-2 empty:hidden">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
 
@@ -842,7 +844,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           DESKTOP: full layout (avatar XL, badges, KPI grid 4 col) */}
       <div className="border-b bg-gradient-to-b from-card to-background shrink-0">
         {/* Breadcrumb + nav — solo desktop */}
-        <div className="hidden lg:flex items-center justify-between px-3 sm:px-5 pt-2.5 pb-1.5">
+        <div className="hidden lg:flex items-center justify-between px-3 sm:px-5 pt-1.5 pb-1">
           <div className="flex items-center gap-2 min-w-0">
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)} title="Torna ai contatti">
               <ArrowLeft className="h-4 w-4" />
@@ -960,7 +962,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
 
         {/* ─── DESKTOP HERO (md+) ─── */}
-        <div className="hidden lg:block px-3 sm:px-5 pb-3">
+        <div className="hidden lg:block px-3 sm:px-5 pb-2">
           <div className="flex items-center gap-5">
             {/* Identity */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1019,6 +1021,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
                 </Button>
               )}
+              {/* Registra chiamata: spostato qui tra le azioni di testata (prima
+                  occupava una riga intera sopra la timeline). */}
+              <LogCallButton companyId={companyId} contactId={id} userId={user?.id} className="gap-1.5 h-9" />
               <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
               {/* Crea preventivo dal contatto — SOLO area azienda: nel CRM di
                   piattaforma (superadmin) i preventivi non esistono. */}
@@ -1059,32 +1064,32 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             </div>
           </div>
 
-          {/* KPI strip 4 col desktop */}
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <div className="rounded-lg border bg-card px-3 py-2">
+          {/* KPI strip 4 col desktop — densità spinta (richiesta Florin): py-1,
+              valore text-base, interlinea 0.5, per dare spazio alla zona centrale.
+              Stesso stile del KpiCard della scheda cliente. */}
+          <div className="mt-1.5 grid grid-cols-4 gap-2">
+            <div className="rounded-lg border bg-card px-3 py-1">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
-              <Progress value={leadScore} className="h-1 mt-1" />
+              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
+              <Progress value={leadScore} className="h-1 mt-0.5" />
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}</div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</p>
+              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}<span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</span></div>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
+              <div className="flex items-baseline gap-1.5"><span className="text-base font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{activities.length} attività totali</p>
+              <div className="flex items-baseline gap-1.5"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span><span className="text-[10px] text-muted-foreground ml-auto truncate max-md:text-[11px]">{activities.length} att.</span></div>
             </div>
           </div>
 
           {/* Convertito banner */}
           {contact.customer_profile_id && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
               <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
               <span className="text-emerald-700 font-medium flex-1">Questo contatto è già stato convertito in cliente</span>
               <Button variant="link" size="sm" className="h-auto p-0 text-xs text-emerald-700 underline" onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}>
@@ -1543,11 +1548,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {/* Mobile: in chat riempie lo schermo; senza scrittore è alta quanto la
           cronologia (con un tetto), non 60vh fissi di bianco. */}
       <div className={cn("flex-1 flex flex-col min-w-0 min-h-0 h-[60vh] lg:h-auto", compatta && (chatMobile ? "h-auto" : "h-auto max-h-[62vh] flex-none"), compatta && sezioneMobile !== "attivita" && "hidden")}>
-        {/* Azioni rapide sul contatto (registra chiamata manuale, senza centralino) */}
-        {/* Mobile no: una riga intera per un bottone, che ora sta accanto al nome. */}
-        <div className="shrink-0 hidden lg:flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
-          <LogCallButton companyId={companyId} contactId={id} userId={user?.id} />
-        </div>
+        {/* «Registra chiamata» è stato spostato nelle azioni di testata: qui non
+            serve più una riga intera dedicata (recuperato spazio per la timeline). */}
         {/* Unified Timeline — min-h-0 così il timeline si restringe e scrolla
             invece di spingere il composer fuori dal contenitore (bug flexbox). */}
         <div className={cn("flex-1 min-h-0 overflow-hidden", compatta && !chatMobile && "overflow-y-auto")}>
