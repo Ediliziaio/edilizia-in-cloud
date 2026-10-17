@@ -700,9 +700,9 @@ export default function CompanyCustomerDetail() {
   const openTickets = tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ───── Hero header stile MarketingContactDetail ───── */}
-      <div className="rounded-2xl border bg-card p-4 md:p-5 shadow-sm">
+      <div className="rounded-2xl border bg-card p-3 md:p-4 shadow-sm">
         <div className="flex items-start gap-3 md:gap-4">
           {/* Mobile: la freccia c'è già nella barra in alto. */}
           <Button
@@ -934,7 +934,7 @@ export default function CompanyCustomerDetail() {
         </div>
 
         {/* DESKTOP: KPI strip full (border bg-card + icon corner + subtext) */}
-        <div className="mt-3 hidden md:grid md:grid-cols-4 gap-2">
+        <div className="mt-2 hidden md:grid md:grid-cols-4 gap-2">
           <KpiCard
             icon={ShoppingBag}
             iconColor="text-blue-500"
@@ -1232,18 +1232,18 @@ function KpiCard({
   subtext?: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card px-3 py-2">
+    <div className="rounded-lg border bg-card px-3 py-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
           {label}
         </span>
         <Icon className={`h-3 w-3 ${iconColor ?? "text-muted-foreground"}`} />
       </div>
-      <div className="flex items-baseline gap-1.5 mt-1">
-        <span className="text-xl font-bold tabular-nums truncate">{value}</span>
+      <div className="flex items-baseline gap-1.5 mt-0.5">
+        <span className="text-lg font-bold tabular-nums truncate">{value}</span>
       </div>
       {subtext && (
-        <p className="text-[10px] text-muted-foreground mt-1 truncate">{subtext}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtext}</p>
       )}
     </div>
   );

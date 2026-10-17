@@ -1059,32 +1059,33 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             </div>
           </div>
 
-          {/* KPI strip 4 col desktop */}
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <div className="rounded-lg border bg-card px-3 py-2">
+          {/* KPI strip 4 col desktop — densità: py-1.5, valore lg, interlinea 0.5
+              (coerente con KpiCard della scheda cliente). */}
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            <div className="rounded-lg border bg-card px-3 py-1.5">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
-              <Progress value={leadScore} className="h-1 mt-1" />
+              <div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-lg font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
+              <Progress value={leadScore} className="h-1 mt-0.5" />
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1.5">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}</div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-lg font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}</div>
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</p>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1.5">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
+              <div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-lg font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="rounded-lg border bg-card px-3 py-1.5">
               <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{activities.length} attività totali</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-md:text-[11px]">{activities.length} attività totali</p>
             </div>
           </div>
 
           {/* Convertito banner */}
           {contact.customer_profile_id && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
               <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
               <span className="text-emerald-700 font-medium flex-1">Questo contatto è già stato convertito in cliente</span>
               <Button variant="link" size="sm" className="h-auto p-0 text-xs text-emerald-700 underline" onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}>
