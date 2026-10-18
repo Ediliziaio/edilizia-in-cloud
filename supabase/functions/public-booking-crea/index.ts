@@ -23,6 +23,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { contattoDellaPrenotazione } from "../_shared/contattoPrenotazione.ts";
+import { slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
 import { emailAppuntamento, whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
@@ -68,7 +69,7 @@ Deno.serve(async (req) => {
     // 1. calendario pubblico e attivo
     const { data: cal, error: calErr } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, cosa_preparare, mittente_nome, mittente_email")
+      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, link_videochiamata, whatsapp_numero_id, firma_messaggi, cosa_preparare, mittente_nome, mittente_email")
       .eq("booking_slug", slug).eq("is_active", true).maybeSingle();
     if (calErr) throw calErr;
     if (!cal) return json({ error: "Calendario non trovato o non piu' attivo." }, 404);
@@ -103,65 +104,21 @@ Deno.serve(async (req) => {
       return json({ error: `Serve un preavviso di almeno ${preavviso < 60 ? `${preavviso} minuti` : ore === 1 ? "un'ora" : `${ore} ore`}: scegli un orario piu' avanti.` }, 409);
     }
 
-    // 3. dentro una fascia di disponibilita' del giorno (la data specifica vince)
-    const giorno = new Date(`${data}T12:00:00Z`).getUTCDay();
-    const { data: fasce, error: fErr } = await admin
-      .from("marketing_calendar_availability")
-      .select("day_of_week, start_time, end_time, specific_date")
-      .eq("calendar_id", cal.id).eq("is_enabled", true);
-    if (fErr) throw fErr;
-    const perData = (fasce ?? []).filter((f: any) => f.specific_date === data);
-    const valide = perData.length ? perData : (fasce ?? []).filter((f: any) => f.specific_date === null && f.day_of_week === giorno);
-    const dentro = valide.some((f: any) => inizio >= minuti(String(f.start_time).slice(0, 5)) && fine <= minuti(String(f.end_time).slice(0, 5)));
-    if (!dentro) return json({ error: "Questo orario non e' fra quelli disponibili." }, 409);
-
-    // 4. nessun altro appuntamento sovrapposto sullo stesso calendario
-    const { data: presi, error: pErr } = await admin
-      .from("appointments")
-      .select("appointment_time, appointment_end_time")
-      .eq("calendar_id", cal.id).eq("appointment_date", data)
-      .not("status", "eq", "annullato")
-      .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
-    if (pErr) throw pErr;
-    // I margini valgono da entrambe le parti: un appuntamento nuovo deve stare
-    // lontano dagli altri di buffer_before/after minuti.
-    const bufPrima = Math.max(0, Number(cal.buffer_before_min ?? 0));
-    const bufDopo = Math.max(0, Number(cal.buffer_after_min ?? 0));
-    const occupato = (presi ?? []).some((a: any) => {
-      const s = minuti(String(a.appointment_time ?? "00:00").slice(0, 5));
-      const e = a.appointment_end_time ? minuti(String(a.appointment_end_time).slice(0, 5)) : s + durata;
-      return (inizio - bufPrima) < (e + bufDopo) && (fine + bufDopo) > (s - bufPrima);
+    // 3. l'orario deve essere fra quelli liberi del generatore condiviso
+    //    (calendarioSlot.ts, via slotLiberiCalendario): un posto solo per la
+    //    griglia del passo, le fasce di disponibilita', i margini, il tetto
+    //    giornaliero e gli impegni esterni del titolare (Google/Apple/Outlook).
+    //    Prima qui c'era una copia di quelle regole: con un passo diverso dalla
+    //    durata un orario fuori griglia (es. 09:30) sarebbe passato.
+    const { slot: liberi } = await slotLiberiCalendario(admin, cal.id, data, {
+      companyId: cal.company_id,
+      adesso: new Date(),
     });
-    if (occupato) return json({ error: "Questo orario e' appena stato occupato. Scegline un altro." }, 409);
-
-    // Tetto di appuntamenti al giorno su questo calendario.
-    if (cal.max_per_day && (presi ?? []).length >= Number(cal.max_per_day)) {
-      return json({ error: "Per questa giornata non ci sono piu' posti: scegli un altro giorno." }, 409);
+    if (!liberi.includes(ora)) {
+      return json({ error: "Questo orario non e' piu' disponibile: scegline un altro." }, 409);
     }
 
-    // 5. impegni del titolare: Google, Apple e Outlook
-    if (cal.owner_id) {
-      const { data: pref } = await admin
-        .from("user_calendar_preferences").select("block_busy_slots").eq("user_id", cal.owner_id).maybeSingle();
-      if (pref?.block_busy_slots !== false) {
-        const giornoIso = `${data}T00:00:00.000Z`;
-        const domaniIso = `${data}T23:59:59.999Z`;
-        const { data: impegni } = await admin
-          .from("unified_calendar_busy_slots")
-          .select("start_at, end_at")
-          .eq("user_id", cal.owner_id)
-          .lt("start_at", domaniIso).gt("end_at", giornoIso);
-        const inizioMs = new Date(`${data}T${ora}:00`).getTime();
-        const fineMs = inizioMs + durata * 60_000;
-        const sovrapposto = (impegni ?? []).some((b: any) => {
-          const s = new Date(b.start_at).getTime(), e = new Date(b.end_at).getTime();
-          return inizioMs < e && fineMs > s;
-        });
-        if (sovrapposto) return json({ error: "Questo orario risulta occupato nel calendario. Scegline un altro." }, 409);
-      }
-    }
-
-    // 6. crea l'appuntamento
+    // 4. crea l'appuntamento
     // Il link fisso del calendario (Meet, Zoom…) diventa il luogo dell'appuntamento:
     // va nella conferma, nei promemoria, nel file .ics e sull'evento Google. Vince
     // sul Meet generato, come nel dialogo dell'appuntamento.

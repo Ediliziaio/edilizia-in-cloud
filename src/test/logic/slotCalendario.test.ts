@@ -75,6 +75,44 @@ describe("calcolaSlotLiberi", () => {
   });
 });
 
+describe("calcolaSlotLiberi — passo indipendente dalla durata", () => {
+  const base = { giorno: VENERDI, regole: settimana, appuntamenti: [] as Fascia[], occupatiEsterni: [] as Occupato[], adesso: PASSATO };
+
+  it("durata 45 + passo 60 => orari puliti sull'ora tonda", () => {
+    const r = calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: 60 });
+    expect(r.slot).toEqual(["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"]);
+  });
+
+  it("senza passo (o ≤0) ricade sulla durata: comportamento di sempre", () => {
+    const senza = calcolaSlotLiberi({ ...base, durataMin: 45 });
+    expect(senza.slot).toEqual(["09:00", "09:45", "10:30", "11:15", "14:00", "14:45", "15:30", "16:15"]);
+    // passo 0 o negativo è come non averlo
+    expect(calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: 0 }).slot).toEqual(senza.slot);
+    expect(calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: null }).slot).toEqual(senza.slot);
+  });
+
+  it("un orario fuori griglia non è fra i liberi", () => {
+    const r = calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: 60 });
+    // col passo 60 le 09:30 e le 09:45 non esistono più
+    expect(r.slot).not.toContain("09:30");
+    expect(r.slot).not.toContain("09:45");
+  });
+
+  it("col passo i margini continuano a valere", () => {
+    const r = calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: 60, bufferDopoMin: 15, appuntamenti: [{ inizio: "10:00:00", fine: "10:45:00" }] });
+    expect(r.slot).not.toContain("10:00");
+    // 11:00 inizia dopo le 10:45 + 15 di margine: resta libero
+    expect(r.slot).toContain("11:00");
+    expect(r.slot).toContain("09:00");
+  });
+
+  it("col passo il tetto giornaliero continua a valere", () => {
+    const r = calcolaSlotLiberi({ ...base, durataMin: 45, passoMin: 60, maxAlGiorno: 2, appuntamenti: [{ inizio: "09:00", fine: "09:45" }, { inizio: "14:00", fine: "14:45" }] });
+    expect(r.slot).toEqual([]);
+    expect(r.motivoVuoto).toBe("tetto");
+  });
+});
+
 describe("impegniEsterniInFascia", () => {
   it("trova gli impegni che toccano un orario scelto a mano", () => {
     const occupati = [{ start_at: new Date(2026, 9, 9, 10, 30).toISOString(), end_at: new Date(2026, 9, 9, 11, 30).toISOString() }];

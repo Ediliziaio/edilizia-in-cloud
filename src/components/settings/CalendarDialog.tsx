@@ -61,6 +61,8 @@ export interface CalendarFormData {
   buffer_after_min: number;
   min_notice_minutes: number;
   max_per_day: number | null;
+  /** Ogni quanti minuti si offre un orario. null = usa la durata. */
+  slot_interval_min: number | null;
   reminder_24h: boolean;
   reminder_1h: boolean;
   /** Dove finiscono su Google/Outlook/Apple gli appuntamenti di QUESTO calendario. */
@@ -100,6 +102,7 @@ const FORM_VUOTO: CalendarFormData = {
   buffer_after_min: 0,
   min_notice_minutes: 120,
   max_per_day: null,
+  slot_interval_min: null,
   reminder_24h: true,
   reminder_1h: true,
   external_provider: null,
@@ -144,6 +147,7 @@ function costruisciForm(initialData?: Partial<CalendarFormData> | null): Calenda
     buffer_after_min: initialData.buffer_after_min ?? 0,
     min_notice_minutes: initialData.min_notice_minutes ?? 120,
     max_per_day: initialData.max_per_day ?? null,
+    slot_interval_min: initialData.slot_interval_min ?? null,
     reminder_24h: initialData.reminder_24h !== false,
     reminder_1h: initialData.reminder_1h !== false,
     external_provider: initialData.external_provider ?? null,
@@ -702,6 +706,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                           <Input id="cal-massimo-giorno" type="number" min={1} placeholder="nessun limite" className="max-md:h-11"
                             value={form.max_per_day ?? ""}
                             onChange={(e) => setForm(f => ({ ...f, max_per_day: e.target.value.trim() ? Math.max(1, parseInt(e.target.value) || 1) : null }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <EtichettaConAiuto htmlFor="cal-passo" aiuto="Ogni quanto si offre un orario. Lascia vuoto per usare la durata. Esempio: durata 45 min e passo 60 offre le 9:00, 10:00, 11:00… con 15 minuti di respiro in mezzo.">
+                            <span className="text-xs text-muted-foreground">Un appuntamento ogni (min)</span>
+                          </EtichettaConAiuto>
+                          <Input id="cal-passo" type="number" min={5} max={240} placeholder="come la durata" className="max-md:h-11"
+                            value={form.slot_interval_min ?? ""}
+                            onChange={(e) => setForm(f => ({ ...f, slot_interval_min: e.target.value.trim() ? Math.min(240, Math.max(5, parseInt(e.target.value) || 5)) : null }))} />
                         </div>
                       </div>
                     </div>

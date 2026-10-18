@@ -49663,6 +49663,7 @@ export type Database = {
           max_daily_km: number | null
           max_per_day: number | null
           messaggi_crm_dal: string | null
+          slot_interval_min: number | null
           min_notice_minutes: number
           mittente_email: string | null
           mittente_nome: string | null
@@ -49705,6 +49706,7 @@ export type Database = {
           max_daily_km?: number | null
           max_per_day?: number | null
           messaggi_crm_dal?: string | null
+          slot_interval_min?: number | null
           min_notice_minutes?: number
           mittente_email?: string | null
           mittente_nome?: string | null
@@ -49747,6 +49749,7 @@ export type Database = {
           max_daily_km?: number | null
           max_per_day?: number | null
           messaggi_crm_dal?: string | null
+          slot_interval_min?: number | null
           min_notice_minutes?: number
           mittente_email?: string | null
           mittente_nome?: string | null

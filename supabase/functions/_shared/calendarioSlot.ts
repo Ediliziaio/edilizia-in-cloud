@@ -42,6 +42,8 @@ export interface InputSlot {
   dataIso: string;
   regole: RegolaDisponibilita[];
   durataMin: number;
+  /** Ogni quanti minuti si offre un orario. Assente = come la durata (passo = durata). */
+  passoMin?: number;
   bufferPrimaMin: number;
   bufferDopoMin: number;
   preavvisoMin: number;
@@ -66,6 +68,9 @@ export function fasceDelGiorno(dataIso: string, regole: RegolaDisponibilita[]): 
 
 export function slotLiberi(input: InputSlot): string[] {
   const durata = Math.max(5, Math.floor(input.durataMin || 30));
+  // Il passo è indipendente dalla durata: con durata 45 e passo 60 escono
+  // 09:00, 10:00, 11:00… Assente (o non valido) ricade sulla durata, com'era.
+  const passo = Math.max(5, Math.floor(input.passoMin || durata));
   const bufPrima = Math.max(0, Math.floor(input.bufferPrimaMin || 0));
   const bufDopo = Math.max(0, Math.floor(input.bufferDopoMin || 0));
 
@@ -89,7 +94,7 @@ export function slotLiberi(input: InputSlot): string[] {
   for (const fascia of fasce) {
     const apertura = minutiDa(String(fascia.start_time).slice(0, 5));
     const chiusura = minutiDa(String(fascia.end_time).slice(0, 5));
-    for (let inizio = apertura; inizio + durata <= chiusura; inizio += durata) {
+    for (let inizio = apertura; inizio + durata <= chiusura; inizio += passo) {
       const fine = inizio + durata;
       // Stessa regola di public-booking-crea: i margini valgono da entrambe le parti.
       const sovrapposto = occupati.some(

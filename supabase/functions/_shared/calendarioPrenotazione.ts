@@ -36,10 +36,12 @@ export interface CalendarioBase {
   buffer_after_min: number | null;
   min_notice_minutes: number | null;
   max_per_day: number | null;
+  /** Ogni quanti minuti si offre un orario. NULL = usa duration_minutes. */
+  slot_interval_min: number | null;
 }
 
 const COLONNE_CALENDARIO =
-  "id, company_id, name, owner_id, duration_minutes, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, is_active";
+  "id, company_id, name, owner_id, duration_minutes, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, is_active";
 
 async function leggiCalendario(admin: any, calendarId: string, companyId?: string): Promise<CalendarioBase | null> {
   let q = admin.from("marketing_calendars").select(COLONNE_CALENDARIO).eq("id", calendarId).eq("is_active", true);
@@ -56,19 +58,29 @@ export function dataRoma(adesso: Date, giorni = 0): string {
   return new Date(Date.UTC(y, m - 1, d + giorni, 12)).toISOString().slice(0, 10);
 }
 
-async function slotDelGiorno(admin: any, cal: CalendarioBase, dataIso: string, adesso: Date): Promise<string[]> {
+async function slotDelGiorno(
+  admin: any,
+  cal: CalendarioBase,
+  dataIso: string,
+  adesso: Date,
+  escludiAppuntamentoId?: string,
+): Promise<string[]> {
   const [{ data: regole, error: eRegole }, { data: presi, error: ePresi }] = await Promise.all([
     admin.from("marketing_calendar_availability")
       .select("day_of_week, start_time, end_time, specific_date")
       .eq("calendar_id", cal.id).eq("is_enabled", true),
     // Anche il tempo bloccato dal titolare occupa l'orario (conta a parte nel tetto).
     admin.from("appointments")
-      .select("appointment_time, appointment_end_time, is_blocked_slot")
+      .select("id, appointment_time, appointment_end_time, is_blocked_slot")
       .eq("calendar_id", cal.id).eq("appointment_date", dataIso)
       .not("status", "in", FILTRO_ANNULLATI),
   ]);
   if (eRegole) throw new Error(`disponibilità: ${eRegole.message}`);
   if (ePresi) throw new Error(`appuntamenti: ${ePresi.message}`);
+  // Spostamento: l'appuntamento che si sta spostando non deve bloccare se stesso.
+  const presiFiltrati = escludiAppuntamentoId
+    ? (presi ?? []).filter((a: any) => String(a.id) !== escludiAppuntamentoId)
+    : (presi ?? []);
 
   let impegni: Array<{ start_at: string; end_at: string }> = [];
   if (cal.owner_id) {
@@ -91,11 +103,12 @@ async function slotDelGiorno(admin: any, cal: CalendarioBase, dataIso: string, a
     dataIso,
     regole: (regole ?? []) as any[],
     durataMin: cal.duration_minutes || 30,
+    passoMin: cal.slot_interval_min ? Number(cal.slot_interval_min) : undefined,
     bufferPrimaMin: Number(cal.buffer_before_min ?? 0),
     bufferDopoMin: Number(cal.buffer_after_min ?? 0),
     preavvisoMin: Number(cal.min_notice_minutes ?? 0),
     maxAlGiorno: cal.max_per_day ? Number(cal.max_per_day) : null,
-    appuntamenti: (presi ?? []).map((a: any) => ({
+    appuntamenti: presiFiltrati.map((a: any) => ({
       inizio: String(a.appointment_time ?? "00:00").slice(0, 5),
       fine: a.appointment_end_time ? String(a.appointment_end_time).slice(0, 5) : null,
       blocco: a.is_blocked_slot === true,
@@ -109,11 +122,14 @@ export async function slotLiberiCalendario(
   admin: any,
   calendarId: string,
   dataIso: string,
-  opzioni: { companyId?: string; adesso?: Date } = {},
+  opzioni: { companyId?: string; adesso?: Date; escludiAppuntamentoId?: string } = {},
 ): Promise<{ calendario: CalendarioBase | null; slot: string[] }> {
   const cal = await leggiCalendario(admin, calendarId, opzioni.companyId);
   if (!cal) return { calendario: null, slot: [] };
-  return { calendario: cal, slot: await slotDelGiorno(admin, cal, dataIso, opzioni.adesso ?? new Date()) };
+  return {
+    calendario: cal,
+    slot: await slotDelGiorno(admin, cal, dataIso, opzioni.adesso ?? new Date(), opzioni.escludiAppuntamentoId),
+  };
 }
 
 /** I prossimi giorni (da `daIso` compreso) che hanno almeno un orario libero. */

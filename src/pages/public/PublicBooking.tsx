@@ -37,6 +37,7 @@ interface CalendarioPubblico {
   buffer_after_min: number | null;
   min_notice_minutes: number | null;
   max_per_day: number | null;
+  slot_interval_min: number | null;
 }
 
 function withPublicBookingTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
@@ -96,7 +97,7 @@ export default function PublicBooking() {
         // link e leggeva "Calendario non trovato".
         supabase
           .from("public_booking_calendars" as never)
-          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id, default_meeting_provider, default_meeting_enabled, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
+          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id, default_meeting_provider, default_meeting_enabled, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min")
           .eq("booking_slug", slug)
           .maybeSingle(),
         "Calendario",
@@ -283,6 +284,11 @@ export default function PublicBooking() {
     const dayOfWeek = selectedDate.getDay(); // 0=Sun
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     const duration = calendar.duration_minutes || 30;
+    // Il passo con cui si offrono gli orari: indipendente dalla durata, come lato
+    // server (calendarioSlot.ts). Vuoto/0 => usa la durata, com'era prima.
+    const passo = calendar.slot_interval_min && calendar.slot_interval_min > 0
+      ? calendar.slot_interval_min
+      : duration;
 
     // Find matching availability rules (day_of_week or specific_date)
     const rules = availability.filter(
@@ -308,7 +314,7 @@ export default function PublicBooking() {
         if (!isOccupied && !troppoVicino && !isSlotBusy(slotTime, duration)) {
           allSlots.push(slotTime);
         }
-        current = new Date(current.getTime() + duration * 60000);
+        current = new Date(current.getTime() + passo * 60000);
       }
     }
     // Tetto di appuntamenti al giorno: raggiunto, la giornata non ha piu' orari.

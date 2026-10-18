@@ -62,6 +62,8 @@ export interface ParametriSlot {
   appuntamenti: Fascia[];
   occupatiEsterni: Occupato[];
   durataMin: number;
+  /** Ogni quanti minuti si offre un orario. Assente/≤0 = come la durata (passo = durata). */
+  passoMin?: number | null;
   bufferPrimaMin?: number;
   bufferDopoMin?: number;
   preavvisoMin?: number;
@@ -100,10 +102,14 @@ export function calcolaSlotLiberi(p: ParametriSlot): EsitoSlot {
     })
     .filter((x): x is { i: number; f: number } => x !== null);
 
+  // Il passo è indipendente dalla durata: con durata 45 e passo 60 escono
+  // 09:00, 10:00, 11:00… Assente (o ≤0) ricade sulla durata, com'era.
+  const passo = p.passoMin && p.passoMin > 0 ? p.passoMin : p.durataMin;
+
   const slot = new Set<string>();
   for (const { da, a } of fasce) {
     const fineFascia = minuti(a)!;
-    for (let cursore = minuti(da)!; cursore + p.durataMin <= fineFascia; cursore += p.durataMin) {
+    for (let cursore = minuti(da)!; cursore + p.durataMin <= fineFascia; cursore += passo) {
       const fine = cursore + p.durataMin;
       const occupatoDaAppuntamento = fasceAppuntamenti.some((x) => cursore - prima < x.f + dopo && fine + dopo > x.i - prima);
       if (occupatoDaAppuntamento) continue;

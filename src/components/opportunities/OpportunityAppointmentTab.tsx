@@ -153,7 +153,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_calendars")
-        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled, link_videochiamata, owner_id, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
+        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled, link_videochiamata, owner_id, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
@@ -490,6 +490,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           appuntamenti: existingAppointments.map((a) => ({ inizio: a.appointment_time, fine: a.appointment_end_time })),
           occupatiEsterni,
           durataMin: durationMinutes,
+          passoMin: selectedCalendar?.slot_interval_min ?? null,
           bufferPrimaMin: bufferPrimaCal,
           bufferDopoMin: bufferDopoCal,
           preavvisoMin: preavvisoCal,

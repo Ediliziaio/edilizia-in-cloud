@@ -44,6 +44,7 @@ type MarketingCalendar = {
   buffer_after_min?: number | null;
   min_notice_minutes?: number | null;
   max_per_day?: number | null;
+  slot_interval_min?: number | null;
   reminder_24h?: boolean | null;
   reminder_1h?: boolean | null;
   max_daily_km: number | null;
@@ -406,6 +407,7 @@ export default function MarketingCalendarsConfig() {
         buffer_after_min: Math.max(0, Number(data.buffer_after_min) || 0),
         min_notice_minutes: Math.max(0, Number(data.min_notice_minutes) || 0),
         max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
+        slot_interval_min: data.slot_interval_min == null ? null : Math.min(240, Math.max(5, Number(data.slot_interval_min))),
         reminder_24h: data.reminder_24h !== false,
         reminder_1h: data.reminder_1h !== false,
         // Il calendario esterno scelto nel passo 3 del dialog.
@@ -506,6 +508,7 @@ export default function MarketingCalendarsConfig() {
         buffer_after_min: Math.max(0, Number(data.buffer_after_min) || 0),
         min_notice_minutes: Math.max(0, Number(data.min_notice_minutes) || 0),
         max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
+        slot_interval_min: data.slot_interval_min == null ? null : Math.min(240, Math.max(5, Number(data.slot_interval_min))),
         reminder_24h: data.reminder_24h !== false,
         reminder_1h: data.reminder_1h !== false,
         // Il calendario esterno scelto nel passo 3 del dialog.

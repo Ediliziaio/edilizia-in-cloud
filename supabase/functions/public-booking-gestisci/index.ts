@@ -19,6 +19,7 @@ import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
+import { slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
 import {
   minutiDa, orarioDa, dataEstesa, esc, creaIcs, allegatoIcs,
   urlGestione, blocchettoDettagli, bottoneGestione, sincronizzaCalendariEsterni,
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
 
     const { data: cal } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, mittente_nome, mittente_email")
+      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, link_videochiamata, whatsapp_numero_id, firma_messaggi, mittente_nome, mittente_email")
       .eq("id", app.calendar_id).maybeSingle();
     if (!cal) return json({ error: "Calendario non disponibile." }, 404);
 
@@ -127,51 +128,17 @@ Deno.serve(async (req) => {
       return json({ error: "Il nuovo orario è troppo vicino: scegline uno più avanti." }, 409);
     }
 
-    // disponibilita' del giorno
-    const giorno = new Date(`${data}T12:00:00Z`).getUTCDay();
-    const { data: fasce } = await admin
-      .from("marketing_calendar_availability")
-      .select("day_of_week, start_time, end_time, specific_date")
-      .eq("calendar_id", cal.id).eq("is_enabled", true);
-    const perData = (fasce ?? []).filter((f: any) => f.specific_date === data);
-    const valide = perData.length ? perData : (fasce ?? []).filter((f: any) => f.specific_date === null && f.day_of_week === giorno);
-    if (!valide.some((f: any) => inizio >= minutiDa(String(f.start_time).slice(0, 5)) && fine <= minutiDa(String(f.end_time).slice(0, 5)))) {
-      return json({ error: "Questo orario non è fra quelli disponibili." }, 409);
-    }
-
-    // altri appuntamenti (escluso il proprio) + margini
-    const bufPrima = Math.max(0, Number(cal.buffer_before_min ?? 0));
-    const bufDopo = Math.max(0, Number(cal.buffer_after_min ?? 0));
-    const { data: presi } = await admin
-      .from("appointments")
-      .select("id, appointment_time, appointment_end_time")
-      .eq("calendar_id", cal.id).eq("appointment_date", data)
-      .not("status", "in", '("annullato","cancelled")')
-      .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
-    const altri = (presi ?? []).filter((a: any) => a.id !== app.id);
-    const occupato = altri.some((a: any) => {
-      const s = minutiDa(String(a.appointment_time ?? "00:00").slice(0, 5));
-      const e = a.appointment_end_time ? minutiDa(String(a.appointment_end_time).slice(0, 5)) : s + durata;
-      return (inizio - bufPrima) < (e + bufDopo) && (fine + bufDopo) > (s - bufPrima);
+    // L'orario nuovo deve essere fra quelli liberi del generatore condiviso
+    // (calendarioSlot.ts, via slotLiberiCalendario): un posto solo per la griglia
+    // del passo, le fasce, i margini, il tetto giornaliero e gli impegni esterni
+    // del titolare. L'appuntamento che si sta spostando non blocca se stesso.
+    const { slot: liberi } = await slotLiberiCalendario(admin, cal.id, data, {
+      companyId: cal.company_id,
+      adesso: new Date(),
+      escludiAppuntamentoId: app.id,
     });
-    if (occupato) return json({ error: "Questo orario è appena stato occupato. Scegline un altro." }, 409);
-    if (cal.max_per_day && altri.length >= Number(cal.max_per_day)) {
-      return json({ error: "Per quella giornata non ci sono più posti: scegli un altro giorno." }, 409);
-    }
-
-    // impegni del titolare
-    if (cal.owner_id) {
-      const { data: pref } = await admin.from("user_calendar_preferences").select("block_busy_slots").eq("user_id", cal.owner_id).maybeSingle();
-      if (pref?.block_busy_slots !== false) {
-        const { data: impegni } = await admin
-          .from("unified_calendar_busy_slots").select("start_at, end_at")
-          .eq("user_id", cal.owner_id)
-          .lt("start_at", `${data}T23:59:59.999Z`).gt("end_at", `${data}T00:00:00.000Z`);
-        const inizioMs = nuovoInizio.getTime(), fineMs = inizioMs + durata * 60_000;
-        if ((impegni ?? []).some((b: any) => inizioMs < new Date(b.end_at).getTime() && fineMs > new Date(b.start_at).getTime())) {
-          return json({ error: "Questo orario risulta occupato nel calendario. Scegline un altro." }, 409);
-        }
-      }
+    if (!liberi.includes(ora)) {
+      return json({ error: "Questo orario non è più disponibile: scegline un altro." }, 409);
     }
 
     const { error: updErr } = await admin.from("appointments").update({
