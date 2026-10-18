@@ -165,18 +165,19 @@ export default function PublicBooking() {
   });
 
   // Appuntamenti gia' fissati sul giorno scelto: la vista pubblica espone solo
-  // inizio e fine, mai il nome di chi ha prenotato.
+  // inizio e fine, mai il nome di chi ha prenotato. Anche il tempo bloccato
+  // dal titolare occupa l'orario (come in calendarioSlot.ts, che ora valida
+  // anche le prenotazioni): conta per le sovrapposizioni, non per il tetto.
   const { data: existingAppointments = [], isFetching: existingAppointmentsFetching } = useQuery({
     queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
     queryFn: async () => {
       if (!calendar?.id || !dateStr) return [];
       const { data, error } = await supabase
         .from("public_appointment_slots")
-        .select("appointment_time, appointment_end_time")
+        .select("appointment_time, appointment_end_time, is_blocked_slot")
         .eq("company_id", calendar.company_id)
         .eq("calendar_id", calendar.id)
-        .eq("appointment_date", dateStr)
-        .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
+        .eq("appointment_date", dateStr);
       if (error) throw error;
       return data || [];
     },
@@ -318,9 +319,10 @@ export default function PublicBooking() {
       }
     }
     // Tetto di appuntamenti al giorno: raggiunto, la giornata non ha piu' orari.
-    if (maxAlGiorno && existingAppointments.length >= maxAlGiorno) return [];
+    const appuntamentiNelTetto = existingAppointments.filter((a) => a.is_blocked_slot !== true).length;
+    if (maxAlGiorno && appuntamentiNelTetto >= maxAlGiorno) return [];
     return [...new Set(allSlots)].sort();
-  }, [selectedDate, calendar, availability, parseAvailabilityTime, slotOverlapsExistingAppointments, isSlotBusy, preavvisoMin, maxAlGiorno, existingAppointments.length, adesso]);
+  }, [selectedDate, calendar, availability, parseAvailabilityTime, slotOverlapsExistingAppointments, isSlotBusy, preavvisoMin, maxAlGiorno, existingAppointments, adesso]);
 
   // Disable dates with no availability
   const isDateDisabled = (date: Date) => {
