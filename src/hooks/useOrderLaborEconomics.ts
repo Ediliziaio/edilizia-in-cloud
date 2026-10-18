@@ -19,7 +19,7 @@ export function useOrderLaborEconomics(orderId: string) {
     enabled, staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const employeeFields = readRates
-        ? "id,user_id,first_name,last_name,costo_orario,gross_salary,inps_rate,monthly_hours"
+        ? "id,user_id,first_name,last_name,costo_orario,gross_salary,inps_rate,monthly_hours,profilo_costo,role_type,qualifica,area"
         : "id,first_name,last_name";
       const { data, error } = await supabase.from("order_employees")
         .select(`id,employee_id,hours_worked,total_cost,cost_preventivo,planned_hours,planned_hourly_rate,hourly_rate,employee:employees(${employeeFields}),orders!inner(company_id)`)

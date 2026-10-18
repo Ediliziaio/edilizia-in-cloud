@@ -44,8 +44,13 @@ export function isCommessaCampoEvent(row: Record<string, unknown>, orderId: stri
 export async function refreshCampoAcquistoQueries(qc: QueryClient, orderId: string | null | undefined, companyId: string | null | undefined) {
   if (!companyId) return;
   await qc.invalidateQueries({ predicate: ({ queryKey }) => {
-    if (["campo-acquisti-miei", "acquisti-campo-ufficio", "company-costs", "ordine-marginalita"].includes(String(queryKey[0])))
+    if (["campo-acquisti-miei", "acquisti-campo-ufficio", "company-costs", "ordine-marginalita", "ufficio-da-approvare"].includes(String(queryKey[0])))
       return queryKey[1] === companyId;
+    // Materiali → Bolle e DDT / Fatture dei fornitori: la bolla esce da «Da verificare» subito.
+    // L'avviso «Da approvare» in Panoramica conta la bolla appena verificata.
+    if (queryKey[0] === "campo-da-approvare-conteggi") return !orderId || queryKey[1] === orderId;
+    if (["commessa-bolle-ddt", "commessa-fatture-fornitori"].includes(String(queryKey[0])))
+      return queryKey[1] === companyId && (!orderId || queryKey[2] === orderId);
     return !!orderId && isCommessaCampoQueryKey(queryKey, orderId, companyId);
   } });
 }

@@ -33,7 +33,9 @@ afterEach(() => {cleanup(); clients.splice(0).forEach(c => c.clear());});
 it("tariffa solo della persona selezionata e della propria azienda", async () => {
   const {result} = renderHook(() => useAssignmentHourlyCost("e"), {wrapper});
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(reads).toHaveLength(1); expect(reads[0].filters).toEqual({id: "e", company_id: "c", is_active: true});
+  // La scheda della persona e i parametri del costo, tutti e due della propria azienda.
+  expect(reads).toHaveLength(2); expect(reads[0].filters).toEqual({id: "e", company_id: "c", is_active: true});
+  expect(reads[1].filters).toEqual({company_id: "c"});
   expect(result.current.data?.amount).toBe(26);
 });
 it("nessun dipendente selezionato non genera richieste", () => {

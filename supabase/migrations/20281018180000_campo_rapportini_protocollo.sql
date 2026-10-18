@@ -1,10 +1,12 @@
--- BOZZA LOCALE, NON APPLICATA. Verificata su fixture PGlite, non sull'intero schema remoto.
--- Prima della promozione: controllare trigger/RLS reali e registry; applicare fuori picco.
--- Verificare anche i lookup .maybeSingle() dei tool WhatsApp/Silvio: due tipi di rapporto
--- nella stessa giornata richiedono una selezione esplicita del giornaliero.
--- I canali server service_role devono convalidare il flusso aziendale nel proprio handler.
--- Il cambio di scala numerica può riscrivere la tabella. Timeout brevi: rollback, mai attesa illimitata.
-begin;
+-- Rapportino (operaio, interno) e collaudo (col cliente, con la sua firma): regole imposte dal DATABASE,
+-- oltre che dallo schermo dell'app (18/10/2026):
+--   · l'approvazione del rapportino spetta all'ufficio;
+--   · nello stesso giorno convivono il giornaliero e il collaudo (indice per tipo di rapporto, protocollo 2);
+--   · il collaudo col cliente lo fa il capocantiere, e il testo firmato resta quello firmato;
+--   · chi arriva al cantiere da squadra o contratto riceve le regole dell'azienda;
+--   · un rapporto inviato si corregge dopo che l'ufficio lo rimanda indietro.
+-- Bozza nata in migrations-pending (collaudata su PGlite, 407 casi).
+-- Tabella piccola (4.220 righe, 11 MB): il cambio di numeric è rapido. Timeout brevi: meglio fallire che bloccare.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
@@ -83,6 +85,11 @@ begin
        (old.descrizione_lavori, old.ore_lavorate, old.ore_straordinario, old.presenze, old.materiali_usati,
         old.foto_urls, old.fasi_lavorate, old.percentuale_avanzamento, old.firma_cliente_url, old.firma_cliente_nome, old.stato)
     then return new; end if;
+    -- Un rapporto già inviato (o approvato) non si riscrive dal cantiere: ore, testo e firma
+    -- del cliente restano quelli mandati. Si corregge solo se l'ufficio lo rimanda indietro.
+    if old.stato not in ('bozza', 'rifiutato') then
+      raise exception 'Un rapporto già inviato si corregge solo se l’ufficio lo rimanda indietro' using errcode = '42501';
+    end if;
   end if;
   v_ruolo := public.campo_mio_ruolo(new.order_id);
   v_ditta := exists (select 1 from public.user_roles ur where ur.user_id = v_uid and ur.role = 'subcontractor');
@@ -147,4 +154,3 @@ revoke all on function public.campo_rapportino_avanzamento_approvato() from publ
 drop trigger if exists trg_campo_rapportino_avanzamento_approvato on public.campo_rapportini;
 create trigger trg_campo_rapportino_avanzamento_approvato after update on public.campo_rapportini
 for each row execute function public.campo_rapportino_avanzamento_approvato();
-commit;

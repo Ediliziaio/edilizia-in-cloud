@@ -42,10 +42,12 @@ const CHIP: Record<StatoRapportino, { classe: string; icona: typeof Clock }> = {
 interface Props {
   r: RapportinoCardRiga;
   pdfOccupato: boolean;
-  onPdf: () => void;
-  onFirma: () => void;
-  /** Apre il rapportino di quel giorno per correggerlo e rimandarlo. */
-  onCorreggi: () => void;
+  /** Senza: il PDF non si apre da qui (rapporto di un collega ancora senza PDF). */
+  onPdf?: () => void;
+  /** Senza: il rapporto è di un collega, la firma dell'autore non si aggiunge da qui. */
+  onFirma?: () => void;
+  /** Apre il rapportino di quel giorno per correggerlo e rimandarlo. Senza: non è tuo. */
+  onCorreggi?: () => void;
   /** phase_id → nome della fase, per i rapportini che non lo portano scritto nella voce. */
   nomiFasi?: ReadonlyMap<string, string>;
 }
@@ -59,7 +61,7 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
   const cliente = isClientReport(r);
   return (
     <div className={cn("rounded-2xl border bg-muted p-4", stato === "rifiutato" ? "border-red-300" : "border-border")}>
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">{cliente ? "Rapporto cliente · Fine lavori" : "Rapportino giornaliero"}</p>
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">{cliente ? "Collaudo col cliente" : "Rapportino"}</p>
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="font-semibold text-foreground">
           {Number.isNaN(giorno.getTime()) ? r.data_lavoro : format(giorno, "d MMM yyyy", { locale: it })}
@@ -99,19 +101,19 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        {daRifare && (
+        {daRifare && onCorreggi && (
           <button onClick={onCorreggi}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground">
             <FileText className="h-4 w-4" aria-hidden="true" />
             {stato === "rifiutato" ? "Correggi e rimanda" : "Completa e invia"}
           </button>
         )}
-        <button onClick={onPdf} disabled={pdfOccupato}
+        {onPdf && <button onClick={onPdf} disabled={pdfOccupato}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground disabled:opacity-50">
           {pdfOccupato ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
           {pdfOccupato ? "Preparo PDF…" : r.pdf_url ? "Apri PDF" : "Genera PDF"}
-        </button>
-        {r.firma_operaio_url ? (
+        </button>}
+        {!onFirma ? null : r.firma_operaio_url ? (
           <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-xs font-semibold text-green-700">
             <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
             La tua firma è presente

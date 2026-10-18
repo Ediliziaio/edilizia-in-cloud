@@ -1,4 +1,5 @@
 import { laborHourlyCost, laborLineCost, reviewHourlyCost, type LaborEmployee } from "@/lib/campo/laborCostReview";
+import type { ParametriCostoAzienda } from "@/lib/costoPersonale";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 
 type Amount = number | string | null | undefined;
@@ -34,7 +35,7 @@ export function sumLaborAmounts(values: Amount[]): number | null {
   return cents / 100;
 }
 /** Read model only: never reprice the ledger with today's employee tariff. */
-export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boolean) {
+export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boolean, parametri?: ParametriCostoAzienda | null) {
   const groups = new Map<string, LaborLedgerRow[]>();
   for (const row of rows) {
     const entries = groups.get(row.employee_id);
@@ -46,7 +47,7 @@ export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boo
     const hours = sumLaborAmounts(entries.map(r => r.hours_worked));
     const cost = sumLaborAmounts(entries.map(r => r.total_cost));
     const budget = sumLaborAmounts(entries.map(r => r.cost_preventivo));
-    const rate = canReadEmployeeRates && employee ? reviewHourlyCost(employee) : null;
+    const rate = canReadEmployeeRates && employee ? reviewHourlyCost(employee, parametri) : null;
     const unpriced = entries.some(r => (laborAmount(r.hours_worked) ?? 0) > 0 && laborAmount(r.total_cost) === 0);
     return {
       id, name: [employee?.first_name, employee?.last_name].filter(Boolean).join(" ") || "Dipendente non disponibile",

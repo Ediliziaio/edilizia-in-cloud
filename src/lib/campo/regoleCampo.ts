@@ -26,13 +26,19 @@ export interface RegoleCampo {
   oreDalle: OreDalle;
   /** Minuti di differenza tra ore scritte e timbrate oltre i quali avvisare; null = mai. */
   avvisoScostamentoMinuti: number | null;
+  /** Quanti giorni indietro si può mandare un rapportino o chiedere una correzione: 1 = oggi e ieri. */
+  giorniIndietro?: number;
 }
 
 export const REGOLE_COME_OGGI: RegoleCampo = {
   chiCompila: "ognuno",
   oreDalle: "capo",
   avvisoScostamentoMinuti: null,
+  giorniIndietro: 1,
 };
+
+/** Scelte proposte nella pagina delle impostazioni (il database accetta da 0 a 7). */
+export const GIORNI_INDIETRO_PROPOSTI = [0, 1, 2, 3, 5, 7] as const;
 
 /** Soglie proposte nella pagina delle impostazioni. */
 export const SCOSTAMENTI_PROPOSTI = [15, 30, 45, 60, 90, 120] as const;
@@ -42,10 +48,12 @@ export const SCOSTAMENTO_PREDEFINITO = 30;
 export function leggiRegole(raw: unknown): RegoleCampo {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const minuti = r.avviso_scostamento_minuti == null ? NaN : Number(r.avviso_scostamento_minuti);
+  const giorni = r.giorni_indietro_rapportino == null ? NaN : Number(r.giorni_indietro_rapportino);
   return {
     chiCompila: r.chi_compila === "capo" ? "capo" : r.chi_compila === "ore_proprie" ? "ore_proprie" : "ognuno",
     oreDalle: r.ore_dalle === "timbrature" ? "timbrature" : "capo",
     avvisoScostamentoMinuti: Number.isFinite(minuti) && minuti >= 5 && minuti <= 480 ? Math.round(minuti) : null,
+    giorniIndietro: Number.isInteger(giorni) && giorni >= 0 && giorni <= 7 ? giorni : 1,
   };
 }
 

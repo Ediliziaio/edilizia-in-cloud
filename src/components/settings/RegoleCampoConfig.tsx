@@ -21,9 +21,10 @@ import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
-  REGOLE_COME_OGGI, SCOSTAMENTI_PROPOSTI, SCOSTAMENTO_PREDEFINITO, oreInTesto,
+  GIORNI_INDIETRO_PROPOSTI, REGOLE_COME_OGGI, SCOSTAMENTI_PROPOSTI, SCOSTAMENTO_PREDEFINITO, oreInTesto,
   scostamento, type ChiCompila, type OreDalle, type RegoleCampo,
 } from "@/lib/campo/regoleCampo";
+import { giorniIndietroValidi } from "@/lib/campo/workDay";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 import { IndiceSezioni, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,6 +41,7 @@ const SEZIONI = [
   { id: "chi-scrive", etichetta: "Chi compila" },
   { id: "ore", etichetta: "Ore e presenze" },
   { id: "avviso", etichetta: "Controllo ore" },
+  { id: "giorni", etichetta: "Giorni indietro" },
   { id: "in-pratica", etichetta: "Anteprima" },
 ];
 
@@ -89,6 +91,14 @@ function inPratica(r: RegoleCampo): string[] {
       ? `Se le ore scritte sono diverse da quelle timbrate di più di ${oreInTesto(r.avvisoScostamentoMinuti / 60)}, il capo vede un avviso.`
       : "Nessun avviso sulle differenze tra ore scritte e ore timbrate.",
   );
+  const giorni = giorniIndietroValidi(r.giorniIndietro);
+  righe.push(
+    giorni === 0
+      ? "Il rapportino si manda nel giorno del lavoro; le giornate passate le sistema l’ufficio."
+      : giorni === 1
+        ? "Il rapportino si manda oggi o il giorno dopo; anche una timbratura dimenticata si chiede entro ieri."
+        : `Il rapportino e le correzioni delle timbrature si mandano fino a ${giorni} giorni dopo; l’ufficio approva.`,
+  );
   // Vale qualunque sia la scelta: una riga in più, non un riquadro a parte.
   righe.push("Se il capo ha già registrato le ore di una persona, il giornaliero personale non le ripropone. Eventuali ore aggiuntive devono essere indicate esplicitamente.");
   righe.push("Le ditte subappaltatrici rendicontano il proprio incarico; queste scelte organizzano il lavoro dei dipendenti. L’approvazione resta all’ufficio secondo i permessi Ordini, separata dalla firma del cliente.");
@@ -123,7 +133,8 @@ export default function RegoleCampoConfig() {
   const modificato = bozza != null && (
     bozza.chiCompila !== salvate.chiCompila ||
     bozza.oreDalle !== salvate.oreDalle ||
-    bozza.avvisoScostamentoMinuti !== salvate.avvisoScostamentoMinuti
+    bozza.avvisoScostamentoMinuti !== salvate.avvisoScostamentoMinuti ||
+    bozza.giorniIndietro !== salvate.giorniIndietro
   );
   const cambia = (parte: Partial<RegoleCampo>) => {
     if (!puoModificare || !companyId || !data || salva.isPending) return;
@@ -325,6 +336,33 @@ export default function RegoleCampoConfig() {
                 <p className="mt-1 text-muted-foreground">Se manca una timbratura, il confronto non è disponibile. La prova non registra ore.</p>
               </div>
             )}
+          </div>
+        </SezioneImpostazione>
+
+        <SezioneImpostazione
+          id="giorni"
+          evidenziata={evidenziata === "giorni"}
+          titolo="Fino a quanti giorni indietro dall’app?"
+          descrizione="Vale per il rapportino e per la richiesta di correzione di una timbratura dimenticata. Le giornate più vecchie le sistema l’ufficio."
+        >
+          <div className="flex flex-wrap items-center gap-2 px-4 py-4 text-sm">
+            <span className="text-muted-foreground">Si può mandare</span>
+            <Select
+              value={String(giorniIndietroValidi(regole.giorniIndietro))}
+              onValueChange={(v) => cambia({ giorniIndietro: Number(v) })}
+              disabled={bloccato}
+            >
+              <SelectTrigger className="h-9 w-52" aria-label="Giorni indietro ammessi dall’app">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[...new Set<number>([...GIORNI_INDIETRO_PROPOSTI, giorniIndietroValidi(regole.giorniIndietro)])].sort((a, b) => a - b).map((g) => (
+                  <SelectItem key={g} value={String(g)}>
+                    {g === 0 ? "solo il giorno stesso" : g === 1 ? "oggi e ieri" : `fino a ${g} giorni prima`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </SezioneImpostazione>
 

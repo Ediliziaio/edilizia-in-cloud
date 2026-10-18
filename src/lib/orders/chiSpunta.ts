@@ -11,3 +11,18 @@ export const CHI_SPUNTA: ReadonlyArray<{ valore: ChiSpunta; etichetta: string; s
 export function chiSpuntaValido(v: unknown): ChiSpunta {
   return v === "chi_la_fa" || v === "capi" ? v : "tutti";
 }
+
+/**
+ * Stessa regola del database (sottofase_guardia): dice se dal cantiere si può spuntare.
+ * Il capocantiere sempre; senza capocantiere sulla commessa, chiunque ci lavori;
+ * con «chi_la_fa» anche chi è assegnato a quella fase.
+ */
+export function puoSpuntareInCantiere(
+  regola: ChiSpunta,
+  ruolo: { capocantiere?: boolean; esiste_capo?: boolean } | null | undefined,
+  faseMia: boolean,
+): boolean {
+  if (regola === "tutti") return true;
+  if (ruolo?.capocantiere || !ruolo?.esiste_capo) return true;
+  return regola === "chi_la_fa" && faseMia;
+}

@@ -25,7 +25,14 @@ export interface InstallmentLike {
   type?: string | null;
   amount?: number | string | null;
   is_paid?: boolean | null;
+  paid_date?: string | null;
   fattura?: { id?: string; importo_pagato?: number | string | null; stato?: string | null } | null;
+}
+
+/** Variante approvata, IVA esclusa, col giorno dell'approvazione (AAAA-MM-GG). */
+export interface VarianteDatata {
+  importo: number | string | null;
+  il: string | null;
 }
 
 export interface VariableCompensationStatusInput {
@@ -223,21 +230,36 @@ export function calculateInstallmentCollections({
   vatRate,
   financingCost = 0,
   includeFinancing = false,
+  varianti,
 }: {
   installments: InstallmentLike[];
   totalAmount: number | string | null | undefined;
   vatRate: number | string | null | undefined;
   financingCost?: number | string | null;
   includeFinancing?: boolean;
+  /**
+   * Le varianti approvate già comprese in totalAmount, con la data. Il saldo pagato conta solo
+   * quelle approvate fino al giorno del pagamento (come rate_importi nel database): una variante
+   * successiva resta da incassare.
+   */
+  varianti?: ReadonlyArray<VarianteDatata>;
 }): number[] {
-  const totalGross = money(totalAmount) * (1 + money(vatRate) / 100);
   // Intermediate SALs also use `balance`. Only the LAST balance is a residual.
   const finalBalance = installments.reduce<number>((last, i, index) =>
     i.type === "balance" && (last < 0 || (i.position ?? index) >= (installments[last].position ?? last)) ? index : last, -1);
   const otherInstallments = installments
     .filter((_, index) => index !== finalBalance)
     .reduce((sum, i) => sum + money(i.amount), 0);
-  const balanceAmount = Math.max(0, totalGross - otherInstallments - money(financingCost));
+  const saldo = finalBalance < 0 ? null : installments[finalBalance];
+  const variantiDopo = saldo?.is_paid && saldo.paid_date && varianti
+    ? varianti.reduce((sum, v) => (v.il && v.il > (saldo.paid_date as string).slice(0, 10) ? sum + money(v.importo) : sum), 0)
+    : 0;
+  // Al centesimo prima di sottrarre, come le rate e il database.
+  const totalGross = roundMoney((money(totalAmount) - variantiDopo) * (1 + money(vatRate) / 100));
+  const rawBalance = roundMoney(totalGross - otherInstallments - money(financingCost));
+  const balanceAmount = Math.max(0, rawBalance);
+  // Il costo della finanziaria che il saldo non assorbe si toglie dalla rata della finanziaria.
+  const avanzo = finalBalance < 0 ? 0 : Math.min(Math.max(0, -rawBalance), money(financingCost));
   const countedInvoices = new Set<string>();
   return installments.map((i, index) => {
     if (!includeFinancing && i.type === "financing") return 0;
@@ -248,7 +270,9 @@ export function calculateInstallmentCollections({
       if (i.fattura.id) countedInvoices.add(i.fattura.id);
       return roundMoney(positiveMoney(i.fattura.importo_pagato));
     }
-    return roundMoney(i.is_paid ? index === finalBalance ? balanceAmount : positiveMoney(i.amount) : 0);
+    if (!i.is_paid) return 0;
+    if (index === finalBalance) return roundMoney(balanceAmount);
+    return roundMoney(i.type === "financing" ? Math.max(0, positiveMoney(i.amount) - avanzo) : positiveMoney(i.amount));
   });
 }
 

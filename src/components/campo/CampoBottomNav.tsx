@@ -44,7 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Lavori", icon: Calendar, href: "/campo/calendario" },
   { label: "Timbra", icon: Clock, href: "/campo/timbratura" },
   { label: "Chat", icon: MessageSquare, href: "/campo/chat" },
-  { label: "App", icon: LayoutGrid, href: "/campo/menu" },
+  { label: "Altro", icon: LayoutGrid, href: "/campo/menu" },
 ];
 
 interface Props {

@@ -980,3 +980,5 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(rpcError(id, -32601, `Metodo non supportato: ${method}`)), { headers: jsonHeaders });
   }
 });
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

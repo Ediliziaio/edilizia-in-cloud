@@ -33,11 +33,12 @@ describe("Struttura aziendale sulla commessa", () => {
     });
 
     expect(snapshot.fixedCostsMonthly).toBe(1300);
-    expect(snapshot.officeSalariesMonthly).toBe(1800);
-    expect(snapshot.directLaborSalariesMonthly).toBe(2600);
-    expect(snapshot.monthlyStructure).toBe(3100);
+    // Costo vero del mese: impiegato 1500 × 14/12 × 127,91%; operaio 2000 × 167,41%.
+    expect(snapshot.officeSalariesMonthly).toBe(2238.43);
+    expect(snapshot.directLaborSalariesMonthly).toBe(3348.2);
+    expect(snapshot.monthlyStructure).toBe(3538.43);
     expect(snapshot.activeOrders).toBe(2);
-    expect(snapshot.monthlyPerActiveOrder).toBe(1550);
+    expect(snapshot.monthlyPerActiveOrder).toBeCloseTo(1769.215, 3);
   });
 
   it("stima l'incidenza fino a oggi per una commessa aperta", () => {

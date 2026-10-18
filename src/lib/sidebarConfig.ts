@@ -138,6 +138,8 @@ export const macroAreas: MacroArea[] = [
       // funzione di piano surveys_module. Chi non vede le Commesse (il venditore,
       // di serie) li trova in Marketing & Vendita, col permesso «Sopralluoghi».
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+      // Tutti i cantieri aperti in una pagina: chi c'è, rapportini, cose da approvare (18/10).
+      { title: "Cantieri oggi", url: "/azienda/cantieri-oggi", icon: HardHat, permissionKey: "canViewOrders", moduleKey: "orders" },
       // Ordine del menu (27/09, richiesta founder): Clienti subito sotto le
       // Commesse; Magazzino sotto Manodopera e Mezzi.
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },

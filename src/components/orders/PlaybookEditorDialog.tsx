@@ -66,6 +66,10 @@ interface Row {
   chiudi_su_evento: EventoChiusura | null;
   /** Fase in cui passa la commessa quando il passo si chiude; null = resta dov'è. */
   fase_raggiunta_id: string | null;
+  /** Fase dell'ufficio (vista Cantiere → Ufficio) invece che attività generica. */
+  ufficio: boolean;
+  /** Nome della fase del cantiere da aspettare; vuoto = nessuna attesa. */
+  dopo_fase_lavorazione: string;
 }
 
 /** Riga come arriva dal DB. */
@@ -82,6 +86,8 @@ interface DbRow {
   dipende_da_id: string | null;
   chiudi_su_evento: string | null;
   fase_raggiunta_id: string | null;
+  activity_scope: string | null;
+  dopo_fase_lavorazione: string | null;
 }
 
 const PRIORITA = ["bassa", "normale", "alta", "urgente"] as const;
@@ -167,7 +173,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
-        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, chiudi_su_evento, fase_raggiunta_id")
+        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, chiudi_su_evento, fase_raggiunta_id, activity_scope, dopo_fase_lavorazione")
         .eq("company_id", companyId)
         .eq("ambito", ambito)
         .order("sort_order", { ascending: true });
@@ -196,6 +202,8 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
         assegna_a_ufficio_id: r.assegna_a_ufficio_id ?? null,
         chiudi_su_evento: (r.chiudi_su_evento as EventoChiusura | null) ?? null,
         fase_raggiunta_id: r.fase_raggiunta_id ?? null,
+        ufficio: r.activity_scope === "ufficio",
+        dopo_fase_lavorazione: r.dopo_fase_lavorazione ?? "",
         dipende_da_key: r.dipende_da_id ? keyPerId.get(r.dipende_da_id) ?? null : null,
       })),
     );
@@ -221,6 +229,8 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
       assegna_a_ufficio_id: null,
       chiudi_su_evento: s.chiudi_su_evento ?? null,
       fase_raggiunta_id: null,
+      ufficio: s.activity_scope === "ufficio",
+      dopo_fase_lavorazione: s.dopo_fase_lavorazione ?? "",
       dipende_da_key: i === 0 ? null : keys[i - 1],
     })));
     toast.info("Flusso standard importato a catena — assegna le persone e salva.");
@@ -237,6 +247,8 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     assegna_a_ufficio_id: null,
     chiudi_su_evento: null,
     fase_raggiunta_id: null,
+    ufficio: false,
+    dopo_fase_lavorazione: "",
     // Di default il nuovo passo si accoda all'ultimo: è il caso normale.
     dipende_da_key: p.length > 0 ? p[p.length - 1]._key : null,
   }]);
@@ -280,6 +292,8 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
           assegna_a_ufficio_id: r.assegna_a_ufficio_id,
           chiudi_su_evento: r.chiudi_su_evento,
           fase_raggiunta_id: perTicket ? null : r.fase_raggiunta_id,
+          activity_scope: perTicket ? "generale" : r.ufficio || r.assegna_a_ufficio_id ? "ufficio" : "generale",
+          dopo_fase_lavorazione: perTicket ? null : r.dopo_fase_lavorazione.trim() || null,
         }));
         // Prima le righe, poi le dipendenze: l'insert non conosce ancora gli id
         // che sta per generare, quindi `dipende_da_id` si scrive in un secondo
@@ -487,6 +501,19 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
 
                   {/* Chiudere il passo sposta la commessa nella fase scelta: chi
                       guarda l'elenco commesse vede a che punto è senza aprirle. */}
+                  {!perTicket && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-7 text-xs text-muted-foreground">
+                      <label className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={r.ufficio || !!r.assegna_a_ufficio_id} disabled={!!r.assegna_a_ufficio_id}
+                          onChange={(e) => updateRow(r._key, { ufficio: e.target.checked })} />
+                        Fase dell’ufficio
+                      </label>
+                      <span className="shrink-0">· parte quando in cantiere finisce</span>
+                      <Input value={r.dopo_fase_lavorazione} placeholder="nome della fase, es. Rilievo misure"
+                        onChange={(e) => updateRow(r._key, { dopo_fase_lavorazione: e.target.value })}
+                        className="h-8 w-[220px] text-xs" aria-label={`Fase del cantiere da aspettare: ${r.titolo || "passo"}`} />
+                    </div>
+                  )}
                   {!perTicket && fasi.length > 0 && (
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-7 text-xs text-muted-foreground">
                       <span className="shrink-0">Quando si chiude, la commessa passa a</span>

@@ -146,31 +146,17 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     expect(target.update).not.toHaveBeenCalled(); expect(phases.update).not.toHaveBeenCalled();
     expect(state.success).not.toHaveBeenCalled(); expect(state.notifyPdf).not.toHaveBeenCalled();
   });
-  it("non riscrive un avanzamento più recente già superiore alla proposta", async () => {
-    state.reports = [report];
-    const target = builder({ id: "r", fasi_lavorate: [{ phase_id: "p", percentuale: 50 }] });
-    const phases = builder([{ id: "p", order_id: "order", company_id: "company", percentuale: 80, status: "in_corso", updated_at: "fase-v2" }]);
-    state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
-    render(<OrdineRapportiniCampo orderId="order" />);
-    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
-    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Rapportino approvato"));
-    expect(phases.update).not.toHaveBeenCalled();
-    expect(state.error).not.toHaveBeenCalled();
-  });
-  it("un conflitto nell'avanzamento non sovrascrive la revisione concorrente", async () => {
+  it("approvando non scrive le fasi dal browser: le aggiorna il database nella stessa operazione", async () => {
     state.reports = [report];
     const target = builder({ id: "r", fasi_lavorate: [{ phase_id: "p", percentuale: 75 }] });
     const phases = builder([{ id: "p", order_id: "order", company_id: "company", percentuale: 30, status: "in_corso", updated_at: "fase-v2" }]);
-    phases.maybeSingle.mockResolvedValue({ data: null, error: null });
     state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
     render(<OrdineRapportiniCampo orderId="order" />);
     fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
     fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
-    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Approvato, ma l'avanzamento fasi non è stato aggiornato", expect.objectContaining({ description: expect.stringContaining("cambiato durante") })));
-    expect(phases.eq).toHaveBeenCalledWith("updated_at", "fase-v2");
-    expect(phases.eq).toHaveBeenCalledWith("company_id", "company");
-    expect(phases.eq).toHaveBeenCalledWith("order_id", "order");
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Rapportino approvato: ore e avanzamento aggiornati"));
+    expect(phases.update).not.toHaveBeenCalled();
+    expect(state.error).not.toHaveBeenCalled();
   });
   it("non consente approvazione a staff senza modifica commesse", () => {
     state.canEdit = false; state.reports = [report]; render(<OrdineRapportiniCampo orderId="order" />);

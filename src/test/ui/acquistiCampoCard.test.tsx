@@ -152,4 +152,13 @@ describe("Merce presa in negozio (ufficio)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Registra" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Operazione non riuscita", { description: "Questo acquisto è già stato verificato." }));
   });
+
+  it("nel menu degli ordini lo stato si legge con la sua etichetta («Confermato»)", async () => {
+    state.acquisti = [acquisto({ modalita: "ritiro_ordine", rimborso_stato: "non_dovuto" })];
+    state.oda = [{ id: "po1", oda_number: "ODA-7", status: "confermato", suppliers: { name: "Tecnomat" } }];
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
+    expect(await screen.findByRole("option", { name: "ODA-7 · Tecnomat · Confermato" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /· confermato$/ })).toBeNull();
+  });
 });

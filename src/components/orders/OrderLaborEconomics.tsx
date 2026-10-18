@@ -1,5 +1,5 @@
-import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { Link } from "react-router-dom";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import { Building2, RefreshCw, UsersRound } from "lucide-react";
 import { useOrderLaborEconomics } from "@/hooks/useOrderLaborEconomics";
 import { externalLaborNet, laborAmount, laborEconomics, sumLaborAmounts } from "@/lib/orders/laborEconomics";
@@ -17,6 +17,7 @@ function Value({ label, value }: { label: string; value: string }) {
 /** Registro giornaliero condiviso; stipendi e pagamenti restano separati. */
 export function OrderLaborEconomics({ orderId }: { orderId: string }) {
   const { employees, teams, pendingReports, canCheckPending, readRates, allowed } = useOrderLaborEconomics(orderId);
+  const { data: parametriCosto } = useParametriCostoPersonale();
   if (!allowed) return <p className="rounded-lg border p-4 text-sm">Il tuo ruolo non permette di consultare i costi della manodopera.</p>;
   if (employees.isPending || teams.isPending) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento ore e costi…</p>;
   const retry = () => { void employees.refetch(); void teams.refetch(); void pendingReports?.refetch?.(); };
@@ -24,7 +25,7 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
     <p>Impossibile caricare tutti i costi della manodopera. Nessun totale parziale viene mostrato.</p>
     <Button className="mt-2" variant="outline" onClick={retry}>Riprova</Button>
   </div>;
-  const internal = laborEconomics(employees.data ?? [], readRates);
+  const internal = laborEconomics(employees.data ?? [], readRates, parametriCosto);
   const pendingUnknown = canCheckPending === false || !!pendingReports?.isPending || !!pendingReports?.isError;
   const pending = pendingReports?.data ?? 0;
   const incomplete = internal.unpricedPeople > 0 || pending > 0 || pendingUnknown;
@@ -86,7 +87,7 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
         <p className="text-xs text-muted-foreground">Le presenze del subappaltatore non applicano il costo orario dei dipendenti. Il costo deriva dall'affidamento registrato; non equivale a una fattura pagata.</p>
       </CardContent>
     </Card>
-    <DailyHoursPanel orderId={orderId} />
+    <p className="text-sm text-muted-foreground">Ore giorno per giorno e inserimento a mano: in Cantiere → Ore e persone.</p>
     <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">Come si formano questi costi</summary>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
         <li>I rapportini approvati e le rettifiche manuali alimentano le ore e i costi registrati. Le ore possono quindi esistere anche senza un rapportino: verifica le rettifiche nelle assegnazioni. I rapportini in attesa non vengono aggiunti di nuovo.</li>

@@ -93,7 +93,8 @@ describe("il resto dell'app dice la stessa cosa", () => {
         if (url) link.push(`${relative(ROOT, p)} → ${url[1].trim()}`);
       }
     }
-    expect(link.length).toBeGreaterThanOrEqual(8);
+    // 7 dal 18/10/2026: l'avviso del rapportino lo manda il database, non più CampoRapportino.
+    expect(link.length).toBeGreaterThanOrEqual(7);
     for (const l of link) expect(l, l).toMatch(/→ (["'`]\/[^/\\]|null|undefined)/);
   });
 });

@@ -1273,3 +1273,5 @@ async function sendInteractiveReply(
     to: msg.from_phone, type: "interactive", interactive,
     ...(msg.id ? { idempotency_key: `reply:${msg.id}:interactive` } : {}) });
 }
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

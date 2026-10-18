@@ -32,6 +32,7 @@ import { useFiscoPrevisto } from "@/hooks/useFiscoPrevisto";
 import { useCommesseBonus, fattoreNettoRitenuta } from "@/hooks/useCommesseBonus";
 import { useBloccaPrezzoAperti } from "@/hooks/useBloccaPrezzoAperti";
 import { movimentiPrevisti as bloccaPrezzoPrevisti, daRestituire } from "@/lib/orders/bloccaPrezzo";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 
 interface ScadenzaForecast {
   id: string;
@@ -107,6 +108,7 @@ export function TrediciSettimaneTab({
   // che creerebbe un array nuovo a ogni render e ricalcolerebbe il piano.
   const bloccaPrezzoAperti = useBloccaPrezzoAperti(companyId).data;
 
+  const { data: parametriCosto } = useParametriCostoPersonale();
   const piano = useMemo(() => {
     if (!oggi) return null;
     const movimenti: MovimentoPrevisto[] = [];
@@ -183,7 +185,7 @@ export function TrediciSettimaneTab({
     // giorno di paga vero; gli ONERI INPS (righe `_inps_` della proiezione)
     // si versano in F24 il 16 del mese successivo — due momenti di cassa
     // diversi, come nella realtà.
-    const stipendi = buildEmployeeCosts(activeEmployees, 4);
+    const stipendi = buildEmployeeCosts(activeEmployees, 4, parametriCosto);
     for (const r of stipendi) {
       if (r.is_paid || !r.due_date) continue;
       const fineMese = new Date(r.due_date);
@@ -224,7 +226,7 @@ export function TrediciSettimaneTab({
     };
   }, [
     oggi, giornoStipendi, expectedPayments, scadenzeForForecast, expectedCompanyCosts,
-    expectedExpenses, expectedCommissions, expectedSupplierPayments, activeEmployees,
+    expectedExpenses, expectedCommissions, expectedSupplierPayments, activeEmployees, parametriCosto,
     partenza.valore, fisco, commesseBonus, bloccaPrezzoAperti,
   ]);
 

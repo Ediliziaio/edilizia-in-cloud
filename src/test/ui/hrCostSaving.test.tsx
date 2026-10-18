@@ -36,6 +36,13 @@ describe("Tariffa HR: permessi, conferma e cache delle commesse", () => {
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, "personale_costo", { p_profilo_id: "h" });
     expect(qc.getQueryData(["personale", "costo", "h", "c"])).toEqual(stored);
   });
+  it("INPS vuoto: si salva vuoto e vale quello del tipo, senza errore di conferma", async () => {
+    const vuoto = { ...stored, contributi_percento: null as number | null, tipo: "apprendista", inps_del_tipo: 11.61 };
+    mocks.rpc.mockImplementation((name: string) => Promise.resolve({ data: name === "personale_costo" ? vuoto : null, error: null }));
+    const { result } = saveMount();
+    await act(() => result.current.mutateAsync({ contributi_percento: "" }));
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "personale_salva_costo", { p_profilo_id: "h", p_dati: { contributi_percento: "" } });
+  });
   it("invalidazione delle tariffe e revisione rapportini solo dell'azienda interessata", async () => {
     const { result, qc } = saveMount();
     const own = [["employees_active", "c"], ["order-labor-economics", "o", "c", true], ["campo-labor-review", "c", "o", "r", true]];

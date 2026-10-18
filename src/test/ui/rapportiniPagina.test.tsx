@@ -46,6 +46,7 @@ describe("Rapportini e presenze: i riquadri", () => {
       "Chi scrive il rapportino del cantiere?",
       "Da dove vengono le ore di ognuno?",
       "Avviso se le ore non tornano",
+      "Fino a quanti giorni indietro dall’app?",
       "In pratica, con queste scelte",
       "Completa l’organizzazione del cantiere",
     ]);
@@ -56,9 +57,10 @@ describe("Rapportini e presenze: i riquadri", () => {
     expect(screen.queryByText("Qualunque sia la tua scelta:")).toBeNull();
     const inPratica = document.getElementById("in-pratica") as HTMLElement;
     const righe = within(inPratica).getAllByRole("listitem", { hidden: true });
-    expect(righe).toHaveLength(5);
-    expect(righe[3]).toHaveTextContent("il giornaliero personale non le ripropone");
-    expect(righe[4]).toHaveTextContent("L’approvazione resta all’ufficio");
+    expect(righe).toHaveLength(6);
+    expect(righe[3]).toHaveTextContent("oggi o il giorno dopo");
+    expect(righe[4]).toHaveTextContent("il giornaliero personale non le ripropone");
+    expect(righe[5]).toHaveTextContent("L’approvazione resta all’ufficio");
   });
 
   it("i gruppi di scelte hanno un nome per chi usa il lettore di schermo", () => {
@@ -230,18 +232,18 @@ describe("Rapportini: anteprima fedele e preferenze conservate", () => {
     expect(screen.getByRole("radio", { name: /Dalle timbrature/ })).toBeDisabled();
     expect(screen.getByRole("switch")).toBeChecked();
     expect(screen.getByRole("switch")).toBeDisabled();
-    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Differenza che fa scattare l’avviso" })).toBeDisabled();
     expect(screen.queryByRole("region", { name: "Esempio del controllo ore" })).toBeNull();
     expect(screen.getByRole("region", { name: "Cosa fa il responsabile" })).toHaveTextContent("Conferma solo le proprie ore");
     fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
-    expect(screen.getByRole("combobox")).toHaveTextContent("45 min");
+    expect(screen.getByRole("combobox", { name: "Differenza che fa scattare l’avviso" })).toHaveTextContent("45 min");
     expect(screen.getByRole("switch")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
   });
   it("mostra una soglia personalizzata già salvata e non genera un avviso sul limite esatto", () => {
     state.regole = { chiCompila: "capo", oreDalle: "capo", avvisoScostamentoMinuti: 20 };
     const { unmount } = apri();
-    expect(screen.getByRole("combobox")).toHaveTextContent("20 min");
+    expect(screen.getByRole("combobox", { name: "Differenza che fa scattare l’avviso" })).toHaveTextContent("20 min");
     expect(screen.getByRole("region", { name: "Esempio del controllo ore" })).toHaveTextContent("Il capo vede un avviso");
     unmount();
     state.regole.avvisoScostamentoMinuti = 60;

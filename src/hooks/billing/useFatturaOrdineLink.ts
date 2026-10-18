@@ -30,6 +30,10 @@ interface FatturaJoined {
   stato: string;
   tipo: string;
   totale_da_pagare: number;
+  /** Totale del documento, IVA inclusa: è il fatturato quando la fattura è tutta della commessa. */
+  totale_documento: number | null;
+  /** Quota della fattura assegnata a questa commessa (fattura_ordine), quando c'è. */
+  importo_associato: number | null;
 }
 
 // ─── Ordini collegati a una fattura ───────────────────────────
@@ -96,7 +100,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       // From direct ordine_id shortcut
       const directQuery = supabase
         .from("documenti_fiscali" as never)
-        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, company_id")
+        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, company_id")
         .eq("ordine_id", ordineId!)
         .is("deleted_at", null);
       const { data: directData, error: dErr } = companyId
@@ -110,16 +114,22 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       if (junctionFatturaIds.length > 0) {
         const { data: fData } = await supabase
           .from("documenti_fiscali" as never)
-          .select("id, numero, data_emissione, stato, tipo, totale_da_pagare")
+          .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento")
           .in("id", junctionFatturaIds)
           .is("deleted_at", null);
         junctionFatture = (fData as any[]) ?? [];
       }
 
-      // Merge and dedup
+      // Merge and dedup. La quota assegnata a questa commessa (importo_associato) resta
+      // attaccata alla fattura anche quando la fattura arriva pure dal collegamento diretto.
+      const quotaPerFattura = new Map<string, number | null>();
+      for (const j of (junctionData as any[]) ?? []) {
+        if (j.importo_associato != null) quotaPerFattura.set(j.fattura_id, Number(j.importo_associato));
+      }
       const allFatture = new Map<string, FatturaJoined>();
-      for (const f of junctionFatture) allFatture.set(f.id, f);
-      for (const f of (directData as any[]) ?? []) allFatture.set(f.id, f);
+      const conQuota = (f: any): FatturaJoined => ({ ...f, importo_associato: quotaPerFattura.get(f.id) ?? null });
+      for (const f of junctionFatture) allFatture.set(f.id, conQuota(f));
+      for (const f of (directData as any[]) ?? []) allFatture.set(f.id, conQuota(f));
 
       return Array.from(allFatture.values());
     },

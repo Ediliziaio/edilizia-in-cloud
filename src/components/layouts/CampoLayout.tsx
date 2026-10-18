@@ -16,7 +16,6 @@ import {
   LogOut,
   ClipboardCheck,
   FileText,
-  Mic,
   CreditCard,
   Ticket,
   Settings,
@@ -27,6 +26,7 @@ import {
   ListChecks,
   Package,
   Truck,
+  ShoppingBag,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -119,11 +119,12 @@ export default function CampoLayout() {
     // Magazzino erano raggiungibili SOLO da mobile (o per niente).
     { title: "Timbratura", url: "/campo/timbratura", icon: Clock },
     { title: "Magazzino", url: "/campo/magazzino", icon: Package },
+    { title: "Merce presa", url: "/campo/merce", icon: ShoppingBag },
     { title: mieiMezzi.length ? "Mezzi e attrezzi" : "Scansiona attrezzo", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", icon: Truck },
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },
-    { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
+    // Il rapportino si scrive DAL cantiere (e lì si può dettare a voce): niente voce doppia.
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
     // /campo/documenti delega per ruolo (CampoDocumenti → SubDocumenti solo se
@@ -139,7 +140,6 @@ export default function CampoLayout() {
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
-    { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     // Era "SAL" (importi/ritenute): in cantiere serve segnare le fasi fatte.
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },

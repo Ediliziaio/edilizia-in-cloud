@@ -11,15 +11,14 @@ import { it } from "date-fns/locale";
 import {
   MapPin, ChevronRight, ChevronLeft,
   CheckCircle, Clock,
-  Mic, QrCode, MessageSquare, FileText,
-  CalendarDays, Receipt, ClipboardCheck,
-  Ticket, CalendarDays as CalendarDaysIcon,
-  Sparkles, Navigation, Send, FilePenLine, Users, ShoppingBag
+  CalendarDays, ClipboardCheck,
+  Sparkles, Navigation, Send, FilePenLine, Users
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
@@ -177,8 +176,8 @@ export default function CampoHome() {
         {isSubappaltatore && <CantieriSub />}
       </div>
 
-      {/* Azioni rapide — griglia 4 colonne su mobile */}
-      <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
+      {/* Niente griglia «Azioni rapide»: ripeteva il menu Altro (e la sidebar da desktop).
+          La Home dice solo: timbra, dove vai oggi, cosa aspetta te. */}
 
       {/* Sul telefono bastano Oggi e Da fare: l'elenco dei cantieri è in «Lavori», il calendario
           e l'assistente da tablet in su. Quando «Oggi» non c'è, l'elenco dei cantieri resta. */}
@@ -252,8 +251,7 @@ function AssistenteCampoOperaio() {
       return ([...(empRes.data ?? []), ...(campoRes.data ?? [])] as CampoAiAssignment[]).filter((a) => {
         if (!a.order?.id || seen.has(a.order.id)) return false;
         seen.add(a.order.id);
-        const status = String(a.order.status ?? "").toLowerCase();
-        return status !== "annullato" && status !== "chiuso";
+        return !commessaChiusa(a.order.status);
       });
     },
     enabled: !!user?.id,
@@ -878,55 +876,3 @@ function MieAttivitaCampo() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Accesso rapido
-// ─────────────────────────────────────────────────────────────────────────────
-function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; isSubappaltatore: boolean }) {
-  const navigate = useNavigate();
-
-  // Telefono: le prime 4 a vista (il resto è nel menu App); da tablet in su tutte.
-  const items = [
-    ...(isOperaio ? [
-      { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-      { icon: ShoppingBag, label: "Merce", url: "/campo/merce", color: "text-orange-600 bg-orange-50" },
-      { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
-      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
-      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },
-      { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
-      { icon: Receipt, label: "Cedolini", url: "/campo/cedolini", color: "text-pink-600 bg-pink-50" },
-      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
-    ] : []),
-    ...(isSubappaltatore ? [
-      { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-      { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-teal-600 bg-teal-50" },
-      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
-      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
-      { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
-    ] : []),
-  ];
-
-  return (
-    <div className="rounded-2xl border bg-background p-3 shadow-sm md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-      <p className="mb-3 text-sm font-semibold text-foreground">Azioni rapide</p>
-      <div className="grid grid-cols-4 gap-1.5 md:gap-3">
-        {items.map((item, idx) => {
-          const [textColor, bgColor] = item.color.split(" ");
-          return (
-            <button
-              key={item.url + item.label}
-              onClick={() => navigate(item.url)}
-              className={`${idx >= 4 ? "hidden md:flex" : "flex"} min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-2 transition-all active:scale-95 hover:bg-muted/60`}
-            >
-              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl md:h-14 md:w-14 ${bgColor}`}>
-                <item.icon className={`h-5 w-5 md:h-7 md:w-7 ${textColor}`} />
-              </div>
-              <span className="max-w-full text-center text-xs font-semibold leading-tight text-foreground">
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}

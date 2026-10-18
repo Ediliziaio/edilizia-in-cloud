@@ -9,6 +9,7 @@
  * Niente costo e niente rimborso finché l'ufficio non dice sì: qui si segna, non si registra.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Camera, Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -97,14 +98,22 @@ function CampoMerceEditor() {
     bozzaAttivata.current = true; setRipresaDecisa(true);
   };
 
-  // Il cantiere: quello in cui sei adesso, o l'unico che hai.
+  // Il cantiere: se apri «Bolla» da dentro una commessa arriva già scelto (?order=…) e
+  // resta bloccato lì; altrimenti quello in cui sei adesso, o l'unico che hai.
+  const [searchParams] = useSearchParams();
+  const orderDaParam = searchParams.get("order");
   const cantieri = useMemo(() => assegnazioni.data ?? [], [assegnazioni.data]);
+  const daCommessa = useMemo(
+    () => (orderDaParam && cantieri.some(c => c.order_id === orderDaParam) ? orderDaParam : ""),
+    [orderDaParam, cantieri],
+  );
   const predefinito = useMemo(() => {
     const attivo = dayTime.summary.activeOrderId;
     if (attivo && cantieri.some(c => c.order_id === attivo)) return attivo;
     return cantieri.length === 1 ? cantieri[0].order_id : "";
   }, [cantieri, dayTime.summary.activeOrderId]);
-  const cantiereScelto = orderId ? (cantieri.some(c => c.order_id === orderId) ? orderId : "") : predefinito;
+  const cantiereScelto = daCommessa || (orderId ? (cantieri.some(c => c.order_id === orderId) ? orderId : "") : predefinito);
+  const cantiereInfo = useMemo(() => cantieri.find(c => c.order_id === cantiereScelto), [cantieri, cantiereScelto]);
 
   // Una risposta arrivata dopo l'uscita dalla pagina non riapre il modulo.
   useEffect(() => {
@@ -154,6 +163,7 @@ function CampoMerceEditor() {
 
   const totaleNumero = numeroDocumento(totale);
   const totaleSuggerito = totaleNumero ?? totaleRighe(righe);
+  const tipoEffettivo = (tipoDocumento || (modalita ? tipoDocumentoDa(modalita) : "bolla")) as TipoDocumento;
 
   const aggiornaRiga = (i: number, patch: Partial<RigaAcquisto>) => setRighe(r => r.map((x, k) => (k === i ? { ...x, ...patch } : x)));
 
@@ -288,31 +298,41 @@ function CampoMerceEditor() {
       <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label="Dati del documento">
         <div className="space-y-1.5">
           <label htmlFor="merce-cantiere" className="text-sm font-semibold">Per quale cantiere?</label>
-          <select id="merce-cantiere" value={cantiereScelto} onChange={e => setOrderId(e.target.value)} className={campo}>
-            {!cantiereScelto && <option value="" disabled>Scegli il cantiere</option>}
-            {cantieri.map(c => <option key={c.order_id} value={c.order_id}>{c.order.order_code || "Cantiere"} · {c.order.description || c.order.indirizzo_lavori || "Lavoro assegnato"}</option>)}
-          </select>
+          {daCommessa ? (
+            // Arrivi da dentro il cantiere: resta quello, in sola lettura (e collegato all'etichetta).
+            <input
+              id="merce-cantiere"
+              readOnly
+              className={cn(campo, "bg-muted/50 font-semibold")}
+              value={cantiereInfo ? `${cantiereInfo.order.order_code || "Cantiere"} · ${cantiereInfo.order.description || cantiereInfo.order.indirizzo_lavori || "Lavoro assegnato"}` : "Cantiere"}
+            />
+          ) : (
+            <select id="merce-cantiere" value={cantiereScelto} onChange={e => setOrderId(e.target.value)} className={campo}>
+              {!cantiereScelto && <option value="" disabled>Scegli il cantiere</option>}
+              {cantieri.map(c => <option key={c.order_id} value={c.order_id}>{c.order.order_code || "Cantiere"} · {c.order.description || c.order.indirizzo_lavori || "Lavoro assegnato"}</option>)}
+            </select>
+          )}
           {assegnazioni.isError && <p role="alert" className="text-xs text-destructive">Non riesco a leggere i tuoi cantieri. <button type="button" className="underline" onClick={() => assegnazioni.refetch()}>Riprova</button></p>}
         </div>
-        <details className="rounded-xl border p-3">
-        <summary className="min-h-11 cursor-pointer text-sm font-semibold">Dettagli del documento · facoltativi</summary>
         <div className="space-y-1.5">
           <label htmlFor="merce-tipo" className="text-sm font-semibold">Che documento è?</label>
-          <select id="merce-tipo" className={campo} value={tipoDocumento || (modalita ? tipoDocumentoDa(modalita) : "bolla")} onChange={e => setTipoDocumento(e.target.value as TipoDocumento)}>
+          <select id="merce-tipo" className={campo} value={tipoEffettivo} onChange={e => setTipoDocumento(e.target.value as TipoDocumento)}>
             <option value="bolla">Bolla / DDT</option><option value="scontrino">Scontrino / ricevuta</option><option value="fattura">Fattura</option><option value="altro">Altro documento</option>
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label htmlFor="merce-numero" className="text-sm font-semibold">N° documento</label>
-            <input id="merce-numero" className={campo} value={numero} onChange={e => setNumero(e.target.value)} placeholder="Facoltativo" />
+            <label htmlFor="merce-numero" className="text-sm font-semibold">N° {tipoEffettivo === "scontrino" ? "scontrino" : tipoEffettivo === "fattura" ? "fattura" : "bolla"}</label>
+            <input id="merce-numero" className={campo} value={numero} onChange={e => setNumero(e.target.value)} placeholder={tipoEffettivo === "scontrino" ? "Facoltativo" : "Es. 1234/A"} />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="merce-data" className="text-sm font-semibold">Data</label>
             <input id="merce-data" type="date" className={campo} value={data} onChange={e => setData(e.target.value)} />
           </div>
         </div>
-        </details>
+        {fase === "letto" && tipoEffettivo !== "scontrino" && numero.trim() === "" && (
+          <p role="status" className="text-xs text-amber-700">Numero della bolla non letto: scrivilo se il documento ce l’ha.</p>
+        )}
         <div className="space-y-1.5">
           <label htmlFor="merce-fornitore" className="text-sm font-semibold">Dove l’hai presa?</label>
           <input id="merce-fornitore" className={campo} value={fornitore} onChange={e => setFornitore(e.target.value)} placeholder="Es. Tecnomat, Leroy Merlin" />

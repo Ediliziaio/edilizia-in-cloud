@@ -374,3 +374,5 @@ async function prepareActionableProposals(supabase: any, t: BriefingInput): Prom
   }
   return out;
 }
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

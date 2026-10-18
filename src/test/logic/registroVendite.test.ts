@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { documentoNelRegistro, importoConSegno, nomeIntestatario, tutteLePagine, unisciRegistroVendite, type RigaVendite } from "@/lib/fatturazione/registroVendite";
+import { documentoNelRegistro, importoConSegno, isDocumentoEmesso, nomeIntestatario, tutteLePagine, unisciRegistroVendite, type RigaVendite } from "@/lib/fatturazione/registroVendite";
 import { classificaClienti, conteggiPreparazione, fatturatoPeriodo } from "@/lib/fatturazione/statisticheVendite";
 
 const riga = (extra: Partial<RigaVendite> = {}): RigaVendite => ({ id: "1", origine: "nativa", numero: "1/26", data_emissione: "2026-10-01", tipo: "fattura", stato: "emessa", cliente_snapshot: { nome: "Mario", cognome: "Rossi", codice_fiscale: "RSSMRA80A01H501U" }, imponibile_totale: 100, iva_totale: 22, totale_documento: 122, importo_pagato: 0, ...extra });
@@ -34,5 +34,19 @@ describe("Registro vendite unico", () => {
   it("non restituisce totali parziali se una pagina fallisce", async () => {
     const fn = vi.fn().mockResolvedValueOnce({ data: [1, 2], error: null }).mockResolvedValueOnce({ data: null, error: new Error("Rete") });
     await expect(tutteLePagine(fn, 2)).rejects.toThrow("Rete");
+  });
+});
+
+describe("documento emesso", () => {
+  it("lascia fuori bozze, annullati e i documenti che lo SDI ha rifiutato, sta ancora ricevendo o ha dato in errore", () => {
+    for (const stato of ["bozza", "draft", "annullata", "cancelled", "rifiutata", "in_invio", "errore", null, ""]) {
+      expect(isDocumentoEmesso(stato)).toBe(false);
+    }
+  });
+
+  it("tiene tutti gli stati di un documento arrivato al cliente, nativo o importato", () => {
+    for (const stato of ["emessa", "inviata_sdi", "consegnata", "accettata", "scaduta", "pagata", "parzialmente_pagata", "stornata", "issued", "paid"]) {
+      expect(isDocumentoEmesso(stato)).toBe(true);
+    }
   });
 });

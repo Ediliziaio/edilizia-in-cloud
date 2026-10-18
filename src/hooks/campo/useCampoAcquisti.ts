@@ -45,6 +45,48 @@ export function useMieiAcquisti() {
   });
 }
 
+export interface AcquistoCommessa {
+  id: string;
+  created_at: string;
+  tipo_documento: string;
+  fornitore: string | null;
+  numero_documento: string | null;
+  data_documento: string | null;
+  totale: number | null;
+  stato: StatoAcquisto;
+  rimborso_stato: StatoRimborso;
+  modalita: ModalitaAcquisto;
+  motivo_rifiuto: string | null;
+  foto_path: string | null;
+}
+
+/**
+ * Le bolle/documenti di QUESTO cantiere, per la vista dentro la commessa.
+ * L'operaio vede i suoi (la policy RLS filtra per user_id); l'ufficio li vede tutti.
+ */
+export function useAcquistiCommessa(orderId: string | null | undefined) {
+  const { profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
+  return useQuery<AcquistoCommessa[]>({
+    queryKey: ["campo-acquisti-commessa", companyId, orderId],
+    enabled: !!companyId && !!orderId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // Tabella nuova, non ancora nei tipi generati.
+      const { data, error } = await supabase
+        .from("campo_acquisti" as never)
+        .select("id, created_at, tipo_documento, fornitore, numero_documento, data_documento, totale, stato, rimborso_stato, modalita, motivo_rifiuto, foto_path" as never)
+        .eq("company_id" as never, companyId as never)
+        .eq("order_id" as never, orderId as never)
+        .neq("stato" as never, "annullato" as never)
+        .order("created_at" as never, { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as unknown as AcquistoCommessa[];
+    },
+  });
+}
+
 export interface NuovoAcquisto {
   orderId: string;
   modalita: ModalitaAcquisto;

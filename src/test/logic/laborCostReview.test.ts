@@ -7,13 +7,20 @@ const review=(target:Partial<LaborReport>={},others:LaborReport[]=[],employees=[
 
 describe("Contratto del costo orario usato nell'approvazione",()=>{
   it("dà precedenza alla tariffa manuale positiva",()=>expect(reviewHourlyCost({...e,costo_orario:25.75,gross_salary:2000,monthly_hours:160}).amount).toBe(25.75));
-  it("con aliquota zero non applica 28% per errore",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,inps_rate:0}).amount).toBe(12.5));
-  it("applica il default solo all'aliquota nulla",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,inps_rate:null}).amount).toBe(16));
+  // Operaio edile: 12 mensilità, INAIL 8, Cassa Edile 22, TFR 7,41, 90% di ore produttive.
+  it("con aliquota zero non applica l'INPS del tipo per errore",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,inps_rate:0}).amount).toBe(19.08));
+  it("l'INPS del tipo vale solo se la persona non ne ha una sua",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,inps_rate:null}).amount).toBe(23.2));
+  it("impiegato e apprendista hanno mensilità e oneri loro",()=>{
+    expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,role_type:"staff_interno"}).amount).toBe(23.87);
+    expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,qualifica:"Apprendista muratore"}).amount).toBe(21.91);
+    expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,role_type:"staff_interno",profilo_costo:"operaio"}).amount).toBe(23.2);
+  });
+  it("i valori dell'azienda sostituiscono quelli edili",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:160,inps_rate:null},{operaio:{mensilita:12,inps:30,inail:0,cassa_edile:0,tfr:0,altri:0,ore_produttive:100}}).amount).toBe(16.25));
   it("non inventa 173 ore mensili mancanti",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:2000,monthly_hours:null}).amount).toBeNull());
   it("distingue tariffa mancante da costo zero confermato",()=>expect(reviewHourlyCost({...e,costo_orario:0}).source).toBe("mancante"));
-  it("mantiene la regola storica zero manuale → formula se completa",()=>expect(reviewHourlyCost({...e,costo_orario:0,gross_salary:1600,monthly_hours:160,inps_rate:0}).amount).toBe(10));
+  it("mantiene la regola storica zero manuale → formula se completa",()=>expect(reviewHourlyCost({...e,costo_orario:0,gross_salary:1600,monthly_hours:160,inps_rate:0}).amount).toBe(15.27));
   it.each([NaN,Infinity,-1])("non trasforma una tariffa errata in un importo valido: %s",value=>expect(reviewHourlyCost({...e,costo_orario:value}).amount).toBeNull());
-  it("accetta stringhe numeriche dal database",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:"2000",monthly_hours:"160",inps_rate:"0"}).amount).toBe(12.5));
+  it("accetta stringhe numeriche dal database",()=>expect(reviewHourlyCost({...e,costo_orario:null,gross_salary:"2000",monthly_hours:"160",inps_rate:"0"}).amount).toBe(19.08));
   it("arrotonda come numeric PostgreSQL, anche sui mezzi centesimi",()=>{
     expect(laborLineCost(1,1.005)).toBe(1.01);
     expect(laborLineCost(0.1,99.95)).toBe(10);

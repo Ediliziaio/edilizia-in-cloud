@@ -319,10 +319,11 @@ describe("Un rapportino diverso per chi lo compila", () => {
 describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
   const scrivi = () => fireEvent.change(screen.getByLabelText("Lavori da confermare con il cliente"), { target: { value: "Conclusa la posa delle finestre. Nessun extra concordato." } });
 
-  it("il giornaliero non propone più di trasformarsi in fine lavori", () => {
+  it("il rapportino non propone più di trasformarsi in collaudo", () => {
     render(<CampoRapportino />);
     avanti();
-    expect(screen.getByText("Rapportino giornaliero")).toBeInTheDocument();
+    expect(screen.getByText("Rapportino")).toBeInTheDocument();
+    expect(screen.queryByText("Collaudo col cliente")).toBeNull();
     expect(screen.queryByText("Lavoro completato")).toBeNull();
     expect(screen.queryByText("Firma del cliente")).toBeNull();
     expect(screen.getByRole("button", { name: "Invia rapportino" })).toBeInTheDocument();
@@ -336,7 +337,7 @@ describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
     expect(ore()).toBeNull();
     avanti(); avanti();
     expect(screen.getByText("Da mostrare al cliente")).toBeInTheDocument();
-    const invio = screen.getByRole("button", { name: "Invia fine lavori" });
+    const invio = screen.getByRole("button", { name: "Invia il collaudo" });
     expect(invio).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Nome e cognome del cliente"), { target: { value: "Luca Bianchi" } });
     expect(invio).toBeDisabled();
@@ -357,10 +358,10 @@ describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
   it("un fine lavori respinto conserva il tipo anche se aperto dal vecchio link giornaliero", async () => {
     state.gia = { id: "vecchio", stato: "rifiutato", lavoro_completato: true, descrizione_lavori: "Posa ultimata", ore_lavorate: 0 };
     render(<CampoRapportino />);
-    expect(screen.getByText("Rapporto cliente · Fine lavori")).toBeInTheDocument();
+    expect(screen.getByText("Collaudo col cliente")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByDisplayValue("Posa ultimata")).toBeInTheDocument());
     avanti(); avanti();
-    expect(screen.getByRole("button", { name: "Invia fine lavori" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Invia il collaudo" })).toBeDisabled();
     expect(state.insert).not.toHaveBeenCalled();
   });
 
@@ -371,7 +372,7 @@ describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
     avanti(); avanti();
     fireEvent.change(screen.getByLabelText("Nome e cognome del cliente"), { target: { value: "Luca Bianchi" } });
     fireEvent.click(screen.getByRole("button", { name: "Traccia Firma del cliente" }));
-    fireEvent.click(screen.getByRole("button", { name: "Invia fine lavori" }));
+    fireEvent.click(screen.getByRole("button", { name: "Invia il collaudo" }));
     await waitFor(() => expect(state.update).toHaveBeenCalledWith(expect.objectContaining({ lavoro_completato: true, ore_lavorate: 8 })));
     expect(state.insert).not.toHaveBeenCalled();
   });

@@ -12,7 +12,8 @@ describe("Statistiche personale: il capo non acquisisce le ore degli operai", ()
   it("la presenza viene attribuita tramite employee_id anche se l'autore è il capo", () => {
     const { result } = renderHook(() => useCostiPersonale("c", new Date(2026, 9, 1)));
     expect(result.current.dipendenti[0].oreLavorate).toBe(4); expect(result.current.altriOperatori).toHaveLength(0);
-    expect(result.current.dipendenti[0].oneriMensili).toBe(0);
+    // INPS 0 della persona: restano INAIL 8, Cassa Edile 22 e TFR 7,41 dell'operaio edile.
+    expect(result.current.dipendenti[0].oneriMensili).toBe(748.2);
   });
   it("un dipendente senza account ha comunque le ore rendicontate dal capo", () => {
     state.employees = [{ ...employee, user_id: null }];

@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { reviewHourlyCost } from "@/lib/campo/laborCostReview";
+import { leggiParametriCosto } from "@/hooks/useParametriCostoPersonale";
 
 /** One selected employee only. Reference for planning, never reprices past reports. */
 export function useAssignmentHourlyCost(employeeId: string | undefined) {
@@ -16,11 +17,11 @@ export function useAssignmentHourlyCost(employeeId: string | undefined) {
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.from("employees")
-        .select("id,user_id,costo_orario,gross_salary,inps_rate,monthly_hours")
+        .select("id,user_id,costo_orario,gross_salary,inps_rate,monthly_hours,profilo_costo,role_type,qualifica,area")
         .eq("id", employeeId!).eq("company_id", companyId!).eq("is_active", true).maybeSingle();
       if (error) throw error;
       if (!data) throw new Error("Dipendente non disponibile nell'azienda selezionata.");
-      return reviewHourlyCost(data);
+      return reviewHourlyCost(data, await leggiParametriCosto(companyId!));
     },
   });
   return { ...query, allowed };

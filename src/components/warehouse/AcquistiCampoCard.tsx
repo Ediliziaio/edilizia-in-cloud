@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MODALITA, euro, numeroDocumento, type ModalitaAcquisto, type RigaAcquisto, type StatoAcquisto, type StatoRimborso } from "@/lib/campo/acquisti";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
+import { ODA_STATUS_LABELS } from "@/lib/odaStatus";
 import { refreshCampoAcquistoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 
 interface AcquistoUfficio {
@@ -48,24 +49,26 @@ type RpcFn = (fn: string, args: Record<string, unknown>) => Promise<{ data: unkn
 type AzioneAcquisto = { id: string; azione: "registra" | "rifiuta" | "rimborsato"; totale?: number | null; ordineAcquisto?: string | null; motivo?: string };
 const NESSUN_ORDINE = "__nessuno__";
 
-export function AcquistiCampoCard() {
+/** Senza `orderId`: tutta la merce da verificare (Magazzino). Con `orderId`: solo quella della commessa. */
+export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const companyId = effectiveCompany?.id ?? null;
   const [aperto, setAperto] = useState<string | null>(null);
 
   const { data: acquisti = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["acquisti-campo-ufficio", companyId],
+    queryKey: ["acquisti-campo-ufficio", companyId, orderId ?? null],
     enabled: !!companyId,
     staleTime: 15_000,
     queryFn: async (): Promise<AcquistoUfficio[]> => {
       // Tabella nuova, non ancora nei tipi generati.
-      const { data, error } = await supabase
+      let query = supabase
         .from("campo_acquisti" as never)
         .select("id, created_at, order_id, modalita, fornitore, numero_documento, totale, righe, foto_path, purchase_order_id, stato, rimborso_stato, note, operaio:profiles(first_name, last_name), order:orders(order_code)" as never)
         .eq("company_id" as never, companyId as never)
-        .or("stato.eq.da_verificare,and(stato.eq.registrato,rimborso_stato.eq.da_rimborsare)" as never)
-        .order("created_at" as never, { ascending: true });
+        .or("stato.eq.da_verificare,and(stato.eq.registrato,rimborso_stato.eq.da_rimborsare)" as never);
+      if (orderId) query = query.eq("order_id" as never, orderId as never);
+      const { data, error } = await query.order("created_at" as never, { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as AcquistoUfficio[];
     },
@@ -105,7 +108,7 @@ export function AcquistiCampoCard() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <ShoppingBag className="h-5 w-5 text-orange-600" aria-hidden="true" />
-          Merce presa in negozio
+          {orderId ? "Bolle e merce presa" : "Merce presa in negozio"}
           <Badge className="bg-orange-100 text-orange-700">{acquisti.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -250,7 +253,7 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
               <label htmlFor={`oda-${a.id}`} className="text-xs font-semibold">A quale ordine d’acquisto corrisponde?</label>
               <select id={`oda-${a.id}`} value={ordine} onChange={e => setOrdine(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2 text-sm">
                 {!a.purchase_order_id && <option value={NESSUN_ORDINE}>Nessuno: registra come costo diretto</option>}
-                {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? "Ordine"} · {o.suppliers?.name ?? "Fornitore"} · {o.status}</option>)}
+                {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? "Ordine"} · {o.suppliers?.name ?? "Fornitore"} · {ODA_STATUS_LABELS[o.status] ?? o.status}</option>)}
                 {a.purchase_order_id && !ordini.some(o => o.id === a.purchase_order_id) && <option value={a.purchase_order_id}>Ordine proposto</option>}
               </select>
               {caricoOrdini && <p role="status" className="text-xs">Carico gli ordini del cantiere…</p>}

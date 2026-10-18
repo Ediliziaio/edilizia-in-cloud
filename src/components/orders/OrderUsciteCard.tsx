@@ -23,7 +23,11 @@ const STATO: Record<UscitaRow["stato"], { label: string; variant: "default" | "s
   annullata: { label: "Annullata", variant: "outline" },
 };
 
-export function OrderUsciteCard({ orderId }: { orderId: string }) {
+/**
+ * `canViewCosts` decide se mostrare il valore delle uscite (costo del
+ * magazzino). Senza, la card mostra numeri, date, articoli e DDT.
+ */
+export function OrderUsciteCard({ orderId, canViewCosts = false }: { orderId: string; canViewCosts?: boolean }) {
   const navigate = useNavigate();
   const { isNative } = useBillingMode();
   const { generate: generateDDT } = useShipmentDDTPDF();
@@ -60,7 +64,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
           <span className="flex items-center gap-2">
             <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> Uscite di magazzino
           </span>
-          {valoreTotale > 0 && <span className="text-sm tabular-nums text-orange-600">{formatCurrency(valoreTotale)}</span>}
+          {canViewCosts && valoreTotale > 0 && <span className="text-sm tabular-nums text-orange-600">{formatCurrency(valoreTotale)}</span>}
         </CardTitle>
         <CardDescription className="text-xs max-sm:hidden">
           Merce uscita dal magazzino per questa commessa. Da qui generi il <strong>DDT</strong> quando vuoi.
@@ -104,7 +108,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {new Date(u.data).toLocaleDateString("it-IT")} · {nRighe} {nRighe === 1 ? "articolo" : "articoli"}
-                      {valore > 0 ? ` · ${formatCurrency(valore)}` : ""}
+                      {canViewCosts && valore > 0 ? ` · ${formatCurrency(valore)}` : ""}
                       {u.note ? ` · ${u.note}` : ""}
                     </div>
                   </div>

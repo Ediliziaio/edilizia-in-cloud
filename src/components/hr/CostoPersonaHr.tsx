@@ -17,6 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { FullLaborCostCalculator } from "@/components/hr/FullLaborCostCalculator";
 import { HrLaborReconciliation } from "@/components/hr/HrLaborReconciliation";
 import type { HrCostSaveDraft } from "@/lib/personale/laborCostPlan";
+import { ETICHETTA_PROFILO, type ProfiloCosto } from "@/lib/costoPersonale";
 
 const testo = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
@@ -24,6 +25,7 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
   const { data, isLoading, error } = useCostoPersona(profiloId);
   const salva = useSalvaCostoPersona(profiloId);
   const permissions = usePermissions();
+  const tipo = (data?.tipo && data.tipo in ETICHETTA_PROFILO ? data.tipo : null) as ProfiloCosto | null;
   const server = {
     costo_orario: testo(data?.costo_orario_scritto), stipendio_lordo: testo(data?.stipendio_lordo),
     ore_mese: testo(data?.ore_mese), contributi_percento: testo(data?.contributi_percento),
@@ -79,11 +81,14 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="space-y-1"><Label htmlFor="costo-stipendio_lordo">Lordo al mese (€)</Label><Input {...campo("stipendio_lordo")} placeholder="Es. 2.100" /></div>
         <div className="space-y-1"><Label htmlFor="costo-ore_mese">Ore al mese</Label><Input {...campo("ore_mese")} placeholder="Es. 168" /></div>
-        <div className="space-y-1"><Label htmlFor="costo-contributi_percento">Contributi (%)</Label><Input {...campo("contributi_percento")} placeholder="28" /></div>
+        <div className="space-y-1"><Label htmlFor="costo-contributi_percento">INPS ditta (%)</Label><Input {...campo("contributi_percento")} placeholder={data?.inps_del_tipo != null ? testo(data.inps_del_tipo) : ""} /></div>
         <div className="space-y-1"><Label htmlFor="costo-costo_orario">Oppure costo orario (€)</Label><Input {...campo("costo_orario")} placeholder="Es. 24,50" /></div>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">Se scrivi il costo orario vale quello; altrimenti lo calcoliamo da lordo, contributi e ore.</p>
+        <p className="text-xs text-muted-foreground">
+          Se scrivi il costo orario vale quello. Altrimenti lo calcoliamo da lordo e ore, con mensilità,
+          INAIL, Cassa Edile e TFR {tipo ? `dell’${ETICHETTA_PROFILO[tipo].toLowerCase()}` : "del tipo di dipendente"}; l’INPS vuoto vale quello del tipo.
+        </p>
         <Button type="button" size="sm" variant="outline" onClick={conferma} disabled={!canEdit || !dirty || remoteChange || salva.isPending || isLoading} className="shrink-0 gap-1.5">
           {salva.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Salva il costo
         </Button>

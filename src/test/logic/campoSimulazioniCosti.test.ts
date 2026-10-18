@@ -33,7 +33,11 @@ beforeAll(async () => {
     create table user_roles(user_id uuid, role text);
     create table campo_regole_azienda(company_id uuid primary key,chi_compila text,ore_dalle text,avviso_scostamento_minuti integer);
     create table employees(id uuid primary key,company_id uuid,user_id uuid,first_name text,last_name text,
-      costo_orario numeric,gross_salary numeric,monthly_hours numeric,inps_rate numeric);
+      costo_orario numeric,gross_salary numeric,monthly_hours numeric,inps_rate numeric,
+      profilo_costo text,role_type text,qualifica text,area text);
+    create function user_can_access_company(uuid) returns boolean language sql as $$select true$$;
+    create table costo_personale_parametri(company_id uuid,profilo text,mensilita numeric,inps numeric,inail numeric,
+      cassa_edile numeric,tfr numeric,altri numeric,ore_produttive numeric,primary key(company_id,profilo));
     create table orders(id uuid primary key,company_id uuid,deleted_at timestamptz,percentuale_avanzamento integer default 0);
     create table order_work_phases(id uuid primary key,company_id uuid,order_id uuid references orders,name text,
       percentuale integer default 0,status text default 'da_iniziare',updated_at timestamptz default now());
@@ -51,14 +55,16 @@ beforeAll(async () => {
     create function test_fail_phase() returns trigger language plpgsql as $$begin
       if new.name='errore' and new.percentuale is distinct from old.percentuale then raise exception 'Guasto fase'; end if; return new; end$$;
     create trigger fail_phase before update on order_work_phases for each row execute function test_fail_phase();`);
-  const rate = sql("migrations/20280220000000_costo_orario_una_formula_sola.sql")
-    .match(/create or replace function public\.costo_orario_dipendente[\s\S]*?\$\$;/)![0];
-  await db.exec(rate);
+  // Le funzioni del costo orario così come stanno nella migrazione in produzione.
+  const costo = sql("migrations/20281019040000_costo_orario_edile_per_tipo.sql");
+  for (const nome of ["costo_personale_preset", "profilo_costo_dipendente", "costo_orario_calcolato", "costo_orario_dipendente"]) {
+    await db.exec(costo.match(new RegExp(`create or replace function public\\.${nome}\\([\\s\\S]*?\\$\\$;`))![0]);
+  }
   await db.exec(sql("migrations/20281004140000_ore_persona_si_contano_una_volta.sql"));
   await db.exec(sql("migrations/20281004150000_rapportino_conflitto_ore_anticipato.sql"));
   await db.exec(`create trigger trg_rapportino_costo_manodopera before update on campo_rapportini
     for each row execute function fn_rapportino_costo_manodopera()`);
-  await db.exec(sql("migrations-pending/campo_rapportini_protocollo.sql"));
+  await db.exec(sql("migrations/20281018180000_campo_rapportini_protocollo.sql"));
   await db.exec(sql("migrations-pending/campo_rapportini_collegamenti_atomici.sql"));
 }, 30000);
 afterAll(() => db.close());
@@ -182,5 +188,26 @@ describe("Confronto importi frontend e numeric PostgreSQL (80 combinazioni)", ()
       [e, employee.costo_orario, employee.gross_salary, employee.monthly_hours, employee.inps_rate]);
     const actual = (await db.query<{ rate: string }>("select costo_orario_dipendente($1)::text as rate", [e])).rows[0].rate;
     expect(costoOrarioDipendente({ ...employee, ore_settimana: 40 })).toBe(Number(actual));
+  });
+  it.each([
+    { role_type: "operaio", qualifica: "Muratore", area: "cantiere", profilo_costo: null, inps_rate: 28 },
+    { role_type: "staff_interno", qualifica: null, area: "amministrazione", profilo_costo: null, inps_rate: null },
+    { role_type: "operaio", qualifica: "Apprendista muratore", area: "cantiere", profilo_costo: null, inps_rate: null },
+    { role_type: "Posatore Infissi", qualifica: null, area: null, profilo_costo: "impiegato", inps_rate: 11.61 },
+  ])("tipo di dipendente: app = funzione SQL ($role_type/$qualifica/$profilo_costo)", async t => {
+    await db.query("update employees set costo_orario=null,gross_salary=2123.45,monthly_hours=168,inps_rate=$2,role_type=$3,qualifica=$4,area=$5,profilo_costo=$6 where id=$1",
+      [e, t.inps_rate, t.role_type, t.qualifica, t.area, t.profilo_costo]);
+    const actual = (await db.query<{ rate: string }>("select costo_orario_dipendente($1)::text as rate", [e])).rows[0].rate;
+    expect(costoOrarioDipendente({ ...t, gross_salary: 2123.45, monthly_hours: 168 })).toBe(Number(actual));
+  });
+  it("i valori dell'azienda vincono su quelli edili, uguali in app e nel database", async () => {
+    const valori = { mensilita: 13, inps: 30.5, inail: 3.2, cassa_edile: 0, tfr: 7.41, altri: 1.5, ore_produttive: 87 };
+    await db.query("insert into costo_personale_parametri values ($1,'operaio',$2,$3,$4,$5,$6,$7,$8)",
+      [c, valori.mensilita, valori.inps, valori.inail, valori.cassa_edile, valori.tfr, valori.altri, valori.ore_produttive]);
+    await db.query("update employees set company_id=$2,costo_orario=null,gross_salary=1987.65,monthly_hours=173,inps_rate=null,role_type='operaio',qualifica=null,area=null,profilo_costo=null where id=$1", [e, c]);
+    const actual = (await db.query<{ rate: string }>("select costo_orario_dipendente($1)::text as rate", [e])).rows[0].rate;
+    await db.query("delete from costo_personale_parametri");
+    expect(costoOrarioDipendente({ role_type: "operaio", gross_salary: 1987.65, monthly_hours: 173, inps_rate: null }, { operaio: valori })).toBe(Number(actual));
+    expect(Number(actual)).toBe(20.4);
   });
 });

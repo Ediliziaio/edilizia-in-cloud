@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
+import { ETICHETTA_PROFILO, PROFILI_COSTO, oneriPercento, parametriDelProfilo, profiloCostoDipendente } from "@/lib/costoPersonale";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -46,6 +48,8 @@ const employeeSchema = z.object({
   costo_orario: z.coerce.number<number>().min(0, "Deve essere >= 0").optional(),
   is_active: z.boolean(),
   area: z.enum(["cantiere", "commerciale", "amministrazione", "tecnico"]).default("cantiere"),
+  // "auto" = ricavato da ruolo e qualifica; si salva come null.
+  profilo_costo: z.enum(["auto", "operaio", "apprendista", "impiegato"]).default("auto"),
 });
 
 export type EmployeeFormData = z.infer<typeof employeeSchema>;
@@ -68,6 +72,8 @@ interface EmployeeDialogProps {
     area?: string | null;
     costo_orario?: number | null;
     inps_rate?: number | null;
+    qualifica?: string | null;
+    profilo_costo?: string | null;
   } | null;
   onSave: (data: EmployeeFormData) => void;
   isSaving: boolean;
@@ -98,6 +104,7 @@ export function EmployeeDialog({
       monthly_hours: 160,
       is_active: true,
       area: "cantiere" as const,
+      profilo_costo: "auto" as const,
     },
   });
 
@@ -115,6 +122,7 @@ export function EmployeeDialog({
         costo_orario: employee.costo_orario ?? undefined,
         is_active: employee.is_active,
         area: employeeSchema.shape.area.removeDefault().safeParse(employee.area).data ?? (employee.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
+        profilo_costo: employeeSchema.shape.profilo_costo.removeDefault().safeParse(employee.profilo_costo).data ?? "auto",
       });
     } else {
       form.reset({
@@ -128,22 +136,32 @@ export function EmployeeDialog({
         monthly_hours: 160,
         is_active: true,
         area: "cantiere" as const,
+        profilo_costo: "auto" as const,
       });
     }
   }, [employee, form]);
 
   const grossSalary = form.watch("gross_salary");
   const monthlyHours = form.watch("monthly_hours");
-  const inpsRate = employee?.inps_rate;
+  const area = form.watch("area");
+  const profiloScelto = form.watch("profilo_costo");
+  const { data: parametri } = useParametriCostoPersonale();
+  const datiProfilo = {
+    profilo_costo: profiloScelto === "auto" ? null : profiloScelto,
+    role_type: effectiveRoleType, qualifica: employee?.qualifica ?? null, area,
+  };
+  const profilo = profiloCostoDipendente(datiProfilo);
+  const profiloAuto = profiloCostoDipendente({ ...datiProfilo, profilo_costo: null });
+  const p = parametriDelProfilo(profilo, parametri);
+  const inpsRate = employee?.inps_rate ?? null;
   // Stesso calcolo del database: il numero suggerito qui è ESATTAMENTE quello
-  // che finirà in commessa se il campo resta vuoto. Prima il placeholder
-  // mostrava il lordo diviso le ore, senza oneri: un valore che il sistema
-  // non usava da nessuna parte.
+  // che finirà in commessa se il campo resta vuoto.
   const hourlyCost = costoOrarioDipendente({
+    ...datiProfilo,
     gross_salary: grossSalary,
     monthly_hours: monthlyHours,
     inps_rate: inpsRate,
-  });
+  }, parametri);
 
   const handleSubmit = (data: EmployeeFormData) => {
     onSave(data);
@@ -277,6 +295,32 @@ export function EmployeeDialog({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="profilo_costo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contratto per il costo</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="auto">Automatico · {ETICHETTA_PROFILO[profiloAuto]}</SelectItem>
+                      {PROFILI_COSTO.map((k) => (
+                        <SelectItem key={k} value={k}>{ETICHETTA_PROFILO[k]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Decide mensilità e oneri (INPS, INAIL, Cassa Edile, TFR). I valori sono in «Valori del costo», in cima alla pagina.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -317,7 +361,8 @@ export function EmployeeDialog({
                     <Input type="number" min="1" max="744" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Costo orario calcolato: <strong>{formatCurrency(hourlyCost)}/h</strong>
+                    Costo orario vero: <strong>{formatCurrency(hourlyCost)}/h</strong>
+                    {" "}· {p.mensilita} mensilità, {oneriPercento(p, inpsRate).toLocaleString("it-IT")}% di oneri, {p.ore_produttive}% di ore produttive
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -335,9 +380,8 @@ export function EmployeeDialog({
                   </FormControl>
                   <FormDescription>
                     Quando un rapportino viene approvato, le ore diventano costo di
-                    commessa a questa tariffa. Se lasci vuoto si usa il costo
-                    calcolato dallo stipendio (lordo + oneri diviso le ore del mese),
-                    che è il valore suggerito qui sopra.
+                    commessa a questa tariffa. Se lasci vuoto si usa il costo vero
+                    calcolato dallo stipendio, il valore suggerito qui sopra.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

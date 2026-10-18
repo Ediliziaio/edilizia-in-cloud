@@ -13,6 +13,8 @@ import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archiv
 import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
+import { costoMensileVero } from "@/lib/costoPersonale";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 
 export interface OrderMargin {
   orderId: string;
@@ -122,13 +124,15 @@ export function useMarginData(): MarginData {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: parametriCosto } = useParametriCostoPersonale();
+
   // 3. Active employees (salaries + oneri, come nel resto dell'app)
   const { data: employees, isLoading: loadingEmployees, isError: errEmployees } = useQuery({
     queryKey: queryKeys.margin.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("gross_salary, inps_rate")
+        .select("gross_salary, inps_rate, role_type, qualifica, area, profilo_costo")
         .eq("company_id", companyId!)
         .eq("is_active", true);
       if (error) throw error;
@@ -214,13 +218,9 @@ export function useMarginData(): MarginData {
     .sort((a, b) => b.amount - a.amount);
 
   const totalFixedCostsFromCosts = fixedCosts.reduce((s, c) => s + c.amount, 0);
-  // Lordo + oneri contributivi (stessa formula della pagina Costi): il solo
-  // lordo nascondeva ~28% del costo del personale al punto di pareggio.
-  const salariesMonthly = (employees || []).reduce((s, e: any) => {
-    const salary = Number(e.gross_salary) || 0;
-    const inpsRate = Number(e.inps_rate) || 28;
-    return s + salary * (1 + inpsRate / 100);
-  }, 0);
+  // Costo vero del mese (stessa formula della pagina Costi): mensilità aggiuntive,
+  // contributi, Cassa Edile e TFR del tipo di dipendente.
+  const salariesMonthly = (employees || []).reduce((s, e) => s + costoMensileVero(e, parametriCosto), 0);
   const totalFixedCostsMonthly = totalFixedCostsFromCosts + salariesMonthly;
 
   // Break even

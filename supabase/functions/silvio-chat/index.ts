@@ -2223,3 +2223,5 @@ async function extractOfficeDocument(
 
   throw new Error(`MIME non supportato: ${mimeType}`);
 }
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

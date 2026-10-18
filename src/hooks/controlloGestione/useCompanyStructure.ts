@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { parametriDaRighe } from "@/lib/costoPersonale";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -27,16 +28,18 @@ export function useCompanyStructure(enabled = true) {
     enabled: enabled && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<CompanyStructureResult> => {
-      const [costsRes, employeesRes, operationalRes, ordersRes] = await Promise.all([
+      const [costsRes, employeesRes, operationalRes, ordersRes, parametriRes] = await Promise.all([
         supabase
           .from("company_costs")
-          .select("amount, recurrence")
+          .select("amount, recurrence, recurrence_end_date")
           .eq("company_id", companyId!)
           .eq("cost_type", "fixed")
-          .is("order_id", null),
+          .is("order_id", null)
+          // Un costo fisso già finito non pesa più sulla struttura (stesso filtro di useMarginData).
+          .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`),
         supabase
           .from("employees")
-          .select("id, gross_salary, inps_rate, role_type, area, qualifica")
+          .select("id, gross_salary, inps_rate, role_type, area, qualifica, profilo_costo")
           .eq("company_id", companyId!)
           .eq("is_active", true),
         (supabase as any)
@@ -51,12 +54,17 @@ export function useCompanyStructure(enabled = true) {
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .limit(5000),
+        (supabase as any)
+          .from("costo_personale_parametri")
+          .select("profilo, mensilita, inps, inail, cassa_edile, tfr, altri, ore_produttive")
+          .eq("company_id", companyId!),
       ]);
 
       if (costsRes.error) throw costsRes.error;
       if (employeesRes.error) throw employeesRes.error;
       if (operationalRes.error) throw operationalRes.error;
       if (ordersRes.error) throw ordersRes.error;
+      if (parametriRes.error) throw parametriRes.error;
 
       const today = new Date().toLocaleDateString("en-CA");
       const snapshot = calculateCompanyStructureSnapshot({
@@ -65,6 +73,7 @@ export function useCompanyStructure(enabled = true) {
         operationalEmployeeIds: ((operationalRes.data ?? []) as Array<{ employee_id: string }>).map((row) => row.employee_id),
         orders: (ordersRes.data ?? []) as StructureOrder[],
         today,
+        parametri: parametriDaRighe(parametriRes.data),
       });
 
       return { ...snapshot, today };

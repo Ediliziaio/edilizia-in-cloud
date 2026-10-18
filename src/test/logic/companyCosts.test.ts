@@ -119,11 +119,11 @@ describe("stipendi sintetici dai dipendenti attivi", () => {
     const rows = buildEmployeeCosts([emp], 3);
     const prossimo = format(addMonths(startOfMonth(new Date()), 1), "yyyy-MM");
     const futuri = rows.filter((r) => r.due_date.slice(0, 7) === prossimo);
-    // stipendio + oneri INPS per il mese prossimo
+    // stipendio + oneri per il mese prossimo
     expect(futuri).toHaveLength(2);
     expect(futuri.every((r) => r.is_paid === false)).toBe(true);
-    // 2000 lordo + 560 oneri
-    expect(futuri.reduce((s, r) => s + r.amount, 0)).toBe(2560);
+    // 2000 lordo + 1308,20 oneri (operaio edile: INPS 28 della persona, INAIL 8, Cassa Edile 22, TFR 7,41)
+    expect(futuri.reduce((s, r) => s + r.amount, 0)).toBe(3308.2);
   });
 
   it("i mesi chiusi restano presunti pagati, il corrente no", () => {

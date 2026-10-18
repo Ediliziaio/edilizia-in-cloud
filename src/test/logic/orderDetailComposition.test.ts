@@ -40,22 +40,13 @@ describe("contratto di composizione del dettaglio commessa", () => {
 
   it.each([
     ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav"]],
-    ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard"]],
+    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
+    ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
       const matches = named(component);
-      if (component === "MezziCommessaCard") {
-        expect(matches).toHaveLength(2);
-        expect(matches.map(tag => area(tag))).toEqual(["cantiere", "cantiere"]);
-        const conditions = matches.map(tag => {
-          for (let p: ts.Node | undefined = tag.parent; p; p = p.parent)
-            if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && p.left.getText(source).startsWith("vistaCantiere ===")) return p.left.getText(source);
-        });
-        expect(conditions.sort()).toEqual(['vistaCantiere === "lavorazioni"', 'vistaCantiere === "squadra"']);
-        continue;
-      }
+      // I mezzi stanno solo in Lavorazioni: «Ore e persone» parla di ore, non di mezzi.
       expect(matches, component).toHaveLength(1);
       expect(area(matches[0]), component).toBe(expected);
     }

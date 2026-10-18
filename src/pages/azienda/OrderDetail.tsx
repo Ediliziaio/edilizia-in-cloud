@@ -4,7 +4,6 @@ import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDial
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
 import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
-import { DailyHoursPanel } from "@/components/personale/DailyHoursPanel";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -21,7 +20,7 @@ import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
 import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
-import { agreedContractValue } from "@/lib/orders/contractValue";
+import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
@@ -46,7 +45,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
 import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
-import { ContractOfficeTasks } from "@/components/orders/ContractOfficeTasks";
+import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
@@ -97,6 +96,12 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
+import { OreEPersone } from "@/components/orders/OreEPersone";
+import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
+import { incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
+import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderAcceptanceReports } from "@/components/orders/OrderAcceptanceReports";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -109,7 +114,6 @@ import { OrderCommunicationsCard } from "@/components/orders/OrderCommunications
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
-import { calculateCollectedNetFromInstallments, calculateCollectedGrossFromInstallments } from "@/lib/commissions";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
@@ -827,6 +831,11 @@ function OrderDetailInner() {
         standard_cost: item.standard_cost ?? 0,
       }).eq("id", item.id);
       if (error) throw error;
+      // Articolo da magazzino già scaricato o installato: la giacenza segue la nuova quantità.
+      if (item.stock_item_id) {
+        const { error: magazzinoError } = await (supabase as any).rpc("magazzino_allinea_riga", { p_riga: item.id });
+        if (magazzinoError) throw new Error(`Articolo salvato, ma la giacenza non si è aggiornata: ${magazzinoError.message}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
@@ -936,6 +945,11 @@ function OrderDetailInner() {
     vat_rate: item.vat_rate ?? undefined, stock_item_id: item.stock_item_id || undefined,
     unit_price: item.unit_price || undefined, discount_percent: item.discount_percent || undefined,
     standard_cost: item.standard_cost || undefined,
+    // Aggancio al listino: senza questi tre campi ogni salvataggio dalla commessa
+    // (anche un semplice cambio di stato) li riscriveva vuoti.
+    article_template_id: item.article_template_id || undefined,
+    product_code: item.product_code || undefined,
+    categoria: item.categoria || undefined,
     is_paid: item.is_paid ?? undefined, paid_date: item.paid_date || undefined,
     payment_method: item.payment_method || undefined,
     deposit_amount: item.deposit_amount ?? undefined, deposit_paid: item.deposit_paid ?? undefined,
@@ -964,7 +978,8 @@ function OrderDetailInner() {
     // residuo calcolato, le intermedie il loro importo. Senza questa mappa
     // l'alert diceva una cifra e la lista Pagamenti un'altra.
     const totaleIvato = agreedAmount * (1 + (order.vat_rate ?? 22) / 100);
-    const costoFin = order.financing_cost ?? 0;
+    // Il costo della finanziaria si toglie solo se si paga a finanziamento (come il piano rate).
+    const costoFin = order.payment_type === "financing" ? order.financing_cost ?? 0 : 0;
     const posSaldo = displayInstallments.reduce<number | null>(
       (acc, i) => (i.type === "balance" ? Math.max(acc ?? i.position, i.position) : acc),
       null,
@@ -1190,27 +1205,18 @@ function OrderDetailInner() {
   const contractFinancePending = contractLink.data?.workflow_kind === "contratto" && (order.vat_rate == null || agreedAmount <= 0);
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
-  const collectedAmount = calculateCollectedNetFromInstallments({
+  // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
+  const incassi = incassiDellaCommessa({
     installments: displayInstallments,
     totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
-    financingCost: order.financing_cost ?? 0,
+    paymentType: order.payment_type,
+    financingCost: order.financing_cost,
+    varianti: variantiApprovateDatate(variations.data ?? []),
   });
-  // Incassato LORDO (IVA inclusa) = stesso numero del piano rate ("€ Riepilogo" e
-  // "Avanzamento incassi"). La cassa del Conto economico lo usa per non mostrare un
-  // incassato diverso (netto) da quello del piano rate. I margini restano netti.
-  const collectedGross = calculateCollectedGrossFromInstallments({
-    installments: displayInstallments,
-    totalAmount: agreedAmount,
-    vatRate: order.vat_rate ?? 22,
-    financingCost: order.financing_cost ?? 0,
-  });
-  // Target incassi LORDO = totale ivato al netto del costo finanziaria (= "su 27.280"
-  // del piano rate), così la barra cassa combacia con l'Avanzamento incassi.
-  const cashTotalGross = Math.max(
-    0,
-    agreedAmount * (1 + (order.vat_rate ?? 22) / 100) - (order.financing_cost ?? 0),
-  );
+  const collectedAmount = incassi.incassatoNetto;
+  const collectedGross = incassi.incassatoLordo;
+  const cashTotalGross = incassi.totaleLordo;
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = avanzamentoDellaCommessa(phaseProgress?.avgPct ?? null);
 
@@ -1231,10 +1237,8 @@ function OrderDetailInner() {
   // Timeline acconto → materiali → saldo. Evidenzia il fabbisogno di anticipo
   // quando l'acconto incassato non copre il costo dei fornitori (capitale
   // circolante immobilizzato fino al saldo di fine lavori).
-  const costoMaterialiGross = displayItems.reduce(
-    (s, i) => s + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
-    0,
-  );
+  // Materiali IVA inclusa, come gli incassi con cui si confrontano.
+  const costoMaterialiGross = costoMaterialiIvato(displayItems);
   const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
   const cassaDopoMateriali = collectedGross - costoMaterialiGross; // < 0 ⇒ anticipo
   const accontoCopreMateriali = costoMaterialiGross <= 0 || collectedGross >= costoMaterialiGross;
@@ -1398,7 +1402,7 @@ function OrderDetailInner() {
           taskError={taskError}
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "cantiere", section: "section-pianificazione" })}
-          onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"panoramica",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
+          onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"cantiere",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
         >
           <OrderStatusWorkflow
             key={id}
@@ -1489,6 +1493,7 @@ function OrderDetailInner() {
             )}
 
             <OrderAssistenzaAlert orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-assistenza" })} />
+            <DaApprovareAvviso orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
 
             {/* Origine e anagrafica: l'operatività vive nel Cantiere. */}
             <OrderOriginBadge
@@ -1530,7 +1535,7 @@ function OrderDetailInner() {
                   <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>Registro della commessa <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
                 </QuoteCard>
               <div id="section-note" className="scroll-mt-24">
-                <div id="section-ufficio" className="scroll-mt-24"><ContractOfficeTasks key={id} orderId={id} /></div>
+                <RiepilogoFasiUfficio orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", cantiereView: "ufficio" })} />
                 {permissions.canEditOrders ? (
                   <OrdineNote
                     notes={order.internal_notes}
@@ -1657,8 +1662,16 @@ function OrderDetailInner() {
             </>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
-              <OrderUsciteCard orderId={id!} />
+              <OrderUsciteCard orderId={id!} canViewCosts={permissions.canViewCosts} />
               <OrderSerialsTrackingCard orderId={id!} orderItems={materialItems} />
+            </div>}
+            {activeMaterialiView === "bolle" && <div id="section-bolle" className="space-y-4 scroll-mt-24">
+              <OrderBolleDdtCard orderId={id!} puoAprireDocumenti={permissions.canViewBilling} />
+            </div>}
+            {activeMaterialiView === "fatture" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
+              {permissions.canViewCosts
+                ? <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} />
+                : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare le fatture dei fornitori di questa commessa.</p>}
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
               <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} />
@@ -1764,7 +1777,7 @@ function OrderDetailInner() {
                   orderId={id!}
                   totalAmount={agreedAmount}
                   vatRate={order.vat_rate ?? 22}
-                  financingCost={order.financing_cost ?? 0}
+                  financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
                   installments={displayInstallments}
                   cashTotalGross={cashTotalGross}
                   avanzamentoPct={avanzamentoPct}
@@ -1801,12 +1814,12 @@ function OrderDetailInner() {
                     >
                       {accontoCopreMateriali ? (
                         <>
-                          L'acconto incassato copre il costo dei materiali:
+                          L'incassato copre il costo dei materiali:
                           nessun anticipo richiesto.
                         </>
                       ) : (
                         <>
-                          L'acconto incassato (
+                          L'incassato (
                           <strong>{formatCurrency(collectedGross)}</strong>) non
                           copre i materiali (
                           <strong>{formatCurrency(costoMaterialiGross)}</strong>
@@ -1830,7 +1843,7 @@ function OrderDetailInner() {
                     <div className="rounded-lg border bg-muted/20 text-[13px]">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                         <span className="text-muted-foreground">
-                          Acconto incassato
+                          Incassato
                         </span>
                         <span className="font-medium text-emerald-600">
                           + {formatCurrency(collectedGross)}
@@ -1879,7 +1892,8 @@ function OrderDetailInner() {
 
             {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
                 e si registra al computer. */}
-            {activeEconomiaView === "margini" && <div>
+            {/* Le perdite sono importi di costo: solo a chi può vedere costi o margini. */}
+            {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && <div>
               <OrderErrors orderId={id!} />
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
@@ -1966,13 +1980,7 @@ function OrderDetailInner() {
                         Totale fatturato
                       </span>
                       <span className="font-medium">
-                        {formatCurrency(
-                          fattureCollegate.reduce(
-                            (s: number, f: LinkedFiscalDocument) =>
-                              s + (f.totale_da_pagare ?? 0),
-                            0,
-                          ),
-                        )}
+                        {formatCurrency(totaleFatturato(fattureCollegate as LinkedFiscalDocument[]))}
                       </span>
                     </div>
                   </div>
@@ -2093,9 +2101,15 @@ function OrderDetailInner() {
                 />
               </ErrorBoundary>
             </div>}
+            {vistaCantiere === "ufficio" && <div id="section-ufficio" className="space-y-4 scroll-mt-24">
+              <ErrorBoundary><FasiUfficio key={id} orderId={id!} /></ErrorBoundary>
+            </div>}
             {vistaCantiere === "squadra" && <div id="section-statistiche" className="space-y-4 scroll-mt-24">
-              <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
-              <ErrorBoundary><MezziCommessaCard key={id} orderId={id!} readOnly /></ErrorBoundary>
+              <ErrorBoundary><OreEPersone key={id} orderId={id!} inizioLavori={order.work_start_date ?? order.created_at} /></ErrorBoundary>
+              {/* Squadre, ditte e costi del personale: il riepilogo di prima, chiuso finché non serve. */}
+              <OrderDisclosure title="Squadre, ditte e costi del personale">
+                <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
+              </OrderDisclosure>
             </div>}
             {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-24">
               <ErrorBoundary><MezziCommessaCard key={id} orderId={id!} compact /></ErrorBoundary>
@@ -2128,9 +2142,9 @@ function OrderDetailInner() {
             <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard orderId={id!} /></ErrorBoundary></div>
             </>}
             {vistaCantiere === "diario" && <>
-            <div id="section-rapportini" className="scroll-mt-24">
-              <DailyHoursPanel orderId={id!} />
-              <OrdineRapportiniCampo orderId={id!} />
+            <div id="section-rapportini" className="scroll-mt-24 space-y-4">
+              <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+              <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
             </div>
             <div id="section-foto" className="space-y-4 scroll-mt-24">
               <OrdineFotoCantiere orderId={id!} />
@@ -2146,11 +2160,12 @@ function OrderDetailInner() {
             )}
             </>}
             {vistaCantiere === "collaudo" && companyId && <>
+              <CollaudiDalCantiere orderId={id!} companyId={companyId} />
               <OrderAcceptanceReports
                 key={id}
                 orderId={id!}
                 companyId={companyId}
-                onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"panoramica",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
+                onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"cantiere",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
                 customer={order.customer
                   ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
                   : order.client_name || ""}

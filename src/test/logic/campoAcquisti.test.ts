@@ -62,7 +62,19 @@ describe("Totale dei prodotti", () => {
     expect(numeroDocumento(" 1 234,56 € ")).toBe(1234.56);
     expect(numeroDocumento("2,5")).toBe(2.5);
     expect(numeroDocumento("2.5")).toBe(2.5);
+    expect(numeroDocumento("1.250")).toBe(1250);
+    expect(numeroDocumento("12.500")).toBe(12500);
+    expect(numeroDocumento("1.25")).toBe(1.25);
+    expect(numeroDocumento(1.25)).toBe(1.25);
     for (const v of [true, false, null, {}, "", "abc", "1.2.3", "1.2,3", Infinity, NaN]) expect(numeroDocumento(v)).toBeNull();
+  });
+  it("le migliaia partono da una cifra tra 1 e 9: «0.500» è mezzo, non cinquecento", () => {
+    expect(numeroDocumento("0.500")).toBe(0.5);
+    expect(numeroDocumento("0.900")).toBe(0.9);
+    expect(numeroDocumento("-0.500")).toBe(-0.5);
+    expect(numeroDocumento("1.250")).toBe(1250);
+    expect(numeroDocumento("1.250,50")).toBe(1250.5);
+    expect(numeroDocumento("0.500,5")).toBeNull();
   });
   it("aggiorna il prezzo × quantità o scarta l'importo vecchio quando manca il prezzo unitario", () => {
     expect(cambiaQuantita({ descrizione: "Tubo", quantita: 2, prezzo_unitario: 4, importo: 8 }, 3).importo).toBe(12);

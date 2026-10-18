@@ -1,6 +1,7 @@
 import type { Tables } from "@/integrations/supabase/types";
+import { indiceSaldoFinale } from "@/lib/orders/saldoFinale";
 import { supabase } from "@/integrations/supabase/client";
-import type { OrderItem } from "@/components/orders/OrderItemsList";
+import type { OrderItem, Posizione } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
 
@@ -198,7 +199,8 @@ export function buildInstallmentsFromLegacy(order: {
 /** Map installments array to legacy order columns for backward compatibility */
 export function installmentsToLegacyColumns(installments: Installment[]) {
   const deposits = installments.filter(i => i.type === 'deposit').sort((a, b) => a.position - b.position);
-  const balance = installments.find(i => i.type === 'balance');
+  // Il saldo è l'ultima rata «balance»: le precedenti sono SAL intermedi (vedi saldoFinale.ts).
+  const balance = installments[indiceSaldoFinale(installments)];
   const financing = installments.find(i => i.type === 'financing');
 
   return {
@@ -339,6 +341,12 @@ export interface OrderItemData {
   deposit_expected_date: string | null;
 }
 
+/** La distinta/abaco salvata sulla riga (colonna jsonb `posizioni`), se c'è. */
+function distintaDellaRiga(item: OrderItemData): Posizione[] | null {
+  const posizioni = (item as unknown as { posizioni?: unknown }).posizioni;
+  return Array.isArray(posizioni) ? (posizioni as Posizione[]) : null;
+}
+
 export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
   return {
     id: item.id,
@@ -356,6 +364,9 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
     article_template_id: item.article_template_id ?? undefined,
     product_code: item.product_code ?? undefined,
     categoria: item.categoria ?? undefined,
+    // Arrivo previsto e distinta tornano nel modulo: chi salva li rimanda uguali.
+    delivery_date: item.delivery_date || undefined,
+    posizioni: distintaDellaRiga(item),
     is_paid: item.is_paid || false,
     paid_date: item.paid_date || undefined,
     payment_method: item.payment_method || undefined,

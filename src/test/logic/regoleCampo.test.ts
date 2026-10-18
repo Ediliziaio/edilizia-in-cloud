@@ -7,17 +7,24 @@ describe("Regole di cantiere per azienda", () => {
   it("senza scelte vale «come oggi»: nessuna azienda cambia da sola", () => {
     expect(leggiRegole(null)).toEqual(REGOLE_COME_OGGI);
     expect(leggiRegole({})).toEqual(REGOLE_COME_OGGI);
-    expect(REGOLE_COME_OGGI).toEqual({ chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null });
+    expect(REGOLE_COME_OGGI).toEqual({ chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null, giorniIndietro: 1 });
   });
 
   it("legge le scelte dell'azienda e scarta i valori che non conosce", () => {
     expect(leggiRegole({ chi_compila: "capo", ore_dalle: "timbrature", avviso_scostamento_minuti: 30 }))
-      .toEqual({ chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 30 });
+      .toEqual({ chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 30, giorniIndietro: 1 });
     expect(leggiRegole({ chi_compila: "ore_proprie", ore_dalle: "capo", avviso_scostamento_minuti: null }))
-      .toEqual({ chiCompila: "ore_proprie", oreDalle: "capo", avvisoScostamentoMinuti: null });
+      .toEqual({ chiCompila: "ore_proprie", oreDalle: "capo", avvisoScostamentoMinuti: null, giorniIndietro: 1 });
     expect(leggiRegole({ chi_compila: "tutti", ore_dalle: "boh", avviso_scostamento_minuti: 2 })).toEqual(REGOLE_COME_OGGI);
     expect(leggiRegole({ avviso_scostamento_minuti: 9999 }).avvisoScostamentoMinuti).toBeNull();
     expect(leggiRegole({ avviso_scostamento_minuti: "45" }).avvisoScostamentoMinuti).toBe(45);
+  });
+
+  it("i giorni indietro vengono dall'azienda, da 0 a 7; il resto vale 1", () => {
+    expect(leggiRegole({ giorni_indietro_rapportino: 3 }).giorniIndietro).toBe(3);
+    expect(leggiRegole({ giorni_indietro_rapportino: 0 }).giorniIndietro).toBe(0);
+    expect(leggiRegole({ giorni_indietro_rapportino: 9 }).giorniIndietro).toBe(1);
+    expect(leggiRegole({ giorni_indietro_rapportino: null }).giorniIndietro).toBe(1);
   });
 
   it("scrive le ore come le direbbe una persona", () => {

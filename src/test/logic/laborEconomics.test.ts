@@ -7,8 +7,8 @@ const row = (patch: Partial<LaborLedgerRow> = {}): LaborLedgerRow => ({
   employee: { id: "e1", user_id: "u1", first_name: "Mario", last_name: "Rossi", costo_orario: 30 }, ...patch,
 });
 describe("Costo orario coerente con l'approvazione dei rapportini", () => {
-  it("INPS zero rimane zero, non diventa 28%", () => expect(costoOrarioDipendente({ gross_salary: 2000, monthly_hours: 160, inps_rate: 0 })).toBe(12.5));
-  it("solo INPS assente usa 28%", () => expect(costoOrarioDipendente({ gross_salary: 2000, monthly_hours: 160, inps_rate: null })).toBe(16));
+  it("INPS zero rimane zero, non diventa quello del tipo", () => expect(costoOrarioDipendente({ gross_salary: 2000, monthly_hours: 160, inps_rate: 0 })).toBe(19.08));
+  it("solo INPS assente usa quello del tipo (operaio edile 29,6%)", () => expect(costoOrarioDipendente({ gross_salary: 2000, monthly_hours: 160, inps_rate: null })).toBe(23.2));
   it("ore mensili mancanti non vengono inventate, neppure da quelle settimanali", () => {
     expect(costoOrarioDipendente({ gross_salary: 2000, ore_settimana: 40 })).toBe(0);
     expect(oreContrattualiMese({})).toBe(173); // distinta API di pianificazione conservata
@@ -17,7 +17,7 @@ describe("Costo orario coerente con l'approvazione dei rapportini", () => {
     expect(costoOrarioDipendente({ gross_salary: 2000, monthly_hours })).toBe(0);
   });
   it("tariffa manuale prevale anche senza stipendio e ore", () => expect(costoOrarioDipendente({ costo_orario: 25.555 })).toBe(25.555));
-  it("arrotonda il mezzo centesimo come numeric PostgreSQL", () => expect(costoOrarioDipendente({ gross_salary: 160.8, monthly_hours: 160, inps_rate: 0 })).toBe(1.01));
+  it("arrotonda il mezzo centesimo come numeric PostgreSQL", () => expect(costoOrarioDipendente({ gross_salary: 160.8, monthly_hours: 160, inps_rate: 0 }, { operaio: { mensilita: 12, inps: 0, inail: 0, cassa_edile: 0, tfr: 0, altri: 0, ore_produttive: 100 } })).toBe(1.01));
 });
 describe("Registro della manodopera: non ricalcola né duplica lo storico", () => {
   it("raggruppa due fasi di una persona sommando i costi salvati", () => {

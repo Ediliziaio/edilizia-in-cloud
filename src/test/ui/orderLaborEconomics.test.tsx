@@ -6,6 +6,7 @@ import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 vi.mock("@/components/personale/DailyHoursPanel", () => ({ DailyHoursPanel: (): null => null }));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), retryEmployees: vi.fn(), retryTeams: vi.fn() }));
 vi.mock("@/hooks/useOrderLaborEconomics", () => ({ useOrderLaborEconomics: mocks.read }));
+vi.mock("@/hooks/useParametriCostoPersonale", () => ({ useParametriCostoPersonale: () => ({ data: {} }) }));
 const employee = { id: "e1", user_id: "u1", first_name: "Mario", last_name: "Rossi", costo_orario: 30 };
 const ledger = { id: "r1", employee_id: "e1", employee, hours_worked: 4, total_cost: 100, cost_preventivo: 120, hourly_rate: 25 };
 const query = (data: unknown[], refetch: unknown) => ({ data, refetch, isPending: false, isFetching: false, isError: false });

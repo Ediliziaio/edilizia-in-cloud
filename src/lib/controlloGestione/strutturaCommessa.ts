@@ -1,5 +1,6 @@
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { mesiApertura } from "@/lib/controlloGestione/tempoCommessa";
+import { costoMensileVero, type ParametriCostoAzienda } from "@/lib/costoPersonale";
 
 export interface StructureFixedCost {
   amount: number | null;
@@ -13,6 +14,7 @@ export interface StructureEmployee {
   role_type?: string | null;
   area?: string | null;
   qualifica?: string | null;
+  profilo_costo?: string | null;
 }
 
 export interface StructureOrder {
@@ -83,6 +85,8 @@ export function calculateCompanyStructureSnapshot(input: {
   operationalEmployeeIds: Iterable<string>;
   orders: StructureOrder[];
   today: string;
+  /** Costo del personale per tipo di dipendente (vuoto = valori edili). */
+  parametri?: ParametriCostoAzienda | null;
 }): CompanyStructureSnapshot {
   const operationalIds = new Set(input.operationalEmployeeIds);
   const fixedCostsMonthly = input.fixedCosts.reduce(
@@ -93,7 +97,7 @@ export function calculateCompanyStructureSnapshot(input: {
   let officeSalariesMonthly = 0;
   let directLaborSalariesMonthly = 0;
   for (const employee of input.employees) {
-    const salaryWithContributions = finite(employee.gross_salary) * (1 + finite(employee.inps_rate ?? 28) / 100);
+    const salaryWithContributions = costoMensileVero(employee, input.parametri);
     if (isOperationalEmployee(employee, operationalIds.has(employee.id))) directLaborSalariesMonthly += salaryWithContributions;
     else officeSalariesMonthly += salaryWithContributions;
   }

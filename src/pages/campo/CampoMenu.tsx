@@ -5,7 +5,7 @@
  */
 import { useNavigate } from "react-router-dom";
 import {
-  Clock, CalendarDays, Receipt, Mic,
+  Clock, CalendarDays, Receipt,
   CreditCard, FileText, Ticket, LogOut,
   ClipboardCheck, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
 } from "lucide-react";
@@ -43,7 +43,7 @@ export default function CampoMenu() {
       title: "Lavoro",
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
-        { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+        // Il rapportino si scrive dal cantiere (e lì si detta a voce): niente voce doppia.
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
         { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
@@ -74,7 +74,6 @@ export default function CampoMenu() {
       title: "Lavoro",
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
-        { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
       ],
     },

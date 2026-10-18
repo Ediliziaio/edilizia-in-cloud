@@ -3,6 +3,7 @@
  * Extracted from useCompanyCostsData to improve maintainability.
  */
 import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter } from "date-fns";
+import { costoMensileVero, type ParametriCostoAzienda } from "@/lib/costoPersonale";
 import { escapeCsvCell } from "./csvExport";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
@@ -147,7 +148,8 @@ export const EMPLOYEE_PROJECTION_MONTHS = 12;
  *   registrati singolarmente) — lo dice anche la nota sulla riga;
  * - lo stipendio attuale è applicato a tutti i mesi.
  */
-export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0): UnifiedCost[] {
+/** `parametri`: costo del personale dell'azienda per tipo (vuoto = valori edili). */
+export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0, parametri?: ParametriCostoAzienda | null): UnifiedCost[] {
   const rows: UnifiedCost[] = [];
   const now = new Date();
   const horizonEnd = endOfMonth(addMonths(now, futureMonths));
@@ -156,7 +158,9 @@ export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0): Un
     const salary = Number(emp.gross_salary) || 0;
     if (salary === 0) return;
 
-    const inpsRate = Number(emp.inps_rate) || 28;
+    // Oneri del mese medio: ratei delle mensilità aggiuntive, contributi, INAIL, Cassa Edile, TFR.
+    const oneri = Math.max(0, Math.round((costoMensileVero(emp, parametri) - salary) * 100) / 100);
+    const oneriPct = Math.round((oneri / salary) * 1000) / 10;
     // hire_date/termination_date arrivano dall'anagrafica HR (hr_profili.
     // data_assunzione/data_cessazione) quando compilate; il fallback resta
     // created_at (= quando è stato inserito in piattaforma).
@@ -194,15 +198,15 @@ export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0): Un
       // Oneri INPS
       rows.push({
         id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}_inps_${format(month, "yyyy-MM")}`,
-        name: `${emp.first_name} ${emp.last_name} — oneri INPS (${inpsRate}%)`,
+        name: `${emp.first_name} ${emp.last_name} — oneri (${oneriPct.toLocaleString("it-IT")}%)`,
         cost_type: "fixed",
-        amount: salary * (inpsRate / 100),
+        amount: oneri,
         category: "Personale",
         recurrence: "monthly",
         due_date: format(monthEnd, "yyyy-MM-dd"),
         is_paid: isPaid,
         paid_date: paidDate,
-        notes: `Contributi datore di lavoro ${inpsRate}%`,
+        notes: "Mensilità aggiuntive, contributi, INAIL, Cassa Edile e TFR, in media sul mese",
         order_id: null,
         order: null,
         isFromOrder: true,

@@ -1,6 +1,7 @@
 import { Plus, Pencil, Trash2, Phone, Mail, FileText, UserPlus } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,8 @@ export function EmployeesTab({
   // c'è; altrimenti lordo più contributi diviso le ore del mese). Prima qui si
   // mostrava il lordo diviso le ore, senza contributi: circa un quarto in meno di
   // quello che il sistema usa davvero.
-  const calculateHourlyCost = (employee: Employee) => costoOrarioDipendente(employee);
+  const { data: parametri } = useParametriCostoPersonale();
+  const calculateHourlyCost = (employee: Employee) => costoOrarioDipendente(employee, parametri);
 
   return (
     <div className="space-y-4">

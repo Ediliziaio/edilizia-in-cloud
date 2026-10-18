@@ -1,7 +1,7 @@
-import { isLateWork, scheduledMonthFlows, recordedMonthIncome, registeredCostAmount, upcomingWorkDeliveries } from "@/lib/cruscottoMetrics";
+import { isLateWork, scheduledMonthFlows, registeredCostAmount, upcomingWorkDeliveries } from "@/lib/cruscottoMetrics";
 import { useCruscottoWorkOrders } from "@/hooks/useCruscottoWorkOrders";
 import { readAllOrderRows } from "@/lib/orders/listScope";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ import {
   type CruscottoInvoiceStats,
   type CruscottoInvoiceStatsRow,
 } from "@/lib/cruscottoInvoiceStats";
+import { idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
+import { rateDaIncassare, type CommessaPerRate, type RataDaLeggere } from "@/lib/orders/saldoFinale";
 
 // Re-export for backward compatibility with existing consumers
 export { safeNumber } from "@/lib/numberUtils";
@@ -102,16 +104,18 @@ export interface CompanyTargets {
 }
 
 interface InstallmentRow {
+  id: string;
+  order_id: string;
   amount: number;
-  is_paid: boolean;
   expected_date: string | null;
+  finanziamento: boolean;
 }
 
+type RataLetta = RataDaLeggere & { order: CommessaPerRate & { company_id: string; deleted_at: string | null } };
+
 interface OrderCostRow {
+  id: string;
   total_amount: number | null;
-  order_items?: Array<{ purchase_price: number | null; quantity: number | null }> | null;
-  order_employees?: Array<{ total_cost: number | null }> | null;
-  order_external_teams?: Array<{ total_cost: number | null }> | null;
 }
 
 interface AmountRow {
@@ -125,9 +129,63 @@ function throwIfSupabaseError(...errors: SupabaseQueryError[]) {
   if (error) throw error;
 }
 
+/**
+ * Le rate da incassare con la regola della scheda commessa (la stessa di
+ * `public.rate_da_incassare`): rata del finanziamento esclusa, saldo finale
+ * come residuo del contratto più varianti approvate, meno quanto già pagato
+ * sulla fattura collegata. Servono tutte le rate, anche quelle pagate, perché
+ * il saldo finale si calcola togliendo le altre.
+ */
+interface VarianteLetta {
+  order_id: string;
+  impatto_economico: number | null;
+  offline_signed_on: string | null;
+  firmato_il: string | null;
+  approval_recorded_at: string | null;
+  richiesto_il: string | null;
+  created_at: string | null;
+}
+
+async function leggiRateDaIncassare(companyId: string): Promise<InstallmentRow[]> {
+  const [rate, varianti] = await Promise.all([
+    readAllOrderRows<RataLetta>((from, to) => supabase
+      .from("order_installments")
+      .select("id, order_id, type, position, amount, is_paid, paid_date, expected_date, documento_fiscale_id, order:orders!inner(company_id, deleted_at, total_amount, vat_rate, payment_type, financing_cost)")
+      // Le rate delle commesse nel cestino non sono crediti da incassare.
+      .eq("order.company_id", companyId).is("order.deleted_at", null)
+      .order("id").range(from, to) as unknown as PromiseLike<{ data: RataLetta[] | null; error: unknown }>),
+    readAllOrderRows<VarianteLetta>((from, to) => supabase
+      .from("ordini_variazione")
+      .select("id, order_id, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at")
+      .eq("company_id", companyId).eq("status", "approvato")
+      .order("id").range(from, to) as unknown as PromiseLike<{ data: VarianteLetta[] | null; error: unknown }>),
+  ]);
+  // Ogni variante col giorno in cui è stata approvata: il saldo pagato conta quelle fino al pagamento.
+  const variantiPerCommessa = new Map<string, Array<{ importo: number; il: string | null }>>();
+  for (const v of varianti) {
+    const il = v.offline_signed_on ?? v.firmato_il ?? v.approval_recorded_at ?? v.richiesto_il ?? v.created_at;
+    const elenco = variantiPerCommessa.get(v.order_id) ?? [];
+    elenco.push({ importo: safeNumber(v.impatto_economico), il: il ? il.slice(0, 10) : null });
+    variantiPerCommessa.set(v.order_id, elenco);
+  }
+  const commesse = new Map<string, CommessaPerRate>();
+  for (const r of rate) {
+    if (!commesse.has(r.order_id)) commesse.set(r.order_id, { ...r.order, varianti: variantiPerCommessa.get(r.order_id) ?? [] });
+  }
+  const documenti = [...new Set(rate.filter(r => !r.is_paid && r.documento_fiscale_id).map(r => r.documento_fiscale_id as string))];
+  const pagatoFattura = new Map<string, number>();
+  for (const blocco of idABlocchi(documenti)) {
+    const { data, error } = await supabase.from("documenti_fiscali").select("id, importo_pagato").in("id", blocco);
+    if (error) throw error;
+    for (const d of data ?? []) pagatoFattura.set(d.id, safeNumber(d.importo_pagato));
+  }
+  return rateDaIncassare(rate, commesse, pagatoFattura);
+}
+
 export function useCruscottoData() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<CruscottoFiltersState>({
     datePreset: "last30",
@@ -161,15 +219,15 @@ export function useCruscottoData() {
   });
 
   // Installments — fires independently, no waterfall
+  const rateQueryKey = [...queryKeys.cruscotto.installments(companyId), "regola-scheda-commessa-v1"];
+  const leggiRate = useCallback(() => queryClient.fetchQuery({
+    queryKey: rateQueryKey,
+    queryFn: () => leggiRateDaIncassare(companyId!),
+    staleTime: 120_000,
+  }), [queryClient, companyId]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data: paymentsData, isLoading: paymentsLoading, error: paymentsError } = useQuery({
-    queryKey: queryKeys.cruscotto.installments(companyId),
-    queryFn: async () => {
-      return readAllOrderRows<InstallmentRow>((from, to) => supabase
-        .from("order_installments")
-        .select("id, amount, is_paid, expected_date, order:orders!inner(company_id)")
-        .eq("order.company_id", companyId!).eq("is_paid", false)
-        .order("id").range(from, to));
-    },
+    queryKey: rateQueryKey,
+    queryFn: () => leggiRateDaIncassare(companyId!),
     enabled: !!companyId,
     staleTime: 120_000,
   });
@@ -189,22 +247,21 @@ export function useCruscottoData() {
 
   const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
   const todayDate = format(new Date(), "yyyy-MM-dd");
-  const nextMonth = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1), "yyyy-MM-dd");
   const collectionsQuery = useQuery({
     queryKey: ["cruscotto", "recorded-income-v1", companyId, monthStart, todayDate],
     enabled: !!companyId,
     staleTime: 120_000,
     queryFn: async () => {
       if (!companyId) throw new Error("Azienda non selezionata");
-      const [rows, undated] = await Promise.all([readAllOrderRows<{amount: number; is_paid: boolean; paid_date: string | null}>((from, to) => supabase
-        .from("order_installments").select("id, amount, is_paid, paid_date, order:orders!inner(company_id)")
-        .eq("order.company_id", companyId!).eq("is_paid", true)
-        .gte("paid_date", monthStart).lt("paid_date", nextMonth).lte("paid_date", todayDate).order("id").range(from, to)),
+      // Incassato del mese dal database: il saldo pagato conta per il suo residuo, come nella scheda.
+      const [incassato, undated] = await Promise.all([
+        (supabase as any).rpc("incassato_rate_periodo", { p_da: monthStart, p_a: todayDate }) as Promise<{ data: number | null; error: unknown }>,
         supabase.from("order_installments").select("id, order:orders!inner(company_id)", { count: "exact", head: true })
           .eq("order.company_id", companyId!).eq("is_paid", true).is("paid_date", null),
       ]);
+      if (incassato.error) throw incassato.error;
       if (undated.error) throw undated.error;
-      return { amount: recordedMonthIncome(rows), undated: undated.count ?? 0 };
+      return { amount: safeNumber(incassato.data), undated: undated.count ?? 0 };
     },
   });
 
@@ -217,7 +274,8 @@ export function useCruscottoData() {
     let overdueAmount = 0;
     paymentsData?.forEach((inst) => {
       const amount = safeNumber(inst.amount);
-      if (amount > 0 && inst.expected_date && inst.expected_date < todayStr) {
+      // La rata della finanziaria la paga la banca: non è un credito scaduto verso il cliente.
+      if (amount > 0 && !inst.finanziamento && inst.expected_date && inst.expected_date < todayStr) {
         overduePayments++;
         overdueAmount += amount;
       }
@@ -237,13 +295,13 @@ export function useCruscottoData() {
 
       const [currentOrdersRes, prevOrdersRes, costsRes] = await Promise.all([
         readAllOrderRows<OrderCostRow>((from, to) => supabase.from("orders")
-          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
+          .select("id, total_amount")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .gte("created_at", dateFromStr).lte("created_at", dateToStr)
           .order("id").range(from, to)),
         readAllOrderRows<OrderCostRow>((from, to) => supabase.from("orders")
-          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
+          .select("id, total_amount")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .gte("created_at", prevFromStr).lte("created_at", prevToStr)
@@ -252,29 +310,30 @@ export function useCruscottoData() {
           .eq("company_id", companyId!).eq("is_paid", false).order("id").range(from, to)),
       ]);
 
-      const calc = (orders: OrderCostRow[]) => {
-        let totalRevenue = 0;
-        let totalCostAll = 0;
-        orders.forEach((o) => {
-          const revenue = safeNumber(o.total_amount);
-          totalRevenue += revenue;
-          const articleCost = (o.order_items || []).reduce(
-            (s, i) => s + (safeNumber(i.purchase_price) * safeNumber(i.quantity, 1)), 0
-          );
-          const laborCost =
-            (o.order_employees || []).reduce((s, e) => s + safeNumber(e.total_cost), 0) +
-            (o.order_external_teams || []).reduce((s, e) => s + safeNumber(e.total_cost), 0);
-          totalCostAll += articleCost + laborCost;
-        });
-        const weightedMargin = totalRevenue > 0
-          ? ((totalRevenue - totalCostAll) / totalRevenue) * 100
-          : 0;
-        const margin = Math.min(100, Math.max(-100, safeNumber(weightedMargin)));
-        return { revenue: totalRevenue, margin };
+      // Margine dalla vista condivisa v_ordine_marginalita, sulle sole commesse
+      // del periodo (quelle lette sopra, non cestinate): la vista non filtra il cestino.
+      const marginiDi = async (orders: OrderCostRow[]): Promise<RigaMargineCommessa[]> => {
+        const righe: RigaMargineCommessa[] = [];
+        for (const blocco of idABlocchi(orders.map(o => o.id))) {
+          const { data, error } = await supabase.from("v_ordine_marginalita")
+            .select("id, margine, preventivo_totale, variazioni_approvate")
+            .eq("company_id", companyId!).in("id", blocco);
+          if (error) throw error;
+          righe.push(...(data ?? []));
+        }
+        return righe;
       };
+      const [marginiCorrenti, marginiPrecedenti] = await Promise.all([marginiDi(currentOrdersRes), marginiDi(prevOrdersRes)]);
 
-      const curr = calc(currentOrdersRes);
-      const prev = calc(prevOrdersRes);
+      // Venduto = contratto più varianti approvate, come il preventivo totale della scheda commessa.
+      const calc = (orders: OrderCostRow[], margini: Array<RigaMargineCommessa & { variazioni_approvate?: number | null }>) => ({
+        revenue: orders.reduce((s, o) => s + safeNumber(o.total_amount), 0)
+          + margini.reduce((s, m) => s + safeNumber(m.variazioni_approvate), 0),
+        margin: margineCommesseNelPeriodo(margini),
+      });
+
+      const curr = calc(currentOrdersRes, marginiCorrenti);
+      const prev = calc(prevOrdersRes, marginiPrecedenti);
 
       return {
         revenueThisMonth: curr.revenue,
@@ -292,7 +351,8 @@ export function useCruscottoData() {
   // Financial history remains included even when a job is archived. Operational counts exclude it.
   const financeData = useMemo<FinanceData>(() => {
     const base = rawFinanceData;
-    const flows = scheduledMonthFlows(paymentsData ?? [], base?.costs ?? []);
+    // Crediti arretrati senza la rata della finanziaria (come «Rate scadute»); nel mese entra.
+    const flows = scheduledMonthFlows((paymentsData ?? []).filter(r => !r.finanziamento || (r.expected_date ?? "") >= monthStart), base?.costs ?? []);
     return {
       revenueThisMonth: base?.revenueThisMonth ?? 0,
       revenuePrevMonth: base?.revenuePrevMonth ?? 0,
@@ -309,7 +369,7 @@ export function useCruscottoData() {
       pendingRevenue: (paymentsData ?? []).reduce((sum, row) => sum + Math.max(0, safeNumber(row.amount)), 0),
       supplierDebt: base?.supplierDebt ?? 0,
     };
-  }, [rawFinanceData, paymentsData, collectionsQuery.data]);
+  }, [rawFinanceData, paymentsData, collectionsQuery.data, monthStart]);
 
   // Invoice stats from RPC
   const { data: invoiceStats, error: invoiceStatsError } = useQuery({
@@ -435,12 +495,7 @@ export function useCruscottoData() {
           .gte("appointment_date", todayDateFrom)
           .lte("appointment_date", todayDateTo)
           .eq("is_blocked_slot", false), archivedIds, "order_id"),
-        supabase.from("order_installments")
-          .select("id, amount, expected_date, order:orders!inner(company_id)")
-          .eq("order.company_id", companyId!)
-          .eq("is_paid", false)
-          .lt("expected_date", nowStr)
-          .limit(5000),
+        leggiRate(),
         supabase.from("company_costs")
           .select("id, name, amount, due_date, category, vat_rate")
           .eq("company_id", companyId!)
@@ -473,15 +528,15 @@ export function useCruscottoData() {
       throwIfSupabaseError(
         leadsRes.error,
         appointmentsRes.error,
-        overdueRes.error,
         suppliersRes.error,
         revenueRes.error,
         collectedRes.error,
         costsPaidRes.error,
       );
 
-      const overdueCount = overdueRes.data?.length ?? 0;
-      const overdueAmount = ((overdueRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
+      const scadute = overdueRes.filter(r => r.amount > 0 && !!r.expected_date && r.expected_date < nowStr);
+      const overdueCount = scadute.length;
+      const overdueAmount = scadute.reduce((s, r) => s + r.amount, 0);
       const suppliersDue = (suppliersRes.data ?? []).map(row => ({ ...row, amount: registeredCostAmount(row) }));
       const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
 
@@ -515,44 +570,42 @@ export function useCruscottoData() {
       const in60 = format(addDays(now, 60), "yyyy-MM-dd");
       const in90 = format(addDays(now, 90), "yyyy-MM-dd");
 
-      const { data: futureInstallments, error: futureInstallmentsError } = await supabase
-        .from("order_installments")
-        .select("amount, expected_date, order:orders!inner(company_id)")
-        .eq("order.company_id", companyId!)
-        .is("order.deleted_at", null)
-        .eq("is_paid", false)
-        .gte("expected_date", todayStr)
-        .lte("expected_date", in90);
-
-      const all = (futureInstallments ?? []) as Array<{ amount: number; expected_date: string }>;
-      const incoming30 = all.filter(i => i.expected_date <= in30).reduce((s, i) => s + safeNumber(i.amount), 0);
-      const incoming60 = all.filter(i => i.expected_date <= in60).reduce((s, i) => s + safeNumber(i.amount), 0);
-      const incoming90 = all.reduce((s, i) => s + safeNumber(i.amount), 0);
+      const all = (await leggiRate()).filter((i): i is InstallmentRow & { expected_date: string } =>
+        !!i.expected_date && i.expected_date >= todayStr && i.expected_date <= in90);
+      const incoming30 = all.filter(i => i.expected_date <= in30).reduce((s, i) => s + i.amount, 0);
+      const incoming60 = all.filter(i => i.expected_date <= in60).reduce((s, i) => s + i.amount, 0);
+      const incoming90 = all.reduce((s, i) => s + i.amount, 0);
 
       const yearStart = `${now.getFullYear()}-01-01T00:00:00`;
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01T00:00:00`;
       const quarter = Math.floor(now.getMonth() / 3);
       const quarterStart = `${now.getFullYear()}-${String(quarter * 3 + 1).padStart(2, "0")}-01T00:00:00`;
 
-      throwIfSupabaseError(futureInstallmentsError);
-
-      const [ytdOrdersRes, monthOrdersRes, qOrdersRes] = await Promise.all([
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", yearStart).limit(5000),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", monthStart).limit(5000),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", quarterStart).limit(5000),
+      // Venduto dell'anno, del trimestre e del mese: contratto più varianti approvate,
+      // come il riquadro «Venduto» (una lettura sola, a pagine).
+      const [ordiniAnno, variantiAnno] = await Promise.all([
+        readAllOrderRows<{ id: string; total_amount: number | null; created_at: string }>((from, to) => supabase
+          .from("orders").select("id, total_amount, created_at").eq("company_id", companyId!).is("deleted_at", null)
+          .gte("created_at", yearStart).order("id").range(from, to)),
+        readAllOrderRows<{ order_id: string; impatto_economico: number | null }>((from, to) => supabase
+          .from("ordini_variazione").select("id, order_id, impatto_economico, order:orders!inner(created_at, deleted_at)")
+          .eq("company_id", companyId!).eq("status", "approvato")
+          .gte("order.created_at", yearStart).is("order.deleted_at", null)
+          .order("id").range(from, to) as unknown as PromiseLike<{ data: { order_id: string; impatto_economico: number | null }[] | null; error: unknown }>),
       ]);
-      throwIfSupabaseError(ytdOrdersRes.error, monthOrdersRes.error, qOrdersRes.error);
-
-      const sum = (rows: Array<{ total_amount?: number }> | null) =>
-        (rows ?? []).reduce((s, r) => s + safeNumber(r.total_amount), 0);
+      const variantiPerCommessa = new Map<string, number>();
+      for (const v of variantiAnno) variantiPerCommessa.set(v.order_id, (variantiPerCommessa.get(v.order_id) ?? 0) + safeNumber(v.impatto_economico));
+      const venduto = (dal: string) => ordiniAnno
+        .filter(o => o.created_at >= dal)
+        .reduce((s, o) => s + safeNumber(o.total_amount) + (variantiPerCommessa.get(o.id) ?? 0), 0);
 
       return {
         incoming30,
         incoming60,
         incoming90,
-        ytdRevenue: sum(ytdOrdersRes.data),
-        monthRevenue: sum(monthOrdersRes.data),
-        quarterRevenue: sum(qOrdersRes.data),
+        ytdRevenue: venduto(yearStart),
+        monthRevenue: venduto(monthStart),
+        quarterRevenue: venduto(quarterStart),
       };
     },
   });

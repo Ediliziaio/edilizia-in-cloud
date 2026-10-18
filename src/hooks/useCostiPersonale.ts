@@ -18,9 +18,10 @@ import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { costoOrarioDipendente, oreContrattualiMese } from "@/lib/costoOrarioDipendente";
+import { costoMensileVero } from "@/lib/costoPersonale";
+import { useParametriCostoDi } from "@/hooks/useParametriCostoPersonale";
 import { reportParticipants } from "@/lib/campo/laborCostReview";
 
-const DEFAULT_INPS_RATE = 28;
 
 export interface RapportinoGiorno {
   id: string;
@@ -48,9 +49,10 @@ export interface DipendenteMese {
   livello: string | null;
   /** Stipendio lordo mensile da contratto */
   lordoMensile: number;
-  /** Oneri contributivi stimati (lordo × inps_rate) */
+  /** Oneri del mese medio: ratei delle mensilità aggiuntive, contributi, Cassa Edile, TFR */
   oneriMensili: number;
-  inpsRate: number;
+  /** Gli stessi oneri in % sul lordo */
+  oneriPercento: number;
   /** Ore contrattuali del mese (monthly_hours o fallback) */
   oreContrattuali: number;
   /** Costo orario aziendale = (lordo+oneri)/ore contrattuali */
@@ -106,6 +108,9 @@ interface EmployeeRow {
   costo_orario: number | null;
   user_id: string | null;
   is_active: boolean;
+  role_type: string | null;
+  area: string | null;
+  profilo_costo: string | null;
 }
 
 interface RapportinoRow {
@@ -158,7 +163,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active",
+          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active, role_type, area, profilo_costo",
         )
         .eq("company_id", companyId!)
         .eq("is_active", true)
@@ -193,6 +198,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     staleTime: 60 * 1000,
   });
 
+  const { data: parametri } = useParametriCostoDi(companyId);
   const employees = useMemo(() => employeesQuery.data ?? [], [employeesQuery.data]);
   const rapportiniRaw = useMemo(() => rapportiniQuery.data ?? [], [rapportiniQuery.data]);
 
@@ -238,13 +244,15 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
 
     const dipendenti: DipendenteMese[] = employees.map((emp) => {
       const lordo = Number(emp.gross_salary) || 0;
-      const inpsRate = emp.inps_rate == null ? DEFAULT_INPS_RATE : Number(emp.inps_rate);
-      const oneri = lordo * (inpsRate / 100);
+      // Oneri del mese medio: ratei di mensilità aggiuntive, contributi, Cassa Edile e TFR
+      // del tipo di dipendente (src/lib/costoPersonale.ts).
+      const oneri = Math.max(0, Math.round((costoMensileVero(emp, parametri) - lordo) * 100) / 100);
+      const oneriPercento = lordo > 0 ? Math.round((oneri / lordo) * 1000) / 10 : 0;
       const oreContrattuali = oreContrattualiMese(emp);
       // Unica formula, condivisa col database e con le altre schermate: se il
       // dipendente ha una tariffa scritta a mano vince quella, ed è la stessa
       // che finisce nel costo di commessa.
-      const costoOrario = costoOrarioDipendente(emp);
+      const costoOrario = costoOrarioDipendente(emp, parametri);
 
       const rapportini = byEmployee.get(emp.id) ?? [];
 
@@ -261,7 +269,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
         livello: emp.livello_inquadramento,
         lordoMensile: lordo,
         oneriMensili: oneri,
-        inpsRate,
+        oneriPercento,
         oreContrattuali,
         costoOrario,
         oreLavorate,
@@ -308,7 +316,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     };
 
     return { dipendenti, altriOperatori, totali };
-  }, [companyId, employees, rapportiniRaw]);
+  }, [companyId, employees, rapportiniRaw, parametri]);
 
   return {
     dipendenti,

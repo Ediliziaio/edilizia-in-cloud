@@ -122,10 +122,11 @@ describe("Dipendenti: titolo e costo orario", () => {
   });
 
   it("il costo orario conta anche i contributi, come nelle commesse", async () => {
-    // 2.000 € lordi ÷ 160 ore = 12,50 senza contributi; con il 28 % predefinito = 16,00.
+    // 2.000 € lordi ÷ 160 ore = 12,50 senza oneri; da operaio edile (12 mensilità, oneri 67,01 %,
+    // 90 % di ore produttive) = 23,20.
     pagina();
     const riga = (await screen.findByText("Luigi Blu")).closest("tr")!;
-    expect(within(riga).getByText(/16,00/)).toBeVisible();
+    expect(within(riga).getByText(/23,20/)).toBeVisible();
     expect(within(riga).queryByText(/12,50/)).toBeNull();
   });
 
@@ -138,8 +139,8 @@ describe("Dipendenti: titolo e costo orario", () => {
     const anna = (await screen.findByText("Anna Verde")).closest("tr")!;
     const paolo = screen.getByText("Paolo Gialli").closest("tr")!;
     expect(within(anna).getByText(/21,00/)).toBeVisible();
-    // 2.000 × 1,30 ÷ 160 = 16,25
-    expect(within(paolo).getByText(/16,25/)).toBeVisible();
+    // 2.000 × 12 × 167,41 % ÷ (160 × 12 × 90 %) = 23,25
+    expect(within(paolo).getByText(/23,25/)).toBeVisible();
   });
 });
 

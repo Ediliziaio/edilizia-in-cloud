@@ -45,8 +45,12 @@ export const numeroDocumento = (v: unknown): number | null => {
   let t = typeof v === "string" ? v.trim().replace(/\s/g, "").replace(/(?:€|EUR)$/i, "") : String(v);
   if (!t) return null;
   if (t.includes(",")) {
-    if (!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+),\d*$/.test(t)) return null;
+    if (!/^-?(?:\d+|[1-9]\d{0,2}(?:\.\d{3})+),\d*$/.test(t)) return null;
     t = t.replace(/\./g, "").replace(",", ".");
+  } else if (typeof v === "string" && /^-?[1-9]\d{0,2}(?:\.\d{3})+$/.test(t)) {
+    // Scritto all'italiana senza decimali: «1.250» è milleduecentocinquanta, non 1,25.
+    // Le migliaia partono da una cifra tra 1 e 9: «0.500» resta mezzo, cioè 0,5.
+    t = t.replace(/\./g, "");
   }
   if (!/^-?\d+(?:\.\d*)?$/.test(t)) return null;
   const n = Number(t);

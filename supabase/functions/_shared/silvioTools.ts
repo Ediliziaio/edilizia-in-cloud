@@ -26,6 +26,7 @@ import { silvioOrderReport } from "./silvioOrderReport.ts";
 import { silvioSiteHealth } from "./silvioSiteHealth.ts";
 import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
 import { isCalendarDate, legacyQuoteDraftInput, quoteDraftIssue, workHoursIssue } from "./operationalDraftValidation.ts";
+import { giornalieroDelGiorno } from "./rapportoGiornaliero.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -4431,12 +4432,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       // Anti-doppione: stesso giorno + commessa + persona.
       if (!args?.registra_comunque) {
-        const { data: dup, error: duplicateError } = await ctx.supabase
-          .from("campo_rapportini").select("id, ore_lavorate")
+        // Il collaudo col cliente dello stesso giorno non è un doppione del giornaliero.
+        const { data: righeGiorno, error: duplicateError } = await ctx.supabase
+          .from("campo_rapportini").select("id, ore_lavorate, lavoro_completato, firma_cliente_url")
           .eq("company_id", ctx.companyId).eq("order_id", order.id)
           .eq("user_id", userId).eq("data_lavoro", data)
-          .limit(1).maybeSingle();
+          .limit(5);
         if (duplicateError) return { error: "Verifica doppioni non disponibile. Nessun rapportino registrato." };
+        const dup = giornalieroDelGiorno((righeGiorno ?? []) as Array<{ id: string; ore_lavorate: number | null; lavoro_completato: boolean | null; firma_cliente_url: string | null }>);
         if (dup?.id) {
           return { error: `Esiste già un rapportino del ${data} su ${order.order_code}${perNome ? ` per ${perNome}` : ""} (${dup.ore_lavorate ?? "?"} ore). Se è un secondo turno reale, ripeti con registra_comunque=true.` };
         }
@@ -5102,13 +5105,22 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       }
 
       const nuovoStato = rifiuta ? "rifiutato" : "approvato";
-      const { error: updErr } = await ctx.supabase
+      // Stessi campi dell'approvazione in commessa: approvato e chi/quando, il motivo del rifiuto
+      // (lo legge l'operaio) e il PDF da rifare.
+      const campi = rifiuta
+        ? { stato: nuovoStato, approvato: false, motivo_rifiuto: motivo || null, pdf_url: null as string | null }
+        : { stato: nuovoStato, approvato: true, approvato_da: ctx.userId ?? null, approvato_at: new Date().toISOString(), pdf_url: null as string | null };
+      const { data: cambiati, error: updErr } = await ctx.supabase
         .from("campo_rapportini")
-        .update({ stato: nuovoStato })
+        .update(campi)
         .in("id", lista.map((r: any) => r.id))
         .eq("company_id", ctx.companyId)
-        .eq("stato", "inviato"); // rileggo lo stato: se nel frattempo cambia, non lo sovrascrivo
+        .eq("stato", "inviato") // rileggo lo stato: se nel frattempo cambia, non lo sovrascrivo
+        .select("id");
       if (updErr) return { error: `Aggiornamento rapportini fallito: ${updErr.message}` };
+      if ((cambiati ?? []).length !== lista.length) {
+        return { error: `Aggiornati ${(cambiati ?? []).length} rapportini su ${lista.length}: gli altri sono cambiati nel frattempo. Ricontrolla l'elenco.` };
+      }
 
       return {
         ...riepilogo,

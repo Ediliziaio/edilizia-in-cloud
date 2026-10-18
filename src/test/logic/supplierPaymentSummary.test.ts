@@ -115,4 +115,12 @@ describe('Una fattura fornitore con acconto e saldo su costi separati', () => {
     expect(supplierInvoiceCostIds({ orders: [po], invoices: [invoice], costs, orderId: 'job', ambiguousCostIds: ['saldo'] }).size).toBe(0);
     expect(supplierInvoiceCostIds({ orders: [po], invoices: [invoice], costs }).size).toBe(0);
   });
+  it.each(['TD04', 'TD08', 'passive_credit_note'])('ogni nota di credito (%s), anche con importo positivo, va in verifica', tipo => {
+    expect(supplierPaymentSummary({ ...base, invoices: [invoice, { ...invoice, id: 'credit', tipo_documento: tipo, totale_documento: 20 }] })[0])
+      .toMatchObject({ invoiced: 0, paid: 0, reviewCount: 2 });
+  });
+  it.each(['TD08', 'passive_credit_note'])('una nota di credito %s non allarga una fattura alle rate dei costi', tipo => {
+    expect(supplierInvoiceCostIds({ orders: [po], invoices: [{ ...invoice, tipo_documento: tipo }], costs, orderId: 'job' }).size).toBe(0);
+  });
 });
+

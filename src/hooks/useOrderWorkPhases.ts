@@ -24,6 +24,8 @@ export interface PhaseAssignment {
   external_team_id: string | null;
   cost_preventivo: number;
   cost_consuntivo: number; // = total_cost (sorgente di verità letta da margine/dashboard)
+  /** Ditte: aliquota con cui sono scritti gli importi (IVA inclusa). */
+  vat_rate?: number | null;
   hours: number | null;
   is_paid: boolean;
   paid_date: string | null;
@@ -206,6 +208,70 @@ export const PHASE_TEMPLATES: PhaseTemplate[] = [
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+/**
+ * Le colonne che una parte divisa eredita dalla riga originale: anagrafica,
+ * stato (consegna, scarico dal magazzino), aggancio al listino e misure.
+ * Restano sulla riga originale le quantità ricevute e riservate, gli acconti
+ * e i saldi in euro e la distinta delle posizioni: sono importi o righe d'ordine
+ * che, copiati, verrebbero contati due volte.
+ */
+export const CAMPI_CHE_SEGUONO_LA_DIVISIONE = [
+  "order_id", "name", "description", "natura_riga", "position", "section_id", "notes",
+  "purchase_price", "vat_rate", "unit_price", "discount_percent",
+  "supplier_id", "stock_item_id", "destination_warehouse_id", "lot_number",
+  "status", "fulfillment_status", "auto_deducted", "delivery_date",
+  "receipt_id", "shipment_id", "last_goods_receipt_date", "last_shipment_date",
+  "is_paid", "paid_date", "payment_method",
+  "article_template_id", "product_code", "categoria", "standard_cost",
+  "family_id", "axis_selections", "measure_status", "misure_preventivo", "misure_rilevate",
+  "measure_variance", "survey_id", "survey_element_id", "installation_id",
+] as const;
+
+/** La nuova riga per una parte di un articolo diviso tra le fasi. */
+export function parteDivisa(
+  original: Record<string, unknown>,
+  parte: { phaseId: string | null; quantity: number },
+): Record<string, unknown> {
+  const riga: Record<string, unknown> = {};
+  for (const campo of CAMPI_CHE_SEGUONO_LA_DIVISIONE) {
+    if (original[campo] !== undefined) riga[campo] = original[campo];
+  }
+  riga.quantity = parte.quantity;
+  riga.phase_id = parte.phaseId;
+  return riga;
+}
+
+export const MESSAGGIO_SCARICO_NON_SPOSTATO =
+  "Articolo diviso, ma la quota già scaricata dal magazzino è rimasta sulla riga originale. Avvisa l'ufficio prima dell'installazione, così non si scarica due volte.";
+
+/**
+ * Crea le nuove righe di un articolo diviso tra le fasi. Per un articolo da
+ * magazzino ogni riga nuova riceve la sua quota dello scarico già fatto
+ * (`dividi_scarico_magazzino`): la giacenza non cambia, e all'installazione
+ * la riga nuova non scarica di nuovo.
+ */
+export async function creaPartiDivise(
+  client: typeof supabase,
+  original: Record<string, unknown> & { id: string },
+  parti: ReadonlyArray<{ phaseId: string | null; quantity: number }>,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = client as any;
+  for (const parte of parti) {
+    const { data: nuova, error: insError } = await c.from("order_items")
+      .insert(parteDivisa(original, parte)).select("id").single();
+    if (insError) throw insError;
+    if (!original.stock_item_id) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: rpcError } = await (client as any).rpc("dividi_scarico_magazzino", {
+      p_originale: original.id,
+      p_nuova: nuova.id,
+      p_quantita: parte.quantity,
+    });
+    if (rpcError) throw new Error(MESSAGGIO_SCARICO_NON_SPOSTATO);
+  }
+}
+
 export interface AddAssignmentPayload {
   phase_id: string | null;
   executor_type: ExecutorType;
@@ -239,7 +305,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       const [phasesRes, empRes, teamRes] = await Promise.all([
         db.from("order_work_phases").select("*").eq("order_id", orderId!).eq("company_id", companyId!).order("position", { ascending: true }),
         db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes, employee:employees(first_name,last_name,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!),
-        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
+        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, vat_rate, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
       ]);
       if (phasesRes.error) throw phasesRes.error;
       if (empRes.error) throw empRes.error;
@@ -271,6 +337,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         external_team_id: (t.external_team_id as string) ?? null,
         cost_preventivo: Number(t.cost_preventivo) || 0,
         cost_consuntivo: Number(t.total_cost) || 0,
+        vat_rate: t.vat_rate == null ? null : Number(t.vat_rate),
         hours: null,
         is_paid: Boolean(t.is_paid),
         paid_date: (t.paid_date as string) ?? null,
@@ -568,8 +635,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   // Divide un articolo su più fasi ("100 kg usati in più fasi"): la riga
-  // originale tiene la prima parte (e tutti gli altri campi), le parti
-  // successive diventano nuove righe order_items con i soli campi core copiati.
+  // originale tiene la prima parte, le parti successive diventano nuove righe
+  // order_items con gli stessi dati di stato, listino e consegna (vedi parteDivisa).
   const splitMaterial = useMutation({
     mutationFn: async ({
       itemId,
@@ -581,7 +648,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       // Rileggo la riga fresca dal DB: la cache potrebbe essere stantia
       const { data: original, error } = await db
         .from("order_items")
-        .select("id, order_id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, phase_id")
+        .select(["id", "quantity", "phase_id", ...CAMPI_CHE_SEGUONO_LA_DIVISIONE].join(", "))
         .filter("natura_riga", "eq", "materiale")
         .eq("id", itemId)
         .single();
@@ -602,19 +669,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         .eq("id", itemId);
       if (updError) throw updError;
 
-      // Le altre parti diventano nuove righe (solo campi core, il resto vive sull'originale)
-      const rows = parts.slice(1).map((p) => ({
-        order_id: original.order_id,
-        name: original.name,
-        quantity: p.quantity,
-        purchase_price: original.purchase_price,
-        vat_rate: original.vat_rate,
-        supplier_id: original.supplier_id,
-        stock_item_id: original.stock_item_id,
-        phase_id: p.phaseId,
-      }));
-      const { error: insError } = await db.from("order_items").insert(rows);
-      if (insError) throw insError;
+      // Le altre parti diventano nuove righe con gli stessi dati dell'originale,
+      // ognuna con la sua quota di scarico dal magazzino.
+      await creaPartiDivise(supabase, original, parts.slice(1));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] });
@@ -622,7 +679,12 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       qc.invalidateQueries({ queryKey: ["order-items", orderId] });
       toast.success("Materiale diviso su più fasi");
     },
-    onError,
+    onError: (e: unknown) => {
+      // Anche a metà strada le righe possono essere cambiate: si rileggono.
+      qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-items", orderId] });
+      onError(e);
+    },
   });
 
   const deleteAssignment = useMutation({

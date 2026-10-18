@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { agreedContractValue } from "@/lib/orders/contractValue";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
@@ -44,6 +45,7 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, parseBonusLines, serializeBonusLines } from "@/lib/orders/bonusFiscali";
+import { conSaldoFinale, importoSaldoFinale } from "@/lib/orders/saldoFinale";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
@@ -175,15 +177,35 @@ function EditOrderInner() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
 
+  // Varianti approvate: fanno parte di quanto il cliente deve, come nella scheda della commessa.
+  // Il saldo si salva solo dopo averle lette: senza, verrebbe calcolato sul solo contratto.
+  const {
+    data: variazioniApprovate = 0,
+    isPending: variazioniInLettura,
+    isError: variazioniInErrore,
+    refetch: rileggiVariazioni,
+  } = useQuery({
+    queryKey: ["edit-order-variazioni-approvate", effectiveCompany?.id, id],
+    enabled: !!id && !!effectiveCompany?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ordini_variazione")
+        .select("status, impatto_economico")
+        .eq("order_id", id!)
+        .eq("company_id", effectiveCompany!.id);
+      if (error) throw error;
+      return agreedContractValue(0, data ?? []);
+    },
+  });
+
   // Calculate balance
   const total = parseDecimalIT(totalAmount);
   const vat = parseDecimalIT(vatRate);
   const fCostForBalance = paymentType === "financing" ? (parseDecimalIT(financingCost)) : 0;
-  const totalWithVat = total * (1 + vat / 100);
-  const nonBalanceSum = installments
-    .filter(i => i.type !== 'balance')
-    .reduce((sum, i) => sum + i.amount, 0);
-  const balance = Math.max(0, totalWithVat - nonBalanceSum - fCostForBalance);
+  const totalWithVat = (total + variazioniApprovate) * (1 + vat / 100);
+  // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
+  // e si tolgono dal residuo (stessa regola della vista in sola lettura).
+  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance);
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -579,9 +601,8 @@ function EditOrderInner() {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
       if (order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
-      const installmentsForSave = installments.map(i =>
-        i.type === 'balance' ? { ...i, amount: balance } : i
-      );
+      // Solo il saldo finale prende il residuo: i SAL intermedi restano col loro importo.
+      const installmentsForSave = conSaldoFinale(installments, balance);
 
       // Un solo giro sul database invece di una ventina di scritture in fila.
       // `commessa_salva` fa tutto dentro una transazione sola: testata, rate,
@@ -668,6 +689,10 @@ function EditOrderInner() {
         article_template_id: item.article_template_id || null,
         product_code: item.product_code || null,
         categoria: item.categoria || null,
+        // Arrivo previsto e distinta: il modulo li carica dalla riga e li
+        // rimanda uguali, così un salvataggio li conserva.
+        delivery_date: item.delivery_date || null,
+        posizioni: (item.posizioni?.length ? item.posizioni : null) as unknown as Json,
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || null,
         payment_method: item.payment_method || null,
@@ -787,6 +812,11 @@ function EditOrderInner() {
     // Anti doppio-submit: il submit via Invio non passa dal bottone (disabled),
     // quindi senza questa guardia la mutation può partire due volte.
     if (updateOrderMutation.isPending) return;
+    // Il saldo dipende dalle varianti approvate: si salva solo quando sono state lette.
+    if (variazioniInLettura || variazioniInErrore) {
+      if (variazioniInErrore) toast.error("Non riesco a leggere le varianti: riprova prima di salvare");
+      return;
+    }
 
     // Se lo state ha perso il cliente ma la commessa ne ha già uno salvato,
     // usiamo quello (vedi auto-heal sopra): bloccare qui costringeva l'utente
@@ -1003,6 +1033,12 @@ function EditOrderInner() {
             financingCost={financingCost}
             onFinancingCostChange={setFinancingCost}
           />
+          {variazioniApprovate !== 0 && (
+            <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              Varianti approvate: <strong className="text-foreground">{variazioniApprovate > 0 ? "+" : ""}{formatDecimalIT(variazioniApprovate)} €</strong> IVA esclusa.
+              Il saldo le comprende, come nella scheda della commessa.
+            </p>
+          )}
         </div>
 
         {/* Customer Dates Card */}
@@ -1133,12 +1169,24 @@ function EditOrderInner() {
         {/* Order Attachments */}
         <OrderAttachments orderId={id!} editable={true} />
 
+        {variazioniInErrore && (
+          <Alert variant="destructive" role="alert">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span>Non riesco a leggere le varianti: riprova prima di salvare</span>
+              <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => rileggiVariazioni()}>
+                Riprova
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Actions */}
         <div className="flex justify-end gap-3 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           <Button type="button" variant="outline" onClick={() => navigate(`/azienda/ordini/${id}`)}>
             Annulla
           </Button>
-          <QuotePrimaryButton type="submit" disabled={updateOrderMutation.isPending}>
+          <QuotePrimaryButton type="submit" disabled={updateOrderMutation.isPending || variazioniInLettura || variazioniInErrore}>
             {updateOrderMutation.isPending ? "Salvataggio..." : "Salva Modifiche"}
           </QuotePrimaryButton>
         </div>

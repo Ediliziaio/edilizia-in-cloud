@@ -25,6 +25,7 @@ import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import { cashExposureTimeline } from "@/lib/orders/cashExposureTimeline";
 
 export interface RataEsposizione extends InstallmentLike {
+  id?: string | null;
   paid_date?: string | null;
   expected_date?: string | null;
 }
@@ -53,6 +54,11 @@ export interface EsposizioneCommessa {
   /** Costi della commessa registrati ma non ancora pagati (lordi). */
   daPagare: number;
   serieMensile: MeseEsposizione[];
+}
+
+/** Le rate che hanno già la loro registrazione in Prima Nota (voce con installment_id). */
+export function rateConRegistrazione(entries: ReadonlyArray<{ installment_id?: string | null }>): Set<string> {
+  return new Set(entries.map(e => e.installment_id).filter((id): id is string => !!id));
 }
 
 export function useEsposizioneCommessa({
@@ -103,7 +109,7 @@ export function useEsposizioneCommessa({
           .select("commission_amount, deduction_amount, is_paid, paid_date, created_at")
           .eq("order_id", orderId!),
         allPaymentRows((from, to) => supabase.from("prima_nota_entries")
-          .select("id, cost_id, direction, amount, entry_date").eq("company_id", companyId!)
+          .select("id, cost_id, installment_id, direction, amount, entry_date").eq("company_id", companyId!)
           .eq("order_id", orderId!).order("id").range(from, to)),
       ]);
       const firstError = cc.error ?? emp.error ?? teams.error ?? sales.error;
@@ -122,11 +128,20 @@ export function useEsposizioneCommessa({
     const events: CashEvent[] = [];
     let daPagare = 0;
 
-    // ── Entrate: rate incassate (stessa regola del piano rate) ─────────────
-    const amounts = calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost });
+    // ── Entrate: rate incassate (stessa regola del Riepilogo, incassiDellaCommessa) ─────
+    // La rata del finanziamento è un incasso vero: la paga la finanziaria. Il costo della
+    // finanziaria arriva già a 0 quando il pagamento non è a finanziamento (lo decide chi chiama).
+    const amounts = calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost, includeFinancing: true });
     const recorded = (costi?.entries ?? []).length > 0;
+    // Una rata con la sua registrazione in Prima Nota entra da lì (la voce «entrata» qui sotto):
+    // si salta solo quella, le altre rate incassate restano (come useIncassiRegistrati).
+    const rateRegistrate = rateConRegistrazione(costi?.entries ?? []);
+    // Incassi in Prima Nota senza la rata collegata (oggi tutti): la Prima Nota li ha già,
+    // e sommarli alle rate li conterebbe due volte. In quel caso valgono solo loro.
+    const incassiSenzaRata = (costi?.entries ?? []).some(e => e.direction === 'entrata' && !e.installment_id);
     for (const [index, r] of installments.entries()) {
-      if (recorded) break; // Ledger and installment flags are alternative sources, never additive.
+      if (incassiSenzaRata) break;
+      if (r.id && rateRegistrate.has(r.id)) continue;
       const amount = amounts[index];
       if (amount <= 0) continue;
       const date = r.paid_date; // An expected deadline is not a date on which money actually arrived.
@@ -162,8 +177,8 @@ export function useEsposizioneCommessa({
       const date = c.paid_date;
       if (date) events.push({ date, in: 0, out: gross });
     }
+    // Manodopera e provvigioni non passano dalla Prima Nota: contano sempre, alla data di pagamento.
     for (const e of costi?.emp ?? []) {
-      if (recorded) break;
       const cost = Number(e.total_cost) || 0;
       if (cost <= 0) continue;
       if (!e.is_paid) {
@@ -174,6 +189,7 @@ export function useEsposizioneCommessa({
       if (date) events.push({ date, in: 0, out: cost });
     }
     for (const t of costi?.teams ?? []) {
+      // Le squadre esterne si pagano con una fattura registrata in Prima Nota: con la Prima Nota valgono le sue voci.
       if (recorded) break;
       const cost = Number(t.total_cost) || 0; // già lordo (convenzione Conto economico)
       if (cost <= 0) continue;
@@ -185,7 +201,6 @@ export function useEsposizioneCommessa({
       if (date) events.push({ date, in: 0, out: cost });
     }
     for (const s of costi?.sales ?? []) {
-      if (recorded) break;
       const net = calculateStoredCommissionNet(s.commission_amount, s.deduction_amount);
       if (net <= 0) continue;
       if (!s.is_paid) {

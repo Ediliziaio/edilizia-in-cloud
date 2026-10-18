@@ -115,13 +115,13 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
 
   it("la firma dell'autore non trasforma il giornaliero in un rapporto cliente", () => {
     disegna({ firma_operaio_url: "mia-firma.png" });
-    expect(screen.getByText("Rapportino giornaliero")).toBeInTheDocument();
+    expect(screen.getByText("Rapportino")).toBeInTheDocument();
     expect(screen.queryByText(/Firma cliente presente/)).toBeNull();
   });
 
   it("un fine lavori distingue nome e firma del cliente dalla firma dell'autore", () => {
     disegna({ lavoro_completato: true, firma_cliente_url: "cliente.png", firma_cliente_nome: "Luca Bianchi" });
-    expect(screen.getByText("Rapporto cliente · Fine lavori")).toBeInTheDocument();
+    expect(screen.getByText("Collaudo col cliente")).toBeInTheDocument();
     expect(screen.getByText("Firma cliente presente · Luca Bianchi")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aggiungi la tua firma" })).toBeInTheDocument();
   });

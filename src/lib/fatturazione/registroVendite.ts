@@ -19,7 +19,12 @@ const CREDITI = new Set(["TD04", "TD08", "nota_credito", "credit_note"]);
 const VENDITE = new Set(["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "acconto_fattura", "acconto_parcella", "fattura_riepilogativa", "fattura_differita_b", "nota_debito", "invoice", "debit_note", "TD01", "TD02", "TD03", "TD05", "TD06", "TD07", "TD09", "TD24", "TD25"]);
 export const isNotaCredito = (tipo: string | null | undefined) => CREDITI.has(tipo ?? "");
 export const isTipoVendita = (tipo: string | null | undefined) => VENDITE.has(tipo ?? "") || isNotaCredito(tipo);
-export const isDocumentoEmesso = (stato: string | null | undefined) => !!stato && !["bozza", "draft", "annullata", "annullato", "cancelled", "canceled", "void", "deleted"].includes(stato);
+/**
+ * Emesso = arrivato al cliente come documento fiscale. Restano fuori le bozze, gli annullati e i
+ * documenti che lo SDI non ha accettato o che non ha ancora ricevuto: rifiutata, in_invio, errore.
+ */
+const STATI_NON_EMESSI = new Set(["bozza", "draft", "annullata", "annullato", "cancelled", "canceled", "void", "deleted", "rifiutata", "in_invio", "errore"]);
+export const isDocumentoEmesso = (stato: string | null | undefined) => !!stato && !STATI_NON_EMESSI.has(stato);
 export const valoreNumerico = (value: unknown): number => Number.isFinite(Number(value)) ? Number(value) : 0;
 export const importoConSegno = (tipo: string | null | undefined, value: unknown) => isNotaCredito(tipo) ? -Math.abs(valoreNumerico(value)) : valoreNumerico(value);
 export const nomeIntestatario = (s: RigaVendite["cliente_snapshot"]) => s.ragione_sociale?.trim() || [s.nome, s.cognome].filter(Boolean).join(" ").trim() || "Sconosciuto";

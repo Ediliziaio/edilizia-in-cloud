@@ -4,7 +4,6 @@
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
 import { useMemo, useState } from "react";
-import { isClientReport } from "@/lib/campo/reportKind";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
@@ -92,6 +91,16 @@ function TesseraGiorno({ data, stato }: { data: string | null | undefined; stato
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+type RigaOre = { presenze?: unknown; ore_lavorate?: unknown; ore_straordinario?: unknown };
+const presenzeDi = (r: RigaOre) => (Array.isArray(r.presenze) ? (r.presenze as Array<{ ore?: unknown; employee_id?: unknown }>) : []);
+const haPresenze = (r: RigaOre) => presenzeDi(r).length > 0;
+/** Ore delle persone (gemello di campo_presenze_effettive): le presenze con un dipendente, altrimenti l'autore. */
+export function orePersoneRapportino(r: RigaOre): number {
+  const presenze = presenzeDi(r);
+  if (presenze.length > 0) return presenze.reduce((somma, p) => somma + (p.employee_id ? Number(p.ore) || 0 : 0), 0);
+  return (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
+}
 
 export function OrdineRapportiniCampo({ orderId }: Props) {
   const isMobile = useIsMobile();
@@ -186,66 +195,12 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       if (error) throw error;
       if (!updated) throw new Error("Rapportino non aggiornato: potrebbe essere già cambiato. Aggiorna il controllo e verifica i permessi.");
 
-      // È QUI che l'avanzamento fasi si applica: le % dichiarate dall'operaio
-      // valgono solo quando l'ufficio approva. GREATEST(attuale, dichiarata)
-      // su lettura fresca; un fallimento qui non annulla l'approvazione ma
-      // viene detto, non nascosto.
-      let erroreFasi: string | null = null;
-      try {
-        const fasi = (rapp?.fasi_lavorate ?? []) as Array<{ phase_id: string; percentuale: number }>;
-        // I vecchi rapporti con firma potevano contenere anche lavorazioni effettive.
-        // Restano approvabili; le nuove conferme cliente non portano fasi operative.
-        if (fasi.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const db = supabase as any;
-          const { data: fresche, error: frescheErr } = await db
-            .from("order_work_phases")
-            .select("id, status, percentuale, updated_at")
-            .in("id", fasi.map((f) => f.phase_id))
-            .eq("order_id", orderId).eq("company_id", companyId);
-          if (frescheErr) throw frescheErr;
-          const byId = new Map(
-            ((fresche ?? []) as { id: string; status: string; percentuale: number | null; updated_at: string }[])
-              .map((f) => [f.id, f]),
-          );
-          for (const dich of fasi) {
-            const attuale = byId.get(dich.phase_id);
-            if (!attuale) throw new Error("Una lavorazione non è più disponibile: verifica l'avanzamento in commessa.");
-            const nuova = Math.max(Number(attuale.percentuale) || 0, Number(dich.percentuale) || 0);
-            const patch: Record<string, unknown> = { percentuale: nuova, updated_at: new Date().toISOString() };
-            if (nuova >= 100) patch.status = "completata";
-            else if (nuova > 0 && attuale.status !== "completata") patch.status = "in_corso";
-            if (nuova === (Number(attuale.percentuale) || 0) && (!patch.status || patch.status === attuale.status)) continue;
-            const { data: applied, error: faseErr } = await db.from("order_work_phases").update(patch)
-              .eq("id", dich.phase_id).eq("order_id", orderId).eq("company_id", companyId)
-              .eq("updated_at", attuale.updated_at).select("id").maybeSingle();
-            if (faseErr) throw faseErr;
-            if (!applied) throw new Error("Avanzamento cambiato durante l'approvazione: ricarica e verifica la proposta.");
-          }
-        } else if (rapp && !isClientReport(rapp)) {
-          const proposta = Number(rapp.percentuale_avanzamento);
-          if (Number.isFinite(proposta) && proposta > 0 && proposta <= 100) {
-            const { data: ordine, error: ordineErr } = await supabase.from("orders")
-              .select("percentuale_avanzamento").eq("id", orderId).eq("company_id", companyId).single();
-            if (ordineErr) throw ordineErr;
-            if (proposta > (Number(ordine.percentuale_avanzamento) || 0)) {
-              const change = supabase.from("orders").update({ percentuale_avanzamento: proposta }).eq("id", orderId).eq("company_id", companyId);
-              const { data: applied, error: changeErr } = await (ordine.percentuale_avanzamento == null ? change.is("percentuale_avanzamento", null) : change.eq("percentuale_avanzamento", ordine.percentuale_avanzamento)).select("id").maybeSingle();
-              if (changeErr) throw changeErr;
-              if (!applied) throw new Error("Avanzamento cambiato durante l'approvazione: ricarica e verifica la proposta.");
-            }
-          }
-        }
-      } catch (e) {
-        erroreFasi = e instanceof Error ? e.message : String(e);
-      }
-      return { erroreFasi, rapportinoId };
+      // L'avanzamento delle fasi dichiarate lo applica il database nella stessa operazione
+      // dell'approvazione (trigger campo_rapportino_avanzamento_approvato): o tutto o niente.
+      return { rapportinoId };
     },
-    onSuccess: ({ erroreFasi, rapportinoId }) => {
-      toast.success("Rapportino approvato");
-      if (erroreFasi) {
-        toast.error("Approvato, ma l'avanzamento fasi non è stato aggiornato", { description: erroreFasi });
-      }
+    onSuccess: ({ rapportinoId }) => {
+      toast.success("Rapportino approvato: ore e avanzamento aggiornati");
       refreshWorkQueries(qc, orderId, companyId);
       void notifyRapportinoPdf(rapportinoId, orderId, qc);
       setApprovalId(null);
@@ -308,7 +263,9 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
     let daApprovare = 0;
     let avanzamento: number | null = null;
     for (const r of rapportini) {
-      const oreRiga = (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
+      // Un rapportino respinto non porta ore; quello di squadra porta le ore delle persone,
+      // senza quelle delle ditte: le stesse che diventano costo all'approvazione.
+      const oreRiga = statoDi(r) === "rifiutato" ? 0 : orePersoneRapportino(r);
       ore += oreRiga;
       if (statoDi(r) === "inviato") daApprovare += 1;
       // l'elenco è dal più recente: il primo avanzamento trovato è l'ultimo dichiarato
@@ -423,13 +380,18 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                               <p className="mt-0.5 truncate text-xs text-slate-600">{r.descrizione_lavori}</p>
                             )}
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                              {r.ore_lavorate != null && (
+                              {haPresenze(r) ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title="Ore delle persone della squadra, senza le ditte">
+                                  <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
+                                  {orePersoneRapportino(r).toLocaleString("it-IT")}h di squadra
+                                </span>
+                              ) : r.ore_lavorate != null && (
                                 <span className="inline-flex items-center gap-1 font-medium text-slate-800" title="Ore lavorate">
                                   <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
                                   {r.ore_lavorate}h
                                 </span>
                               )}
-                              {r.ore_straordinario > 0 && (
+                              {!haPresenze(r) && r.ore_straordinario > 0 && (
                                 <span className="font-medium text-amber-700" title="Ore di straordinario">+{r.ore_straordinario}h str.</span>
                               )}
                               {pct != null && (
@@ -577,7 +539,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                                 </>
                               )}
 
-                              {canApprove && stato === "rifiutato" && (
+                              {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
+                              {canApprove && stato === "rifiutato" && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button
                                   size="sm"
                                   onClick={() => setApprovalId(r.id)}

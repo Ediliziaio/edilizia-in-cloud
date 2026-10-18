@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoMerce from "@/pages/campo/CampoMerce";
 import type { AcquistoMio } from "@/hooks/campo/useCampoAcquisti";
@@ -41,8 +43,12 @@ const scatta = async () => {
   await waitFor(() => expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument());
 };
 const invia = () => fireEvent.click(screen.getByRole("button", { name: "Invia all’ufficio" }));
+// La pagina vive dentro il router (legge ?order= quando arrivi da un cantiere).
+let indirizzo = "/campo/merce";
+const conRouter = ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={[indirizzo]}>{children}</MemoryRouter>;
 
 beforeEach(() => {
+  indirizzo = "/campo/merce";
   vi.clearAllMocks();
   localStorage.clear();
   state.assignedIds = ["A"]; state.activeOrderId = null; state.foto = foto(); state.miei = []; state.registraErrore = null;
@@ -52,14 +58,14 @@ afterEach(cleanup);
 
 describe("Merce presa: dalla foto al modulo", () => {
   it("offre fotocamera posteriore e galleria come scelte distinte", () => {
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     expect(screen.getByLabelText("Scatta foto del documento")).toHaveAttribute("capture", "environment");
     expect(screen.getByLabelText("Foto del documento")).not.toHaveAttribute("capture");
     expect(screen.getByRole("button", { name: "Scegli dalla galleria" })).toBeInTheDocument();
   });
 
   it("sostituendo la foto sostituisce tutti i dati, senza perdere cantiere e note", async () => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     fireEvent.change(screen.getByLabelText("Note per l’ufficio (facoltativo)"), { target: { value: "Ritiro urgente" } });
     state.foto = foto({ anteprima: "blob:y", path: "company/A/acquisti/nuovo.jpg", lettura: lettura({ fornitore: "Altro negozio", numero: "456", totale: 30, righe: [{ descrizione: "Guanti", quantita: 3 }] }) });
     await scatta();
@@ -67,7 +73,7 @@ describe("Merce presa: dalla foto al modulo", () => {
     expect(screen.getByRole("button", { name: "Invia all’ufficio" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Sostituisci documento" }));
     await waitFor(() => expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("Altro negozio"));
-    expect(screen.getByLabelText("N° documento")).toHaveValue("456");
+    expect(screen.getByLabelText(/^N° /)).toHaveValue("456");
     expect(screen.getByLabelText("Prodotto 1")).toHaveValue("Guanti");
     expect(screen.queryByLabelText("Prodotto 2")).toBeNull();
     expect(screen.getByLabelText("Note per l’ufficio (facoltativo)")).toHaveValue("Ritiro urgente");
@@ -75,7 +81,7 @@ describe("Merce presa: dalla foto al modulo", () => {
   });
 
   it("una nuova foto illeggibile non eredita i prodotti o gli importi della precedente", async () => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     state.foto = foto({ lettura: null, anteprima: "blob:y" });
     await scatta(); fireEvent.click(screen.getByRole("button", { name: "Sostituisci documento" }));
     await waitFor(() => expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue(""));
@@ -84,11 +90,11 @@ describe("Merce presa: dalla foto al modulo", () => {
   });
 
   it("se la sostituzione fallisce conserva esplicitamente il documento precedente", async () => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     state.elabora.mockRejectedValueOnce(new Error("Formato non leggibile"));
     await scatta(); fireEvent.click(screen.getByRole("button", { name: "Sostituisci documento" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Formato non leggibile"));
-    expect(screen.getByLabelText("N° documento")).toHaveValue("DDT-123");
+    expect(screen.getByLabelText(/^N° /)).toHaveValue("DDT-123");
     expect(screen.getByAltText("Documento fotografato")).toHaveAttribute("src", "blob:x");
     expect(screen.getByText("Letto: controlla qui sotto")).toBeInTheDocument();
   });
@@ -96,7 +102,7 @@ describe("Merce presa: dalla foto al modulo", () => {
   it("non avvia altre letture né invii mentre una foto è in elaborazione", async () => {
     let risolvi!: (f: FotoDocumento) => void;
     state.elabora.mockImplementationOnce(() => new Promise<FotoDocumento>(r => { risolvi = r; }));
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     const input = screen.getByLabelText("Foto del documento");
     const event = { target: { files: [new File(["x"], "doc.jpg", { type: "image/jpeg" })] } };
     fireEvent.change(input, event); fireEvent.change(input, event);
@@ -106,11 +112,11 @@ describe("Merce presa: dalla foto al modulo", () => {
     await waitFor(() => expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument());
   });
   it("legge il documento e precompila fornitore, numero, totale e prodotti", async () => {
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     expect(screen.getByText("Letto: controlla qui sotto")).toBeInTheDocument();
     expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("Tecnomat S.p.A.");
-    expect(screen.getByLabelText("N° documento")).toHaveValue("DDT-123");
+    expect(screen.getByLabelText(/^N° /)).toHaveValue("DDT-123");
     expect(screen.getByLabelText("Data")).toHaveValue("2026-10-03");
     expect(screen.getByLabelText(/^Totale/)).toHaveValue("45,5");
     expect(screen.getByLabelText("Prodotto 1")).toHaveValue("Silicone neutro");
@@ -120,14 +126,14 @@ describe("Merce presa: dalla foto al modulo", () => {
 
   it("una lettura incerta chiede di controllare, senza testo tecnico", async () => {
     state.foto = foto({ lettura: lettura({ daControllare: true, confidenza: 0.5 }) });
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     expect(screen.getByText(/Letto in parte: controlla bene/)).toBeInTheDocument();
   });
 
   it("se non riesce a leggere, l'operaio scrive a mano e non resta bloccato", async () => {
     state.foto = foto({ lettura: null });
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     expect(screen.getByText("Non sono riuscito a leggerlo: scrivi tu fornitore e totale.")).toBeInTheDocument();
     expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("");
@@ -140,7 +146,7 @@ describe("Merce presa: dalla foto al modulo", () => {
 
   it("dice se la foto non è stata salvata", async () => {
     state.foto = foto({ path: null });
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     expect(screen.getByText("La foto non è stata salvata.")).toBeInTheDocument();
     expect(state.warning).toHaveBeenCalled();
@@ -150,7 +156,7 @@ describe("Merce presa: dalla foto al modulo", () => {
 describe("Merce presa: come l'ha presa e invio", () => {
   it("il cantiere del ritiro resta fissato se il turno si sposta mentre controlli la bolla", async () => {
     state.assignedIds = ["A", "B"]; state.activeOrderId = "A";
-    const view = render(<CampoMerce />); await scatta();
+    const view = render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     state.activeOrderId = "B"; view.rerender(<CampoMerce />);
     expect(screen.getByLabelText("Per quale cantiere?")).toHaveValue("A");
     fireEvent.click(screen.getByRole("button", { name: /Ritiro di un ordine/ })); invia();
@@ -158,7 +164,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
   it("non cambia di nascosto il cantiere quando l'assegnazione scelta scompare", async () => {
     state.assignedIds = ["A", "B"];
-    const view = render(<CampoMerce />); await scatta();
+    const view = render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     fireEvent.change(screen.getByLabelText("Per quale cantiere?"), { target: { value: "B" } });
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ }));
     state.assignedIds = ["A"]; view.rerender(<CampoMerce />);
@@ -168,7 +174,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
 
   it("legge 1.234,56 e distingue una fattura dal modo in cui è stata pagata", async () => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     fireEvent.change(screen.getByLabelText(/^Totale/), { target: { value: "1.234,56" } });
     fireEvent.change(screen.getByLabelText("Che documento è?"), { target: { value: "fattura" } });
     fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ })); invia();
@@ -176,7 +182,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
 
   it("una quantità cancellata resta vuota e blocca l'invio, invece di diventare uno", async () => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     fireEvent.change(screen.getByLabelText("Quantità Silicone neutro"), { target: { value: "" } });
     expect(screen.getByLabelText("Quantità Silicone neutro")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ })); invia();
@@ -188,14 +194,14 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
 
   it.each(["abc", "-5", "1000001"])("un totale esplicitamente sbagliato (%s) non viene rimpiazzato dalla somma delle righe", async totale => {
-    render(<CampoMerce />); await scatta();
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
     fireEvent.change(screen.getByLabelText(/^Totale/), { target: { value: totale } });
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ })); invia();
     expect(state.registra).not.toHaveBeenCalled();
     expect(state.error).toHaveBeenCalledWith(expect.stringContaining("Controlla il totale"));
   });
   it("non invia finché non dice come ha preso la merce", async () => {
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     invia();
     expect(state.error).toHaveBeenCalledWith("Dici come hai preso la merce.");
@@ -203,7 +209,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
 
   it("l'ha pagata lui: invia scontrino, cantiere unico, foto e prodotti", async () => {
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ }));
     invia();
@@ -221,14 +227,14 @@ describe("Merce presa: come l'ha presa e invio", () => {
 
   it("per il rimborso servono foto e importo", async () => {
     state.foto = foto({ path: null, lettura: null });
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ }));
     invia();
     expect(state.error).toHaveBeenCalledWith("Per il rimborso serve la foto dello scontrino.");
     expect(state.registra).not.toHaveBeenCalled();
     state.foto = foto({ lettura: lettura({ totale: null, righe: [] }) });
-    cleanup(); render(<CampoMerce />); fireEvent.click(screen.getByRole("button", { name: "Scarta la bozza" })); await scatta();
+    cleanup(); render(<CampoMerce />, { wrapper: conRouter }); fireEvent.click(screen.getByRole("button", { name: "Scarta la bozza" })); await scatta();
     fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ }));
     invia();
     expect(state.error).toHaveBeenCalledWith("Indica quanto hai speso.");
@@ -236,11 +242,11 @@ describe("Merce presa: come l'ha presa e invio", () => {
 
   it("propone il cantiere in cui è in servizio; con più cantieri e nessuno attivo bisogna sceglierlo", async () => {
     state.assignedIds = ["A", "B"]; state.activeOrderId = "B";
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     expect(screen.getByLabelText("Per quale cantiere?")).toHaveValue("B");
     cleanup();
     state.activeOrderId = null;
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     expect(screen.getByLabelText("Per quale cantiere?")).toHaveValue("");
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: /Ritiro di un ordine/ }));
@@ -252,7 +258,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   });
 
   it("toglie un prodotto e ne aggiunge uno a mano", async () => {
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: "Togli Viti inox" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi un prodotto" }));
@@ -266,7 +272,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
 
   it("mostra la frase del database quando l'invio non è possibile (es. documento già caricato)", async () => {
     state.registraErrore = { code: "P0001", message: "Questo documento è già stato caricato da Luca il 04/10: non serve rimandarlo." };
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ }));
     invia();
@@ -288,7 +294,7 @@ describe("Merce presa: le ultime inviate", () => {
       mio({ id: "2", stato: "rifiutato", rimborso_stato: "non_dovuto", motivo_rifiuto: "Scontrino illeggibile" }),
       mio({ id: "3", stato: "registrato", rimborso_stato: "rimborsato" }),
     ];
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     expect(screen.getByText("In verifica dall’ufficio")).toBeInTheDocument();
     expect(screen.getByText("Non accettata: Scontrino illeggibile")).toBeInTheDocument();
     expect(screen.getByText("Registrata · rimborsata")).toBeInTheDocument();
@@ -296,10 +302,42 @@ describe("Merce presa: le ultime inviate", () => {
 
   it("una ancora in verifica si può ritirare; le altre no", () => {
     state.miei = [mio({ id: "1" }), mio({ id: "2", stato: "registrato", rimborso_stato: "non_dovuto" })];
-    render(<CampoMerce />);
+    render(<CampoMerce />, { wrapper: conRouter });
     const ritira = screen.getAllByRole("button", { name: /Ritira, ho sbagliato/ });
     expect(ritira).toHaveLength(1);
     fireEvent.click(ritira[0]);
     expect(state.annulla).toHaveBeenCalledWith("1");
+  });
+});
+
+describe("Bolla dal cantiere: il cantiere arriva già scelto e il numero si vede", () => {
+  it("aperta da dentro il cantiere, il cantiere è quello e non si cambia", async () => {
+    state.assignedIds = ["A", "B"]; state.activeOrderId = "B"; indirizzo = "/campo/merce?order=A";
+    render(<CampoMerce />, { wrapper: conRouter });
+    const cantiere = screen.getByLabelText("Per quale cantiere?");
+    expect(cantiere).toHaveValue("ORD-A · Cantiere A");
+    expect(cantiere).toHaveAttribute("readonly");
+    await scatta();
+    fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ })); invia();
+    await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({ orderId: "A" })));
+  });
+
+  it("un cantiere che non è tuo nel link non si blocca: resta la scelta normale", () => {
+    state.assignedIds = ["A", "B"]; indirizzo = "/campo/merce?order=Z";
+    render(<CampoMerce />, { wrapper: conRouter });
+    expect(screen.getByLabelText("Per quale cantiere?")).not.toHaveAttribute("readonly");
+  });
+
+  it("il numero è sempre a vista, con il nome giusto per il documento", () => {
+    render(<CampoMerce />, { wrapper: conRouter });
+    expect(screen.getByLabelText("N° bolla")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ }));
+    expect(screen.getByLabelText("N° scontrino")).toBeInTheDocument();
+  });
+
+  it("se la bolla letta non ha numero lo dice, senza bloccare", async () => {
+    state.foto = foto({ lettura: lettura({ numero: "" }) });
+    render(<CampoMerce />, { wrapper: conRouter }); await scatta();
+    expect(screen.getByText("Numero della bolla non letto: scrivilo se il documento ce l’ha.")).toBeInTheDocument();
   });
 });

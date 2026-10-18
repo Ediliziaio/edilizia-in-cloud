@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { normalizeOperationalSettings } from "../whatsapp-ai-processor/settings.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
+import { eRapportoCliente } from "../_shared/rapportoGiornaliero.ts";
 
 interface ReminderRunBody {
   force?: boolean;
@@ -161,13 +162,15 @@ Deno.serve(async (req) => {
 
     const { data: existingReports } = await supabase
       .from("campo_rapportini")
-      .select("user_id, order_id")
+      .select("user_id, order_id, lavoro_completato, firma_cliente_url")
       .eq("company_id", waNumber.company_id)
       .eq("data_lavoro", today)
       .in("user_id", userIds);
 
+    // Un collaudo col cliente non vale come rapportino della giornata: il promemoria resta.
     const alreadyDone = new Set(
-      ((existingReports ?? []) as Array<{ user_id: string; order_id: string }>)
+      ((existingReports ?? []) as Array<{ user_id: string; order_id: string; lavoro_completato?: boolean | null; firma_cliente_url?: string | null }>)
+        .filter((r) => !eRapportoCliente(r))
         .map((r) => `${r.user_id}:${r.order_id}`),
     );
 

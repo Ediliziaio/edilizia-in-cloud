@@ -2,8 +2,13 @@
  * Read-only preview of the EXISTING report approval contract.
  * Not a payroll engine or a replacement for the server cost ledger.
  */
+import {
+  ETICHETTA_PROFILO, oneriPercento, parametriDelProfilo, profiloCostoDipendente, type ParametriCostoAzienda,
+} from "@/lib/costoPersonale";
+
 export interface LaborEmployee {
   id: string; user_id: string | null; first_name?: string | null; last_name?: string | null;
+  profilo_costo?: string | null; role_type?: string | null; qualifica?: string | null; area?: string | null;
   costo_orario?: number | string | null; gross_salary?: number | string | null;
   inps_rate?: number | string | null; monthly_hours?: number | string | null;
 }
@@ -46,20 +51,32 @@ export function laborHourlyCost(total: number, hours: number): number {
   return roundedRatio(c * hd, cd * h);
 }
 export interface HourlyCostReview { amount: number | null; source: "manuale" | "calcolato" | "mancante"; note: string }
-export function reviewHourlyCost(e: LaborEmployee): HourlyCostReview {
+/** Somma di decimali esatta: [numeratore, denominatore]. */
+function decimalSum(values: number[]): [bigint, bigint] {
+  return values.reduce<[bigint, bigint]>(([n, d], v) => { const [vn, vd] = decimal(v); return [n * vd + vn * d, d * vd]; }, [0n, 1n]);
+}
+/**
+ * Tariffa scritta a mano, oppure lordo × mensilità × (100 + oneri %) / (ore del mese × 12 × ore produttive %),
+ * con i parametri del tipo di dipendente (src/lib/costoPersonale.ts). Gemello di costo_orario_calcolato().
+ */
+export function reviewHourlyCost(e: LaborEmployee, parametri?: ParametriCostoAzienda | null): HourlyCostReview {
   const manual = numeric(e.costo_orario);
   if (manual != null && manual > 0) return { amount: manual, source: "manuale" as const, note: "Tariffa della scheda dipendente" };
   if (e.costo_orario != null && (manual == null || manual < 0)) return { amount: null, source: "mancante" as const, note: "Tariffa non valida" };
   const gross = numeric(e.gross_salary), hours = numeric(e.monthly_hours);
-  const inps = e.inps_rate == null ? 28 : numeric(e.inps_rate);
+  const profilo = profiloCostoDipendente(e);
+  const p = parametriDelProfilo(profilo, parametri);
+  const inps = e.inps_rate == null ? p.inps : numeric(e.inps_rate);
   if (gross == null || gross <= 0 || hours == null || hours <= 0 || inps == null || inps < 0) {
-    return { amount: null, source: "mancante" as const, note: "Servono tariffa oppure lordo, ore mensili e aliquota validi" };
+    return { amount: null, source: "mancante" as const, note: "Servono tariffa oppure lordo e ore del mese" };
   }
-  const [g, gd] = decimal(gross), [i, id] = decimal(inps), [h, hd] = decimal(hours);
+  const [g, gd] = decimal(gross), [m, md] = decimal(p.mensilita), [h, hd] = decimal(hours), [q, qd] = decimal(p.ore_produttive);
+  const [o, od] = decimalSum([100, inps, p.inail, p.cassa_edile, p.tfr, p.altri]);
+  const oneri = oneriPercento(p, inps);
   return {
-    amount: roundedRatio(g * (100n * id + i) * hd, gd * 100n * id * h),
+    amount: roundedRatio(g * m * o * hd * qd, gd * md * od * h * 12n * q),
     source: "calcolato" as const,
-    note: e.inps_rate == null ? "Lordo e aliquota INPS / ore mensili · aliquota predefinita 28%" : "Lordo e aliquota INPS / ore mensili",
+    note: `${ETICHETTA_PROFILO[profilo]}: lordo × ${p.mensilita} mensilità + ${oneri.toLocaleString("it-IT")}% di oneri, su ${p.ore_produttive}% di ore produttive`,
   };
 }
 interface Presence { employee_id?: string; subappaltatore_id?: string; nome?: string; ore?: Numeric }
@@ -105,7 +122,7 @@ export function summarizeLaborBudget(rows: {cost_preventivo: Numeric; total_cost
  * ore di una persona verrebbero contate due volte (o oltre le 24 al giorno): la regola
  * vive nel database, qui si mostra soltanto, prima che l'ufficio prema «Approva».
  */
-export function reviewLaborReport(target: LaborReport, dayReports: LaborReport[], employees: LaborEmployee[], showCosts: boolean, dbConflict?: string | null) {
+export function reviewLaborReport(target: LaborReport, dayReports: LaborReport[], employees: LaborEmployee[], showCosts: boolean, dbConflict?: string | null, parametri?: ParametriCostoAzienda | null) {
   const participants = reportParticipants(target, employees);
   const blockers: string[] = [], warnings: string[] = [];
   if (dbConflict && ["inviato", "rifiutato"].includes(reportStatus(target))) blockers.push(dbConflict);
@@ -130,7 +147,7 @@ export function reviewLaborReport(target: LaborReport, dayReports: LaborReport[]
       }
     }
     if ((p.hours ?? 0) + otherHours > 24) blockers.push(`${p.name}: oltre 24 ore dichiarate nella giornata, considerando gli altri rapportini.`);
-    const rate = showCosts && p.employee ? reviewHourlyCost(p.employee) : null;
+    const rate = showCosts && p.employee ? reviewHourlyCost(p.employee, parametri) : null;
     const cost = !showCosts ? null : p.hours === 0 ? 0 :
       p.hours != null && p.hours > 0 && rate?.amount != null ? laborLineCost(p.hours, rate.amount) : null;
     if (showCosts && p.kind === "employee" && (p.hours ?? 0) > 0 && rate?.amount == null) {

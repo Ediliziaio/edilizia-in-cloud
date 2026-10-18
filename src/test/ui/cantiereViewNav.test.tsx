@@ -28,14 +28,14 @@ afterEach(cleanup);
 describe("viste del cantiere", () => {
   it("gli stessi pulsanti su desktop e mobile controllano vista e cronologia", () => {
     mount("?tab=cantiere&from=agenda");
-    fireEvent.click(screen.getByRole("button", { name: "Squadra e mezzi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ore e persone" }));
     expect(screen.getByRole("heading")).toHaveTextContent("Contenuto squadra");
-    expect(screen.getByRole("button", { name: "Squadra e mezzi" })).toHaveAttribute("aria-current", "page");
-    fireEvent.click(screen.getByRole("button", { name: "Collaudo" }));
+    expect(screen.getByRole("button", { name: "Ore e persone" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "Consegna e assistenza" }));
     expect(screen.getByRole("heading")).toHaveTextContent("Contenuto collaudo");
     expect(screen.getByLabelText("URL corrente")).toHaveTextContent("from=agenda&vista_cantiere=collaudo");
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
-    expect(screen.getByRole("button", { name: "Squadra e mezzi" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Ore e persone" })).toHaveAttribute("aria-current", "page");
   });
   it("un collegamento diretto prevale sulla vista memorizzata e apre i dettagli", async () => {
     mount("?tab=cantiere&vista_cantiere=squadra#section-diario");

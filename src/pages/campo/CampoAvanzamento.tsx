@@ -14,7 +14,10 @@
  *
  * Permessi: la policy "Campo workers can update phases of assigned orders"
  * (USING + WITH CHECK su order_campo_assignments OR order_employees) copre
- * sia l'operaio sia il subappaltatore → nessun gate applicativo necessario.
+ * sia l'operaio sia il subappaltatore. Chi spunta lo decide l'azienda
+ * (Impostazioni → Fasi): la stessa regola che il database applica alle
+ * sottofasi vale qui anche per la fase, così lo schermo offre solo le spunte
+ * che vanno a buon fine.
  */
 import { useMemo, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
@@ -32,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { puoSpuntareInCantiere, chiSpuntaValido, type ChiSpunta } from "@/lib/orders/chiSpunta";
 import { faseHaSottofasi, messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
@@ -154,6 +158,41 @@ export default function CampoAvanzamento() {
   });
   const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiQuery.data ?? []), [sottofasiQuery.data]);
 
+  // Regola dell'azienda e, se serve, il mio ruolo e le mie fasi in ogni cantiere.
+  // Se la lettura fallisce si resta su «tutti»: decide comunque il database.
+  const permessiQuery = useQuery({
+    queryKey: ["campo-avanzamento-permessi", companyId, user?.id, orderIds.join(",")],
+    queryFn: async (): Promise<{ regola: ChiSpunta; perOrdine: Map<string, { ruolo: { capocantiere?: boolean; esiste_capo?: boolean } | null; mieFasi: Set<string> }> }> => {
+      const perOrdine = new Map<string, { ruolo: { capocantiere?: boolean; esiste_capo?: boolean } | null; mieFasi: Set<string> }>();
+      const { data: regolaDb, error } = await db.rpc("fasi_regola_chi_spunta", { p_company_id: companyId });
+      if (error) throw error;
+      const regola = chiSpuntaValido(regolaDb);
+      if (regola === "tutti") return { regola, perOrdine };
+      await Promise.all(orderIds.map(async (id) => {
+        const [ruoloRes, fasiRes] = await Promise.all([
+          db.rpc("campo_mio_ruolo", { p_order_id: id }),
+          regola === "chi_la_fa" ? db.rpc("campo_mie_fasi", { p_order_id: id }) : Promise.resolve({ data: [], error: null }),
+        ]);
+        const mieFasi = new Set<string>();
+        for (const e of (Array.isArray(fasiRes.data) ? fasiRes.data : []) as Array<{ id?: string; tu?: boolean; squadra?: string | null }>) {
+          if (e.id && (e.tu || (e.squadra ?? "") !== "")) mieFasi.add(e.id);
+        }
+        perOrdine.set(id, { ruolo: ruoloRes.error ? null : ruoloRes.data ?? null, mieFasi });
+      }));
+      return { regola, perOrdine };
+    },
+    enabled: !!user?.id && !!companyId && orderIds.length > 0,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const puoSpuntare = (fase: Fase): boolean => {
+    const p = permessiQuery.data;
+    if (!p || p.regola === "tutti") return true;
+    const o = p.perOrdine.get(fase.order_id);
+    if (!o || !o.ruolo) return true;
+    return puoSpuntareInCantiere(p.regola, o.ruolo, o.mieFasi.has(fase.id));
+  };
+
   const segnaSottofase = useMutation({
     mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
       const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
@@ -185,11 +224,13 @@ export default function CampoAvanzamento() {
   const toggleFase = useMutation({
     mutationFn: async (fase: Fase) => {
       const completata = fase.status === "completata";
+      // Riaprire non inventa un avanzamento: la percentuale resta, la aggiorna il prossimo rapportino
+      // o l'ufficio (come la riapertura dall'ufficio).
       const { error } = await supabase
         .from("order_work_phases")
         .update(
           completata
-            ? { status: "in_corso", percentuale: 50, completata_da: null, completata_il: null }
+            ? { status: "in_corso", completata_da: null, completata_il: null }
             : { status: "completata", percentuale: 100, completata_da: user!.id, completata_il: new Date().toISOString() },
         )
         .eq("id", fase.id);
@@ -329,19 +370,21 @@ export default function CampoAvanzamento() {
                 const busy = uploadingFaseId === fase.id;
                 const sotto = sottofasiDi.get(fase.id) ?? [];
                 const derivata = faseHaSottofasi(sotto);
+                const spunta = puoSpuntare(fase);
                 return (
                   <li key={fase.id} className="p-3">
                     <div className="flex items-start gap-3">
                       <button
                         type="button"
                         onClick={() => toggleFase.mutate(fase)}
-                        disabled={toggleFase.isPending || derivata}
+                        disabled={toggleFase.isPending || derivata || !spunta}
                         aria-label={
                           derivata
                             ? `${fase.name}: si completa spuntando le sottofasi`
+                            : !spunta ? `${fase.name}: la segna il capocantiere`
                             : done ? `Riapri la fase ${fase.name}` : `Segna ${fase.name} come completata`
                         }
-                        className="mt-0.5 shrink-0"
+                        className={cn("mt-0.5 shrink-0", !spunta && "opacity-50")}
                       >
                         {done ? (
                           <CheckCircle2 className="h-6 w-6 text-emerald-600" />
@@ -383,6 +426,13 @@ export default function CampoAvanzamento() {
                           )}
                         </div>
 
+                        {!spunta && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {permessiQuery.data?.regola === "chi_la_fa"
+                              ? "La segna chi fa questa fase, o il capocantiere."
+                              : "La segna il capocantiere."}
+                          </p>
+                        )}
                         {derivata && (
                           <ul className="mt-2 space-y-0.5" aria-label={`Sottofasi di ${fase.name}`}>
                             {sotto.map((s) => (
@@ -390,7 +440,7 @@ export default function CampoAvanzamento() {
                                 <label className="flex min-h-11 items-center gap-2.5 text-sm">
                                   <Checkbox
                                     checked={s.fatta}
-                                    disabled={segnaSottofase.isPending}
+                                    disabled={segnaSottofase.isPending || !spunta}
                                     onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
                                     aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
                                   />

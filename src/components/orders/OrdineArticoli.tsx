@@ -88,6 +88,7 @@ export function OrdineArticoli({
             // Qui una riga salvata non si toglie (il cestino non faceva niente):
             // si elimina da «Modifica commessa».
             allowDelete={false}
+            canViewCosts={canViewCosts}
           />
 
       {showAttachments && <OrderAttachments orderId={orderId} editable={canEditOrders} />}

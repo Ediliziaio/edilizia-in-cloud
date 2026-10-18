@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -153,6 +154,7 @@ function intentLabel(intent: WhatsAppOperationalIntent) {
 export default function OperationalControlPage() {
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const numbersQuery = useWhatsAppNumbersByPurpose();
   const operativoNumbers = numbersQuery.byPurpose.bot_operativo ?? [];
@@ -263,12 +265,16 @@ export default function OperationalControlPage() {
 
   const approveReport = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      // Si approva solo un rapportino inviato (non una bozza del bot né uno respinto), come in commessa.
+      const { data: aggiornati, error } = await supabase
         .from("campo_rapportini")
-        .update({ stato: "approvato", approvato: true, approvato_at: new Date().toISOString() })
+        .update({ stato: "approvato", approvato: true, approvato_at: new Date().toISOString(), approvato_da: user?.id ?? null, pdf_url: null })
         .eq("company_id", companyId!)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("stato", "inviato")
+        .select("id");
       if (error) throw error;
+      if (!aggiornati || aggiornati.length === 0) throw new Error("Non approvato: il rapportino non è più da approvare, oppure non hai il permesso.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-operational-control"] });
@@ -293,7 +299,7 @@ export default function OperationalControlPage() {
   const data = controlQuery.data;
   const openSignals = useMemo(() => (data?.signals ?? []).filter(isOpenSignal), [data?.signals]);
   const reportsToReview = useMemo(
-    () => (data?.reports ?? []).filter((r) => !r.approvato && r.stato !== "approvato"),
+    () => (data?.reports ?? []).filter((r) => r.stato === "inviato"),
     [data?.reports],
   );
   const triagedMessages = useMemo<TriagedMessage[]>(

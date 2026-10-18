@@ -147,9 +147,9 @@ function ManagementOverview({
           <div className="mt-6 grid grid-cols-2 gap-3 2xl:grid-cols-4">
             {([
               { label: "Commesse", value: stats.totalOrders, detail: "nel periodo selezionato", icon: ClipboardList, tone: "blue", isFinance: false },
-              { label: "Venduto periodo", value: formatCurrencyCompact(soldPeriod), detail: "valore commesse nel periodo", icon: Euro, tone: "blue", isFinance: true },
-              { label: "Incassato", value: formatCurrencyCompact(realIncome), detail: "pagamenti segnati sulle commesse", icon: CheckCircle2, tone: "green", isFinance: true },
-              { label: "Da incassare", value: formatCurrencyCompact(pendingRevenue), detail: "residuo coerente col venduto", icon: CircleAlert, tone: "orange", isFinance: true },
+              { label: "Venduto periodo", value: formatCurrencyCompact(soldPeriod), detail: "commesse nel periodo, IVA esclusa", icon: Euro, tone: "blue", isFinance: true },
+              { label: "Incassato", value: formatCurrencyCompact(realIncome), detail: "rate pagate, IVA inclusa", icon: CheckCircle2, tone: "green", isFinance: true },
+              { label: "Da incassare", value: formatCurrencyCompact(pendingRevenue), detail: "rate ancora da pagare, IVA inclusa", icon: CircleAlert, tone: "orange", isFinance: true },
               { label: "Pose / lavori", value: upcomingWorks, detail: "in calendario a breve", icon: CalendarClock, tone: "orange", isFinance: false },
               { label: "Anomalie", value: financialAlerts.length, detail: `${urgentItems.length} materiali · ${stats.openTickets} ticket`, icon: AlertTriangle, tone: operationalIssues > 0 ? "red" : "green", isFinance: false },
             ] as const).filter((item) => !hideFinance || !item.isFinance).map((item) => (

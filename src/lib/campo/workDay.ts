@@ -18,20 +18,51 @@ export function shiftWorkDay(day: string, days: number): string {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
-export function reportDayAllowed(day: string, now = new Date()): boolean {
+/** 0…7 giorni; un valore mancante o strano vale 1 (oggi e ieri). */
+export function giorniIndietroValidi(giorni: unknown): number {
+  const n = typeof giorni === "number" ? giorni : Number.NaN;
+  return Number.isInteger(n) && n >= 0 && n <= 7 ? n : 1;
+}
+
+/**
+ * Giornata ammessa per un rapportino nuovo: da oggi a `giorniIndietro` giorni fa (ora italiana).
+ * Quanti giorni lo decide l'azienda (Impostazioni → Rapportini e presenze); 1 = oggi e ieri.
+ * Lo stesso limite lo applica il database (campo_primo_giorno_ammesso).
+ */
+export function reportDayAllowed(day: string, now = new Date(), giorniIndietro = 1): boolean {
   if (!validWorkDay(day)) return false;
   const today = campoWorkDay(now);
-  return day === today || day === shiftWorkDay(today, -1);
+  return day <= today && day >= shiftWorkDay(today, -giorniIndietroValidi(giorniIndietro));
 }
-export const REPORT_DEADLINE_MESSAGE = "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.";
-export function assertReportDay(day: string, now = new Date()): void {
-  if (!reportDayAllowed(day, now)) throw new Error(REPORT_DEADLINE_MESSAGE);
+/** I giorni che si possono scegliere, dal più recente. */
+export function giorniSceglibili(now = new Date(), giorniIndietro = 1): string[] {
+  const today = campoWorkDay(now);
+  const n = giorniIndietroValidi(giorniIndietro);
+  return Array.from({ length: n + 1 }, (_, i) => shiftWorkDay(today, -i));
+}
+export function messaggioScadenzaRapportino(giorniIndietro = 1): string {
+  const n = giorniIndietroValidi(giorniIndietro);
+  return n === 0
+    ? "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio."
+    : n === 1
+      ? "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio."
+      : `Il rapportino si manda entro ${n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.`;
+}
+export const REPORT_DEADLINE_MESSAGE = messaggioScadenzaRapportino(1);
+export function assertReportDay(day: string, now = new Date(), giorniIndietro = 1): void {
+  if (!reportDayAllowed(day, now, giorniIndietro)) throw new Error(messaggioScadenzaRapportino(giorniIndietro));
 }
 
 /** Midnight in Rome; recompute the offset at the boundary for DST days. */
 export function workDayStart(day: string): Date {
+  return istanteRoma(day, 0, 0);
+}
+
+/** L'istante di «giorno ore:minuti» in ora italiana, giusto anche nei giorni del cambio d'ora. */
+export function istanteRoma(day: string, ore: number, minuti: number): Date {
   if (!validWorkDay(day)) throw new Error("Data del rapportino non valida");
-  const target = Date.parse(`${day}T00:00:00Z`);
+  const hh = String(ore).padStart(2, "0"), mm = String(minuti).padStart(2, "0");
+  const target = Date.parse(`${day}T${hh}:${mm}:00Z`);
   let instant = target;
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit",

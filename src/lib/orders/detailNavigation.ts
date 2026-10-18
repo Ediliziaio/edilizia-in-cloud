@@ -3,7 +3,8 @@ export type OrderDetailTab = "panoramica" | "cantiere" | "articoli" | "finanza";
 export const CANTIERE_VIEWS = [
   { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, responsabili, assegnazioni e mezzi del cantiere." },
   { value: "cronoprogramma", label: "Cronoprogramma", description: "Le fasi nel tempo: date previste e reali, ritardi e avanzamento." },
-  { value: "squadra", label: "Risorse e statistiche", description: "Persone coinvolte, ore registrate e utilizzo dei mezzi. Assegnazioni in Lavorazioni." },
+  { value: "ufficio", label: "Ufficio", description: "Le fasi dell’ufficio: contratto, ordini, pratiche, fatture, con chi le fa." },
+  { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
 ] as const;
@@ -18,6 +19,8 @@ export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
   { value: "articoli", label: "Articoli e misure", description: "Forniture della commessa, quantità e verifica delle misure." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
+  { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },
+  { value: "fatture", label: "Fatture fornitori", description: "Fatture arrivate per questa commessa, collegate o da collegare." },
   { value: "magazzino", label: "Magazzino e seriali", description: "Movimenti dei materiali, matricole e garanzie." },
 ] as const;
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
@@ -30,6 +33,8 @@ export function resolveEconomiaView(search: string, section?: string): EconomiaV
 }
 export function resolveMaterialiView(search: string, section?: string): MaterialiView {
   if (section === "section-acquisti") return "acquisti";
+  if (section === "section-bolle") return "bolle";
+  if (section === "section-fatture-fornitori") return "fatture";
   if (section === "section-magazzino") return "magazzino";
   if (section === "section-materiali") return "articoli";
   return MATERIALI_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_materiali"))?.value ?? "articoli";
@@ -40,6 +45,7 @@ const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-mezzi": "lavorazioni", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
   "section-assistenza": "collaudo", "section-sopralluoghi": "lavorazioni",
+  "section-ufficio": "ufficio",
 };
 export function resolveCantiereView(search: string, section?: string): CantiereView {
   if (section && Object.hasOwn(CANTIERE_SECTIONS, section)) return CANTIERE_SECTIONS[section]!;
@@ -63,7 +69,7 @@ const SECTION_TABS = {
   "section-assistenza": "cantiere",
   "section-sopralluoghi": "cantiere",
   "section-note": "panoramica",
-  "section-ufficio": "panoramica",
+  "section-ufficio": "cantiere",
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
   "section-pianificazione": "cantiere",
@@ -78,6 +84,8 @@ const SECTION_TABS = {
   "section-diario": "cantiere",
   "section-sal": "finanza",
   "section-materiali": "articoli",
+  "section-bolle": "articoli",
+  "section-fatture-fornitori": "articoli",
   "section-acquisti": "articoli",
   "section-magazzino": "articoli",
   "section-varianti": "finanza",

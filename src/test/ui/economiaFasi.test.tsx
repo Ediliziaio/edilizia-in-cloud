@@ -115,7 +115,7 @@ describe("economia delle lavorazioni (la tabella in cima)", () => {
       { id: "r1", phase_id: "f2", quantity: 60, unit_price: 0, discount_percent: 0, purchase_price: 8, standard_cost: null },
       { id: "r2", phase_id: null, quantity: 1, unit_price: 0, discount_percent: 0, purchase_price: 100, standard_cost: null },
     ],
-    assegnazioni: [{ phase_id: "f1", source: "team", cost_preventivo: 6300, cost_consuntivo: 6600 }],
+    assegnazioni: [{ phase_id: "f1", source: "team", cost_preventivo: 6300, cost_consuntivo: 6600, vat_rate: 0 }],
   });
   const riga = (nome: string) => screen.getByRole("rowheader", { name: nome }).closest("tr")!;
 

@@ -155,8 +155,9 @@ describe("nell'app le fasi le scrivono tre file, e il cantiere solo le sue colon
     // Un file nuovo qui: se lo usa il cantiere, ogni colonna che scrive va in
     // v_cantiere (migrazione nuova); se è dell'ufficio, deve chiedere
     // «Ordini e Commesse», altrimenti l'utente vede il bottone e poi un errore.
+    // L'approvazione dei rapportini non scrive più le fasi dal browser: lo fa il database
+    // nella stessa operazione (trigger campo_rapportino_avanzamento_approvato).
     expect(scrivono).toEqual([
-      "src/components/orders/OrdineRapportiniCampo.tsx",
       "src/hooks/useOrderWorkPhases.ts",
       "src/pages/campo/CampoAvanzamento.tsx",
     ]);
@@ -173,19 +174,12 @@ describe("nell'app le fasi le scrivono tre file, e il cantiere solo le sue colon
     expect(pagina).not.toMatch(/\.from\(\s*["']order_work_phases["']\s*\)\s*\.(insert|upsert|delete)\(/);
   });
 
-  it("l'approvazione dei rapportini alza l'avanzamento con colonne del cantiere", () => {
+  it("l'approvazione dei rapportini alza l'avanzamento nel database, nella stessa operazione", () => {
     const pagina = leggi("src/components/orders/OrdineRapportiniCampo.tsx");
-    expect(pagina).toMatch(/\.from\("order_work_phases"\)\.update\(patch\)/);
-    const letterale = pagina.match(/const patch: Record<string, unknown> = \{([^}]*)\};/);
-    expect(letterale).not.toBeNull();
-    const colonne = new Set([
-      ...[...letterale![1].matchAll(/(\w+)\s*:/g)].map((m) => m[1]),
-      ...[...pagina.matchAll(/\bpatch\.(\w+)\s*=/g)].map((m) => m[1]),
-    ]);
-    expect([...colonne].sort()).toEqual(["percentuale", "status", "updated_at"]);
-    expect([...colonne].every((c) => CANTIERE.includes(c))).toBe(true);
-    // E la fa solo chi ha «Ordini e Commesse».
-    expect(pagina).toMatch(/const canApprove = canEditOrders && /);
+    expect(pagina).not.toMatch(/\.from\("order_work_phases"\)\.update/);
+    const migrazione = leggi("supabase/migrations/20281018220000_rapportino_approvato_fasi_insieme.sql");
+    expect(migrazione).toMatch(/greatest\(d\.attuale, d\.dichiarata\)/);
+    expect(migrazione).toMatch(/f\.order_id = new\.order_id and f\.company_id = new\.company_id/);
   });
 
   it("l'ufficio crea le fasi nell'azienda in cui lavora e non sposta azienda o commessa", () => {

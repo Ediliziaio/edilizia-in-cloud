@@ -24,7 +24,7 @@ beforeAll(async () => {
     insert into profiles values ('${u}','${c}'); insert into orders(id,company_id) values('${o}','${c}');
     insert into campo_regole_azienda(company_id,chi_compila) values('${c}','ognuno');
     set test.uid='${u}'; set test.role='{"capocantiere":true,"esiste_capo":true}';`);
-  const sql = readFileSync(resolve(process.cwd(), "supabase/migrations-pending/campo_rapportini_protocollo.sql"), "utf8");
+  const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20281018180000_campo_rapportini_protocollo.sql"), "utf8");
   await db.exec(sql); await db.exec(sql);
 }, 30000);
 afterAll(() => db.close());
@@ -37,7 +37,7 @@ describe("Protocollo rapportini, solo PostgreSQL locale isolato", () => {
     const historical = new PGlite();
     try {
       await historical.exec("create table campo_rapportini(ore_lavorate numeric(4,1)); insert into campo_rapportini values(900.9)");
-      const sql = readFileSync(resolve(process.cwd(), "supabase/migrations-pending/campo_rapportini_protocollo.sql"), "utf8");
+      const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20281018180000_campo_rapportini_protocollo.sql"), "utf8");
       const conversion = sql.match(/alter table public\.campo_rapportini alter column ore_lavorate type numeric\(\d+,\d+\);/)![0];
       await historical.exec(conversion);
       expect((await historical.query("select ore_lavorate::text as ore from campo_rapportini")).rows[0]).toEqual({ ore: "900.90" });
@@ -61,21 +61,43 @@ describe("Protocollo rapportini, solo PostgreSQL locale isolato", () => {
   });
   it("anche dopo la creazione un rapporto cliente non può acquisire ore", async () => {
     await reset(); const r = await insert("lavoro_completato,firma_cliente_url,firma_cliente_nome|true,'firma.png','Cliente'");
+    // Già inviato: dal cantiere non si riscrive affatto.
+    await expect(db.query("update campo_rapportini set ore_lavorate=8 where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "42501" });
+    // Rimandato indietro dall'ufficio: si corregge, ma il collaudo resta senza ore.
+    await db.exec("set test.office='true'"); await db.query("update campo_rapportini set stato='rifiutato' where id=$1", [r.rows[0].id]); await db.exec("set test.office='false'");
     await expect(db.query("update campo_rapportini set ore_lavorate=8 where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "22023" });
     expect((await db.query("select ore_lavorate::text as ore from campo_rapportini")).rows[0]).toEqual({ ore: "0.00" });
+  });
+  it("un rapporto inviato non si riscrive dal cantiere, nemmeno il testo firmato dal cliente; l'ufficio sì", async () => {
+    await reset(); const r = await insert("lavoro_completato,firma_cliente_url,firma_cliente_nome|true,'firma.png','Cliente'");
+    await expect(db.query("update campo_rapportini set descrizione_lavori='Testo cambiato dopo la firma' where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "42501" });
+    await expect(db.query("update campo_rapportini set firma_cliente_nome='Altro nome' where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "42501" });
+    await db.exec("set test.office='true'");
+    await db.query("update campo_rapportini set descrizione_lavori='Corretto dall''ufficio' where id=$1", [r.rows[0].id]);
+    await db.exec("set test.office='false'");
+    expect((await db.query("select descrizione_lavori as d from campo_rapportini where id=$1", [r.rows[0].id])).rows[0]).toEqual({ d: "Corretto dall'ufficio" });
+  });
+  it("una bozza o un rapportino rimandato indietro si correggono ancora dal cantiere", async () => {
+    await reset(); const r = await insert();
+    await db.exec("set test.office='true'"); await db.query("update campo_rapportini set stato='bozza' where id=$1", [r.rows[0].id]); await db.exec("set test.office='false'");
+    await db.query("update campo_rapportini set descrizione_lavori='Bozza completata' where id=$1", [r.rows[0].id]);
+    await db.exec("set test.office='true'"); await db.query("update campo_rapportini set stato='rifiutato' where id=$1", [r.rows[0].id]); await db.exec("set test.office='false'");
+    await db.query("update campo_rapportini set descrizione_lavori='Corretto dopo il rifiuto', stato='inviato' where id=$1", [r.rows[0].id]);
+    expect((await db.query("select descrizione_lavori as d, stato from campo_rapportini where id=$1", [r.rows[0].id])).rows[0]).toEqual({ d: "Corretto dopo il rifiuto", stato: "inviato" });
   });
   it("modificare soltanto le fasi non evita il controllo della scadenza", async () => {
     await reset(); const r = await insert();
     await db.exec("set test.office='true'");
     await db.query("update campo_rapportini set data_lavoro=(now() at time zone 'Europe/Rome')::date-3 where id=$1", [r.rows[0].id]);
     await db.exec("set test.office='false'");
-    await expect(db.query("update campo_rapportini set fasi_lavorate=$2 where id=$1", [r.rows[0].id, JSON.stringify([{ phase_id: o, percentuale: 40 }])])).rejects.toMatchObject({ code: "22023" });
+    // Già inviato e scaduto: bloccato (prima dalla regola «già inviato»).
+    await expect(db.query("update campo_rapportini set fasi_lavorate=$2 where id=$1", [r.rows[0].id, JSON.stringify([{ phase_id: o, percentuale: 40 }])])).rejects.toMatchObject({ code: "42501" });
   });
   it("anche aggiungere foto a un giornaliero scaduto richiede il percorso di correzione", async () => {
     await reset(); const r = await insert(); await db.exec("set test.office='true'");
     await db.query("update campo_rapportini set data_lavoro=(now() at time zone 'Europe/Rome')::date-3 where id=$1", [r.rows[0].id]);
     await db.exec("set test.office='false'");
-    await expect(db.query("update campo_rapportini set foto_urls=array['foto.png'] where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "22023" });
+    await expect(db.query("update campo_rapportini set foto_urls=array['foto.png'] where id=$1", [r.rows[0].id])).rejects.toMatchObject({ code: "42501" });
   });
   it("non duplica le ore dei vecchi rapporti firmati che contenevano anche il giornaliero", async () => {
     await reset(); await db.exec("set test.office='true'"); await insert("lavoro_completato,firma_cliente_url,firma_cliente_nome,ore_lavorate|true,'firma.png','Cliente',8");
@@ -173,6 +195,9 @@ describe("Simulazione matrice ruoli, azienda, assegnazione, giorno e tipo (384 c
     await reset(); await db.exec("set test.office='true'");
     await insert("lavoro_completato,firma_cliente_url,firma_cliente_nome,ore_lavorate|true,'firma.png','Cliente',8");
     await db.exec("set test.office='false'"); const daily = await insert("ore_lavorate|0");
+    await expect(db.query("update campo_rapportini set ore_lavorate=8 where id=$1", [daily.rows[0].id])).rejects.toMatchObject({ code: "42501" });
+    // Anche dopo un rifiuto le ore del vecchio rapporto firmato non si ripetono.
+    await db.exec("set test.office='true'"); await db.query("update campo_rapportini set stato='rifiutato' where id=$1", [daily.rows[0].id]); await db.exec("set test.office='false'");
     await expect(db.query("update campo_rapportini set ore_lavorate=8 where id=$1", [daily.rows[0].id])).rejects.toMatchObject({ code: "22023" });
     expect((await db.query("select ore_lavorate::text as ore from campo_rapportini where id=$1", [daily.rows[0].id])).rows[0]).toEqual({ ore: "0.00" });
   });

@@ -33,13 +33,14 @@ describe("Fasi lavorate — rapportino mobile (CampoRapportino)", () => {
     // quando l'ufficio approva, con GREATEST(attuale, dichiarata).
     const campo = readFileSync(CAMPO_RAPPORTINO, "utf8");
     expect(campo).not.toContain("Math.max(Number(attuale?.percentuale)");
+    // Dal 18/10/2026 le applica il database, nella stessa operazione dell'approvazione.
     const approvazione = readFileSync(
-      "src/components/orders/OrdineRapportiniCampo.tsx",
+      "supabase/migrations/20281018220000_rapportino_approvato_fasi_insieme.sql",
       "utf8",
     );
-    expect(approvazione).toContain("Math.max(Number(attuale.percentuale) || 0, Number(dich.percentuale) || 0)");
-    expect(approvazione).toContain('"completata"');
-    expect(approvazione).toContain('"in_corso"');
+    expect(approvazione).toContain("greatest(d.attuale, d.dichiarata)");
+    expect(approvazione).toContain("'completata'");
+    expect(approvazione).toContain("'in_corso'");
   });
 });
 

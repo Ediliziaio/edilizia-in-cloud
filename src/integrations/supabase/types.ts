@@ -34259,6 +34259,7 @@ export type Database = {
           phone_whatsapp: string | null
           portal_credentials_sent_at: string | null
           portal_user_id: string | null
+          profilo_costo: string | null
           qualifica: string | null
           retribuzione_lorda_annua: number | null
           role_type: string
@@ -34305,6 +34306,7 @@ export type Database = {
           phone_whatsapp?: string | null
           portal_credentials_sent_at?: string | null
           portal_user_id?: string | null
+          profilo_costo?: string | null
           qualifica?: string | null
           retribuzione_lorda_annua?: number | null
           role_type?: string
@@ -34351,6 +34353,7 @@ export type Database = {
           phone_whatsapp?: string | null
           portal_credentials_sent_at?: string | null
           portal_user_id?: string | null
+          profilo_costo?: string | null
           qualifica?: string | null
           retribuzione_lorda_annua?: number | null
           role_type?: string

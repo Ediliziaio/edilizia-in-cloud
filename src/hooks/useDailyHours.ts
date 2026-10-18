@@ -7,15 +7,16 @@ import { refreshWorkQueries } from '@/lib/orders/refreshWorkQueries';
 import { assertDailyHoursCompany, dailyHoursLines, type DailyHoursPerson, type DailyHoursOrder, type DailyHoursRecord } from '@/lib/orders/dailyHours';
 import { oggiRoma } from '@/hooks/useOperai';
 
-export function useDailyHours(orderId?:string) {
+/** `periodo`: da/a espliciti (es. tutta la commessa); senza, il mese scelto con setMonth. */
+export function useDailyHours(orderId?:string, periodo?:{da:string;a:string}) {
  const { effectiveCompany, role }=useAuth(); const p=usePermissions(); const qc=useQueryClient();
  const companyId=effectiveCompany?.id;
  const allowed=!!companyId && !p.isLoading && p.canViewOrders && p.canViewEmployees && p.canViewGiornaleLavori;
  const canEdit=allowed && p.canEditOrders && ['super_admin','company_admin','company_staff'].includes(role ?? '');
  const [month,setMonth]=useState(oggiRoma().slice(0,7));
- const query=useQuery({queryKey:['daily-hours',companyId,orderId,month,p.canViewCosts],enabled:allowed,queryFn:async()=>{
-  const start=month+'-01'; const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
-  const reports=(supabase as any).rpc('ufficio_leggi_ore',{p_order_id:orderId??null,p_da:start,p_a:`${month}-${end}`,p_solo_riepilogo:false});
+ const query=useQuery({queryKey:['daily-hours',companyId,orderId,periodo?`${periodo.da}..${periodo.a}`:month,p.canViewCosts],enabled:allowed,queryFn:async()=>{
+  const start=periodo?.da??month+'-01'; const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
+  const reports=(supabase as any).rpc('ufficio_leggi_ore',{p_order_id:orderId??null,p_da:start,p_a:periodo?.a??`${month}-${end}`,p_solo_riepilogo:false});
   let jobsQuery=supabase.from('orders').select('id,order_code,description').eq('company_id',companyId!).is('deleted_at',null).order('created_at',{ascending:false}).limit(1000);
   if(orderId)jobsQuery=jobsQuery.eq('id',orderId);
   const [people,jobs,rows]=await Promise.all([
@@ -29,7 +30,7 @@ export function useDailyHours(orderId?:string) {
    const employee=(people.data??[]).find(e=>!!row.user_id&&e.user_id===row.user_id);
    return employee?{...row,presenze:[{employee_id:employee.id,ore:Number(row.ore_lavorate??0)+Number(row.ore_straordinario??0)}]}:row;
   });
-  const employees=(people.data??[]).map(e=>({id:e.id,name:[e.first_name,e.last_name].filter(Boolean).join(' '),active:e.is_active}));
+  const employees=(people.data??[]).map(e=>({id:e.id,userId:e.user_id,name:[e.first_name,e.last_name].filter(Boolean).join(' '),active:e.is_active}));
   return {people:employees as DailyHoursPerson[],activePeople:employees.filter(e=>e.active) as DailyHoursPerson[],orders:(jobs.data??[]).map(o=>({id:o.id,name:[o.order_code,o.description].filter(Boolean).join(' · ')})) as DailyHoursOrder[],lines:dailyHoursLines(normalized)};
  }});
  const refresh=async(id?:string)=>{if(id)refreshWorkQueries(qc,id,companyId); await Promise.all(['daily-hours','hr-labor-reconciliation','hr-giornate'].map(k=>qc.invalidateQueries({queryKey:[k]})));};

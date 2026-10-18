@@ -62,7 +62,7 @@ describe("economia di ogni fase", () => {
       ],
       assegnazioni: [
         persona({ cost_preventivo: 200, cost_consuntivo: 260 }),
-        persona({ source: "team", cost_preventivo: 150, cost_consuntivo: 100 }),
+        persona({ source: "team", cost_preventivo: 150, cost_consuntivo: 100, vat_rate: 0 }),
       ],
       acquisti: [{ order_item_id: "r1", line_total: 420 }],
       movimenti: [],
@@ -131,5 +131,13 @@ describe("economia di ogni fase", () => {
     expect(totaleFasi.venduto).toBe(100.1);
     expect(totaleFasi.costoPrevisto).toBe(30.3);
     expect(totaleFasi.costoConsuntivo).toBe(0.2);
+  });
+  it("le ditte, scritte IVA inclusa, si confrontano col venduto senza IVA (22% se manca)", () => {
+    const { perFase } = economiaFasi({ fasi: [{ id: "f1", name: "Posa", importo_venduto: 1000 }], righe: [], assegnazioni: [
+      persona({ source: "team", cost_preventivo: 1220, cost_consuntivo: 610 }),
+    ] } as never);
+    const f = perFase.get("f1")!;
+    expect(f.previsto.ditte).toBeCloseTo(1000, 2);
+    expect(f.consuntivo.ditte).toBeCloseTo(500, 2);
   });
 });

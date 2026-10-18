@@ -51,9 +51,32 @@ describe("Menu App: senza le voci già in barra e senza ricerca", () => {
   });
 
   it("le voci che servono ci sono ancora", () => {
-    for (const voce of ["Attività", "Rapportino vocale", "Avanzamento", "Presenze", "Cedolini", "Documenti", "Apri Ticket"]) {
+    for (const voce of ["Attività", "Avanzamento", "Merce presa", "Presenze", "Cedolini", "Documenti", "Apri Ticket"]) {
       expect(menu, voce).toContain(`label: "${voce}"`);
     }
     expect(menu).not.toContain('url: "/campo/sicurezza"');
+  });
+
+  it("il rapportino non ha una voce doppia: si scrive dal cantiere (e lì si detta a voce)", () => {
+    expect(menu).not.toContain('label: "Rapportino vocale"');
+    expect(leggi("src/components/layouts/CampoLayout.tsx")).not.toContain('title: "Rapportino Vocale"');
+  });
+});
+
+describe("Un menu solo: niente griglie che ripetono il menu", () => {
+  it("la Home non ha più le «Azioni rapide» (stavano già nel menu Altro e nella sidebar)", () => {
+    const home = leggi("src/pages/campo/CampoHome.tsx");
+    expect(home).not.toContain("<AccesaoRapido");
+    expect(home).not.toContain("Azioni rapide</p>");
+  });
+
+  it("la barra in basso dice cosa c'è dentro: «Altro», non «App»", () => {
+    const barra = leggi("src/components/campo/CampoBottomNav.tsx");
+    expect(barra).toContain('label: "Altro"');
+    expect(barra).not.toContain('label: "App"');
+  });
+
+  it("Merce presa resta raggiungibile anche da desktop (sidebar), ora che la Home non la ripete", () => {
+    expect(leggi("src/components/layouts/CampoLayout.tsx")).toContain('title: "Merce presa", url: "/campo/merce"');
   });
 });

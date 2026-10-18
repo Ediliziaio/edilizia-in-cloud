@@ -7,6 +7,11 @@ import { addDays, addMonths, differenceInCalendarDays, endOfDay, format, startOf
 import type { CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
 import { queryKeys } from "@/lib/queryKeys";
 import { getDateRange } from "@/lib/dateRangeUtils";
+import { buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { incassiDellaCommessa } from "@/lib/orders/incassiCommessa";
+import { readAllOrderRows } from "@/lib/orders/listScope";
+import { variantiApprovateDatate } from "@/lib/orders/contractValue";
+import type { VarianteDatata } from "@/lib/commissions";
 
 export interface RecentOrder {
   id: string;
@@ -101,6 +106,18 @@ type DashboardFinancialOrderRow = {
   balance_paid: boolean | null;
   financing_amount: number | null;
   financing_paid: boolean | null;
+  payment_type?: string | null;
+  financing_cost?: number | null;
+};
+
+/** Rata letta per il riepilogo: quanto basta a incassiDellaCommessa. */
+export type DashboardInstallmentRow = {
+  type: string;
+  position: number | null;
+  amount: number | null;
+  is_paid: boolean | null;
+  paid_date?: string | null;
+  fattura?: { id: string; importo_pagato?: number | string | null } | null;
 };
 
 type DashboardCostRow = {
@@ -188,10 +205,12 @@ function getMonthKey(value: string | Date | null | undefined) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function buildMonthBuckets(from: Date, to: Date) {
+/** Mesi del grafico: al massimo gli ultimi 18, che finiscono col mese di `to` (con «Sempre» `from` è il 2000). */
+export function buildMonthBuckets(from: Date, to: Date) {
   const buckets: Array<{ key: string; month: string; entrate: number; uscite: number; realEntrate: number; realUscite: number }> = [];
-  let cursor = startOfMonth(from);
   const end = startOfMonth(to);
+  const primoUtile = addMonths(end, -17);
+  let cursor = startOfMonth(from) > primoUtile ? startOfMonth(from) : primoUtile;
 
   while (cursor <= end && buckets.length < 18) {
     const key = getMonthKey(cursor)!;
@@ -206,47 +225,39 @@ function buildMonthBuckets(from: Date, to: Date) {
 }
 
 /**
- * Calcola gli importi normalizzati di un ordine usando UNA singola fonte
- * di verità. Strategia (P1.1 fix):
+ * Importi di una commessa per il riepilogo: la stessa regola della scheda
+ * commessa (incassiDellaCommessa), tutto IVA inclusa.
  *
- *  - `commercialTotal` = `orders.total_amount` (campo commerciale).
- *  - `collected` = somma `order_installments.amount` con `is_paid = true`,
- *    fornita dal chiamante via `paidInstallmentsByOrder`. Se per quell'ordine
- *    non ci sono righe in `order_installments`, fallback ai flag legacy
- *    (`deposit_paid` / `deposit_2_paid` / `balance_paid` / `financing_paid`)
- *    moltiplicati per il rispettivo importo legacy, **clampato** a
- *    `commercialTotal` per non eccedere mai il totale.
- *  - `due` = `max(0, commercialTotal - collected)`.
- *
- *  Le vecchie colonne `deposit_amount/balance_amount/financing_amount` non
- *  vengono più sommate al totale: erano fonte di gonfiature 3-4× quando
- *  contenevano valori storici inconsistenti col `total_amount`.
+ *  - `commercialTotal` = `orders.total_amount` (imponibile, valore commerciale).
+ *  - `collected` = incassato IVA inclusa dalle rate (`order_installments`);
+ *    se la commessa non ha rate, dalle colonne-riassunto legacy (anch'esse lorde).
+ *  - `due` = totale IVA inclusa, meno l'eventuale costo della finanziaria,
+ *    meno l'incassato.
  */
-function getNormalizedOrderAmounts(
+export function getNormalizedOrderAmounts(
   order: DashboardFinancialOrderRow,
-  paidInstallmentsByOrder?: Map<string, number>,
-  hasInstallmentsByOrder?: Set<string>,
+  installmentsByOrder?: Map<string, DashboardInstallmentRow[]>,
+  variazioniApprovate = 0,
+  /** Le stesse varianti con la data: il saldo pagato conta quelle fino al pagamento. */
+  varianti?: ReadonlyArray<VarianteDatata>,
 ) {
-  const commercialTotal = Number(order.total_amount || 0);
+  // Contratto più varianti approvate, come la scheda della commessa (agreedContractValue).
+  const commercialTotal = Math.round((Number(order.total_amount || 0) + (Number(variazioniApprovate) || 0)) * 100) / 100;
+  const rate = installmentsByOrder?.get(order.id);
+  const installments = (rate && rate.length > 0
+    ? rate.map((r, i) => ({ ...r, position: r.position ?? i, amount: Number(r.amount || 0), is_paid: !!r.is_paid }))
+    : buildInstallmentsFromLegacy(order)) as Parameters<typeof incassiDellaCommessa>[0]["installments"];
+  const incassi = incassiDellaCommessa({
+    installments,
+    totalAmount: commercialTotal,
+    // IVA non indicata: 22%, come nel resto della scheda commessa.
+    vatRate: order.vat_rate == null ? Number.NaN : Number(order.vat_rate),
+    paymentType: order.payment_type,
+    financingCost: order.financing_cost,
+    varianti,
+  });
 
-  let collected = 0;
-  if (hasInstallmentsByOrder?.has(order.id)) {
-    collected = paidInstallmentsByOrder?.get(order.id) ?? 0;
-  } else {
-    // Fallback legacy: usa i flag *_paid solo se un ordine non ha installments.
-    const legacyPaid =
-      (order.deposit_paid ? Number(order.deposit_amount || 0) : 0) +
-      (order.deposit_2_paid ? Number(order.deposit_2_amount || 0) : 0) +
-      (order.balance_paid ? Number(order.balance_amount || 0) : 0) +
-      (order.financing_paid ? Number(order.financing_amount || 0) : 0);
-    collected = legacyPaid;
-  }
-
-  // Clamp per evitare collected > commercialTotal su dati legacy inconsistenti.
-  collected = Math.min(collected, commercialTotal);
-  const due = Math.max(0, commercialTotal - collected);
-
-  return { commercialTotal, collected, due };
+  return { commercialTotal, collected: incassi.incassatoLordo, due: incassi.daIncassareLordo };
 }
 
 function orderLabel(order: Pick<DashboardOrderAgendaRow, "order_code" | "description">) {
@@ -360,66 +371,88 @@ export function useCompanyDashboardData() {
         };
       }
 
-      let ordersQuery = supabase
-        .from("orders")
-        .select(`
-          id,
-          customer_id,
-          created_at,
-          current_status_id,
-          total_amount,
-          vat_rate,
-          deposit_amount,
-          deposit_paid,
-          deposit_2_amount,
-          deposit_2_paid,
-          balance_amount,
-          balance_paid,
-          financing_amount,
-          financing_paid
-        `)
-        .eq("company_id", companyId)
-        .is("deleted_at", null)
-        .gte("created_at", dateRange.from.toISOString())
-        .lte("created_at", dateRange.to.toISOString())
-        .abortSignal(signal);
+      // A pagine anche le commesse: oltre le 1.000 righe PostgREST tronca e i totali sarebbero parziali.
+      const ordersQuery = readAllOrderRows<DashboardFinancialOrderRow>((da, a) => {
+        let query = supabase
+          .from("orders")
+          .select(`
+            id,
+            customer_id,
+            created_at,
+            current_status_id,
+            total_amount,
+            vat_rate,
+            deposit_amount,
+            deposit_paid,
+            deposit_2_amount,
+            deposit_2_paid,
+            balance_amount,
+            balance_paid,
+            financing_amount,
+            financing_paid,
+            payment_type,
+            financing_cost
+          `)
+          .eq("company_id", companyId)
+          .is("deleted_at", null)
+          .gte("created_at", dateRange.from.toISOString())
+          .lte("created_at", dateRange.to.toISOString());
+        if (filters.statusId) query = query.eq("current_status_id", filters.statusId);
+        return query.order("id").range(da, a).abortSignal(signal) as unknown as PromiseLike<{ data: DashboardFinancialOrderRow[] | null; error: unknown }>;
+      });
 
-      if (filters.statusId) ordersQuery = ordersQuery.eq("current_status_id", filters.statusId);
-
-      const costsQuery = supabase
+      // A pagine: oltre le 1.000 righe PostgREST tronca e il grafico perderebbe uscite.
+      const costsQuery = readAllOrderRows<DashboardCostRow>((da, a) => supabase
         .from("company_costs")
-        .select("amount, due_date")
+        .select("id, amount, due_date")
         .eq("company_id", companyId)
         .gte("due_date", format(dateRange.from, "yyyy-MM-dd"))
         .lte("due_date", format(dateRange.to, "yyyy-MM-dd"))
-        .abortSignal(signal);
+        .order("id")
+        .range(da, a)
+        .abortSignal(signal) as unknown as PromiseLike<{ data: DashboardCostRow[] | null; error: unknown }>);
 
-      const [ordersResult, costsResult] = await Promise.all([ordersQuery, costsQuery]);
-
-      if (ordersResult.error) throw ordersResult.error;
-      if (costsResult.error) throw costsResult.error;
-
-      const orders = (ordersResult.data || []) as DashboardFinancialOrderRow[];
-      const costs = (costsResult.data || []) as DashboardCostRow[];
+      const [orders, costs] = await Promise.all([ordersQuery, costsQuery]);
 
       // Carica le rate dagli order_installments solo per gli ordini in finestra.
       const orderIds = orders.map((o) => o.id);
-      const paidInstallmentsByOrder = new Map<string, number>();
-      const hasInstallmentsByOrder = new Set<string>();
+      const installmentsByOrder = new Map<string, DashboardInstallmentRow[]>();
+      const variazioniByOrder = new Map<string, number>();
+      const variantiByOrder = new Map<string, VarianteDatata[]>();
       if (orderIds.length > 0) {
-        const { data: installments, error: instErr } = await supabase
-          .from("order_installments")
-          .select("order_id, amount, is_paid")
-          .in("order_id", orderIds)
-          .abortSignal(signal);
-        if (instErr) throw instErr;
-        for (const inst of installments ?? []) {
+        const lotti: string[][] = [];
+        for (let i = 0; i < orderIds.length; i += 100) lotti.push(orderIds.slice(i, i + 100));
+        const [rateLotti, variazioniLotti] = await Promise.all([
+          Promise.all(lotti.map((ids) => readAllOrderRows<DashboardInstallmentRow & { order_id: string | null }>((da, a) => supabase
+            .from("order_installments")
+            .select("id, order_id, type, position, amount, is_paid, paid_date, fattura:documenti_fiscali(id, importo_pagato)")
+            .in("order_id", ids)
+            .order("id")
+            .range(da, a)
+            .abortSignal(signal) as unknown as PromiseLike<{ data: Array<DashboardInstallmentRow & { order_id: string | null }> | null; error: unknown }>))),
+          Promise.all(lotti.map((ids) => readAllOrderRows<{ order_id: string; status: string; impatto_economico: number | string | null; offline_signed_on: string | null; firmato_il: string | null; approval_recorded_at: string | null; richiesto_il: string | null; created_at: string | null }>((da, a) => supabase
+            .from("ordini_variazione")
+            .select("id, order_id, status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at")
+            .eq("company_id", companyId)
+            .in("order_id", ids)
+            .order("id")
+            .range(da, a)
+            .abortSignal(signal) as unknown as PromiseLike<{ data: Array<{ order_id: string; status: string; impatto_economico: number | string | null; offline_signed_on: string | null; firmato_il: string | null; approval_recorded_at: string | null; richiesto_il: string | null; created_at: string | null }> | null; error: unknown }>))),
+        ]);
+        for (const v of variazioniLotti.flat()) {
+          const importo = Number(v.impatto_economico ?? 0);
+          if (v.status !== "approvato" || !Number.isFinite(importo)) continue;
+          variazioniByOrder.set(v.order_id, (variazioniByOrder.get(v.order_id) ?? 0) + importo);
+          const elenco = variantiByOrder.get(v.order_id) ?? [];
+          elenco.push(...variantiApprovateDatate([v]));
+          variantiByOrder.set(v.order_id, elenco);
+        }
+        const installments = rateLotti.flat();
+        for (const inst of installments) {
           if (!inst.order_id) continue;
-          hasInstallmentsByOrder.add(inst.order_id);
-          if (inst.is_paid) {
-            const prev = paidInstallmentsByOrder.get(inst.order_id) ?? 0;
-            paidInstallmentsByOrder.set(inst.order_id, prev + Number(inst.amount || 0));
-          }
+          const elenco = installmentsByOrder.get(inst.order_id) ?? [];
+          elenco.push(inst);
+          installmentsByOrder.set(inst.order_id, elenco);
         }
       }
 
@@ -434,7 +467,7 @@ export function useCompanyDashboardData() {
 
       for (const order of orders) {
         if (order.customer_id) customerIds.add(order.customer_id);
-        const amounts = getNormalizedOrderAmounts(order, paidInstallmentsByOrder, hasInstallmentsByOrder);
+        const amounts = getNormalizedOrderAmounts(order, installmentsByOrder, variazioniByOrder.get(order.id) ?? 0, variantiByOrder.get(order.id));
         totalRevenue += amounts.commercialTotal;
         collectedRevenue += amounts.collected;
         pendingRevenue += amounts.due;

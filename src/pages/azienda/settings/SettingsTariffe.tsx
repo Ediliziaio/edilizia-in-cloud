@@ -80,6 +80,7 @@ import { NotaMargine } from "./SettingsTariffe/NotaMargine";
 import { categoriaPrezzarioTariffa } from "@/lib/prezzario/catalogo";
 import { costoTariffaConosciuto, formatPrezzoUnitario, prezzoMinimoPerMargine, semaforoMargineTariffa as margineSemaforo } from "@/lib/tariffe/economiaTariffa";
 import { dipendentePerCostoLavorazione } from "@/lib/tariffe/costoDipendente";
+import { leggiParametriCosto } from "@/hooks/useParametriCostoPersonale";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1803,9 +1804,10 @@ export default function SettingsTariffe() {
     enabled: !!companyId && dialogOpen && isAdmin && permissions.canViewEmployees && permissions.canViewCosts,
     staleTime: 60_000,
     queryFn: async () => {
-      const data = await loadCatalogPages<DipendenteCostoLavorazione & { gross_salary?: number | null; monthly_hours?: number | null; inps_rate?: number | null }>((from, to) => supabase.from("employees")
-        .select("id, first_name, last_name, costo_orario, gross_salary, monthly_hours, inps_rate").eq("company_id", companyId!).eq("is_active", true).order("last_name").order("id").range(from, to));
-      return data.map(dipendentePerCostoLavorazione);
+      const data = await loadCatalogPages<DipendenteCostoLavorazione & { gross_salary?: number | null; monthly_hours?: number | null; inps_rate?: number | null; profilo_costo?: string | null; role_type?: string | null; qualifica?: string | null; area?: string | null }>((from, to) => supabase.from("employees")
+        .select("id, first_name, last_name, costo_orario, gross_salary, monthly_hours, inps_rate, profilo_costo, role_type, qualifica, area").eq("company_id", companyId!).eq("is_active", true).order("last_name").order("id").range(from, to));
+      const parametri = await leggiParametriCosto(companyId!);
+      return data.map((d) => dipendentePerCostoLavorazione(d, parametri));
     },
   });
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
-import { calculateCollectedGrossFromInstallments } from "@/lib/commissions";
+import { incassiDellaCommessa } from "@/lib/orders/incassiCommessa";
 // 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
 // su iOS Safari il tasto virgola era bloccato da `type="number"` e
 // parseFloat tagliava il decimale italiano (es. "1.500,50" → 1.500).
@@ -48,6 +48,7 @@ import {
 } from "@/lib/orders/rateEventi";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { quandoSiIncassa } from "@/lib/orders/modelliPagamento";
+import { indiceSaldoFinale, importoSaldoFinale } from "@/lib/orders/saldoFinale";
 import {
   type BonusLine,
   type DatiCausale,
@@ -391,8 +392,11 @@ export function FinancialSummary({
   // Sync raw amount inputs when the installments structure OR their amounts change. Gli importi cambiano
   // da fuori quando si applica un modello di pagamento o cambia il totale: i campi li seguono. Mentre si
   // digita l'importo non cambia (si salva al blur), quindi il testo scritto non viene toccato.
+  // Il saldo finale non ha un campo: è il residuo. I SAL intermedi («balance» non finali) sì.
+  const posSaldoFinaleModulo = installments[indiceSaldoFinale(installments)]?.position ?? null;
+  const isSaldoFinaleModulo = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinaleModulo;
   const installmentsStructureKey = installments
-    .filter(i => i.type !== 'balance')
+    .filter(i => !isSaldoFinaleModulo(i))
     .map(i => `${i.position}:${i.amount}`)
     .join(',');
 
@@ -400,7 +404,7 @@ export function FinancialSummary({
     setRawAmountInputs(() => {
       const newRaw: Record<number, string> = {};
       installments.forEach(i => {
-        if (i.type !== 'balance') {
+        if (!isSaldoFinaleModulo(i)) {
           // Seed in formato IT: `String(1.234)` avrebbe rimesso nel campo una
           // stringa ambigua ("1.234") che al blur successivo verrebbe riletta
           // come 1234. Il numero entra nel campo già disambiguato.
@@ -552,7 +556,8 @@ export function FinancialSummary({
 
   // Render balance section
   const renderBalance = (labelText: string) => {
-    const balanceInst = installments.find(i => i.type === 'balance');
+    // Il saldo finale è l'ULTIMA rata «balance»; i SAL intermedi hanno il loro campo sopra.
+    const balanceInst = installments.find(isSaldoFinaleModulo);
     const balanceShown = balanceInst?.amount_from_contract ? balanceInst.amount : balance;
     return (
       <div className="pt-4 border-t space-y-3">
@@ -715,7 +720,7 @@ export function FinancialSummary({
                   Ritenuta Bonus Edilizio
                 </p>
                 <div className="flex justify-between text-xs">
-                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + vat / 100).toFixed(2)})</span>
+                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + IVA_SCORPORO_BANCA).toFixed(2).replace(".", ",")})</span>
                   <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold">
@@ -773,8 +778,11 @@ export function FinancialSummary({
               </div>
             )}
 
-            {/* Deposit installments */}
-            {installments.filter(i => i.type === 'deposit').map(inst => renderInstallmentInput(inst))}
+            {/* Acconti e SAL intermedi, in ordine di posizione: ognuno col suo importo */}
+            {installments
+              .filter(i => i.type === 'deposit' || (i.type === 'balance' && !isSaldoFinaleModulo(i)))
+              .sort((a, b) => a.position - b.position)
+              .map(inst => renderInstallmentInput(inst))}
 
             {/* Balance */}
             {installments.length > 0 ? renderBalance("Saldo da Pagare") : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.</p>}
@@ -805,6 +813,12 @@ export function FinancialSummary({
             {installments.filter(i => i.type === 'deposit').map(inst =>
               renderInstallmentInput(inst, inst.label + ' (opzionale)')
             )}
+
+            {/* SAL intermedi, ognuno col suo importo */}
+            {installments
+              .filter(i => i.type === 'balance' && !isSaldoFinaleModulo(i))
+              .sort((a, b) => a.position - b.position)
+              .map(inst => renderInstallmentInput(inst))}
 
             {/* Financing amount */}
             {(() => {
@@ -893,20 +907,15 @@ export function FinancialSummaryReadOnly({
   // balance è il saldo calcolato per differenza: le intermedie valgono il LORO
   // importo. Prima ogni riga 'balance' mostrava l'intero residuo e la seconda
   // spariva dalla lista (il render faceva find() della prima e basta).
-  const posSaldoFinale = installments.reduce<number | null>(
-    (acc, i) => (i.type === 'balance' ? Math.max(acc ?? i.position, i.position) : acc),
-    null,
-  );
+  // La regola sta in lib/orders/saldoFinale, la stessa del salvataggio.
+  const posSaldoFinale = installments[indiceSaldoFinale(installments)]?.position ?? null;
   const isSaldoFinale = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinale;
-  const sommaAltreRate = installments
-    .filter(i => !isSaldoFinale(i))
-    .reduce((sum, i) => sum + i.amount, 0);
-  const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - financingCostValue);
+  const balanceAmount = importoSaldoFinale(installments, totalWithVat, financingCostValue);
   const importoRata = (i: Installment) => (isSaldoFinale(i) ? balanceAmount : i.amount);
-  const collectedAmount = calculateCollectedGrossFromInstallments({
-    installments, totalAmount, vatRate, financingCost: financingCostValue, includeFinancing: true,
-  });
-  const dueAmount = Math.max(0, totalWithVat - financingCostValue - collectedAmount);
+  // Stessa regola di intestazione e conto economico (incassiDellaCommessa).
+  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost });
+  const collectedAmount = incassi.incassatoLordo;
+  const dueAmount = incassi.daIncassareLordo;
 
   const formatPaymentDate = (dateStr?: string | null) => {
     if (!dateStr) return null;

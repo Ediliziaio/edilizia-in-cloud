@@ -8,8 +8,8 @@ import type { RegoleCampo } from "@/lib/campo/regoleCampo";
 const state = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "utente" }, profile: { company_id: "azienda" } }) }));
-const salvate = { chi_compila: "ore_proprie", ore_dalle: "timbrature", avviso_scostamento_minuti: 45, scelte_fatte: true };
-const regole: RegoleCampo = { chiCompila: "ore_proprie", oreDalle: "timbrature", avvisoScostamentoMinuti: 45 };
+const salvate = { chi_compila: "ore_proprie", ore_dalle: "timbrature", avviso_scostamento_minuti: 45, giorni_indietro_rapportino: 3, scelte_fatte: true };
+const regole: RegoleCampo = { chiCompila: "ore_proprie", oreDalle: "timbrature", avvisoScostamentoMinuti: 45, giorniIndietro: 3 };
 function contesto() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
@@ -31,7 +31,7 @@ describe("Persistenza delle regole aziendali", () => {
     const { wrapper } = contesto();
     const { result } = renderHook(() => useRegoleAzienda("azienda"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual({ regole: { chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null }, sceltaFatta: false });
+    expect(result.current.data).toEqual({ regole: { chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null, giorniIndietro: 1 }, sceltaFatta: false });
   });
   it("una lettura Campo fallita resta un errore, senza cambiare il flusso in ognuno", async () => {
     state.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Lettura negata" } });
@@ -50,7 +50,7 @@ describe("Persistenza delle regole aziendali", () => {
     const invio = result.current.mutateAsync(regole);
     await waitFor(() => expect(qc.getQueryData(["campo-regole-azienda", "azienda"])).toEqual({ regole, sceltaFatta: true }));
     expect(state.rpc).toHaveBeenCalledWith("campo_regole_azienda_salva", {
-      p_company_id: "azienda", p_chi_compila: "ore_proprie", p_ore_dalle: "timbrature", p_avviso_minuti: 45,
+      p_company_id: "azienda", p_chi_compila: "ore_proprie", p_ore_dalle: "timbrature", p_avviso_minuti: 45, p_giorni_indietro: 3,
     });
     expect(result.current.isPending).toBe(true);
     expect(invalida).toHaveBeenCalledWith({ queryKey: ["campo-regole-ordine"] });

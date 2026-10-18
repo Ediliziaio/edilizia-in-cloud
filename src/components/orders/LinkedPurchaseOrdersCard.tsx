@@ -26,6 +26,10 @@ import {
   ODA_STATUS_COLORS as STATUS_COLORS,
 } from "@/lib/odaStatus";
 
+/** Bolle arrivate: ricevute, già controllate o con merce non conforme (comunque arrivate). */
+const ddtArrivati = (a: { ricevuti: number; verificati: number; non_conformi: number }) =>
+  a.ricevuti + a.verificati + a.non_conformi;
+
 interface LinkedPurchaseOrdersCardProps {
   orderId: string;
   orderCode?: string | null;
@@ -145,15 +149,16 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                           <Badge
                             variant="outline"
                             className={`text-[10px] gap-1 ${
-                              ddtAgg.ricevuti === ddtAgg.total
-                                ? "border-green-300 text-green-700 bg-green-50"
-                                : ddtAgg.parziali > 0
+                              ddtAgg.parziali > 0 || ddtAgg.non_conformi > 0
                                 ? "border-amber-300 text-amber-700 bg-amber-50"
+                                : ddtArrivati(ddtAgg) === ddtAgg.total
+                                ? "border-green-300 text-green-700 bg-green-50"
                                 : "border-muted-foreground/30 text-muted-foreground"
                             }`}
+                            title={ddtAgg.non_conformi > 0 ? `${ddtAgg.non_conformi} non conformi` : undefined}
                           >
                             <FileCheck className="h-2.5 w-2.5" />
-                            {ddtAgg.ricevuti}/{ddtAgg.total} DDT
+                            {ddtArrivati(ddtAgg)}/{ddtAgg.total} DDT arrivati
                           </Badge>
                         )}
                       </div>

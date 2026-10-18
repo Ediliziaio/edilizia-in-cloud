@@ -13,7 +13,9 @@ export function useOrderMaterialUsage(companyId: string | null | undefined, orde
       const [moves, reports] = await Promise.all([
         allPaymentRows((from, to) => supabase.from('warehouse_movements')
           .select('id,stock_item_id,movement_type,quantity,unit_cost').eq('company_id', companyId!)
-          .eq('order_id', orderId).order('id').range(from, to)),
+          .eq('order_id', orderId)
+          // gli arrivi da ordine d'acquisto non sono resi dal cantiere
+          .or('movement_type.eq.scarico,rientro_commessa.is.true').order('id').range(from, to)),
         allPaymentRows((from, to) => supabase.from('campo_rapportini')
           .select('id,stato,materiali_usati').eq('company_id', companyId!).eq('order_id', orderId)
           .eq('stato', 'approvato').order('id').range(from, to)),

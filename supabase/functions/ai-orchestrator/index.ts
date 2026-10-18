@@ -806,3 +806,5 @@ serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

@@ -163,6 +163,12 @@ interface OrderItemsListProps {
    * lì si toglie da «Modifica commessa», che salva lato server.
    */
   allowDelete?: boolean;
+  /**
+   * Gli importi di costo (prezzo d'acquisto, listino, acconti e saldi ai
+   * fornitori, costo del magazzino, totale degli ODA). Default sì: chi passa
+   * `false` vede articoli, quantità e stati senza cifre di costo.
+   */
+  canViewCosts?: boolean;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -243,6 +249,7 @@ export function OrderItemsList({
   fallbackCompanyId,
   onAddLabor,
   allowDelete = true,
+  canViewCosts = true,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -689,6 +696,10 @@ export function OrderItemsList({
       const updatedItem = {
         ...existing,
         ...commonFields,
+        // Il prezzo di vendita non si cambia da questa finestra: resta quello della riga
+        // (per esempio quello letto dal contratto), invece di tornare a zero.
+        unit_price: existing.unit_price ?? 0,
+        discount_percent: existing.discount_percent ?? 0,
       };
       if (onItemUpdate && allowEdit) {
         onItemUpdate(updatedItem);
@@ -984,17 +995,17 @@ export function OrderItemsList({
               )}
               <div className="text-xs text-blue-900 space-y-0.5 min-w-0">
                 <div className="font-medium">Dal listino{itemCategoria ? <span className="font-normal"> · {itemCategoria}</span> : null}</div>
-                {itemStandardCost != null && itemStandardCost > 0 && (
+                {canViewCosts && itemStandardCost != null && itemStandardCost > 0 && (
                   <div>Costo base materiale: <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
                 )}
                 {itemManodoperaCosto != null && itemManodoperaCosto > 0 && (
                   <div className="space-y-1.5">
-                    <div>Posa (manodopera): <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</div>
+                    <div>Posa (manodopera){canViewCosts && <>: <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</>}</div>
                     {onAddLabor ? (
                       <div className="space-y-1.5">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <Checkbox checked={addPosa} onCheckedChange={(c) => setAddPosa(c === true)} />
-                          <span>Aggiungi la posa alla <strong>Manodopera</strong> ({formatCurrency(itemManodoperaCosto * (Math.round(Number(itemQuantity)) || 1))} tot.)</span>
+                          <span>Aggiungi la posa alla <strong>Manodopera</strong>{canViewCosts && <> ({formatCurrency(itemManodoperaCosto * (Math.round(Number(itemQuantity)) || 1))} tot.)</>}</span>
                         </label>
                         {addPosa && (
                           <Select value={posaTeamId} onValueChange={setPosaTeamId}>
@@ -1096,6 +1107,8 @@ export function OrderItemsList({
             <Label>Quantità</Label>
             <Input type="number" min="1" value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
+          {/* Costo d'acquisto e listino solo a chi vede i costi: nascosti, i valori restano quelli salvati. */}
+          {canViewCosts && (
           <div className="space-y-2">
             <Label>
               Costo Acquisto
@@ -1120,8 +1133,9 @@ export function OrderItemsList({
               );
             })()}
           </div>
+          )}
         </div>
-        {(() => {
+        {canViewCosts && (() => {
           const qty = Math.round(Number(itemQuantity)) || 0;
           const price = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
           if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0 || price <= 0) return null;
@@ -1247,7 +1261,7 @@ export function OrderItemsList({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="font-semibold text-sm">Acconto ({itemPaymentMethod === "50_50" ? "50%" : "30%"})</Label>
-                  <span className="text-sm font-medium">{formatCurrency(depositAmt)}</span>
+                  {canViewCosts && <span className="text-sm font-medium">{formatCurrency(depositAmt)}</span>}
                 </div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">Pagato</Label>
@@ -1286,7 +1300,7 @@ export function OrderItemsList({
               <div className="space-y-2 border-t pt-3">
                 <div className="flex items-center justify-between">
                   <Label className="font-semibold text-sm">Saldo ({itemPaymentMethod === "50_50" ? "50%" : "70%"})</Label>
-                  <span className="text-sm font-medium">{formatCurrency(balanceAmt)}</span>
+                  {canViewCosts && <span className="text-sm font-medium">{formatCurrency(balanceAmt)}</span>}
                 </div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">Pagato</Label>
@@ -1386,7 +1400,7 @@ export function OrderItemsList({
                 {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; total?: number | null; created_at?: string | null; suppliers?: { name?: string | null } | null }) => {
                   const fornitore = po.suppliers?.name?.trim();
                   const data = po.created_at ? new Date(po.created_at).toLocaleDateString("it-IT") : null;
-                  const meta = [fornitore, po.total != null ? formatCurrency(Number(po.total)) : null, data].filter(Boolean).join(" · ");
+                  const meta = [fornitore, canViewCosts && po.total != null ? formatCurrency(Number(po.total)) : null, data].filter(Boolean).join(" · ");
                   return (
                     <SelectItem key={po.id} value={po.id}>
                       <div className="flex flex-col gap-0.5 py-0.5">
@@ -1491,9 +1505,9 @@ export function OrderItemsList({
             ) as [OrderItemStatus, number][]).map(([status, count]) => (
               <span
                 key={status}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${(STATUS_CONFIG[status] ?? STATUS_CONFIG.da_ordinare).badgeColor}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig(status).badgeColor}`}
               >
-                {count} {(STATUS_CONFIG[status] ?? STATUS_CONFIG.da_ordinare).label}
+                {count} {statusConfig(status).label}
               </span>
             ))}
           </div>
@@ -1683,12 +1697,15 @@ export function OrderItemsList({
                       )}
                       {/* v8.6.35 — Badge data arrivo prevista */}
                       {item.delivery_date && (() => {
-                        const arr = new Date(item.delivery_date);
-                        const now = new Date();
-                        const diffDays = Math.floor((arr.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        // Giorni di calendario in ora locale: «2026-10-19» è il 19 da noi, non la mezzanotte UTC.
+                        const [aa, mm, gg] = item.delivery_date.slice(0, 10).split("-").map(Number);
+                        const arr = new Date(aa, mm - 1, gg);
+                        const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+                        const diffDays = Math.round((arr.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
                         const isPast = diffDays < 0;
                         const isImminent = diffDays >= 0 && diffDays <= 3;
-                        const isInArrival = item.status === "in_arrivo" || item.status === "in_magazzino";
+                        // Merce già in viaggio o arrivata: la data prevista non è più un allarme.
+                        const isInArrival = ["in_arrivo", "in_magazzino", "disponibile", "installato"].includes(item.status);
                         // Highlight giallo se prossima/imminente, rosso se scaduta
                         // e status non è ancora in_arrivo (auto-suggest), grigio normale altrimenti
                         const colorClass = isPast && !isInArrival
@@ -1755,13 +1772,13 @@ export function OrderItemsList({
 
                     {/* Colonna 3 — costo e pagamento, allineati a destra */}
                     <div className="flex min-w-0 flex-col gap-1 text-sm lg:items-end lg:text-right">
-                      {item.purchase_price != null && item.purchase_price > 0 && (
+                      {canViewCosts && item.purchase_price != null && item.purchase_price > 0 && (
                         <p className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                           {formatCurrency(item.purchase_price * item.quantity)}
                           <span className="ml-1 text-xs font-normal text-muted-foreground">IVA {item.vat_rate ?? 22}%</span>
                         </p>
                       )}
-                      {item.standard_cost != null && item.standard_cost > 0 && (() => {
+                      {canViewCosts && item.standard_cost != null && item.standard_cost > 0 && (() => {
                         // Confronto costo STANDARD (da listino) vs REALE (pagato).
                         const realeUnit = item.purchase_price ?? 0;
                         const deltaLine = (realeUnit - item.standard_cost!) * item.quantity;
@@ -1810,7 +1827,7 @@ export function OrderItemsList({
                           <span className="text-xs text-muted-foreground">Modalità: {getPaymentMethodLabel(item.payment_method)}</span>
                         )}
                       </div>
-                      {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
+                      {canViewCosts && (item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
                         <div className="flex flex-col gap-0.5 text-xs text-muted-foreground lg:items-end">
                           <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
                           <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
@@ -2008,7 +2025,7 @@ export function OrderItemsList({
                                             <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
                                               Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
                                             </span>
-                                            <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>
+                                            {canViewCosts && <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>}
                                             {s.tracking_mode === "serialized" && (
                                               <Badge variant="secondary" className="text-[9px] h-4" title="Articolo serializzato — ogni unità ha un codice univoco">SN</Badge>
                                             )}
@@ -2031,7 +2048,7 @@ export function OrderItemsList({
                       return (
                         <div className="space-y-3">
                           <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                            <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>
+                            {canViewCosts && <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>}
                             <div className="flex justify-between"><span>Disponibili:</span><span className="font-medium">{stock.quantity}</span></div>
                             {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
                           </div>
@@ -2042,12 +2059,12 @@ export function OrderItemsList({
                               <p className="text-xs text-destructive">Quantità superiore alla disponibilità</p>
                             )}
                           </div>
-                          <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                          {canViewCosts && <div className="p-3 rounded-lg bg-muted/50 text-sm">
                             <div className="flex justify-between font-medium">
                               <span>Costo totale:</span>
                               <span>{formatCurrency(stock.unit_cost * (parseInt(stockPickQuantity) || 0))}</span>
                             </div>
-                          </div>
+                          </div>}
                         </div>
                       );
                     })()}

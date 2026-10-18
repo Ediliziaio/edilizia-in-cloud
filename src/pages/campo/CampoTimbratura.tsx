@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoDayWindow, campoReportHours, summarizeCampoTime } from "@/lib/campo/timeSummary";
 import { CampoTimbroCard, type TimbroEsito } from "@/components/campo/CampoTimbroCard";
+import { CorrezioneTimbratura } from "@/components/campo/CorrezioneTimbratura";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useCampoSedi } from "@/hooks/campo/useCampoSedi";
 import { costruisciLuoghi, righeTimeline, type RigaTimeline } from "@/lib/campo/luoghi";
-import { campoWorkDay, reportDayAllowed } from "@/lib/campo/workDay";
+import { campoWorkDay, messaggioScadenzaRapportino, reportDayAllowed } from "@/lib/campo/workDay";
+import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 
 type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
 
@@ -101,6 +103,10 @@ function CampoTimbraturaEditor() {
     return byDay;
   }, [storico]);
 
+  // Giorni indietro per il rapportino: li decide l'azienda (come nel rapportino stesso).
+  const regoleUscita = useRegoleCampoOrdine(lastExit?.orderId);
+  const giorniIndietro = regoleUscita.data?.giorniIndietro ?? 1;
+
   const dopoTimbro = (esito: TimbroEsito) => {
     if (esito.tipo === "uscita" && esito.orderId) setLastExit({ orderId: esito.orderId, day: esito.day });
   };
@@ -111,12 +117,14 @@ function CampoTimbraturaEditor() {
     <div className="flex flex-col">
       <div className="px-4 py-4 space-y-4">
         <CampoTimbroCard preferOrderId={linkedOrderId} onPunched={dopoTimbro} />
-        {lastExit && reportDayAllowed(lastExit.day, dayTime.now) && <div role="status" className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+        {lastExit && reportDayAllowed(lastExit.day, dayTime.now, giorniIndietro) && <div role="status" className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
           <p className="font-semibold">Giornata finita. Il rapportino è separato.</p>
-          <p>Puoi compilarlo ora o entro il giorno successivo al lavoro.</p>
+          <p>Puoi compilarlo ora. {messaggioScadenzaRapportino(giorniIndietro)}</p>
           <button type="button" className="min-h-12 w-full rounded-lg border border-green-300 bg-background px-3 font-semibold"
             onClick={() => navigate(`/campo/lavoro/${lastExit.orderId}/rapportino?data=${lastExit.day}`)}>Compila il rapportino</button>
         </div>}
+
+        <CorrezioneTimbratura preferOrderId={linkedOrderId} />
 
         {/* Ore lavorate oggi */}
         <div className="bg-muted border border-border rounded-2xl p-5">

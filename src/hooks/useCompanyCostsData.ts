@@ -4,6 +4,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays,
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import {
   buildOrderItemCosts,
   buildExternalTeamCosts,
@@ -144,7 +145,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       // ferma lì invece che su created_at (= onboarding piattaforma).
       const { data, error } = await (supabase as any)
         .from("employees")
-        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate, data_assunzione, hr_profili(data_assunzione, data_cessazione)")
+        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate, role_type, qualifica, area, profilo_costo, data_assunzione, hr_profili(data_assunzione, data_cessazione)")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("last_name");
@@ -301,14 +302,15 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Transform raw data into unified cost format using extracted utilities
   const orderItemsAsVariableCosts = useMemo(() => buildOrderItemCosts(orderItemCosts), [orderItemCosts]);
   const externalTeamAsVariableCosts = useMemo(() => buildExternalTeamCosts(externalTeamCosts), [externalTeamCosts]);
-  const employeeAsFixedCosts = useMemo(() => buildEmployeeCosts(activeEmployees), [activeEmployees]);
+  const { data: parametriCosto } = useParametriCostoPersonale();
+  const employeeAsFixedCosts = useMemo(() => buildEmployeeCosts(activeEmployees, 0, parametriCosto), [activeEmployees, parametriCosto]);
   // Stipendi PROIETTATI anche nel futuro (+12 mesi): alimentano le viste di
   // pianificazione (Panoramica, Situazione anno, distribuzione, semaforo cassa).
   // Le liste operative della tab Spese restano sul set storico per non
   // riempirsi di centinaia di righe stipendio future.
   const employeeAsFixedCostsProjected = useMemo(
-    () => buildEmployeeCosts(activeEmployees, EMPLOYEE_PROJECTION_MONTHS),
-    [activeEmployees],
+    () => buildEmployeeCosts(activeEmployees, EMPLOYEE_PROJECTION_MONTHS, parametriCosto),
+    [activeEmployees, parametriCosto],
   );
   const commissionAsVariableCosts = useMemo(() => buildCommissionCosts(commissionCosts), [commissionCosts]);
 

@@ -172,10 +172,10 @@ describe("Manodopera e servizi: i numeri e l'avviso delle basi in una riga", () 
     fireEvent.click(screen.getByRole("button", { name: "Nuova voce" }));
     fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi operatore / qualifica" }));
-    await waitFor(() => expect(screen.getByRole("option", { name: /Marco Calcolato.*16,00.*calcolato/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: /Marco Calcolato.*22,97.*calcolato/ })).toBeInTheDocument());
     fireEvent.change(screen.getByRole("combobox", { name: "Dipendente per operatore 1" }), { target: { value: "e1" } });
-    expect(screen.getByRole("spinbutton", { name: "Costo orario operatore 1" })).toHaveValue(16);
-    expect(screen.getByText(/Costo copiato: Lordo e aliquota INPS/)).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Costo orario operatore 1" })).toHaveValue(22.97);
+    expect(screen.getByText(/Costo copiato: Operaio: lordo × 12 mensilità/)).toBeInTheDocument();
   });
   it("il margine medio esclude le voci archiviate", async () => {
     apri(); await caricata();

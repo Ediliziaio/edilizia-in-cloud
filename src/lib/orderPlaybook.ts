@@ -13,43 +13,43 @@ export type PlaybookStep = PassoFlusso;
 
 const SERRAMENTISTA: PlaybookStep[] = [
   { titolo: "Sopralluogo e rilievo misure", giorni_offset: 2, priorita: "alta" },
-  { titolo: "Conferma misure e capitolato col cliente", giorni_offset: 4, priorita: "normale" },
-  { titolo: "Ordine serramenti al fornitore", giorni_offset: 5, priorita: "alta" },
-  { titolo: "Verifica arrivo merce in magazzino", giorni_offset: 25, priorita: "normale" },
-  { titolo: "Programmazione posa con la squadra", giorni_offset: 28, priorita: "normale" },
+  { titolo: "Conferma misure e capitolato col cliente", giorni_offset: 4, priorita: "normale", activity_scope: "ufficio" },
+  { titolo: "Ordine serramenti al fornitore", giorni_offset: 5, priorita: "alta", activity_scope: "ufficio", dopo_fase_lavorazione: "Sopralluogo e rilievo misure" },
+  { titolo: "Verifica arrivo merce in magazzino", giorni_offset: 25, priorita: "normale", activity_scope: "ufficio" },
+  { titolo: "Programmazione posa con la squadra", giorni_offset: 28, priorita: "normale", activity_scope: "ufficio" },
   { titolo: "Posa in opera", giorni_offset: 35, priorita: "alta" },
   { titolo: "Collaudo e firma verbale fine lavori", giorni_offset: 40, priorita: "normale" },
-  { titolo: "Richiesta saldo + dossier detrazioni", giorni_offset: 42, priorita: "normale" },
+  { titolo: "Richiesta saldo + dossier detrazioni", giorni_offset: 42, priorita: "normale", activity_scope: "ufficio" },
 ];
 
 const FOTOVOLTAICO: PlaybookStep[] = [
   { titolo: "Sopralluogo tecnico e rilievo tetto", giorni_offset: 3, priorita: "alta" },
-  { titolo: "Pratica connessione (TICA) + CILA in Comune", giorni_offset: 7, priorita: "alta" },
-  { titolo: "Ordine moduli, inverter e accumulo", giorni_offset: 10, priorita: "alta" },
+  { titolo: "Pratica connessione (TICA) + CILA in Comune", giorni_offset: 7, priorita: "alta", activity_scope: "ufficio" },
+  { titolo: "Ordine moduli, inverter e accumulo", giorni_offset: 10, priorita: "alta", activity_scope: "ufficio" },
   { titolo: "Installazione impianto", giorni_offset: 25, priorita: "alta" },
   { titolo: "Allaccio rete + collaudo", giorni_offset: 35, priorita: "normale" },
-  { titolo: "Pratica GSE (Scambio sul Posto)", giorni_offset: 40, priorita: "normale" },
-  { titolo: "Consegna dossier detrazioni + saldo", giorni_offset: 45, priorita: "normale" },
+  { titolo: "Pratica GSE (Scambio sul Posto)", giorni_offset: 40, priorita: "normale", activity_scope: "ufficio" },
+  { titolo: "Consegna dossier detrazioni + saldo", giorni_offset: 45, priorita: "normale", activity_scope: "ufficio" },
 ];
 
 const TETTI: PlaybookStep[] = [
   { titolo: "Sopralluogo copertura e rilievo", giorni_offset: 2, priorita: "alta" },
-  { titolo: "Conferma capitolato + documenti sicurezza (PSC/POS)", giorni_offset: 5, priorita: "alta" },
-  { titolo: "Ordine materiali", giorni_offset: 7, priorita: "normale" },
+  { titolo: "Conferma capitolato + documenti sicurezza (PSC/POS)", giorni_offset: 5, priorita: "alta", activity_scope: "ufficio" },
+  { titolo: "Ordine materiali", giorni_offset: 7, priorita: "normale", activity_scope: "ufficio" },
   { titolo: "Allestimento cantiere e ponteggio", giorni_offset: 12, priorita: "normale" },
   { titolo: "Rifacimento / posa copertura", giorni_offset: 25, priorita: "alta" },
   { titolo: "Smontaggio ponteggio e pulizia cantiere", giorni_offset: 35, priorita: "normale" },
-  { titolo: "Collaudo + saldo", giorni_offset: 40, priorita: "normale" },
+  { titolo: "Collaudo + saldo", giorni_offset: 40, priorita: "normale", activity_scope: "ufficio" },
 ];
 
 const GENERICO: PlaybookStep[] = [
   { titolo: "Sopralluogo iniziale", giorni_offset: 2, priorita: "alta" },
-  { titolo: "Conferma preventivo e capitolato", giorni_offset: 4, priorita: "normale" },
-  { titolo: "Ordine materiali ai fornitori", giorni_offset: 6, priorita: "alta" },
+  { titolo: "Conferma preventivo e capitolato", giorni_offset: 4, priorita: "normale", activity_scope: "ufficio" },
+  { titolo: "Ordine materiali ai fornitori", giorni_offset: 6, priorita: "alta", activity_scope: "ufficio" },
   { titolo: "Avvio lavori in cantiere", giorni_offset: 10, priorita: "normale" },
-  { titolo: "Verifica avanzamento (SAL)", giorni_offset: 20, priorita: "normale" },
+  { titolo: "Verifica avanzamento (SAL)", giorni_offset: 20, priorita: "normale", activity_scope: "ufficio" },
   { titolo: "Fine lavori e collaudo", giorni_offset: 35, priorita: "alta" },
-  { titolo: "Saldo e chiusura commessa", giorni_offset: 40, priorita: "normale" },
+  { titolo: "Saldo e chiusura commessa", giorni_offset: 40, priorita: "normale", activity_scope: "ufficio" },
 ];
 
 const PLAYBOOKS: Record<string, PlaybookStep[]> = {

@@ -471,7 +471,12 @@ export interface CostoPersona {
   costo_orario_scritto: number | null;
   stipendio_lordo: number | null;
   ore_mese: number | null;
+  /** INPS scritto sulla persona; null = vale quello del tipo. */
   contributi_percento: number | null;
+  /** Tipo di dipendente per il costo (operaio, apprendista, impiegato). */
+  tipo?: string | null;
+  /** INPS che vale quando la persona non ne ha uno suo. */
+  inps_del_tipo?: number | null;
 }
 
 export function useCostoPersona(profiloId: string | undefined) {
@@ -519,7 +524,9 @@ export function useSalvaCostoPersona(profiloId: string) {
         const expected = dati[key] ? parseHrCostAmount(dati[key]!) : null;
         const actual = saved[fields[key]];
         if (!Object.prototype.hasOwnProperty.call(saved, fields[key])) throw new Error("Conferma incompleta: ricarica il costo prima di riprovare.");
-        const clearedRate = key === "costo_orario" && (expected == null || expected === 0);
+        // Costo orario a zero o vuoto, e INPS vuoto (vale quello del tipo): si rilegge vuoto.
+        const clearedRate = (key === "costo_orario" && (expected == null || expected === 0))
+          || (key === "contributi_percento" && expected == null);
         if (clearedRate ? actual != null : Number(actual) !== expected || actual == null) throw new Error("Il costo riletto non corrisponde ai dati inviati: verifica la scheda prima di riprovare.");
       }
       return { saved, companyId, profiloId };

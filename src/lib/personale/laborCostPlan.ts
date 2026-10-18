@@ -58,8 +58,9 @@ export function normalizeHrCostSave(draft: HrCostSaveDraft): HrCostSaveDraft {
     const value = draft[key];
     if (value == null) continue;
     if (!value.trim()) {
-      if (key === "costo_orario") normalized[key] = ""; // explicit removal -> server fallback
-      else throw new Error("Lordo, ore e contributi non possono essere vuoti. Modifica solo i dati compilati.");
+      // Costo orario vuoto = si calcola; INPS vuoto = vale quello del tipo di dipendente.
+      if (key === "costo_orario" || key === "contributi_percento") normalized[key] = "";
+      else throw new Error("Lordo e ore non possono essere vuoti. Modifica solo i dati compilati.");
       continue;
     }
     const n = parseHrCostAmount(value);

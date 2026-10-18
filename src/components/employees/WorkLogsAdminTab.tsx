@@ -36,6 +36,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
+import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 
 interface WorkLog {
   id: string;
@@ -52,6 +53,12 @@ interface WorkLog {
     last_name: string;
     gross_salary: number;
     monthly_hours: number;
+    costo_orario?: number | null;
+    inps_rate?: number | null;
+    role_type?: string | null;
+    qualifica?: string | null;
+    area?: string | null;
+    profilo_costo?: string | null;
   };
   order?: {
     order_code: string | null;
@@ -131,7 +138,7 @@ export function WorkLogsAdminTab() {
         .from("work_logs")
         .select(`
           *,
-          employee:employees!inner(id, first_name, last_name, gross_salary, monthly_hours),
+          employee:employees!inner(id, first_name, last_name, gross_salary, monthly_hours, costo_orario, inps_rate, role_type, qualifica, area, profilo_costo),
           order:orders(order_code, description)
         `)
         .eq("employee.company_id", companyId!)
@@ -207,8 +214,9 @@ export function WorkLogsAdminTab() {
 
   // Il costo stimato usava il lordo diviso le ore, senza oneri: −22% rispetto
   // a quello che la stessa persona costa nella pagina Costi e in commessa.
-  const calculateHourlyCost = (grossSalary: number, monthlyHours: number) =>
-    costoOrarioDipendente({ gross_salary: grossSalary, monthly_hours: monthlyHours });
+  // Anche qui la tariffa scritta a mano vince, e gli oneri sono quelli del tipo di dipendente.
+  const { data: parametri } = useParametriCostoPersonale();
+  const calculateHourlyCost = (employee: WorkLog["employee"]) => costoOrarioDipendente(employee, parametri);
 
   // Stats
   const stats = useMemo(() => {
@@ -220,7 +228,7 @@ export function WorkLogsAdminTab() {
     
     // Calcola costo totale
     const totalCost = workLogs.reduce((sum, l) => {
-      const hourlyRate = calculateHourlyCost(l.employee.gross_salary, l.employee.monthly_hours);
+      const hourlyRate = calculateHourlyCost(l.employee);
       return sum + (Number(l.hours_worked) * hourlyRate);
     }, 0);
 
@@ -232,7 +240,7 @@ export function WorkLogsAdminTab() {
       pendingHours,
       totalCost,
     };
-  }, [workLogs]);
+  }, [workLogs, parametri]);
 
   const pendingLogIds = workLogs.filter(l => !l.is_approved).map(l => l.id);
 
@@ -375,10 +383,7 @@ export function WorkLogsAdminTab() {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.map((log) => {
-                    const hourlyRate = calculateHourlyCost(
-                      log.employee.gross_salary, 
-                      log.employee.monthly_hours
-                    );
+                    const hourlyRate = calculateHourlyCost(log.employee);
                     const cost = Number(log.hours_worked) * hourlyRate;
                     
                     return (

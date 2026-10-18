@@ -2,6 +2,7 @@
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
  * Verifica accesso tramite order_campo_assignments.
  */
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -17,10 +18,13 @@ import {
   CheckCircle, Clock, Loader2, FileText, PenLine,
   Send, Download, FileCheck,
 	  ClipboardSignature, ShieldCheck, Package, Wrench,
-	  Camera, BookOpenCheck, MessageSquare, Navigation,
-	  Mic, LogIn, LogOut, ClipboardList,
+	  Camera, BookOpenCheck, MessageSquare, Navigation, LogIn, LogOut, ClipboardList, Receipt,
 	} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { riferimentoFile } from "@/lib/storage/fileRiservati";
+import { descriviStato, euro } from "@/lib/campo/acquisti";
+import { useAcquistiCommessa } from "@/hooks/campo/useCampoAcquisti";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,7 +45,9 @@ import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona } from "@/lib/campo/regoleCampo";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
 
-type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
+// Un tab = una cosa sola. Rapportini = la giornata dell'operaio (interno).
+// Collaudo = quello che si fa COL CLIENTE e chiede la sua firma (esterno).
+type Tab = "descrizione" | "bolle" | "rapportini" | "collaudo" | "chat";
 
 type CampoCustomer = {
   first_name: string | null;
@@ -79,6 +85,7 @@ type CampoOrderItem = {
 
 type CampoRapportinoRow = {
   id: string;
+  user_id?: string | null;
   data_lavoro: string;
   pdf_url?: string | null;
   firma_operaio_url?: string | null;
@@ -246,10 +253,17 @@ export default function CampoLavoroDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
-  const { isOperaio } = useIsCampo();
+  const { isOperaio, isSubappaltatore } = useIsCampo();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>(() => searchParams.get("tab") === "rapportini" ? "rapportini" : "descrizione");
-  const [reportList, setReportList] = useState<"daily" | "client">(() => searchParams.get("tipo") === "client" ? "client" : "daily");
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    // I vecchi link (?tab=documenti, ?tab=rapportini&tipo=client) portano al Collaudo.
+    if (t === "collaudo" || t === "documenti" || (t === "rapportini" && searchParams.get("tipo") === "client")) return "collaudo";
+    if (t === "rapportini" || t === "bolle" || t === "chat") return t;
+    return "descrizione";
+  });
+  // Il diario del cantiere si apre a richiesta: niente lettura finché non serve.
+  const [diarioAperto, setDiarioAperto] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     // The previous tab's scroll offset must not hide the next tab's first actions
@@ -257,7 +271,7 @@ export default function CampoLavoroDetail() {
     const main = pageRef.current?.closest("main");
     if (main) main.scrollTop = 0;
     if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-  }, [activeTab, reportList, orderId]);
+  }, [activeTab, orderId]);
   const [assignmentTimedOut, setAssignmentTimedOut] = useState(false);
   const companyId = profile?.company_id ?? null;
   useCommessaCampoSync(orderId, companyId, !!user);
@@ -501,6 +515,9 @@ export default function CampoLavoroDetail() {
   });
   const faseMia = useMemo(() => new Map(mieFasi.map((f) => [f.id, f])), [mieFasi]);
   const quanteMie = mieFasi.filter((f) => f.tu || f.squadra).length;
+  // La fase su cui si lavora ADESSO: la prima in corso, se no la prima non finita.
+  const faseAttuale = fasiCommessa.find((f) => f.status === "in_corso") ?? fasiCommessa.find((f) => f.status !== "completata");
+  const faseAttualePct = faseAttuale ? (faseAttuale.status === "completata" ? 100 : faseAttuale.percentuale) : 0;
 
   // Rapportini dell'utente su questo ordine
   const { data: rapportini = [], isLoading: rapportiniLoading, isError: rapportiniError, refetch: ricaricaRapportini } = useQuery<CampoRapportinoRow[]>({
@@ -515,11 +532,29 @@ export default function CampoLavoroDetail() {
       if (error) throw error;
       return (data ?? []) as CampoRapportinoRow[];
     },
-    enabled: !!orderId && !!currentUserId && activeTab === "rapportini",
+    enabled: !!orderId && !!currentUserId && (activeTab === "rapportini" || activeTab === "collaudo"),
   });
+  // Due elenchi che non si mescolano: i giornalieri nel tab Rapportini,
+  // i rapporti firmati dal cliente nel tab Collaudo.
   const giornalieri = rapportini.filter(r => !isClientReport(r));
-  const rapportiCliente = rapportini.filter(isClientReport);
-  const rapportiVisibili = reportList === "daily" ? giornalieri : rapportiCliente;
+  // I collaudi sono della commessa, non della persona: chi li può leggere (ufficio, capocantiere)
+  // li vede tutti; firma e correzione restano sui propri.
+  const { data: collaudiCommessa = [], isLoading: collaudiLoading, isError: collaudiError, refetch: ricaricaCollaudi } = useQuery<CampoRapportinoRow[]>({
+    queryKey: ["campo-rapportini-ordine", orderId, "collaudi"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campo_rapportini")
+        .select("*")
+        .eq("order_id", orderId!)
+        .or("lavoro_completato.eq.true,firma_cliente_url.not.is.null")
+        .order("data_lavoro", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as CampoRapportinoRow[];
+    },
+    enabled: !!orderId && !!currentUserId && activeTab === "collaudo",
+  });
+  const rapportiCliente = collaudiCommessa.filter(isClientReport);
   const { data: ruoloRapporti, isLoading: ruoloRapportiLoading, isError: ruoloRapportiError, refetch: ricaricaRuoloRapporti } = useQuery({
     queryKey: ["campo-ruolo", orderId, user?.id],
     enabled: !!orderId && !!user?.id && !!companyId,
@@ -622,6 +657,9 @@ export default function CampoLavoroDetail() {
         .eq("order_id", orderId!)
         .eq("user_id", currentUserId!)
         .eq("data_lavoro", today)
+        // Il giornaliero, non il collaudo col cliente: sono due righe diverse dello stesso giorno.
+        .not("lavoro_completato", "is", true)
+        .is("firma_cliente_url", null)
         .order("created_at", { ascending: false })
         .limit(1);
       if (error) throw error;
@@ -743,7 +781,7 @@ export default function CampoLavoroDetail() {
   const timbraturaUrl = withOrderContext("/campo/timbratura");
   const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
   const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
-  const soloTimbratura = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, !isOperaio).soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
+  const soloTimbratura = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, isSubappaltatore).soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
   // `data` apre il rapportino di quel giorno: se era respinto o in bozza si riapre già compilato.
   const rapportinoDelGiornoUrl = (giorno: string) => {
     const params = new URLSearchParams(orderContextQuery);
@@ -763,7 +801,7 @@ export default function CampoLavoroDetail() {
   // Il rapportino di oggi, aperto per correggerlo se era stato respinto o lasciato in bozza.
   const rapportinoDiOggiUrl = rapportinoDelGiornoUrl(today);
   const passiGiornata: Record<PassoGiornata, { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" }> = {
-    "rapportino-vocale": { label: "Giornaliero", icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
+    "rapportino-vocale": { label: "Scrivi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
     "correggi-rapportino": { label: "Correggi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "completa-rapportino": { label: "Completa il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "timbra-entrata": { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
@@ -780,9 +818,9 @@ export default function CampoLavoroDetail() {
   const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
     { key: "descrizione", label: "Info" },
+    { key: "bolle",       label: "Bolle" },
     { key: "rapportini",  label: "Rapportini" },
-    { key: "diario",      label: "Diario" },
-    { key: "documenti",   label: "Documenti" },
+    { key: "collaudo",    label: "Collaudo" },
     { key: "chat",        label: "Chat" },
   ];
 
@@ -822,7 +860,7 @@ export default function CampoLavoroDetail() {
                 style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
               />
             </div>
-            <span className="shrink-0 text-xs font-semibold">{order?.status || "In lavorazione"}</span>
+            <span className="shrink-0 text-xs font-semibold">{statoLeggibile(order?.status)}</span>
           </div>
         </div>
 
@@ -844,8 +882,10 @@ export default function CampoLavoroDetail() {
         <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
+          {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
+              Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
+          <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/merce?order=${orderId}`)} />
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          {!soloTimbratura && <QuickAction icon={ClipboardList} label="Giornaliero" onClick={() => navigate(rapportinoManualeUrl)} />}
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
         </div>
         </>}
@@ -874,38 +914,23 @@ export default function CampoLavoroDetail() {
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-4">
         {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
         {orderId && <NoteCantiereCampo orderId={orderId} />}
-	        {activeTab === "descrizione" && <CampoCloseDayCard
-	          isOperaio={isOperaio}
-	          hasTimbrato={hasTimbratoQui}
-	          isInCantiere={isInCantiere}
-	          isInPausa={isInPausa}
-	          uscitaRegistrata={uscitaRegistrataOggi}
-	          rapportinoDone={rapportinoInviatoOggi}
-	          rapportinoDetail={statoRapportinoOggi === "rifiutato" ? "Respinto: da rifare" : statoRapportinoOggi === "bozza" ? "Da completare" : undefined}
-	          fotoCount={fotoCountOggi}
-	          materialiCount={materialiCountOggi}
-	          oreRapportino={rapportinoOggi?.ore_lavorate ?? null}
-	          avanzamentoRapportino={rapportinoOggi?.percentuale_avanzamento ?? null}
-	          onTimbratura={() => navigate(timbraturaUrl)}
-	          onRapportino={() => navigate(rapportinoDaRifare(statoRapportinoOggi) ? rapportinoDiOggiUrl : rapportinoManualeUrl)}
-	        />}
+        {/* La giornata (timbra → rapportino → uscita) ha UN solo bottone: la barra in
+            basso, che dice sempre il passo successivo. Niente scheda che la ripete. */}
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
           <>
-            <div className="grid grid-cols-3 gap-2 md:gap-3">
-              <InfoTile label="Stato" value={order?.status || "In lavorazione"} icon={CheckCircle} />
-              <InfoTile
-                label="Inizio"
-                value={order?.work_start_date ? format(new Date(order.work_start_date), "d MMM yyyy", { locale: it }) : "Non impostato"}
-                icon={Clock}
-              />
-              <InfoTile
-                label="Fine prevista"
-                value={order?.work_end_date ? format(new Date(order.work_end_date), "d MMM yyyy", { locale: it }) : "Non impostata"}
-                icon={CheckCircle}
-              />
-            </div>
+            {/* Le date in una riga: lo stato è già nell'intestazione, non serve ripeterlo. */}
+            {(order?.work_start_date || order?.work_end_date) && (
+              <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4 shrink-0" />
+                <span>
+                  {order?.work_start_date ? `Dal ${format(new Date(order.work_start_date), "d MMM", { locale: it })}` : "Inizio da fissare"}
+                  {" · "}
+                  {order?.work_end_date ? `fine prevista ${format(new Date(order.work_end_date), "d MMM yyyy", { locale: it })}` : "fine da fissare"}
+                </span>
+              </p>
+            )}
 
             {/* Con chi lavori: squadra, caposquadra, capocantiere */}
             {orderId && <ChiLavoraCampo orderId={orderId} />}
@@ -926,7 +951,23 @@ export default function CampoLavoroDetail() {
                     {fasiCommessa.filter(f => f.status === "completata").length}/{fasiCommessa.length} completate
                   </span>
                 </div>
-                <div className="space-y-3">
+                {/* Fase attuale: la cosa che conta messa in cima, non annegata tra 8 blocchi uguali. */}
+                {faseAttuale && (
+                  <div className="mb-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Fase attuale</p>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-base font-bold text-foreground">{faseAttuale.name}</p>
+                      <span className="shrink-0 text-sm font-black text-primary">{faseAttualePct}%</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-muted">
+                      <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${faseAttualePct}%` }} />
+                    </div>
+                    <div className="mt-1.5"><SottofasiContate sottofasi={sottofasiDi.get(faseAttuale.id) ?? []} /></div>
+                  </div>
+                )}
+                <details className="group">
+                  <summary className="min-h-9 cursor-pointer text-xs font-semibold text-primary">Vedi tutte le fasi</summary>
+                <div className="mt-3 space-y-3">
                   {fasiCommessa.map((fase) => {
                     const done = fase.status === "completata";
                     const pct = done ? 100 : fase.percentuale;
@@ -976,6 +1017,7 @@ export default function CampoLavoroDetail() {
                     );
                   })}
                 </div>
+                </details>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Aggiorna le fasi dal rapportino di fine giornata.
                 </p>
@@ -1007,74 +1049,60 @@ export default function CampoLavoroDetail() {
               </div>
             )}
 
-            {/* Materiali da installare */}
+            {/* Materiali da installare: il conteggio, la lista solo se la apri. */}
             {orderItems.length > 0 && (
-              <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Materiali / Articoli</p>
-                <div className="space-y-2">
+              <details className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+                <summary className="cursor-pointer text-sm font-semibold text-foreground">
+                  Materiali da posare <span className="font-normal text-muted-foreground">({orderItems.length})</span>
+                </summary>
+                <div className="mt-3 space-y-2">
                   {orderItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <p className="text-sm text-foreground">{item.description || item.name}</p>
+                    <div key={item.id} className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 text-sm text-foreground">{item.description || item.name}</p>
                       {item.quantity && (
-                        <span className="text-xs text-primary">x{item.quantity}</span>
+                        <span className="shrink-0 text-xs text-primary">x{item.quantity}</span>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
+              </details>
             )}
+
+            {/* Diario del cantiere: si legge solo quando lo apri. */}
+            {orderId && (diarioAperto ? (
+              <DiarioCantiere orderId={orderId} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDiarioAperto(true)}
+                className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-border bg-background px-4 text-sm font-semibold text-foreground shadow-sm"
+              >
+                Diario del cantiere
+                <span className="text-xs font-normal text-muted-foreground">Apri</span>
+              </button>
+            ))}
           </>
         )}
 
         {/* ── Tab: Rapportini ── */}
         {activeTab === "rapportini" && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl border bg-muted/40 p-1.5" role="group" aria-label="Tipo di rapporto">
-              <button type="button" aria-pressed={reportList === "daily"} onClick={() => setReportList("daily")}
-                className={cn("min-h-12 rounded-xl px-2 py-2 text-sm font-semibold", reportList === "daily" ? "bg-background shadow-sm text-primary" : "text-muted-foreground")}>
-                Giornalieri ({giornalieri.length})
-              </button>
-              <button type="button" aria-pressed={reportList === "client"} onClick={() => setReportList("client")}
-                className={cn("min-h-12 rounded-xl px-2 py-2 text-sm font-semibold", reportList === "client" ? "bg-background shadow-sm text-primary" : "text-muted-foreground")}>
-                Rapporti cliente ({rapportiCliente.length})
-              </button>
-            </div>
             <div className="rounded-2xl border bg-background p-4">
-              <h2 className="font-bold">{reportList === "daily" ? "La giornata per l’ufficio" : "La conferma del cliente"}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{reportList === "daily"
-                ? "Ore, lavori, foto e materiali. Invia oggi o entro domani: la firma del cliente non serve."
-                : "Rapporti di fine lavori con firma del cliente, separati nello storico. Consegna, collaudo e firma elettronica sono in Documenti."}</p>
+              <h2 className="font-bold">La giornata per l’ufficio</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Ore, lavori, foto e materiali. Il cliente non firma qui: quello è il Collaudo.</p>
             </div>
-            {reportList === "daily" ? soloTimbratura ? <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il giornaliero lo compila il responsabile. Tu registra entrata e uscita; lo storico resta consultabile.</p> : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                onClick={() => navigate(rapportinoVocaleUrl)}
-                className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-              >
-                <Mic className="w-5 h-5" />
-                Racconta a voce
-              </button>
-              <button
-                onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
-                className="w-full bg-muted text-foreground border border-border font-semibold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Scrivi il giornaliero
-              </button>
-            </div>
+            {soloTimbratura ? (
+              <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il rapportino lo compila il responsabile. Tu registra entrata e uscita; lo storico resta consultabile.</p>
             ) : (
-              <div className="space-y-2">
-                {puoCompilareCliente ? <button type="button" onClick={() => navigate(campoReportUrl(orderId!, "client"))}
-                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3 text-base font-bold text-primary-foreground">
-                  <ClipboardSignature className="h-5 w-5" />Nuovo rapporto di fine lavori
-                </button> : ruoloRapportiLoading ? <p role="status" className="text-sm text-muted-foreground">Verifico chi può compilare il rapporto cliente…</p> : ruoloRapportiError ? <div role="alert" className="text-sm">
-                  <p>Non riesco a verificare il tuo ruolo sul cantiere. Non posso ancora abilitare un nuovo rapporto cliente.</p>
-                  <button type="button" className="min-h-11 text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova il ruolo</button>
-                </div> : <p className="text-sm text-muted-foreground">La conferma del cliente è gestita dal capocantiere; lo storico dei tuoi rapporti resta consultabile.</p>}
-                <button type="button" onClick={() => setActiveTab("documenti")}
-                  className="min-h-12 w-full rounded-xl border px-3 py-3 text-sm font-semibold">Documenti e firma elettronica</button>
-                <p className="text-xs text-muted-foreground">{protocolloRapporti.data === 2 ? "Giornaliero e rapporto cliente sono documenti distinti. La firma non aggiunge altre ore o consumi." : "La separazione dei due documenti nello stesso giorno richiede l’aggiornamento del database. Un giornaliero già inviato non viene sostituito."}</p>
-              </div>
+              /* Un solo bottone: dentro il modulo c'è già «Compila parlando» per dettarlo a voce. */
+              <button
+                type="button"
+                onClick={() => navigate(rapportinoManualeUrl)}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3.5 text-base font-bold text-primary-foreground transition-transform active:scale-[0.98]"
+              >
+                <Plus className="h-5 w-5" />
+                Scrivi il rapportino
+              </button>
             )}
 
             {rapportiniLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
@@ -1082,16 +1110,16 @@ export default function CampoLavoroDetail() {
                 <p>Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.</p>
                 <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>Riprova lo storico</button>
               </div>
-            ) : rapportiVisibili.length === 0 ? (
+            ) : giornalieri.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 text-center">
                 <FileText className="w-10 h-10 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold text-foreground">{reportList === "daily" ? "Nessun giornaliero per questo cantiere" : "Nessun rapporto cliente per questo cantiere"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{reportList === "daily" ? "Racconta la giornata a voce oppure scrivila." : "Non occorre far firmare il cliente ogni giorno."}</p>
+                  <p className="font-semibold text-foreground">Nessun rapportino per questo cantiere</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Scrivilo a fine giornata: puoi anche dettarlo a voce.</p>
                 </div>
               </div>
             ) : (
-              rapportiVisibili.map((r) => (
+              giornalieri.map((r) => (
                 <RapportinoCardCampo
                   key={r.id}
                   r={r}
@@ -1103,49 +1131,105 @@ export default function CampoLavoroDetail() {
                 />
               ))
             )}
+          </div>
+        )}
 
-            {/* Dialog firma rapportino (z-[60]: la barra in basso è z-50 e viene dopo nel DOM: copriva «Salva firma») */}
-            {firmaRapportinoId && (
-              <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center">
-                <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
-                  <p className="text-base font-black text-foreground">Aggiungi la tua firma</p>
-                  <p className="text-sm text-muted-foreground">Firma di chi ha compilato il rapporto. Non è la firma del cliente.</p>
-                  <FirmaPad label="La tua firma" onChange={setFirmaDataUrl} />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setFirmaRapportinoId(null); setFirmaDataUrl(null); }}
-                      className="flex-1 rounded-xl border border-border bg-muted py-3 text-sm font-semibold text-foreground"
-                    >
-                      Annulla
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!firmaDataUrl) { toast.error("Firma prima nel riquadro"); return; }
-                        firmaRapportinoMutation.mutate({ rapportinoId: firmaRapportinoId, dataUrl: firmaDataUrl });
-                      }}
-                      disabled={firmaRapportinoMutation.isPending}
-                      className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-                    >
-                      {firmaRapportinoMutation.isPending ? "Salvo…" : "Salva firma"}
-                    </button>
-                  </div>
-                </div>
+        {/* ── Tab: Bolle ── la bolla fotografata dall'operaio compare QUI, dentro il cantiere ── */}
+        {activeTab === "bolle" && orderId && <BolleCantiere orderId={orderId} />}
+
+        {/* ── Tab: Collaudo ── tutto quello che si fa COL CLIENTE e chiede la sua firma.
+            Due modi soli: firma in cantiere (qui, sul telefono) o firma a distanza (email). */}
+        {activeTab === "collaudo" && orderId && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border bg-background p-4">
+              <h2 className="font-bold">Il collaudo col cliente</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Consegna e fine lavori: il cliente controlla e firma. Non è il rapportino, che resta interno.</p>
+            </div>
+
+            {puoCompilareCliente ? (
+              <button
+                type="button"
+                onClick={() => navigate(campoReportUrl(orderId, "client"))}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3.5 text-base font-bold text-primary-foreground transition-transform active:scale-[0.98]"
+              >
+                <ClipboardSignature className="h-5 w-5" />Firma col cliente in cantiere
+              </button>
+            ) : ruoloRapportiLoading ? (
+              <p role="status" className="text-sm text-muted-foreground">Verifico chi può fare il collaudo…</p>
+            ) : ruoloRapportiError ? (
+              <div role="alert" className="text-sm">
+                <p>Non riesco a verificare il tuo ruolo sul cantiere.</p>
+                <button type="button" className="min-h-11 text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova</button>
+              </div>
+            ) : (
+              <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il collaudo col cliente lo fa il capocantiere.</p>
+            )}
+
+            <DocumentiFirmaTab orderId={orderId} customer={customer} />
+
+            {/* Collaudi già firmati in cantiere */}
+            {collaudiLoading ? (
+              <p role="status" className="py-4 text-center text-sm text-muted-foreground">Carico i collaudi…</p>
+            ) : collaudiError ? (
+              <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
+                <p>Non riesco a caricare i collaudi. Non significa che manchino.</p>
+                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaCollaudi()}>Riprova</button>
+              </div>
+            ) : rapportiCliente.length > 0 && (
+              <div className="space-y-2">
+                <p className="px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Firmati in cantiere</p>
+                {rapportiCliente.map((r) => {
+                  const mio = r.user_id === currentUserId;
+                  return (
+                    <RapportinoCardCampo
+                      key={r.id}
+                      r={r}
+                      pdfOccupato={pdfBusyId === r.id}
+                      onPdf={mio || r.pdf_url ? () => void apriPdfRapportino(r) : undefined}
+                      onFirma={mio ? () => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); } : undefined}
+                      onCorreggi={mio ? () => navigate(campoReportUrl(orderId, "client", r.data_lavoro)) : undefined}
+                      nomiFasi={nomiFasi}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Tab: Diario ── */}
-        {activeTab === "diario" && orderId && <DiarioCantiere orderId={orderId} />}
-
-        {/* ── Tab: Documenti e Firma ── */}
-        {activeTab === "documenti" && (
-          <DocumentiFirmaTab orderId={orderId!} customer={customer} />
-        )}
-
         {/* ── Tab: Chat ── */}
         {activeTab === "chat" && (
           <ChatCantiere orderId={orderId!} orderCode={order?.order_code ?? ""} />
+        )}
+
+        {/* Dialog «Aggiungi la tua firma» (comune a rapportini e collaudi).
+            z-[60]: la barra in basso è z-50 e viene dopo nel DOM: copriva «Salva firma». */}
+        {firmaRapportinoId && (
+          <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center">
+            <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
+              <p className="text-base font-black text-foreground">Aggiungi la tua firma</p>
+              <p className="text-sm text-muted-foreground">Firma di chi ha compilato il rapporto. Non è la firma del cliente.</p>
+              <FirmaPad label="La tua firma" onChange={setFirmaDataUrl} />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setFirmaRapportinoId(null); setFirmaDataUrl(null); }}
+                  className="flex-1 rounded-xl border border-border bg-muted py-3 text-sm font-semibold text-foreground"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={() => {
+                    if (!firmaDataUrl) { toast.error("Firma prima nel riquadro"); return; }
+                    firmaRapportinoMutation.mutate({ rapportinoId: firmaRapportinoId, dataUrl: firmaDataUrl });
+                  }}
+                  disabled={firmaRapportinoMutation.isPending}
+                  className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
+                >
+                  {firmaRapportinoMutation.isPending ? "Salvo…" : "Salva firma"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1174,6 +1258,65 @@ export default function CampoLavoroDetail() {
  * Tab «Diario» del cantiere. Il hook del diario (eventi, messaggi, 5 query di audit, profili, canale in tempo
  * reale) vive QUI e non nella pagina: prima partiva a ogni apertura del cantiere, anche se il tab non si apriva.
  */
+/** «in_corso» → «In corso»: l'operaio legge parole, non codici. */
+function statoLeggibile(stato: string | null | undefined): string {
+  const s = (stato ?? "").trim();
+  if (!s) return "In lavorazione";
+  const t = s.replace(/_/g, " ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/**
+ * Le bolle di QUESTO cantiere. La foto scattata con «Bolla» compare qui dentro:
+ * fornitore, numero, totale e stato (in verifica / registrata / rimborso). L'operaio
+ * vede le sue; l'ufficio le vede tutte.
+ */
+function BolleCantiere({ orderId }: { orderId: string }) {
+  const navigate = useNavigate();
+  const { data, isLoading, isError, refetch } = useAcquistiCommessa(orderId);
+  const bolle = data ?? [];
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => navigate(`/campo/merce?order=${orderId}`)}
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-black text-white transition-transform active:scale-[0.98]"
+      >
+        <Camera className="h-4 w-4" />Fotografa una bolla
+      </button>
+      {isLoading && <p className="text-sm text-muted-foreground">Carico le bolle…</p>}
+      {isError && <p className="text-sm text-destructive">Non riesco a leggere le bolle. <button type="button" className="underline" onClick={() => refetch()}>Riprova</button></p>}
+      {!isLoading && !isError && bolle.length === 0 && (
+        <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+          <Receipt className="mx-auto mb-2 h-7 w-7 opacity-60" />
+          Nessuna bolla per questo cantiere. Fotografa una bolla, uno scontrino o una fattura: la legge e la registra l’ufficio.
+        </div>
+      )}
+      {bolle.map((b) => {
+        const s = descriviStato(b);
+        const tipo = b.tipo_documento === "scontrino" ? "Scontrino" : b.tipo_documento === "fattura" ? "Fattura" : "Bolla";
+        return (
+          <div key={b.id} className="flex gap-3 rounded-xl border bg-background p-3">
+            {b.foto_path
+              ? <ImgRiservata src={riferimentoFile("campo-rapportini", b.foto_path)} alt={`${tipo} ${b.fornitore ?? ""}`} className="h-16 w-14 shrink-0 rounded-lg border object-cover" />
+              : <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-lg border bg-muted"><Receipt className="h-5 w-5 text-muted-foreground" /></div>}
+            <div className="min-w-0 flex-1 space-y-0.5 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 truncate font-semibold">{b.fornitore || "Documento"}</p>
+                <span className="shrink-0 font-semibold">{euro(b.totale)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {tipo}{b.numero_documento ? ` n. ${b.numero_documento}` : ""}
+                {b.data_documento ? ` · ${format(parseISO(b.data_documento), "dd/MM/yyyy")}` : ""}
+              </p>
+              <p className={cn("text-xs", s.tono === "no" ? "font-medium text-red-700" : s.tono === "ok" ? "text-green-700" : s.tono === "attesa" ? "text-amber-700" : "text-muted-foreground")}>{s.testo}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function DiarioCantiere({ orderId }: { orderId: string }) {
   const { timeline } = useOrderDiary(orderId);
   return (
@@ -1509,13 +1652,18 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
         },
       });
 
-      if (error) throw new Error(error.message || "Errore nell'invio della richiesta");
+      // Il motivo vero (credito finito, email non valida…) sta nel corpo della risposta.
+      if (error) throw new Error(await readInvokeError(error));
       if (data?.error) throw new Error(data.error);
 
-      return data;
+      return data as { otp_inviato?: boolean } | null;
     },
-    onSuccess: () => {
-      toast.success("Richiesta di firma inviata! Il cliente riceverà un'email con il link per firmare.");
+    onSuccess: (data) => {
+      if (data?.otp_inviato === false) {
+        toast.warning("Richiesta creata, ma l'email al cliente non è partita. Avvisa l'ufficio.");
+      } else {
+        toast.success("Richiesta di firma inviata: il cliente riceve un'email con il link per firmare.");
+      }
       queryClient.invalidateQueries({ queryKey: ["campo-firme-ordine"] });
       setShowNewDoc(false);
       setSelectedTipo(null);
@@ -1532,30 +1680,20 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
 
   return (
     <div className="space-y-4">
-      {/* KPI documenti */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-muted border border-border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{firmeRichieste.length}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Totale</p>
-        </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-amber-600">{firmePending}</p>
-          <p className="text-[10px] text-amber-600 mt-0.5">In attesa</p>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-green-600">{firmeSigned}</p>
-          <p className="text-[10px] text-green-600 mt-0.5">Firmati</p>
-        </div>
-      </div>
-
-      {/* Bottone nuova richiesta */}
+      {/* Firma a distanza: il cliente riceve un'email e firma dal suo telefono.
+          Lo stato è scritto su ogni documento: niente riquadri contatore. */}
       <button
         onClick={() => setShowNewDoc(!showNewDoc)}
-        className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background py-3 text-sm font-semibold text-foreground transition-transform active:scale-[0.98]"
       >
-        <PenLine className="w-5 h-5" />
-        Richiedi firma documento
+        <PenLine className="w-4 h-4" />
+        Mandalo da firmare via email
       </button>
+      {firmeRichieste.length > 0 && (
+        <p className="px-1 text-xs text-muted-foreground">
+          {firmePending} in attesa · {firmeSigned} firmati
+        </p>
+      )}
 
       {/* Form nuova richiesta */}
       {showNewDoc && (
@@ -1652,17 +1790,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
         <div className="flex justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
-      ) : firmeRichieste.length === 0 ? (
-        <div className="flex flex-col items-center py-10 gap-3 text-center">
-          <ClipboardSignature className="w-12 h-12 text-muted-foreground/40" />
-          <div>
-            <p className="font-medium text-muted-foreground">Nessun documento</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">
-              Richiedi la firma del cliente su consegna, collaudo o altri documenti
-            </p>
-          </div>
-        </div>
-      ) : (
+      ) : firmeRichieste.length === 0 ? null : (
         <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Storico documenti ({firmeRichieste.length})
@@ -1745,6 +1873,17 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
       // Filtro azienda: due tenant con lo stesso order_code hanno lo stesso
       // nome canale — senza company_id si poteva aprire quello sbagliato
       // (o esplodere con maybeSingle su 2 righe).
+      // Un canale per commessa (indice unico su order_id): si cerca per commessa, così si trova
+      // anche quando l'ha aperto prima l'ufficio con un altro nome. Per nome solo i canali vecchi.
+      const perCommessa = await supabase
+        .from("internal_chat_channels")
+        .select("id, name")
+        .eq("order_id", orderId)
+        .eq("company_id", companyId!)
+        .limit(1)
+        .maybeSingle();
+      if (perCommessa.error) throw perCommessa.error;
+      if (perCommessa.data) return perCommessa.data;
       const { data, error } = await supabase
         .from("internal_chat_channels")
         .select("id, name")

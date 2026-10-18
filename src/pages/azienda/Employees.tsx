@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Users, Building2, Clock, Loader2, Check, Copy, Palmtree } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
@@ -25,6 +26,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { EmployeeDialog, EmployeeFormData } from "@/components/employees/EmployeeDialog";
+import { ValoriCostoPersonale } from "@/components/employees/ValoriCostoPersonale";
 import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees/ExternalTeamDialog";
 import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
@@ -52,6 +54,7 @@ interface EmployeesProps {
 
 function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: EmployeesProps) {
   const { effectiveCompany } = useAuth();
+  const { canViewCosts } = usePermissions();
 
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -75,7 +78,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("employees")
-        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, costo_orario, inps_rate, is_active, user_id, role_type, area")
+        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, costo_orario, inps_rate, is_active, user_id, role_type, area, qualifica, profilo_costo")
         .eq("company_id", effectiveCompanyId!).order("last_name");
       if (error) {
         // Fallback if area column doesn't exist yet
@@ -113,13 +116,14 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           // €/h scritto a mano, se c'è. Altrimenti resta vuoto e il costo lo
-          // calcola il database (costo_orario_dipendente: lordo più contributi
-          // sulle ore del mese). Prima qui si salvava lordo ÷ ore, senza i
+          // calcola il database (costo_orario_dipendente: lordo, mensilità e oneri
+          // del tipo di dipendente sulle ore produttive del mese). Prima qui si salvava lordo ÷ ore, senza i
           // contributi, e contava come tariffa scritta a mano: la formula
           // giusta non scattava mai e i costi di manodopera risultavano bassi.
           costo_orario: (data.costo_orario && data.costo_orario > 0) ? data.costo_orario : null,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           area: data.area || null,
+          profilo_costo: data.profilo_costo === "auto" ? null : data.profilo_costo,
         }).eq("id", data.id).eq("company_id", effectiveCompanyId!).select("id");
         if (error) throw error;
         if (!updated || updated.length === 0) throw new Error("Non è stato aggiornato nessun dipendente: controlla di avere i permessi per farlo.");
@@ -130,14 +134,15 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           // €/h scritto a mano, se c'è. Altrimenti resta vuoto e il costo lo
-          // calcola il database (costo_orario_dipendente: lordo più contributi
-          // sulle ore del mese). Prima qui si salvava lordo ÷ ore, senza i
+          // calcola il database (costo_orario_dipendente: lordo, mensilità e oneri
+          // del tipo di dipendente sulle ore produttive del mese). Prima qui si salvava lordo ÷ ore, senza i
           // contributi, e contava come tariffa scritta a mano: la formula
           // giusta non scattava mai e i costi di manodopera risultavano bassi.
           costo_orario: (data.costo_orario && data.costo_orario > 0) ? data.costo_orario : null,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           role_type: data.role_type || 'operaio',
           area: data.area || null,
+          profilo_costo: data.profilo_costo === "auto" ? null : data.profilo_costo,
         });
         if (error) throw error;
       }
@@ -335,9 +340,12 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl sm:text-2xl font-bold">Dipendenti e squadre</h2>
-        <p className="text-muted-foreground">Operai, squadre esterne e staff interno.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold">Dipendenti e squadre</h2>
+          <p className="text-muted-foreground">Operai, squadre esterne e staff interno.</p>
+        </div>
+        {canViewCosts && <ValoriCostoPersonale />}
       </div>
 
       <Tabs defaultValue="employees" className="space-y-4">

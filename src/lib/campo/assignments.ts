@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 
 export interface CampoAssignedOrder {
   id: string;
@@ -99,7 +100,7 @@ export async function loadCampoAssignments(
       const order = row.order;
       if (!order?.id || order.company_id !== companyId || row.order_id !== order.id) continue;
       if (options.orderId && order.id !== options.orderId) continue;
-      if (!options.includeClosed && ["annullato", "chiuso"].includes(order.status?.toLowerCase() ?? "")) continue;
+      if (!options.includeClosed && commessaChiusa(order.status)) continue;
       const existing: CampoResolvedAssignment = resolved.get(order.id) ?? {
         id: order.id, order_id: order.id, order, is_capocantiere: false, sources: [],
       };

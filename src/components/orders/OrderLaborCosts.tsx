@@ -14,7 +14,6 @@ import { campoRoles, campoAssignmentError } from "@/lib/orders/campoAssignmentFo
 import { accessiCommessaKey, caricaAccessiCommessa } from "@/hooks/useAccessiCommessa";
 import { toast } from "sonner";
 import { formatDateIt, formatCurrency } from "@/lib/formatters";
-import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 import { differenceInDays, parseISO } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -191,7 +190,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
         if (formRoleType === "employee") {
           const { data: emp, error: employeeError } = await supabase
             .from("employees")
-            .select("id, costo_orario, gross_salary, inps_rate, monthly_hours, ore_settimana")
+            .select("id")
             .eq("company_id", effectiveCompanyId!)
             .eq("user_id", formUserId)
             .maybeSingle();
@@ -206,13 +205,14 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
               .maybeSingle();
             if (laborError) throw laborError;
             if (!giaPresente) {
+              // La tariffa la calcola il database, con i parametri del tipo di dipendente.
+              const { data: tariffa, error: tariffaError } = await supabase.rpc("costo_orario_dipendente", { p_employee_id: emp.id });
+              if (tariffaError) throw tariffaError;
               const { error: eIns } = await supabase.from("order_employees").insert({
                 order_id: orderId,
                 employee_id: emp.id,
                 phase_id: null,
-                // Stessa formula del database: tariffa scritta a mano, oppure
-                // lordo più contributi sulle ore del mese (prima: 0 se vuota).
-                hourly_rate: costoOrarioDipendente(emp),
+                hourly_rate: Number(tariffa) || 0,
                 hours_worked: 0,
                 total_cost: 0,
               });

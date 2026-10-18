@@ -65,6 +65,12 @@ export function refreshWorkQueries(
     "campo-rapportini-da-compilare",
     "campo-labor-review",
     "campo-sottofasi",
+    // «Ore e persone» e «Cantieri oggi» della stessa pagina
+    "daily-hours",
+    "commessa-ore-timbrate",
+    "ufficio-cantieri-oggi",
+    "ufficio-da-approvare",
+    "campo-da-approvare-conteggi",
   ];
   for (const key of orderKeys)
     void qc.invalidateQueries({ queryKey: [key, orderId] });

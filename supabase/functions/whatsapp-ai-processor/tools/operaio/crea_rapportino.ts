@@ -7,6 +7,7 @@ import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
 import { requireSiteAccess } from "../shared/siteAccess.ts";
 import { rapportinoContentIssue, workHoursIssue } from "../../../_shared/operationalDraftValidation.ts";
+import { giornalieroDelGiorno } from "../../../_shared/rapportoGiornaliero.ts";
 
 export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
   name: "crea_rapportino",
@@ -129,16 +130,18 @@ export async function creaRapportino(
     ? args.attivita.join(". ")
     : null;
 
-  // Cerca esistente
-  const { data: existing, error: readError } = await ctx.supabase
+  // Cerca esistente: nello stesso giorno può esserci anche il collaudo col cliente,
+  // che non va toccato da qui. Si lavora solo sul giornaliero.
+  const { data: righeGiorno, error: readError } = await ctx.supabase
     .from("campo_rapportini")
-    .select("id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario")
+    .select("id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario, lavoro_completato, firma_cliente_url")
     .eq("company_id", ctx.company_id)
     .eq("user_id", ctx.user_id)
     .eq("order_id", orderId)
     .eq("data_lavoro", dataLavoro)
-    .maybeSingle();
+    .limit(5);
   if (readError) return errResult("rapportino_lookup_failed", "Non posso verificare il rapportino esistente. Nessuna nuova bozza creata: verifica prima di riprovare.");
+  const existing = giornalieroDelGiorno(righeGiorno);
 
   if (existing) {
     if (existing.stato !== "bozza") return errResult("rapportino_locked", "Il rapportino è già inviato o approvato. Chiedi all’ufficio di gestire la rettifica: non lo modifico.");

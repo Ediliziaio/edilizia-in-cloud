@@ -37,6 +37,8 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
           .select("order_item_id, movement_type, quantity, unit_cost")
           .eq("order_id", orderId)
           .in("movement_type", ["carico", "scarico"])
+          // gli arrivi da ordine d'acquisto non sono rientri della commessa
+          .or("movement_type.eq.scarico,rientro_commessa.is.true")
           .not("order_item_id", "is", null),
       ]);
       if (acquisti.error) throw acquisti.error;

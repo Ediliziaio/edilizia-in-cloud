@@ -12,7 +12,7 @@ describe("Costo del dipendente nel listino manodopera", () => {
       monthly_hours: 160,
       inps_rate: 28,
     });
-    expect(d).toMatchObject({ costo_orario: 16, costo_calcolato: true });
+    expect(d).toMatchObject({ costo_orario: 22.97, costo_calcolato: true });
     expect(d).not.toHaveProperty("gross_salary");
     expect(d).not.toHaveProperty("inps_rate");
   });

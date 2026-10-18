@@ -6,6 +6,7 @@ import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
 import { requireSiteAccess } from "../shared/siteAccess.ts";
 import { rapportinoContentIssue } from "../../../_shared/operationalDraftValidation.ts";
+import { giornalieroDelGiorno } from "../../../_shared/rapportoGiornaliero.ts";
 
 export const aggiungiAttivitaRapportinoDef: Omit<ToolDef, "handler"> = {
   name: "aggiungi_attivita_rapportino",
@@ -82,15 +83,17 @@ export async function aggiungiAttivitaRapportino(
   try { await requireSiteAccess(ctx, orderId); }
   catch { return errResult("cantiere_access_unavailable", "Non posso verificare l’accesso al cantiere. Nessuna modifica salvata."); }
 
-  const { data: existing, error: readError } = await ctx.supabase
+  // Il collaudo col cliente dello stesso giorno non si tocca da qui: solo il giornaliero.
+  const { data: righeGiorno, error: readError } = await ctx.supabase
     .from("campo_rapportini")
-    .select("id, stato, updated_at, descrizione_lavori, materiali_usati, note")
+    .select("id, stato, updated_at, descrizione_lavori, materiali_usati, note, lavoro_completato, firma_cliente_url")
     .eq("company_id", ctx.company_id)
     .eq("user_id", ctx.user_id)
     .eq("order_id", orderId)
     .eq("data_lavoro", dataLavoro)
-    .maybeSingle();
+    .limit(5);
   if (readError) return errResult("rapportino_lookup_failed", "Lettura rapportino non disponibile. Nessuna modifica salvata.");
+  const existing = giornalieroDelGiorno(righeGiorno);
 
   if (!existing) {
     return errResult(

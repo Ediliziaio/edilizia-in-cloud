@@ -214,16 +214,18 @@ export function useFotoCantiere(orderId?: string) {
 
   const eliminaMutation = useMutation({
     mutationFn: async (foto: FotoCantiere) => {
-      await supabase.storage.from('foto-cantiere').remove([foto.storage_path]);
-      const { error } = await supabase.from('foto_cantiere').delete().eq('id', foto.id).eq('company_id', companyId!);
+      // Prima la riga: se il permesso non c'è, la cancellazione non tocca niente e lo si dice.
+      const { data, error } = await supabase.from('foto_cantiere').delete().eq('id', foto.id).eq('company_id', companyId!).select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Puoi eliminare solo le foto che hai caricato tu.');
+      await supabase.storage.from('foto-cantiere').remove([foto.storage_path]);
     },
     onSuccess: () => {
       if (orderId) void refreshCommessaCampoQueries(qc, orderId, companyId);
       else void qc.invalidateQueries({ queryKey });
       toast.success('Foto eliminata');
     },
-    onError: () => toast.error('Errore eliminazione foto'),
+    onError: (e) => toast.error(e instanceof Error && e.message.startsWith('Puoi eliminare') ? e.message : 'Errore eliminazione foto'),
   });
 
   // Identità stabile: le schede foto la usano come dipendenza dell'effetto che

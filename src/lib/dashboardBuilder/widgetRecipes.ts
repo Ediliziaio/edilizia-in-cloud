@@ -72,12 +72,12 @@ const SALES: PaletteItem[] = [
   },
   {
     type: "kpi_card",
-    label: "Fatturato realizzato",
-    description: "Solo ordini consegnati/chiusi",
+    label: "Fatturato incassato",
+    description: "Pagamenti delle fatture ricevuti nel periodo",
     icon: CircleDollarSign,
     defaultSize: { w: 3, h: 2 },
     defaultConfig: {
-      title: "Fatturato realizzato",
+      title: "Fatturato incassato",
       metric: "revenue_real",
       aggregation: "sum",
       format: { currency: "EUR", decimals: 0 },
@@ -301,12 +301,12 @@ const FINANCE: PaletteItem[] = [
   {
     type: "kpi_card",
     label: "Incassi realizzati",
-    description: "Pagamenti ricevuti nel periodo",
+    description: "Pagamenti delle fatture ricevuti nel periodo",
     icon: Banknote,
     defaultSize: { w: 3, h: 2 },
     defaultConfig: {
       title: "Incassi",
-      metric: "payments_real",
+      metric: "revenue_real",
       aggregation: "sum",
       format: { currency: "EUR", decimals: 0 },
       compareTo: "prev_period",
@@ -340,12 +340,13 @@ const FINANCE: PaletteItem[] = [
   },
   {
     type: "chart_bar",
-    label: "Incassi per categoria",
-    description: "Distribuzione pagamenti",
+    // payments_real sono i costi pagati ai fornitori (company_costs, importo senza IVA).
+    label: "Pagamenti ai fornitori (IVA esclusa)",
+    description: "Costi pagati nel periodo, per categoria",
     icon: PieChart,
     defaultSize: { w: 6, h: 4 },
     defaultConfig: {
-      title: "Incassi per categoria",
+      title: "Pagamenti ai fornitori (IVA esclusa)",
       metric: "payments_real",
       aggregation: "sum",
       breakdown: "category",

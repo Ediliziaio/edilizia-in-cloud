@@ -219,7 +219,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
               di cui {formatCurrency(d.costoStraordinari)} straord.
             </p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">lordo + oneri {d.inpsRate}%</p>
+            <p className="text-[11px] text-muted-foreground">lordo + oneri {d.oneriPercento.toLocaleString("it-IT")}%</p>
           )}
         </div>
 
@@ -250,9 +250,9 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
       {open && (
         <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
           <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-            <span>
+            <span title="Oneri: mensilità aggiuntive, contributi, INAIL, Cassa Edile e TFR del tipo di dipendente">
               Contratto: <strong className="text-slate-700">{formatCurrency(d.lordoMensile)}</strong> lordo
-              + <strong className="text-slate-700">{formatCurrency(d.oneriMensili)}</strong> oneri ({d.inpsRate}%)
+              + <strong className="text-slate-700">{formatCurrency(d.oneriMensili)}</strong> oneri ({d.oneriPercento.toLocaleString("it-IT")}%)
             </span>
             <span>
               Ore contrattuali: <strong className="text-slate-700">{fmtOre(d.oreContrattuali)}</strong>/mese

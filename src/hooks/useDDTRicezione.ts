@@ -292,11 +292,19 @@ export function useDDTCountsByPO() {
   return useQuery<Record<string, DDTCountAggregate>>({
     queryKey: queryKeys.ddtRicezione.countsByPO(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ddt_ricezione")
-        .select("purchase_order_id, stato")
-        .eq("company_id", companyId!);
-      if (error) throw error;
+      // A pagine: oltre le 1.000 bolle PostgREST tronca e i conteggi verrebbero bassi.
+      const data: { purchase_order_id: string; stato: DDTStato }[] = [];
+      for (let da = 0; ; da += 1000) {
+        const { data: pagina, error } = await supabase
+          .from("ddt_ricezione")
+          .select("id, purchase_order_id, stato")
+          .eq("company_id", companyId!)
+          .order("id")
+          .range(da, da + 999);
+        if (error) throw error;
+        data.push(...((pagina ?? []) as unknown as { purchase_order_id: string; stato: DDTStato }[]));
+        if (!pagina || pagina.length < 1000) break;
+      }
 
       const map: Record<string, DDTCountAggregate> = {};
       for (const row of data || []) {
@@ -331,6 +339,17 @@ export function useDDTCountsByPO() {
 // ============================================================================
 // MUTATIONS
 // ============================================================================
+export const MESSAGGIO_STATO_NON_AGGIORNATO =
+  "Ricezione rimossa, ma lo stato dell'articolo non si è aggiornato. Ricarica la pagina e controlla l'articolo.";
+
+/** Lo stato dell'articolo calcolato dalle ricezioni che restano dopo una cancellazione. */
+export function statoDopoRicezioniRimaste(rimaste: { quantity_received?: number | null }[]) {
+  const somma = rimaste.reduce((acc, r) => acc + Number(r.quantity_received ?? 0), 0);
+  return somma > 0
+    ? { quantity_received: somma, fulfillment_status: "received" as const, last_goods_receipt_date: new Date().toISOString() }
+    : { quantity_received: 0, fulfillment_status: "not_started" as const, receipt_id: null as string | null };
+}
+
 export function useDDTRicezioneMutations(poId?: string | null) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -539,19 +558,13 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const deleteGoodsReceipt = useMutation({
     mutationFn: async (id: string) => {
-      // Bug pre-esistente: prima il DELETE eliminava SOLO la riga goods_receipts
-      // lasciando order_items.fulfillment_status='received' + quantity_received
-      // settati al valore della receipt cancellata → dati inconsistenti
-      // (la riga risultava ricevuta ma senza prova).
-      //
-      // Fix: prima del DELETE leggiamo order_item_id, poi dopo il DELETE
-      // ricalcoliamo da SUM delle ricezioni rimaste:
-      //   - sum > 0 → quantity_received = sum, fulfillment_status='received'
-      //   - sum == 0 → quantity_received=0, fulfillment_status='pending',
-      //                receipt_id=NULL
-      //
-      // Soluzione corretta a lungo termine: RPC delete_goods_receipt_atomic.
-      // Per ora client-side 3-step, fail-soft sull'UPDATE.
+      // Dopo la cancellazione lo stato dell'articolo si ricalcola dalle
+      // ricezioni rimaste:
+      //   - somma > 0 → quantity_received = somma, fulfillment_status='received'
+      //   - somma = 0 → quantity_received = 0, fulfillment_status='not_started'
+      //                 (il valore di partenza ammesso dal vincolo), receipt_id = NULL
+      // Ogni errore di lettura o di scrittura arriva all'utente: la ricezione
+      // è già tolta, e l'avviso dice che lo stato dell'articolo va ricontrollato.
       const { data: receiptRow, error: lookupErr } = await supabase
         .from("goods_receipts")
         .select("order_item_id")
@@ -564,44 +577,27 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       if (delErr) throw delErr;
 
       if (orderItemId) {
-        try {
-          const { data: remaining } = await supabase
-            .from("goods_receipts")
-            .select("quantity_received")
-            .eq("order_item_id", orderItemId);
-          const sumRemaining = (remaining ?? []).reduce(
-            (acc, r) => acc + Number((r as { quantity_received?: number }).quantity_received ?? 0),
-            0,
-          );
-          await supabase
-            .from("order_items")
-            .update(
-              sumRemaining > 0
-                ? {
-                    quantity_received: sumRemaining,
-                    fulfillment_status: "received" as never,
-                    last_goods_receipt_date: new Date().toISOString(),
-                  }
-                : {
-                    quantity_received: 0,
-                    fulfillment_status: "pending" as never,
-                    receipt_id: null,
-                  } as never,
-            )
-            .eq("id", orderItemId);
-        } catch (recalcErr) {
-          // Non fatale: la receipt è stata cancellata, ma il fulfillment
-          // status resta stale. L'utente vedrà il toast warning e potrà
-          // sistemare manualmente.
-          console.warn("[deleteGoodsReceipt] recalc fulfillment failed:", recalcErr);
-        }
+        const { data: remaining, error: remainingErr } = await supabase
+          .from("goods_receipts")
+          .select("quantity_received")
+          .eq("order_item_id", orderItemId);
+        if (remainingErr) throw new Error(MESSAGGIO_STATO_NON_AGGIORNATO);
+        const { error: updErr } = await supabase
+          .from("order_items")
+          .update(statoDopoRicezioniRimaste(remaining ?? []) as never)
+          .eq("id", orderItemId);
+        if (updErr) throw new Error(MESSAGGIO_STATO_NON_AGGIORNATO);
       }
     },
     onSuccess: () => {
       toast.success("Ricezione rimossa");
       invalidateAll();
     },
-    onError: (err: Error) => toast.error(err.message || "Errore rimozione ricezione"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Errore rimozione ricezione");
+      // La cancellazione può essere già avvenuta: si rileggono comunque i dati.
+      invalidateAll();
+    },
   });
 
   return {

@@ -85,12 +85,39 @@ import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBo
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
 import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
+import { conSaldoFinale, importoSaldoFinale, sommaRateNonSaldo } from "@/lib/orders/saldoFinale";
 import { datiLavoroDaEmessa, riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 
 /** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
   modello ? rateDaModello(modello, 0) : createDefaultInstallments('standard', 2);
+
+const arrotonda2 = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Una riga con quantità non intera («massetto 12,5 mq») diventa 1 × il totale
+ * di riga, come nel simulatore (`src/lib/simulatore/trasforma.ts`):
+ * `order_items.quantity` è un intero e `create_order_atomic` lo converte, quindi
+ * 12,5 la farebbe fallire. Prezzo di vendita, costo d'acquisto e costo standard
+ * diventano importi di riga; la quantità vera resta scritta nella descrizione.
+ * Le righe con quantità intera restano come sono.
+ */
+export function rigaConQuantitaIntera<T extends Pick<OrderItem, "quantity" | "description" | "unit_price" | "purchase_price" | "standard_cost">>(riga: T): T {
+  const quantita = Number(riga.quantity);
+  if (!Number.isFinite(quantita) || Number.isInteger(quantita) || quantita <= 0) return riga;
+  const quantitaScritta = `Quantità ${quantita.toLocaleString("it-IT", { maximumFractionDigits: 4 })}`
+    + (riga.unit_price ? ` × ${formatDecimalIT(riga.unit_price)} €` : "");
+  const perRiga = (v: number | undefined) => (v == null ? v : arrotonda2(Number(v) * quantita));
+  return {
+    ...riga,
+    quantity: 1,
+    unit_price: perRiga(riga.unit_price),
+    purchase_price: perRiga(riga.purchase_price),
+    standard_cost: perRiga(riga.standard_cost),
+    description: riga.description?.trim() ? `${riga.description.trim()} · ${quantitaScritta}` : quantitaScritta,
+  };
+}
 
 function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
   const navigate = useNavigate();
@@ -205,10 +232,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const vat = vatRate?.trim() ? parseDecimalIT(vatRate) : 0;
   const fCostForBalance = paymentType === 'financing' ? (parseDecimalIT(financingCost || "")) : 0;
   const totalWithVat = total * (1 + vat / 100);
-  const nonBalanceSum = installments
-    .filter(i => i.type !== 'balance')
-    .reduce((sum, i) => sum + i.amount, 0);
-  const balance = Math.max(0, totalWithVat - nonBalanceSum - fCostForBalance);
+  // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
+  // e si tolgono dal residuo (stessa regola della vista in sola lettura).
+  const nonBalanceSum = sommaRateNonSaldo(installments);
+  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance);
   const overAllocatedPayments = nonBalanceSum + fCostForBalance > totalWithVat + 0.01;
   const invalidOrderItems = orderItems.filter(
     (item) =>
@@ -522,7 +549,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
       const itemsMerce = vociVere.map<OrderItem>((v, idx) => {
         const match = mappaVoceSuListino(v.descrizione ?? "");
-        return {
+        return rigaConQuantitaIntera<OrderItem>({
           name: v.descrizione,
           quantity: v.quantita || 1,
           status: "da_ordinare",
@@ -543,7 +570,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             ? { larghezza_mm: match.larghezza_mm, altezza_mm: match.altezza_mm, mq: match.mq }
             : null,
           measure_status: null,
-        };
+        });
       });
       // Imballaggio/trasporto/oneri: voci a sé, senza sconto (nel documento
       // sono calcolati DOPO lo sconto merce).
@@ -879,9 +906,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       const fCost = parseDecimalIT(values.financing_cost || "");
 
       // Compute legacy columns from installments for backward compat
-      const installmentsForSave = installments.map(i =>
-        !i.amount_from_contract && i.type === 'balance' ? { ...i, amount: balance } : i
-      );
+      // Solo il saldo finale prende il residuo (se il contratto non ne dichiara già l'importo):
+      // i SAL intermedi restano col loro importo.
+      const installmentsForSave = conSaldoFinale(installments, balance, i => !!i.amount_from_contract);
       const legacy = installmentsToLegacyColumns(installmentsForSave);
 
       const orderData = {
@@ -907,7 +934,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         sede_id: values.sede_id || null,
       };
 
-      const itemsPayload = orderItems.map((item, index) => ({
+      // Quantità non intere → 1 × il totale di riga (vedi rigaConQuantitaIntera).
+      const itemsPayload = orderItems.map(rigaConQuantitaIntera).map((item, index) => ({
         name: item.name,
         description: item.description || null,
         quantity: item.quantity,
@@ -920,7 +948,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         unit_price: item.unit_price ?? 0,
         discount_percent: item.discount_percent ?? 0,
         standard_cost: item.standard_cost ?? 0,
+        // Aggancio al listino, arrivo previsto e distinta: viaggiano con la voce
+        // così la commessa nasce con gli stessi dati che il modulo mostra.
+        article_template_id: item.article_template_id || null,
         product_code: item.product_code || null,
+        categoria: item.categoria || null,
+        delivery_date: item.delivery_date || null,
+        posizioni: item.posizioni?.length ? item.posizioni : null,
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || null,
         payment_method: item.payment_method || null,

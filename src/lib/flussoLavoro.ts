@@ -63,6 +63,12 @@ export interface PassoFlusso {
    * `avanza_fase_da_passo_chiuso` la applica, e solo in avanti.
    */
   fase_raggiunta_id?: string | null;
+  /** «ufficio» = fase d'ufficio della commessa (vista Cantiere → Ufficio). */
+  activity_scope?: "generale" | "ufficio" | "cantiere";
+  /** Nome della fase del cantiere da aspettare (es. «Rilievo misure»): finché non è chiusa il passo attende. */
+  dopo_fase_lavorazione?: string | null;
+  /** Posizione nel flusso (ordine delle fasi d'ufficio). */
+  sort_order?: number | null;
 }
 
 interface RigaTemplate {
@@ -77,10 +83,13 @@ interface RigaTemplate {
   giorni_dopo_sblocco: number;
   chiudi_su_evento: string | null;
   fase_raggiunta_id: string | null;
+  activity_scope: string | null;
+  dopo_fase_lavorazione: string | null;
+  sort_order: number | null;
 }
 
 const CAMPI_TEMPLATE =
-  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento, fase_raggiunta_id";
+  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento, fase_raggiunta_id, activity_scope, dopo_fase_lavorazione, sort_order";
 
 /**
  * Legge il flusso configurato dall'azienda per questo ambito e questo vertical
@@ -115,6 +124,9 @@ export async function leggiFlussoAzienda(params: {
     giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
     chiudi_su_evento: (t.chiudi_su_evento as EventoChiusura | null) ?? null,
     fase_raggiunta_id: t.fase_raggiunta_id ?? null,
+    activity_scope: t.activity_scope === "ufficio" || t.activity_scope === "cantiere" ? t.activity_scope : "generale",
+    dopo_fase_lavorazione: t.dopo_fase_lavorazione ?? null,
+    sort_order: t.sort_order ?? null,
   }));
 }
 
@@ -175,6 +187,23 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
 
   const colonnaEntita = ambito === "ticket" ? "ticket_id" : "order_id";
 
+  // Fasi del cantiere della commessa ancora aperte: un passo può aspettarne una per nome.
+  const faseApertaPerNome = new Map<string, string>();
+  if (ambito === "commessa" && steps.some((s) => s.dopo_fase_lavorazione)) {
+    const { data: fasi } = await supabase
+      .from("order_work_phases")
+      .select("id, name, status, position")
+      .eq("order_id", entitaId)
+      .neq("status", "completata")
+      .order("position", { ascending: true });
+    ((fasi ?? []) as unknown as Array<{ id: string; name: string }>).forEach((f) => {
+      const k = f.name.trim().toLowerCase();
+      if (!faseApertaPerNome.has(k)) faseApertaPerNome.set(k, f.id);
+    });
+  }
+  const faseAttesa = (s: PassoFlusso): string | null =>
+    s.dopo_fase_lavorazione ? faseApertaPerNome.get(s.dopo_fase_lavorazione.trim().toLowerCase()) ?? null : null;
+
   // Titoli già presenti: non si duplicano, ma servono come ancora per i passi
   // che dipendono da un pezzo di flusso creato in un giro precedente.
   const { data: esistenti } = await supabase
@@ -210,8 +239,11 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
   const scadenzaIniziale = (s: PassoFlusso) =>
     format(addDays(baseDate, s.giorni_offset), "yyyy-MM-dd");
 
-  const rigaPerStep = (s: PassoFlusso) => {
+  const rigaPerStep = (s: PassoFlusso, posizione: number) => {
     const bloccataDa = predecessore(s);
+    // Aspetta una fase del cantiere solo se non aspetta già un'altra attività.
+    const fase = bloccataDa ? null : faseAttesa(s);
+    const attende = !!bloccataDa || !!fase;
     return {
       company_id: companyId,
       [colonnaEntita]: entitaId,
@@ -219,10 +251,13 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
       notes: s.descrizione ?? null,
       // In attesa = il passo esiste ma tocca a qualcun altro prima. Niente
       // scadenza finché è lì: altrimenti nascerebbe già arretrato.
-      status: bloccataDa ? "in_attesa" : "da_fare",
-      due_date: bloccataDa ? null : scadenzaIniziale(s),
+      status: attende ? "in_attesa" : "da_fare",
+      due_date: attende ? null : scadenzaIniziale(s),
       bloccata_da_task_id: bloccataDa,
-      sblocco_giorni: bloccataDa ? s.giorni_dopo_sblocco ?? 0 : null,
+      attende_fase_id: fase,
+      sblocco_giorni: attende ? s.giorni_dopo_sblocco ?? 0 : null,
+      activity_scope: ambito === "commessa" ? s.activity_scope ?? (s.assegna_a_ufficio_id ? "ufficio" : "generale") : "generale",
+      sort_order: s.sort_order ?? posizione,
       priority: s.priorita,
       category: categoriaTask,
       // Il DB ci pensa da solo: i trigger sugli incassi chiudono l'attività e
@@ -257,13 +292,14 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
       .from("tasks")
       .insert(daInserire.map((s) => (forzaRoot
         ? {
-            ...rigaPerStep(s),
+            ...rigaPerStep(s, steps.indexOf(s)),
             status: "da_fare",
             bloccata_da_task_id: null,
+            attende_fase_id: null,
             sblocco_giorni: null,
             due_date: scadenzaIniziale(s),
           }
-        : rigaPerStep(s))) as never)
+        : rigaPerStep(s, steps.indexOf(s)))) as never)
       .select("id, title");
     if (error) throw error;
 

@@ -492,3 +492,5 @@ async function getCompanyName(supabase: any, companyId: string): Promise<string>
     .maybeSingle();
   return (data?.name as string | undefined) ?? "la tua azienda";
 }
+
+// 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).

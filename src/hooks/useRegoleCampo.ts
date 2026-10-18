@@ -58,6 +58,7 @@ export function useSalvaRegoleAzienda(companyId: string | undefined) {
         p_chi_compila: regole.chiCompila,
         p_ore_dalle: regole.oreDalle,
         p_avviso_minuti: regole.avvisoScostamentoMinuti,
+        p_giorni_indietro: regole.giorniIndietro,
       });
       if (error) throw error;
       if (!data || typeof data !== "object") throw new Error("La conferma del salvataggio non è disponibile. Ricarica le impostazioni.");

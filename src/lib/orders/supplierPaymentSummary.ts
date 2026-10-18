@@ -2,6 +2,8 @@
  * Bank reconciliations mirror prima nota and must NEVER be added a second time.
  * Ambiguous costs/credit notes stay visible for review instead of inventing a payment.
  */
+import { eNotaDiCredito } from "@/lib/fatturazione/noteDiCredito";
+
 export interface SupplierOrder {
   id: string; supplier_id: string | null; oda_number: string; status: string; total: number | null;
 }
@@ -54,7 +56,7 @@ export function supplierInvoiceCostIds(input: {
   const invoices = unique(input.invoices).filter(i => !['annullata', 'scartata', 'rifiutata'].includes(i.stato));
   const ambiguous = new Set(input.ambiguousCostIds ?? []);
   for (const invoice of invoices) {
-    if (!invoice.purchase_order_id || !invoice.company_cost_id || invoice.tipo_documento === 'TD04' ||
+    if (!invoice.purchase_order_id || !invoice.company_cost_id || eNotaDiCredito(invoice.tipo_documento) ||
       !Number.isFinite(invoice.totale_documento) || cents(invoice.totale_documento) <= 0) continue;
     const order = input.orders.find(o => o.id === invoice.purchase_order_id);
     const members = costs.filter(c => c.purchase_order_id === invoice.purchase_order_id);
@@ -129,7 +131,7 @@ export function supplierPaymentSummary(input: {
     group.invoiceCount += pool.length;
     const linkedCosts = poolCostIds(pool);
     const poolDues = dues.filter(d => !!d.cost_id && linkedCosts.has(d.cost_id));
-    const hasCredit = pool.some(i => i.tipo_documento === 'TD04' || cents(i.totale_documento) < 0);
+    const hasCredit = pool.some(i => eNotaDiCredito(i.tipo_documento) || cents(i.totale_documento) < 0);
     const uncertain = hasCredit || supplierIds.size > 1 || [...linkedCosts].some(id => ambiguous.has(id)) ||
       pool.some(i => i.totale_documento == null) || poolEntries.some(e => (entryPoolCount.get(e.id) ?? 0) > 1);
     if (uncertain) { group.review += total; group.reviewCount += pool.length; continue; }

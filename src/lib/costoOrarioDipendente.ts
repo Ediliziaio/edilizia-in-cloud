@@ -9,18 +9,20 @@
  * per le schermate che non possono chiamare il database.
  *
  * Regola: la tariffa scritta a mano vince (è una scelta dell'azienda);
- * altrimenti si calcola dal costo VERO — lordo più oneri — sulle ore
- * contrattuali del mese.
+ * altrimenti si calcola dal costo VERO — lordo, mensilità, oneri del tipo di
+ * dipendente (INPS, INAIL, Cassa Edile, TFR) — sulle ore produttive del mese.
+ * I parametri sono in src/lib/costoPersonale.ts.
  */
 
 import { reviewHourlyCost } from "@/lib/campo/laborCostReview";
+import type { DatiProfilo, ParametriCostoAzienda } from "@/lib/costoPersonale";
 
 /** Aliquota INPS usata quando il dipendente non ne ha una sua. */
 export const ALIQUOTA_INPS_DEFAULT = 28;
 /** Ore mensili usate quando il contratto non le specifica (40 h × 4,33). */
 export const ORE_MENSILI_DEFAULT = 173;
 
-export interface DatiCostoOrario {
+export interface DatiCostoOrario extends DatiProfilo {
   costo_orario?: number | string | null;
   gross_salary?: number | string | null;
   inps_rate?: number | string | null;
@@ -46,6 +48,6 @@ export function oreContrattualiMese(e: DatiCostoOrario): number {
  * Per distinguere uno zero da dati mancanti, le schermate usano reviewHourlyCost.
  * Le ore presunte di oreContrattualiMese servono alla pianificazione, NON al costo.
  */
-export function costoOrarioDipendente(e: DatiCostoOrario): number {
-  return reviewHourlyCost({ ...e, id: "", user_id: null }).amount ?? 0;
+export function costoOrarioDipendente(e: DatiCostoOrario, parametri?: ParametriCostoAzienda | null): number {
+  return reviewHourlyCost({ ...e, id: "", user_id: null }, parametri).amount ?? 0;
 }

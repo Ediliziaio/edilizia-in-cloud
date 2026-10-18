@@ -50,14 +50,14 @@ describe("Fine lavori — step firme in CampoRapportino", () => {
     expect(src).toContain('from("campo-rapportini")');
   });
 
-  it("notifica il responsabile via create_notification (assigned_to → created_by)", () => {
+  it("l'avviso all'ufficio lo manda il database, non il telefono", () => {
     const src = readFileSync(CAMPO_RAPPORTINO, "utf8");
-    expect(src).toContain('rpc("create_notification"');
-    expect(src).toContain("assigned_to");
-    expect(src).toContain('p_type: "rapportino_inviato"');
-    expect(src).toContain('p_entity_type: "campo_rapportino"');
-    expect(src).toContain("Rapporto di fine lavori firmato dal cliente");
-    expect(src).toContain("Nuovo rapportino da approvare");
+    expect(src).not.toContain('rpc("create_notification"');
+    const migrazione = readFileSync("supabase/migrations/20281018230000_avvisi_cantiere_dal_database.sql", "utf8");
+    expect(migrazione).toContain("campo_rapportino_da_approvare");
+    expect(migrazione).toContain("Collaudo firmato dal cliente");
+    expect(migrazione).toContain("Nuovo rapportino da approvare");
+    expect(migrazione).toContain("campo_destinatari_ufficio");
   });
 });
 

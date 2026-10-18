@@ -1,9 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
+import { leggiParametriCosto } from "@/hooks/useParametriCostoPersonale";
 import { reviewLaborReport, summarizeLaborBudget, type LaborEmployee, type LaborReport } from "./laborCostReview";
 
 const REPORT_FIELDS = "id, company_id, order_id, user_id, data_lavoro, stato, approvato, updated_at, ore_lavorate, ore_straordinario, presenze";
 const IDENTITY_FIELDS = "id, user_id, first_name, last_name";
-const COST_FIELDS = ", costo_orario, gross_salary, monthly_hours, inps_rate";
+const COST_FIELDS = ", costo_orario, gross_salary, monthly_hours, inps_rate, profilo_costo, role_type, qualifica, area";
 export interface LaborReviewRequest { companyId: string; orderId: string; reportId: string; showCosts: boolean }
 
 /** Office-only read. The caller checks permission; RLS remains authoritative.
@@ -98,7 +99,7 @@ export async function loadLaborReview(request: LaborReviewRequest) {
   const dbConflict = await leggiConflittoOre(reportId);
   // Local comparison token, not a security token or a database version.
   const fingerprint = JSON.stringify({ showCosts, dbConflict, reports: [...dayReports].sort((a,b) => a.id.localeCompare(b.id)), employees: employeeRows, laborRows });
-  return { target, fingerprint, budget: showCosts ? summarizeLaborBudget(laborRows) : null, ...reviewLaborReport(current, dayReports, employeeRows, showCosts, dbConflict) };
+  return { target, fingerprint, budget: showCosts ? summarizeLaborBudget(laborRows) : null, ...reviewLaborReport(current, dayReports, employeeRows, showCosts, dbConflict, showCosts ? await leggiParametriCosto(companyId) : null) };
 }
 export type LaborReview = Awaited<ReturnType<typeof loadLaborReview>>;
 

@@ -58,7 +58,7 @@ beforeAll(async () => {
   const original = readFileSync(resolve(process.cwd(), "supabase/migrations/20281007141000_rapportino_applica_avanzamento.sql"), "utf8");
   await db.exec(original);
   // Interoperabilità delle due bozze, non solo test della singola funzione.
-  const protocol = readFileSync(resolve(process.cwd(), "supabase/migrations-pending/campo_rapportini_protocollo.sql"), "utf8");
+  const protocol = readFileSync(resolve(process.cwd(), "supabase/migrations/20281018180000_campo_rapportini_protocollo.sql"), "utf8");
   await db.exec(protocol);
   const pending = readFileSync(resolve(process.cwd(), "supabase/migrations-pending/campo_rapportini_collegamenti_atomici.sql"), "utf8");
   await db.exec(pending); await db.exec(pending);
