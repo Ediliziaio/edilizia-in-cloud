@@ -155,6 +155,23 @@ const piattaformaSidebar: MenuColumn = {
   ],
 };
 
+// Funzionalità che stavano solo nella pagina «Tutte le funzionalità»: senza
+// un link dal menu Google le scansionava e non le teneva in indice
+// (Search Console, 18/10/2026). Il menu è nell'HTML di ogni pagina.
+const piattaformaAltre: MenuColumn = {
+  heading: "ALTRE FUNZIONALITÀ",
+  items: [
+    { to: "/funzionalita/rapportini-cantiere", label: "Rapportini Cantiere", icon: ClipboardList },
+    { to: "/funzionalita/ritenute-garanzia", label: "Ritenute di Garanzia", icon: Wallet },
+    { to: "/funzionalita/finanziamenti-cantieri", label: "Finanziamenti Cantieri", icon: Banknote },
+    { to: "/funzionalita/fotovoltaico", label: "Cantieri Fotovoltaico", icon: SunMedium },
+    { to: "/funzionalita/manutenzione-impianti", label: "Manutenzione Impianti", icon: Wrench },
+    { to: "/funzionalita/ticket-assistenza", label: "Ticket Assistenza", icon: Inbox },
+    { to: "/funzionalita/lead-form-facebook", label: "Lead Form Facebook", icon: UsersRound },
+    { to: "/funzionalita/sms-marketing", label: "SMS Marketing", icon: MessageSquare },
+  ],
+};
+
 // ───────────── Per chi — 2 columns + partnership sidebar ─────────────
 const perChiColumns: MenuColumn[] = [
   {
@@ -168,7 +185,7 @@ const perChiColumns: MenuColumn[] = [
   {
     heading: "SETTORE",
     items: [
-      { to: "/per/imprese-edili", label: "Imprese di Costruzione", desc: "General contractor edili", icon: HardHat },
+      { to: "/per/imprese-edili", label: "Imprese Edili", desc: "Imprese di costruzione e general contractor", icon: HardHat },
       { to: "/per/impiantisti", label: "Impiantisti", desc: "Idraulici, elettricisti, termici", icon: Wrench },
       { to: "/per/ristrutturatori", label: "Ristrutturatori", desc: "Ristrutturazione residenziale", icon: Hammer },
       { to: "/per/fotovoltaico", label: "Fotovoltaico", desc: "Installatori e EPC", icon: SunMedium },
@@ -208,6 +225,7 @@ const risorseColumns: MenuColumn[] = [
     items: [
       { to: "/strumenti", label: "Calcolatori Gratuiti", desc: "Congruità, costo orario, margine", icon: Calculator },
       { to: "/confronto", label: "Confronto Software", desc: "vs Primus, Edilnet, TeamSystem", icon: PanelsTopLeft },
+      { to: "/blog/migliori-software-gestionali-edilizia-confronto", label: "I Migliori Gestionali 2026", desc: "8 software a confronto su funzioni e prezzi", icon: FileSearch },
       { to: "/integrazioni", label: "Integrazioni", desc: "API, SDI, banche, CRM", icon: Plug },
       { to: "/software-gestionale-edilizia", label: "Software per Città", desc: "Soluzioni per area geografica", icon: MapPin },
       { to: "/funzionalita", label: "Tutte le Funzionalità", desc: "Mappa completa della piattaforma", icon: PencilRuler },
@@ -553,6 +571,24 @@ export default function LandingNavbar() {
                     </li>
                   ))}
                 </ul>
+                <p className="mt-4 mb-2 text-[11px] font-bold tracking-wider text-[#111111]/50">
+                  {piattaformaAltre.heading}
+                </p>
+                <ul className="grid grid-cols-2 gap-1">
+                  {piattaformaAltre.items.map((item) => (
+                    <li key={item.label}>
+                      <Link
+                        to={item.to}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white transition-colors"
+                      >
+                        <item.icon className="h-3.5 w-3.5 text-eic-orange flex-shrink-0" />
+                        <span className="text-[12px] font-medium text-[#111111] truncate">
+                          {item.label}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
@@ -826,7 +862,7 @@ export default function LandingNavbar() {
                 setMobileSection(mobileSection === "piattaforma" ? null : "piattaforma")
               }
             >
-              {[...piattaformaColumns, piattaformaSidebar].map((col) => (
+              {[...piattaformaColumns, piattaformaSidebar, piattaformaAltre].map((col) => (
                 <div key={col.heading} className="mt-3 first:mt-0">
                   <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
                     {col.heading}

@@ -383,9 +383,9 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n5",
     slug: "cartello-di-cantiere-obbligatorio",
-    title: "Cartello di cantiere obbligatorio: contenuti e sanzioni",
+    title: "Cartello di cantiere: cosa scrivere, quando serve, sanzioni",
     excerpt:
-      "Cartello di cantiere assente: prima irregolarità a verbale e controlli a catena. Cosa deve contenere, chi risponde, sanzioni e dimensioni consigliate.",
+      "Cartello di cantiere obbligatorio anche con CILA e SCIA? Cosa deve contenere, modello di testo pronto, dimensioni, chi risponde e sanzioni.",
     category: "Normativa",
     tags: ["cartello di cantiere", "DPR 380/2001", "permesso di costruire", "adempimenti cantiere"],
     publishedAt: "2026-07-25",
@@ -482,7 +482,7 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n6",
     slug: "notifica-preliminare-cantiere",
-    title: "Notifica preliminare cantiere: quando serve e chi la invia",
+    title: "Notifica preliminare: quando serve, quando no e come inviarla",
     excerpt:
       "Due imprese in cantiere o 200 uomini-giorno: senza notifica preliminare il committente rischia fino a 1.800 € e il cantiere è irregolare. Come inviarla.",
     category: "Normativa",

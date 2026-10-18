@@ -483,7 +483,7 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "come-trovare-clienti-fotovoltaico",
-    "preventivi-edilizia-guida",
+    "come-fare-preventivo-edilizia",
     "superbonus-imprese-edili-2026",
   ],
 };

@@ -202,7 +202,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
       {
         type: "section",
         heading: "Come è fatto un gestionale per la piccola impresa",
-        body: "Lo abbiamo costruito partendo da qui: [Edilizia in Cloud](/per/imprese-edili) nasce dentro un'impresa edile vera, per il titolare che fa tutto e per la squadra che sta in cantiere. Preventivo, cantiere, rapportini con foto e firma, SAL, fattura elettronica, operai e margini in una piattaforma sola, dal telefono. Utenti illimitati, perché in una piccola impresa il gestionale lo devono usare tutti o non lo usa nessuno; nessun modulo da aggiungere dopo; e una prova gratuita di 31 giorni con i tuoi dati, non una demo. Se vuoi capire come si confronta con le altre famiglie di software, la [classifica dei gestionali per imprese edili](/blog/miglior-gestionale-edilizia-guida-scelta) mette tutto in una tabella.",
+        body: "Lo abbiamo costruito partendo da qui: [Edilizia in Cloud](/per/imprese-edili) nasce dentro un'impresa edile vera, per il titolare che fa tutto e per la squadra che sta in cantiere. Preventivo, cantiere, rapportini con foto e firma, SAL, fattura elettronica, operai e margini in una piattaforma sola, dal telefono. Utenti illimitati, perché in una piccola impresa il gestionale lo devono usare tutti o non lo usa nessuno; nessun modulo da aggiungere dopo; e una prova gratuita di 31 giorni con i tuoi dati, non una demo. Se vuoi capire come si confronta con le altre famiglie di software, la [classifica dei gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/) mette tutto in una tabella.",
       },
       {
         type: "cta",

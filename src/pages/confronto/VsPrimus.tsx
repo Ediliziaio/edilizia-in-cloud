@@ -118,7 +118,7 @@ const faqItems = [
   },
 ];
 
-const vsRelatedSlugs = ["alternativa-excel-cantieri", "software-gestionale-vs-excel", "come-fare-preventivo-edilizia"];
+const vsRelatedSlugs = ["alternativa-excel-cantieri", "excel-whatsapp-carta-gestione-impresa-edile", "come-fare-preventivo-edilizia"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsPrimus() {

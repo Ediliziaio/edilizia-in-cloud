@@ -131,6 +131,18 @@ const INTERNAL_TARGETS: InternalTarget[] = [
     href: "/blog/appalti-pubblici-edilizia-guida/",
     title: "Appalti pubblici in edilizia: come partecipare",
   },
+  {
+    // La pagina di riferimento per le ricerche commerciali (18/10/2026).
+    pattern: "migliori software gestionali(?: per l'edilizia| per imprese edili)?",
+    href: "/blog/migliori-software-gestionali-edilizia-confronto/",
+    title: "I migliori software gestionali per l'edilizia: confronto",
+  },
+  {
+    // La guida BIM non riceveva link da nessun articolo (18/10/2026).
+    pattern: "BIM",
+    href: "/blog/bim-edilizia-guida-pratica/",
+    title: "BIM in edilizia: cos'è e come iniziare",
+  },
 ];
 
 // Alternation unica con un solo gruppo di cattura esterno (pattern split()).

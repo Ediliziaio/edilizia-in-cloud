@@ -12,10 +12,12 @@ export interface SEOOptions {
   keywords?: string;
   section?: string;   // article section
   tags?: string[];    // article tags
+  /** Niente "| Edilizia in Cloud" in coda al titolo (pagine città: vedi CityLanding). */
+  senzaMarchio?: boolean;
 }
 
 const DEFAULT_TITLE = "Edilizia in Cloud — Software Gestionale per Imprese Edili";
-const DEFAULT_DESC  = "Il software gestionale n°1 per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 31 giorni.";
+const DEFAULT_DESC  = "Il software gestionale per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 31 giorni.";
 export const SITE_URL = "https://www.ediliziaincloud.com";
 
 // Immagini di anteprima (og:image) per sezione del sito. Fino al 06/09/2026
@@ -127,7 +129,7 @@ export function useSEO(options: SEOOptions) {
   const {
     title, description, canonical, ogImage,
     noindex = false, type = "website", publishedTime, modifiedTime,
-    keywords, section, tags,
+    keywords, section, tags, senzaMarchio = false,
   } = options;
 
   useEffect(() => {
@@ -137,7 +139,7 @@ export function useSEO(options: SEOOptions) {
     //     (Google tronca a ~60 char nei risultati di ricerca)
     const SUFFIX = " | Edilizia in Cloud";
     const fullTitle =
-      title.includes("Edilizia in Cloud") || title.length + SUFFIX.length > 60
+      senzaMarchio || title.includes("Edilizia in Cloud") || title.length + SUFFIX.length > 60
         ? title
         : `${title}${SUFFIX}`;
     document.title = fullTitle;
@@ -222,7 +224,7 @@ export function useSEO(options: SEOOptions) {
     };
   }, [
     title, description, canonical, ogImage, noindex,
-    type, publishedTime, modifiedTime, keywords, section,
+    type, publishedTime, modifiedTime, keywords, section, senzaMarchio,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     tags?.join(","),
   ]);

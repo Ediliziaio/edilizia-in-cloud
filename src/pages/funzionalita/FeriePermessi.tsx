@@ -434,7 +434,7 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction HR Leave Management Software",
 
   relatedBlogSlugs: [
-    "hr-edilizia-presenze-buste-paga",
+    "registro-presenze-cantiere-obbligatorio",
     "ccnl-edilizia-guida",
     "gestione-operai-cantiere-presenze-ore",
   ],

@@ -453,7 +453,7 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "marketing-digitale-imprese-edili",
-    "come-trovare-clienti-impresa-edile-marketing",
+    "acquisire-clienti-impresa-edile",
     "passaparola-impresa-edile-non-basta",
   ],
 };

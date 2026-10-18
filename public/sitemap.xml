@@ -121,13 +121,6 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/"/>
   </url>
   <url>
-    <loc>https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/</loc>
-    <lastmod>2026-09-05</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/"/>
-  </url>
-  <url>
     <loc>https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/</loc>
     <lastmod>2026-08-03</lastmod>
     <changefreq>monthly</changefreq>
@@ -311,28 +304,6 @@
     </image:image>
   </url>
   <url>
-    <loc>https://www.ediliziaincloud.com/blog/preventivi-edilizia-guida/</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/preventivi-edilizia-guida/"/>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
-      <image:title>Preventivi Vincenti in Edilizia</image:title>
-    </image:image>
-  </url>
-  <url>
-    <loc>https://www.ediliziaincloud.com/blog/hr-edilizia-presenze-buste-paga/</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/hr-edilizia-presenze-buste-paga/"/>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
-      <image:title>HR in Edilizia: Presenze e Buste Paga</image:title>
-    </image:image>
-  </url>
-  <url>
     <loc>https://www.ediliziaincloud.com/blog/analisi-margini-imprese-edili/</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
@@ -352,17 +323,6 @@
     <image:image>
       <image:loc>https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
       <image:title>Marketing Digitale per Imprese Edili</image:title>
-    </image:image>
-  </url>
-  <url>
-    <loc>https://www.ediliziaincloud.com/blog/software-gestionale-vs-excel/</loc>
-    <lastmod>2026-08-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/software-gestionale-vs-excel/"/>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
-      <image:title>Software Gestionale vs Excel: Il Vero Costo Nascosto</image:title>
     </image:image>
   </url>
   <url>
@@ -686,17 +646,6 @@
     </image:image>
   </url>
   <url>
-    <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing/</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing/"/>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
-      <image:title>Come Trovare Clienti per un'Impresa Edile</image:title>
-    </image:image>
-  </url>
-  <url>
     <loc>https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile/</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
@@ -705,17 +654,6 @@
     <image:image>
       <image:loc>https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
       <image:title>Come Aumentare le Vendite di un'Impresa Edile</image:title>
-    </image:image>
-  </url>
-  <url>
-    <loc>https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate/</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate/"/>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
-      <image:title>Lead Serramenti: Richieste Qualificate per Infissi</image:title>
     </image:image>
   </url>
   <url>
@@ -1843,14 +1781,6 @@
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/"/>
-  </url>
-  <url>
-    <loc>https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/"/>
   </url>
 
   <url>

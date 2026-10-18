@@ -480,7 +480,7 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "richieste-preventivo-ristrutturazione-online",
-    "lead-serramenti-come-generare-richieste-qualificate",
+    "come-trovare-clienti-serramentisti",
     "google-ads-impresa-edile-errori-budget",
   ],
 };

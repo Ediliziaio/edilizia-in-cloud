@@ -2997,13 +2997,15 @@ export default function CityLanding() {
     // Edilizia <città> | Edilizia in Cloud"; passando al prerender il title
     // perdeva "Software", cioè metà della keyword locale. Il suffisso si
     // aggiunge solo se il totale resta entro i 60 caratteri.
+    //
+    // 18/10/2026: senza il marchio in coda. Con «| Edilizia in Cloud» ogni
+    // città era pertinente alla ricerca del marchio e Google ne metteva una
+    // fra i sitelink (Catania, Bari). Per le ricerche locali il marchio non
+    // serve: conta «gestionale edilizia <città>».
     title: config
-      ? (() => {
-          const base = `Software ${config.heroTitle.replace("per Imprese di ", "a ")}`;
-          const suffix = " | Edilizia in Cloud";
-          return base.length + suffix.length > 60 ? base : `${base}${suffix}`;
-        })()
+      ? `Software ${config.heroTitle.replace("per Imprese di ", "a ")}`
       : "Edilizia in Cloud",
+    senzaMarchio: !!config,
     description: config?.heroSubtitle ?? "",
     canonical: config ? `/software-gestionale-edilizia-${config.slug}` : "/",
     keywords: config ? `gestionale edilizia ${config.name}, software impresa edile ${config.name}, software cantieri ${config.name}, gestione cantieri ${config.region}, ERP edilizia ${config.name}` : "",

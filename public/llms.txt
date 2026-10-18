@@ -152,9 +152,8 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 
 - **Intelligenza artificiale in edilizia 2026 — 8 use case reali con dati ROI**: https://www.ediliziaincloud.com/blog/intelligenza-artificiale-edilizia-2026/
 - **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
-- **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
 
-## Guide del blog (86 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
+## Guide del blog (87 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
 - Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida/
 - CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze/
@@ -190,9 +189,7 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - Delegare in impresa edile: https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo/
 - Preventivi edili non chiusi: https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono/
 - Segnali crisi impresa edile: https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile/
-- Trovare clienti impresa edile: https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing/
 - Aumentare vendite impresa edile: https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile/
-- Lead serramenti: https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate/
 - Preventivi ristrutturazione online: https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online/
 - Google Ads impresa edile: https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget/
 - CRM edilizia: https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up/
@@ -217,7 +214,6 @@ Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, B
 - Calcolo Ritenuta di Garanzia sui SAL: https://www.ediliziaincloud.com/strumenti/calcolo-ritenuta-garanzia/
 
 ### Nuove guide del blog
-- Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta: https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/
 - Rapportino di Cantiere: App e Modello Gratis: https://www.ediliziaincloud.com/blog/rapportino-di-cantiere-app-e-modello/
 - DDT di Cantiere: Cos'è, Quando Serve e Come Farlo Digitale: https://www.ediliziaincloud.com/blog/ddt-cantiere-digitale/
 - Gestionale Edilizia per Geometra: Cosa Serve Davvero: https://www.ediliziaincloud.com/blog/gestionale-edilizia-per-geometra/
@@ -232,10 +228,7 @@ Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, B
 - Alternativa a Excel per Cantieri: https://www.ediliziaincloud.com/blog/alternativa-excel-cantieri/
 - Come Ridurre i Costi nei Cantieri Edili del 20%: https://www.ediliziaincloud.com/blog/ridurre-costi-cantieri-edili/
 - Gestione Cantieri 2026: Dalla Carta al Cloud: https://www.ediliziaincloud.com/blog/gestione-cantieri-digitale/
-- Preventivi Vincenti in Edilizia: https://www.ediliziaincloud.com/blog/preventivi-edilizia-guida/
-- HR in Edilizia: Presenze, Buste Paga e CCNL: https://www.ediliziaincloud.com/blog/hr-edilizia-presenze-buste-paga/
 - Marketing Digitale per Imprese Edili: https://www.ediliziaincloud.com/blog/marketing-digitale-imprese-edili/
-- Software Gestionale vs Excel: https://www.ediliziaincloud.com/blog/software-gestionale-vs-excel/
 - Come Digitalizzare la Tua Impresa Edile in 30 Giorni: https://www.ediliziaincloud.com/blog/digitalizzare-impresa-edile/
 - Sito Web per Impresa Edile: https://www.ediliziaincloud.com/blog/sito-web-impresa-edile-guida/
 

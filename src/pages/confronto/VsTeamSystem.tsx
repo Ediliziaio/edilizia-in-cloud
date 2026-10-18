@@ -109,7 +109,7 @@ const faqItems = [
   },
 ];
 
-const vsRelatedSlugs = ["software-gestionale-vs-excel", "analisi-margini-imprese-edili", "appalti-pubblici-edilizia-guida"];
+const vsRelatedSlugs = ["alternativa-excel-cantieri", "analisi-margini-imprese-edili", "appalti-pubblici-edilizia-guida"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsTeamSystem() {

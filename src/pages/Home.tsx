@@ -32,8 +32,8 @@ const SectionFallback = () => <div className="h-32" aria-hidden="true" />;
 
 export default function Home() {
   useSEO({
-    title: "Gestionale Edilizia con AI — Software n°1 per Imprese Edili",
-    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica…",
+    title: "Gestionale Edilizia in Cloud con AI per Imprese Edili",
+    description: "Gestionale edilizia con AI scelto da oltre 150 imprese edili: cantieri, margini reali per commessa, fatturazione SDI, CRM e HR. Prova 31 giorni.",
     canonical: "/",
     keywords: "gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, ERP edilizia cloud, software costruzioni, gestionale cantieri online, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, gestionale edilizia 2026, miglior software impresa edile italiana, software edilizia PMI, gestionale edilizia prezzi, software cantieri digitale",
   });
@@ -46,6 +46,25 @@ export default function Home() {
         "itemListElement": [
           {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/"}
         ]
+      }} />
+      {/* Le pagine principali, candidate ai sitelink della ricerca del marchio.
+          C'era solo nella vecchia home per i bot, persa quando la home è
+          passata al prerender (settembre 2026). Stessa lista della home di
+          riserva in functions/_middleware.js. */}
+      <JsonLd id="jsonld-navigazione-home" data={{
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Sezioni principali di Edilizia in Cloud",
+        "itemListElement": [
+          { "@type": "SiteNavigationElement", "position": 1, "name": "Funzionalità", "url": "https://www.ediliziaincloud.com/funzionalita/" },
+          { "@type": "SiteNavigationElement", "position": 2, "name": "Prezzi", "url": "https://www.ediliziaincloud.com/prezzi/" },
+          { "@type": "SiteNavigationElement", "position": 3, "name": "Gestione Cantieri", "url": "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri/" },
+          { "@type": "SiteNavigationElement", "position": 4, "name": "Confronto", "url": "https://www.ediliziaincloud.com/confronto/" },
+          { "@type": "SiteNavigationElement", "position": 5, "name": "Gestionale per Imprese Edili", "url": "https://www.ediliziaincloud.com/per/imprese-edili/" },
+          { "@type": "SiteNavigationElement", "position": 6, "name": "Demo", "url": "https://www.ediliziaincloud.com/demo/" },
+          { "@type": "SiteNavigationElement", "position": 7, "name": "Chi siamo", "url": "https://www.ediliziaincloud.com/chi-siamo/" },
+          { "@type": "SiteNavigationElement", "position": 8, "name": "Blog", "url": "https://www.ediliziaincloud.com/blog/" },
+        ],
       }} />
       <JsonLd id="jsonld-organization-home" data={{
         "@context": "https://schema.org",
@@ -364,77 +383,28 @@ export default function Home() {
         </div>
       </Suspense>
 
-      {/* ── Copertura Geografica ─────────────────────────────────────────── */}
-      <section className="border-t border-gray-200 bg-gray-50/70 py-8 cv-auto-short">
-        <div className="max-w-5xl mx-auto px-6">
-          <h2 className="mb-3 text-center text-base font-bold text-[#111111] md:text-lg">Software gestionale edilizia nelle principali città italiane</h2>
-          <p className="max-w-3xl mx-auto text-center text-xs leading-relaxed text-gray-500 md:text-sm">
-            Edilizia in Cloud è il software gestionale per imprese edili usato in tutta Italia: da Milano a Roma, da Napoli a Torino, abbiamo configurato il sistema per oltre 150 imprese edili nei principali capoluoghi italiani.
-          </p>
-          <div className="my-4 flex justify-center">
-            <Link
-              to="/software-gestionale-edilizia/"
-              className="text-sm font-semibold text-eic-orange hover:underline"
-            >
-              Vedi tutte le 43 città →
-            </Link>
-          </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            {[
-              { name: "Milano", slug: "milano" },
-              { name: "Roma", slug: "roma" },
-              { name: "Napoli", slug: "napoli" },
-              { name: "Torino", slug: "torino" },
-              { name: "Bologna", slug: "bologna" },
-              { name: "Firenze", slug: "firenze" },
-              { name: "Bari", slug: "bari" },
-              { name: "Verona", slug: "verona" },
-              { name: "Brescia", slug: "brescia" },
-              { name: "Genova", slug: "genova" },
-              { name: "Palermo", slug: "palermo" },
-              { name: "Catania", slug: "catania" },
-              { name: "Venezia", slug: "venezia" },
-              { name: "Padova", slug: "padova" },
-              { name: "Bergamo", slug: "bergamo" },
-              { name: "Modena", slug: "modena" },
-              { name: "Parma", slug: "parma" },
-              { name: "Salerno", slug: "salerno" },
-              { name: "Trieste", slug: "trieste" },
-              { name: "Cagliari", slug: "cagliari" },
-              { name: "Perugia", slug: "perugia" },
-              { name: "Ancona", slug: "ancona" },
-              { name: "Reggio Emilia", slug: "reggio-emilia" },
-              { name: "Udine", slug: "udine" },
-              { name: "Messina", slug: "messina" },
-              { name: "Livorno", slug: "livorno" },
-              { name: "Prato", slug: "prato" },
-              { name: "Vicenza", slug: "vicenza" },
-              { name: "Reggio Calabria", slug: "reggio-calabria" },
-              { name: "Foggia", slug: "foggia" },
-              { name: "Pescara", slug: "pescara" },
-              { name: "Taranto", slug: "taranto" },
-              { name: "Cosenza", slug: "cosenza" },
-              { name: "Trento", slug: "trento" },
-              { name: "Bolzano", slug: "bolzano" },
-              { name: "Ferrara", slug: "ferrara" },
-              { name: "Como", slug: "como" },
-              { name: "Lecco", slug: "lecco" },
-              { name: "Monza", slug: "monza" },
-              { name: "Varese", slug: "varese" },
-              { name: "Treviso", slug: "treviso" },
-              { name: "Latina", slug: "latina" },
-              { name: "Pisa", slug: "pisa" },
-            ].map((city) => (
-              <Link
-                key={city.slug}
-                to={`/software-gestionale-edilizia-${city.slug}`}
-                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-eic-orange hover:text-eic-orange md:text-sm"
-              >
-                {city.name}
-              </Link>
-            ))}
-          </div>
-        </div>
+      {/* ── Copertura geografica ───────────────────────────────────────────
+          Un solo link alla guida delle città. Le 43 città linkate da qui
+          erano un terzo dei link della home: Google le prendeva per pagine
+          principali e ne metteva una fra i sitelink del marchio (18/10/2026).
+          L'elenco completo resta nella guida /software-gestionale-edilizia/. */}
+      <section className="border-t border-gray-200 bg-gray-50/70 py-6 cv-auto-short">
+        <p className="max-w-5xl mx-auto px-6 text-center text-xs leading-relaxed text-gray-500 md:text-sm">
+          Edilizia in Cloud lavora con imprese edili in tutta Italia.{" "}
+          <Link
+            to="/software-gestionale-edilizia/"
+            className="font-semibold text-eic-orange hover:underline"
+          >
+            Software gestionale edilizia nelle principali città →
+          </Link>
+          {" · "}
+          <Link
+            to="/blog/migliori-software-gestionali-edilizia-confronto/"
+            className="font-semibold text-eic-orange hover:underline"
+          >
+            I migliori software gestionali per l'edilizia a confronto →
+          </Link>
+        </p>
       </section>
 
       <Suspense fallback={<SectionFallback />}>

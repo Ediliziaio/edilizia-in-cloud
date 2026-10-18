@@ -198,9 +198,7 @@ URL: https://www.ediliziaincloud.com/pianifica-migrazione/
   - Delegare in impresa edile: https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo/
   - Preventivi edili non chiusi: https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono/
   - Segnali crisi impresa edile: https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile/
-  - Trovare clienti impresa edile: https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing/
   - Aumentare vendite impresa edile: https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile/
-  - Lead serramenti: https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate/
   - Preventivi ristrutturazione online: https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online/
   - Google Ads impresa edile: https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget/
   - CRM edilizia: https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up/
@@ -275,7 +273,6 @@ Il contenuto di questo file è liberamente accessibile ai crawler AI per scopi d
 - Calcolo Ritenuta di Garanzia sui SAL: https://www.ediliziaincloud.com/strumenti/calcolo-ritenuta-garanzia/
 
 ### Nuove guide del blog
-- Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta: https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/
 - Quanto Costa un Gestionale per Impresa Edile? Prezzi 2026: https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/
 - Patente a Crediti in Edilizia: Come Funziona e Sanzioni: https://www.ediliziaincloud.com/blog/patente-a-crediti-edilizia-guida/
 - DURC di Congruità: Soglie Manodopera e Come Rispettarle: https://www.ediliziaincloud.com/blog/durc-congruita-manodopera-soglie/
@@ -284,9 +281,6 @@ Il contenuto di questo file è liberamente accessibile ai crawler AI per scopi d
 - Alternativa a Excel per Cantieri: https://www.ediliziaincloud.com/blog/alternativa-excel-cantieri/
 - Come Ridurre i Costi nei Cantieri Edili del 20%: https://www.ediliziaincloud.com/blog/ridurre-costi-cantieri-edili/
 - Gestione Cantieri 2026: Dalla Carta al Cloud: https://www.ediliziaincloud.com/blog/gestione-cantieri-digitale/
-- Preventivi Vincenti in Edilizia: https://www.ediliziaincloud.com/blog/preventivi-edilizia-guida/
-- HR in Edilizia: Presenze, Buste Paga e CCNL: https://www.ediliziaincloud.com/blog/hr-edilizia-presenze-buste-paga/
 - Marketing Digitale per Imprese Edili: https://www.ediliziaincloud.com/blog/marketing-digitale-imprese-edili/
-- Software Gestionale vs Excel: https://www.ediliziaincloud.com/blog/software-gestionale-vs-excel/
 - Come Digitalizzare la Tua Impresa Edile in 30 Giorni: https://www.ediliziaincloud.com/blog/digitalizzare-impresa-edile/
 - Sito Web per Impresa Edile: https://www.ediliziaincloud.com/blog/sito-web-impresa-edile-guida/

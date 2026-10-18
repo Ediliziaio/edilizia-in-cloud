@@ -456,7 +456,7 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "passaparola-impresa-edile-non-basta",
-    "come-trovare-clienti-impresa-edile-marketing",
+    "acquisire-clienti-impresa-edile",
     "richieste-preventivo-ristrutturazione-online",
   ],
 };

@@ -5,20 +5,20 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Costruzione | Più Margini",
-  seoDescription: "Il gestionale con AI per imprese di costruzione: margini reali su ogni commessa, SAL, subappaltatori, cassa a 90 giorni e computi metrici.",
+  seoTitle: "Gestionale per Imprese Edili: margini, SAL e cassa",
+  seoDescription: "Il gestionale con AI per imprese edili e general contractor: margini reali su ogni commessa, SAL, subappaltatori, cassa a 90 giorni e computi metrici.",
   seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
   // SEO fix 2026-05-26: canonical aggiornato a /per/imprese-edili/ (keyword più
   // cercata + footer linka questa URL). Il vecchio /per/imprese-costruzione viene
   // 301 redirettato in public/_redirects per evitare 404 su GSC.
   seoCanonical: "/per/imprese-edili",
 
-  badge: "Imprese di Costruzione & General Contractor",
+  badge: "Imprese Edili & General Contractor",
 
   heroTitle: (
     <>
-      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-eic-orange">Controlla ogni cantiere in tempo reale.</span>
+      <span className="text-white">Il gestionale per imprese edili</span>{" "}
+      <span className="text-eic-orange">che ti mostra margini e cassa di ogni cantiere.</span>
     </>
   ),
   heroSubtitle:
@@ -298,7 +298,7 @@ const config: PerTipoConfig = {
   schemaFaq: [
     {
       q: "Qual è il miglior gestionale per imprese di costruzione?",
-      a: "Edilizia in Cloud è il gestionale per imprese di costruzione più usato in Italia: controlla margini reali per commessa, gestisce SAL automatici, subappaltatori con ritenute di garanzia e previsione cassa a 90 giorni.",
+      a: "Edilizia in Cloud è il gestionale con AI scelto da oltre 150 imprese edili: controlla margini reali per commessa, gestisce SAL automatici, subappaltatori con ritenute di garanzia e previsione cassa a 90 giorni.",
     },
     {
       q: "Come si gestiscono i SAL con un software per costruzioni?",

@@ -209,7 +209,7 @@ export default function HeroSection() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
             </span>
-            <span className="relative">Gestionale n°1 per imprese edili — 150+ aziende già attive</span>
+            <span className="relative">Gestionale con AI per imprese edili — 150+ aziende già attive</span>
           </span>
         </div>
 

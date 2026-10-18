@@ -442,7 +442,7 @@ const config: FunzionalitaPageConfig = {
   relatedBlogSlugs: [
     "ccnl-edilizia-guida",
     "cassa-edile-come-funziona",
-    "hr-edilizia-presenze-buste-paga",
+    "gestione-operai-cantiere-presenze-ore",
   ],
 };
 

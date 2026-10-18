@@ -441,7 +441,7 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "intelligenza-artificiale-edilizia-2026",
-    "come-scegliere-gestionale-ai-impresa-edile",
+    "come-scegliere-software-gestionale-edilizia",
     "ai-analisi-margini-cantiere",
   ],
 };
