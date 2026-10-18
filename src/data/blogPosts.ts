@@ -1191,18 +1191,21 @@ export const blogPosts: BlogPost[] = [
     id: "15",
     slug: "giornale-dei-lavori-cantiere",
     faqs: [
-      { q: "Il giornale dei lavori è obbligatorio?", a: "Negli appalti pubblici sì: è previsto dal Codice dei Contratti e viene tenuto dal Direttore dei Lavori. Nei cantieri privati non è obbligatorio per legge, ma è fortemente consigliato perché documenta giorno per giorno l'esecuzione e tutela l'impresa in caso di contestazioni." },
+      { q: "Il giornale dei lavori è obbligatorio?", a: "Negli appalti pubblici sì: lo prevede il Codice dei contratti (D.Lgs. 36/2023) e lo tiene il Direttore dei Lavori. Nei lavori privati è obbligatorio per la parte strutturale delle opere in cemento armato o in acciaio (art. 66 del DPR 380/2001); per il resto non è imposto, ma è fortemente consigliato perché documenta giorno per giorno l'esecuzione e tutela l'impresa in caso di contestazioni." },
       { q: "Chi deve compilare il giornale dei lavori?", a: "Negli appalti pubblici lo compila e lo firma il Direttore dei Lavori, con la collaborazione dell'impresa. Nei lavori privati lo compila di solito il capocantiere o il titolare dell'impresa, annotando attività svolte, maestranze presenti, meteo ed eventi rilevanti." },
+      { q: "Esiste un fac simile del giornale dei lavori?", a: "Non c'è un modello unico imposto dalla legge: conta che ci siano le voci richieste. In questa guida trovi un esempio compilato e un modello da copiare con data, meteo, presenze per ditta, lavorazioni, mezzi, forniture, ordini e visite, eventi e firme." },
+      { q: "Ogni quanto si compila il giornale dei lavori?", a: "Ogni giorno di lavoro, il giorno stesso. Un giornale ricostruito a fine settimana o a fine mese perde valore come prova, perché non è più una registrazione contemporanea ai fatti." },
+      { q: "Il giornale dei lavori può essere digitale?", a: "Sì. Negli appalti pubblici il Codice dei contratti spinge verso la tenuta con strumenti elettronici; nei lavori privati basta che ogni pagina sia datata, firmata e non modificabile dopo la firma, condizioni che un'app con firma digitale e archivio garantisce meglio della carta." },
       { q: "Cosa va scritto nel giornale dei lavori?", a: "Per ogni giorno: le lavorazioni eseguite, il numero di operai presenti e le loro qualifiche, i mezzi impiegati, le condizioni meteo, gli ordini di servizio ricevuti, le visite e i controlli, gli eventi particolari (sospensioni, varianti, contestazioni, infortuni)." },
     ],
-    title: "Giornale dei Lavori: Cos'è, Chi lo Compila e Come",
+    title: "Giornale dei Lavori: Esempio Compilato, Modello e Obblighi",
     excerpt:
-      "Obbligatorio negli appalti pubblici, tutela l'impresa in quelli privati: chi compila il giornale dei lavori, cosa contiene e come digitalizzarlo.",
+      "Quando il giornale dei lavori è obbligatorio, anche nei privati con strutture, chi lo compila, un esempio compilato e un modello da copiare.",
     category: "Gestione Cantieri",
     tags: ["giornale dei lavori", "documentazione cantiere", "appalti edilizia", "direttore lavori"],
     publishedAt: "2025-12-18",
-    updatedAt: "2026-07-10",
-    readTime: 6,
+    updatedAt: "2026-10-18",
+    readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/giornale-dei-lavori-cantiere.jpg",
@@ -1214,7 +1217,17 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Chi è obbligato a tenere il giornale dei lavori",
-        body: "Negli appalti pubblici regolati dal Codice dei Contratti (D.Lgs. 36/2023) il giornale dei lavori è tenuto dal Direttore dei Lavori (DL), che lo firma quotidianamente. L'impresa appaltatrice ha l'obbligo di cooperare fornendo le informazioni necessarie. Negli appalti privati non c'è obbligo di legge, ma il giornale dei lavori è uno strumento di tutela fondamentale in caso di controversie con il committente.",
+        body: "Negli appalti pubblici regolati dal Codice dei Contratti (D.Lgs. 36/2023) il giornale dei lavori è tenuto dal Direttore dei Lavori (DL), che lo firma quotidianamente. L'impresa appaltatrice ha l'obbligo di cooperare fornendo le informazioni necessarie.\n\nNei lavori privati c'è un caso in cui è obbligatorio e spesso viene dimenticato: le opere in cemento armato o a struttura metallica. L'art. 66 del DPR 380/2001 (Testo Unico Edilizia) chiede di conservare in cantiere, oltre ai documenti del deposito, un apposito giornale dei lavori vistato periodicamente dal direttore dei lavori. Per tutto il resto (ristrutturazioni, finiture, impianti) non c'è obbligo, ma il giornale resta lo strumento di tutela più forte in caso di controversie con il committente.",
+      },
+      {
+        type: "table",
+        heading: "Quando il giornale dei lavori è obbligatorio",
+        headers: ["Tipo di lavoro", "Obbligatorio?", "Chi lo tiene", "Riferimento"],
+        rows: [
+          ["Appalto pubblico di lavori", "Sì", "Direttore dei lavori, con la collaborazione dell'impresa", "D.Lgs. 36/2023 e suo Allegato II.14"],
+          ["Lavori privati con strutture in cemento armato o acciaio", "Sì, per la parte strutturale", "Conservato in cantiere, vistato dal direttore dei lavori", "DPR 380/2001, art. 66"],
+          ["Altri lavori privati (ristrutturazioni, finiture, impianti)", "No, ma consigliato", "Capocantiere o titolare dell'impresa", "—"],
+        ],
       },
       {
         type: "list",
@@ -1229,6 +1242,37 @@ export const blogPosts: BlogPost[] = [
           "Sospensioni lavori con motivazione",
           "Annotazioni del DL su qualità e conformità delle lavorazioni",
           "Firma del Direttore dei Lavori",
+        ],
+      },
+      {
+        type: "table",
+        heading: "Esempio di giornale dei lavori compilato (una giornata)",
+        headers: ["Voce", "Cosa scrivere (esempio)"],
+        rows: [
+          ["Data e cantiere", "Martedì 14 ottobre 2026 — Ristrutturazione edificio residenziale, lotto B (esempio)"],
+          ["Meteo", "Sereno al mattino, pioggia dalle 15:00; temperatura 12–17 °C"],
+          ["Maestranze per ditta", "Impresa principale: 1 capocantiere, 2 muratori, 1 manovale. Ditta impianti elettrici: 2 elettricisti"],
+          ["Lavorazioni eseguite", "Tramezzature piano primo, alloggi 3 e 4 (circa 42 m²); tracce impianto elettrico alloggio 3"],
+          ["Mezzi e attrezzature", "Betoniera, montacarichi, trabattello h 4 m"],
+          ["Forniture arrivate", "Laterizi forati 8 cm, DDT n. 1532 del 14/10; consegnati alle 8:40"],
+          ["Ordini, visite, controlli", "Sopralluogo del direttore dei lavori ore 11:00: chiesta verifica quote soglie alloggio 4"],
+          ["Eventi", "Stop intonaci esterni dalle 15:00 per pioggia (2 operai spostati su lavori interni)"],
+          ["Firme", "Capocantiere; visto del direttore dei lavori"],
+        ],
+      },
+      {
+        type: "list",
+        heading: "Modello di giornale dei lavori da copiare (una pagina per giorno)",
+        items: [
+          "Data: ____ / ____ / ________ — Cantiere: ______________________",
+          "Meteo: mattino ________ · pomeriggio ________ · temperatura ____ °C",
+          "Maestranze presenti (ditta, numero, qualifica): ______________________",
+          "Lavorazioni eseguite (dove, quanto): ______________________",
+          "Mezzi e attrezzature in uso: ______________________",
+          "Forniture arrivate (materiale, DDT n., ora): ______________________",
+          "Ordini di servizio, visite e controlli: ______________________",
+          "Eventi (sospensioni, varianti, interferenze, infortuni): ______________________",
+          "Firma del compilatore: ____________ · Visto del direttore dei lavori: ____________",
         ],
       },
       {
@@ -1855,9 +1899,14 @@ export const blogPosts: BlogPost[] = [
     id: "23",
     slug: "cassa-edile-come-funziona",
     faqs: [
+      { q: "Quando si prende la Cassa Edile?", a: "Ferie e gratifica natalizia accantonate ogni mese dall'impresa vengono pagate all'operaio dalla Cassa Edile in genere due volte l'anno, mentre l'APE si paga una volta l'anno a chi ha maturato le ore minime. Mesi e giorni li fissa ogni Cassa territoriale e li pubblica sul suo sito: è lì che va controllata la data, non su un calendario nazionale che non esiste." },
+      { q: "Quanto si prende di Cassa Edile?", a: "Dipende dalle ore lavorate e denunciate e dalla paga oraria del proprio livello: la Cassa restituisce quanto l'impresa ha accantonato per ferie e gratifica natalizia, più l'APE se maturata. Ogni operaio può vedere il proprio estratto conto nell'area lavoratori della Cassa territoriale; se le ore non tornano con quelle lavorate, va chiesto subito all'impresa." },
+      { q: "Come viene pagata la Cassa Edile all'operaio?", a: "Con bonifico sul conto che l'operaio ha comunicato alla Cassa Edile, non in busta paga. Per questo è importante tenere aggiornati i dati bancari presso la Cassa: un IBAN vecchio è il motivo più comune dei pagamenti che non arrivano." },
+      { q: "La Cassa Edile paga tredicesima e quattordicesima?", a: "La tredicesima degli operai edili (gratifica natalizia) passa dalla Cassa Edile: l'impresa la accantona ogni mese e la Cassa la paga. Una quattordicesima contrattuale per gli operai edili non c'è; l'APE, il premio annuo di anzianità professionale edile, viene spesso chiamata così." },
+      { q: "Cosa succede alla Cassa Edile se cambio impresa?", a: "Quanto è stato accantonato resta dell'operaio: la Cassa lo paga alle scadenze previste anche se nel frattempo il rapporto di lavoro è finito. Se la nuova impresa è iscritta a una Cassa di un'altra provincia, ognuna paga la parte maturata presso di sé." },
       { q: "Chi è obbligato a iscriversi alla Cassa Edile?", a: "Tutte le imprese che applicano il CCNL Edilizia e hanno operai in forza: l'iscrizione va fatta alla Cassa Edile della provincia in cui si svolgono i lavori. Senza iscrizione e versamenti regolari il DURC risulta irregolare e non puoi lavorare negli appalti pubblici." },
       { q: "Quanto costa la Cassa Edile all'impresa?", a: "I contributi variano per provincia e livello, ma complessivamente l'incidenza è tra il 12% e il 18% della retribuzione lorda degli operai. Coprono ferie, gratifica natalizia, anzianità professionale edile (APE), formazione e prestazioni assistenziali." },
-      { q: "Entro quando va inviata la denuncia mensile alla Cassa Edile?", a: "La denuncia dei lavoratori occupati (MUT) va trasmessa di norma entro la fine del mese successivo a quello di competenza, con il versamento dei relativi contributi. Ritardi e omissioni bloccano il rilascio del DURC." },
+      { q: "Entro quando va inviata la denuncia mensile alla Cassa Edile?", a: "La denuncia dei lavoratori occupati (MUT) si trasmette ogni mese, per il mese precedente, entro la scadenza fissata dalla Cassa Edile territoriale, insieme al versamento dei contributi. La data cambia da Cassa a Cassa: si trova sul suo sito. Ritardi e omissioni bloccano il rilascio del DURC." },
       { q: "Cosa succede se lavoro in una provincia diversa?", a: "Vale il principio di territorialità: per cantieri fuori provincia di durata rilevante l'impresa deve iscriversi e versare alla Cassa Edile del territorio dove si svolge il lavoro, salvo convenzioni di trasferta tra Casse. Va verificato caso per caso con le Casse coinvolte." },
       { q: "Qual è la percentuale esatta della Cassa Edile?", a: "Non esiste una percentuale nazionale valida ovunque. Il CCNL fissa la struttura delle voci, ma la misura di diverse componenti è stabilita dagli accordi territoriali e cambia da provincia a provincia: due imprese identiche in province diverse pagano aliquote diverse. L'unico numero valido è quello sul prospetto della tua Cassa territoriale, che è pubblico e scaricabile dal suo sito." },
       { q: "La Cassa Edile serve anche se ho un solo dipendente?", a: "Sì. L'obbligo di iscrizione riguarda tutte le imprese che applicano il CCNL Edilizia, senza soglie dimensionali: vale dal primo operaio assunto. L'iscrizione dell'impresa va fatta una volta sola alla Cassa della provincia dove ha sede, e la denuncia del lavoratore prima che inizi a lavorare." },
@@ -1868,8 +1917,8 @@ export const blogPosts: BlogPost[] = [
     category: "HR & Personale",
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
     publishedAt: "2026-01-24",
-    readTime: 13,
-    updatedAt: "2026-08-03",
+    readTime: 15,
+    updatedAt: "2026-10-18",
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/cassa-edile-come-funziona.jpg",
     content: [
@@ -1887,7 +1936,7 @@ export const blogPosts: BlogPost[] = [
         heading: "Prestazioni gestite dalla Cassa Edile per i lavoratori",
         items: [
           "Ferie e permessi: la Cassa raccoglie l'accantonamento mensile e lo eroga al lavoratore",
-          "Gratifica natalizia (13esima): accantonata mensilmente e pagata a novembre/dicembre",
+          "Gratifica natalizia (13esima): l'impresa la accantona ogni mese e la Cassa la paga all'operaio nei periodi che fissa lei",
           "Anzianità Professionale Edile (APE): contributo crescente in base agli anni di settore",
           "RLST (Rappresentante Lavoratori Sicurezza Territoriale): contributo per la sicurezza",
           "Formazione professionale: finanziamento dei corsi di aggiornamento obbligatori",
@@ -1896,8 +1945,19 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "section",
+        heading: "Cassa Edile per l'operaio: cosa riceve, quando e come",
+        body: "Molti cercano «quando si prende la Cassa Edile» o «quanto si prende»: sono domande giuste, perché per l'operaio edile una parte dello stipendio non arriva in busta paga ma passa dalla Cassa. Ogni mese l'impresa accantona presso la Cassa una quota per ferie e gratifica natalizia, calcolata sulle ore denunciate; la Cassa la restituisce all'operaio, con bonifico, alle scadenze che fissa lei, in genere due volte l'anno. In più, chi ha lavorato abbastanza ore nel biennio riceve una volta l'anno l'APE, il premio di anzianità professionale edile.\n\nQuanto si prende dipende quindi da due numeri: le ore denunciate e la paga oraria del livello. Per questo il controllo più utile per l'operaio è l'estratto conto nell'area lavoratori della propria Cassa territoriale: se le ore registrate sono meno di quelle lavorate, la Cassa paga meno, e l'APE può saltare. Per l'impresa vale lo stesso punto visto dall'altra parte: ore denunciate male oggi diventano una vertenza domani.",
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Date e importi: dove trovarli davvero",
+        body: "Non esiste un calendario nazionale dei pagamenti della Cassa Edile né una cifra uguale per tutti. Le date di pagamento di ferie, gratifica e APE, le soglie di ore e le aliquote le pubblica ogni Cassa territoriale sul proprio sito; l'importo del singolo operaio si legge nel suo estratto conto. Diffida di chi dà una data o una percentuale senza dire di quale provincia parla.",
+      },
+      {
+        type: "section",
         heading: "Quanto si paga: la quota oraria e le percentuali",
-        body: "I contributi Cassa Edile si calcolano sulle ore lavorate e sulle percentuali di paga fissate dal CCNL. La quota complessiva a carico dell'impresa varia indicativamente dal 12% al 18% della retribuzione lorda, a seconda della Cassa territoriale e del livello del lavoratore. La denuncia mensile va trasmessa entro il 20 del mese successivo.",
+        body: "I contributi Cassa Edile si calcolano sulle ore lavorate e sulle percentuali di paga fissate dal CCNL. La quota complessiva a carico dell'impresa varia indicativamente dal 12% al 18% della retribuzione lorda, a seconda della Cassa territoriale e del livello del lavoratore. La denuncia mensile va trasmessa entro la scadenza fissata dalla Cassa territoriale: la data esatta è sul sito della tua Cassa.",
       },
       {
         type: "section",
@@ -1926,7 +1986,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Denuncia mensile in ritardo: cosa succede davvero",
-        body: "La denuncia va trasmessa entro il 20 del mese successivo, e il versamento segue la stessa scadenza. Saltarla non produce una multa immediata che ti arriva a casa: produce qualcosa di peggio, cioè un'irregolarità che si accumula silenziosamente e ti esplode addosso nel momento sbagliato. Il meccanismo è questo: la Cassa registra il mancato versamento, la posizione contributiva diventa irregolare, e la prima volta che qualcuno interroga il DURC — il committente prima di pagare un SAL, la stazione appaltante prima di aggiudicare, il general contractor prima di autorizzare il subappalto — quel DURC risulta negativo. A quel punto non stai discutendo di qualche centinaio di euro di more: stai aspettando un pagamento che non arriva, su una gara che perdi, mentre regolarizzi. Il recupero è quasi sempre possibile con la regolarizzazione entro i termini di invito, ma richiede giorni che tu non hai. La regola operativa è banale e vale più di qualsiasi approfondimento normativo: la denuncia Cassa Edile si tratta come l'IVA, con una scadenza fissa a calendario e una persona responsabile, non come un adempimento da fare quando c'è tempo.",
+        body: "La denuncia va trasmessa ogni mese entro la scadenza fissata dalla tua Cassa territoriale, e il versamento segue la stessa scadenza. Saltarla non produce una multa immediata che ti arriva a casa: produce qualcosa di peggio, cioè un'irregolarità che si accumula silenziosamente e ti esplode addosso nel momento sbagliato. Il meccanismo è questo: la Cassa registra il mancato versamento, la posizione contributiva diventa irregolare, e la prima volta che qualcuno interroga il DURC — il committente prima di pagare un SAL, la stazione appaltante prima di aggiudicare, il general contractor prima di autorizzare il subappalto — quel DURC risulta negativo. A quel punto non stai discutendo di qualche centinaio di euro di more: stai aspettando un pagamento che non arriva, su una gara che perdi, mentre regolarizzi. Il recupero è quasi sempre possibile con la regolarizzazione entro i termini di invito, ma richiede giorni che tu non hai. La regola operativa è banale e vale più di qualsiasi approfondimento normativo: la denuncia Cassa Edile si tratta come l'IVA, con una scadenza fissa a calendario e una persona responsabile, non come un adempimento da fare quando c'è tempo.",
       },
       {
         type: "table",
@@ -1992,12 +2052,12 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Il primo operaio: cosa fare, in ordine",
-        body: "Se stai assumendo il primo dipendente e la Cassa Edile per te è una parola nuova, la sequenza è questa e non ha scorciatoie. Prima di tutto l'impresa deve essere iscritta alla Cassa Edile della provincia dove ha sede: è un adempimento dell'azienda, non del lavoratore, e va fatto una volta sola. Poi, prima che l'operaio metta piede in cantiere — non dopo, non a fine mese — va denunciata l'assunzione alla Cassa: la copertura decorre da lì, e un lavoratore che lavora prima dell'iscrizione crea un'irregolarità che ti trascini. Da quel momento parte il ciclo mensile: registri le ore giorno per giorno, attribuite al cantiere su cui sono state fatte, e entro il 20 del mese successivo trasmetti la denuncia e versi. In parallelo, ogni volta che apri un cantiere nuovo lo denunci, e se è fuori provincia verifichi prima con la Cassa competente. Infine, ogni variazione — cambio di livello, passaggio da tempo determinato a indeterminato, cessazione — va comunicata subito, perché è dalle variazioni non comunicate che nascono le differenze fra quello che hai versato e quello che risulta dovuto. Il consulente del lavoro fa materialmente quasi tutti questi passaggi, ma la responsabilità resta dell'impresa: sapere che il ciclo è questo ti permette almeno di accorgerti quando qualcosa non gira.",
+        body: "Se stai assumendo il primo dipendente e la Cassa Edile per te è una parola nuova, la sequenza è questa e non ha scorciatoie. Prima di tutto l'impresa deve essere iscritta alla Cassa Edile della provincia dove ha sede: è un adempimento dell'azienda, non del lavoratore, e va fatto una volta sola. Poi, prima che l'operaio metta piede in cantiere — non dopo, non a fine mese — va denunciata l'assunzione alla Cassa: la copertura decorre da lì, e un lavoratore che lavora prima dell'iscrizione crea un'irregolarità che ti trascini. Da quel momento parte il ciclo mensile: registri le ore giorno per giorno, attribuite al cantiere su cui sono state fatte, e entro la scadenza mensile della tua Cassa trasmetti la denuncia e versi. In parallelo, ogni volta che apri un cantiere nuovo lo denunci, e se è fuori provincia verifichi prima con la Cassa competente. Infine, ogni variazione — cambio di livello, passaggio da tempo determinato a indeterminato, cessazione — va comunicata subito, perché è dalle variazioni non comunicate che nascono le differenze fra quello che hai versato e quello che risulta dovuto. Il consulente del lavoro fa materialmente quasi tutti questi passaggi, ma la responsabilità resta dell'impresa: sapere che il ciclo è questo ti permette almeno di accorgerti quando qualcosa non gira.",
       },
       {
         type: "section",
         heading: "In sintesi: le sette cose da ricordare sulla Cassa Edile",
-        body: "Primo: l'iscrizione è obbligatoria per tutte le imprese che applicano il CCNL Edilizia, senza soglie dimensionali. Secondo: le aliquote cambiano per provincia, quindi l'unico numero valido è quello sul prospetto della tua Cassa territoriale, non quello letto in un articolo. Terzo: la Cassa gestisce ferie, permessi, gratifica natalizia, APE e formazione; INPS e INAIL restano canali separati ma concorrono tutti al DURC. Quarto: la denuncia si trasmette entro il 20 del mese successivo e va trattata come una scadenza fiscale, non come un adempimento rinviabile. Quinto: le ore vanno registrate per cantiere, non solo per lavoratore, altrimenti la congruità salta e il saldo finale si blocca. Sesto: sui cantieri fuori provincia verifica prima con la Cassa di destinazione, perché un errore lì lo scopri mesi dopo attraverso un DURC negativo. Settimo: il costo di un'ora di operaio non è la paga in busta — usa il costo aziendale pieno nei preventivi, o firmi lavori in perdita credendo di guadagnarci.",
+        body: "Primo: l'iscrizione è obbligatoria per tutte le imprese che applicano il CCNL Edilizia, senza soglie dimensionali. Secondo: le aliquote cambiano per provincia, quindi l'unico numero valido è quello sul prospetto della tua Cassa territoriale, non quello letto in un articolo. Terzo: la Cassa gestisce ferie, permessi, gratifica natalizia, APE e formazione; INPS e INAIL restano canali separati ma concorrono tutti al DURC. Quarto: la denuncia si trasmette ogni mese entro la scadenza della Cassa territoriale e va trattata come una scadenza fiscale, non come un adempimento rinviabile. Quinto: le ore vanno registrate per cantiere, non solo per lavoratore, altrimenti la congruità salta e il saldo finale si blocca. Sesto: sui cantieri fuori provincia verifica prima con la Cassa di destinazione, perché un errore lì lo scopri mesi dopo attraverso un DURC negativo. Settimo: il costo di un'ora di operaio non è la paga in busta — usa il costo aziendale pieno nei preventivi, o firmi lavori in perdita credendo di guadagnarci.",
       },
       {
         type: "cta",

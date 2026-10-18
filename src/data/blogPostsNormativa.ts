@@ -484,11 +484,12 @@ export const blogPostsNormativa: BlogPost[] = [
     slug: "notifica-preliminare-cantiere",
     title: "Notifica preliminare: quando serve, quando no e come inviarla",
     excerpt:
-      "Due imprese in cantiere o 200 uomini-giorno: senza notifica preliminare il committente rischia fino a 1.800 € e il cantiere è irregolare. Come inviarla.",
+      "Quando serve e quando no la notifica preliminare: più imprese o almeno 200 uomini-giorno. Chi la invia, come si fa online e la sanzione fino a 1.800 €.",
     category: "Normativa",
     tags: ["notifica preliminare", "art. 99 D.Lgs 81/08", "apertura cantiere", "adempimenti cantiere"],
     publishedAt: "2026-07-25",
-    readTime: 6,
+    updatedAt: "2026-10-18",
+    readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/notifica-preliminare-cantiere.jpg",
@@ -496,6 +497,12 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "intro",
         body: "Il cantiere parte lunedì. La notifica preliminare non è partita. Se dentro entrano due imprese, quel documento mancante può costare al committente da 500 a 1.800 € — e il primo che l'ispettore chiama sei tu. La notifica preliminare cantiere è la comunicazione che il committente o il responsabile dei lavori deve inviare ad ASL e Ispettorato territoriale del lavoro prima dell'inizio dei lavori, nei casi previsti dall'art. 99 del D.Lgs 81/08: cantieri in cui opera più di un'impresa, anche non contemporaneamente, e cantieri con una sola impresa ma entità di lavoro pari o superiore a 200 uomini-giorno. Ecco quando è obbligatoria e come si invia in dieci minuti.",
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Quando la notifica preliminare NON serve",
+        body: "Non serve quando in cantiere lavora una sola impresa per tutta la durata dei lavori e l'entità presunta resta sotto i 200 uomini-giorno. Esempio: il rifacimento di un bagno fatto da un'unica impresa con due operai per tre settimane (30 uomini-giorno).\n\nAttenzione al caso che fa scattare l'obbligo a lavori in corso: se entra una seconda impresa, per esempio l'elettricista con la sua ditta o un subappaltatore non previsto, la notifica va inviata prima che inizi a lavorare, insieme alla nomina del coordinatore per l'esecuzione.",
       },
       {
         type: "section",
@@ -544,6 +551,14 @@ export const blogPostsNormativa: BlogPost[] = [
       },
     ],
     faqs: [
+      {
+        q: "La notifica preliminare è sempre obbligatoria?",
+        a: "No. Serve solo nei casi dell'art. 99 del D.Lgs 81/08: più imprese esecutrici, anche non contemporanee; una seconda impresa entrata con una variante; oppure una sola impresa con almeno 200 uomini-giorno. Un cantiere con un'unica impresa che resta sotto i 200 uomini-giorno non la richiede.",
+      },
+      {
+        q: "Come si fa la notifica preliminare in Lombardia?",
+        a: "In Lombardia si invia online dal sistema regionale GE.CA (Gestione Cantieri), che la trasmette ad ATS e Ispettorato del lavoro e rilascia la ricevuta. Le altre Regioni hanno piattaforme simili; dove manca il portale si usa la PEC verso ASL e Ispettorato territoriale del lavoro.",
+      },
       {
         q: "Quando è obbligatoria la notifica preliminare?",
         a: "È obbligatoria in tre casi (art. 99 D.Lgs 81/08): cantieri con più imprese esecutrici anche non contemporanee, cantieri che finiscono in quella situazione per varianti in corso d'opera, e cantieri con un'unica impresa ma entità presunta pari o superiore a 200 uomini-giorno. Per una ristrutturazione con una sola impresa sotto quella soglia, la notifica non serve.",
