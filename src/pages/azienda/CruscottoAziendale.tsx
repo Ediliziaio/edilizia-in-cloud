@@ -219,7 +219,7 @@ export default function CruscottoAziendale() {
   // hanno un `drilldown` definito (prima il drawer era montato ma mai aperto).
   const executiveKpis = useMemo(() => [
     {
-      label: "Venduto periodo",
+      label: "Venduto periodo (IVA escl.)",
       value: eur(finance.revenueThisMonth),
       hint: `vs precedente ${eur(finance.revenuePrevMonth)}`,
       icon: Euro,

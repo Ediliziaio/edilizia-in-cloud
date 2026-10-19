@@ -573,7 +573,7 @@ export function useAggiornaStatoCaricoDdt() {
       if (input.stato === "confermato") {
         toast.success("Carico confermato", {
           description: input.daAbbinare > 0
-            ? `${input.caricati} articoli caricati in magazzino, ${input.daAbbinare} da abbinare a mano in Magazzino.`
+            ? `${input.caricati} articoli caricati in magazzino, ${input.daAbbinare} righe da sistemare: le trovi in Magazzino, «Righe di bolla da sistemare».`
             : `${input.caricati} articoli caricati in magazzino.`,
         });
       } else {
@@ -583,6 +583,7 @@ export function useAggiornaStatoCaricoDdt() {
       // P0-A: rinfresca anche il pannello company-wide dei DDT fotografati (email_id NULL).
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi-da-registrare"] });
       void qc.invalidateQueries({ queryKey: ["warehouse"] });
+      void qc.invalidateQueries({ queryKey: ["magazzino-righe-da-abbinare"] });
     },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });

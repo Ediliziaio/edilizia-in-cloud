@@ -132,7 +132,7 @@ export default function CantieriOggi() {
               </table>
             </div>
           )}
-        <p className="text-xs text-muted-foreground">Persone oggi = timbrate / previste dalle assegnazioni delle fasi. «Fermo» = nessun segnale dal cantiere da {GIORNI_FERMO} giorni con persone previste.</p>
+        <p className="text-xs text-muted-foreground">Persone oggi = presenti (hanno timbrato o sono nel rapportino di oggi) / previste dalle assegnazioni. «Fermo» = nessun segnale dal cantiere da {GIORNI_FERMO} giorni con persone previste.</p>
       </section>
     </div>
   );

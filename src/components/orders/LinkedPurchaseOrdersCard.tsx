@@ -196,7 +196,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
       </CardContent>
 
       {/* Clic su un ordine: le sue bolle e fatture, senza lasciare la commessa. */}
-      <OdaDocumentiDialog orderId={orderId} oda={odaAperto} onClose={() => setOdaAperto(null)} mostraImporti={!!canViewCosts} />
+      {/* Montata solo quando serve: bolle e fatture si leggono al clic, non a ogni apertura della commessa. */}
+      {odaAperto && <OdaDocumentiDialog orderId={orderId} oda={odaAperto} onClose={() => setOdaAperto(null)} mostraImporti={!!canViewCosts} />}
 
       {/* Link existing PO dialog */}
       <LinkExistingPurchaseOrderDialog

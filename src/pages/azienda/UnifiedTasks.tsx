@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { useTaskLink } from "@/hooks/useTaskLink";
+import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
 import {
   buildTaskStatusUpdate,
   getNextTaskStatusForQuickAction,
@@ -675,6 +676,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             )}
           </div>
         </div>
+        {/* Da sola (super admin, contabile): le approvazioni del cantiere, come in Attività dello staff. */}
+        {!embedded && <div className="mt-3"><DaApprovareCantieri /></div>}
         <div className={cn("flex flex-wrap items-center justify-between gap-2", !embedded && "mt-3")}>
           <TabsList className="h-9 rounded-lg">
             <TabsTrigger value="myday"><span className="sm:hidden">Oggi</span><span className="hidden sm:inline">La mia giornata</span></TabsTrigger>

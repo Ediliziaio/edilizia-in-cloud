@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fmtCur } from "@/components/marketing/dashboard/utils";
 import { safeNumber } from "@/hooks/useCruscottoData";
+import { agreedContractValue } from "@/lib/orders/contractValue";
 
 export type DrilldownType = "revenue" | "margin" | "late-orders" | "tickets" | null;
 
@@ -57,9 +58,11 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { data, isLoading } = useQuery({
     queryKey: ["drill-revenue", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
+      // Come il KPI: commesse non nel cestino, contratto più varianti approvate (IVA esclusa).
       const { data, error } = await supabase.from("orders")
-        .select("id, order_code, description, total_amount, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+        .select("id, order_code, description, total_amount, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name), variazioni:ordini_variazione(status, impatto_economico)")
         .eq("company_id", effectiveCompany!.id)
+        .is("deleted_at", null)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
         .order("created_at", { ascending: false })
@@ -81,9 +84,10 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
             <div className="font-medium truncate">{o.order_code || o.description || "Ordine"}</div>
             <div className="text-xs text-muted-foreground">{custName(o.customer)}</div>
           </div>
-          <div className="font-semibold tabular-nums shrink-0 ml-4">{fmtCur(safeNumber(o.total_amount))}</div>
+          <div className="font-semibold tabular-nums shrink-0 ml-4">{fmtCur(agreedContractValue(safeNumber(o.total_amount), o.variazioni ?? []))}</div>
         </div>
       ))}
+      <p className="text-xs text-muted-foreground">Contratto più varianti approvate, IVA esclusa.</p>
     </div>
   );
 }

@@ -316,7 +316,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               <SortableTableHead column="description" label="Descrizione" sortConfig={sortConfig} onSort={toggleSort} />
               {visibleColumns.has("customer") && <SortableTableHead column="customer" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
               {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
-              {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label="Imponibile" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
+              {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label="Imponibile con varianti" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
               {visibleColumns.has("collected") && <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
               {visibleColumns.has("due") && <SortableTableHead column="due" label="Da incassare" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
               {visibleColumns.has("variableCosts") && <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
