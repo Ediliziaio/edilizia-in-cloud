@@ -42,9 +42,13 @@ export function metodoIncassoDaCodice(codice: string | null | undefined): string
   }
 }
 
-/** Quanto resta da incassare, al centesimo. */
-export function residuoDaIncassare(doc: { totale_da_pagare?: number | null; importo_pagato?: number | null }): number {
-  return Math.round(((doc.totale_da_pagare ?? 0) - (doc.importo_pagato ?? 0)) * 100) / 100;
+/**
+ * Quanto resta da incassare, al centesimo: il totale meno l'incassato e meno quanto ha già stornato
+ * una nota di credito emessa (come registra_incasso_atomico). Una fattura stornata per intero è
+ * «stornata» e non si incassa.
+ */
+export function residuoDaIncassare(doc: { totale_da_pagare?: number | null; importo_pagato?: number | null; stornato?: number | null }): number {
+  return Math.round(((doc.totale_da_pagare ?? 0) - (doc.importo_pagato ?? 0) - (doc.stornato ?? 0)) * 100) / 100;
 }
 
 export interface FatturaDaIncassare {
