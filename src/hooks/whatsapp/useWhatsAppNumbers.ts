@@ -180,7 +180,7 @@ export interface WAOperationalSettings {
 
 export const DEFAULT_OPERATIONAL_SETTINGS: WAOperationalSettings = {
   ai_mode: "confirm_critical",
-  daily_rapportino_enabled: true,
+  daily_rapportino_enabled: false,
   daily_rapportino_time: "17:00",
   daily_rapportino_target: "assigned_workers",
   ddt_requires_confirmation: true,

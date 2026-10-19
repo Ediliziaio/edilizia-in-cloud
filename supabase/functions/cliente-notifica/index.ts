@@ -66,10 +66,12 @@ interface Destinatario {
 async function destinatario(customerId: string): Promise<Destinatario | null> {
   const { data: p } = await admin
     .from("profiles")
-    .select("id, email, first_name, business_name, is_business, company_id, portal_disabled, is_blocked, company:companies!profiles_company_id_fkey(name)")
+    .select("id, email, first_name, business_name, is_business, company_id, portal_disabled, is_blocked, company:companies!profiles_company_id_fkey(name, customer_portal_enabled)")
     .eq("id", customerId)
     .maybeSingle();
   if (!p || !p.company_id || p.portal_disabled || p.is_blocked) return null;
+  // Senza l'area clienti accesa l'azienda non scrive ai clienti da qui (19/10/2026).
+  if ((p.company as { customer_portal_enabled?: boolean } | null)?.customer_portal_enabled !== true) return null;
   let email = p.email as string | null;
   if (!email) {
     const { data: u } = await admin.auth.admin.getUserById(customerId);

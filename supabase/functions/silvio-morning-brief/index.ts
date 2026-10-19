@@ -114,10 +114,30 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await supabase.rpc("silvio_users_for_morning_brief", { p_lookback_days: 14 });
       if (error) throw new Error(`silvio_users_for_morning_brief: ${error.message}`);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      candidati = (data ?? []).map((r: any) => ({
+      const tutti: BriefingInput[] = (data ?? []).map((r: any) => ({
         user_id: r.user_id,
         company_id: r.company_id,
       }));
+      // Solo se l'azienda l'ha acceso (19/10/2026): «Report del mattino» attivo
+      // nelle Automazioni del bot, e solo alle persone scelte lì (o a tutti i
+      // responsabili se ha scelto «responsabili»). Prima partiva da solo per
+      // chiunque avesse fatto l'accesso negli ultimi 14 giorni.
+      const { data: routine, error: errRoutine } = await supabase.from("bot_routine")
+        .select("company_id, destinatari").eq("tipo", "report_mattino").eq("attiva", true);
+      if (errRoutine) throw new Error(`bot_routine: ${errRoutine.message}`);
+      const scelte = new Map<string, { tutti: boolean; utenti: Set<string> }>();
+      for (const r of (routine ?? []) as Array<{ company_id: string; destinatari: { utenti?: unknown; ruoli?: unknown } | null }>) {
+        const ruoli = Array.isArray(r.destinatari?.ruoli) ? r.destinatari!.ruoli as unknown[] : [];
+        const utenti = Array.isArray(r.destinatari?.utenti) ? (r.destinatari!.utenti as unknown[]).map(String) : [];
+        const prima = scelte.get(r.company_id) ?? { tutti: false, utenti: new Set<string>() };
+        if (ruoli.includes("admin")) prima.tutti = true;
+        for (const u of utenti) prima.utenti.add(u);
+        scelte.set(r.company_id, prima);
+      }
+      candidati = tutti.filter((c) => {
+        const s = scelte.get(c.company_id);
+        return !!s && (s.tutti || s.utenti.has(c.user_id));
+      });
     }
 
     // ── 2. Cosa può vedere ciascuno ───────────────────────────────────

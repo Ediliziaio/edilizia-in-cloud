@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
           id, quote_number, title, status, expires_at,
           client_name, client_email, total, company_id,
           created_by, signature_token,
-          companies:company_id (name, email)
+          companies:company_id (name, email, promemoria_preventivo_cliente)
         `)
         .eq("status", "inviata")
         // Nel cestino = ritirato: niente promemoria al cliente per un'offerta che non c'è più.
@@ -102,12 +102,15 @@ Deno.serve(async (req) => {
         }
 
         // ── Email reminder al cliente (solo se ha email + un link per firmare) ──
+        // Solo se l'azienda l'ha acceso (19/10/2026): è un messaggio automatico
+        // al suo cliente. Il promemoria interno qui sopra resta.
+        const promemoriaAccesi = (quote.companies as any)?.promemoria_preventivo_cliente === true;
         // L'offerta parte con la firma elettronica a codice OTP (/firma-fea/<token>):
         // per quel preventivo la firma «col solo nome» è chiusa (quote-sign risponde
         // 409), e il vecchio /preventivo/<id>?token=… faceva vedere l'offerta ma non
         // lasciava firmare. Vale il token della richiesta di firma ancora aperta; solo
         // senza (invio vecchio) si ripiega sulla pagina /offerta/<token del preventivo>.
-        const richiestaFirma = quote.client_email
+        const richiestaFirma = promemoriaAccesi && quote.client_email
           ? (await supabase
               .from("signature_requests")
               .select("token")
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
               .limit(1)
               .maybeSingle()).data as { token?: string } | null
           : null;
-        if (quote.client_email && (richiestaFirma?.token || quote.signature_token)) {
+        if (promemoriaAccesi && quote.client_email && (richiestaFirma?.token || quote.signature_token)) {
           const quoteBranding = await getBrandingForCompany(supabase, quote.company_id);
           const siteUrl = quoteBranding.siteUrl || defaultSiteUrl;
           const signUrl = richiestaFirma?.token

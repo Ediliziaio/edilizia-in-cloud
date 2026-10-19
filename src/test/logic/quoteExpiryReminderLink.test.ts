@@ -34,7 +34,8 @@ const preventivo = (extra: Riga = {}): Riga => ({
   expires_at: "2026-10-09T10:00:00.000Z", client_name: "Mario Rossi", client_email: "mario@example.it",
   total: 12200, company_id: "c-1", created_by: "u-1",
   signature_token: "5f1c0a9e-7d2b-4c3a-8e11-0123456789ab",
-  companies: { name: "Rossi Serramenti", email: "info@rossi.it" },
+  // L'azienda ha acceso i promemoria al cliente (19/10/2026: spenti di base).
+  companies: { name: "Rossi Serramenti", email: "info@rossi.it", promemoria_preventivo_cliente: true },
   ...extra,
 });
 

@@ -51,6 +51,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { AutomazioniCheParteDaSole } from "@/components/impostazioni/AutomazioniCheParteDaSole";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -416,6 +417,8 @@ export default function SettingsAIAutomazioni() {
           <p>Le azioni portate a termine o andate male, anche quelle fatte da te con un tocco, restano elencate nella scheda «Cosa ha fatto».</p>
         </div>
       </details>
+
+      <AutomazioniCheParteDaSole companyId={companyId} canEdit={canEdit} />
 
       {!canEdit && (
         <Alert>

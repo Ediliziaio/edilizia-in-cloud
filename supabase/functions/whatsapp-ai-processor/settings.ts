@@ -17,7 +17,8 @@ export interface OperationalSettings {
 
 export const DEFAULT_OPERATIONAL_SETTINGS: OperationalSettings = {
   ai_mode: "confirm_critical",
-  daily_rapportino_enabled: true,
+  // Spento finché l'azienda non lo accende (19/10/2026).
+  daily_rapportino_enabled: false,
   daily_rapportino_time: "17:00",
   daily_rapportino_target: "assigned_workers",
   ddt_requires_confirmation: true,
