@@ -20,6 +20,7 @@ import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
 import type { ProcurementItem } from "@/lib/orders/materialProcurement";
 import { usePermissions } from "@/hooks/usePermissions";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { OdaDocumentiDialog, type OdaDellaFinestra } from "./OdaDocumentiDialog";
 
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
@@ -43,7 +44,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
-  const { canEditOrders } = usePermissions();
+  const { canEditOrders, canViewCosts } = usePermissions();
+  const [odaAperto, setOdaAperto] = useState<OdaDellaFinestra | null>(null);
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; oda_number: string } | null>(null);
@@ -138,9 +140,11 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                   key={po.id}
                   className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors group"
                 >
-                  <Link
-                    to={`/azienda/ordini-acquisto/${po.id}`}
-                    className="flex-1 min-w-0"
+                  <button
+                    type="button"
+                    onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}
+                    className="flex-1 min-w-0 text-left"
+                    aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}
                   >
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -167,7 +171,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                       </div>
                       <p className="text-xs text-muted-foreground">{po.suppliers?.name || "—"}</p>
                     </div>
-                  </Link>
+                  </button>
                   <div className="flex items-center gap-2 shrink-0 ml-2">
                     <span className="text-sm font-medium">{formatCurrency(Number(po.total))}</span>
                     <Button
@@ -180,7 +184,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                     >
                       <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
-                    <Link to={`/azienda/ordini-acquisto/${po.id}`} className="max-sm:hidden">
+                    <Link to={`/azienda/ordini-acquisto/${po.id}`} className="max-sm:hidden" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
                       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </div>
@@ -190,6 +194,9 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           </div>
         )}
       </CardContent>
+
+      {/* Clic su un ordine: le sue bolle e fatture, senza lasciare la commessa. */}
+      <OdaDocumentiDialog orderId={orderId} oda={odaAperto} onClose={() => setOdaAperto(null)} mostraImporti={!!canViewCosts} />
 
       {/* Link existing PO dialog */}
       <LinkExistingPurchaseOrderDialog

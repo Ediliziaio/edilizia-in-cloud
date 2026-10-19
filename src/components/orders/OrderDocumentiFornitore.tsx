@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
+export const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
 
 interface OdaCommessa { id: string; oda_number: string | null; fornitore: string | null }
 
@@ -55,6 +55,8 @@ export interface RigaBolla {
   stato: string;
   attenzione: boolean;
   link?: string;
+  /** Ordine d'acquisto a cui la bolla appartiene, quando c'è. */
+  purchaseOrderId?: string | null;
 }
 
 const STATI_DDT: Record<string, string> = {
@@ -97,10 +99,12 @@ export function useBolleCommessa(orderId: string) {
           stato: STATI_DDT[d.stato ?? ""] ?? (d.stato ?? "—"),
           attenzione: d.stato === "non_conforme" || !!d.has_damages || d.stato === "ricevuto",
           link: `/azienda/ddt/${d.id}`,
+          purchaseOrderId: d.purchase_order_id,
         })),
         ...campoUniche.map((c) => ({
           id: c.id, origine: "cantiere" as const, numero: c.numero_documento, data: c.data_documento ?? c.created_at,
           controparte: c.fornitore, stato: STATI_DDT[c.stato] ?? c.stato, attenzione: c.stato === "da_verificare",
+          purchaseOrderId: c.purchase_order_id,
         })),
         ...emessi.map((e: { id: string; numero: string | null; data_emissione: string | null; stato: string | null; cliente_snapshot: { ragione_sociale?: string; nome?: string; cognome?: string } | null }) => ({
           id: e.id, origine: "cliente" as const, numero: e.numero, data: e.data_emissione,
@@ -113,7 +117,7 @@ export function useBolleCommessa(orderId: string) {
   });
 }
 
-const ORIGINE: Record<RigaBolla["origine"], { testo: string; classe: string }> = {
+export const ORIGINE: Record<RigaBolla["origine"], { testo: string; classe: string }> = {
   fornitore: { testo: "Dal fornitore", classe: "bg-blue-50 text-blue-800" },
   cantiere: { testo: "Foto dal cantiere", classe: "bg-orange-50 text-orange-800" },
   cliente: { testo: "DDT al cliente", classe: "bg-slate-100 text-slate-700" },
@@ -180,6 +184,8 @@ export interface RigaFattura {
   stato: string | null;
   legame: "oda" | "costo" | "suggerita";
   oda: string | null;
+  /** Ordine d'acquisto a cui la fattura è collegata, quando c'è. */
+  purchaseOrderId: string | null;
   notaCredito: boolean;
   /** Fattura ripartita su più commesse: la percentuale di questa (il totale è già la quota). */
   quota: number | null;
@@ -251,6 +257,7 @@ export function useFattureFornitoriCommessa(orderId: string) {
           totale: intero == null || quota == null ? intero : Math.round(intero * quota) / 100,
           totaleDocumento: quota == null ? null : intero,
           stato: f.stato, legame, oda: f.purchase_order_id ? perOda.get(f.purchase_order_id) ?? null : null,
+          purchaseOrderId: f.purchase_order_id,
           notaCredito: segno < 0, quota,
         });
       };
