@@ -37,7 +37,7 @@ describe("nutrimento: ferie a date esatte", () => {
   });
 
   it("in ferie il giorno non è ammesso; fuori sì, tutti i giorni della settimana", () => {
-    const regole = { giorni: [], settimane: [], settimaneEscluse: [], periodiEsclusi: ferie };
+    const regole = { giorni: [] as number[], settimane: [] as number[], settimaneEscluse: [] as number[], periodiEsclusi: ferie };
     expect(giornoAmmesso(giorno(2026, 12, 25), regole)).toBe(false);
     expect(giornoAmmesso(giorno(2026, 10, 25), regole)).toBe(true);
   });

@@ -582,6 +582,7 @@ async function processQueue(supabase: any) {
                 await supabase.from("automation_queue")
                   .update({ status: "cancelled", last_error: "fermata: ha risposto «basta così»", updated_at: ora })
                   .eq("enrollment_id", a.id).eq("status", "pending");
+                await completeExecutionRun(supabase, a.id, "completed");
               }
             }
             motivo = "ha risposto «basta così»";
