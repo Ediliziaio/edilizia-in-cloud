@@ -416,7 +416,7 @@ export interface VarianteDellaCommessa {
 }
 
 /** Contratto più varianti approvate, IVA esclusa: il valore pattuito della scheda commessa. */
-function contrattoPattuito(order: Pick<OrderWithDetails, "total_amount"> & { variazioni?: VarianteDellaCommessa[] | null }): number {
+export function contrattoPattuito(order: Pick<OrderWithDetails, "total_amount"> & { variazioni?: VarianteDellaCommessa[] | null }): number {
   return order.variazioni ? agreedContractValue(order.total_amount || 0, order.variazioni) : order.total_amount || 0;
 }
 

@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronsLeft, ChevronsRight, Info } from "lucide-react";
-import { type OrderWithDetails, type OrderStatus } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
 
 interface OrdersPipelineViewProps {
   orders: OrderWithDetails[];
@@ -74,7 +74,7 @@ function getExpectedTimestamp(order: OrderWithDetails) {
 function perDataDiPosa(a: OrderWithDetails, b: OrderWithDetails) {
   const dateDiff = getExpectedTimestamp(a) - getExpectedTimestamp(b);
   if (dateDiff !== 0) return dateDiff;
-  return (b.total_amount || 0) - (a.total_amount || 0);
+  return getGrossOrderAmount(b) - getGrossOrderAmount(a);
 }
 
 function perPiuRecenti(a: OrderWithDetails, b: OrderWithDetails) {
@@ -82,7 +82,7 @@ function perPiuRecenti(a: OrderWithDetails, b: OrderWithDetails) {
 }
 
 function perValore(a: OrderWithDetails, b: OrderWithDetails) {
-  return (b.total_amount || 0) - (a.total_amount || 0);
+  return getGrossOrderAmount(b) - getGrossOrderAmount(a);
 }
 
 const CONFRONTO: Record<Ordinamento, (a: OrderWithDetails, b: OrderWithDetails) => number> = {

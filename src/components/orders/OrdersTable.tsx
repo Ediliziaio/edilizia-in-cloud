@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
-import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected, getGrossOrderAmount } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 
 export interface OrderCosts {
   variableCosts: number;
@@ -89,7 +89,7 @@ export const OrdersTable = React.memo(function OrdersTable({
     customer: (o: OrderWithDetails) => o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
     // Contratto più varianti, IVA inclusa: la stessa base di Incassato e Da ricevere.
     totalIvato: (o: OrderWithDetails) => getGrossOrderAmount(o),
-    total_amount: (o: OrderWithDetails) => o.total_amount,
+    total_amount: (o: OrderWithDetails) => contrattoPattuito(o),
     collected: (o: OrderWithDetails) => getAmountCollected(o),
     due: (o: OrderWithDetails) => getAmountDue(o),
     variableCosts: (o: OrderWithDetails) => orderCosts.get(o.id)?.variableCosts ?? 0,
@@ -419,7 +419,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("imponibile") && (
                     <TableCell className="hidden 2xl:table-cell text-right">
-                      {formatCurrency(order.total_amount)}
+                      {formatCurrency(contrattoPattuito(order))}
                     </TableCell>
                   )}
                   {visibleColumns.has("collected") && (

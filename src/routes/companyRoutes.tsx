@@ -234,7 +234,6 @@ import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/SettingsFormBuilder"));
 const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/SettingsPhoneNumbers"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
-const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const CreateLavoroAppaltatore = lazy(() => import("@/pages/azienda/CreateLavoroAppaltatore"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
@@ -612,7 +611,8 @@ export default function CompanyRoutesContainer() {
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
         <Route path="commesse/:id/modifica" element={<LegacyCommessaEditRedirect />} />
         <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
-        <Route path="cantieri-oggi" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore in Cantieri oggi"><CantieriOggi /></ErrorBoundary>)} />
+        {/* Cantieri oggi ora è una scheda di Commesse: il vecchio indirizzo ci porta. */}
+        <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini?tab=oggi" replace />} />
         <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="ordini/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />

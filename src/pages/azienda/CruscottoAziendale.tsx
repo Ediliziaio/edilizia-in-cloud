@@ -194,8 +194,8 @@ export default function CruscottoAziendale() {
     const eur = (v: number) =>
       v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true });
     return [
-      { key: "venduto", label: "Venduto", color: "hsl(var(--chart-1))", formatter: eur },
-      { key: "incassato", label: "Incassato", color: "hsl(var(--chart-3))", formatter: eur },
+      { key: "venduto", label: "Venduto (IVA escl.)", color: "hsl(var(--chart-1))", formatter: eur },
+      { key: "incassato", label: "Incassato (IVA incl.)", color: "hsl(var(--chart-3))", formatter: eur },
       {
         key: "cassa",
         label: "Cassa netta",
@@ -401,7 +401,7 @@ export default function CruscottoAziendale() {
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
                     <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e cassa</h3>
-                    <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo · venduto IVA esclusa, incassato e cassa IVA inclusa</p>
                   </div>
                   {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                   <div className="flex flex-wrap items-center gap-3 text-xs">

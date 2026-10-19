@@ -65,20 +65,20 @@ export async function statoCantiere(
   // Ore dei rapportini inviati e approvati, con le presenze della squadra.
   const oreTotali = await oreCantiere(ctx, orderId);
 
-  const valore = Number(cantiere.total_amount ?? 0);
-  const sal = Number(cantiere.percentuale_avanzamento ?? 0);
-  const valoreLavorato = valore * (sal / 100);
-  // Il margine della pagina Marginalità (19/10/2026): prima i costi erano
-  // sempre zero e il margine stimato usciva sempre 100%.
-  const { data: margini } = await ctx.supabase
+  // Valore e margine con la stessa regola di «marginalità cantiere»: contratto più varianti, e
+  // margine sul lavorato (valore × SAL) meno i costi diretti registrati finora.
+  const { data: m } = await ctx.supabase
     .from("v_ordine_marginalita")
-    .select("margine_perc")
+    .select("preventivo_totale, consuntivo")
     .eq("company_id", ctx.company_id)
     .eq("id", orderId)
     .maybeSingle();
-  const percentuale = margini?.margine_perc;
-  const marginPct = percentuale != null && Number.isFinite(Number(percentuale))
-    ? Number(percentuale).toFixed(1)
+  const valore = Number(m?.preventivo_totale ?? cantiere.total_amount ?? 0);
+  const sal = Number(cantiere.percentuale_avanzamento ?? 0);
+  const valoreLavorato = valore * (sal / 100);
+  const costiDiretti = Number(m?.consuntivo ?? 0);
+  const marginPct = m && valoreLavorato > 0
+    ? (((valoreLavorato - costiDiretti) / valoreLavorato) * 100).toFixed(1)
     : "n/d";
 
   const fmtEur = (n: number) =>
@@ -88,11 +88,11 @@ export async function statoCantiere(
     `📊 *${nome}*${cantiere.client_name ? ` — ${cantiere.client_name}` : ""}`,
     `Stato: ${cantiere.status ?? "n/d"} — SAL: ${sal}%`,
     "",
-    `💰 Valore commessa: ${fmtEur(valore)}`,
+    `💰 Valore commessa (con varianti): ${fmtEur(valore)}`,
     `📈 Lavorato (SAL): ${fmtEur(valoreLavorato)}`,
     `⏱️ Ore cumulate: ${oreTotali.toFixed(1)}h`,
     typeof marginPct === "string" && marginPct !== "n/d"
-      ? `📉 Margine: ${marginPct}%`
+      ? `📉 Margine sul lavorato: ${marginPct}% (costi registrati finora)`
       : null,
   ].filter(Boolean).join("\n");
 

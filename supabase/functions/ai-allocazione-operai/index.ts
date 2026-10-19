@@ -27,7 +27,7 @@ REGOLE PRIORITARIE:
 1. Capocantiere: 1 obbligatorio, scegli con role_type='capocantiere' o esperienza
 2. Bilancia carico: preferisci operai con stato_carico=libero o leggero
 3. Area: preferisci match geografico (operaio.area ~ cantiere.indirizzo)
-4. Mai overload: NON suggerire operai con stato='overload'
+4. Mai overload: NON suggerire operai con stato='overload'. Con stato='ore_mancanti' il carico non è misurabile (scheda senza ore contrattuali): se li suggerisci, dillo nella motivazione
 5. Specializzazioni: rispetta role_type quando il tipo lavoro lo richiede
 
 OUTPUT JSON ESATTO (no markdown):

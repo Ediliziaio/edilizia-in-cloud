@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
-import { type OrderWithDetails, type OrderStatus } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
 
 /** Inizio di oggi: con la data di posa si confronta il giorno, non l'ora. */
 export function inizioOggi(): Date {
@@ -45,7 +45,8 @@ export function OrdersPipelineColumn({
   const colore = status.color || "#6b7280";
 
   const totalAmount = useMemo(
-    () => orders.reduce((sum, o) => sum + (o.total_amount || 0), 0),
+    // Contratto più varianti, IVA inclusa: lo stesso importo delle schede qui sotto.
+    () => orders.reduce((sum, o) => sum + getGrossOrderAmount(o), 0),
     [orders]
   );
   const mediaAmount = orders.length > 0 ? totalAmount / orders.length : 0;
@@ -117,7 +118,7 @@ export function OrdersPipelineColumn({
         </div>
         <p className="mt-0.5 h-4 truncate text-[11px] leading-4 text-muted-foreground">
           {orders.length > 0
-            ? `${formatCurrency(totalAmount)} tot · ${formatCurrency(mediaAmount)} media`
+            ? `${formatCurrency(totalAmount)} tot · ${formatCurrency(mediaAmount)} media · IVA incl.`
             : "Nessuna commessa"}
         </p>
         {/* Riga sempre presente, anche vuota: così tutte le intestazioni hanno la

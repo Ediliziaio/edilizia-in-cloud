@@ -79,6 +79,7 @@ import { dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, 
 import { buildTaskStatusUpdate, getNextTaskStatusForQuickAction, getTaskStatusDefinition, getTaskStatusLabel, isTaskDoneStatus, isTaskBlockedStatus, TASK_STATUS_TONE_CLASSES } from "@/lib/taskStatuses";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
+import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
@@ -1383,6 +1384,10 @@ function TabAttivita() {
     <div className="space-y-4">
       {/* Timbratura in cima per lo staff non-admin */}
       {!isAdmin && <TimbraturaSede />}
+
+      {/* Dal cantiere: rapportini, timbrature dimenticate e bolle da approvare, solo per chi può
+          approvarli. Senza niente in attesa non occupa posto. */}
+      <DaApprovareCantieri />
 
       {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività.
           Da tablet due colonne con le attività a larghezza fissa: a un terzo

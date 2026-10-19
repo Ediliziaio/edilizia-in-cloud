@@ -17,11 +17,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
+const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -55,7 +56,7 @@ import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
@@ -1126,9 +1127,10 @@ function OrdersListInner() {
       (!costColumns.has(column.key) || orderPerms.canViewCosts) && (!marginColumns.has(column.key) || orderPerms.canViewMargins));
     const rows = (allOrders || []).map((o) => {
       const pending = getPendingPayments(o as any);
-      const vatRate = o.vat_rate ?? 22;
-      const vatAmount = (o.total_amount || 0) * (vatRate / 100);
+      // Imponibile e IVA del valore pattuito (contratto più varianti), come il Totale Ivato.
+      const imponibile = contrattoPattuito(o as any);
       const totalGross = getGrossOrderAmount(o as any);
+      const vatAmount = Math.round((totalGross - imponibile) * 100) / 100;
       const collected = getAmountCollected(o as any);
       const due = getAmountDue(o as any);
       const costs = exportCostsMap.get(o.id);
@@ -1136,7 +1138,7 @@ function OrdersListInner() {
         order_code: o.order_code || "",
         customer: (o.customer as any) ? `${(o.customer as any).first_name} ${(o.customer as any).last_name}` : "",
         description: o.description,
-        total_amount: String(o.total_amount || 0),
+        total_amount: String(imponibile),
         vat_amount: String(vatAmount),
         total_gross: String(totalGross),
         collected: String(collected),
@@ -1197,7 +1199,7 @@ function OrdersListInner() {
         { key: "order_code", label: "Codice", w: 60 },
         { key: "customer", label: "Cliente", w: 150 },
         { key: "description", label: "Descrizione", w: 180 },
-        { key: "total_amount", label: "Totale", w: 70, align: "right" as const },
+        { key: "total_gross", label: "Tot. IVA incl.", w: 70, align: "right" as const },
         { key: "status", label: "Stato", w: 80 },
         { key: "created_at", label: "Contratto", w: 70 },
         { key: "expected_date", label: "Posa", w: 70 },
@@ -1982,6 +1984,8 @@ export default function OrdersList() {
 
   const tabs = [
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
+    // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
+    { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
@@ -2046,6 +2050,14 @@ export default function OrdersList() {
       {activeTab === "ordini" && (
         <ErrorBoundary title="Errore nella lista commesse">
           <OrdersListInner />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "oggi" && (
+        <ErrorBoundary title="Errore in Cantieri oggi">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento cantieri…</div>}>
+            <CantieriOggi />
+          </Suspense>
         </ErrorBoundary>
       )}
 

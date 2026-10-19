@@ -947,7 +947,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_employees_workload",
-        description: "Ritorna carico di lavoro per ogni operaio attivo: ore lavorate ultimi 30gg, ordini attivi, % utilizzo, stato (libero/leggero/medio/pieno/overload). Usa per 'chi è libero', 'carico operai', 'chi posso assegnare', 'team in overload'.",
+        description: "Ritorna carico di lavoro per ogni operaio attivo: ore lavorate ultimi 30gg, ordini attivi, % utilizzo, stato (libero/leggero/medio/pieno/overload, oppure ore_mancanti se la scheda non ha le ore contrattuali: in quel caso dillo e invita a completarla). Usa per 'chi è libero', 'carico operai', 'chi posso assegnare', 'team in overload'.",
         parameters: { type: "object", properties: {}, required: [] },
       },
     },
