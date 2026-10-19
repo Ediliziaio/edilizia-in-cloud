@@ -36,7 +36,7 @@ interface Correzione {
 
 export const chiaveCorrezioniCommessa = (orderId: string) => ["correzioni-timbrature-commessa", orderId] as const;
 
-function CorrezioniTimbrature({ orderId, puoDecidere }: { orderId: string; puoDecidere: boolean }) {
+function CorrezioniTimbrature({ orderId, puoDecidere, utenteId, titolare }: { orderId: string; puoDecidere: boolean; utenteId?: string | null; titolare: boolean }) {
   const qc = useQueryClient();
   const [respingi, setRespingi] = useState<{ id: string; testo: string } | null>(null);
   const { data = [], isLoading, isError, refetch } = useQuery({
@@ -94,7 +94,8 @@ function CorrezioniTimbrature({ orderId, puoDecidere }: { orderId: string; puoDe
               </div>
               <Clock className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
             </div>
-            {puoDecidere && (respingi?.id === c.id ? (
+            {/* La propria richiesta la decide un altro dell'ufficio (o il titolare). */}
+            {puoDecidere && (titolare || c.user_id !== utenteId) && (respingi?.id === c.id ? (
               <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); decidi.mutate({ id: c.id, approva: false, risposta: respingi.testo }); }}>
                 <input autoFocus value={respingi.testo} onChange={(e) => setRespingi({ id: c.id, testo: e.target.value })} required maxLength={300}
                   placeholder="Perché la respingi (lo legge l’operaio)" aria-label="Motivo del rifiuto"
@@ -139,9 +140,10 @@ function useRapportiniInviati(orderId: string) {
 }
 
 export function DaApprovareCommessa({ orderId, onApriRapportini }: { orderId: string; onApriRapportini?: () => void }) {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const permissions = usePermissions();
   const puoDecidere = role === "company_admin" || role === "super_admin" || !!permissions.canEditOrders;
+  const titolare = role === "company_admin" || role === "super_admin";
   const rapportini = useRapportiniInviati(orderId);
   const n = rapportini.data ?? 0;
   return (
@@ -162,7 +164,7 @@ export function DaApprovareCommessa({ orderId, onApriRapportini }: { orderId: st
             <span className="text-xs font-normal underline">Vai ai rapportini</span>
           </button>
         )}
-        <CorrezioniTimbrature orderId={orderId} puoDecidere={puoDecidere} />
+        <CorrezioniTimbrature orderId={orderId} puoDecidere={puoDecidere} utenteId={user?.id} titolare={titolare} />
         <AcquistiCampoCard orderId={orderId} />
         {n === 0 && !rapportini.isLoading && (
           <p className="text-xs text-muted-foreground">Se qui sopra non c’è niente, dal cantiere non aspetta nulla.</p>
