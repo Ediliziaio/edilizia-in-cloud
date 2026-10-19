@@ -15,7 +15,7 @@ describe("fermarsi solo quando diventa cliente", () => {
   });
 
   it("il motore legge l'impostazione e cerca una vinta in quella pipeline", () => {
-    expect(motore).toContain('.select("stop_on_reply, stop_on_won_pipeline_id")');
+    expect(motore).toContain('.select("stop_on_reply, stop_on_won_pipeline_id, config_json")');
     expect(motore).toMatch(/\.eq\("pipeline_id", imp\.pipelineCliente\)\.not\("won_at", "is", null\)/);
     expect(motore).toContain('motivo = "il contatto è diventato cliente"');
   });

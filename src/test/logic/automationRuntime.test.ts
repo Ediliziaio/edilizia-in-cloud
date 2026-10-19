@@ -8,7 +8,7 @@ import ts from "typescript";
 import { evaluateAutomationFilters, matchesAutomationTriggerConfig } from "../../../supabase/functions/_shared/automationFilters";
 import { resolveAutomationRecord, automationEntityType, loadAutomationCustomFields, automationEventEntity, automationEventPayload } from "../../../supabase/functions/_shared/automationContext";
 import { minutiAllApertura } from "../../../supabase/functions/_shared/finestraFlusso";
-import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../../../supabase/functions/_shared/attesaCalendario";
+import { calendarioDelGiorno, giornoAmmesso, leggiPeriodi, leggiSettimane } from "../../../supabase/functions/_shared/attesaCalendario";
 import { numeroWhatsApp } from "../../../supabase/functions/_shared/sequenzaContatto";
 import { romaVersoUtc } from "../../../supabase/functions/_shared/appuntamentiPubblici";
 import { pickOpenWaNumber } from "../../../supabase/functions/_shared/openwaPickNumber";
@@ -690,7 +690,7 @@ describe("automation audit regressions", () => {
     ["2026-03-28T12:00:00Z", "2026-03-29T07:00:00.000Z"],
   ])("until 09:00 uses local clock through DST from %s", async (now, expected) => {
     class FixedDate extends Date { constructor(value?: any) { super(value ?? now); } static now() { return new Date(now).getTime(); } }
-    const execute = load("executeDelay", { Date: FixedDate, romaVersoUtc, leggiSettimane, giornoAmmesso });
+    const execute = load("executeDelay", { Date: FixedDate, romaVersoUtc, leggiSettimane, leggiPeriodi, giornoAmmesso });
     const result = await execute({ delay_tipo: "fino_a", delay_orario: "09:00", delay_giorni_settimana: [0, 1, 2, 3, 4, 5, 6] });
     expect(result.success).toBe(true);
     expect(result.output.execute_at).toBe(expected);

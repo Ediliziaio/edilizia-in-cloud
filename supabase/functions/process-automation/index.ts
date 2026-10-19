@@ -25,7 +25,8 @@ import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornam
 import { campiPersonalizzatiDelModello, valoriDelModello } from "../_shared/variabiliModelloWhatsApp.ts";
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, mittenteDiRiserva, mittenteRifiutatoDalProvider, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola, soloIndirizzo } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
-import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
+import { calendarioDelGiorno, giornoAmmesso, leggiPeriodi, leggiSettimane } from "../_shared/attesaCalendario.ts";
+import { classificaRispostaNutrimento, TAG_NUTRIMENTO_MENO } from "../_shared/nutrimentoRisposte.ts";
 import { confrontoConOggi } from "../_shared/condizioniData.ts";
 import { actionConfigErrors, conditionConfigErrors, delayConfigErrors } from "../_shared/automationValidation.ts";
 import { automationWebhookUrl } from "../_shared/automationWebhook.ts";
@@ -516,21 +517,22 @@ async function processQueue(supabase: any) {
   //
   // Una risposta = una email in arrivo da quell'indirizzo dopo l'iscrizione.
   // Le impostazioni dei flussi si leggono una volta sola per esecuzione.
-  const impostazioniFlusso = new Map<string, { stopOnReply: boolean; pipelineCliente: string | null }>();
+  const impostazioniFlusso = new Map<string, { stopOnReply: boolean; pipelineCliente: string | null; nutrimento: boolean }>();
   async function fermaSeHaRisposto(item: any): Promise<boolean | "retry"> {
     if (!item.flow_id || !item.enrollment_id || !item.entity_id) return false;
     try {
       if (!impostazioniFlusso.has(item.flow_id)) {
         const { data: f, error } = await supabase.from("automation_flows")
-          .select("stop_on_reply, stop_on_won_pipeline_id").eq("id", item.flow_id).eq("company_id", item.company_id).maybeSingle();
+          .select("stop_on_reply, stop_on_won_pipeline_id, config_json").eq("id", item.flow_id).eq("company_id", item.company_id).maybeSingle();
         if (error) throw error;
         impostazioniFlusso.set(item.flow_id, {
           stopOnReply: f?.stop_on_reply === true,
           pipelineCliente: typeof f?.stop_on_won_pipeline_id === "string" ? f.stop_on_won_pipeline_id : null,
+          nutrimento: f?.config_json?.nutrimento === true,
         });
       }
       const imp = impostazioniFlusso.get(item.flow_id)!;
-      if (!imp.stopOnReply && !imp.pipelineCliente) return false;
+      if (!imp.stopOnReply && !imp.pipelineCliente && !imp.nutrimento) return false;
 
       const contact = await resolveAutomationRecord(supabase, "contact", item.entity_id, item.company_id, item);
       if (!contact) return false;
@@ -541,6 +543,58 @@ async function processQueue(supabase: any) {
       if (!iscr || !["active", "waiting"].includes(iscr.status)) return false;
 
       let motivo: string | null = null;
+
+      // Nutrimento quotidiano (19/10/2026): le risposte «basta così» e «meno».
+      // «basta così» → disiscrizione marketing ed esce da tutti i nutrimenti;
+      // «meno» → tag del ritmo settimanale e si continua.
+      if (imp.nutrimento) {
+        const indirizzoN = String(contact.email ?? "").trim().toLowerCase();
+        if (indirizzoN) {
+          const { data: risposte, error } = await supabase.from("email_inbox")
+            .select("raw_text, subject").eq("company_id", item.company_id)
+            .ilike("from_email", indirizzoN).gt("received_at", iscr.created_at)
+            .order("received_at", { ascending: false }).limit(10);
+          if (error) throw error;
+          const esiti = ((risposte ?? []) as Array<{ raw_text: string | null; subject: string | null }>)
+            .map((r) => classificaRispostaNutrimento(r.raw_text ?? "", r.subject ?? ""));
+          if (esiti.includes("basta")) {
+            const ora = new Date().toISOString();
+            await supabase.from("marketing_contacts")
+              .update({ optout_email: true, optout_at: ora, optout_reason: "basta così (risposta)" })
+              .eq("id", contactId).eq("company_id", item.company_id);
+            const { error: errSup } = await supabase.from("email_suppressions").upsert(
+              { company_id: item.company_id, email: indirizzoN, reason: "unsubscribe", notes: "Ha risposto «basta così» al nutrimento" },
+              { onConflict: "company_id,email_normalized,reason" },
+            );
+            if (errSup) throw errSup;
+            // Esce da tutti i flussi di nutrimento, non solo da questo.
+            const { data: altri } = await supabase.from("automation_enrollments")
+              .select("id, flow_id").eq("company_id", item.company_id).eq("entity_id", item.entity_id)
+              .in("status", ["active", "waiting", "paused"]);
+            const idsFlussi = [...new Set(((altri ?? []) as Array<{ flow_id: string }>).map((a) => a.flow_id))];
+            if (idsFlussi.length) {
+              const { data: flussiN } = await supabase.from("automation_flows").select("id, config_json").in("id", idsFlussi);
+              const nutrimenti = new Set(((flussiN ?? []) as Array<{ id: string; config_json: any }>)
+                .filter((x) => x.config_json?.nutrimento === true).map((x) => x.id));
+              for (const a of (altri ?? []) as Array<{ id: string; flow_id: string }>) {
+                if (!nutrimenti.has(a.flow_id) || a.id === item.enrollment_id) continue;
+                await supabase.from("automation_enrollments").update({ status: "canceled", updated_at: ora }).eq("id", a.id);
+                await supabase.from("automation_queue")
+                  .update({ status: "cancelled", last_error: "fermata: ha risposto «basta così»", updated_at: ora })
+                  .eq("enrollment_id", a.id).eq("status", "pending");
+              }
+            }
+            motivo = "ha risposto «basta così»";
+          } else if (esiti.includes("meno")) {
+            const tags: string[] = Array.isArray(contact.tags) ? contact.tags : [];
+            if (!tags.includes(TAG_NUTRIMENTO_MENO)) {
+              const { error: errTag } = await supabase.from("marketing_contacts")
+                .update({ tags: [...tags, TAG_NUTRIMENTO_MENO] }).eq("id", contactId).eq("company_id", item.company_id);
+              if (errTag) throw errTag;
+            }
+          }
+        }
+      }
 
       // «Si ferma solo se diventa cliente» (19/09/2026, nurturing di Marketing
       // Edile): il flusso ignora risposte e schede spostate e si chiude appena
@@ -1125,6 +1179,16 @@ async function executeDelay(
   }
   if (delayMs <= 0) delayMs = 3600000; // default difensivo: 1 ora
 
+  // «Meno» (19/10/2026, nutrimento quotidiano v12): chi ha risposto «meno» ha il
+  // tag del ritmo ridotto e riceve al massimo un'email a settimana. L'attesa non
+  // scende sotto i 7 giorni; gli invii restano nello stesso ordine.
+  if (typeof cfg.delay_ritmo_settimanale_tag === "string" && cfg.delay_ritmo_settimanale_tag && supabase && entityId && companyId) {
+    const { data: c } = await supabase.from("marketing_contacts").select("tags")
+      .eq("id", entityId).eq("company_id", companyId).maybeSingle();
+    const tags: string[] = Array.isArray(c?.tags) ? c.tags : [];
+    if (tags.includes(cfg.delay_ritmo_settimanale_tag)) delayMs = Math.max(delayMs, 7 * 86_400_000);
+  }
+
   // "Solo in questi giorni": se l'attesa atterra su un giorno non consentito,
   // slitta di 24h alla volta fino al primo giorno attivo (stessa ora).
   // Dal 19/09/2026 anche per settimana dell'anno: «il martedì della settimana
@@ -1137,9 +1201,11 @@ async function executeDelay(
       : [],
     settimane: leggiSettimane(cfg.delay_settimane_anno),
     settimaneEscluse: leggiSettimane(cfg.delay_settimane_escluse),
+    // Ferie a date esatte (MM-GG/MM-GG): in quei giorni non parte niente.
+    periodiEsclusi: leggiPeriodi(cfg.delay_periodi_esclusi),
   };
   const conRegole = (regole.giorni.length > 0 && regole.giorni.length < 7)
-    || regole.settimane.length > 0 || regole.settimaneEscluse.length > 0;
+    || regole.settimane.length > 0 || regole.settimaneEscluse.length > 0 || regole.periodiEsclusi.length > 0;
   if (conRegole) {
     // Un anno e una settimana: la settimana 6 dell'anno prossimo ci sta sempre.
     let guard = 0;
