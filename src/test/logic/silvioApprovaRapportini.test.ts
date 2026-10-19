@@ -43,4 +43,16 @@ describe("approva_rapportini di Silvio", () => {
     const r = await anteprima();
     expect(String(r.avviso_costo)).toContain("Anna Campione");
   });
+
+  it("riconosce la scheda di chi compila da solo e avvisa se non ha costo", async () => {
+    db.tabelle.employees.push({ id: "e-solo", company_id: "c", user_id: "u-solo", first_name: "Gino", last_name: "Singolo" });
+    db.tabelle.campo_rapportini = [{
+      id: "r2", company_id: "c", user_id: "u-solo", order_id: "o1", data_lavoro: oggi, stato: "inviato",
+      ore_lavorate: 6, ore_straordinario: 1, descrizione_lavori: "Rasatura", presenze: null, ufficio_employee_id: null,
+    }];
+    db.rpcs.costo_orario_dipendente = () => null;
+    const r = await anteprima();
+    expect(r).toMatchObject({ rapportini: 1, persone: 1, ore_totali: 7 });
+    expect(String(r.avviso_costo)).toContain("Gino Singolo");
+  });
 });

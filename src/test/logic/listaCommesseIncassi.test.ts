@@ -35,3 +35,12 @@ describe("lista commesse: incassato e da ricevere", () => {
     expect(getAmountDue(order)).toBe(2200);
   });
 });
+
+describe("centesimo di arrotondamento sulla fattura", () => {
+  it("rata pagata con la fattura incassata a un centesimo dal saldo: niente da ricevere", () => {
+    const order = { ...base, total_amount: 47341.24, installments: [
+      { position: 0, type: "balance", amount: 0, is_paid: true, paid_date: "2026-05-01", fattura: { id: "f", importo_pagato: 52075.35 } },
+    ] } as OrderWithDetails;
+    expect(getAmountDue(order)).toBe(0);
+  });
+});

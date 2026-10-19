@@ -68,15 +68,11 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId }: Props) {
 
   const assegnaMutation = useMutation({
     mutationFn: async (employeeId: string) => {
-      // Recupera hourly rate dall'employee
-      const { data: emp } = await supabase
-        .from("employees")
-        .select("gross_salary, monthly_hours")
-        .eq("id", employeeId)
-        .single();
-      const hourlyRate = emp?.gross_salary && emp?.monthly_hours
-        ? Math.round((emp.gross_salary / emp.monthly_hours) * 100) / 100
-        : 0;
+      // Costo orario aziendale (tariffa della scheda, o lordo con oneri del tipo di dipendente):
+      // lo stesso che usa l'approvazione dei rapportini.
+      const { data: costo, error: costoErr } = await supabase.rpc("costo_orario_dipendente", { p_employee_id: employeeId });
+      if (costoErr) throw costoErr;
+      const hourlyRate = Number(costo) > 0 ? Math.round(Number(costo) * 100) / 100 : 0;
 
       const { error } = await supabase
         .from("order_employees")

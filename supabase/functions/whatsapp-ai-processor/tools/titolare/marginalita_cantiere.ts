@@ -1,8 +1,10 @@
-// MP02 — Marginalità cantiere: valore × SAL - costi reali (DDT + cedolini prorata).
-// In attesa di ddt_ricezione con `totale` per cantiere (MP3), usiamo approssimazione.
+// MP02 — Marginalità cantiere: valore lavorato (contratto più varianti × SAL) meno i costi diretti
+// registrati, dalla stessa fonte della scheda commessa (v_ordine_marginalita). Prima la manodopera
+// era stimata con ore di tutti i rapportini × lordo medio senza oneri, e il margine usciva falso.
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { oreCantiere } from "../shared/oreCantiere.ts";
 
 export const marginalitaCantiereDef: Omit<ToolDef, "handler"> = {
   name: "marginalita_cantiere",
@@ -58,34 +60,23 @@ export async function marginalitaCantiere(
   if (!o) return errResult("not_found", "Cantiere non trovato.");
 
   const nome = o.description || o.order_code || "Cantiere";
-  const valore = Number(o.total_amount ?? 0);
+  const { data: m } = await ctx.supabase
+    .from("v_ordine_marginalita")
+    .select("preventivo_totale, costo_manodopera, costo_acquisti, costo_materiali_magazzino, consuntivo")
+    .eq("company_id", ctx.company_id)
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!m) return errResult("no_data", "Non riesco a leggere i costi di questo cantiere: aprilo dall'app.");
+
+  const valore = Number(m.preventivo_totale ?? o.total_amount ?? 0);
   const sal = Number(o.percentuale_avanzamento ?? 0);
   const valoreLavorato = valore * (sal / 100);
+  const costoManodopera = Number(m.costo_manodopera ?? 0);
+  const costoMateriali = Number(m.costo_acquisti ?? 0) + Number(m.costo_materiali_magazzino ?? 0);
+  const costiDiretti = Number(m.consuntivo ?? 0);
+  const ore = await oreCantiere(ctx, orderId);
 
-  // Costo manodopera: ore × costo/ora mediano employees della company
-  const { data: emps } = await ctx.supabase
-    .from("employees")
-    .select("gross_salary, monthly_hours")
-    .eq("company_id", ctx.company_id)
-    .eq("is_active", true);
-  const costOra = (emps ?? [])
-    .filter((e) => (e.monthly_hours ?? 0) > 0)
-    .map((e) => Number(e.gross_salary ?? 0) / Number(e.monthly_hours));
-  const costOraMediano = costOra.length
-    ? costOra.sort((a, b) => a - b)[Math.floor(costOra.length / 2)]
-    : 20;
-
-  const { data: rapp } = await ctx.supabase
-    .from("campo_rapportini")
-    .select("ore_lavorate, ore_straordinario")
-    .eq("order_id", orderId);
-  const ore = (rapp ?? []).reduce(
-    (s, r) => s + (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0),
-    0,
-  );
-  const costoManodopera = ore * costOraMediano;
-
-  const margine = valoreLavorato - costoManodopera;
+  const margine = valoreLavorato - costiDiretti;
   const marginePct = valoreLavorato > 0
     ? ((margine / valoreLavorato) * 100).toFixed(1)
     : "n/d";
@@ -96,17 +87,19 @@ export async function marginalitaCantiere(
   const msg = [
     `📊 *${nome}* — Marginalità`,
     "",
-    `💰 Valore: ${fmtEur(valore)} (SAL ${sal}%)`,
+    `💰 Valore (contratto + varianti): ${fmtEur(valore)} (SAL ${sal}%)`,
     `📈 Lavorato: ${fmtEur(valoreLavorato)}`,
-    `👷 Manodopera: ${ore.toFixed(1)}h × ${fmtEur(costOraMediano)}/h = ${fmtEur(costoManodopera)}`,
+    `👷 Manodopera registrata: ${fmtEur(costoManodopera)} (${ore.toFixed(1)} h nei rapportini inviati e approvati)`,
+    `🧱 Materiali e acquisti: ${fmtEur(costoMateriali)}`,
+    `🧾 Costi diretti registrati: ${fmtEur(costiDiretti)}`,
     "",
-    `${margine >= 0 ? "✅" : "⚠️"} Margine: ${fmtEur(margine)} (${marginePct}%)`,
+    `${margine >= 0 ? "✅" : "⚠️"} Margine sul lavorato: ${fmtEur(margine)} (${marginePct}%)`,
     "",
-    "_Stima: non include DDT materiali e costi indiretti._",
+    "_Costi registrati finora, IVA esclusa: le ore ancora da approvare non hanno costo._",
   ].join("\n");
 
   return okResult(
-    { nome, valore, sal, valoreLavorato, ore, costoManodopera, margine, marginePct },
+    { nome, valore, sal, valoreLavorato, ore, costoManodopera, costoMateriali, costiDiretti, margine, marginePct },
     msg,
   );
 }

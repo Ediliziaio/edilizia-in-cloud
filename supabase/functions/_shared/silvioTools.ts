@@ -5097,7 +5097,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       }
 
       // Le ore che l'approvazione registra davvero: le presenze della squadra quando ci sono,
-      // altrimenti le ore di chi ha compilato (o della persona inserita dall'ufficio).
+      // altrimenti le ore di chi ha compilato (o della persona inserita dall'ufficio). Chi compila
+      // si riconosce dalla sua scheda dipendente, come fa campo_presenze_effettive.
+      const autori = [...new Set((rapportini ?? []).map((r: any) => r.user_id).filter(Boolean))] as string[];
+      const schedaDi = new Map<string, string>();
+      if (autori.length > 0) {
+        const { data: schede } = await ctx.supabase.from("employees").select("id, user_id")
+          .eq("company_id", ctx.companyId).in("user_id", autori.slice(0, 500));
+        for (const e of schede ?? []) if (e.user_id) schedaDi.set(String(e.user_id), String(e.id));
+      }
       type Presenza = { chi: string; employeeId: string | null; ore: number };
       const presenzeDi = (r: any): Presenza[] => {
         if (Array.isArray(r.presenze) && r.presenze.length > 0) {
@@ -5107,9 +5115,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
             ore: Number(p?.ore) || 0,
           }));
         }
+        const scheda = r.ufficio_employee_id ? String(r.ufficio_employee_id)
+          : r.user_id ? schedaDi.get(String(r.user_id)) ?? null : null;
         return [{
-          chi: String(r.ufficio_employee_id ?? r.user_id ?? r.id),
-          employeeId: r.ufficio_employee_id ? String(r.ufficio_employee_id) : null,
+          chi: scheda ?? String(r.user_id ?? r.id),
+          employeeId: scheda,
           ore: (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0),
         }];
       };

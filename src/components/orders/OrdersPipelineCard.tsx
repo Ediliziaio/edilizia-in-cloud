@@ -20,7 +20,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { type OrderWithDetails, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getGrossOrderAmount } from "@/lib/orderUtils";
 import {
   prossimoPasso, statoIncasso, statoMateriali, statoPosa, statoSquadra, type Tono,
 } from "@/lib/orders/etichettePipeline";
@@ -35,10 +35,11 @@ interface OrdersPipelineCardProps {
 const SUMMARY_OPEN_DELAY_MS = 1000;
 
 function PaymentBar({ order }: { order: OrderWithDetails }) {
-  const total = order.total_amount || 1;
   const collected = getAmountCollected(order);
-  const pct = Math.min(100, Math.round((collected / total) * 100));
   const due = getAmountDue(order);
+  // Base IVA inclusa come incassato e da incassare: contratto più varianti, meno la finanziaria.
+  const total = collected + due || 1;
+  const pct = Math.min(100, Math.round((collected / total) * 100));
   const isPaid = due === 0 && collected > 0;
 
   return (
@@ -206,15 +207,18 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   const due = getAmountDue(order);
   const collected = getAmountCollected(order);
   const materials = getMaterialSummary(order);
-  const paymentPct = order.total_amount > 0 ? Math.min(100, Math.round((collected / order.total_amount) * 100)) : 0;
-  const isPaid = due === 0 && order.total_amount > 0;
+  // Incassato e da incassare sono IVA inclusa, con le varianti: la percentuale sta sulla loro somma.
+  const incassabile = collected + due;
+  const valoreIvato = getGrossOrderAmount(order);
+  const paymentPct = incassabile > 0 ? Math.min(100, Math.round((collected / incassabile) * 100)) : 0;
+  const isPaid = due === 0 && incassabile > 0;
   const needsMaterials = materials.total > 0 && materials.ready < materials.total;
   const customerName = getCustomerName(order);
   const labor = getLaborSummary(order);
   const giorni = getDaysToExpectedDate(order);
   const posa = statoPosa(giorni, order.expected_date ? formatDateShort(order.expected_date) : null);
   const stMateriali = statoMateriali(materials.total, materials.ready, materials.toOrder);
-  const stIncasso = statoIncasso(order.total_amount, collected, due);
+  const stIncasso = statoIncasso(incassabile, collected, due);
   const stSquadra = statoSquadra(labor.names, labor.employees.length > 0, labor.teams.length > 0);
   const passo = prossimoPasso({
     giorniAllaPosa: giorni, daIncassare: due, incassato: collected,
@@ -475,7 +479,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             {/* Importo + pagamenti */}
             <div className="mt-2 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <p className="font-bold text-sm">{formatCurrency(order.total_amount)}</p>
+                <p className="font-bold text-sm" title="Contratto più varianti, IVA inclusa">{formatCurrency(valoreIvato)}</p>
                 <span title={stIncasso.dettaglio} className={cn(
                   "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                   isPaid
@@ -628,7 +632,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
           <div className="mt-3 grid grid-cols-2 gap-2">
             <SummaryRow label="Stato" value={order.status?.name || "Senza stato"} />
             <SummaryRow label="Pagamento" value={getPaymentTypeLabel(order.payment_type)} />
-            <SummaryRow label="Valore" value={formatCurrency(order.total_amount)} />
+            <SummaryRow label="Valore (IVA incl.)" value={formatCurrency(valoreIvato)} />
             <SummaryRow
               label="Incassato"
               value={`${formatCurrency(collected)} (${paymentPct}%)`}

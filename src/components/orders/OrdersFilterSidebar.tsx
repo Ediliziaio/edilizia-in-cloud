@@ -556,7 +556,7 @@ function SidebarContent({
         </CollapsibleSection>
 
         {/* ── Importo ──────────────────────────────────────── */}
-        <CollapsibleSection title="Importo (€)" defaultOpen={false}>
+        <CollapsibleSection title="Imponibile del contratto (€)" defaultOpen={false}>
           <div className="space-y-2">
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">Minimo</Label>

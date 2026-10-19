@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
-import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected, getGrossOrderAmount } from "@/lib/orderUtils";
 
 export interface OrderCosts {
   variableCosts: number;
@@ -87,7 +87,8 @@ export const OrdersTable = React.memo(function OrdersTable({
     created_at: (o: OrderWithDetails) => o.created_at,
     description: (o: OrderWithDetails) => o.description || "",
     customer: (o: OrderWithDetails) => o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
-    totalIvato: (o: OrderWithDetails) => o.total_amount * (1 + (o.vat_rate ?? 22) / 100),
+    // Contratto più varianti, IVA inclusa: la stessa base di Incassato e Da ricevere.
+    totalIvato: (o: OrderWithDetails) => getGrossOrderAmount(o),
     total_amount: (o: OrderWithDetails) => o.total_amount,
     collected: (o: OrderWithDetails) => getAmountCollected(o),
     due: (o: OrderWithDetails) => getAmountDue(o),
@@ -183,7 +184,7 @@ export const OrdersTable = React.memo(function OrdersTable({
           const due = getAmountDue(order);
           const collected = getAmountCollected(order);
           const vatRate = order.vat_rate ?? 22;
-          const totalIvato = order.total_amount * (1 + vatRate / 100);
+          const totalIvato = getGrossOrderAmount(order);
           return (
             // Due colonne: a sinistra codice e stato, descrizione, cliente; a
             // destra il totale e quanto manda incassare. Prima tre righe con
@@ -345,7 +346,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               const pending = getPendingPayments(order);
               const timing = orderPaymentTiming(order);
               const vatRate = order.vat_rate ?? 22;
-              const totalIvato = order.total_amount * (1 + vatRate / 100);
+              const totalIvato = getGrossOrderAmount(order);
               const costs = orderCosts.get(order.id);
               const variableCosts = costs?.variableCosts ?? 0;
               const grossMargin = costs?.grossMargin ?? 0;

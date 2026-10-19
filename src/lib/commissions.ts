@@ -268,7 +268,15 @@ export function calculateInstallmentCollections({
     if (i.fattura?.importo_pagato != null) {
       if (i.fattura.id && countedInvoices.has(i.fattura.id)) return 0;
       if (i.fattura.id) countedInvoices.add(i.fattura.id);
-      return roundMoney(positiveMoney(i.fattura.importo_pagato));
+      const pagato = roundMoney(positiveMoney(i.fattura.importo_pagato));
+      // Rata pagata e fattura incassata a meno di un centesimo di arrotondamento: vale la rata,
+      // come rate_incassi nel database, così non resta un centesimo «da incassare».
+      if (i.is_paid) {
+        const dovuto = roundMoney(index === finalBalance ? balanceAmount
+          : i.type === "financing" ? Math.max(0, positiveMoney(i.amount) - avanzo) : positiveMoney(i.amount));
+        if (Math.abs(dovuto - pagato) <= 0.011) return dovuto;
+      }
+      return pagato;
     }
     if (!i.is_paid) return 0;
     if (index === finalBalance) return roundMoney(balanceAmount);

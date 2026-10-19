@@ -3,6 +3,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { oreCantiere } from "../shared/oreCantiere.ts";
 
 export const statoCantiereDef: Omit<ToolDef, "handler"> = {
   name: "stato_cantiere",
@@ -61,15 +62,8 @@ export async function statoCantiere(
 
   const nome = cantiere.description || cantiere.order_code || "Cantiere";
 
-  const { data: rapportini } = await ctx.supabase
-    .from("campo_rapportini")
-    .select("ore_lavorate, ore_straordinario")
-    .eq("company_id", ctx.company_id)
-    .eq("order_id", orderId);
-  const oreTotali = (rapportini ?? []).reduce(
-    (s, r) => s + (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0),
-    0,
-  );
+  // Ore dei rapportini inviati e approvati, con le presenze della squadra.
+  const oreTotali = await oreCantiere(ctx, orderId);
 
   const valore = Number(cantiere.total_amount ?? 0);
   const sal = Number(cantiere.percentuale_avanzamento ?? 0);

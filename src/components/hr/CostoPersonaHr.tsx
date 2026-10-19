@@ -80,7 +80,7 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="space-y-1"><Label htmlFor="costo-stipendio_lordo">Lordo al mese (€)</Label><Input {...campo("stipendio_lordo")} placeholder="Es. 2.100" /></div>
-        <div className="space-y-1"><Label htmlFor="costo-ore_mese">Ore al mese</Label><Input {...campo("ore_mese")} placeholder="Es. 168" /></div>
+        <div className="space-y-1"><Label htmlFor="costo-ore_mese">Ore al mese</Label><Input {...campo("ore_mese")} placeholder="Es. 173" /></div>
         <div className="space-y-1"><Label htmlFor="costo-contributi_percento">INPS ditta (%)</Label><Input {...campo("contributi_percento")} placeholder={data?.inps_del_tipo != null ? testo(data.inps_del_tipo) : ""} /></div>
         <div className="space-y-1"><Label htmlFor="costo-costo_orario">Oppure costo orario (€)</Label><Input {...campo("costo_orario")} placeholder="Es. 24,50" /></div>
       </div>
