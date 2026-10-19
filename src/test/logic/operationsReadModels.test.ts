@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({company:'demo' as string|null,tables:{} as Record<string,Record<string,unknown>[]>,requests:[] as {table:string;filters:[string,string,unknown][];from:number;to:number}[],errorTable:''}));
 vi.mock('@tanstack/react-query',()=>({useQuery:(options:unknown)=>options}));
 vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=>state.company}));
-vi.mock('@/integrations/supabase/client',()=>({supabase:{from:(table:string)=>{
-  const request={table,filters:[] as [string,string,unknown][],from:0,to:0};
+const builderFor=(table:string,filters:[string,string,unknown][]=[])=>{
+  const request={table,filters,from:0,to:0};
   const builder={select:()=>builder,order:()=>builder,
     eq:(column:string,value:unknown)=>{request.filters.push(['eq',column,value]);return builder;},
     is:(column:string,value:unknown)=>{request.filters.push(['eq',column,value]);return builder;},
@@ -13,10 +13,13 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{from:(table:string)=>{
     lte:(column:string,value:unknown)=>{request.filters.push(['lte',column,value]);return builder;},
     range:async(from:number,to:number)=>{
       Object.assign(request,{from,to});state.requests.push(request);
-      const rows=(state.tables[table]??[]).filter(row=>request.filters.every(([mode,key,v])=>mode==='or'?true:mode==='eq'?row[key]===v:mode==='in'?(v as unknown[]).includes(row[key]):mode==='gte'?Number(row[key])>=Number(v):String(row[key])<=String(v)));
+      const rows=(state.tables[table]??[]).filter(row=>request.filters.every(([mode,key,v])=>mode==='or'||mode==='arg'?true:mode==='eq'?row[key]===v:mode==='in'?(v as unknown[]).includes(row[key]):mode==='gte'?Number(row[key])>=Number(v):String(row[key])<=String(v)));
       return {data:rows.slice(from,to+1),error:state.errorTable===table?new Error('Read failed'):null};
     }};return builder;
-}}}));
+};
+// Le RPC che restituiscono righe si leggono a pagine come le tabelle; l'azienda arriva negli argomenti.
+vi.mock('@/integrations/supabase/client',()=>({supabase:{from:(table:string)=>builderFor(table),
+  rpc:(name:string,args:{p_company_id:string})=>builderFor(name,[['arg','company_id',args.p_company_id]])}}));
 import { useOrderMaterialUsage } from '@/hooks/useOrderMaterialUsage';
 import { useCashFlow } from '@/hooks/controlloGestione/useCashFlow';
 type Options<T>={queryKey:unknown[];enabled:boolean;queryFn:()=>Promise<T>};
@@ -38,7 +41,7 @@ describe('operations tenant-scoped read models',()=>{
   it('uses the selected company on every forecast table, including joined installments',async()=>{
     const config=useCashFlow(new Date().getFullYear()) as unknown as Options<{meta:{company_id:string;saldo_apertura:number}}>;
     expect((await config.queryFn()).meta).toMatchObject({company_id:'demo',saldo_apertura:1000});
-    expect(state.requests).toHaveLength(6);
+    expect(state.requests).toHaveLength(7);
     expect(state.requests.every(r=>r.filters.some(f=>['company_id','orders.company_id'].includes(f[1])&&f[2]==='demo'))).toBe(true);
     expect(config.queryKey.at(-1)).toBe('demo');
   });

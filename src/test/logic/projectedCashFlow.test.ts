@@ -118,4 +118,11 @@ describe('documented prospective cash flow',()=>{
     const cf=projectedCashFlow({...input(),dues:[due({invoice_id:'f'})],payments:[payment({invoice_id:'f',scadenza_id:null,amount:122})],costs:[{id:'internal',name:'Allocation',amount:100,vat_rate:0,is_paid:false,due_date:'2026-11-15',payment_method:'internal_allocation'}]});
     expect(cf.meta.saldo_chiusura).toBe(1000);
   });
+  it('takes the residual of the shared installment rule as is, and flags the unplanned part without a date',()=>{
+    const rule:ForecastRate={id:'r1',order_id:'job',label:'Saldo',amount:9760,expected_date:'2026-11-20',is_paid:false,invoice_id:null,documento_fiscale_id:null,residuo:true};
+    const unplanned:ForecastRate={...rule,id:'non-pianificato-job',label:'Parte non pianificata della commessa',amount:500,expected_date:null};
+    const cf=projectedCashFlow({...input(),rates:[rule,unplanned],payments:[payment({installment_id:'r1',scadenza_id:null,amount:3660})]});
+    expect(cf.mesi[1].entrate.commesse).toBe(9760);
+    expect(cf.verifiche?.map(v=>v.id)).toEqual(['non-pianificato-job']);
+  });
 });

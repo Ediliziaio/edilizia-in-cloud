@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Wallet,
@@ -17,30 +16,21 @@ import { format, isPast, isToday, addDays, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { leggiRateCliente, rataChiusa, riepilogoCommesse, type RataCliente } from "@/lib/cliente/rateCliente";
 
 const fmtCur = (n: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
-interface Installment {
-  id: string;
-  order_id: string;
-  position: number;
-  label: string;
-  type: string;
-  amount: number;
-  is_paid: boolean;
-  paid_date: string | null;
-  expected_date: string | null;
-  order: { id: string; order_code: string; description: string; total_amount: number; company_id?: string };
-}
+type Installment = RataCliente;
 
 type StatusKey = "paid" | "overdue" | "due_soon" | "pending";
 
 function getInstallmentStatus(inst: Installment): StatusKey {
-  if (inst.is_paid) return "paid";
+  if (rataChiusa(inst)) return "paid";
   if (!inst.expected_date) return "pending";
   const date = new Date(inst.expected_date);
-  if (isPast(date) && !isToday(date)) return "overdue";
+  // La rata della finanziaria la paga la finanziaria: non è uno scaduto del cliente.
+  if (isPast(date) && !isToday(date)) return inst.finanziamento ? "pending" : "overdue";
   if (isBefore(date, addDays(new Date(), 7))) return "due_soon";
   return "pending";
 }
@@ -63,18 +53,9 @@ export default function CustomerInstallments() {
     queryKey: ["customer-installments", companyId, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("order_installments")
-        .select(`
-          id, order_id, position, label, type, amount, is_paid, paid_date, expected_date,
-          order:orders!inner(id, order_code, description, total_amount, customer_id, company_id)
-        `)
-        .eq("order.customer_id", user!.id)
-        .eq("order.company_id", companyId)
-        .is("order.deleted_at", null)
-        .order("position", { ascending: true });
-      if (error) throw error;
-      return (data || []) as unknown as Installment[];
+      // Stessa regola della scheda commessa: saldo = residuo, varianti approvate, fatture pagate in parte.
+      const rate = await leggiRateCliente();
+      return rate.filter((r) => r.company_id === companyId);
     },
     enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
@@ -96,14 +77,13 @@ export default function CustomerInstallments() {
 
   // Summary
   const summary = useMemo(() => {
-    const total = installments.reduce((s, i) => s + Number(i.amount), 0);
-    const paid = installments.filter((i) => i.is_paid).reduce((s, i) => s + Number(i.amount), 0);
-    const overdue = installments.filter((i) => getInstallmentStatus(i) === "overdue").reduce((s, i) => s + Number(i.amount), 0);
-    const dueSoon = installments.filter((i) => getInstallmentStatus(i) === "due_soon").reduce((s, i) => s + Number(i.amount), 0);
-    const paidCount = installments.filter((i) => i.is_paid).length;
+    const { totale: total, pagato: paid, residuo: remaining } = riepilogoCommesse(installments);
+    const overdue = installments.filter((i) => getInstallmentStatus(i) === "overdue").reduce((s, i) => s + i.residuo, 0);
+    const dueSoon = installments.filter((i) => getInstallmentStatus(i) === "due_soon").reduce((s, i) => s + i.residuo, 0);
+    const paidCount = installments.filter((i) => rataChiusa(i)).length;
     const totalCount = installments.length;
     return {
-      total, paid, remaining: total - paid, overdue, dueSoon,
+      total, paid, remaining, overdue, dueSoon,
       paidPercent: total > 0 ? (paid / total) * 100 : 0,
       paidCount, totalCount,
     };
@@ -268,8 +248,8 @@ export default function CustomerInstallments() {
         </div>
       ) : (
         filteredGroups.map(({ order, installments: orderInstallments }) => {
-          const orderPaid = orderInstallments.filter((i) => i.is_paid).reduce((s, i) => s + Number(i.amount), 0);
-          const orderTotal = orderInstallments.reduce((s, i) => s + Number(i.amount), 0);
+          const orderPaid = order.incassato;
+          const orderTotal = order.totale;
           const orderPaidPercent = orderTotal > 0 ? (orderPaid / orderTotal) * 100 : 0;
 
           return (
@@ -317,11 +297,16 @@ export default function CustomerInstallments() {
                             <p className="text-sm font-semibold">{inst.label || `Rata ${inst.position}`}</p>
                             <Badge variant={cfg.badge} className="text-xs shrink-0">{cfg.label}</Badge>
                           </div>
-                          <p className="text-lg font-bold tabular-nums mt-1">{fmtCur(Number(inst.amount))}</p>
+                          <p className="text-lg font-bold tabular-nums mt-1">{fmtCur(inst.amount)}</p>
+                          {!rataChiusa(inst) && inst.residuo < inst.amount - 0.005 && (
+                            <p className="text-xs font-medium mt-0.5">Restano da pagare {fmtCur(inst.residuo)}</p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {inst.is_paid && inst.paid_date
                               ? `Pagato il ${format(new Date(inst.paid_date), "dd MMMM yyyy", { locale: it })}`
-                              : inst.expected_date
+                              : rataChiusa(inst)
+                                ? "Pagato"
+                                : inst.expected_date
                                 ? `Scadenza: ${format(new Date(inst.expected_date), "dd MMMM yyyy", { locale: it })}`
                                 : "Data non definita"}
                           </p>

@@ -167,14 +167,24 @@ export interface CommissionRow {
   order?: OrderRow | null;
   salesperson?: { first_name: string; last_name: string } | null;
 }
-export interface LegacyRateRow {
+/**
+ * Una rata da incassare con la regola della scheda commessa (cruscotto_rate_da_incassare): il residuo,
+ * piani storici compresi; `id` è «non-pianificato-<commessa>» per la parte che nessuna rata copre.
+ */
+export interface RataDaIncassareRow {
+  id: string;
   order_id: string;
   amount: Money;
-  label: string;
   expected_date: string | null;
-  is_paid: boolean;
-  paid_date: string | null;
-  fonte: string;
+  finanziamento?: boolean | null;
+}
+/** Un incasso di una rata, con la sua data (cruscotto_rate_incassi). */
+export interface IncassoRataRow {
+  order_id: string;
+  installment_id: string | null;
+  data: string | null;
+  importo: Money;
+  documento_fiscale_id?: string | null;
 }
 export interface NoteRow {
   id: string;
@@ -201,8 +211,10 @@ export interface PurchaseRow {
 }
 export interface ForecastSources {
   banks: BankRow[];
+  /** Il piano rate salvato: etichette e fatture collegate, per riconoscere ciò che ha già una scadenza. */
   installments: InstallmentRow[];
-  legacyRates: LegacyRateRow[];
+  rateDaIncassare: RataDaIncassareRow[];
+  incassiRate: IncassoRataRow[];
   orders: OrderRow[];
   invoices: InvoiceRow[];
   costs: CostRow[];
@@ -222,7 +234,8 @@ export interface ForecastSources {
 export const emptyForecastSources = (): ForecastSources => ({
   banks: [],
   installments: [],
-  legacyRates: [],
+  rateDaIncassare: [],
+  incassiRate: [],
   orders: [],
   invoices: [],
   costs: [],
@@ -462,75 +475,68 @@ export function buildForecastLedger(
         true,
       );
   }
-  for (const r of s.installments) {
-    if (r.order?.deleted_at) continue;
+  // Rate e incassi con la regola della scheda commessa (saldo = residuo, varianti approvate, piani
+  // storici). Il piano salvato serve solo a riconoscere le rate che hanno già la loro fattura o scadenza.
+  const rate = new Map(s.installments.map((r) => [r.id, r]));
+  const giaInScadenza = (r: InstallmentRow | undefined) =>
+    !!r &&
+    ((!!r.invoice_id &&
+      (invoices.has(r.invoice_id) || invoiceDeadlines.has(r.invoice_id))) ||
+      (!!r.documento_fiscale_id && nativeDeadlines.has(r.documento_fiscale_id)));
+  for (const d of s.rateDaIncassare) {
+    const rata = rate.get(d.id);
+    const order = orderMap.get(d.order_id);
+    if (rata?.order?.deleted_at || order?.deleted_at || giaInScadenza(rata)) continue;
+    add({
+      id: `rata:${d.id}`,
+      description:
+        rata?.label ||
+        (d.id.startsWith("non-pianificato-")
+          ? "Parte non pianificata della commessa"
+          : "Rata commessa"),
+      counterparty:
+        order?.client_name || order?.client_company || order?.order_code || "",
+      category: "clienti",
+      direction: "in",
+      cents: netIncome(toCents(d.amount), d.order_id, !!d.finanziamento),
+      date: d.expected_date,
+      expectedDate: validDay(d.expected_date),
+      source: "Rata commessa",
+      href: orderHref(d.order_id),
+      orderId: d.order_id,
+      estimated: false,
+    });
+  }
+  s.incassiRate.forEach((i, n) => {
+    const rata = i.installment_id ? rate.get(i.installment_id) : undefined;
+    const order = orderMap.get(i.order_id);
+    if (order?.deleted_at || giaInScadenza(rata)) return;
+    const documento = i.documento_fiscale_id ?? rata?.documento_fiscale_id;
+    // L'incasso registrato in Prima Nota vale da solo: la rata non si conta una seconda volta.
     if (
-      r.invoice_id &&
-      (invoices.has(r.invoice_id) || invoiceDeadlines.has(r.invoice_id))
+      (i.installment_id && notedInstallments.has(i.installment_id)) ||
+      (documento && (notedNative.has(documento) || nativeDeadlines.has(documento)))
     )
-      continue;
-    if (r.documento_fiscale_id && nativeDeadlines.has(r.documento_fiscale_id))
-      continue;
-    const order = r.order ?? orderMap.get(r.order_id);
-    const paid = !!r.is_paid;
-    if (
-      paid &&
-      (notedInstallments.has(r.id) ||
-        (r.documento_fiscale_id && notedNative.has(r.documento_fiscale_id)))
-    )
-      continue;
+      return;
     add(
       {
-        id: `rata:${r.id}`,
-        description: r.label || r.type || "Rata commessa",
+        id: `incasso-rata:${i.installment_id ?? i.order_id}:${n}`,
+        description: rata?.label || rata?.type || "Rata commessa",
         counterparty:
-          order?.client_name ||
-          order?.client_company ||
-          order?.order_code ||
-          "",
+          order?.client_name || order?.client_company || order?.order_code || "",
         category: "clienti",
         direction: "in",
-        cents: paid
-          ? toCents(r.amount)
-          : netIncome(toCents(r.amount), r.order_id, r.type === "financing"),
-        date: paid ? (r.paid_date ?? null) : r.expected_date,
-        expectedDate: validDay(r.expected_date),
+        cents: toCents(i.importo),
+        date: i.data,
+        expectedDate: validDay(rata?.expected_date),
         source: "Rata commessa",
-        href: orderHref(r.order_id),
-        orderId: r.order_id,
+        href: orderHref(i.order_id),
+        orderId: i.order_id,
         estimated: false,
       },
-      paid,
+      true,
     );
-  }
-  // Legacy plans are returned only for jobs with no DB installments, by the existing view.
-  for (const r of s.legacyRates.filter((r) => r.fonte === "legacy")) {
-    const order = orderMap.get(r.order_id);
-    if (order?.deleted_at) continue;
-    add(
-      {
-        id: `legacy:${r.order_id}:${r.label}`,
-        description: r.label,
-        counterparty: order?.client_name || order?.order_code || "",
-        category: "clienti",
-        direction: "in",
-        cents: r.is_paid
-          ? toCents(r.amount)
-          : netIncome(
-              toCents(r.amount),
-              r.order_id,
-              r.label === "Finanziamento",
-            ),
-        date: r.is_paid ? r.paid_date : r.expected_date,
-        expectedDate: validDay(r.expected_date),
-        source: "Piano commessa",
-        href: orderHref(r.order_id),
-        orderId: r.order_id,
-        estimated: false,
-      },
-      r.is_paid,
-    );
-  }
+  });
   for (const c of s.costs)
     if (!c.is_paid && !costDeadlines.has(c.id)) {
       const vat = c.vat_rate ?? c.supplier?.vat_rate;

@@ -40,10 +40,8 @@ interface ReadQuery extends PromiseLike<ReadResult> {
 }
 interface ReadClient {
   from(table: string): ReadQuery;
-  rpc(
-    name: string,
-    args: Record<string, string>,
-  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  /** Le RPC che restituiscono righe si leggono a pagine come le tabelle (PostgREST taglia a mille). */
+  rpc(name: string, args: Record<string, string>): ReadQuery;
 }
 const api = supabase as unknown as ReadClient;
 export const FORECAST_PAGE_SIZE = 500;
@@ -126,16 +124,23 @@ export async function loadForecastDataset(
         ),
     },
     {
-      key: "legacyRates",
-      label: "Piani delle commesse precedenti",
+      // La regola della scheda commessa: residuo per rata, piani storici e parte non pianificata.
+      key: "rateDaIncassare",
+      label: "Rate da incassare",
       build: () =>
         client
-          .from("v_rate_commesse_unificate")
-          .select("order_id,label,amount,expected_date,is_paid,paid_date,fonte")
-          .eq("company_id", companyId)
-          .eq("fonte", "legacy")
-          .order("order_id")
-          .order("label"),
+          .rpc("cruscotto_rate_da_incassare", { p_company_id: companyId })
+          .order("id"),
+    },
+    {
+      key: "incassiRate",
+      label: "Incassi delle rate",
+      build: () =>
+        client
+          .rpc("cruscotto_rate_incassi", { p_company_id: companyId })
+          .order("installment_id")
+          .order("data")
+          .order("importo"),
     },
     {
       key: "invoices",
@@ -280,10 +285,10 @@ export async function loadForecastDataset(
     }),
     (async () => {
       try {
-        const { data, error } = await client.rpc("get_prima_nota_saldo", {
+        const { data, error } = (await client.rpc("get_prima_nota_saldo", {
           p_company_id: companyId,
           p_to_date: today,
-        });
+        })) as { data: unknown; error: { message: string } | null };
         if (error) throw error;
         primaNota = data as typeof primaNota;
       } catch {

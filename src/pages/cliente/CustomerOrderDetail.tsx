@@ -15,7 +15,7 @@ import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
 import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock, CreditCard } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { leggiRateCliente, prossimaRata, rataChiusa, riepilogoCommesse } from "@/lib/cliente/rateCliente";
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -50,34 +50,23 @@ export default function CustomerOrderDetail() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch installments from DB
-  const { data: dbInstallments = [] } = useQuery({
+  // Le rate con la regola della scheda commessa (piano rate o piano storico, varianti approvate,
+  // fatture pagate in parte): saldo e prossimo pagamento sono il residuo vero.
+  const { data: rate = [] } = useQuery({
     queryKey: ["customer-order-installments", user?.id, order?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_installments")
-        .select("*, order:orders!inner(id, customer_id)")
-        .eq("order_id", order!.id)
-        .eq("order.customer_id", user!.id)
-        .order("position");
-      if (error) throw error;
-      return (data || []) as unknown as (Installment & { id: string })[];
-    },
+    queryFn: () => leggiRateCliente(order!.id),
     enabled: !!order?.id && !!user?.id,
   });
-
-  // Build installments for display
-  const displayInstallments: Installment[] = useMemo(() => {
-    if (dbInstallments.length > 0) {
-      return dbInstallments.map(i => ({
-        id: i.id, position: i.position, label: i.label,
-        type: i.type as Installment['type'], amount: i.amount,
-        is_paid: i.is_paid, paid_date: i.paid_date, expected_date: i.expected_date,
-      }));
-    }
-    if (!order) return [];
-    return buildInstallmentsFromLegacy(order);
-  }, [dbInstallments, order]);
+  const riepilogo = useMemo(() => {
+    const { totale, pagato } = riepilogoCommesse(rate);
+    const aperte = rate.filter((r) => !rataChiusa(r));
+    return {
+      totale,
+      pagato,
+      daPagare: aperte.filter((r) => !r.finanziamento).reduce((s, r) => s + r.residuo, 0),
+      finanziamento: aperte.filter((r) => r.finanziamento).reduce((s, r) => s + r.residuo, 0),
+    };
+  }, [rate]);
 
   // Fetch all order statuses for this company
   const { data: statuses = [] } = useQuery({
@@ -145,14 +134,8 @@ export default function CustomerOrderDetail() {
     status_id: h.status_id,
     changed_at: h.changed_at,
   }));
-  const nextUnpaidInstallment = displayInstallments
-    .filter((installment) => !installment.is_paid)
-    .sort((a, b) => {
-      if (!a.expected_date && !b.expected_date) return a.position - b.position;
-      if (!a.expected_date) return 1;
-      if (!b.expected_date) return -1;
-      return new Date(a.expected_date).getTime() - new Date(b.expected_date).getTime();
-    })[0];
+  // La rata della finanziaria la paga la finanziaria: non è un pagamento del cliente.
+  const nextUnpaidInstallment = prossimaRata(rate.filter((r) => !r.finanziamento));
 
   // «Prossimo pagamento» con una data già passata va detto chiaramente.
   const pagamentoScaduto = (() => {
@@ -201,7 +184,7 @@ export default function CustomerOrderDetail() {
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
               {nextUnpaidInstallment
-                ? `${nextUnpaidInstallment.label}: ${formatCurrency(nextUnpaidInstallment.amount)}${nextUnpaidInstallment.expected_date ? ` entro ${formatDate(nextUnpaidInstallment.expected_date)}` : ""}`
+                ? `${nextUnpaidInstallment.label}: ${formatCurrency(nextUnpaidInstallment.residuo)}${nextUnpaidInstallment.expected_date ? ` entro ${formatDate(nextUnpaidInstallment.expected_date)}` : ""}`
                 : "Non risultano rate aperte per questo ordine."}
             </p>
           </div>
@@ -319,7 +302,7 @@ export default function CustomerOrderDetail() {
         totalAmount={order.total_amount}
         vatRate={order.vat_rate || 22}
         paymentType={order.payment_type || 'standard'}
-        installments={displayInstallments}
+        regola={riepilogo}
         hasBuildingBonus={order.has_building_bonus}
       />
 

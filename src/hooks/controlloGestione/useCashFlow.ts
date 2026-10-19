@@ -14,6 +14,29 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { allPaymentRows } from '@/hooks/useSupplierPayments';
 import { projectedCashFlow, type ForecastManual, type ForecastRate } from '@/lib/controlloGestione/projectedCashFlow';
 
+/**
+ * Le rate da incassare con la regola della scheda commessa (cruscotto_rate_da_incassare): residuo per
+ * rata, piani storici compresi, una riga senza data per la parte non pianificata. Le fatture collegate
+ * vengono dal piano rate, per non contare due volte una rata che ha già la sua scadenza.
+ */
+async function leggiRateDaIncassare(companyId: string): Promise<ForecastRate[]> {
+  const [righe, piano] = await Promise.all([
+    // A pagine come le tabelle: PostgREST taglia anche le RPC a mille righe.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allPaymentRows<{ id: string; order_id: string; amount: number | string; expected_date: string | null }>((from,to)=>(supabase as any).rpc('cruscotto_rate_da_incassare', { p_company_id: companyId }).order('id').range(from,to)),
+    allPaymentRows((from,to)=>supabase.from('order_installments').select('id,label,invoice_id,documento_fiscale_id,orders!inner(company_id)').eq('orders.company_id',companyId).order('id').range(from,to)),
+  ]);
+  const perId = new Map(piano.map(r => [r.id, r]));
+  return righe.map(r => {
+    const rata = perId.get(r.id);
+    return {
+      id: r.id, order_id: r.order_id, amount: Number(r.amount) || 0, expected_date: r.expected_date, is_paid: false,
+      label: rata?.label || (r.id.startsWith('non-pianificato-') ? 'Parte non pianificata della commessa' : 'Rata commessa'),
+      invoice_id: rata?.invoice_id ?? null, documento_fiscale_id: rata?.documento_fiscale_id ?? null, residuo: true,
+    };
+  });
+}
+
 export interface CashFlowEntrateBreakdown {
   scadenze: number;
   manuali: number;
@@ -78,14 +101,14 @@ export function useCashFlow(anno: number, meseDa = 1, meseA = 12) {
         allPaymentRows((from,to)=>supabase.from('scadenze').select('id,direction,description,amount,paid_amount,due_date,status,cost_id,invoice_id,order_id,notes,auto_source').eq('company_id',companyId!).order('id').range(from,to)),
         allPaymentRows((from,to)=>supabase.from('prima_nota_entries').select('id,direction,amount,entry_date,scadenza_id,cost_id,installment_id,invoice_id,documento_fiscale_id').eq('company_id',companyId!).lte('entry_date',today).order('id').range(from,to)),
         allPaymentRows((from,to)=>supabase.from('company_costs').select('id,name,amount,vat_rate,due_date,is_paid,payment_method').eq('company_id',companyId!).or('is_paid.eq.false,is_paid.is.null').order('id').range(from,to)),
-        allPaymentRows((from,to)=>supabase.from('order_installments').select('id,order_id,label,amount,expected_date,is_paid,invoice_id,documento_fiscale_id,orders!inner(company_id,deleted_at)').eq('orders.company_id',companyId!).is('orders.deleted_at',null).order('id').range(from,to)),
+        leggiRateDaIncassare(companyId!),
         // This table is not yet present in generated Supabase types.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         allPaymentRows((from,to)=>(supabase as any).from('cg_cash_flow_manuali').select('id,anno,mese,tipo,descrizione,importo,ricorrente').eq('company_id',companyId!).gte('anno',now.getFullYear()).lte('anno',anno).order('id').range(from,to)),
       ]);
       const eur=accounts.filter(a=>a.currency==='EUR'&&a.current_balance!=null&&Number.isFinite(Number(a.current_balance)));
       if(!eur.length||eur.length!==accounts.filter(a=>a.currency==='EUR').length)throw new Error('Inserisci o aggiorna il saldo di tutti i conti EUR per usare il previsionale.');
-      const result=projectedCashFlow({companyId:companyId!,year:anno,from:meseDa,to:meseA,today,opening:eur.reduce((s,a)=>s+Number(a.current_balance),0),dues,payments,costs,rates:rates as ForecastRate[],manuals:manuals as ForecastManual[]});
+      const result=projectedCashFlow({companyId:companyId!,year:anno,from:meseDa,to:meseA,today,opening:eur.reduce((s,a)=>s+Number(a.current_balance),0),dues,payments,costs,rates,manuals:manuals as ForecastManual[]});
       result.meta.saldi_aggiornati_al=eur.some(a=>!a.balance_updated_at)?null:eur.map(a=>a.balance_updated_at!).sort()[0];
       return result;
     },

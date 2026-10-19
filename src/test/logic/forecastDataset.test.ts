@@ -42,10 +42,17 @@ function fakeClient(
       };
       return chain;
     },
-    rpc: vi.fn(async () => ({
-      data: pn,
-      error: failures.includes("rpc") ? { message: "Aggregate failed" } : null,
-    })),
+    // Il saldo della Prima Nota è un aggregato; le altre RPC restituiscono righe a pagine.
+    rpc: vi.fn((name: string, args: Record<string, string>) => {
+      if (name !== "get_prima_nota_saldo")
+        filters.push({ table: name, column: "p_company_id", value: args.p_company_id });
+      return name === "get_prima_nota_saldo"
+        ? Promise.resolve({
+            data: pn,
+            error: failures.includes("rpc") ? { message: "Aggregate failed" } : null,
+          })
+        : client.from(name);
+    }),
   };
   return { client: client as unknown as Client, filters };
 }
@@ -141,7 +148,7 @@ describe("forecast sources", () => {
       ),
     ).toEqual(new Set(["company-A"]));
     const tables = new Set(filters.map((f) => f.table));
-    expect(tables.size).toBe(18);
+    expect(tables.size).toBe(19);
     for (const table of tables)
       expect(
         filters.some(

@@ -2,7 +2,12 @@ import type { CashFlowResult, CashFlowMese } from '@/hooks/controlloGestione/use
 export interface ForecastDue { id: string; direction: string; description: string; amount: number; paid_amount: number | null; due_date: string; status: string; cost_id: string | null; invoice_id: string | null; order_id: string | null; notes?: string | null; auto_source?: string | null }
 export interface ForecastPayment { id: string; direction: string; amount: number; entry_date: string; scadenza_id: string | null; cost_id: string | null; installment_id: string | null; invoice_id?: string | null; documento_fiscale_id?: string | null }
 export interface ForecastCost { id: string; name: string; amount: number; vat_rate: number | null; due_date: string | null; is_paid: boolean | null; payment_method?: string | null }
-export interface ForecastRate { id: string; order_id: string; label: string | null; amount: number; expected_date: string | null; is_paid: boolean; invoice_id: string | null; documento_fiscale_id?: string | null }
+/**
+ * Una rata da incassare. Con `residuo` l'importo è già quello della regola della scheda commessa
+ * (public.rate_da_incassare: saldo = residuo, varianti approvate, incassi e fatture pagate già tolti):
+ * non si sottrae altro.
+ */
+export interface ForecastRate { id: string; order_id: string; label: string | null; amount: number; expected_date: string | null; is_paid: boolean; invoice_id: string | null; documento_fiscale_id?: string | null; residuo?: boolean }
 export interface ForecastManual { id: string; anno: number; mese: number; tipo: string; descrizione: string; importo: number; ricorrente: boolean | null }
 type Item = { date: string; direction: 'entrata' | 'uscita'; kind: 'scadenze' | 'manuali' | 'costi' | 'commesse'; amount: number; label: string };
 const cents = (n: number | null | undefined) => Math.round(Number(n ?? 0) * 100);
@@ -81,6 +86,7 @@ export function projectedCashFlow(input: {
         [other.invoice_id,other.documento_fiscale_id].some(id => !!id && refs.includes(id)));
     });
     if (!invoiceIds.length && ambiguousDue) { flag(source,'Collega la rata alla fattura: esistono scadenze non riconciliate di questa commessa, possibile doppio conteggio.'); continue; }
+    if (r.residuo) { add(r.expected_date,cents(r.amount),'entrata','commesse',r.label??'Rata commessa',source); continue; }
     const invoicePaid=payments.filter(p=>p.direction==='entrata'&&invoiceIds.some(id=>p.invoice_id===id||p.documento_fiscale_id===id)).reduce((s,p)=>s+cents(p.amount),0);
     if(invoicePaid && input.rates.some(other=>other.id!==r.id&&[other.invoice_id,other.documento_fiscale_id].some(id=>!!id&&invoiceIds.includes(id)))){
       flag(source,'Più rate sulla stessa fattura: collega gli incassi alle rate o alle scadenze per ripartire il residuo.');continue;

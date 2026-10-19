@@ -2,13 +2,16 @@ import { formatCurrency } from "@/lib/formatters";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Euro, Building2 } from "lucide-react";
-import type { Installment } from "@/lib/orderUtils";
 
 interface CustomerFinancialSummaryProps {
   totalAmount: number;
   vatRate: number;
   paymentType: string;
-  installments: Installment[];
+  /**
+   * Gli importi con la regola della scheda commessa (public.cliente_rate_commesse): totale con le
+   * varianti approvate, pagato dagli incassi, da pagare dal residuo delle rate.
+   */
+  regola: { totale: number; pagato: number; daPagare: number; finanziamento: number };
   hasBuildingBonus?: boolean;
 }
 
@@ -16,20 +19,15 @@ export function CustomerFinancialSummary({
   totalAmount,
   vatRate,
   paymentType,
-  installments,
+  regola,
   hasBuildingBonus,
 }: CustomerFinancialSummaryProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
   
-  const deposits = installments.filter(i => i.type === 'deposit');
-  const totalDeposits = deposits.reduce((sum, i) => sum + i.amount, 0);
-  const financingInst = installments.find(i => i.type === 'financing');
-  
-  const nonBalanceSum = installments
-    .filter(i => i.type !== 'balance')
-    .reduce((sum, i) => sum + i.amount, 0);
-  const clientBalance = Math.max(0, totalWithVat - nonBalanceSum);
+  // Le varianti approvate cambiano il totale: si mostra quello aggiornato quando è diverso.
+  const totaleAggiornato = paymentType === 'standard' && regola.totale > 0
+    && Math.abs(regola.totale - totalWithVat) >= 0.01 ? regola.totale : null;
 
   return (
     <Card>
@@ -79,52 +77,32 @@ export function CustomerFinancialSummary({
         })()}
 
         <div className="pt-3 border-t space-y-2">
-          {paymentType === 'standard' ? (
-            <>
-              {totalDeposits > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    {deposits.length === 1 ? 'Acconto versato' : 'Acconti versati'}
-                  </span>
-                  <span className="text-primary">- {formatCurrency(totalDeposits)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-lg">
-                <span>Saldo da Pagare</span>
-                <span>{formatCurrency(clientBalance)}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              {totalDeposits > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    {deposits.length === 1 ? 'Acconto versato' : 'Acconti versati'}
-                  </span>
-                  <span className="text-primary">- {formatCurrency(totalDeposits)}</span>
-                </div>
-              )}
-              {financingInst && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Finanziamento</span>
-                  <span>{formatCurrency(financingInst.amount)}</span>
-                </div>
-              )}
-              {clientBalance > 0 ? (
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Saldo da Pagare</span>
-                  <span>{formatCurrency(clientBalance)}</span>
-                </div>
-              ) : (
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Saldo da Pagare</span>
-                  <span className="text-muted-foreground">€ 0,00</span>
-                </div>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Pagamento tramite finanziaria
-              </p>
-            </>
+          {totaleAggiornato != null && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Totale con le varianti approvate</span>
+              <span className="font-medium">{formatCurrency(totaleAggiornato)}</span>
+            </div>
+          )}
+          {regola.pagato > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Già pagato</span>
+              <span className="text-primary">- {formatCurrency(regola.pagato)}</span>
+            </div>
+          )}
+          {paymentType !== 'standard' && regola.finanziamento > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Finanziamento</span>
+              <span>{formatCurrency(regola.finanziamento)}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold text-lg">
+            <span>Da pagare</span>
+            <span className={regola.daPagare > 0 ? undefined : "text-muted-foreground"}>{formatCurrency(regola.daPagare)}</span>
+          </div>
+          {paymentType !== 'standard' && (
+            <p className="text-sm text-muted-foreground">
+              Pagamento tramite finanziaria
+            </p>
           )}
         </div>
       </CardContent>

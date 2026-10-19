@@ -538,6 +538,10 @@ describe("source amounts and exact duplicate links", () => {
         is_paid: false,
       },
     ];
+    s.rateDaIncassare = [
+      { id: "r1", order_id: "o", amount: 1000, expected_date: today },
+      { id: "r2", order_id: "o", amount: 250, expected_date: today },
+    ];
     const ledger = buildForecastLedger(s, today);
     expect(ledger.movements.map((m) => m.cents).sort()).toEqual([25000, 60000]);
   });
@@ -566,6 +570,7 @@ describe("source amounts and exact duplicate links", () => {
         documento_fiscale_id: id,
       },
     ];
+    s.rateDaIncassare = [{ id: "r", order_id: "o", amount: 1000, expected_date: today }];
     expect(buildForecastLedger(s, today).movements.map((m) => m.cents)).toEqual(
       [80000],
     );
@@ -752,6 +757,7 @@ describe("source amounts and exact duplicate links", () => {
         is_paid: false,
       },
     ];
+    s.rateDaIncassare = [{ id: "r", order_id: "o", amount: 1000, expected_date: today }];
     expect(buildForecastLedger(s, today, 0.91).movements[0].cents).toBe(91000);
   });
   it("uses the registered receipt once instead of the paid invoice or installment", () => {
@@ -790,5 +796,35 @@ describe("source amounts and exact duplicate links", () => {
     expect(buildForecastLedger(s, today).collected.map((m) => m.cents)).toEqual(
       [50000],
     );
+  });
+  it("takes the shared rule residual for open installments, legacy plans and the unplanned part", () => {
+    const s = emptyForecastSources();
+    s.orders = [{ id: "o", client_name: "Cliente" }];
+    s.installments = [
+      { id: "saldo", order_id: "o", amount: 8540, label: "Saldo", type: "balance", expected_date: "2026-12-01", is_paid: false },
+    ];
+    s.rateDaIncassare = [
+      { id: "saldo", order_id: "o", amount: 9760, expected_date: "2026-12-01" },
+      { id: "11111111-2222-3333-4444-555555555555", order_id: "o", amount: 300, expected_date: "2026-11-01" },
+      { id: "non-pianificato-o", order_id: "o", amount: 120, expected_date: null },
+    ];
+    const { movements } = buildForecastLedger(s, today);
+    expect(movements.map((m) => [m.description, m.cents, m.date])).toEqual([
+      ["Rata commessa", 30000, "2026-11-01"],
+      ["Saldo", 976000, "2026-12-01"],
+      ["Parte non pianificata della commessa", 12000, null],
+    ]);
+  });
+  it("lists rule receipts by date, once, leaving the ones already in Prima Nota", () => {
+    const s = emptyForecastSources();
+    s.notes = [{ id: "n", direction: "entrata", amount: 100, entry_date: today, installment_id: "b" }];
+    s.incassiRate = [
+      { order_id: "o", installment_id: "a", data: "2026-09-01", importo: 3660 },
+      { order_id: "o", installment_id: "b", data: today, importo: 100 },
+    ];
+    expect(buildForecastLedger(s, today).collected.map((m) => [m.cents, m.date, m.source])).toEqual([
+      [10000, today, "Prima Nota"],
+      [366000, "2026-09-01", "Rata commessa"],
+    ]);
   });
 });
