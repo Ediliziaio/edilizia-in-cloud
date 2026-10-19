@@ -381,7 +381,9 @@ export default function FattureRicevutePage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
-      const dettaglio = esito.esito === "costo_aggiornato"
+      const dettaglio = esito.esito === "costo_ridotto"
+        ? `Il costo dell'ordine collegato è stato ridotto della nota di credito (${formatCurrency(Math.abs(esito.imponibile))} imponibile).`
+        : esito.esito === "costo_aggiornato"
         ? `Il costo dell'ordine collegato è stato corretto con l'importo della fattura (${formatCurrency(esito.imponibile)} imponibile).`
         : `Creato il costo di ${formatCurrency(esito.imponibile)} imponibile${esito.fornitore_riconosciuto ? "" : " (fornitore non in anagrafica: aggiungilo per vederlo nei report fornitore)"}.`;
       toast.success(
