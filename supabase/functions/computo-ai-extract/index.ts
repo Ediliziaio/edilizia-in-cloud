@@ -11,6 +11,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
 import { extractPdfWithCoverage, splitPdfTextAtRows } from "../_shared/pdfExtraction.ts";
+// 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { checkComputoExtraction, commitComputoExtraction, computoNumber, computoSummaryRow } from "../_shared/computoExtractionQuality.ts";
 

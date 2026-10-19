@@ -118,10 +118,18 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
 let modules: Promise<{ pdfjs: any; pdfLib: any }> | undefined;
 async function pdfModules() {
   modules ??= (async () => {
-    const jsUrl = "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check";
-    const workerUrl = "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs?bundle&no-check";
-    const libUrl = "https://esm.sh/pdf-lib@1.17.1";
-    const [pdfjs, worker, pdfLib] = await Promise.all([import(/* @vite-ignore */ jsUrl), import(/* @vite-ignore */ workerUrl), import(/* @vite-ignore */ libUrl)]);
+    // Indirizzi scritti dentro import() (18/10/2026): il deploy delle edge function
+    // include nel pacchetto solo i moduli che riesce a leggere nel codice. Passati
+    // da una variabile restavano fuori, e ogni lettura finiva in «Module not found»
+    // (computi e PDF in chat falliti dal 15/10).
+    const [pdfjs, worker, pdfLib] = await Promise.all([
+      // @ts-ignore -- modulo remoto: lo risolve Deno al deploy
+      import(/* @vite-ignore */ "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check"),
+      // @ts-ignore -- modulo remoto: lo risolve Deno al deploy
+      import(/* @vite-ignore */ "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs?bundle&no-check"),
+      // @ts-ignore -- modulo remoto: lo risolve Deno al deploy
+      import(/* @vite-ignore */ "https://esm.sh/pdf-lib@1.17.1"),
+    ]);
     (globalThis as typeof globalThis & { pdfjsWorker?: unknown }).pdfjsWorker = worker;
     pdfjs.GlobalWorkerOptions.workerSrc = "";
     return { pdfjs, pdfLib };

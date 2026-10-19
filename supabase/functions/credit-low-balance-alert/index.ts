@@ -166,6 +166,30 @@ Deno.serve(async (req) => {
         if (r.company_id) haProvatoSenzaCrediti.add(r.company_id);
       }
     }
+    // Lo stesso per l'AI (18/10/2026): chiamate respinte per saldo insufficiente.
+    // Alcune aziende avevano il portafoglio AI a zero, mai
+    // ricaricato, e centinaia di chiamate respinte senza che nessuno lo sapesse.
+    const aiSenzaCrediti = new Set<string>();
+    {
+      const da = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const { data: respinteAi } = await supabase
+        .from("ai_call_ledger")
+        .select("company_id")
+        .eq("status", "error")
+        .ilike("error_message", "%insufficient_balance%")
+        .gte("created_at", da)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      for (const r of (respinteAi ?? []) as Array<{ company_id: string | null }>) {
+        if (r.company_id) aiSenzaCrediti.add(r.company_id);
+      }
+      // Chi è fatturato fuori dall'app non ricarica da qui: «Ricarica ora» non gli serve.
+      if (aiSenzaCrediti.size) {
+        const { data: esterni } = await supabase.from("companies").select("id")
+          .in("id", [...aiSenzaCrediti]).eq("billing_mode", "external");
+        for (const c of (esterni ?? []) as Array<{ id: string }>) aiSenzaCrediti.delete(c.id);
+      }
+    }
 
     for (const { table, wallet } of eurWallets) {
       const { data } = await supabase
@@ -174,7 +198,8 @@ Deno.serve(async (req) => {
       for (const row of (data ?? []) as any[]) {
         // Solo chi il servizio lo usa: ha ricaricato almeno una volta, oppure
         // sta provando a spedire e si vede rifiutare gli invii per i crediti.
-        const staProvando = wallet === "email" && haProvatoSenzaCrediti.has(row.company_id);
+        const staProvando = (wallet === "email" && haProvatoSenzaCrediti.has(row.company_id))
+          || (wallet === "ai" && aiSenzaCrediti.has(row.company_id));
         if (Number(row.total_recharged_eur ?? 0) <= 0 && !staProvando) continue;
         const cfg = cfgMap.get(cfgKey(row.company_id, wallet));
         if (cfg?.enabled) continue; // auto-ricarica attiva: ci pensa lei

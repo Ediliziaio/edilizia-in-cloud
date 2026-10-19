@@ -116,3 +116,22 @@ describe("La funzione usa il filtro solo nel giro del cron", () => {
     expect(fonte).toContain("utenti saltati: azienda sospesa, scaduta o cessata");
   });
 });
+
+describe("chi riceve il brief lo decide l'azienda (18/10/2026)", () => {
+  it("solo chi lavora in azienda: niente brief ai clienti finali", async () => {
+    const { soloUfficio } = await import("../../../supabase/functions/silvio-daily-briefing/destinatari");
+    const ruoli = new Map([["titolare", ["company_admin"]], ["cliente", ["customer"]], ["operaio", ["employee"]], ["contabile", ["accountant"]], ["entrambi", ["customer", "company_staff"]]]);
+    const scelti = soloUfficio(["titolare", "cliente", "operaio", "contabile", "entrambi", "sconosciuto"].map((user_id) => ({ user_id, company_id: "c" })), ruoli);
+    expect(scelti.map((t) => t.user_id)).toEqual(["titolare", "contabile", "entrambi"]);
+  });
+
+  it("parte solo per le aziende con «Report del mattino» attivo nelle Automazioni, alle persone scelte lì", () => {
+    const codice = readFileSync(resolve(process.cwd(), "supabase/functions/silvio-daily-briefing/index.ts"), "utf8");
+    expect(codice).toMatch(/\.from\("bot_routine"\)\.select\("company_id, destinatari, giorni"\)\s*\.eq\("tipo", "report_mattino"\)\.eq\("attiva", true\)/);
+    // Gli stessi giorni dell'automazione, e i responsabili letti in due passi.
+    expect(codice).toContain('if (!(r.giorni ?? [1, 2, 3, 4, 5]).includes(oggi)) continue;');
+    expect(codice).not.toContain("user_roles!inner");
+    expect(codice).not.toMatch(/\.eq\("daily_briefing_enabled", true\)/);
+    expect(codice).toContain("targets = soloUfficio(destinatari.targets, ruoliPerUtente);");
+  });
+});

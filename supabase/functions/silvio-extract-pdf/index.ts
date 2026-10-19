@@ -9,6 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { extractPdfWithCoverage } from "../_shared/pdfExtraction.ts";
+// 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 
 interface Payload {
   storage_path: string;

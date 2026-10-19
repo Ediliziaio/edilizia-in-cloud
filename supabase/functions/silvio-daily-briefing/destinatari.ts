@@ -61,3 +61,17 @@ export function destinatariBriefing(
   }
   return { targets, saltatiPerStato };
 }
+
+/**
+ * Il brief è per chi lavora in azienda (18/10/2026): la preferenza era accesa
+ * anche per 743 clienti finali, che ricevevano un brief AI dell'impresa e ne
+ * consumavano il credito AI, fino a centinaia di chiamate bloccate.
+ */
+export const RUOLI_DEL_BRIEF: ReadonlySet<string> = new Set([
+  "super_admin", "company_admin", "company_staff", "salesperson", "call_center", "accountant",
+]);
+
+/** Solo i destinatari con almeno un ruolo d'ufficio. */
+export function soloUfficio<T extends { user_id: string }>(targets: T[], ruoliPerUtente: Map<string, string[]>): T[] {
+  return targets.filter((t) => (ruoliPerUtente.get(t.user_id) ?? []).some((r) => RUOLI_DEL_BRIEF.has(r)));
+}

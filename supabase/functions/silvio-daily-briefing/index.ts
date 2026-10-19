@@ -27,7 +27,8 @@ import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { aiRequestHash } from "../_shared/aiRequestGuard.ts";
 import { BriefingAiGate } from "../_shared/briefingAiGate.ts";
-import { destinatariBriefing } from "./destinatari.ts";
+import { destinatariBriefing, soloUfficio } from "./destinatari.ts";
+import { oraItalianaParti } from "../_shared/routineOperativa.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
 // briefing quotidiano mostrato all'utente.
@@ -100,11 +101,49 @@ serve(async (req: Request) => {
       // Cron mode: tutti gli utenti con preferences enabled = true, tranne chi
       // sta in un'azienda sospesa, scaduta o cessata (destinatari.ts: sul Test
       // Lab sospeso erano 4,3 $ in 14 giorni di messaggi che nessuno leggeva).
-      const { data: prefs } = await supabaseAdmin
-        .from("silvio_user_preferences")
-        .select("user_id, company_id, last_briefing_at, daily_briefing_time, daily_briefing_enabled, min_severity")
-        .eq("daily_briefing_enabled", true);
-      const preferenze = (prefs ?? []) as BriefingPreferenceRow[];
+      // Chi lo riceve lo decide l'azienda (18/10/2026): solo le aziende che hanno
+      // attivato «Report del mattino» nelle Automazioni del bot, e solo le persone
+      // scelte lì. Prima partiva per chiunque avesse la preferenza, accesa di
+      // default per tutti: anche 743 clienti finali.
+      const { data: routine, error: errRoutine } = await supabaseAdmin
+        .from("bot_routine").select("company_id, destinatari, giorni")
+        .eq("tipo", "report_mattino").eq("attiva", true);
+      if (errRoutine) return errorResponse("Automazioni non leggibili: briefing automatici sospesi", 503, corsHeaders);
+      const scelti: Array<{ user_id: string; company_id: string }> = [];
+      const oggi = oraItalianaParti(new Date()).giorno;
+      for (const r of (routine ?? []) as Array<{ company_id: string; destinatari: { utenti?: string[]; ruoli?: string[] } | null; giorni: number[] | null }>) {
+        // Gli stessi giorni scelti nell'automazione (di base dal lunedì al venerdì).
+        if (!(r.giorni ?? [1, 2, 3, 4, 5]).includes(oggi)) continue;
+        const utenti = Array.isArray(r.destinatari?.utenti) ? r.destinatari!.utenti! : [];
+        if (utenti.length) {
+          const { data, error } = await supabaseAdmin.from("profiles").select("id").eq("company_id", r.company_id).in("id", utenti);
+          if (error) console.error("[briefing] persone scelte non leggibili", r.company_id, error.message);
+          for (const p of (data ?? []) as Array<{ id: string }>) scelti.push({ user_id: p.id, company_id: r.company_id });
+        }
+        const ruoli = Array.isArray(r.destinatari?.ruoli) ? r.destinatari!.ruoli! : [];
+        if (ruoli.includes("admin")) {
+          // In due passi: user_roles punta ad auth.users, non a profiles, e una
+          // lettura unita delle due tabelle risponde sempre con un errore.
+          // Prima i responsabili (poche decine in tutto), poi chi di loro è di questa azienda.
+          const { data: responsabili, error: errResp } = await supabaseAdmin.from("user_roles").select("user_id")
+            .in("role", ["company_admin", "super_admin"]);
+          if (errResp) console.error("[briefing] responsabili non leggibili", r.company_id, errResp.message);
+          const ids = ((responsabili ?? []) as Array<{ user_id: string }>).map((x) => x.user_id);
+          if (ids.length) {
+            const { data } = await supabaseAdmin.from("profiles").select("id").eq("company_id", r.company_id).in("id", ids);
+            for (const p of (data ?? []) as Array<{ id: string }>) scelti.push({ user_id: p.id, company_id: r.company_id });
+          }
+        }
+      }
+      const unici = [...new Map(scelti.map((x) => [`${x.company_id}:${x.user_id}`, x])).values()];
+      // L'ultimo invio resta nelle preferenze: serve solo a non ripetere il brief nello stesso giorno.
+      const ultimi = new Map<string, string | null>();
+      if (unici.length) {
+        const { data: prefs } = await supabaseAdmin.from("silvio_user_preferences")
+          .select("user_id, last_briefing_at").in("user_id", unici.map((x) => x.user_id));
+        for (const p of (prefs ?? []) as Array<{ user_id: string; last_briefing_at: string | null }>) ultimi.set(p.user_id, p.last_briefing_at);
+      }
+      const preferenze: BriefingPreferenceRow[] = unici.map((x) => ({ ...x, last_briefing_at: ultimi.get(x.user_id) ?? null }));
       const idAziende = [...new Set(preferenze.map((p) => p.company_id).filter((id): id is string => !!id))];
       let statoAzienda: Map<string, string | null> | null = null;
       if (idAziende.length > 0) {
@@ -118,7 +157,17 @@ serve(async (req: Request) => {
         }
       }
       const destinatari = destinatariBriefing(preferenze, statoAzienda, new Date());
-      targets = destinatari.targets;
+      // Solo chi lavora in azienda: niente brief ai clienti finali.
+      const ruoliPerUtente = new Map<string, string[]>();
+      const ids = destinatari.targets.map((t) => t.user_id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data: ruoli, error: errRuoli } = await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", ids.slice(i, i + 200));
+        if (errRuoli) return errorResponse("Ruoli non verificabili: briefing automatici sospesi", 503, corsHeaders);
+        for (const r of (ruoli ?? []) as Array<{ user_id: string; role: string }>) {
+          ruoliPerUtente.set(r.user_id, [...(ruoliPerUtente.get(r.user_id) ?? []), r.role]);
+        }
+      }
+      targets = soloUfficio(destinatari.targets, ruoliPerUtente);
       saltatiPerStato = destinatari.saltatiPerStato;
       if (saltatiPerStato > 0) {
         console.log(`[silvio-briefing] ${saltatiPerStato} utenti saltati: azienda sospesa, scaduta o cessata`);
