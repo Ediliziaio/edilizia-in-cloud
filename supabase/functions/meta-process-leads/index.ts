@@ -463,6 +463,29 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   }
 
   const actualFormId = lead.form_id || formId;
+
+  // OPT-IN (19/10/2026, richiesta founder): dal WEBHOOK si importano i lead SOLO
+  // dai moduli che l'azienda ha attivato esplicitamente (una riga meta_lead_forms
+  // con status='active'). Un modulo nuovo / mai attivato NON porta dentro lead da
+  // solo: va attivato in Marketing → Moduli Facebook. I lead che arrivano dal
+  // BACKFILL hanno già passato decidiModulo (compreso il recupero MANUALE, che su
+  // richiesta esplicita legge anche i moduli non attivati): quelli non si
+  // ri-filtrano qui, altrimenti il recupero manuale non importerebbe nulla.
+  if (!isBackfillPayload) {
+    const { data: formCfg } = await adminClient
+      .from("meta_lead_forms")
+      .select("status")
+      .eq("company_id", company_id)
+      .eq("form_id", actualFormId)
+      .maybeSingle();
+    if (!formCfg || formCfg.status !== "active") {
+      console.log(
+        `[meta-process-leads] SKIP lead webhook da modulo non attivato (form_id=${actualFormId}) — company=${company_id}`,
+      );
+      return null; // evento gestito: nessun contatto, nessun retry
+    }
+  }
+
   const { data: mapping } = await adminClient
     .from("integration_field_mappings")
     .select("*")

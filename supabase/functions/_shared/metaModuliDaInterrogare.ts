@@ -96,6 +96,7 @@ export type Esito =
   | "letto"
   | "saltato_altro_modulo"
   | "saltato_disattivato"
+  | "saltato_non_attivato"
   | "saltato_archiviato"
   | "saltato_conteggio_fermo";
 
@@ -242,6 +243,14 @@ export function decidiModulo(p: {
   if (p.cfg && p.cfg.status !== "active") return { ...base, esito: "saltato_disattivato" };
   if (!p.giroAutomatico) return { ...base, esito: "letto", motivo: "recupero_chiesto" };
 
+  // OPT-IN (19/10/2026, richiesta founder): nel giro AUTOMATICO si importa SOLO
+  // dai moduli che l'azienda ha attivato esplicitamente (una riga meta_lead_forms
+  // con status='active'). Un modulo nuovo / mai configurato NON porta dentro lead
+  // da solo: va attivato da Marketing → Moduli Facebook. Prima invece un modulo
+  // ACTIVE su Meta ma mai configurato veniva letto lo stesso (esito "normale").
+  // I recuperi manuali (sopra, !giroAutomatico) continuano a leggere tutto.
+  if (!p.cfg) return { ...base, esito: "saltato_non_attivato" };
+
   if (p.conteggio) {
     const k = motivoConteggio(p.conteggio);
     base = { ...base, conteggio: k };
@@ -285,6 +294,8 @@ export interface ConteggiPagina {
   /** Col salto spento: quanti se ne salterebbero. */
   saltabili: number;
   saltatiDisattivati: number;
+  /** Moduli non letti perché mai attivati dall'azienda (opt-in), nel giro automatico. */
+  saltatiNonAttivati: number;
   archiviatiConLeadRecenti: number;
   archiviatiLettiPerControllo: number;
   leadNuovi: number;
@@ -327,6 +338,7 @@ export function conteggiVuoti(): ConteggiPagina {
     saltatiArchiviati: 0,
     saltabili: 0,
     saltatiDisattivati: 0,
+    saltatiNonAttivati: 0,
     archiviatiConLeadRecenti: 0,
     archiviatiLettiPerControllo: 0,
     leadNuovi: 0,
@@ -356,6 +368,7 @@ export function conta(c: ConteggiPagina, d: Decisione): void {
   if (d.conteggio) c.perConteggio[d.conteggio]++;
   const fermo = d.conteggio === "fermo";
   if (d.esito === "saltato_disattivato") c.saltatiDisattivati++;
+  else if (d.esito === "saltato_non_attivato") c.saltatiNonAttivati++;
   else if (d.esito === "saltato_archiviato") c.saltatiArchiviati++;
   else if (d.esito === "saltato_conteggio_fermo") c.saltatiConteggio++;
   else {
@@ -401,7 +414,7 @@ export function rigaPagina(p: { companyId: string; pageId: string; ms: number; c
   return `meta-leads-backfill: pagina ${p.pageId} azienda ${p.companyId} — ` +
     `moduli=${c.moduli} (${elencoStati(c.perStato)}) ` +
     `non_configurati=${c.nonConfigurati} (${elencoStati(c.nonConfiguratiPerStato)}) ` +
-    `letti=${c.letti} saltati_archiviati=${c.saltatiArchiviati}${saltabili(c)} saltati_disattivati=${c.saltatiDisattivati} ` +
+    `letti=${c.letti} saltati_archiviati=${c.saltatiArchiviati}${saltabili(c)} saltati_disattivati=${c.saltatiDisattivati} saltati_non_attivati=${c.saltatiNonAttivati} ` +
     `archiviati_con_lead_recenti=${c.archiviatiConLeadRecenti} archiviati_letti_per_controllo=${c.archiviatiLettiPerControllo} ` +
     `${partiConteggio(c)} ` +
     `lead_nuovi=${c.leadNuovi} lead_nuovi_da_archiviati=${c.leadNuoviDaArchiviati} chiamate=${c.chiamate} errori=${c.errori} ms=${p.ms}`;
@@ -413,7 +426,7 @@ export function rigaGiro(p: { pagine: number; ms: number; c: ConteggiPagina; aut
   return `meta-leads-backfill: giro ${p.automatico ? "automatico" : "di recupero"} — pagine=${p.pagine} ` +
     `moduli=${c.moduli} (${elencoStati(c.perStato)}) ` +
     `non_configurati=${c.nonConfigurati} (${elencoStati(c.nonConfiguratiPerStato)}) ` +
-    `letti=${c.letti} saltati_archiviati=${c.saltatiArchiviati}${saltabili(c)} saltati_disattivati=${c.saltatiDisattivati} ` +
+    `letti=${c.letti} saltati_archiviati=${c.saltatiArchiviati}${saltabili(c)} saltati_disattivati=${c.saltatiDisattivati} saltati_non_attivati=${c.saltatiNonAttivati} ` +
     `archiviati_con_lead_recenti=${c.archiviatiConLeadRecenti} ` +
     `${partiConteggio(c)} ` +
     `lead_nuovi=${c.leadNuovi} lead_nuovi_da_archiviati=${c.leadNuoviDaArchiviati} chiamate=${c.chiamate} errori=${c.errori} ms=${p.ms}`;
@@ -427,6 +440,7 @@ export function somma(totale: ConteggiPagina, c: ConteggiPagina): void {
   totale.saltatiArchiviati += c.saltatiArchiviati;
   totale.saltabili += c.saltabili;
   totale.saltatiDisattivati += c.saltatiDisattivati;
+  totale.saltatiNonAttivati += c.saltatiNonAttivati;
   totale.archiviatiConLeadRecenti += c.archiviatiConLeadRecenti;
   totale.archiviatiLettiPerControllo += c.archiviatiLettiPerControllo;
   totale.leadNuovi += c.leadNuovi;

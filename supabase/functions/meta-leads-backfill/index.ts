@@ -29,6 +29,11 @@
 //   ultimi 30 giorni — saltarli farebbe risparmiare il 7%, non il 90% sperato.
 //   Per questo SALTA_ARCHIVIATI resta spento: si conta e basta. Regole in
 //   _shared/metaModuliDaInterrogare.ts. Un recupero chiesto legge tutto.
+// - Dal 19/10/2026 (opt-in moduli): nel giro automatico un modulo senza riga
+//   attiva in meta_lead_forms è "saltato_non_attivato" e NON si legge. La
+//   regola vive in _shared/metaModuliDaInterrogare.ts: questo commento tiene
+//   questa funzione nell'elenco dei file cambiati, così il deploy la ripubblica
+//   con il _shared aggiornato (senza, resterebbe sulla logica vecchia).
 // - Dal 21/09/2026 si chiede a Meta anche quanti lead ha ogni modulo
 //   (`leads_count`) e si tiene l'ultimo numero visto in meta_moduli_conteggi.
 //   Un modulo il cui conteggio non si muove da più di un'ora non ha lead nuovi:

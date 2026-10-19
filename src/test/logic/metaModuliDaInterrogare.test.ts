@@ -36,7 +36,7 @@ const decidi = (p: Partial<Parameters<typeof decidiModulo>[0]>) =>
   decidiModulo({
     formId: MODULO,
     statusMeta: "ACTIVE",
-    cfg: null,
+    cfg: { status: "active" },
     giroAutomatico: true,
     soloModulo: null,
     conLeadRecenti: NESSUN_LEAD,
@@ -66,10 +66,20 @@ describe("lo stato del modulo come lo scrive Meta", () => {
 });
 
 describe("giro automatico: quali moduli si leggono", () => {
-  it("un modulo attivo mai configurato si legge: la campagna nuova resta coperta", () => {
-    expect(decidi({ statusMeta: "ACTIVE", cfg: null })).toMatchObject({
-      esito: "letto", motivo: "normale", configurato: false,
-    });
+  it("OPT-IN: un modulo mai attivato dall'azienda NON si legge, qualunque cosa dica Meta", () => {
+    // 19/10/2026 (founder): prima un modulo ACTIVE su Meta ma mai configurato
+    // veniva letto come «rete di sicurezza». Ora i lead entrano SOLO dai moduli
+    // attivati esplicitamente: un modulo senza riga in meta_lead_forms si salta.
+    for (const statusMeta of ["ACTIVE", "DRAFT", undefined, "QUALCOSA_DI_NUOVO", "ARCHIVED"]) {
+      expect(decidi({ statusMeta, cfg: null })).toMatchObject({
+        esito: "saltato_non_attivato", configurato: false,
+      });
+    }
+  });
+
+  it("…ma un recupero MANUALE legge anche un modulo mai attivato (lo stato non conta)", () => {
+    expect(decidi({ statusMeta: "ACTIVE", cfg: null, giroAutomatico: false }))
+      .toMatchObject({ esito: "letto", motivo: "recupero_chiesto" });
   });
 
   it("senza stato, o con uno stato mai visto, si legge come prima", () => {
@@ -176,7 +186,7 @@ describe("il turno di controllo degli archiviati", () => {
         const d = decidiModulo({
           formId,
           statusMeta: archiviati.has(formId) ? "ARCHIVED" : "ACTIVE",
-          cfg: null,
+          cfg: { status: "active" },
           giroAutomatico: true,
           conLeadRecenti: NESSUN_LEAD,
           oraUtc,
@@ -209,30 +219,32 @@ describe("il turno di controllo degli archiviati", () => {
 });
 
 describe("una riga di log per pagina, non una per modulo", () => {
+  // Opt-in (19/10/2026): i moduli mai attivati (cfg null) si saltano come
+  // "saltato_non_attivato" e restano contati fra i non_configurati.
   const c = conteggiVuoti();
-  conta(c, decidi({ statusMeta: "ACTIVE" }));
-  conta(c, decidi({ statusMeta: "ACTIVE", cfg: { status: "active" } }));
-  conta(c, decidi({ statusMeta: "ARCHIVED" }));
-  conta(c, decidi({ statusMeta: "ARCHIVED" }));
-  conta(c, decidi({ statusMeta: "ARCHIVED", conLeadRecenti: new Set([MODULO]) }));
-  conta(c, decidi({ statusMeta: "ARCHIVED", oraUtc: oraDiControllo(MODULO) }));
-  conta(c, decidi({ statusMeta: "ACTIVE", cfg: { status: "inactive" } }));
+  conta(c, decidi({ statusMeta: "ACTIVE" }));                                      // attivato → letto
+  conta(c, decidi({ statusMeta: "ARCHIVED" }));                                    // attivato, archiviato → saltato
+  conta(c, decidi({ statusMeta: "ARCHIVED" }));                                    // attivato, archiviato → saltato
+  conta(c, decidi({ statusMeta: "ARCHIVED", conLeadRecenti: new Set([MODULO]) })); // attivato, lead recenti → letto
+  conta(c, decidi({ statusMeta: "ACTIVE", cfg: { status: "inactive" } }));         // spento da noi → saltato
+  conta(c, decidi({ statusMeta: "ACTIVE", cfg: null }));                           // mai attivato → saltato (opt-in)
+  conta(c, decidi({ statusMeta: "ARCHIVED", cfg: null }));                         // mai attivato → saltato (opt-in)
   conta(c, decidi({ formId: "999", soloModulo: MODULO })); // non fa numero
   c.leadNuovi = 3;
 
   it("conta cosa si è letto e cosa si è saltato, e perché", () => {
     expect(c).toMatchObject({
       moduli: 7,
-      letti: 4,
+      letti: 2,
       saltatiArchiviati: 2,
       saltatiDisattivati: 1,
+      saltatiNonAttivati: 2,
       archiviatiConLeadRecenti: 1,
-      archiviatiLettiPerControllo: 1,
-      nonConfigurati: 5,
+      nonConfigurati: 2,
     });
     expect(c.perStato).toMatchObject({ ACTIVE: 3, ARCHIVED: 4 });
-    // la domanda del 20/09: dei moduli mai configurati, quanti sono davvero attivi?
-    expect(c.nonConfiguratiPerStato).toMatchObject({ ACTIVE: 1, ARCHIVED: 4 });
+    // dei moduli mai configurati (= mai attivati), quanti per stato Meta
+    expect(c.nonConfiguratiPerStato).toMatchObject({ ACTIVE: 1, ARCHIVED: 1 });
   });
 
   it("la riga della pagina porta tutti i numeri", () => {
@@ -240,8 +252,8 @@ describe("una riga di log per pagina, non una per modulo", () => {
     expect(riga.split("\n")).toHaveLength(1);
     expect(riga).toContain("pagina pag-1 azienda az-1");
     expect(riga).toContain("moduli=7 (ACTIVE=3 ARCHIVED=4)");
-    expect(riga).toContain("non_configurati=5 (ACTIVE=1 ARCHIVED=4)");
-    expect(riga).toContain("letti=4 saltati_archiviati=2 saltati_disattivati=1");
+    expect(riga).toContain("non_configurati=2 (ACTIVE=1 ARCHIVED=1)");
+    expect(riga).toContain("letti=2 saltati_archiviati=2 saltati_disattivati=1 saltati_non_attivati=2");
     expect(riga).toContain("archiviati_con_lead_recenti=1");
     expect(riga).toContain("lead_nuovi=3");
     expect(riga).toContain("ms=842");
@@ -481,7 +493,7 @@ describe("un modulo che ha dei lead si rilegge ogni ora anche col conteggio ferm
   const fuoriOra = (oraDiControllo(MOD) + 5) % 24;
   const decidi = (visto: unknown, adessoMs = ORA) =>
     decidiModulo({
-      formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+      formId: MOD, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true, conLeadRecenti: new Set<string>(),
       oraUtc: fuoriOra, saltaArchiviati: false,
       conteggio: { attuale: 58, visto, adessoMs, saltaFermi: true },
     });
@@ -589,7 +601,7 @@ describe("i numeri del conteggio nella riga di log", () => {
   const MOD = "922697992804539";
   const d = (motivoAtteso: Partial<Parameters<typeof decidiModulo>[0]>, c: Record<string, unknown>) =>
     decidiModulo({
-      formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+      formId: MOD, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true, conLeadRecenti: new Set<string>(),
       oraUtc: (oraDiControllo(MOD) + 3) % 24, saltaArchiviati: false,
       conteggio: { attuale: 7, visto: { n: 7, cambiato: PRIMA(300), letto: PRIMA(15) }, adessoMs: ORA, saltaFermi: false, ...c },
       ...motivoAtteso,
@@ -734,7 +746,7 @@ describe("una giornata intera col salto acceso: nessun lead resta indietro", () 
       const lettiBene = new Set<string>();
       for (const m of moduli) {
         const d = decidiModulo({
-          formId: m, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+          formId: m, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true, conLeadRecenti: new Set<string>(),
           oraUtc, saltaArchiviati: false,
           conteggio: { attuale: visti.get(m), visto: mappa[m], adessoMs, saltaFermi },
         });
@@ -775,7 +787,7 @@ describe("una giornata intera col salto acceso: nessun lead resta indietro", () 
       // un lead e ne arriva uno nuovo. Il numero resta 20 per tutto il tempo.
       const nuovoLeggibile = g >= 6;
       const d = decidiModulo({
-        formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+        formId: MOD, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true, conLeadRecenti: new Set<string>(),
         oraUtc: (oraDiControllo(MOD) + 12) % 24, saltaArchiviati: false,
         conteggio: { attuale: 20, visto: mappa[MOD], adessoMs, saltaFermi: true },
       });
