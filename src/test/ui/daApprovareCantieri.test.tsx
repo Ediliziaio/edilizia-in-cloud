@@ -15,7 +15,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, e
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permessi }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: async (fn: string) => { state.rpc(fn); return { data: state.dati, error: null }; },
+  rpc: async (fn: string) => { state.rpc(fn); return { data: state.dati, error: null as unknown }; },
 } }));
 
 const mostra = () => render(

@@ -11,7 +11,7 @@ vi.mock("@/components/orders/OrderDocumentiFornitore", async (importOriginal) =>
     { id: "d2", origine: "fornitore", numero: "DDT-99", data: "2025-10-21", controparte: "Altro", stato: "Controllata", attenzione: false, purchaseOrderId: "po2" },
   ] }),
   useFattureFornitoriCommessa: () => ({ isLoading: false, isError: false, data: [
-    { id: "f1", numero: "FOR-46", data: "2025-10-20", fornitore: "Fornitore Uno", totale: 47577.39, stato: "registrata", legame: "oda", oda: "ODA-46", purchaseOrderId: "po1", notaCredito: false, quota: null, totaleDocumento: null },
+    { id: "f1", numero: "FOR-46", data: "2025-10-20", fornitore: "Fornitore Uno", totale: 47577.39, stato: "registrata", legame: "oda", oda: "ODA-46", purchaseOrderId: "po1", notaCredito: false, quota: null as number | null, totaleDocumento: null as number | null },
     { id: "f2", numero: "COSTO-1", data: "2025-12-15", fornitore: "Noleggi", totale: 2973.59, stato: "registrata", legame: "costo", oda: null, purchaseOrderId: null, notaCredito: false, quota: null, totaleDocumento: null },
   ] }),
 }));
