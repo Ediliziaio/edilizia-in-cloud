@@ -241,14 +241,18 @@ export function parteDivisa(
   return riga;
 }
 
+export const MESSAGGIO_ORDINE_NON_DIVISO =
+  "Articolo diviso, ma l'ordine d'acquisto copre ancora solo la riga originale. Controlla gli ordini ai fornitori della commessa prima di riordinare.";
+
 export const MESSAGGIO_SCARICO_NON_SPOSTATO =
   "Articolo diviso, ma la quota già scaricata dal magazzino è rimasta sulla riga originale. Avvisa l'ufficio prima dell'installazione, così non si scarica due volte.";
 
 /**
- * Crea le nuove righe di un articolo diviso tra le fasi. Per un articolo da
- * magazzino ogni riga nuova riceve la sua quota dello scarico già fatto
- * (`dividi_scarico_magazzino`): la giacenza non cambia, e all'installazione
- * la riga nuova non scarica di nuovo.
+ * Crea le nuove righe di un articolo diviso tra le fasi. `dividi_scarico_magazzino`
+ * gira per ogni riga nuova: divide la riga dell'ordine d'acquisto che copre la voce
+ * (la nuova resta coperta per la sua parte) e, per un articolo da magazzino, le dà la
+ * sua quota dello scarico già fatto: la giacenza non cambia e all'installazione la
+ * riga nuova non scarica di nuovo.
  */
 export async function creaPartiDivise(
   client: typeof supabase,
@@ -261,14 +265,13 @@ export async function creaPartiDivise(
     const { data: nuova, error: insError } = await c.from("order_items")
       .insert(parteDivisa(original, parte)).select("id").single();
     if (insError) throw insError;
-    if (!original.stock_item_id) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: rpcError } = await (client as any).rpc("dividi_scarico_magazzino", {
       p_originale: original.id,
       p_nuova: nuova.id,
       p_quantita: parte.quantity,
     });
-    if (rpcError) throw new Error(MESSAGGIO_SCARICO_NON_SPOSTATO);
+    if (rpcError) throw new Error(original.stock_item_id ? MESSAGGIO_SCARICO_NON_SPOSTATO : MESSAGGIO_ORDINE_NON_DIVISO);
   }
 }
 

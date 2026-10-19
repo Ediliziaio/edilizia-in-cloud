@@ -25,11 +25,29 @@ export interface RigaCantiere {
   rapportini_da_approvare: number; correzioni: number; bolle: number;
   ultimo_segnale: string | null; giorni_senza_segnale: number | null;
 }
-/** Fermo: nessun segnale dal cantiere da almeno 3 giorni, pur con persone previste. */
+/** Fermo: nessun segnale dal cantiere da almeno 3 giorni lavorativi, pur con persone previste. */
 export const GIORNI_FERMO = 3;
-export function statoCantiere(r: RigaCantiere): { testo: string; tono: "ok" | "attenzione" | "neutro" } {
+
+/** Giorni lavorativi (lun-ven) passati dall'ultimo segnale a oggi: il fine settimana non conta. */
+export function giorniLavorativiDa(ultimo: string, oggi = new Date()): number {
+  const d = new Date(ultimo);
+  if (Number.isNaN(d.getTime())) return 0;
+  const giorno = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const fine = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate());
+  let n = 0;
+  for (giorno.setDate(giorno.getDate() + 1); giorno <= fine; giorno.setDate(giorno.getDate() + 1)) {
+    const g = giorno.getDay();
+    if (g !== 0 && g !== 6) n += 1;
+  }
+  return n;
+}
+
+export function statoCantiere(r: RigaCantiere, oggi = new Date()): { testo: string; tono: "ok" | "attenzione" | "neutro" } {
   if (r.previste > 0 && r.timbrate === 0 && r.rapportini_oggi === 0) {
-    if (r.giorni_senza_segnale != null && r.giorni_senza_segnale >= GIORNI_FERMO) return { testo: `Fermo da ${r.giorni_senza_segnale} giorni`, tono: "attenzione" };
+    if (r.ultimo_segnale) {
+      const lavorativi = giorniLavorativiDa(r.ultimo_segnale, oggi);
+      if (lavorativi >= GIORNI_FERMO) return { testo: `Fermo da ${lavorativi} giorni lavorativi`, tono: "attenzione" };
+    } else if (r.giorni_senza_segnale != null && r.giorni_senza_segnale >= GIORNI_FERMO) return { testo: `Fermo da ${r.giorni_senza_segnale} giorni`, tono: "attenzione" };
     return { testo: "Nessuno ancora oggi", tono: "attenzione" };
   }
   if (r.timbrate > 0 && r.rapportini_oggi === 0) return { testo: "Al lavoro, rapportino non arrivato", tono: "neutro" };
@@ -132,7 +150,7 @@ export default function CantieriOggi() {
               </table>
             </div>
           )}
-        <p className="text-xs text-muted-foreground">Persone oggi = presenti (hanno timbrato o sono nel rapportino di oggi) / previste dalle assegnazioni. «Fermo» = nessun segnale dal cantiere da {GIORNI_FERMO} giorni con persone previste.</p>
+        <p className="text-xs text-muted-foreground">Persone oggi = presenti (hanno timbrato o sono nel rapportino di oggi) / previste dalle assegnazioni. «Fermo» = nessun segnale dal cantiere da {GIORNI_FERMO} giorni lavorativi con persone previste.</p>
       </section>
     </div>
   );

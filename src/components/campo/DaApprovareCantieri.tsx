@@ -29,6 +29,8 @@ export interface DaApprovare {
 export function usePuoApprovareCantiere() {
   const { role } = useAuth();
   const permissions = usePermissions();
+  // Il commercialista non approva il cantiere (il database non gli mostra le approvazioni).
+  if (role === "accountant") return false;
   return role === "company_admin" || role === "super_admin" || (!!permissions.canViewOrders && !!permissions.canEditOrders);
 }
 
@@ -70,6 +72,8 @@ export function DaApprovareCantieri() {
   });
 
   if (!puoApprovare) return null;
+  // Azienda non ancora pronta o richiesta non partita: niente da mostrare.
+  if (!approvare.data && !approvare.isLoading && !approvare.isError) return null;
   const a = approvare.data;
   const tot = totaleDaApprovare(a);
   // Niente in attesa: il riquadro non occupa posto in Attività.

@@ -74,10 +74,17 @@ describe("dividere un articolo da magazzino: la quota di scarico segue la riga n
     ]);
   });
 
-  it("un articolo senza magazzino non chiama la RPC", async () => {
+  it("un articolo senza magazzino chiama comunque la RPC: divide la riga dell'ordine d'acquisto", async () => {
     const { client, rpc } = clientFinto();
     await creaPartiDivise(client, { ...originale, stock_item_id: null }, [{ phaseId: "fase-2", quantity: 40 }]);
-    expect(rpc).toEqual([]);
+    expect(rpc.map((r) => r.nome)).toEqual(["dividi_scarico_magazzino"]);
+    expect(rpc[0].args).toMatchObject({ p_quantita: 40 });
+  });
+
+  it("senza magazzino, se la divisione dell'ordine non riesce lo dice in chiaro", async () => {
+    const { client } = clientFinto({ message: "permission denied" });
+    await expect(creaPartiDivise(client, { ...originale, stock_item_id: null }, [{ phaseId: "fase-2", quantity: 40 }]))
+      .rejects.toThrow(/ordine d'acquisto copre ancora solo la riga originale/);
   });
 
   it("se lo spostamento non riesce lo dice in chiaro", async () => {

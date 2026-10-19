@@ -97,9 +97,11 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { data, isLoading } = useQuery({
     queryKey: ["drill-margin", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
+      // Come il dettaglio del venduto: commesse non nel cestino, valore con le varianti approvate.
       const { data, error } = await supabase.from("orders")
-        .select("id, order_code, description, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
+        .select("id, order_code, description, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost), variazioni:ordini_variazione(status, impatto_economico)")
         .eq("company_id", effectiveCompany!.id)
+        .is("deleted_at", null)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
         .order("total_amount", { ascending: false })
@@ -116,7 +118,7 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   return (
     <div className="space-y-2">
       {data.map((o: any) => {
-        const revenue = safeNumber(o.total_amount);
+        const revenue = agreedContractValue(safeNumber(o.total_amount), o.variazioni ?? []);
         const cost = (o.order_items || []).reduce((s: number, i: any) => s + safeNumber(i.purchase_price) * safeNumber(i.quantity, 1), 0)
           + (o.order_employees || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0)
           + (o.order_external_teams || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0);

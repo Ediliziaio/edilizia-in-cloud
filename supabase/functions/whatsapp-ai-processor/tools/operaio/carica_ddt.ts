@@ -350,7 +350,7 @@ export async function caricaDDT(
         ? `In magazzino: ${caricati.map((c) => `${c.articolo} +${c.quantita}`).join(", ")}.`
         : "Nessun articolo riconosciuto in magazzino.") +
       (daAbbinare > 0
-        ? ` ${daAbbinare} ${daAbbinare === 1 ? "riga va abbinata" : "righe vanno abbinate"} a un articolo dall'app, in Magazzino.`
+        ? ` ${daAbbinare} ${daAbbinare === 1 ? "riga è da sistemare" : "righe sono da sistemare"} dall'app, in Magazzino → «Righe di bolla da sistemare».`
         : "");
   }
 
