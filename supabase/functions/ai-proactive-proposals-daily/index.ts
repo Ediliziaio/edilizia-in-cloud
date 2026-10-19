@@ -419,76 +419,57 @@ async function detectCashflowCritico(
       return result;
     }
 
-    // 2) Trova i top 5 ordini con rate scadute, ordinati per importo decrescente
-    //    sull'acconto scaduto (la rata più importante e più recuperabile).
+    // 2) Le commesse con rate scadute, con la regola della scheda commessa (rate_da_incassare_dettaglio):
+    //    residuo vero, commesse nel cestino escluse, rata della finanziaria mai tra le scadute.
     const today = new Date().toISOString().slice(0, 10);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: overdueOrders, error: ordErr } = await (supa as any)
-      .from("orders")
-      .select("id, order_code, client_name, client_company, client_email, deposit_amount, deposit_expected_date, deposit_paid, deposit_2_amount, deposit_2_expected_date, deposit_2_paid, balance_amount, balance_expected_date, balance_paid")
-      .eq("company_id", companyId)
-      .or(
-        // rate scadute non pagate
-        `and(deposit_paid.eq.false,deposit_expected_date.lt.${today}),and(deposit_2_paid.eq.false,deposit_2_expected_date.lt.${today}),and(balance_paid.eq.false,balance_expected_date.lt.${today})`,
-      )
-      .limit(50);
+    const { data: rateScadute, error: ordErr } = await (supa as any)
+      .rpc("rate_da_incassare_dettaglio", { p_company: companyId });
 
     if (ordErr) {
-      // Schema diverso o tabella non disponibile in questa company → degrade silent.
-      if (!ordErr.message.includes("does not exist") && !ordErr.message.includes("column")) {
-        result.errors.push(`query orders overdue: ${ordErr.message}`);
-      }
+      result.errors.push(`rate scadute: ${ordErr.message}`);
       return result;
     }
 
-    // Calcola per ogni ordine l'importo scaduto reale + la rata "più impattante"
+    // Per ogni commessa: il totale scaduto e la rata più vecchia.
     interface DebtorRow {
       order_id: string;
       order_code: string;
       client_name: string;
       client_email: string | null;
       total_overdue_eur: number;
-      worst_rata: "acconto" | "acconto_2" | "saldo";
+      worst_rata: "acconto" | "saldo" | "rata";
       days_late: number;
     }
     const todayDate = new Date(today);
-    const debtors: DebtorRow[] = [];
-    for (const o of (overdueOrders ?? []) as Array<Record<string, unknown>>) {
-      let total = 0;
-      let worstDays = 0;
-      let worstRata: DebtorRow["worst_rata"] = "acconto";
-      const consider = (
-        amount: unknown,
-        paid: unknown,
-        date: unknown,
-        rata: DebtorRow["worst_rata"],
-      ) => {
-        const amt = Number(amount ?? 0);
-        if (!amt || paid === true) return;
-        if (typeof date !== "string" || !date) return;
-        const d = new Date(date);
-        if (d >= todayDate) return;
-        const days = Math.floor((todayDate.getTime() - d.getTime()) / 86_400_000);
-        total += amt;
-        if (days > worstDays) {
-          worstDays = days;
-          worstRata = rata;
-        }
+    const perCommessa = new Map<string, DebtorRow>();
+    for (const r of (rateScadute ?? []) as Array<Record<string, unknown>>) {
+      const residuo = Number(r.residuo ?? 0);
+      const data = typeof r.expected_date === "string" ? r.expected_date : null;
+      if (!(residuo > 0) || !data || data >= today || r.finanziamento === true) continue;
+      const days = Math.floor((todayDate.getTime() - new Date(data).getTime()) / 86_400_000);
+      const rata: DebtorRow["worst_rata"] = r.tipo === "balance" ? "saldo" : r.tipo === "deposit" ? "acconto" : "rata";
+      const orderId = String(r.order_id);
+      const d = perCommessa.get(orderId) ?? {
+        order_id: orderId,
+        order_code: String(r.order_code ?? orderId),
+        client_name: String(r.cliente ?? "Cliente"),
+        client_email: typeof r.client_email === "string" ? r.client_email : null,
+        total_overdue_eur: 0,
+        worst_rata: rata,
+        days_late: 0,
       };
-      consider(o.deposit_amount, o.deposit_paid, o.deposit_expected_date, "acconto");
-      consider(o.deposit_2_amount, o.deposit_2_paid, o.deposit_2_expected_date, "acconto_2");
-      consider(o.balance_amount, o.balance_paid, o.balance_expected_date, "saldo");
-      if (total <= 0) continue;
-      debtors.push({
-        order_id: String(o.id),
-        order_code: String(o.order_code ?? o.id),
-        client_name: String(o.client_name ?? o.client_company ?? "Cliente"),
-        client_email: typeof o.client_email === "string" ? o.client_email : null,
-        total_overdue_eur: total,
-        worst_rata: worstRata,
-        days_late: worstDays,
-      });
+      d.total_overdue_eur += residuo;
+      if (days > d.days_late) {
+        d.days_late = days;
+        d.worst_rata = rata;
+      }
+      perCommessa.set(orderId, d);
     }
+    const debtors = [...perCommessa.values()].map((d) => ({
+      ...d,
+      total_overdue_eur: Math.round(d.total_overdue_eur * 100) / 100,
+    }));
 
     // Top 5 per importo scaduto, ma SOLO chi ha email (altrimenti sollecito non parte).
     const top = debtors

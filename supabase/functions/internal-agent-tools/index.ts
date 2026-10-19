@@ -244,7 +244,7 @@ async function getOrderStatus(admin: AdminClient, params: Record<string, unknown
 
   let query = admin
     .from("orders")
-    .select("id, order_code, description, total_amount, expected_date, work_start_date, work_end_date, internal_notes, created_at, balance_amount, balance_paid, deposit_amount, deposit_paid");
+    .select("id, company_id, current_status_id, order_code, description, total_amount, expected_date, work_start_date, work_end_date, internal_notes, created_at");
 
   if (orderId) {
     query = query.eq("id", orderId);
@@ -271,16 +271,32 @@ async function getOrderStatus(admin: AdminClient, params: Record<string, unknown
     if (status) statusName = status.name;
   }
 
+  // Pagamenti con la regola della scheda commessa: importi IVA inclusa, il saldo è il residuo.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rate } = await (admin as any).rpc("silvio_tool_rate_commessa", {
+    p_company_id: (order as any).company_id,
+    p_order_id: order.id,
+  });
+  const pagamenti = rate?.ok
+    ? {
+        valore_ivato_eur: rate.valore_ivato_eur,
+        incassato_eur: rate.incassato_eur,
+        da_incassare_eur: rate.residuo_eur,
+        scaduto_eur: rate.scaduto_eur,
+        tutto_incassato: Number(rate.residuo_eur ?? 0) <= 0,
+        prossima_rata: ((rate.rate ?? []) as Array<Record<string, unknown>>)
+          .filter((r) => Number(r.da_incassare_eur ?? 0) > 0 && r.attesa_il)
+          .map((r) => ({ rata: r.rata, importo_eur: r.da_incassare_eur, attesa_il: r.attesa_il }))[0] ?? null,
+      }
+    : {};
+
   return {
     order_id: order.id,
     order_code: order.order_code,
     description: order.description,
     status: statusName,
     total_amount: order.total_amount,
-    deposit_amount: order.deposit_amount,
-    deposit_paid: order.deposit_paid,
-    balance_amount: order.balance_amount,
-    balance_paid: order.balance_paid,
+    ...pagamenti,
     expected_date: order.expected_date,
     work_start_date: order.work_start_date,
     work_end_date: order.work_end_date,

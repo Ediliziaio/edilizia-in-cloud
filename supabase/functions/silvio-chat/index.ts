@@ -250,7 +250,7 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
     if (entity_type === "order") {
       const { data, error } = await supabaseAdmin
         .from("orders")
-        .select("id, description, total_amount, deposit_amount, balance_amount, balance_paid, expected_date, cliente_snapshot:customer_id(id, profile_data)")
+        .select("id, description, total_amount, expected_date, cliente_snapshot:customer_id(id, profile_data)")
         .eq("id", entity_id)
         .eq("company_id", companyId)
         .maybeSingle();
@@ -258,7 +258,12 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       const cliente = (data.cliente_snapshot?.profile_data as { full_name?: string; ragione_sociale?: string } | undefined)?.full_name
         ?? (data.cliente_snapshot?.profile_data as { ragione_sociale?: string } | undefined)?.ragione_sociale
         ?? "cliente sconosciuto";
-      const stato = data.balance_paid ? "saldata" : "aperta";
+      // Saldata = niente più da incassare, con la regola della scheda commessa.
+      const { data: rate } = await supabaseAdmin.rpc("silvio_tool_rate_commessa", {
+        p_company_id: companyId,
+        p_order_id: data.id,
+      });
+      const stato = !rate?.ok ? "aperta" : Number(rate.residuo_eur ?? 0) <= 0 ? "saldata" : "aperta";
       const importoOrder = showAmounts ? `, importo totale €${data.total_amount}` : "";
       return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}.`;
     }
