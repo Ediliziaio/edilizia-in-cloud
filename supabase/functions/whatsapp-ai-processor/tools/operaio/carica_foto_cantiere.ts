@@ -11,7 +11,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
-import { resolveCantiere } from "../shared/resolve_cantiere.ts";
+import { sceltaCantiere } from "../shared/sceltaCantiere.ts";
 
 export const caricaFotoCantiereDef: Omit<ToolDef, "handler"> = {
   name: "carica_foto_cantiere",
@@ -63,12 +63,18 @@ export async function caricaFotoCantiere(
       .maybeSingle();
     if (!ordine) orderId = undefined;
   }
+  // Il cantiere più probabile (dove ha timbrato, dove ha lavorato, quello
+  // nominato); se non è chiaro, l'elenco dei suoi cantieri da cui scegliere.
+  let motivo: string | null = null;
   if (!orderId) {
-    const resolved = await resolveCantiere(ctx, args.cantiere_hint);
-    if (!resolved.cantiere_id) {
-      return errResult("cantiere_ambiguous", resolved.ask_user ?? "A quale cantiere va questa foto?");
+    const scelta = await sceltaCantiere(ctx, { hint: args.cantiere_hint ?? null });
+    if (!scelta.proposto) {
+      if (scelta.candidati.length === 0) return errResult("site_missing", "Non risulti su nessun cantiere aperto: chiedi all'ufficio di aggiungerti alla squadra della commessa.");
+      const elenco = scelta.candidati.slice(0, 9).map((c, i) => `${i + 1}. ${c.titolo} — ${c.dettaglio}`).join("\n");
+      return errResult("cantiere_ambiguous", `Su quale cantiere va questa foto?\n${elenco}\n\nScrivimi il numero o il nome.`);
     }
-    orderId = resolved.cantiere_id;
+    orderId = scelta.proposto.id;
+    motivo = scelta.proposto.motivo;
   }
 
   const { data: file, error: errScarica } = await ctx.supabase.storage
@@ -104,5 +110,7 @@ export async function caricaFotoCantiere(
     return errResult(error.message, "Errore salvando la foto.");
   }
 
-  return okResult({ id: inserted.id }, "✅ Foto salvata sul cantiere.");
+  const { data: o } = await ctx.supabase.from("orders").select("order_code, description").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();
+  const nome = [o?.order_code, o?.description].filter(Boolean).join(" · ") || "cantiere";
+  return okResult({ id: inserted.id }, `✅ Foto salvata su ${nome}${motivo ? ` (${motivo})` : ""}.`);
 }

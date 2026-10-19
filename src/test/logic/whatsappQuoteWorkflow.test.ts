@@ -77,11 +77,12 @@ describe("Quote generation → preview → confirmed atomic save", () => {
     expect((await creaPreventivoAi(ctx, request)).ok).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1); expect(db.scritture).toHaveLength(0);
   });
-  it("requires confirmation and saves the exact approved lines through one transaction", async () => {
+  it("previews freely, confirms the save and stores the exact approved lines through one transaction", async () => {
     db.rpcs.silvio_create_quote_draft = () => ({ success: true, quote_id: quoteId, quote_number: "BOZZA-TEST", status: "bozza", items_count: 2, subtotal_eur: 420, vat_eur: 42, total_eur: 462 });
     const items = [{ name: "Piastrelle", quantity: 12, unit_price: 20, vat_rate: 10, item_type: "material" },
       { name: "Posa", quantity: 12, unit_price: 15, vat_rate: 10, item_type: "labor" }];
-    expect(creaPreventivoAiDef.requires_confirmation).toBe(true);
+    // L'anteprima non salva niente e parte subito; il salvataggio chiede il Sì sulle voci esatte.
+    expect(creaPreventivoAiDef.requires_confirmation).toBe(false);
     expect(salvaPreventivoBozzaDef.requires_confirmation).toBe(true);
     const result = await salvaPreventivoBozza(ctx, { client_name: request.cliente_nome, items });
     expect(result).toMatchObject({ ok: true, data: { quote_id: quoteId, total_eur: 462 } });

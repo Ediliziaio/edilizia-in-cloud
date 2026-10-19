@@ -6,6 +6,8 @@
  * risposta al telefono. È la differenza tra "le farò sapere" e "la sua merce
  * è arrivata ieri in magazzino, la posa è prevista giovedì 6".
  *
+ * (18/10/2026: stato_consegna dice anche fasi fatte, prossima fase e prossimo
+ *  appuntamento, fino a tre lavori aperti.)
  * La LOGICA degli strumenti vive in _shared/ediliziaCustomerTools.ts, condivisa
  * con WhatsApp e widget chat: qui restano solo trasporto (HTTP), auth e alias.
  *

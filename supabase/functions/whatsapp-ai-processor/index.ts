@@ -66,7 +66,8 @@ import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget } from "./budget.ts";
 import { logToolCall } from "./observability.ts";
 import { BotSessionState } from "./sessionState.ts";
-import { freezeConfirmation, confirmationReplyMatches, frozenConfirmationValid, confirmationHash, canonicalJson, confirmationPreview, ConfirmationReviewError } from "./frozenConfirmation.ts";
+import { ticketPerUfficio } from "./ticketUfficio.ts";
+import { freezeConfirmation, confirmationReplyMatches, frozenConfirmationValid, confirmationHash, canonicalJson, confirmationPreview, ConfirmationReviewError, rispostaCantiere, elencoCantieri, AZIONI_CON_CANTIERE } from "./frozenConfirmation.ts";
 import { validateToolArguments } from "./toolArguments.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
 import { runWhatsAppTool } from "../_shared/whatsappOperations.ts";
@@ -256,12 +257,11 @@ Deno.serve(async (req) => {
       if (gestitoDaAssistenteClienti) {
         return markDone(supabase, body.message_id, "processed");
       }
-      if (operationalSettings.unknown_worker_mode === "create_review_ticket") {
-        await createUnknownWorkerTicket(supabase, msg);
-      }
+      const avvisato = operationalSettings.unknown_worker_mode === "create_review_ticket"
+        && await createUnknownWorkerTicket(supabase, msg);
       await sendReply(
         msg,
-        operationalSettings.unknown_worker_mode === "create_review_ticket"
+        avvisato
           ? "Non ti riconosco ancora. Ho avvisato l'ufficio per collegare questo numero all'anagrafica corretta."
           : STR.operaio.unknown_user,
       );
@@ -312,11 +312,20 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error(JSON.stringify({ level: "error", fn: "scarica_media", error: String(e) }));
       }
+      // Foto o documento non scaricati: lo si dice, invece di rispondere come se non ci fossero.
+      if (!mediaCorrente && msg.message_type !== "audio") {
+        await sendReply(msg, "📎 Non sono riuscito a scaricare il file che mi hai mandato. Rimandamelo tra poco, per favore.");
+        return markDone(supabase, body.message_id, "failed", "media_download_error");
+      }
     }
     // «Ti ho mandato la foto, è del cantiere Rossi»: la foto è arrivata nel
     // messaggio prima. Si riprende l'ultima foto o documento della stessa
     // persona negli ultimi 30 minuti, così gli strumenti la trovano.
-    if (!mediaCorrente && msg.message_type === "text") {
+    // Solo se il testo parla della foto («è del cantiere Rossi», «questa», «la bolla»):
+    // prima l'ultima foto si agganciava anche a messaggi che non c'entravano.
+    const parlaDellaFoto = /\b(foto|questa|questo|quella|quello|allegat|documento|bolla|ddt|scontrino|fattura|ricevuta|è del|e del|va su|va al|per il cantiere|cantiere)\b/i
+      .test(msg.content_text ?? "");
+    if (!mediaCorrente && msg.message_type === "text" && parlaDellaFoto) {
       const { data: precedente } = await supabase
         .from("whatsapp_messages")
         .select("message_type, media_storage_path, media_url")
@@ -409,8 +418,15 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").update({ ai_extracted_data: msg.ai_extracted_data }).eq("id", msg.id);
     }
 
+    // Si classifica quello che ha detto l'utente (didascalia, vocale), non il
+    // testo letto dalla foto: «[Foto — cosa si vede]… si» diventava «conferma».
+    const tipoDocumentoLetto = /^\[Foto di uno scontrino/.test(userContent) ? "scontrino"
+      : /^\[Foto di un DDT|^\[Documento PDF — DDT/.test(userContent) ? "bolla ddt" : "";
     operationalTriage = classifyOperationalMessage({
-      contentText: userContent || msg.content_text,
+      contentText: msg.message_type === "audio" ? userContent
+        : ["image", "document", "video"].includes(String(msg.message_type))
+          ? [msg.message_type === "document" ? "" : msg.content_text ?? "", tipoDocumentoLetto].join(" ").trim() || null
+          : userContent || msg.content_text,
       messageType: msg.message_type,
     });
     await persistOperationalTriage(supabase, body.message_id, msg.ai_extracted_data, operationalTriage);
@@ -628,8 +644,25 @@ Deno.serve(async (req) => {
       mediaCorrente,
     };
 
+    // Scelta del cantiere (18/10/2026): «Altro cantiere» mostra l'elenco;
+    // toccare un cantiere dell'elenco conferma l'azione su quel cantiere.
+    const inAttesa = statoSessione.conferma && !statoSessione.conferma.proposta_id ? statoSessione.conferma : null;
+    const sceltaDelCantiere = rispostaCantiere(inAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
+    if (inAttesa && sceltaDelCantiere?.tipo === "altro") {
+      const conElenco = { ...inAttesa, lista_mostrata: true };
+      await sessionState.save({ conferma: conElenco });
+      await sendInteractiveReply(msg, elencoCantieri(conElenco, "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.") as unknown as Record<string, unknown>);
+      return markDone(supabase, msg.id, "processed");
+    }
+    const cantiereScelto = sceltaDelCantiere?.tipo === "cantiere" ? sceltaDelCantiere.order_id : null;
+    if (inAttesa && !cantiereScelto && userJustConfirmed && inAttesa.cantieri?.length && !inAttesa.parametri?.order_id
+      && AZIONI_CON_CANTIERE.has(inAttesa.azione ?? "")) {
+      await sendInteractiveReply(msg, elencoCantieri(inAttesa, "Prima dimmi su quale cantiere: scegli dall'elenco.") as unknown as Record<string, unknown>);
+      return markDone(supabase, msg.id, "processed");
+    }
+
     // Approval executes the stored payload directly, never a second model reconstruction.
-    if (userJustConfirmed && statoSessione.conferma && !statoSessione.conferma.proposta_id) {
+    if ((userJustConfirmed || cantiereScelto) && statoSessione.conferma && !statoSessione.conferma.proposta_id) {
       const pending = statoSessione.conferma;
       const tool = pending.azione && nomiBot.has(pending.azione) ? findTool(pending.azione) : undefined;
       if (!tool || !confermaValePer(pending, tool.name, true) || !await frozenConfirmationValid(pending)) {
@@ -637,13 +670,25 @@ Deno.serve(async (req) => {
         await sendReply(msg, "La conferma non è più valida. Riformula la richiesta: ti mostrerò i dati esatti prima di procedere.");
         return markDone(supabase, msg.id, "processed");
       }
-      validateToolArguments(tool.parameters, pending.parametri);
-      if (pending.parametri?.order_id) await requireSiteAccess(toolCtx, String(pending.parametri.order_id));
+      // Il cantiere scelto viene dall'elenco congelato nella conferma, mai dal testo libero.
+      const parametri = cantiereScelto ? { ...pending.parametri!, order_id: cantiereScelto } : pending.parametri!;
+      validateToolArguments(tool.parameters, parametri);
+      if (parametri.order_id) await requireSiteAccess(toolCtx, String(parametri.order_id));
       if (!await sessionState.consume()) throw new Error("confirmation_already_consumed");
       const result = await runWhatsAppTool(supabase, msg.company_id, `approval:${pending.id}`, tool.name,
-        pending.parametri, () => tool.handler({ ...toolCtx, mediaCorrente: pending.media ?? undefined }, pending.parametri!));
+        parametri, () => tool.handler({ ...toolCtx, mediaCorrente: pending.media ?? undefined }, parametri));
       await logToolCall(supabase, { company_id: msg.company_id, wa_message_id: msg.id, tool_name: tool.name,
-        role_kind: identity.kind, args: pending.parametri!, result, duration_ms: 0, model_used: "confirmed_payload" });
+        role_kind: identity.kind, args: parametri, result, duration_ms: 0, model_used: "confirmed_payload" });
+      // L'esito resta per il passo dopo (18/10/2026): dopo «salva la bozza» →
+      // «mandami il PDF» serve il quote_id; dopo il progetto bagno servono
+      // progetto e revisione. Prima l'assistente non li ritrovava più.
+      if (result.ok && result.data && typeof result.data === "object") {
+        const esito = JSON.stringify(result.data).slice(0, 1500);
+        const extra = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data : {};
+        await supabase.from("whatsapp_messages").update({
+          ai_extracted_data: { ...extra, testo_per_assistente: `${testoDellaRisposta || "Sì"}\n[Esito confermato di ${tool.name}: ${esito}]` },
+        }).eq("id", msg.id);
+      }
       await sendReply(msg, result.user_message || (result.ok ? "Operazione completata." : "Operazione non completata. Verifica dall’app prima di riprovare."));
       return markDone(supabase, msg.id, result.ok ? "processed" : "failed", result.ok ? undefined : result.error);
     }
@@ -833,7 +878,7 @@ Deno.serve(async (req) => {
               const input = blockedCandidates.get(action) ?? args.parametri;
               validateToolArguments(target.parameters, input);
               const frozen = await freezeConfirmation(toolCtx, action, input as Record<string, unknown>, msg.id);
-              result = { ok: true, data: { __interactive: frozen.interactive, __pending: frozen.pending }, user_message: "" };
+              result = { ok: true, data: { __interactive: frozen.interactive, __pending: frozen.pending, __preambolo: frozen.preambolo ?? [] }, user_message: "" };
             } else {
               const mutates = tool.requires_grants.some(g => g.endsWith(".write")) || tool.name === "imposta_cantiere_corrente";
               result = mutates ? await runWhatsAppTool(supabase, msg.company_id,
@@ -883,7 +928,7 @@ Deno.serve(async (req) => {
       // scelta dell'utente tornerà come prossimo messaggio inbound (il parser
       // mappa button_reply/list_reply.title → content_text).
       const risultatoInterattivo = results
-        .map((r) => r.result as { ok?: boolean; data?: { __interactive?: unknown; __pending?: ConfermaAttesa; azione?: string | null } })
+        .map((r) => r.result as { ok?: boolean; data?: { __interactive?: unknown; __pending?: ConfermaAttesa; __preambolo?: string[]; azione?: string | null } })
         .find((res) => res && res.ok === true && !!res.data?.__interactive);
       const interactivePayload = risultatoInterattivo?.data?.__interactive;
       if (interactivePayload) {
@@ -891,6 +936,7 @@ Deno.serve(async (req) => {
         confermaDopo = risultatoInterattivo?.data?.__pending ?? null;
         await sessionState.save({ conferma: confermaDopo, domini: ponte ? [...ponte.domini] : undefined });
         confermaDopo = undefined;
+        await inviaPreambolo(msg, risultatoInterattivo?.data?.__preambolo);
         await sendInteractiveReply(msg, interactivePayload as Record<string, unknown>);
         replyHandled = true;
         break;
@@ -935,6 +981,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Conferma chiesta a parole (18/10/2026): il modello ha preparato l'azione
+    // ma ha scritto «Confermi?» invece di mandare i bottoni, e al «sì» non
+    // c'era niente da eseguire. Si congela qui l'ultima azione bloccata e
+    // partono i bottoni con il riepilogo, come se l'avesse chiesto lui.
+    if (!replyHandled && proposteDelGiro.length === 0 && blockedCandidates.size > 0
+      && (!finalText || /conferm|procedo|registro|lo salvo|va bene\?/i.test(finalText))) {
+      const [nome, argomenti] = [...blockedCandidates.entries()].at(-1)!;
+      const strumento = nomiBot.has(nome) ? findTool(nome) : undefined;
+      try {
+        if (!strumento) throw new Error("tool_not_found");
+        validateToolArguments(strumento.parameters, argomenti);
+        const frozen = await freezeConfirmation(toolCtx, nome, argomenti, msg.id);
+        await sessionState.save({ conferma: frozen.pending, domini: ponte ? [...ponte.domini] : undefined });
+        await inviaPreambolo(msg, frozen.preambolo);
+        await sendInteractiveReply(msg, frozen.interactive as unknown as Record<string, unknown>);
+        return markDone(supabase, body.message_id, "processed");
+      } catch (e) {
+        // Il motivo scritto per l'utente (cantiere mancante, chi ha pagato…) vale più di un «Confermi?» senza bottoni.
+        if (e instanceof ConfirmationReviewError) finalText = e.message;
+      }
+    }
+
     if (!finalText) finalText = STR.operaio.max_iterations;
 
     // 🛡️ Sanitize: strip tool names ("send_attendance ritorna..."), opener
@@ -967,6 +1035,11 @@ Deno.serve(async (req) => {
       await sessionState.save({ conferma: confermaDopo, domini: ponte ? [...ponte.domini] : undefined });
     }
 
+    // WhatsApp rifiuta oltre 4096 caratteri: un testo più lungo non arriverebbe mai.
+    if (finalText.length > 3500) {
+      const taglio = finalText.lastIndexOf("\n", 3400);
+      finalText = `${finalText.slice(0, taglio > 2000 ? taglio : 3400).trimEnd()}\n\n…il resto lo trovi nell'app.`;
+    }
     if (!replyHandled) await sendReply(msg, finalText);
 
     return markDone(supabase, body.message_id, "processed");
@@ -1006,8 +1079,11 @@ Deno.serve(async (req) => {
         error: errorMsg,
       }),
     );
+    // Credito AI finito o chiave rifiutata (18/10/2026): non è un «riprova tra un
+    // momento». Il router ha già avvisato il titolare (allarme credito AI).
+    const aiFerma = /provider_credits_exhausted|insufficient[_ ]credits|\b402\b|credito|quota|api[_ ]key|unauthori[sz]ed|\b401\b/i.test(errorMsg);
     try {
-      await sendReply(msg, STR.shared.generic_error);
+      await sendReply(msg, aiFerma ? STR.shared.ai_ferma : STR.shared.generic_error);
     } catch {
       // nada
     }
@@ -1103,29 +1179,16 @@ interface MsgForSend {
 async function createUnknownWorkerTicket(
   supabase: SupabaseClient,
   msg: MsgForSend,
-): Promise<void> {
-  try {
-    await supabase.from("support_tickets").insert({
-      company_id: msg.company_id,
-      titolo: "WhatsApp operativo: numero non riconosciuto",
-      descrizione: [
-        `Numero: ${msg.from_phone}`,
-        `Tipo messaggio: ${msg.message_type ?? "sconosciuto"}`,
-        msg.content_text ? `Messaggio: ${msg.content_text}` : null,
-      ].filter(Boolean).join("\n"),
-      categoria: "whatsapp_operativo",
-      source: "whatsapp_operativo",
-      stato: "aperto",
-      urgenza: "media",
-      channel_msg_id: msg.id ?? null,
-    });
-  } catch (e) {
-    console.error(JSON.stringify({
-      level: "warn",
-      fn: "createUnknownWorkerTicket",
-      error: String(e),
-    }));
-  }
+): Promise<boolean> {
+  return await ticketPerUfficio(supabase, {
+    companyId: msg.company_id, telefono: msg.from_phone, fonte: "api",
+    titolo: "Numero WhatsApp non riconosciuto",
+    descrizione: [
+      "Un numero che non è in anagrafica ha scritto al numero del bot operativo. Se è un operaio, aggiungi il telefono nella sua scheda dipendente.",
+      `Tipo messaggio: ${msg.message_type ?? "sconosciuto"}`,
+      msg.content_text ? `Messaggio: ${msg.content_text}` : null,
+    ].filter(Boolean).join("\n"),
+  });
 }
 
 /**
@@ -1250,6 +1313,14 @@ async function forwardToSilvio(msg: MsgForSend, testo: string): Promise<boolean>
     );
     // La richiesta può essere già accodata: non riavviarla col secondo agente.
     throw e;
+  }
+}
+
+/** L'elenco completo prima dei bottoni (preventivi lunghi): un messaggio per pezzo, ognuno con la sua chiave. */
+async function inviaPreambolo(msg: MsgForSend, pezzi: string[] | undefined): Promise<void> {
+  for (const [i, testo] of (pezzi ?? []).entries()) {
+    await deliverWhatsAppReply({ wa_number_id: msg.wa_number_id, company_id: msg.company_id, to: msg.from_phone, text: testo,
+      ...(msg.id ? { idempotency_key: `reply:${msg.id}:elenco:${i}` } : {}) });
   }
 }
 

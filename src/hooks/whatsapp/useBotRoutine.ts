@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type BotRoutineTipo = "report_mattino" | "todo_operaio" | "avviso" | "promemoria_appuntamento";
+export type BotRoutineTipo = "report_mattino" | "todo_operaio" | "avviso" | "promemoria_appuntamento" | "rapportino_sera";
 
 export interface BotRoutineDestinatari {
   utenti?: string[];
@@ -21,6 +21,10 @@ export interface BotRoutineRegole {
   anticipo_min?: number;
   /** L'AqI scrive il testo (più curato). Assente = attivo. */
   ai?: boolean;
+  /** Rapportino della sera: l'elenco di chi manca ai destinatari. Assente = sì. */
+  riepilogo_titolare?: boolean;
+  /** Prova su pochi operai: solo questi numeri ricevono i messaggi. */
+  solo_telefoni?: string[];
 }
 
 export interface BotRoutine {

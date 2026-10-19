@@ -16,6 +16,7 @@
 
 import type { ToolCtx } from "./types.ts";
 import { assignedSiteIds } from "./siteAccess.ts";
+import { commessaAperta, commesseAperte } from "./cantieriAperti.ts";
 
 /** Segnali estratti dal documento per auto-puntare il cantiere (P0-B). */
 export interface ResolveCantiereSignals {
@@ -58,14 +59,6 @@ interface PoRow {
   status: string | null;
 }
 
-const ACTIVE_STATUSES = [
-  "in_produzione",
-  "in_corso",
-  "attivo",
-  "aperto",
-  "in_lavorazione",
-];
-
 // Stati ODA considerati "chiusi" (non utili per inferire la commessa attiva).
 const PO_STATI_CHIUSI = new Set([
   "closed",
@@ -74,6 +67,9 @@ const PO_STATI_CHIUSI = new Set([
   "chiuso",
   "completed",
   "completato",
+  // Gli stati veri degli ordini ai fornitori: un ordine già ricevuto non dice
+  // più dove va la merce nuova.
+  "ricevuto",
 ]);
 
 // Parole funzionali dell'indirizzo da ignorare nel confronto a token.
@@ -125,28 +121,18 @@ async function loadCantiereById(ctx: ToolCtx, orderId: string, assigned: Set<str
   if (assigned && !assigned.has(orderId)) return null;
   const { data: c } = await ctx.supabase
     .from("orders")
-    .select("id, description, order_code")
+    .select("id, description, order_code, status")
     .eq("id", orderId)
     .eq("company_id", ctx.company_id)
+    .is("deleted_at", null)
     .maybeSingle();
-  if (!c) return null;
+  if (!c || !commessaAperta(c.status)) return null;
   return { cantiere_id: c.id, cantiere_nome: cantiereNome(c), ask_user: null, source: "oda" };
 }
 
-async function loadActiveCantieri(ctx: ToolCtx, assigned: Set<string> | null): Promise<OrderRow[]> {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
-  const { data: cantieri } = await ctx.supabase
-    .from("orders")
-    .select("id, description, order_code, indirizzo_lavori, status, work_start_date, work_end_date")
-    .eq("company_id", ctx.company_id)
-    .in("status", ACTIVE_STATUSES)
-    .limit(50);
-  return ((cantieri ?? []) as OrderRow[]).filter((c) => {
-    if (assigned && !assigned.has(c.id)) return false;
-    const startOk = !c.work_start_date || c.work_start_date <= today;
-    const endOk = !c.work_end_date || c.work_end_date >= today;
-    return startOk && endOk;
-  });
+/** Le commesse aperte della persona (stesse regole dell'elenco cantieri del bot). */
+async function loadActiveCantieri(ctx: ToolCtx, _assigned: Set<string> | null): Promise<OrderRow[]> {
+  return await commesseAperte(ctx) as OrderRow[];
 }
 
 export async function resolveCantiere(
@@ -260,11 +246,12 @@ export async function resolveCantiere(
       if (hoursSince >= 0 && hoursSince < 4) {
         const { data: c } = await ctx.supabase
           .from("orders")
-          .select("id, description, order_code")
+          .select("id, description, order_code, status")
           .eq("id", sess.current_cantiere_id)
           .eq("company_id", ctx.company_id)
+          .is("deleted_at", null)
           .maybeSingle();
-        if (c && (!assigned || assigned.has(c.id))) {
+        if (c && commessaAperta(c.status) && (!assigned || assigned.has(c.id))) {
           return {
             cantiere_id: c.id,
             cantiere_nome: cantiereNome(c),

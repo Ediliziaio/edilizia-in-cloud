@@ -1,5 +1,5 @@
-// MP02 — Approvazione richiesta (stub safe MP02 — opera su cantiere_segnalazioni).
-// MP3 estenderà a preventivi/ordini/ferie con audit log dedicato.
+// Chiudere una segnalazione dal cantiere (19/10/2026): è un ticket con fonte
+// «campo». «Approvata» = risolta, «rifiutata» = chiusa senza intervento.
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
@@ -35,40 +35,38 @@ export async function approvaRichiesta(
   args: Args,
 ): Promise<ToolResult> {
   const { data: seg } = await ctx.supabase
-    .from("cantiere_segnalazioni")
-    .select("id, stato, descrizione, urgenza")
+    .from("tickets")
+    .select("id, status, subject")
     .eq("id", args.richiesta_id)
     .eq("company_id", ctx.company_id)
+    .eq("fonte", "campo")
     .maybeSingle();
 
   if (!seg) {
-    return errResult("not_found", "Richiesta non trovata.");
+    return errResult("not_found", "Non trovo questa segnalazione: chiedimi l'elenco di quelle aperte.");
   }
 
-  // Idempotenza: se già risolta/archiviata ritorna stato
-  if (seg.stato === "risolta" || seg.stato === "archiviata") {
+  // Idempotenza: se è già chiusa lo dice.
+  if (["risolto", "chiuso", "annullato"].includes(String(seg.status))) {
     return okResult(
-      { id: seg.id, stato_corrente: seg.stato },
-      `Questa richiesta è già ${seg.stato}. Nessuna azione eseguita.`,
+      { id: seg.id, stato_corrente: seg.status },
+      `Questa segnalazione è già ${seg.status}. Nessuna azione eseguita.`,
     );
   }
 
-  const nuovoStato = args.esito === "approvata" ? "risolta" : "archiviata";
+  const nuovoStato = args.esito === "approvata" ? "risolto" : "chiuso";
 
   const { error } = await ctx.supabase
-    .from("cantiere_segnalazioni")
-    .update({
-      stato: nuovoStato,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", args.richiesta_id);
+    .from("tickets")
+    .update({ status: nuovoStato, updated_at: new Date().toISOString() })
+    .eq("id", args.richiesta_id)
+    .eq("company_id", ctx.company_id);
 
-  if (error) return errResult(error.message, "Errore aggiornando la richiesta.");
+  if (error) return errResult("aggiornamento_fallito", "Non sono riuscito ad aggiornare la segnalazione: riprova dall'app.");
 
-  const verb = args.esito === "approvata" ? "approvata" : "rifiutata";
   const icon = args.esito === "approvata" ? "✅" : "❌";
   return okResult(
     { id: args.richiesta_id, esito: args.esito, stato: nuovoStato },
-    `${icon} Richiesta ${verb}. Stato: ${nuovoStato}.`,
+    `${icon} Segnalazione ${nuovoStato === "risolto" ? "risolta" : "chiusa"}.`,
   );
 }

@@ -4,7 +4,7 @@
 // senza toccare il codice. Niente termini tecnici in schermata.
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bell, CalendarClock, ListChecks, Loader2, Plus, Sun, Trash2 } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, ClipboardCheck, ListChecks, Loader2, Plus, Sun, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,19 +34,22 @@ import {
   type BotRoutineRegole,
   type BotRoutineTipo,
 } from "@/hooks/whatsapp/useBotRoutine";
+import { useWAMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 
 const TIPO_LABEL: Record<BotRoutineTipo, string> = {
   report_mattino: "Report del mattino",
   todo_operaio: "Le cose del giorno agli operai",
   avviso: "Avvisi",
   promemoria_appuntamento: "Promemoria appuntamenti",
+  rapportino_sera: "Rapportino della sera",
 };
 
 const TIPO_DESC: Record<BotRoutineTipo, string> = {
-  report_mattino: "Ogni mattina un riepilogo: commesse attive, incassi da fare, materiale sotto scorta.",
+  report_mattino: "Ogni mattina un riepilogo: commesse attive, incassi da fare, materiale sotto scorta. Le persone scelte qui ricevono anche il brief di Silvio nella chat dell'app: spenta questa automazione, il brief non parte.",
   todo_operaio: "Ogni operaio riceve la lista dei suoi cantieri del giorno, con indirizzo e con chi lavora.",
   avviso: "Ti segnala incassi in ritardo, preventivi visti ma senza risposta e materiale sotto scorta.",
   promemoria_appuntamento: "Un promemoria poco prima di ogni appuntamento, a chi è assegnato.",
+  rapportino_sera: "All'ora scelta scrive a chi oggi era in cantiere e non ha mandato il rapportino; a te l'elenco di chi manca.",
 };
 
 const TIPO_ICON: Record<BotRoutineTipo, typeof Sun> = {
@@ -54,6 +57,7 @@ const TIPO_ICON: Record<BotRoutineTipo, typeof Sun> = {
   todo_operaio: ListChecks,
   avviso: Bell,
   promemoria_appuntamento: CalendarClock,
+  rapportino_sera: ClipboardCheck,
 };
 
 const TEMPLATE_DEFAULT: Record<BotRoutineTipo, string | null> = {
@@ -61,6 +65,7 @@ const TEMPLATE_DEFAULT: Record<BotRoutineTipo, string | null> = {
   todo_operaio: "todo_operaio_giorno",
   avviso: null,
   promemoria_appuntamento: null,
+  rapportino_sera: "promemoria_rapportino_sera",
 };
 
 const GIORNI = [
@@ -107,6 +112,11 @@ function riassuntoQuando(r: BotRoutine): string {
 
 function riassuntoChi(r: BotRoutine, nomePersona: (id: string) => string): string {
   if (r.tipo === "todo_operaio") return "a ogni operaio con lavori quel giorno";
+  if (r.tipo === "rapportino_sera") {
+    const { scelta, personaId } = destToScelta(r.destinatari, null);
+    const riepilogo = scelta === "responsabili" ? "ai responsabili" : scelta === "persona" && personaId ? `a ${nomePersona(personaId)}` : "a te";
+    return `a chi non l'ha mandato; l'elenco ${riepilogo}`;
+  }
   const { scelta, personaId } = destToScelta(r.destinatari, null);
   if (scelta === "responsabili") return "ai responsabili";
   if (scelta === "persona" && personaId) return `a ${nomePersona(personaId)}`;
@@ -120,6 +130,8 @@ export default function AutomazioniBotPage() {
   const numbers = useWhatsAppNumbersByPurpose();
   const operativo = (numbers.byPurpose.bot_operativo ?? [])[0];
   const { data: routines, isLoading, isError, error } = useBotRoutine(companyId);
+  // I modelli Meta approvati: fuori dalle 24 ore il bot può scrivere solo con quelli.
+  const { data: modelli, isSuccess: modelliLetti } = useWAMetaTemplates(operativo?.id);
   const { data: staff = [] } = useCompanyStaffUsers(companyId, "all");
   const toggle = useToggleBotRoutine(companyId);
   const elimina = useEliminaBotRoutine(companyId);
@@ -205,6 +217,11 @@ export default function AutomazioniBotPage() {
                         <p className="text-xs text-foreground mt-2">
                           {riassuntoChi(r, nomePersona)} · {riassuntoQuando(r)}
                         </p>
+                        {modelliLetti && r.template_nome && !(modelli ?? []).some((m) => m.template_name === r.template_nome) && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                            Manca il modello Meta «{r.template_nome}» approvato: arriva solo a chi ha scritto al bot nelle ultime 24 ore.
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -301,7 +318,8 @@ function EditorAutomazione({
           }
         : tipo === "promemoria_appuntamento"
           ? { anticipo_min: regole.anticipo_min ?? 120 }
-          : { ai };
+          // Le altre regole della routine (es. i numeri ammessi di una prova) restano.
+          : { ...regole, ai };
 
     salva.mutate(
       {
@@ -358,7 +376,7 @@ function EditorAutomazione({
 
           {mostraChi && (
             <div className="space-y-1">
-              <Label>A chi</Label>
+              <Label>{tipo === "rapportino_sera" ? "L'elenco di chi manca a" : "A chi"}</Label>
               <Select value={scelta} onValueChange={(v) => setScelta(v as ScelaChi)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -367,6 +385,11 @@ function EditorAutomazione({
                   <SelectItem value="persona">A una persona</SelectItem>
                 </SelectContent>
               </Select>
+              {tipo === "rapportino_sera" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Il promemoria va a ogni operaio che oggi era in cantiere e non ha mandato il rapportino (anche senza account, se ha il telefono in anagrafica).
+                </p>
+              )}
               {tipo === "promemoria_appuntamento" && (
                 <p className="text-[11px] text-muted-foreground">
                   Se l'appuntamento ha un assegnatario, il promemoria va prima a lui.

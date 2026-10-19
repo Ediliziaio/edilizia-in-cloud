@@ -197,10 +197,18 @@ REGOLE:
 - "code": codice articolo/fornitore se presente, altrimenti null.
 - "barcode": codice a barre/EAN se presente, altrimenti null.
 - "ddt_date": formato ISO "YYYY-MM-DD".
+- "document_type": "ddt" per bolla/documento di trasporto, "scontrino" per scontrino o ricevuta di cassa, "fattura" per fattura, altrimenti "altro".
+- "total_amount": totale del documento in euro come numero, null se non c'è (le bolle spesso non hanno prezzi).
+- "delivery_address": indirizzo di consegna o destinazione merce, null se assente.
+- "order_reference": numero d'ordine citato (es. «Rif. Vs ordine 2025/128»), null se assente.
 - Includi UNA riga per ogni articolo elencato nel documento. Ignora righe di intestazione, totali, note di trasporto.
 
 OUTPUT JSON ESATTO (no markdown):
 {
+  "document_type": "ddt" | "scontrino" | "fattura" | "altro",
+  "total_amount": "number | null",
+  "delivery_address": "string | null",
+  "order_reference": "string | null",
   "supplier_name": "string | null",
   "supplier_vat": "string | null (P.IVA fornitore)",
   "ddt_number": "string | null",
@@ -298,6 +306,11 @@ export async function leggiDocumentoOperativo(
 ): Promise<string> {
   const mime = (opts.mime || "").toLowerCase();
   const isPdf = mime.includes("pdf") || opts.storagePath.toLowerCase().endsWith(".pdf");
+  // Solo foto e PDF si leggono (18/10/2026): un Word o un Excel mandato come
+  // immagine all'AI falliva sempre e si sprecava una chiamata.
+  if (!isPdf && !mime.startsWith("image/")) {
+    return `[Documento ricevuto in un formato che non so leggere (${mime || "sconosciuto"}): mandalo come PDF o come foto]`;
+  }
   if (!isPdf) {
     return leggiFotoOperativa(supabase, {
       storagePath: opts.storagePath,
@@ -322,8 +335,9 @@ export async function leggiDocumentoOperativo(
         max_chars: 8000,
       }),
     });
-    const j = await res.json().catch(() => null) as { text?: string } | null;
-    testo = (j?.text ?? "").trim();
+    const j = await res.json().catch(() => null) as { text?: string; error?: string } | null;
+    if (!res.ok) console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", status: res.status, error: j?.error ?? null }));
+    testo = res.ok ? (j?.text ?? "").trim() : "";
   } catch (e) {
     console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", error: String(e) }));
   }

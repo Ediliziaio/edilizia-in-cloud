@@ -27,6 +27,7 @@ export const registraPresenzaDef: Omit<ToolDef, "handler"> = {
       },
       ora: { type: "string", description: "HH:MM (default ora corrente)" },
       data_evento: { type: "string", description: "YYYY-MM-DD, congelata nella conferma." },
+      order_id: { type: "string", description: "Cantiere dell'entrata, proposto nella conferma." },
       lat: { type: "number" },
       lng: { type: "number" },
       note: { type: "string" },
@@ -42,6 +43,7 @@ interface Args {
   tipo: "entrata" | "uscita" | "inizio_pausa" | "fine_pausa";
   ora?: string;
   data_evento?: string;
+  order_id?: string;
   lat?: number;
   lng?: number;
   note?: string;
@@ -74,7 +76,7 @@ export async function registraPresenza(
   ctx: ToolCtx,
   args: Args,
 ): Promise<ToolResult<{ id: string; tipo: string }>> {
-  if (!ctx.user_id) return errResult("no_user_id", "Non riesco a identificarti.");
+  if (!ctx.user_id && !ctx.employee_id) return errResult("no_identity", "Non riesco a identificarti.");
 
   const oraCorrente = new Date().toLocaleTimeString("it-IT", {
     timeZone: "Europe/Rome",
@@ -90,11 +92,22 @@ export async function registraPresenza(
 
   // Stessa risoluzione del trigger che specchia le timbrature di cantiere:
   // profilo HR diretto, oppure via anagrafica dipendente.
-  const { data: profiloId, error: profErr } = await ctx.supabase.rpc("hr_profilo_da_user", {
-    p_user_id: ctx.user_id,
-    p_company_id: ctx.company_id,
-  });
-  if (profErr) return errResult(profErr.message, "Errore cercando il tuo profilo HR.");
+  // Senza account (18/10/2026): il profilo del personale collegato al dipendente.
+  let profiloId: string | null = null;
+  if (ctx.user_id) {
+    const { data, error: profErr } = await ctx.supabase.rpc("hr_profilo_da_user", {
+      p_user_id: ctx.user_id,
+      p_company_id: ctx.company_id,
+    });
+    if (profErr) return errResult(profErr.message, "Errore cercando il tuo profilo HR.");
+    profiloId = (data as string | null) ?? null;
+  } else {
+    const { data, error: profErr } = await ctx.supabase.from("hr_profili").select("id, attivo")
+      .eq("company_id", ctx.company_id).eq("employee_id", ctx.employee_id);
+    if (profErr) return errResult(profErr.message, "Errore cercando il tuo profilo HR.");
+    const righe = (data ?? []) as Array<{ id: string; attivo: boolean | null }>;
+    profiloId = (righe.find((r) => r.attivo !== false) ?? righe[0])?.id ?? null;
+  }
   if (!profiloId) {
     return errResult(
       "no_hr_profilo",
@@ -109,6 +122,7 @@ export async function registraPresenza(
       profilo_id: profiloId,
       tipo: TIPO_DB[args.tipo],
       timestamp: istanteItaliano(ora, args.data_evento),
+      order_id: args.order_id ?? null,
       lat: args.lat ?? null,
       lng: args.lng ?? null,
       fonte: "app",
@@ -119,8 +133,15 @@ export async function registraPresenza(
 
   if (error) return errResult(error.message, "Errore registrando la presenza.");
 
+  let dove = "";
+  if (args.order_id) {
+    const { data: o } = await ctx.supabase.from("orders").select("order_code, description")
+      .eq("company_id", ctx.company_id).eq("id", args.order_id).maybeSingle();
+    const nome = [o?.order_code, o?.description].filter(Boolean).join(" · ");
+    if (nome) dove = ` su ${nome}`;
+  }
   return okResult(
     { id: inserted.id, tipo: args.tipo },
-    `✅ ${args.tipo.replace("_", " ")} registrata alle ${ora}.`,
+    `✅ ${args.tipo.replace("_", " ")} registrata alle ${ora}${dove}.`,
   );
 }

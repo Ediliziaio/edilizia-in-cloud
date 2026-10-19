@@ -5,6 +5,7 @@
 // registra un'USCITA in Prima Nota. Se dice il cantiere, la si aggancia.
 
 import { errResult, okResult, type ToolCtx, type ToolResult } from "../shared/types.ts";
+import { nomeDelCantiere, registraMerceDaWhatsApp } from "./merceDaWhatsApp.ts";
 
 interface Args {
   importo?: number;
@@ -13,6 +14,7 @@ interface Args {
   cantiere?: string;
   order_id?: string;
   categoria?: string;
+  pagato_da?: "operaio" | "azienda";
 }
 
 export const caricaScontrinoDef = {
@@ -30,6 +32,10 @@ export const caricaScontrinoDef = {
       cantiere: { type: "string", description: "Cantiere/commessa di destinazione, se indicato (nome o codice)" },
       order_id: { type: "string", description: "ID della commessa verificata nella conferma" },
       categoria: { type: "string", description: "Categoria di spesa (default 'Materiali cantiere')" },
+      pagato_da: {
+        type: "string", enum: ["operaio", "azienda"],
+        description: "Chi l'ha pagato: «operaio» se l'ha pagato lui (gli va rimborsato), «azienda» se carta o conto dell'azienda. Per l'operaio è obbligatorio: chiediglielo se non l'ha detto.",
+      },
     },
     required: ["importo"],
   },
@@ -55,6 +61,29 @@ export async function caricaScontrino(ctx: ToolCtx, args: Args): Promise<ToolRes
   const esercente = String(args.esercente ?? "").trim().slice(0, 120);
   const dataIso = toIso(args.data) ?? new Date().toISOString().slice(0, 10);
   const categoria = String(args.categoria ?? "").trim().slice(0, 60) || "Materiali cantiere";
+
+  // Operaio (18/10/2026): lo scontrino va in «Merce presa» come dall'app Campo:
+  // l'ufficio lo verifica e diventa costo della commessa e, se l'ha pagato lui,
+  // il suo rimborso. Ufficio e amministratore restano sulla Prima Nota.
+  if (ctx.kind === "operaio") {
+    if (!args.order_id) return errResult("site_missing", "Su quale cantiere va lo scontrino? Rimandami la foto e scegli il cantiere.");
+    if (args.pagato_da !== "operaio" && args.pagato_da !== "azienda") return errResult("pagato_da", "L'hai pagato tu (te lo rimborsano) o con la carta dell'azienda?");
+    const esito = await registraMerceDaWhatsApp(ctx, {
+      orderId: args.order_id,
+      modalita: args.pagato_da === "operaio" ? "pagato_da_me" : "conto_azienda",
+      tipo: "scontrino",
+      fornitore: esercente || null,
+      data: dataIso,
+      totale: importo,
+      righe: [],
+      note: args.categoria ? `Categoria: ${categoria}` : null,
+    });
+    if (!esito.ok) return esito;
+    const cantiere = await nomeDelCantiere(ctx, args.order_id);
+    const poi = args.pagato_da === "operaio" ? "Dopo la verifica dell'ufficio ti viene rimborsato." : "L'ufficio lo verifica e va sul conto dell'azienda.";
+    return okResult({ campo_acquisto_id: esito.data.id, importo, order_id: args.order_id },
+      `💶 Scontrino di € ${importo.toLocaleString("it-IT", { minimumFractionDigits: 2 })}${esercente ? ` da ${esercente}` : ""} messo su ${cantiere}. ${poi}`);
+  }
 
   // Aggancio commessa: prova per codice, poi per nome cliente. Se non è chiaro,
   // si registra lo stesso e si scrive il cantiere nella descrizione.

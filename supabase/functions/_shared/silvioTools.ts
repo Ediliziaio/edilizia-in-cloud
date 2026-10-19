@@ -7854,6 +7854,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_lipe_trimestrale", { p_company_id: ctx.companyId, p_year: args?.year, p_quarter: args?.quarter }),
     allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "controller", "cfo", "*"], riskLevel: "yellow", domain: "fattura",
+    // Adempimenti fiscali solo dall'app, con la pagina davanti (18/10/2026): su
+    // WhatsApp un «Sì» al telefono li avrebbe generati senza rileggerli.
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
   },
 
   genera_f24_mese: {
@@ -7861,6 +7864,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_f24_mese", { p_company_id: ctx.companyId, p_year: args?.year, p_month: args?.month }),
     allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "controller", "amministrazione"], riskLevel: "yellow", domain: "fattura",
+    // Adempimenti fiscali solo dall'app, con la pagina davanti (18/10/2026): su
+    // WhatsApp un «Sì» al telefono li avrebbe generati senza rileggerli.
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
   },
 
   genera_cu_anno: {
@@ -7868,6 +7874,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_cu_anno", { p_company_id: ctx.companyId, p_year: args?.year }),
     allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "hr", "amministrazione"], riskLevel: "yellow", domain: "fattura",
+    // Adempimenti fiscali solo dall'app, con la pagina davanti (18/10/2026): su
+    // WhatsApp un «Sì» al telefono li avrebbe generati senza rileggerli.
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
   },
 
   verifica_quadrature_contabili: {

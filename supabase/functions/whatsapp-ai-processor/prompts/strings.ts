@@ -28,6 +28,8 @@ export const STR = {
   shared: {
     generic_error:
       "Ho avuto un problema. Riprova tra un momento.",
+    ai_ferma:
+      "L'assistente è fermo per un problema del servizio AI: il titolare è già avvisato. Nel frattempo puoi fare la stessa cosa dall'app.",
     tool_unavailable:
       "Questa operazione non è disponibile per te.",
   },

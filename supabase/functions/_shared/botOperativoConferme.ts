@@ -19,6 +19,23 @@ export interface ConfermaAttesa {
   payload_hash?: string;
   source_message_id?: string;
   media?: { storagePath: string; url: string; tipo: string } | null;
+  /** Cantieri fra cui l'operaio può scegliere (18/10/2026): la scelta vale come conferma. */
+  cantieri?: CantiereDaScegliere[];
+  /** L'elenco dei cantieri è già stato mostrato: «2» vuol dire il secondo. */
+  lista_mostrata?: boolean;
+}
+
+export interface CantiereDaScegliere {
+  id: string;
+  titolo: string;
+  dettaglio: string;
+}
+
+function cantieriValidi(v: unknown): CantiereDaScegliere[] | null {
+  if (!Array.isArray(v)) return null;
+  const out = v.filter((c): c is CantiereDaScegliere => !!record(c) && typeof c.id === "string" && typeof c.titolo === "string" && typeof c.dettaglio === "string")
+    .map((c) => ({ id: c.id, titolo: c.titolo, dettaglio: c.dettaglio }));
+  return out.length === v.length ? out : null;
 }
 
 export interface StatoSessioneBot {
@@ -52,6 +69,8 @@ export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessi
       ...(typeof c.payload_hash === "string" ? { payload_hash: c.payload_hash } : {}),
       ...(typeof c.source_message_id === "string" ? { source_message_id: c.source_message_id } : {}),
       ...(record(c.media) ? { media: c.media as unknown as ConfermaAttesa["media"] } : {}),
+      ...(cantieriValidi(c.cantieri) ? { cantieri: cantieriValidi(c.cantieri)! } : {}),
+      ...(c.lista_mostrata === true ? { lista_mostrata: true } : {}),
     }
     : null;
   const a = record(s.bot_aree);
@@ -74,9 +93,22 @@ export function confermaValePer(
 
 /** Una scelta di cantiere o «ok, ma cambia ...» non è approvazione dell'azione. */
 export function rispostaAllaConferma(testo: string): "si" | "no" | null {
-  const value = testo.trim().toLowerCase().replace(/[.!?]+$/g, "").trim();
+  const value = testo.trim().toLowerCase().replace(/[.!?👍✅]+$/gu, "").trim();
   if (/^(no|annulla|annullo|non confermo|ferma|stop|lascia stare)$/.test(value)) return "no";
-  if (/^(s[ìi]|ok|okay|va bene|confermo|conferma|procedi|approvo|d'accordo|certo|esatto)$/.test(value)) return "si";
+  if (/^(s[ìi]|ok|okay|va bene|confermo|conferma|procedi|approvo|d'accordo|certo|esatto|perfetto|giusto|vai)$/.test(value)) return "si";
+  // «Sì, confermo», «ok procedi», «no, annulla» (18/10/2026): solo parole di
+  // conferma o di rifiuto, niente altro. «Ok, ma cambia le ore» resta una richiesta.
+  const parole = value.split(/[\s,;]+/).filter(Boolean);
+  const SI = new Set(["sì", "si", "ok", "okay", "va", "bene", "confermo", "conferma", "procedi", "vai", "pure", "approvo",
+    "certo", "esatto", "giusto", "perfetto", "grazie", "d'accordo", "tutto", "a", "posto",
+    // «sì, fallo», «sì salvalo», «ok mandalo»: il verbo di ciò che si sta confermando.
+    "fallo", "falla", "salvalo", "salvala", "salva", "mandalo", "mandala", "manda", "invialo", "inviala", "registralo",
+    "registrala", "registra", "generalo", "generala", "caricalo", "caricala", "procediamo", "andiamo"]);
+  const NO = new Set(["no", "annulla", "annullo", "non", "confermo", "ferma", "stop", "lascia", "stare", "grazie", "niente"]);
+  if (parole.length >= 2 && parole.length <= 5) {
+    if (parole[0] === "no" && parole.every((w) => NO.has(w))) return "no";
+    if (["sì", "si", "ok", "okay", "confermo", "procedi", "vai", "certo", "perfetto"].includes(parole[0]) && parole.every((w) => SI.has(w))) return "si";
+  }
   return null;
 }
 

@@ -146,37 +146,57 @@ export async function statoConsegna(admin: SupabaseClient, companyId: string, ct
   if (!ctx.suffix) {
     return { risposta: "Per controllare lo stato mi serve il numero di telefono con cui è registrato il lavoro. Può confermarmelo?" };
   }
+  // Fino a tre lavori aperti (18/10/2026): prima si leggeva solo l'ultimo, e
+  // chi aveva due lavori sentiva parlare solo di uno.
   const { data: ordini } = await admin
     .from("orders")
-    .select("order_code, tipo_lavoro, status, percentuale_avanzamento, expected_date, warehouse_arrival_date, work_start_date")
+    .select("id, order_code, tipo_lavoro, status, percentuale_avanzamento, expected_date, warehouse_arrival_date, work_start_date")
     .eq("company_id", companyId)
     .is("deleted_at", null)
     .not("status", "in", '("completato","annullato")')
     .ilike("client_phone", `%${ctx.suffix}%`)
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(3);
 
-  const o = ordini?.[0];
-  if (!o) {
+  const elenco = (ordini ?? []) as Array<Record<string, unknown>>;
+  if (elenco.length === 0) {
     return { risposta: "Con questo numero non trovo lavori in corso. Se il lavoro è intestato a un altro numero o a un familiare, posso comunque prendere nota e farla richiamare dall'ufficio." };
   }
 
-  const lavoro = o.tipo_lavoro ? String(o.tipo_lavoro).replace(/_/g, " ") : "il lavoro";
-  const pezzi: string[] = [`Per ${lavoro}, pratica ${o.order_code}:`];
-  if (o.warehouse_arrival_date) {
-    const arrivata = new Date(o.warehouse_arrival_date as string) <= new Date();
-    pezzi.push(arrivata
-      ? `la merce è arrivata in magazzino ${dataParlata(o.warehouse_arrival_date as string)}.`
-      : `l'arrivo della merce in magazzino è previsto ${dataParlata(o.warehouse_arrival_date as string)}.`);
-  } else {
-    pezzi.push("la merce è in ordine dal fornitore, non abbiamo ancora una data di arrivo confermata.");
+  const parti: string[] = [];
+  for (const o of elenco) {
+    const lavoro = o.tipo_lavoro ? String(o.tipo_lavoro).replace(/_/g, " ") : "il lavoro";
+    const pezzi: string[] = [`Per ${lavoro}, pratica ${o.order_code}:`];
+    // Le fasi del cantiere: quante sono fatte e qual è la prossima. Solo i nomi, mai importi.
+    const { data: fasi } = await admin.from("order_work_phases").select("name, status, position")
+      .eq("company_id", companyId).eq("order_id", o.id as string).order("position", { ascending: true });
+    const tutte = (fasi ?? []) as Array<{ name: string; status: string | null }>;
+    if (tutte.length > 0) {
+      const fatte = tutte.filter((f) => f.status === "completata");
+      const prossima = tutte.find((f) => f.status !== "completata");
+      pezzi.push(`${fatte.length} fasi su ${tutte.length} sono completate${fatte.length ? ` (l'ultima: ${fatte[fatte.length - 1].name})` : ""}.`);
+      if (prossima) pezzi.push(`${prossima.status === "in_corso" ? "Adesso stiamo lavorando a" : "La prossima fase è"}: ${prossima.name}.`);
+    } else if (o.warehouse_arrival_date) {
+      const arrivata = new Date(o.warehouse_arrival_date as string) <= new Date();
+      pezzi.push(arrivata
+        ? `la merce è arrivata in magazzino ${dataParlata(o.warehouse_arrival_date as string)}.`
+        : `l'arrivo della merce in magazzino è previsto ${dataParlata(o.warehouse_arrival_date as string)}.`);
+    } else {
+      pezzi.push("la merce è in ordine dal fornitore, non abbiamo ancora una data di arrivo confermata.");
+    }
+    if (o.percentuale_avanzamento != null && Number(o.percentuale_avanzamento) > 0) {
+      pezzi.push(`I lavori sono avanti al ${o.percentuale_avanzamento} per cento.`);
+    }
+    const { data: app } = await admin.from("appointments").select("title, appointment_date, status")
+      .eq("company_id", companyId).eq("order_id", o.id as string)
+      .gte("appointment_date", new Date().toISOString()).not("status", "in", '("cancelled","annullato","cancellato")')
+      .order("appointment_date", { ascending: true }).limit(1).maybeSingle();
+    if (app?.appointment_date) pezzi.push(`Il prossimo appuntamento è ${dataParlata(String(app.appointment_date))}.`);
+    if (o.expected_date) pezzi.push(`La fine prevista è ${dataParlata(o.expected_date as string)}.`);
+    parti.push(pezzi.join(" "));
   }
-  if (o.percentuale_avanzamento != null && Number(o.percentuale_avanzamento) > 0) {
-    pezzi.push(`I lavori sono avanti al ${o.percentuale_avanzamento} per cento.`);
-  }
-  if (o.expected_date) pezzi.push(`La fine prevista è ${dataParlata(o.expected_date as string)}.`);
-  pezzi.push("Se le serve una data più precisa, posso far richiamare dall'ufficio.");
-  return { risposta: pezzi.join(" ") };
+  parti.push("Se le serve una data più precisa, posso far richiamare dall'ufficio.");
+  return { risposta: parti.join("\n\n") };
 }
 
 export async function creaTicketAssistenza(
@@ -466,7 +486,7 @@ export async function infoProdotto(admin: SupabaseClient, companyId: string, par
   if (!famiglie?.length) {
     return { risposta: `Al momento non trovo "${ricerca}" nel nostro catalogo, ma potremmo comunque procurarlo: vuole che la faccia richiamare da un tecnico per un preventivo?` };
   }
-  const nomi = famiglie.map((f) => f.nome).join(", ");
+  const nomi = famiglie.map((f: { nome: string }) => f.nome).join(", ");
   return {
     risposta: famiglie.length === 1
       ? `Sì, trattiamo ${nomi}. Il prezzo dipende da misure e configurazione: se vuole le fisso un sopralluogo o le faccio preparare un preventivo. Come preferisce?`

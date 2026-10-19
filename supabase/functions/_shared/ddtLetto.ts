@@ -24,6 +24,12 @@ export interface DdtLetto {
   data: string | null;
   righe: RigaDdtLetta[];
   affidabilita: "alta" | "media" | "bassa" | null;
+  /** Che documento è (18/10/2026): decide se è merce da cantiere o una spesa. */
+  tipo: "ddt" | "scontrino" | "fattura" | "altro" | null;
+  totale: number | null;
+  /** Indirizzo di consegna e ordine citato: servono a capire il cantiere. */
+  indirizzoConsegna: string | null;
+  riferimentoOrdine: string | null;
 }
 
 const PAROLE_DDT = /\b(ddt|bolla|bolle|bollettino|documento di trasporto|consegna|scarico|merce|materiale arrivato)\b/i;
@@ -66,6 +72,7 @@ export function normalizzaDdtLetto(grezzo: unknown): DdtLetto {
     });
   }
   const aff = testoONull(o.confidenza_estrazione)?.toLowerCase();
+  const tipo = testoONull(o.document_type)?.toLowerCase();
   return {
     fornitore: testoONull(o.supplier_name),
     partitaIva: testoONull(o.supplier_vat),
@@ -73,6 +80,10 @@ export function normalizzaDdtLetto(grezzo: unknown): DdtLetto {
     data: testoONull(o.ddt_date),
     righe,
     affidabilita: aff === "alta" || aff === "media" || aff === "bassa" ? aff : null,
+    tipo: tipo === "ddt" || tipo === "scontrino" || tipo === "fattura" || tipo === "altro" ? tipo : null,
+    totale: numeroONull(o.total_amount),
+    indirizzoConsegna: testoONull(o.delivery_address),
+    riferimentoOrdine: testoONull(o.order_reference),
   };
 }
 
@@ -92,11 +103,18 @@ export function testoDdtPerAssistente(ddt: DdtLetto, didascalia: string | null |
     const c = r.codice ? ` (cod. ${r.codice})` : "";
     return `- ${r.descrizione}${q}${c}`;
   });
+  const intestazione: Record<string, string> = {
+    scontrino: "[Foto di uno scontrino — dati letti dal documento]",
+    fattura: "[Foto di una fattura del fornitore — dati letti dal documento]",
+  };
   return [
-    "[Foto di un DDT — dati letti dal documento]",
+    intestazione[ddt.tipo ?? ""] ?? "[Foto di un DDT — dati letti dal documento]",
     `Fornitore: ${ddt.fornitore ?? "non leggibile"}${ddt.partitaIva ? ` (P.IVA ${ddt.partitaIva})` : ""}`,
-    `Numero DDT: ${ddt.numero ?? "non leggibile"}`,
+    `${ddt.tipo && ddt.tipo !== "ddt" ? "Numero documento" : "Numero DDT"}: ${ddt.numero ?? "non leggibile"}`,
     `Data: ${ddt.data ?? "non leggibile"}`,
+    ...(ddt.totale != null ? [`Totale: ${ddt.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`] : []),
+    ...(ddt.indirizzoConsegna ? [`Indirizzo di consegna: ${ddt.indirizzoConsegna}`] : []),
+    ...(ddt.riferimentoOrdine ? [`Riferimento ordine: ${ddt.riferimentoOrdine}`] : []),
     righe.length ? `Righe (${righe.length}):\n${righe.join("\n")}` : "Righe: non leggibili",
     `Affidabilità della lettura: ${ddt.affidabilita ?? "non indicata"}`,
     "",

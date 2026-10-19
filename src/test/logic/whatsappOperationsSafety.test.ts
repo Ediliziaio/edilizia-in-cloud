@@ -58,16 +58,18 @@ describe("Worker site access", () => {
       tables.push(table);
       const result = { data: table === "order_campo_assignments" ? [
         { order_id: "assigned", data_inizio: "2026-01-01", data_fine_prevista: null as string | null },
-        { order_id: "expired", data_fine_prevista: "2025-01-01" }] : table === "order_phase_assignments" ? [{ order_id: "phase" }] : { id: "assigned" },
+        { order_id: "expired", data_fine_prevista: "2025-01-01" }] : table === "order_phase_assignments" ? [{ order_id: "phase" }]
+        : table === "order_employees" ? [{ order_id: "team" }] : { id: "assigned" },
         error: fail ? { message: "offline" } : null };
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => result,
+      const q = { select: () => q, eq: () => q, in: () => q, is: () => q, maybeSingle: async () => result,
         then: (done: (value: unknown) => void) => Promise.resolve(result).then(done) };
       return q;
     } } as unknown as SupabaseClient;
     return { ctx: { supabase: db, company_id: "company", user_id: "user", employee_id: "employee", kind: "operaio" } as ToolCtx, tables };
   };
-  it("combines direct and phase assignments, excluding expired direct access", async () => {
-    expect(await assignedSiteIds(setup().ctx, "2026-10-07")).toEqual(new Set(["assigned", "phase"]));
+  it("combines direct, team and phase assignments, excluding expired direct access", async () => {
+    // La squadra della commessa (order_employees) è dove stanno quasi tutte le assegnazioni, come nell'app Campo.
+    expect(await assignedSiteIds(setup().ctx, "2026-10-07")).toEqual(new Set(["assigned", "team", "phase"]));
   });
   it("blocks an unassigned ID before loading another site's data", async () => {
     const { ctx, tables } = setup(); await expect(requireSiteAccess(ctx, "unassigned")).rejects.toThrow("non assegnato");

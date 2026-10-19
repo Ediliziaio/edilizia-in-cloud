@@ -64,26 +64,27 @@ export async function statoCantiere(
   const { data: rapportini } = await ctx.supabase
     .from("campo_rapportini")
     .select("ore_lavorate, ore_straordinario")
+    .eq("company_id", ctx.company_id)
     .eq("order_id", orderId);
   const oreTotali = (rapportini ?? []).reduce(
     (s, r) => s + (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0),
     0,
   );
 
-  // Costi stimati da materiali usati nei rapportini (campo jsonb)
-  const costiMateriali = 0;
-  for (const r of rapportini ?? []) {
-    // Se i materiali hanno prezzo_unitario, somma qty * prezzo — altrimenti skip
-    // Supabase types rendono r un oggetto parziale; il campo materiali_usati non
-    // è in select(), quindi saltiamo computazione dettagliata qui.
-  }
-
   const valore = Number(cantiere.total_amount ?? 0);
   const sal = Number(cantiere.percentuale_avanzamento ?? 0);
   const valoreLavorato = valore * (sal / 100);
-  const marginAbs = valoreLavorato - costiMateriali;
-  const marginPct = valoreLavorato > 0
-    ? ((marginAbs / valoreLavorato) * 100).toFixed(1)
+  // Il margine della pagina Marginalità (19/10/2026): prima i costi erano
+  // sempre zero e il margine stimato usciva sempre 100%.
+  const { data: margini } = await ctx.supabase
+    .from("v_ordine_marginalita")
+    .select("margine_perc")
+    .eq("company_id", ctx.company_id)
+    .eq("id", orderId)
+    .maybeSingle();
+  const percentuale = margini?.margine_perc;
+  const marginPct = percentuale != null && Number.isFinite(Number(percentuale))
+    ? Number(percentuale).toFixed(1)
     : "n/d";
 
   const fmtEur = (n: number) =>
@@ -97,7 +98,7 @@ export async function statoCantiere(
     `📈 Lavorato (SAL): ${fmtEur(valoreLavorato)}`,
     `⏱️ Ore cumulate: ${oreTotali.toFixed(1)}h`,
     typeof marginPct === "string" && marginPct !== "n/d"
-      ? `📉 Margine stimato: ${marginPct}%`
+      ? `📉 Margine: ${marginPct}%`
       : null,
   ].filter(Boolean).join("\n");
 

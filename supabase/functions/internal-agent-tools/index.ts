@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { risolviTelnyx, numeroMittenteAzienda } from "../_shared/telnyxApiKey.ts";
 import { verificaFirmaElevenLabs, chiaveUrlValida } from "../_shared/elevenlabsWebhook.ts";
 import { profiloPerConto } from "../_shared/ediliziaCustomerTools.ts";
+// 18/10/2026: stato_consegna con fasi, prossima fase e prossimo appuntamento (fino a tre lavori).
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 

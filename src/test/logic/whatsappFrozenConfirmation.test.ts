@@ -4,7 +4,8 @@ import { validateToolArguments } from "../../../supabase/functions/whatsapp-ai-p
 import { leggiStatoSessione, statoDaSalvare } from "../../../supabase/functions/_shared/botOperativoConferme";
 import type { ToolCtx } from "../../../supabase/functions/whatsapp-ai-processor/tools/shared/types";
 
-const ctx = { company_id: "company", waNumberId: "number", mediaCorrente: { storagePath: "fixture/receipt.jpg", url: "https://invalid.test/receipt.jpg", tipo: "image" } } as ToolCtx;
+import { DbMinimo } from "../helpers/edgeFinto";
+const ctx = { supabase: new DbMinimo(), company_id: "company", waNumberId: "number", mediaCorrente: { storagePath: "fixture/receipt.jpg", url: "https://invalid.test/receipt.jpg", tipo: "image" } } as unknown as ToolCtx;
 describe("Frozen approval payload", () => {
   it("hash ignores key ordering but detects amount, recipient or attachment changes", async () => {
     expect(canonicalJson({ b: 2, a: 1 })).toBe(canonicalJson({ a: 1, b: 2 }));

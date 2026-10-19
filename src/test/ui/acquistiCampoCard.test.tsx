@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { AcquistiCampoCard } from "@/components/warehouse/AcquistiCampoCard";
 
 const state = vi.hoisted(() => ({
@@ -52,6 +54,19 @@ describe("Merce presa in negozio (ufficio)", () => {
     expect(screen.getByText("ORD-1")).toBeInTheDocument();
     expect(screen.getByText("L’ho pagata io")).toBeInTheDocument();
     expect(screen.getByText("Silicone neutro")).toBeInTheDocument();
+  });
+
+  it("mostra chi l'ha mandata su WhatsApp anche senza account nell'app", async () => {
+    state.acquisti = [acquisto({ operaio: null, dipendente: { first_name: "Mario", last_name: "Bianchi" }, fonte: "whatsapp" })];
+    mostra();
+    expect(await screen.findByText("Mario Bianchi · da WhatsApp")).toBeInTheDocument();
+  });
+
+  it("legge l'operaio dal collegamento giusto: la tabella ha due collegamenti ai profili", () => {
+    // Senza il nome del collegamento PostgREST risponde 300 (scelta ambigua) e la scheda resta vuota.
+    const codice = readFileSync(resolve(process.cwd(), "src/components/warehouse/AcquistiCampoCard.tsx"), "utf8");
+    expect(codice).toContain("operaio:profiles!campo_acquisti_user_id_fkey(");
+    expect(codice).not.toMatch(/operaio:profiles\(/);
   });
 
   it("registra con il totale corretto dall'ufficio", async () => {

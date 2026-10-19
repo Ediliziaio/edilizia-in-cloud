@@ -2,12 +2,12 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
-import { assignedSiteIds } from "../shared/siteAccess.ts";
+import { cantieriInOrdine, commesseAperte } from "../shared/cantieriAperti.ts";
 
 export const elencaMieiCantieriOggiDef: Omit<ToolDef, "handler"> = {
   name: "elenca_miei_cantieri_oggi",
   description:
-    "Elenca i cantieri attivi oggi (o data specificata) della company dell'operaio. " +
+    "Elenca i cantieri aperti dell'operaio (le sue assegnazioni), dal più probabile per oggi, con il motivo. " +
     "Usa SEMPRE quando l'operaio non ha specificato il cantiere e non c'è cantiere in sessione.",
   parameters: {
     type: "object",
@@ -23,16 +23,8 @@ interface CantiereItem {
   id: string;
   nome: string;
   indirizzo: string | null;
-  stato: string;
+  motivo: string | null;
 }
-
-const ACTIVE_STATUSES = [
-  "in_produzione",
-  "in_corso",
-  "attivo",
-  "aperto",
-  "in_lavorazione",
-];
 
 export async function elencaMieiCantieriOggi(
   ctx: ToolCtx,
@@ -41,48 +33,31 @@ export async function elencaMieiCantieriOggi(
   if (!ctx.user_id && !ctx.employee_id) {
     return errResult("no_user_id", "Non riesco a identificarti.");
   }
-
-  const dataRif = args.data ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
-  const assigned = await assignedSiteIds(ctx, dataRif);
-
-  const { data: rows, error } = await ctx.supabase
-    .from("orders")
-    .select("id, description, order_code, indirizzo_lavori, status, work_start_date, work_end_date")
-    .eq("company_id", ctx.company_id)
-    .in("status", ACTIVE_STATUSES)
-    .limit(20);
-
-  if (error) return errResult(error.message, "Errore caricando i cantieri.");
-
-  const filtered = (rows ?? []).filter((r) => {
-    if (assigned && !assigned.has(r.id)) return false;
-    const startOk = !r.work_start_date || r.work_start_date <= dataRif;
-    const endOk = !r.work_end_date || r.work_end_date >= dataRif;
-    return startOk && endOk;
-  });
-
-  if (filtered.length === 0) {
+  const adesso = args.data && /^\d{4}-\d{2}-\d{2}$/.test(args.data) ? new Date(`${args.data}T12:00:00Z`) : new Date();
+  let ordinati;
+  try {
+    ordinati = await cantieriInOrdine(ctx, await commesseAperte(ctx, adesso), adesso);
+  } catch {
+    return errResult("site_list_unavailable", "Non riesco a leggere i tuoi cantieri adesso. Riprova tra poco.");
+  }
+  if (ordinati.length === 0) {
     return okResult(
       { cantieri: [] },
-      "Non hai cantieri attivi oggi. Contatta il titolare se pensi sia un errore.",
+      "Non risulti su nessun cantiere aperto. Chiedi all'ufficio di aggiungerti alla squadra della commessa.",
     );
   }
-
-  const cantieri: CantiereItem[] = filtered.map((r) => ({
-    id: r.id,
-    nome: r.description || r.order_code || "Cantiere",
-    indirizzo: r.indirizzo_lavori,
-    stato: r.status ?? "",
+  const cantieri: CantiereItem[] = ordinati.map((c) => ({
+    id: c.id,
+    nome: c.titolo,
+    indirizzo: c.dettaglio,
+    motivo: c.motivo,
   }));
-
-  const lista = cantieri.slice(0, 5).map((c, i) =>
-    `${i + 1}. ${c.nome}${c.indirizzo ? ` — ${c.indirizzo}` : ""}`
+  const lista = cantieri.slice(0, 9).map((c, i) =>
+    `${i + 1}. ${c.nome} — ${c.indirizzo}${c.motivo ? ` (${c.motivo})` : ""}`
   ).join("\n");
-
-  const extra = cantieri.length > 5 ? `\n...e altri ${cantieri.length - 5}` : "";
-
+  const extra = cantieri.length > 9 ? `\n...e altri ${cantieri.length - 9}: scrivimi il nome o la via.` : "";
   return okResult(
     { cantieri },
-    `I tuoi cantieri oggi:\n${lista}${extra}\n\nA quale ti riferisci? (scrivi nome o numero)`,
+    `I tuoi cantieri aperti:\n${lista}${extra}\n\nA quale ti riferisci? (scrivi il numero o il nome)`,
   );
 }

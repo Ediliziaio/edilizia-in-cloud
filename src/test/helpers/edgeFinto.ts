@@ -57,9 +57,36 @@ class Interrogazione {
   gt(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") > String(v)); return this; }
   lte(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") <= String(v)); return this; }
   lt(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") < String(v)); return this; }
+  ilike(c: string, schema: string) {
+    const re = new RegExp(`^${String(schema).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`, "i");
+    this.filtri.push((r) => re.test(String(r[c] ?? "")));
+    return this;
+  }
+  /** «a.ilike.%x%,b.eq.1,c.is.null»: basta che una condizione sia vera (niente and annidati). */
+  or(espressione: string) {
+    const condizioni = espressione.split(",").map((parte) => {
+      const [c, op, ...resto] = parte.split(".");
+      const v = resto.join(".");
+      if (op === "ilike") {
+        const re = new RegExp(`^${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`, "i");
+        return (r: Riga) => re.test(String(r[c] ?? ""));
+      }
+      if (op === "is" && v === "null") return (r: Riga) => r[c] == null;
+      if (op === "eq") return (r: Riga) => String(r[c]) === v;
+      if (op === "gte") return (r: Riga) => String(r[c] ?? "") >= v;
+      if (op === "lte") return (r: Riga) => String(r[c] ?? "") <= v;
+      return () => false;
+    });
+    this.filtri.push((r) => condizioni.some((f) => f(r)));
+    return this;
+  }
   is(c: string, v: unknown) { this.filtri.push((r) => (v === null ? r[c] == null : r[c] === v)); return this; }
   not(c: string, op: string, v: unknown) {
     if (op === "is") this.filtri.push((r) => (v === null ? r[c] != null : r[c] !== v));
+    if (op === "in") {
+      const esclusi = String(v).replace(/^\(|\)$/g, "").split(",").map((x) => x.trim().replace(/^"|"$/g, ""));
+      this.filtri.push((r) => !esclusi.includes(String(r[c])));
+    }
     return this;
   }
   order(colonna: string, opzioni?: { ascending?: boolean }) { this.ordine = { colonna, crescente: opzioni?.ascending !== false }; return this; }

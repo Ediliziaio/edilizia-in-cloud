@@ -1,14 +1,15 @@
-// MP02 — Lista approvazioni pendenti (stub: lettura da segnalazioni urgenti
-// in cantiere_segnalazioni come approssimazione prima di MP3).
-// MP3 aggiungerà: preventivi in approvazione, ordini > soglia, ferie, acquisti.
+// Le segnalazioni dal cantiere ancora aperte, urgenti e medie (19/10/2026).
+// Dal 18/10 una segnalazione da WhatsApp o dall'app Campo è un ticket (fonte
+// «campo»): prima si leggeva cantiere_segnalazioni, rimasta vuota, e la
+// risposta era sempre «Nessuna richiesta in sospeso».
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
-import { okResult } from "../shared/types.ts";
+import { errResult, okResult } from "../shared/types.ts";
 
 export const listaApprovazioniDef: Omit<ToolDef, "handler"> = {
   name: "lista_approvazioni",
   description:
-    "Lista di richieste che richiedono decisione del titolare. In MP02 include solo le segnalazioni aperte con urgenza alta/media. MP3 aggiungerà preventivi/ordini/ferie.",
+    "Le segnalazioni dal cantiere ancora aperte, con urgenza alta o media, da guardare o chiudere.",
   parameters: {
     type: "object",
     properties: {},
@@ -20,16 +21,19 @@ export const listaApprovazioniDef: Omit<ToolDef, "handler"> = {
 export async function listaApprovazioni(
   ctx: ToolCtx,
 ): Promise<ToolResult> {
-  const { data: segnalazioni } = await ctx.supabase
-    .from("cantiere_segnalazioni")
-    .select("id, descrizione, urgenza, tipo_problema, created_at, order_id")
+  const { data: ticket, error } = await ctx.supabase
+    .from("tickets")
+    .select("id, subject, priorita, created_at, order_id")
     .eq("company_id", ctx.company_id)
-    .eq("stato", "aperta")
-    .in("urgenza", ["alta", "media"])
+    .eq("fonte", "campo")
+    .not("status", "in", "(risolto,chiuso,annullato,preventivo_rifiutato)")
+    .in("priorita", ["alta", "media"])
     .order("created_at", { ascending: false })
     .limit(10);
+  if (error) return errResult("segnalazioni_non_leggibili", "Non riesco a leggere le segnalazioni adesso: riprova tra poco.");
+  const segnalazioni = (ticket ?? []) as Array<{ id: string; subject: string | null; priorita: string | null; created_at: string; order_id: string | null }>;
 
-  if (!segnalazioni || segnalazioni.length === 0) {
+  if (segnalazioni.length === 0) {
     return okResult(
       { items: [] },
       "✅ Nessuna richiesta in sospeso. Tutto sotto controllo.",
@@ -37,10 +41,8 @@ export async function listaApprovazioni(
   }
 
   const lista = segnalazioni.slice(0, 8).map((s, i) => {
-    const emoji = s.urgenza === "alta" ? "🔴" : "🟠";
-    const cat = s.tipo_problema ? ` [${s.tipo_problema}]` : "";
-    const descr = (s.descrizione ?? "").substring(0, 80);
-    return `${emoji} ${i + 1}. ${descr}${cat}`;
+    const emoji = s.priorita === "alta" ? "🔴" : "🟠";
+    return `${emoji} ${i + 1}. ${(s.subject ?? "").substring(0, 90)}`;
   }).join("\n");
 
   return okResult(

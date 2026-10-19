@@ -14,6 +14,8 @@ describe("ora italiana", () => {
 describe("automazione dovuta adesso", () => {
   it("parte nel suo giorno e nella finestra dei 15 minuti", () => {
     expect(routineDovutaOra({ ora: "07:00", giorni: [1, 2, 3, 4, 5] }, LUN_0700)).toBe(true);
+    // Così arriva dal database (colonna time): prima non partiva mai.
+    expect(routineDovutaOra({ ora: "07:00:00", giorni: [1, 2, 3, 4, 5] }, LUN_0700)).toBe(true);
   });
   it("non parte fuori dalla finestra", () => {
     expect(routineDovutaOra({ ora: "07:00", giorni: [1] }, LUN_0720)).toBe(false);

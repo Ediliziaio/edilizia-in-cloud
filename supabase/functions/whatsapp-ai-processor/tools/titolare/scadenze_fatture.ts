@@ -30,12 +30,17 @@ export async function scadenzeFatture(
   endDate.setDate(endDate.getDate() + giorni);
   const endStr = endDate.toISOString().substring(0, 10);
 
-  // Usa invoices (schema reale): stato != 'pagata', due_date filtro
+  // Le colonne vere di invoices (19/10/2026): total e status (paid, issued,
+  // cancelled, draft). Prima cercava total_amount e payment_status, che non
+  // esistono, e la risposta era sempre «Errore caricando le scadenze».
+  // Note di credito e proforma non sono crediti da incassare.
   let q = ctx.supabase
     .from("invoices")
-    .select("id, invoice_number, due_date, total_amount, client_company_name, payment_status, paid_amount")
+    .select("id, invoice_number, due_date, total, client_company_name, status, paid_amount")
     .eq("company_id", ctx.company_id)
-    .neq("payment_status", "pagata")
+    .is("deleted_at", null)
+    .eq("document_type", "invoice")
+    .eq("status", "issued")
     .not("due_date", "is", null);
 
   if (soloScadute) {
@@ -56,14 +61,14 @@ export async function scadenzeFatture(
 
   const fmtEur = (n: number) => "€ " + Number(n).toLocaleString("it-IT");
   const totaleAperto = fatture.reduce(
-    (s, f) => s + (Number(f.total_amount ?? 0) - Number(f.paid_amount ?? 0)),
+    (s, f) => s + (Number(f.total ?? 0) - Number(f.paid_amount ?? 0)),
     0,
   );
   const scadute = fatture.filter((f) => (f.due_date ?? "") < today);
 
   const lista = fatture.slice(0, 10).map((f, i) => {
     const scFlag = (f.due_date ?? "") < today ? " ⚠️" : "";
-    const residuo = Number(f.total_amount ?? 0) - Number(f.paid_amount ?? 0);
+    const residuo = Number(f.total ?? 0) - Number(f.paid_amount ?? 0);
     return `${i + 1}. ${f.client_company_name || "N/D"} — ${fmtEur(residuo)} (scade ${f.due_date})${scFlag}`;
   }).join("\n");
 

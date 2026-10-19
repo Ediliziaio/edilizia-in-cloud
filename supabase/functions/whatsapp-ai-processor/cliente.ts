@@ -21,6 +21,8 @@ import { checkBudget, consumeBudget } from "./budget.ts";
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { runWhatsAppTool } from "../_shared/whatsappOperations.ts";
 import { confirmationHash } from "./frozenConfirmation.ts";
+import { formatoWhatsApp } from "../_shared/formatoWhatsApp.ts";
+import { ticketPerUfficio } from "./ticketUfficio.ts";
 import {
   CUSTOMER_TOOL_SPECS,
   eseguiCustomerTool,
@@ -77,7 +79,12 @@ export async function gestisciMessaggioCliente(
   msg: MsgCliente,
   sendReply: (msg: MsgCliente, text: string) => Promise<void>,
 ): Promise<boolean> {
-  if (msg.message_type !== "text" || !(msg.content_text ?? "").trim()) return false;
+  // Testo e risposte ai pulsanti (il titolo del pulsante è il testo). Foto,
+  // vocali e documenti dei clienti si girano all'ufficio più sotto (18/10/2026):
+  // prima ricevevano il messaggio pensato per gli operai sconosciuti.
+  const conTesto = ["text", "interactive"].includes(String(msg.message_type)) && !!(msg.content_text ?? "").trim();
+  const conFile = ["image", "audio", "document", "video"].includes(String(msg.message_type));
+  if (!conTesto && !conFile) return false;
 
   const suffix = suffissoTelefono(msg.from_phone);
   if (!suffix) return false;
@@ -100,6 +107,15 @@ export async function gestisciMessaggioCliente(
     haCommesse = (count ?? 0) > 0;
   }
   if (!contact && !haCommesse) return false;
+
+  if (!conTesto) {
+    const cosa = msg.message_type === "audio" ? "il vocale" : msg.message_type === "image" ? "la foto" : "il file";
+    await ticketPerUfficio(supabase, { companyId: msg.company_id, telefono: msg.from_phone, fonte: "cliente",
+      titolo: `Cliente su WhatsApp: ${cosa}${nomeContatto(contact) ? ` di ${nomeContatto(contact)}` : ""}`,
+      descrizione: `Il cliente ha mandato ${cosa} su WhatsApp: lo trovi nella conversazione.` });
+    await sendReply(msg, `Grazie, ho ricevuto ${cosa}. L'ho passato all'ufficio, che lo guarda e la ricontatta. Se vuole, mi scriva in due parole di cosa si tratta.`);
+    return true;
+  }
 
   // Budget: il ramo cliente parte PRIMA del check budget del flusso staff.
   const budget = await checkBudget(supabase, msg.company_id);
@@ -126,9 +142,9 @@ export async function gestisciMessaggioCliente(
     contact
       ? supabase.from("tickets").select("id", { count: "exact", head: true })
           .eq("company_id", msg.company_id).eq("customer_id", contact.id)
-          // ticket_status è un ENUM (aperto|in_lavorazione|risolto): un valore
-          // fuori lista nel filtro fa FALLIRE la query, non filtra a vuoto.
-          .neq("status", "risolto")
+          // ticket_status è un ENUM: un valore fuori lista nel filtro fa FALLIRE
+          // la query. Questi quattro esistono e sono i ticket finiti.
+          .not("status", "in", "(risolto,chiuso,annullato,preventivo_rifiutato)")
       : Promise.resolve({ count: 0 } as { count: number | null }),
   ]);
   const contesto = [
@@ -164,6 +180,8 @@ export async function gestisciMessaggioCliente(
   const toolCtx: CustomerToolCtx = { rawPhone: msg.from_phone, suffix, fallbackCreatedBy: null };
 
   let finalText: string | null = null;
+  let strumentiRiusciti = 0;
+  let aiFerma = false;
 
   // Il loop è protetto: se il provider AI è giù il cliente riceve comunque una
   // risposta di cortesia (il silenzio su WhatsApp è peggio di un errore).
@@ -191,7 +209,12 @@ export async function gestisciMessaggioCliente(
     conv.push(assistantMsg);
     for (const tc of assistantMsg.tool_calls) {
       let args: Record<string, unknown> = {};
-      try { args = JSON.parse(tc.function.arguments); } catch { /* args vuoti */ }
+      try { args = JSON.parse(tc.function.arguments); }
+      catch {
+        // Dati non leggibili: lo strumento non parte con argomenti vuoti.
+        conv.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ risposta: "Dati della richiesta non leggibili: chiedi al cliente di ripetere." }) });
+        continue;
+      }
       const t0 = Date.now();
       let result;
       try {
@@ -199,6 +222,7 @@ export async function gestisciMessaggioCliente(
         result = msg.id ? await runWhatsAppTool(supabase, msg.company_id,
           `customer:${msg.id}:${await confirmationHash(tc.function.name, args, null)}`,
           tc.function.name, args, execute) : await execute();
+        strumentiRiusciti++;
       } catch (e) {
         result = { risposta: "Strumento momentaneamente non disponibile: proponi il richiamo dell'ufficio." };
         console.error(JSON.stringify({ level: "error", fn: "wa-cliente-tool", tool: tc.function.name, error: String(e) }));
@@ -212,10 +236,19 @@ export async function gestisciMessaggioCliente(
   }
   } catch (e) {
     console.error(JSON.stringify({ level: "error", fn: "wa-cliente", msg: "loop AI fallito", error: String(e) }));
+    aiFerma = true;
   }
 
   if (!finalText) {
-    finalText = "Non riesco a completare la richiesta in questo momento. Per assistenza contatti l'ufficio; non ho confermato nuove operazioni.";
+    if (strumentiRiusciti > 0) {
+      finalText = "Fatto: ho registrato la sua richiesta e l'ufficio la vede. Se serve la ricontatta.";
+    } else {
+      // Il cliente non si perde: l'ufficio lo trova tra i ticket da richiamare.
+      await ticketPerUfficio(supabase, { companyId: msg.company_id, telefono: msg.from_phone, fonte: "cliente",
+        titolo: `Cliente da richiamare${nomeCliente ? `: ${nomeCliente}` : ""}`,
+        descrizione: `L'assistente su WhatsApp non ha potuto rispondere${aiFerma ? " (servizio AI non disponibile)" : ""}. Messaggio del cliente: ${(msg.content_text ?? "").slice(0, 500)}` });
+      finalText = "Non riesco a rispondere in questo momento. Ho passato il suo messaggio all'ufficio, che la ricontatta.";
+    }
   }
 
   const sanitized = sanitizeAnswer(finalText);
@@ -225,6 +258,10 @@ export async function gestisciMessaggioCliente(
     finalText = sanitized.cleaned || finalText;
   }
 
-  await sendReply(msg, finalText);
+  await sendReply(msg, formatoWhatsApp(finalText));
   return true;
+}
+
+function nomeContatto(c: { first_name?: string | null; last_name?: string | null } | null | undefined): string {
+  return [c?.first_name, c?.last_name].filter(Boolean).join(" ");
 }

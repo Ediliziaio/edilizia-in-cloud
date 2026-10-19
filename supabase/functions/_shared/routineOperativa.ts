@@ -31,8 +31,9 @@ export function oraItalianaParti(adesso: Date): { giorno: number; minuti: number
   return { giorno, minuti: h * 60 + m };
 }
 
+/** «07:00» oppure «07:00:00», come arriva da una colonna time del database. */
 function parseHHMM(v: string): number | null {
-  const m = v.match(/^(\d{1,2}):(\d{2})$/);
+  const m = v.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
 }
@@ -45,4 +46,15 @@ export function routineDovutaOra(r: RoutineTemporale, adesso: Date, force = fals
   const { giorno, minuti } = oraItalianaParti(adesso);
   if (!r.giorni.includes(giorno)) return false;
   return minuti >= target && minuti < target + 15;
+}
+
+/**
+ * Il testo come parametro di un modello Meta: una riga, al massimo 1.000
+ * caratteri (18/10/2026). Meta rifiuta i parametri con a capo, tabulazioni o più
+ * di 4 spazi di fila (errore #132018): prima ogni invio fuori dalla finestra
+ * delle 24 ore falliva così.
+ */
+export function testoPerModello(testo: string): string {
+  const riga = testo.replace(/\s*\n+\s*/g, " · ").replace(/\t/g, " ").replace(/ {2,}/g, " ").trim();
+  return riga.length > 1000 ? `${riga.slice(0, 997)}…` : riga;
 }

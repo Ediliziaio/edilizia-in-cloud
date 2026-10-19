@@ -41,7 +41,9 @@ export const creaPreventivoAiDef = {
     required: ["descrizione", "cliente_nome", "iva"],
   },
   requires_grants: ["preventivi.ai"],
-  requires_confirmation: true,
+  // Anteprima: non salva e non invia niente, quindi niente «Sì» prima (18/10/2026).
+  // Prima la conferma faceva perdere le voci: il risultato non tornava all'assistente.
+  requires_confirmation: false,
 };
 
 export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolResult> {
@@ -66,7 +68,8 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
         tipo_lavoro: args.tipo_lavoro ?? null,
         input_mode: "testo",
       }),
-      signal: AbortSignal.timeout(60_000),
+      // Il motore impiega fino a 80 secondi sui lavori grandi.
+      signal: AbortSignal.timeout(110_000),
     });
     const j = await res.json().catch((): null => null) as { success?: boolean; error?: unknown; sezioni?: Array<{ righe?: RigaAI[] }> } | null;
     if (!res.ok || j?.success === false || j?.error || !Array.isArray(j?.sezioni) || j.sezioni.some(s => !s || typeof s !== "object" || Array.isArray(s) || !Array.isArray(s.righe))) {
@@ -92,5 +95,5 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
   return okResult({ status: "anteprima_non_salvata", created: false, items, client_name: clienteNome,
     needs_clarification: !!issue || freeNeedsReview, clarification: issue ?? (freeNeedsReview ? "Conferma se le voci a zero sono gratuite oppure indica il prezzo mancante." : null),
     dati_da_confermare: proposed },
-    `Anteprima di ${items.length} voci per ${clienteNome}: nessun preventivo salvato e nulla inviato al cliente. ${issue ?? (freeNeedsReview ? "Verifica le voci a zero prima di confermare." : "Mostra tutte le voci e chiedi conferma prima di usare salva_preventivo_bozza.")}`);
+    `Anteprima di ${items.length} voci per ${clienteNome}: nessun preventivo salvato e nulla inviato al cliente. ${issue ?? (freeNeedsReview ? "Verifica le voci a zero prima di confermare." : "Ora chiama chiedi_conferma con azione salva_preventivo_bozza e parametri dati_da_confermare: il sistema mostra all'utente tutte le voci e il totale.")}`);
 }

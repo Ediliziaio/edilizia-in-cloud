@@ -31,6 +31,7 @@ import {
   impostaCantiereCorrenteDef,
 } from "./operaio/imposta_cantiere_corrente.ts";
 import { caricaScontrino, caricaScontrinoDef } from "./operaio/carica_scontrino.ts";
+import { segnaFase, segnaFaseDef } from "./operaio/segna_fase.ts";
 
 // Titolare
 import { statoCantiere, statoCantiereDef } from "./titolare/stato_cantiere.ts";
@@ -65,6 +66,7 @@ import { verificaModelloPreventivo, verificaModelloPreventivoDef } from "./uffic
 import { generaPdfModelloBagno, generaPdfModelloBagnoDef } from "./ufficio/genera_pdf_modello_bagno.ts";
 import { inviaPdfModelloBagno, inviaPdfModelloBagnoDef } from "./ufficio/invia_pdf_modello_bagno.ts";
 import { preparaPreventivoModello, preparaPreventivoModelloDef } from "./ufficio/prepara_preventivo_modello.ts";
+import { assegnaFattura, assegnaFatturaDef, cercaFattura, cercaFatturaDef } from "./ufficio/assegna_fattura.ts";
 
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
@@ -93,6 +95,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
   { ...caricaScontrinoDef, handler: caricaScontrino as ToolDef["handler"] },
+  { ...segnaFaseDef, handler: segnaFase as ToolDef["handler"] },
 
   // Titolare (7)
   { ...statoCantiereDef, handler: statoCantiere as ToolDef["handler"] },
@@ -116,6 +119,8 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...generaPdfModelloBagnoDef, handler: generaPdfModelloBagno },
   { ...inviaPdfModelloBagnoDef, handler: inviaPdfModelloBagno },
   { ...preparaPreventivoModelloDef, handler: preparaPreventivoModello },
+  { ...cercaFatturaDef, handler: cercaFattura },
+  { ...assegnaFatturaDef, handler: assegnaFattura },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

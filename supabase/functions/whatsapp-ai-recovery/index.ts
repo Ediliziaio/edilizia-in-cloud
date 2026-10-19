@@ -1,4 +1,4 @@
-// NB: il cron whatsapp-ai-recovery (jobid 38) è disabilitato — riabilitare dopo il deploy di questo fix.
+// Il cron whatsapp-ai-recovery (jobid 38) gira ogni 5 minuti.
 // P1-1: cron recovery per messaggi WhatsApp stuck in processing_status='received'.
 // whatsapp-webhook invoca whatsapp-ai-processor in fire-and-forget; se il
 // processor era giù/lento/rate-limited il messaggio restava 'received' per
@@ -57,6 +57,34 @@ serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
   }
 
   const threshold = new Date(Date.now() - STUCK_THRESHOLD_MIN * 60_000).toISOString();
+
+  // Un messaggio rimasto «in elaborazione» oltre 15 minuti non finirà più:
+  // l'elaborazione dura al massimo qualche minuto. Non si rilancia (potrebbe
+  // aver già scritto qualcosa): si chiude come fallito, così resta visibile in
+  // Regia e la conversazione con quella persona si sblocca. Prima ogni suo
+  // messaggio successivo restava in coda per sempre (18/10/2026).
+  // Chi ha scritto lo viene a sapere: altrimenti aspetta una risposta che non arriva.
+  const fermo = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data: fermi, error: staleError } = await supabase.from("whatsapp_messages")
+    .update({ processing_status: "failed", processing_error: "stale_processing" })
+    .eq("direction", "inbound").eq("processing_status", "processing")
+    .or(`last_processing_attempt_at.lt.${fermo},and(last_processing_attempt_at.is.null,created_at.lt.${fermo})`)
+    .select("company_id, wa_number_id, from_phone");
+  if (staleError) console.error("[whatsapp-ai-recovery] stale processing:", staleError.message);
+  const avvisati = new Set<string>();
+  for (const m of (fermi ?? []) as Array<{ company_id: string | null; wa_number_id: string | null; from_phone: string | null }>) {
+    const chiave = `${m.wa_number_id}:${m.from_phone}`;
+    if (!m.company_id || !m.wa_number_id || !m.from_phone || avvisati.has(chiave)) continue;
+    avvisati.add(chiave);
+    await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        wa_number_id: m.wa_number_id, company_id: m.company_id, to: m.from_phone,
+        text: "Scusa, non sono riuscito a finire di gestire il tuo ultimo messaggio. Puoi rimandarlo?",
+      }),
+    }).catch((e) => console.error("[whatsapp-ai-recovery] avviso non inviato:", e instanceof Error ? e.message : String(e)));
+  }
 
   // Anche un crash dopo la prenotazione dell'ultimo tentativo deve emergere.
   // Non tocca mai messaggi processing: esito potenzialmente già eseguito.

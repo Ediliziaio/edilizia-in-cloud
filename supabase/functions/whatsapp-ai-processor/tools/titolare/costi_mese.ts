@@ -31,36 +31,42 @@ export async function costiMese(
   const endDate = new Date(y, m, 0);
   const end = endDate.toISOString().substring(0, 10);
 
-  // fatture_ricevute
-  const { data: fatture } = await ctx.supabase
+  // fatture_ricevute: le note di credito dei fornitori (importo positivo nel
+  // documento) si tolgono, non si sommano.
+  const { data: fatture, error: errFatture } = await ctx.supabase
     .from("fatture_ricevute")
-    .select("cedente_ragione_sociale, totale_documento")
+    .select("cedente_ragione_sociale, totale_documento, tipo_documento")
     .eq("company_id", ctx.company_id)
     .gte("data_fattura", start)
     .lte("data_fattura", end);
+  if (errFatture) return errResult("costi_non_leggibili", "Non riesco a leggere le fatture ricevute adesso: riprova tra poco.");
+  const segno = (tipo: unknown) => (tipo === "TD04" || tipo === "passive_credit_note" ? -1 : 1);
   const totaleFatture = (fatture ?? []).reduce(
-    (s, f) => s + Number(f.totale_documento ?? 0),
+    (s, f) => s + segno(f.tipo_documento) * Number(f.totale_documento ?? 0),
     0,
   );
 
   const byFornitore = new Map<string, number>();
   (fatture ?? []).forEach((f) => {
     const k = f.cedente_ragione_sociale || "Sconosciuto";
-    byFornitore.set(k, (byFornitore.get(k) ?? 0) + Number(f.totale_documento ?? 0));
+    byFornitore.set(k, (byFornitore.get(k) ?? 0) + segno(f.tipo_documento) * Number(f.totale_documento ?? 0));
   });
   const topFornitori = Array.from(byFornitore.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
   // cedolini
-  const { data: cedolini } = await ctx.supabase
+  // I cedolini hanno anno e mese (prima cercava colonne inesistenti e gli
+  // stipendi risultavano sempre 0 €).
+  const { data: cedolini, error: errCedolini } = await ctx.supabase
     .from("cedolini")
-    .select("netto_pagato, lordo")
+    .select("netto, lordo")
     .eq("company_id", ctx.company_id)
-    .gte("periodo_inizio", start)
-    .lte("periodo_fine", end);
+    .eq("anno", y)
+    .eq("mese", m);
+  if (errCedolini) return errResult("costi_non_leggibili", "Non riesco a leggere i cedolini adesso: riprova tra poco.");
   const totaleStipendi = (cedolini ?? []).reduce(
-    (s, c) => s + Number(c.netto_pagato ?? c.lordo ?? 0),
+    (s, c) => s + Number(c.netto ?? c.lordo ?? 0),
     0,
   );
 

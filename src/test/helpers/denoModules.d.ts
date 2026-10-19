@@ -7,6 +7,10 @@ declare module "https://deno.land/std@0.190.0/http/server.ts" {
 
 declare module "https://deno.land/x/xhr@0.1.0/mod.ts" {}
 
+declare module "https://esm.sh/@supabase/supabase-js@2.49.1" {
+  export type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
+}
+
 declare module "https://esm.sh/@supabase/supabase-js@2.43.4" {
   export const createClient: typeof import("@supabase/supabase-js").createClient;
 }

@@ -41,6 +41,9 @@ interface AcquistoUfficio {
   rimborso_stato: StatoRimborso;
   note: string | null;
   operaio: { first_name: string | null; last_name: string | null } | null;
+  /** Chi l'ha mandata su WhatsApp senza account nell'app: è in anagrafica dipendenti. */
+  dipendente?: { first_name: string | null; last_name: string | null } | null;
+  fonte?: "app" | "whatsapp" | null;
   order: { order_code: string | null } | null;
 }
 interface OdaAperto { id: string; oda_number: string | null; status: string; suppliers: { name: string | null } | null }
@@ -64,7 +67,7 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
       // Tabella nuova, non ancora nei tipi generati.
       let query = supabase
         .from("campo_acquisti" as never)
-        .select("id, created_at, order_id, modalita, fornitore, numero_documento, totale, righe, foto_path, purchase_order_id, stato, rimborso_stato, note, operaio:profiles(first_name, last_name), order:orders(order_code)" as never)
+        .select("id, created_at, order_id, modalita, fornitore, numero_documento, totale, righe, foto_path, purchase_order_id, stato, rimborso_stato, note, fonte, operaio:profiles!campo_acquisti_user_id_fkey(first_name, last_name), dipendente:employees!campo_acquisti_employee_id_fkey(first_name, last_name), order:orders(order_code)" as never)
         .eq("company_id" as never, companyId as never)
         .or("stato.eq.da_verificare,and(stato.eq.registrato,rimborso_stato.eq.da_rimborsare)" as never);
       if (orderId) query = query.eq("order_id" as never, orderId as never);
@@ -151,7 +154,8 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
 }
 
 function nomeOperaio(a: AcquistoUfficio) {
-  return [a.operaio?.first_name, a.operaio?.last_name].filter(Boolean).join(" ") || "Operaio";
+  const nome = (p: AcquistoUfficio["operaio"] | undefined) => [p?.first_name, p?.last_name].filter(Boolean).join(" ");
+  return nome(a.operaio) || nome(a.dipendente) || "Operaio";
 }
 
 function Testa({ a }: { a: AcquistoUfficio }) {
@@ -177,7 +181,7 @@ function Testa({ a }: { a: AcquistoUfficio }) {
         <span className="shrink-0 text-sm font-bold tabular-nums">{euro(a.totale)}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" aria-hidden="true" />{nomeOperaio(a)}</span>
+        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" aria-hidden="true" />{nomeOperaio(a)}{a.fonte === "whatsapp" ? " · da WhatsApp" : ""}</span>
         <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" aria-hidden="true" />{format(new Date(a.created_at), "d MMM HH:mm", { locale: it })}</span>
         {a.order?.order_code && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" aria-hidden="true" />{a.order.order_code}</span>}
         <Badge variant="outline" className="text-[11px]">{modalita}</Badge>

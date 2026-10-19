@@ -148,6 +148,15 @@ export async function eseguiStrumentoSilvio(
       proposta: { id: r.proposalId, rischio: r.riskLevel ?? "yellow", strumento: nome },
     };
   }
+  // Uno strumento che risponde con { error } non ha dato un risultato
+  // (18/10/2026): prima passava come riuscito e il modello raccontava numeri vuoti.
+  const dati = r.data as { error?: unknown } | null | undefined;
+  if (dati && typeof dati === "object" && !Array.isArray(dati) && typeof dati.error === "string" && dati.error.trim()) {
+    return {
+      risultato: { ok: false, error: "strumento_senza_dati", user_message: `Non ho potuto leggere questi dati (${dati.error.slice(0, 120)}). Aprili dall'app.` },
+      proposta: null,
+    };
+  }
   return { risultato: { ok: true, data: r.data }, proposta: null };
 }
 

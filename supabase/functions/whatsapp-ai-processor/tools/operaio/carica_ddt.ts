@@ -21,6 +21,7 @@ import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
 import { buildDdtCarico } from "../../../_shared/ddtCarico.ts";
+import { nomeDelCantiere, registraMerceDaWhatsApp } from "./merceDaWhatsApp.ts";
 
 export const caricaDDTDef: Omit<ToolDef, "handler"> = {
   name: "carica_ddt",
@@ -109,6 +110,31 @@ export async function caricaDDT(
   const numero = (args.numero_ddt ?? "").toString().trim();
   const fornitore = (args.fornitore ?? "").toString().trim();
   if (!fornitore) return errResult("no_fornitore", "Mi serve il nome del fornitore per registrare il DDT.");
+
+  // Operaio (18/10/2026): la bolla va in «Merce presa», come dall'app Campo.
+  // L'ufficio la verifica in Magazzino e diventa costo della commessa o carico
+  // dell'ordine d'acquisto. Ufficio e amministratore restano sul carico di magazzino.
+  if (ctx.kind === "operaio") {
+    if (!args.order_id) return errResult("site_missing", "Su quale cantiere va la bolla? Rimandami la foto e scegli il cantiere.");
+    const esito = await registraMerceDaWhatsApp(ctx, {
+      orderId: args.order_id,
+      modalita: "ritiro_ordine",
+      tipo: "bolla",
+      fornitore,
+      numero: numero || null,
+      data: args.data_ddt ?? null,
+      righe: (Array.isArray(args.righe) ? args.righe : []).map((r) => ({
+        descrizione: r.descrizione, codice: r.codice ?? null, quantita: r.quantita ?? null, unita: r.unita_misura ?? null,
+      })),
+      lettura: { riferimento_ordine: args.riferimento_ordine ?? null, indirizzo_consegna: args.indirizzo_consegna ?? null },
+      note: args.note ?? null,
+    });
+    if (!esito.ok) return esito;
+    const cantiere = await nomeDelCantiere(ctx, args.order_id);
+    return okResult({ campo_acquisto_id: esito.data.id, order_id: args.order_id },
+      `📄 Bolla${numero ? ` n. ${numero}` : ""} di ${fornitore} messa su ${cantiere}${esito.data.foto ? "" : " (la foto non è passata: se serve, caricala dall'app)"}. ` +
+      "L'ufficio la verifica e diventa costo della commessa.");
+  }
 
   // La foto del DDT è quella arrivata con il messaggio (o poco prima): il
   // modello non ne conosce il link, quindi media_url di solito manca.

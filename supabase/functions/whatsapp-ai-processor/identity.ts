@@ -41,6 +41,7 @@ const GRANTS_OPERAIO = [
   "cantieri.list_assigned",
   "cantieri.read_assigned",
   "spese.write",
+  "fasi.write",
 ];
 
 const GRANTS_TITOLARE = [
@@ -54,6 +55,7 @@ const GRANTS_TITOLARE = [
   "ddt.read_all",
   "approvazioni.list",
   "approvazioni.write",
+  "fatture.assegna",
 ];
 
 /** Cose d'ufficio del bot (oltre agli strumenti di Silvio): PDF del preventivo e preventivo col motore listino+manodopera. */
@@ -142,7 +144,10 @@ export async function resolveIdentity(
   //    anche loro: senza un ruolo interno qui non entrano).
   const { data: profili, error: profileError } = await supabase
     .from("profiles")
-    .select("id, phone, first_name, last_name, full_name")
+    // profiles non ha full_name: chiederla faceva fallire la lettura, e chi era
+    // solo utente dell'app (titolare, ufficio senza scheda dipendente) non
+    // riceveva nessuna risposta (19/10/2026).
+    .select("id, phone, first_name, last_name")
     .eq("company_id", companyId)
     .not("phone", "is", null);
   if (profileError) throw new Error("identity_profile_lookup_unavailable");
@@ -155,7 +160,7 @@ export async function resolveIdentity(
       return riconosciuto(companyId, tipoUtenteBot(ruoli, true), {
         user_id: prof.id,
         employee_id: null,
-        display_name: prof.full_name || `${prof.first_name ?? ""} ${prof.last_name ?? ""}`.trim() || "Utente",
+        display_name: `${prof.first_name ?? ""} ${prof.last_name ?? ""}`.trim() || "Utente",
         ruoli,
       });
     }
