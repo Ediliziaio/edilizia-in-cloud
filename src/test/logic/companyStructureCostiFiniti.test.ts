@@ -9,6 +9,6 @@ describe("struttura aziendale: costi fissi già finiti", () => {
     const margini = readFileSync(resolve(process.cwd(), "src/hooks/useMarginData.ts"), "utf8");
     expect(margini).toContain(filtro);
     expect(struttura).toContain(filtro);
-    expect(struttura).toContain('.select("amount, recurrence, recurrence_end_date")');
+    expect(struttura).toContain('.select("amount, recurrence, recurrence_end_date, allocations")');
   });
 });

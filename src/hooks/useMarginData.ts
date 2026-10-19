@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
 import { costoMensileVero } from "@/lib/costoPersonale";
+import { quotaNonRipartita } from "@/lib/controlloGestione/strutturaCommessa";
 import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 
 export interface OrderMargin {
@@ -110,11 +111,12 @@ export function useMarginData(): MarginData {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
-        .select("amount, category, recurrence, recurrence_end_date")
+        .select("amount, category, recurrence, recurrence_end_date, allocations")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed")
         // Un costo con order_id è già nel consuntivo diretto della commessa:
-        // ripeterlo nel break-even/struttura lo conterebbe due volte.
+        // ripeterlo nel break-even/struttura lo conterebbe due volte. Lo stesso
+        // vale per la quota ripartita sulle commesse (quotaNonRipartita).
         .is("order_id", null)
         .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`);
       if (error) throw error;
@@ -208,7 +210,7 @@ export function useMarginData(): MarginData {
   // lo scorporo IVA di prima SOTTOSTIMAVA i costi fissi del break-even.
   const fixedCostsByCategory = new Map<string, number>();
   (fixedCostsRaw || []).forEach(cost => {
-    const monthly = (Number(cost.amount) || 0) * recurrenceMultiplier(cost.recurrence);
+    const monthly = quotaNonRipartita(cost.amount, cost.allocations) * recurrenceMultiplier(cost.recurrence);
     const cat = cost.category || "Altro";
     fixedCostsByCategory.set(cat, (fixedCostsByCategory.get(cat) || 0) + monthly);
   });

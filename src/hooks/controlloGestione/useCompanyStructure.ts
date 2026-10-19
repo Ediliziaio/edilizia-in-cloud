@@ -16,7 +16,7 @@ export interface CompanyStructureResult extends CompanyStructureSnapshot {
 
 /**
  * Fonte condivisa per la struttura aziendale. I costi con order_id sono già
- * diretti sulla commessa e vengono esclusi; gli operai già imputabili ai
+ * diretti sulla commessa e vengono esclusi, come la quota ripartita sulle commesse; gli operai già imputabili ai
  * cantieri restano nella manodopera, non vengono ripetuti nell'overhead.
  */
 export function useCompanyStructure(enabled = true) {
@@ -31,7 +31,7 @@ export function useCompanyStructure(enabled = true) {
       const [costsRes, employeesRes, operationalRes, ordersRes, parametriRes] = await Promise.all([
         supabase
           .from("company_costs")
-          .select("amount, recurrence, recurrence_end_date")
+          .select("amount, recurrence, recurrence_end_date, allocations")
           .eq("company_id", companyId!)
           .eq("cost_type", "fixed")
           .is("order_id", null)

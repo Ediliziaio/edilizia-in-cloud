@@ -5,6 +5,22 @@ import { costoMensileVero, type ParametriCostoAzienda } from "@/lib/costoPersona
 export interface StructureFixedCost {
   amount: number | null;
   recurrence: string | null;
+  allocations?: unknown;
+}
+
+/**
+ * La parte di un costo che resta alla struttura: quella non ripartita sulle commesse.
+ * La quota ripartita (company_costs.allocations) è già nel margine delle commesse.
+ */
+export function quotaNonRipartita(amount: number | string | null | undefined, allocations: unknown): number {
+  const importo = Number(amount ?? 0);
+  if (!Number.isFinite(importo)) return 0;
+  if (!Array.isArray(allocations)) return importo;
+  const ripartito = allocations.reduce((somma: number, a) => {
+    const pct = Number((a as { pct?: unknown } | null)?.pct);
+    return somma + (Number.isFinite(pct) && pct > 0 ? pct : 0);
+  }, 0);
+  return importo * Math.max(0, 100 - Math.min(ripartito, 100)) / 100;
 }
 
 export interface StructureEmployee {
@@ -90,7 +106,7 @@ export function calculateCompanyStructureSnapshot(input: {
 }): CompanyStructureSnapshot {
   const operationalIds = new Set(input.operationalEmployeeIds);
   const fixedCostsMonthly = input.fixedCosts.reduce(
-    (sum, cost) => sum + finite(cost.amount) * recurrenceMultiplier(cost.recurrence ?? "monthly"),
+    (sum, cost) => sum + quotaNonRipartita(finite(cost.amount), cost.allocations) * recurrenceMultiplier(cost.recurrence ?? "monthly"),
     0,
   );
 
