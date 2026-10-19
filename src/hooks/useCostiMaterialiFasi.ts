@@ -26,7 +26,7 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
       const [acquisti, movimenti] = await Promise.all([
         db
           .from("purchase_order_items")
-          .select("order_item_id, line_total, purchase_orders!inner(status, order_id)")
+          .select("order_item_id, quantity, line_total, purchase_orders!inner(status, order_id)")
           // l'azienda oltre alla commessa: chi lavora su più aziende le vede tutte
           .eq("company_id", companyId)
           .eq("purchase_orders.order_id", orderId)
@@ -34,7 +34,7 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
           .not("order_item_id", "is", null),
         db
           .from("warehouse_movements")
-          .select("order_item_id, movement_type, quantity, unit_cost")
+          .select("order_item_id, movement_type, quantity, unit_cost, rientro_commessa, notes")
           .eq("order_id", orderId)
           .in("movement_type", ["carico", "scarico"])
           // gli arrivi da ordine d'acquisto non sono rientri della commessa

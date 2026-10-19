@@ -48,6 +48,18 @@ describe("le righe del contratto", () => {
     expect(costo.get("b")).toBe(36);
     expect(costo.get("c")).toBe(0);
   });
+
+  it("riga coperta da un ordine: la merce che rientra in magazzino esce dal costo, in proporzione", () => {
+    // ODA da 150 € per 20 sacchi: 20 scaricati, 8 rientrati → resta il costo di 12 (90 €), come la vista
+    const costo = costoConsuntivoRighe(
+      [{ order_item_id: "a", quantity: 20, line_total: 150 }],
+      [
+        { order_item_id: "a", movement_type: "scarico", quantity: 20, unit_cost: 7.5 },
+        { order_item_id: "a", movement_type: "carico", quantity: 8, unit_cost: 7.5, rientro_commessa: true },
+      ],
+    );
+    expect(costo.get("a")).toBe(90);
+  });
 });
 
 describe("economia di ogni fase", () => {

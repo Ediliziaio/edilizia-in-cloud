@@ -44,6 +44,7 @@ export interface AssegnazioneFase {
 /** Riga di un ordine d'acquisto della commessa già emesso (inviato, confermato, parziale, ricevuto). */
 export interface RigaAcquisto {
   order_item_id: string | null;
+  quantity?: number | null;
   line_total: number | null;
 }
 
@@ -53,6 +54,8 @@ export interface MovimentoMagazzino {
   movement_type: string;
   quantity: number;
   unit_cost: number | null;
+  rientro_commessa?: boolean | null;
+  notes?: string | null;
 }
 
 export interface VociCosto {
@@ -154,10 +157,32 @@ export function costoConsuntivoRighe(
 ): Map<string, number> {
   const costo = new Map<string, number>();
   const coperte = new Set<string>();
+  const quantitaOda = new Map<string, number>();
   for (const a of acquisti) {
     if (!a.order_item_id) continue;
     coperte.add(a.order_item_id);
     costo.set(a.order_item_id, (costo.get(a.order_item_id) ?? 0) + numero(a.line_total));
+    quantitaOda.set(a.order_item_id, (quantitaOda.get(a.order_item_id) ?? 0) + numero(a.quantity));
+  }
+  // Riga coperta da un ordine al fornitore: la merce che rientra in magazzino esce dal costo, in
+  // proporzione a quanto è tornato (la stessa regola di v_ordine_marginalita).
+  const scaricato = new Map<string, number>();
+  const rientrato = new Map<string, number>();
+  for (const m of movimenti) {
+    if (!m.order_item_id || !coperte.has(m.order_item_id)) continue;
+    const q = numero(m.quantity);
+    const divisione = (m.notes ?? "").startsWith("Divisione tra le fasi:");
+    if (m.movement_type === "scarico") scaricato.set(m.order_item_id, (scaricato.get(m.order_item_id) ?? 0) + q);
+    else if (m.movement_type === "carico" && m.rientro_commessa) {
+      if (divisione) scaricato.set(m.order_item_id, (scaricato.get(m.order_item_id) ?? 0) - q);
+      else rientrato.set(m.order_item_id, (rientrato.get(m.order_item_id) ?? 0) + q);
+    }
+  }
+  for (const [id, tornato] of rientrato) {
+    if (tornato <= 0) continue;
+    const base = Math.max(scaricato.get(id) ?? 0, quantitaOda.get(id) ?? 0, tornato);
+    const valore = costo.get(id) ?? 0;
+    costo.set(id, valore - valore * Math.min(1, tornato / base));
   }
   const magazzino = new Map<string, number>();
   for (const m of movimenti) {
