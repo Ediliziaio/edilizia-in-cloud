@@ -95,14 +95,19 @@ export async function leggiRateCliente(orderId?: string): Promise<RataCliente[]>
 /** Una rata è chiusa quando è segnata pagata o quando non resta più niente da pagare. */
 export const rataChiusa = (r: Pick<RataCliente, "is_paid" | "residuo">) => r.is_paid || r.residuo < 0.005;
 
-/** Totale, pagato e residuo per commessa e complessivi: dal database, una volta per commessa. */
+/**
+ * Totale, pagato e residuo per commessa e complessivi: dal database, una volta per commessa.
+ * Il residuo è quanto paga il cliente; la rata della finanziaria è a parte (la paga la finanziaria).
+ */
 export function riepilogoCommesse(rate: ReadonlyArray<RataCliente>) {
   const commesse = new Map<string, RataCliente["order"]>();
   for (const r of rate) if (!commesse.has(r.order_id)) commesse.set(r.order_id, r.order);
   const totale = [...commesse.values()].reduce((s, o) => s + o.totale, 0);
   const pagato = [...commesse.values()].reduce((s, o) => s + o.incassato, 0);
-  const residuo = rate.reduce((s, r) => s + (rataChiusa(r) ? 0 : r.residuo), 0);
-  return { totale, pagato, residuo };
+  const aperte = rate.filter((r) => !rataChiusa(r));
+  const residuo = aperte.reduce((s, r) => s + (r.finanziamento ? 0 : r.residuo), 0);
+  const finanziamento = aperte.reduce((s, r) => s + (r.finanziamento ? r.residuo : 0), 0);
+  return { totale, pagato, residuo, finanziamento };
 }
 
 /** La prossima rata da pagare: prima quelle con data, la più vicina; poi quelle senza data. */

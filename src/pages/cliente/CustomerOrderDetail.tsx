@@ -15,7 +15,7 @@ import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
 import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock, CreditCard } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { leggiRateCliente, prossimaRata, rataChiusa, riepilogoCommesse } from "@/lib/cliente/rateCliente";
+import { leggiRateCliente, prossimaRata, riepilogoCommesse } from "@/lib/cliente/rateCliente";
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,14 +58,8 @@ export default function CustomerOrderDetail() {
     enabled: !!order?.id && !!user?.id,
   });
   const riepilogo = useMemo(() => {
-    const { totale, pagato } = riepilogoCommesse(rate);
-    const aperte = rate.filter((r) => !rataChiusa(r));
-    return {
-      totale,
-      pagato,
-      daPagare: aperte.filter((r) => !r.finanziamento).reduce((s, r) => s + r.residuo, 0),
-      finanziamento: aperte.filter((r) => r.finanziamento).reduce((s, r) => s + r.residuo, 0),
-    };
+    const { totale, pagato, residuo, finanziamento } = riepilogoCommesse(rate);
+    return { totale, pagato, daPagare: residuo, finanziamento };
   }, [rate]);
 
   // Fetch all order statuses for this company

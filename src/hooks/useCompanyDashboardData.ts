@@ -126,6 +126,7 @@ export type DashboardInstallmentRow = {
 
 type DashboardCostRow = {
   amount: number | null;
+  vat_rate: number | null;
   due_date: string | null;
 };
 
@@ -412,7 +413,7 @@ export function useCompanyDashboardData() {
       // A pagine: oltre le 1.000 righe PostgREST tronca e il grafico perderebbe uscite.
       const costsQuery = readAllOrderRows<DashboardCostRow>((da, a) => supabase
         .from("company_costs")
-        .select("id, amount, due_date")
+        .select("id, amount, vat_rate, due_date")
         .eq("company_id", companyId)
         .gte("due_date", format(dateRange.from, "yyyy-MM-dd"))
         .lte("due_date", format(dateRange.to, "yyyy-MM-dd"))
@@ -491,7 +492,8 @@ export function useCompanyDashboardData() {
       for (const cost of costs) {
         const month = byMonth.get(getMonthKey(cost.due_date) || "");
         if (month) {
-          month.uscite += Number(cost.amount || 0);
+          // IVA inclusa, come gli incassi e i numeri del database (get_dashboard_kpis)
+          month.uscite += Number(cost.amount || 0) * (1 + Number(cost.vat_rate || 0) / 100);
         }
       }
 

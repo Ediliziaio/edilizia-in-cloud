@@ -15,8 +15,12 @@ const righe = daRigheRpc([
 
 describe("rate del portale cliente", () => {
   it("legge totale, pagato e residuo dalla regola, una volta per commessa", () => {
-    expect(riepilogoCommesse(righe)).toEqual({ totale: 13420, pagato: 3660, residuo: 9760 });
+    expect(riepilogoCommesse(righe)).toEqual({ totale: 13420, pagato: 3660, residuo: 9760, finanziamento: 0 });
     expect(prossimaRata(righe)).toMatchObject({ label: "Saldo", residuo: 9760 });
+  });
+  it("la rata della finanziaria non è nel residuo del cliente: sta a parte", () => {
+    const conFinanziaria = righe.map((r) => (r.label === "Saldo" ? { ...r, finanziamento: true } : r));
+    expect(riepilogoCommesse(conFinanziaria)).toMatchObject({ residuo: 0, finanziamento: 9760 });
   });
   it("tratta come pagata la rata saldata sulla fattura, anche se non è segnata pagata", () => {
     expect(rataChiusa({ is_paid: false, residuo: 0 })).toBe(true);

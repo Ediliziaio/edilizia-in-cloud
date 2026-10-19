@@ -22,6 +22,7 @@ import {
 import { Link } from "react-router-dom";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
 import { format, addDays } from "date-fns";
+import { leggiRateCliente, rataChiusa } from "@/lib/cliente/rateCliente";
 import { it } from "date-fns/locale";
 
 interface Order {
@@ -123,28 +124,16 @@ export default function CustomerOrders() {
     ).length;
   }, [orders]);
 
-  // ── Installments due within 7 days ────────────────────────
+  // ── Installments due within 7 days: stessa regola di «Rate» (piani storici, residuo vero) ──
   const { data: dueSoonCount = 0 } = useQuery({
     queryKey: ["customer-installments-due", companyId, user?.id],
     queryFn: async () => {
       if (!companyId) return 0;
-      const now = new Date().toISOString().split("T")[0];
-      const in7days = addDays(new Date(), 7).toISOString().split("T")[0];
-
-      const { count, error } = await supabase
-        .from("order_installments")
-        .select("id, order_id, orders!inner(customer_id)", {
-          count: "exact",
-          head: true,
-        })
-        .eq("orders.customer_id", user!.id)
-        .is("orders.deleted_at", null)
-        .eq("is_paid", false)
-        .gte("expected_date", now)
-        .lte("expected_date", in7days);
-
-      if (error) throw error;
-      return count || 0;
+      const oggi = format(new Date(), "yyyy-MM-dd");
+      const traSette = format(addDays(new Date(), 7), "yyyy-MM-dd");
+      const rate = await leggiRateCliente();
+      return rate.filter((r) => r.company_id === companyId && !rataChiusa(r)
+        && !!r.expected_date && r.expected_date >= oggi && r.expected_date < traSette).length;
     },
     enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
