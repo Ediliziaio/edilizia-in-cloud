@@ -324,6 +324,20 @@ jobs:
           node scripts/test-company-economics.mjs
           node scripts/test-company-consumption.mjs
 
+      - name: Run native invoice filters and atomic emission regressions
+        run: >-
+          TZ=Europe/Rome bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/documentiFiltri.test.ts
+          src/test/logic/documentiEmissioneOrdine.test.ts
+          src/test/logic/emissioneDataOdiernaSql.test.ts
+          src/test/ui/bozzaDataAutomatica.test.tsx
+          src/test/ui/emettiBozzaDalDettaglio.test.tsx
+          src/test/logic/sdiCassetto.test.ts
+          src/test/logic/sdiInvioGuard.test.ts
+          src/test/security/numeroSoloAllEmissione.test.ts
+          src/test/security/fatturaImmutabile.test.ts
+          src/test/security/fatturaScartataSiCorregge.test.ts
+
       - name: Run CG SQL reconciliation and rating regressions
         run: >-
           TZ=Europe/Rome bunx vitest run --maxWorkers=1 --testTimeout=20000

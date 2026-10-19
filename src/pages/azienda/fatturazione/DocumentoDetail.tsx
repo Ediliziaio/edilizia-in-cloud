@@ -31,6 +31,7 @@ import { useEffect, useState } from "react";
 import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import type { AnagraficaAzienda, RigaDocumento } from "@/types/fatturazione";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
+import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
@@ -227,7 +228,7 @@ export default function DocumentoDetail() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Emetti documento</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Emetti questa {tipoLabel}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
+                  Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -24,7 +24,7 @@ describe("FatturaElettronicaPannello: «Emetti» per una bozza", () => {
     const onEmetti = vi.fn();
     render(
       <FatturaElettronicaPannello
-        doc={doc({ tipo: "fattura", stato: "bozza" })}
+        doc={doc({ tipo: "fattura", stato: "bozza", numero: "Bozza TEST0001" })}
         azienda={null}
         tipoLabel="Fattura"
         onEsportaXml={noop}
@@ -41,6 +41,7 @@ describe("FatturaElettronicaPannello: «Emetti» per una bozza", () => {
     // La conferma avverte che il numero definitivo è assegnato adesso, senza ritorno.
     fireEvent.click(emetti);
     expect(await screen.findByText(/numero definitivo/i)).toBeInTheDocument();
+    expect(screen.getByText(/aggiornata a oggi/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Emetti documento" }));
     expect(onEmetti).toHaveBeenCalledTimes(1);
   });

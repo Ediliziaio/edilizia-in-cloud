@@ -21,6 +21,7 @@ import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
+import { getScadenzaInfo, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -112,17 +113,6 @@ function isDocumentoPagabile(doc: DocumentoFiscale) {
 
 function isDocumentoEliminabile(doc: DocumentoFiscale) {
   return doc.stato === "bozza" || doc.stato === "annullata";
-}
-
-// ─── Scadenza helper ──────────────────────────────────────
-function getScadenzaInfo(doc: DocumentoFiscale) {
-  if (!doc.data_scadenza || doc.stato === "pagata") return null;
-  const oggi = new Date();
-  const scadenza = new Date(doc.data_scadenza);
-  const diffDays = Math.floor((oggi.getTime() - scadenza.getTime()) / (86400000));
-  if (diffDays > 0) return { scaduta: true, giorni: diffDays };
-  if (diffDays > -7) return { scaduta: false, giorni: Math.abs(diffDays), urgente: true };
-  return { scaduta: false, giorni: Math.abs(diffDays), urgente: false };
 }
 
 function BillingHubTabs({
@@ -348,7 +338,7 @@ function DocumentiFiscaliListInner() {
   const statoFilterArr = useMemo(
     () => isTrash
       ? undefined // Cestino uses showDeleted flag instead
-      : statoFilter !== "all" && !statoFilter.startsWith("sdi:")
+      : !["all", "emessa", "scaduta"].includes(statoFilter) && !statoFilter.startsWith("sdi:")
         ? ([statoFilter] as StatoDocumento[])
         : undefined,
     [isTrash, statoFilter]
@@ -369,20 +359,20 @@ function DocumentiFiscaliListInner() {
       })()
     : undefined;
 
-  const filters = useMemo(
-    () => ({
+  const filters = {
       tipo: tipoFilter,
       stato: statoFilterArr,
+      emessi: !isTrash && statoFilter === "emessa",
+      scaduta: !isTrash && statoFilter === "scaduta",
       search: search || undefined,
       data_da: dataDa,
       data_a: dataA,
       page,
       perPage: PER_PAGE,
       showDeleted: isTrash,
+      ordinamento: (activeTab === "fattura" || activeTab === "nota_credito") ? "progressivo" as const : "data" as const,
       sdi: sdiFilter,
-    }),
-    [tipoFilter, statoFilterArr, search, dataDa, dataA, page, isTrash, sdiFilter]
-  );
+  };
 
   const { data, isLoading, isError, isFetching, refetch } = useDocumentiFiscali(filters);
   const [showSlowLoading, setShowSlowLoading] = useState(false);
@@ -410,11 +400,10 @@ function DocumentiFiscaliListInner() {
     });
   }, [docs]);
 
-  const allSelected = docs.length > 0 && selectedIds.size === docs.length;
-  const someSelected = selectedIds.size > 0;
-
   // ── Bulk actions ──────────────────────────────────────
   const selectedDocs = useMemo(() => docs.filter((d) => selectedIds.has(d.id)), [docs, selectedIds]);
+  const allSelected = docs.length > 0 && selectedDocs.length === docs.length;
+  const someSelected = selectedDocs.length > 0;
 
   const handleBulkExport = () => {
     const columns: CsvColumn[] = [
@@ -524,6 +513,7 @@ function DocumentiFiscaliListInner() {
     setSearchRaw("");
     setSelectedMonth(null);
     setPage(0);
+    clearSelection();
   };
 
   // ── Actions ─────────────────────────────────────────────
@@ -715,12 +705,14 @@ function DocumentiFiscaliListInner() {
             onSelectMonth={(m) => {
               setSelectedMonth(m);
               setPage(0);
+              clearSelection();
             }}
             year={timelineYear}
             onYearChange={(y) => {
               setTimelineYear(y);
               setSelectedMonth(null);
               setPage(0);
+              clearSelection();
             }}
           />
         </div>
@@ -777,27 +769,19 @@ function DocumentiFiscaliListInner() {
       <CercaConFiltri
         className="sm:hidden"
         valore={searchRaw}
-        onCambia={(v) => { setSearchRaw(v); setPage(0); }}
+        onCambia={(v) => { setSearchRaw(v); setPage(0); clearSelection(); }}
         segnaposto="Cerca numero o cliente"
         filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:hidden">
         {!isTrash && (
-          <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); }}>
-            <SelectTrigger className="w-[160px] h-9 text-xs">
+          <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}>
+            <SelectTrigger aria-label="Filtra per stato" className="w-[190px] h-9 text-xs">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="bozza">Bozza</SelectItem>
-              <SelectItem value="emessa">Emessa</SelectItem>
-              <SelectItem value="pagata">Pagata</SelectItem>
-              <SelectItem value="scaduta">Scaduta</SelectItem>
-              <SelectItem value="parzialmente_pagata">Parz. pagata</SelectItem>
-              <SelectItem value="sdi:da_inviare">Da inviare SDI</SelectItem>
-              <SelectItem value="sdi:in_elaborazione">In elaborazione SDI</SelectItem>
-              <SelectItem value="sdi:scartata">Scartate dallo SDI</SelectItem>
+              {STATI_FILTRO_DOCUMENTI.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
@@ -807,7 +791,7 @@ function DocumentiFiscaliListInner() {
           <Input
             placeholder="Cerca numero, cliente..."
             value={searchRaw}
-            onChange={(e) => { setSearchRaw(e.target.value); setPage(0); }}
+            onChange={(e) => { setSearchRaw(e.target.value); setPage(0); clearSelection(); }}
             className="pl-8 h-9 text-sm"
           />
         </div>
@@ -819,11 +803,15 @@ function DocumentiFiscaliListInner() {
         )}
       </div>
 
+      {!isTrash && (activeTab === "fattura" || activeTab === "nota_credito") && (
+        <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Le bozze senza numero sono in fondo all'anno; le trovi anche con il filtro Bozza.</p>
+      )}
+
       {/* ── Bulk Actions Bar ───────────────────────────── */}
       {/* Mobile no: niente selezione multipla. */}
       {someSelected && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5 max-sm:hidden">
-          <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
+          <span className="text-sm font-medium">{selectedDocs.length} selezionat{selectedDocs.length === 1 ? "o" : "i"}</span>
 
           {/* Niente export su telefono. */}
           {!isMobile && (
@@ -1263,10 +1251,10 @@ function DocumentiFiscaliListInner() {
             Pagina {page + 1} di {totalPages}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            <Button aria-label="Pagina precedente" variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(page - 1); clearSelection(); }}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+            <Button aria-label="Pagina successiva" variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); clearSelection(); }}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -1295,16 +1283,8 @@ function DocumentiFiscaliListInner() {
           <PilloleFiltro
             titolo="Stato"
             valore={statoFilter}
-            onScegli={(v) => { setStatoFilter(v); setPage(0); }}
-            scelte={[
-              { value: "all", label: "Tutti" },
-              { value: "bozza", label: "Bozza" },
-              { value: "emessa", label: "Emessa" },
-              { value: "scaduta", label: "Scaduta" },
-              { value: "parzialmente_pagata", label: "Parz. pagata" },
-              { value: "pagata", label: "Pagata" },
-              { value: "sdi:scartata", label: "Scartate SDI" },
-            ]}
+            onScegli={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}
+            scelte={STATI_FILTRO_DOCUMENTI}
           />
         )}
       </PannelloFiltri>

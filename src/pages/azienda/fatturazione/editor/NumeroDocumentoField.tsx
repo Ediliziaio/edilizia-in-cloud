@@ -21,12 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import type { EditorState, Action } from "./useEditorState";
 
-/** I documenti che vanno allo SDI: il numero arriva all'emissione. */
-export const TIPI_NUMERO_SULLA_BOZZA = [
-  "fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa",
-];
-
-export const haSegnapostoBozza = (numero?: string | null) => (numero ?? "").startsWith("Bozza ");
+import { TIPI_BOZZA_SENZA_NUMERO as TIPI_NUMERO_SULLA_BOZZA, haSegnapostoBozza } from "@/lib/fatturazione/emissioneBozza";
 
 interface Props {
   state: EditorState;

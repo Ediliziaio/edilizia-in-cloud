@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download, ChevronDown } from "lucide-react";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 
 interface DocumentiFooterProps {
   total: number;
@@ -24,7 +25,7 @@ async function exportToXLS(documenti: DocumentoFiscale[], filename: string) {
     Numero: doc.numero,
     Tipo: doc.tipo,
     Data: doc.data_emissione,
-    Cliente: doc.cliente_snapshot?.ragione_sociale ?? "",
+    Cliente: nomeCliente(doc.cliente_snapshot),
     Imponibile: doc.imponibile_totale,
     IVA: doc.iva_totale,
     Totale: doc.totale_documento,
@@ -64,10 +65,12 @@ export function DocumentiFooter({
     <div className="flex items-center justify-between border-t border-border bg-muted/30 rounded-b-lg px-4 py-3">
       <p className="text-sm text-muted-foreground">
         {total} {total === 1 ? "documento" : "documenti"}
+        {total > documenti.length && <span className="block text-xs">{documenti.length} in questa pagina</span>}
       </p>
 
       <div className="flex items-center gap-4">
         <div className="text-right">
+          {total > documenti.length && <p className="text-[11px] text-muted-foreground">Totale pagina corrente</p>}
           <p className="text-sm font-semibold">{formatCurrency(totalDocumento)}</p>
           <p className="text-[11px] text-muted-foreground">
             Imponibile {formatCurrency(totalImponibile)} + IVA {formatCurrency(totalIva)}

@@ -27,6 +27,7 @@ import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazio
 import { verificaFormale, type RisultatoVerifica } from "@/lib/fatturazione/verificaFormale";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
+import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 
 interface Props {
   doc: DocumentoFiscale;
@@ -189,7 +190,7 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
                 <AlertDialogHeader>
                   <AlertDialogTitle>Emetti documento</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Emetti questa {tipoLabel}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
+                    Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

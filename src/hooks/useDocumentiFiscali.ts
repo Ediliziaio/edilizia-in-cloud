@@ -5,7 +5,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
-import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
+import { ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 
@@ -14,12 +14,18 @@ const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 export interface DocumentiFiscaliFilters {
   tipo?: TipoDocumento | TipoDocumento[];
   stato?: StatoDocumento | StatoDocumento[];
+  /** Tutte le emesse, indipendentemente da incasso e avanzamento SDI. */
+  emessi?: boolean;
+  /** Residuo positivo e scadenza superata (calendario Europe/Rome). */
+  scaduta?: boolean;
   anagrafica_id?: string;
   data_da?: string;
   data_a?: string;
   search?: string;
   page?: number;
   perPage?: number;
+  /** Ordinamento sul server, prima della paginazione; non confronta numeri come testo. */
+  ordinamento?: "progressivo" | "data";
   /** When true, show soft-deleted docs (cestino) instead of active docs */
   showDeleted?: boolean;
   /** Fase verso lo SDI: le fatture da inviare, quelle che aspettano l'esito, le scartate. */
@@ -150,10 +156,21 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
       const timeout = createTimeoutSignal(DOCUMENTI_QUERY_TIMEOUT_MS);
       try {
         let query = supabase
-          .from("documenti_fiscali" as never)
-          .select("*", { count: "estimated" })
-          .eq("company_id", companyId!)
-          .order(filters.showDeleted ? "updated_at" : "data_emissione", { ascending: false })
+          .from("documenti_fiscali_elenco" as never)
+          .select("*", { count: "exact" })
+          .eq("company_id", companyId!);
+
+        if (filters.showDeleted) {
+          query = query.order("updated_at", { ascending: false });
+        } else if (filters.ordinamento === "progressivo") {
+          query = query.order("anno", { ascending: false, nullsFirst: false })
+            .order("numero_progressivo", { ascending: false, nullsFirst: false })
+            .order("data_emissione", { ascending: false });
+        } else {
+          query = query.order("data_emissione", { ascending: false });
+        }
+        // Pareggi deterministici: due pagine non devono ripetere o saltare righe.
+        query = query.order("id", { ascending: false })
           .range(page * perPage, (page + 1) * perPage - 1);
 
         // Cestino: show only soft-deleted docs; otherwise exclude them
@@ -171,19 +188,18 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
           const stati = Array.isArray(filters.stato) ? filters.stato : [filters.stato];
           query = query.in("stato", stati);
         }
+        if (filters.emessi && !filters.showDeleted) {
+          query = query.not("stato", "in", "(bozza,annullata)");
+        }
+        if (filters.scaduta && !filters.showDeleted) {
+          query = query.eq("elenco_scaduta", true);
+        }
         if (filters.anagrafica_id) {
           query = query.eq("anagrafica_id", filters.anagrafica_id);
         }
-        // Le stesse regole di faseSdi (lib/fatturazione/sdiCassetto.ts).
-        if (filters.sdi === "da_inviare") {
-          query = query.in("tipo", TIPI_SDI).is("sdi_id_trasmissione", null)
-            .not("stato", "in", "(bozza,annullata,in_invio)");
-        } else if (filters.sdi === "in_elaborazione") {
-          // invia-sdi scrive AT a ogni invio riuscito (il manuale no): niente
-          // .or() qui, la ricerca ne usa già uno.
-          query = query.in("tipo", TIPI_SDI).eq("sdi_stato", "AT");
-        } else if (filters.sdi === "scartata") {
-          query = query.eq("sdi_stato", "NS").not("stato", "in", "(annullata,stornata)");
+        if (filters.sdi && !filters.showDeleted) {
+          query = query.eq("elenco_fase_sdi", filters.sdi)
+            .not("stato", "in", "(annullata,stornata)");
         }
         if (filters.data_da) {
           query = query.gte("data_emissione", filters.data_da);
@@ -191,8 +207,9 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         if (filters.data_a) {
           query = query.lte("data_emissione", filters.data_a);
         }
-        if (filters.search) {
-          query = query.or(`numero.ilike.%${filters.search}%,note_documento.ilike.%${filters.search}%,cliente_snapshot->>ragione_sociale.ilike.%${filters.search}%,cliente_snapshot->>codice_fiscale.ilike.%${filters.search}%,cliente_snapshot->>partita_iva.ilike.%${filters.search}%`);
+        const ricerca = ricercaDocumenti(filters.search ?? "");
+        if (ricerca) {
+          query = query.or(ricerca);
         }
 
         const { data, error, count } = await withClientTimeout(
@@ -514,11 +531,10 @@ export function useEmittiDocumento() {
         throw new Error("Il cliente è obbligatorio per emettere il documento");
       }
 
-      // L'emissione la fa il database (documento_emetti, 24/09/2026): tiene il
-      // numero che la bozza ha già dalla creazione (01/10/2026), rifiuta la
-      // data futura e la data fuori ordine rispetto alle fatture già emesse.
-      // Prima qui si cambiava solo lo stato.
-      const { error: rpcErr } = await supabase.rpc("documento_emetti" as never, { p_documento_id: id } as never);
+      // Una sola transazione server: data italiana di oggi per le bozze senza
+      // numero, poi assegnazione del progressivo. Le emesse non si ridatano e
+      // i recuperi già numerati mantengono i controlli cronologici esistenti.
+      const { error: rpcErr } = await supabase.rpc("documento_emetti_oggi" as never, { p_documento_id: id } as never);
       if (rpcErr) throw new Error(rpcErr.message);
 
       const { data: updated, error } = await supabase

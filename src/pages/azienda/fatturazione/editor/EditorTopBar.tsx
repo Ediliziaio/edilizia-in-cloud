@@ -31,6 +31,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
+import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
@@ -366,7 +367,7 @@ export function EditorTopBar({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Emetti documento</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Emetti questa {TIPO_LABELS[tipo] ?? tipo}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
+                      Emetti questa {TIPO_LABELS[tipo] ?? tipo}? {avvisoEmissione(state)} L'emissione non può essere annullata.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

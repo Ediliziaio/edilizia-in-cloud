@@ -23,7 +23,8 @@ const TIPO_TO_TD: Record<string, string> = {
   fattura_differita_b: "TD25", autoconsumo: "TD27",
 };
 import type { EditorState, Action } from "./useEditorState";
-import { NumeroDocumentoField, TIPI_NUMERO_SULLA_BOZZA, haSegnapostoBozza } from "./NumeroDocumentoField";
+import { NumeroDocumentoField } from "./NumeroDocumentoField";
+import { emissioneConDataOdierna, TIPI_BOZZA_SENZA_NUMERO, haSegnapostoBozza } from "@/lib/fatturazione/emissioneBozza";
 
 interface Props {
   state: EditorState;
@@ -40,6 +41,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
 
   const dataScadenzaParsed = state.data_scadenza ? parseISO(state.data_scadenza) : undefined;
   const isScaduta = dataScadenzaParsed && isBefore(dataScadenzaParsed, startOfDay(new Date()));
+  const dataAutomatica = emissioneConDataOdierna(state);
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-amber-400/60 shadow-sm">
@@ -48,7 +50,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
       {/* Data + Numero inline */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-[10px] text-muted-foreground">Data</Label>
+          <Label className="text-[10px] text-muted-foreground">{dataAutomatica ? "Data emissione automatica" : "Data"}</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -57,11 +59,11 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                   "h-7 w-full justify-start text-left text-xs font-normal",
                   !state.data_emissione && "text-muted-foreground"
                 )}
-                disabled={disabled || dataBloccata}
-                title={dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
+                disabled={disabled || dataBloccata || dataAutomatica}
+                title={dataAutomatica ? "La data viene assegnata dal server al momento dell'emissione" : dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
               >
                 <CalendarIcon className="mr-1 h-3 w-3" />
-                {state.data_emissione
+                {dataAutomatica ? "Oggi, quando emetti" : state.data_emissione
                   ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
                   : "Seleziona"}
               </Button>
@@ -81,10 +83,10 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
         <NumeroDocumentoField state={state} dispatch={dispatch} disabled={disabled} />
       </div>
 
-      {state.stato === "bozza" && TIPI_NUMERO_SULLA_BOZZA.includes(state.tipo) && (
+      {state.stato === "bozza" && TIPI_BOZZA_SENZA_NUMERO.includes(state.tipo) && (
         <p className="text-[10px] leading-snug text-muted-foreground">
           {haSegnapostoBozza(state.numero)
-            ? "La bozza non ha numero: lo riceve quando la emetti, subito dopo l'ultima fattura emessa."
+            ? "Data di oggi e prossimo numero vengono assegnati quando emetti. Preparare una bozza non riserva numeri."
             : "Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii."}
         </p>
       )}
