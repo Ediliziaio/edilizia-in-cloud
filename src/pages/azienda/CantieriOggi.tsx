@@ -48,6 +48,8 @@ export function statoCantiere(r: RigaCantiere, oggi = new Date()): { testo: stri
       const lavorativi = giorniLavorativiDa(r.ultimo_segnale, oggi);
       if (lavorativi >= GIORNI_FERMO) return { testo: `Fermo da ${lavorativi} giorni lavorativi`, tono: "attenzione" };
     } else if (r.giorni_senza_segnale != null && r.giorni_senza_segnale >= GIORNI_FERMO) return { testo: `Fermo da ${r.giorni_senza_segnale} giorni`, tono: "attenzione" };
+    // Sabato e domenica nessuno è atteso: non è un cantiere da guardare.
+    if (oggi.getDay() === 0 || oggi.getDay() === 6) return { testo: "Fine settimana", tono: "neutro" };
     return { testo: "Nessuno ancora oggi", tono: "attenzione" };
   }
   if (r.timbrate > 0 && r.rapportini_oggi === 0) return { testo: "Al lavoro, rapportino non arrivato", tono: "neutro" };

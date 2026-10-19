@@ -29,7 +29,8 @@ export function OdaDocumentiDialog({ orderId, oda, onClose, mostraImporti }: {
 }) {
   const bolle = useBolleCommessa(orderId);
   const fatture = useFattureFornitoriCommessa(orderId);
-  const bolleOda = (bolle.data ?? []).filter((b) => oda && b.purchaseOrderId === oda.id);
+  // Solo le bolle arrivate: quelle ancora «in attesa» sono la consegna prevista, non un documento.
+  const bolleOda = (bolle.data ?? []).filter((b) => oda && b.purchaseOrderId === oda.id && b.stato !== "Attesa");
   const fattureOda = (fatture.data ?? []).filter((f) => oda && f.purchaseOrderId === oda.id);
   const totaleFatture = fattureOda.reduce((s, f) => s + (f.totale ?? 0), 0);
 

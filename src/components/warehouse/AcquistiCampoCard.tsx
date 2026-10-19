@@ -17,6 +17,7 @@ import { Banknote, Building2, Calendar, Check, FileImage, Loader2, ShoppingBag, 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,10 +59,12 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
   const qc = useQueryClient();
   const companyId = effectiveCompany?.id ?? null;
   const [aperto, setAperto] = useState<string | null>(null);
+  // Le bolle le registra chi può modificare le commesse (lo stesso controllo del database).
+  const puoDecidere = !!usePermissions().canEditOrders;
 
   const { data: acquisti = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["acquisti-campo-ufficio", companyId, orderId ?? null],
-    enabled: !!companyId,
+    enabled: !!companyId && puoDecidere,
     staleTime: 15_000,
     queryFn: async (): Promise<AcquistoUfficio[]> => {
       // Tabella nuova, non ancora nei tipi generati.
@@ -104,7 +107,7 @@ export function AcquistiCampoCard({ orderId }: { orderId?: string } = {}) {
     onError: (e: unknown) => toast.error("Operazione non riuscita", { description: messaggioErrore(e, "Riprova.") }),
   });
 
-  if (!isLoading && !isError && acquisti.length === 0) return null;
+  if (!puoDecidere || (!isLoading && !isError && acquisti.length === 0)) return null;
 
   return (
     <Card>

@@ -105,10 +105,13 @@ export function orePersoneRapportino(r: RigaOre): number {
 export function OrdineRapportiniCampo({ orderId }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
-  const { role, effectiveCompany } = useAuth();
+  const { role, effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
   const canApprove = canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
+  // Il proprio rapportino lo decide un altro dell'ufficio (salvo il titolare): come nel database.
+  const puoDecidereSu = (autore: string | null | undefined) =>
+    canApprove && (role === "company_admin" || role === "super_admin" || !autore || autore !== user?.id);
 
   // Stato della vista legato alla commessa: nessun frame con la pagina o il
   // rapporto espanso della commessa precedente, né reset asincrono delle scelte.
@@ -520,7 +523,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                                 </Button>
                               )}
 
-                              {canApprove && stato === "inviato" && (
+                              {puoDecidereSu(r.user_id) && stato === "inviato" && (
                                 <>
                                   <Button
                                     size="sm"
@@ -540,7 +543,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                               )}
 
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
-                              {canApprove && stato === "rifiutato" && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
+                              {puoDecidereSu(r.user_id) && stato === "rifiutato" && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button
                                   size="sm"
                                   onClick={() => setApprovalId(r.id)}

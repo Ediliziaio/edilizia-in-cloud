@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   elencoError: null as unknown, odaError: null as unknown, risposta: { ok: true, messaggio: "Registrato come costo del cantiere." } as unknown,
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: true }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {

@@ -106,6 +106,10 @@ type DashboardFinancialOrderRow = {
   balance_paid: boolean | null;
   financing_amount: number | null;
   financing_paid: boolean | null;
+  deposit_paid_date?: string | null;
+  deposit_2_paid_date?: string | null;
+  balance_paid_date?: string | null;
+  financing_paid_date?: string | null;
   payment_type?: string | null;
   financing_cost?: number | null;
 };
@@ -390,6 +394,10 @@ export function useCompanyDashboardData() {
             balance_paid,
             financing_amount,
             financing_paid,
+            deposit_paid_date,
+            deposit_2_paid_date,
+            balance_paid_date,
+            financing_paid_date,
             payment_type,
             financing_cost
           `)

@@ -19,7 +19,6 @@ import {
   type CruscottoInvoiceStatsRow,
 } from "@/lib/cruscottoInvoiceStats";
 import { idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
-import { rateDaIncassare, type CommessaPerRate, type RataDaLeggere } from "@/lib/orders/saldoFinale";
 
 // Re-export for backward compatibility with existing consumers
 export { safeNumber } from "@/lib/numberUtils";
@@ -111,8 +110,6 @@ interface InstallmentRow {
   finanziamento: boolean;
 }
 
-type RataLetta = RataDaLeggere & { order: CommessaPerRate & { company_id: string; deleted_at: string | null } };
-
 interface OrderCostRow {
   id: string;
   total_amount: number | null;
@@ -125,57 +122,14 @@ function throwIfSupabaseError(...errors: SupabaseQueryError[]) {
   if (error) throw error;
 }
 
-/**
- * Le rate da incassare con la regola della scheda commessa (la stessa di
- * `public.rate_da_incassare`): rata del finanziamento esclusa, saldo finale
- * come residuo del contratto più varianti approvate, meno quanto già pagato
- * sulla fattura collegata. Servono tutte le rate, anche quelle pagate, perché
- * il saldo finale si calcola togliendo le altre.
- */
-interface VarianteLetta {
-  order_id: string;
-  impatto_economico: number | null;
-  offline_signed_on: string | null;
-  firmato_il: string | null;
-  approval_recorded_at: string | null;
-  richiesto_il: string | null;
-  created_at: string | null;
-}
-
+/** Le rate da incassare con la regola della scheda commessa (`public.rate_da_incassare`). */
 async function leggiRateDaIncassare(companyId: string): Promise<InstallmentRow[]> {
-  const [rate, varianti] = await Promise.all([
-    readAllOrderRows<RataLetta>((from, to) => supabase
-      .from("order_installments")
-      .select("id, order_id, type, position, amount, is_paid, paid_date, expected_date, documento_fiscale_id, order:orders!inner(company_id, deleted_at, total_amount, vat_rate, payment_type, financing_cost)")
-      // Le rate delle commesse nel cestino non sono crediti da incassare.
-      .eq("order.company_id", companyId).is("order.deleted_at", null)
-      .order("id").range(from, to) as unknown as PromiseLike<{ data: RataLetta[] | null; error: unknown }>),
-    readAllOrderRows<VarianteLetta>((from, to) => supabase
-      .from("ordini_variazione")
-      .select("id, order_id, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at")
-      .eq("company_id", companyId).eq("status", "approvato")
-      .order("id").range(from, to) as unknown as PromiseLike<{ data: VarianteLetta[] | null; error: unknown }>),
-  ]);
-  // Ogni variante col giorno in cui è stata approvata: il saldo pagato conta quelle fino al pagamento.
-  const variantiPerCommessa = new Map<string, Array<{ importo: number; il: string | null }>>();
-  for (const v of varianti) {
-    const il = v.offline_signed_on ?? v.firmato_il ?? v.approval_recorded_at ?? v.richiesto_il ?? v.created_at;
-    const elenco = variantiPerCommessa.get(v.order_id) ?? [];
-    elenco.push({ importo: safeNumber(v.impatto_economico), il: il ? il.slice(0, 10) : null });
-    variantiPerCommessa.set(v.order_id, elenco);
-  }
-  const commesse = new Map<string, CommessaPerRate>();
-  for (const r of rate) {
-    if (!commesse.has(r.order_id)) commesse.set(r.order_id, { ...r.order, varianti: variantiPerCommessa.get(r.order_id) ?? [] });
-  }
-  const documenti = [...new Set(rate.filter(r => !r.is_paid && r.documento_fiscale_id).map(r => r.documento_fiscale_id as string))];
-  const pagatoFattura = new Map<string, number>();
-  for (const blocco of idABlocchi(documenti)) {
-    const { data, error } = await supabase.from("documenti_fiscali").select("id, importo_pagato").in("id", blocco);
-    if (error) throw error;
-    for (const d of data ?? []) pagatoFattura.set(d.id, safeNumber(d.importo_pagato));
-  }
-  return rateDaIncassare(rate, commesse, pagatoFattura);
+  // La regola della scheda commessa calcolata dal database: piani storici compresi, mai oltre il totale.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("cruscotto_rate_da_incassare", { p_company_id: companyId });
+  if (error) throw error;
+  return ((data ?? []) as Array<{ id: string; order_id: string; amount: number | string; expected_date: string | null; finanziamento: boolean }>)
+    .map((r) => ({ id: r.id, order_id: r.order_id, amount: safeNumber(r.amount), expected_date: r.expected_date, finanziamento: !!r.finanziamento }));
 }
 
 export function useCruscottoData() {
@@ -215,7 +169,7 @@ export function useCruscottoData() {
   });
 
   // Installments — fires independently, no waterfall
-  const rateQueryKey = [...queryKeys.cruscotto.installments(companyId), "regola-scheda-commessa-v1"];
+  const rateQueryKey = [...queryKeys.cruscotto.installments(companyId), "regola-scheda-commessa-v2"];
   const leggiRate = useCallback(() => queryClient.fetchQuery({
     queryKey: rateQueryKey,
     queryFn: () => leggiRateDaIncassare(companyId!),
