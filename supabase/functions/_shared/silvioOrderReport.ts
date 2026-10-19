@@ -33,12 +33,15 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
     if (found.data.length !== 1) return { error: "Codice commessa ambiguo: verifica le commesse prima di proseguire." };
     const order = found.data[0];
     const link = `/azienda/ordini/${order.id}?tab=finanza`;
-    const [snapshot, items, employees, teams, installments, cash] = await Promise.all([
+    const [snapshot, items, employees, teams, incassi, installments, cash] = await Promise.all([
       ctx.supabase.from("v_ordine_marginalita").select(ORDER_ECONOMICS_COLUMNS)
         .eq("company_id", ctx.companyId).eq("id", order.id).maybeSingle(),
       ctx.supabase.from("order_items").select("quantity, purchase_price").eq("order_id", order.id),
       ctx.supabase.from("order_employees").select("total_cost").eq("order_id", order.id),
       ctx.supabase.from("order_external_teams").select("total_cost").eq("order_id", order.id),
+      // Incassato e da incassare con la regola della scheda commessa (saldo come residuo, varianti,
+      // finanziaria, fatture pagate in parte): li calcola il database.
+      ctx.supabase.rpc("commessa_incassi", { p_order: order.id }),
       ctx.supabase.from("order_installments").select("amount, is_paid").eq("order_id", order.id),
       ctx.supabase.from("prima_nota_entries").select("amount").eq("company_id", ctx.companyId)
         .eq("order_id", order.id).eq("direction", "entrata"),
@@ -56,12 +59,14 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
     const round = (n: number) => Math.round(n * 100) / 100;
     const readable = (result: { error: unknown; data: unknown }) => !result.error && Array.isArray(result.data)
       && result.data.length < 1000 && result.data.every(row => numeric(row.amount));
+    const conti = (incassi.error ? null : incassi.data) as { incassato?: unknown; da_incassare?: unknown } | null;
     const hasInstallments = readable(installments) && installments.data.length > 0
-      && installments.data.every((row: { is_paid: unknown }) => typeof row.is_paid === "boolean");
+      && installments.data.every((row: { is_paid: unknown }) => typeof row.is_paid === "boolean")
+      && !!conti && numeric(conti.incassato) && numeric(conti.da_incassare);
     const hasCash = readable(cash) && cash.data.length > 0;
     const sum = (rows: { amount: number }[]) => round(rows.reduce((n, row) => n + Number(row.amount), 0));
-    const paid = hasInstallments ? sum(installments.data.filter((r: { is_paid: boolean }) => r.is_paid === true)) : null;
-    const due = hasInstallments ? sum(installments.data.filter((r: { is_paid: boolean }) => r.is_paid !== true)) : null;
+    const paid = hasInstallments ? round(Number(conti!.incassato)) : null;
+    const due = hasInstallments ? round(Number(conti!.da_incassare)) : null;
     const received = hasCash ? sum(cash.data) : null;
     if (!hasInstallments) warnings.push("Piano rate assente o non leggibile: l'incassato da rate non è determinabile.");
     if (!hasCash) warnings.push("Nessuna entrata di Prima Nota leggibile: non equivale a zero incassi.");

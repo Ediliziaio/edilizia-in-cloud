@@ -118,10 +118,6 @@ interface OrderCostRow {
   total_amount: number | null;
 }
 
-interface AmountRow {
-  amount: number | null;
-}
-
 type SupabaseQueryError = { message: string } | null | undefined;
 
 function throwIfSupabaseError(...errors: SupabaseQueryError[]) {
@@ -510,13 +506,9 @@ export function useCruscottoData() {
           .is("deleted_at", null)
           .gte("created_at", `${todayDateFrom}T00:00:00`)
           .lte("created_at", `${todayDateTo}T23:59:59`),
-        // Collected: installments paid in range
-        supabase.from("order_installments")
-          .select("amount, order:orders!inner(company_id)")
-          .eq("order.company_id", companyId!)
-          .eq("is_paid", true)
-          .gte("paid_date", todayDateFrom)
-          .lte("paid_date", todayDateTo),
+        // Incassato nel periodo con la regola della scheda commessa (dal database): il saldo pagato
+        // per il suo residuo, i pagamenti parziali delle fatture, niente commesse nel cestino.
+        (supabase as any).rpc("incassato_rate_periodo", { p_da: todayDateFrom, p_a: todayDateTo }) as Promise<{ data: number | null; error: unknown }>,
         // Costs paid in range
         supabase.from("company_costs")
           .select("amount, vat_rate")
@@ -530,18 +522,19 @@ export function useCruscottoData() {
         appointmentsRes.error,
         suppliersRes.error,
         revenueRes.error,
-        collectedRes.error,
+        collectedRes.error as SupabaseQueryError,
         costsPaidRes.error,
       );
 
-      const scadute = overdueRes.filter(r => r.amount > 0 && !!r.expected_date && r.expected_date < nowStr);
+      // Crediti scaduti verso il cliente: la rata della finanziaria non è un credito scaduto.
+      const scadute = overdueRes.filter(r => r.amount > 0 && !r.finanziamento && !!r.expected_date && r.expected_date < nowStr);
       const overdueCount = scadute.length;
       const overdueAmount = scadute.reduce((s, r) => s + r.amount, 0);
       const suppliersDue = (suppliersRes.data ?? []).map(row => ({ ...row, amount: registeredCostAmount(row) }));
       const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
 
       const revenueInRange = ((revenueRes.data ?? []) as Array<{ total_amount: number | null }>).reduce((s, r) => s + safeNumber(r.total_amount), 0);
-      const collectedInRange = ((collectedRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
+      const collectedInRange = safeNumber(collectedRes.data);
       const costsPaidInRange = (costsPaidRes.data ?? []).reduce((s, r) => s + registeredCostAmount(r), 0);
 
       return {

@@ -280,12 +280,6 @@ export function calculateCollectedGrossFromInstallments(args: Parameters<typeof 
   return roundMoney(calculateInstallmentCollections(args).reduce((sum, amount) => sum + amount, 0));
 }
 
-export function calculateCollectedNetFromInstallments(args: {
-  installments: InstallmentLike[];
-  totalAmount: number | string | null | undefined;
-  vatRate: number | string | null | undefined;
-  financingCost?: number | string | null;
-  includeFinancing?: boolean;
-}): number {
+export function calculateCollectedNetFromInstallments(args: Parameters<typeof calculateInstallmentCollections>[0]): number {
   return grossToNetAmount(calculateCollectedGrossFromInstallments(args), args.vatRate);
 }

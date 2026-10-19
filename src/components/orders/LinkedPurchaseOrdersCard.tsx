@@ -26,9 +26,12 @@ import {
   ODA_STATUS_COLORS as STATUS_COLORS,
 } from "@/lib/odaStatus";
 
-/** Bolle arrivate: ricevute, già controllate o con merce non conforme (comunque arrivate). */
-const ddtArrivati = (a: { ricevuti: number; verificati: number; non_conformi: number }) =>
-  a.ricevuti + a.verificati + a.non_conformi;
+/**
+ * Bolle arrivate: ricevute, già controllate, con merce non conforme o parziali (comunque arrivate).
+ * Una bolla resta «parziale» quando l'ordine non era ancora completo al suo arrivo.
+ */
+const ddtArrivati = (a: { ricevuti: number; verificati: number; non_conformi: number; parziali?: number }) =>
+  a.ricevuti + a.verificati + a.non_conformi + (a.parziali ?? 0);
 
 interface LinkedPurchaseOrdersCardProps {
   orderId: string;

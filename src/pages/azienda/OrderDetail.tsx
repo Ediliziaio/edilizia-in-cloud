@@ -399,6 +399,7 @@ function OrderDetailInner() {
   // Keep any desktop-only view fallback; Cronoprogramma also has a mobile agenda.
   const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
+  const variantiDatate = useMemo(() => variantiApprovateDatate(variations.data ?? []), [variations.data]);
 
   // Fetch order installments from DB
   const { data: dbInstallments = [], isPending: installmentsPending, isError: installmentsError } = useQuery({
@@ -1212,7 +1213,7 @@ function OrderDetailInner() {
     vatRate: order.vat_rate ?? 22,
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
-    varianti: variantiApprovateDatate(variations.data ?? []),
+    varianti: variantiDatate,
   });
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
@@ -1752,6 +1753,7 @@ function OrderDetailInner() {
                   hasBuildingBonus={order.has_building_bonus}
                   financingCost={order.financing_cost ?? undefined}
                   collectedAmount={collectedAmount}
+                  varianti={variantiDatate}
                   onInstallmentPaidToggle={handleInstallmentPaidToggle}
                   onInstallmentDateChange={handleInstallmentDateChange}
                   orderCode={order.order_code}
@@ -1779,6 +1781,7 @@ function OrderDetailInner() {
                   vatRate={order.vat_rate ?? 22}
                   financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
                   installments={displayInstallments}
+                  varianti={variantiDatate}
                   cashTotalGross={cashTotalGross}
                   avanzamentoPct={avanzamentoPct}
                   anchorId="esposizione-commessa"

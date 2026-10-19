@@ -315,7 +315,7 @@ const FINANCE: PaletteItem[] = [
   {
     type: "kpi_card",
     label: "Crediti scaduti",
-    description: "Fatture oltre la scadenza",
+    description: "Rate dei clienti oltre la scadenza, IVA inclusa",
     icon: TriangleAlert,
     defaultSize: { w: 3, h: 2 },
     defaultConfig: {
@@ -328,7 +328,7 @@ const FINANCE: PaletteItem[] = [
   {
     type: "kpi_card",
     label: "Forecast cassa 30gg",
-    description: "Previsione incassi prossimi 30 giorni",
+    description: "Incassi meno pagamenti previsti nei prossimi 30 giorni",
     icon: CreditCard,
     defaultSize: { w: 3, h: 2 },
     defaultConfig: {

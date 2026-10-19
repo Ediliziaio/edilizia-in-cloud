@@ -20,6 +20,8 @@ const snapshot = () => ({ id: "order-a", company_id: "company-a", preventivo_con
 beforeEach(() => {
   db = new DbMinimo(); tables = []; failures = new Set();
   db.rpcs.silvio_tool_propose_action = () => ({ proposal_id: "pending-proposal" });
+  // Incassato e da incassare con la regola della scheda commessa li calcola il database.
+  db.rpcs.commessa_incassi = () => ({ incassato: 3000, da_incassare: 8000, scaduto: 0 });
   db.tabelle.orders = [{ id: "order-a", company_id: "company-a", order_code: "TEST-01", description: "Test fittizio" }];
   db.tabelle.v_ordine_marginalita = [snapshot()];
   db.tabelle.order_items = [{ order_id: "order-a", quantity: 1, purchase_price: 2000 }];

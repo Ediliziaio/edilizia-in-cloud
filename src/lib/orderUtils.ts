@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem, Posizione } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
+import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
@@ -259,6 +260,11 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
    * sopra (sempre in lordo).
    */
   installments?: InstallmentLike[] | null;
+  /**
+   * Varianti della commessa, quando la query le ha caricate: contano nel totale come nella
+   * scheda (agreedContractValue) e, con la data, nel saldo già pagato.
+   */
+  variazioni?: VarianteDellaCommessa[] | null;
   // ── Modulo Appaltatori ──────────────────────────────────────
   // Default a 'cliente' lato server (migration); manteniamo nullable
   // per safe-fall sui record letti prima del refresh delle types.
@@ -398,6 +404,22 @@ export async function deleteOrderCascading(orderId: string, companyId: string): 
  * quando la commessa è a finanziamento, esattamente come nel modulo di
  * creazione, dove il saldo è "totale ivato − le altre rate − costo finanziaria".
  */
+/** Le colonne di ordini_variazione che servono a totale e incassi (nested select «variazioni» delle liste). */
+export interface VarianteDellaCommessa {
+  status: string;
+  impatto_economico: number | string | null;
+  offline_signed_on?: string | null;
+  firmato_il?: string | null;
+  approval_recorded_at?: string | null;
+  richiesto_il?: string | null;
+  created_at?: string | null;
+}
+
+/** Contratto più varianti approvate, IVA esclusa: il valore pattuito della scheda commessa. */
+function contrattoPattuito(order: Pick<OrderWithDetails, "total_amount"> & { variazioni?: VarianteDellaCommessa[] | null }): number {
+  return order.variazioni ? agreedContractValue(order.total_amount || 0, order.variazioni) : order.total_amount || 0;
+}
+
 function financingCostForOrder(order: OrderWithDetails): number {
   return order.payment_type === "financing" ? (Number(order.financing_cost) || 0) : 0;
 }
@@ -429,10 +451,11 @@ function rateDellaCommessa(order: OrderWithDetails): InstallmentLike[] {
 export function getAmountCollected(order: OrderWithDetails): number {
   return calculateCollectedGrossFromInstallments({
     installments: rateDellaCommessa(order),
-    totalAmount: order.total_amount,
+    totalAmount: contrattoPattuito(order),
     vatRate: order.vat_rate ?? 22,
     financingCost: financingCostForOrder(order),
     includeFinancing: true,
+    varianti: order.variazioni ? variantiApprovateDatate(order.variazioni) : undefined,
   });
 }
 
@@ -457,8 +480,9 @@ export function getPendingPayments(order: OrderWithDetails): string[] {
   return pending;
 }
 
-export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate">): number {
-  return (order.total_amount || 0) * (1 + ((order.vat_rate ?? 22) / 100));
+export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate"> & { variazioni?: VarianteDellaCommessa[] | null }): number {
+  // Contratto più varianti approvate, IVA inclusa, al centesimo come la scheda commessa.
+  return Math.round(contrattoPattuito(order) * (1 + ((order.vat_rate ?? 22) / 100)) * 100) / 100;
 }
 
 export function getOrderMargin(totalAmount: number, variableCosts: number): {

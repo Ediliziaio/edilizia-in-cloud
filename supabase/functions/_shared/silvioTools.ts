@@ -5053,50 +5053,101 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         orderCode = ords[0].order_code ?? null;
       }
 
-      // Persona opzionale (chi ha compilato il rapportino).
-      let userIdFiltro: string | null = null;
+      // Persona opzionale: chi ha compilato il rapportino, chi compare nelle presenze della squadra
+      // o la persona per cui l'ufficio ha inserito le ore.
+      let personaFiltro: { userId: string | null; employeeId: string | null } | null = null;
       let personaNome: string | null = null;
       const persona = String(args?.persona ?? "").trim();
       if (persona) {
-        const { data: people } = await ctx.supabase
-          .from("profiles").select("id, first_name, last_name")
-          .eq("company_id", ctx.companyId).limit(500);
         const q = norm(persona);
-        const pm = (people ?? []).filter((p: any) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
-        if (pm.length === 0) return { error: `Nessuna persona trovata con nome simile a "${persona}".` };
-        if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
-        userIdFiltro = pm[0].id;
-        personaNome = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+        const { data: dipendenti } = await ctx.supabase
+          .from("employees").select("id, user_id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(1000);
+        const dm = (dipendenti ?? []).filter((e: any) => norm(`${e.first_name ?? ""} ${e.last_name ?? ""}`).includes(q));
+        if (dm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${dm.slice(0, 5).map((e: any) => `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (dm.length === 1) {
+          personaFiltro = { userId: dm[0].user_id ?? null, employeeId: dm[0].id };
+          personaNome = `${dm[0].first_name ?? ""} ${dm[0].last_name ?? ""}`.trim();
+        } else {
+          const { data: people } = await ctx.supabase
+            .from("profiles").select("id, first_name, last_name")
+            .eq("company_id", ctx.companyId).limit(500);
+          const pm = (people ?? []).filter((p: any) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+          if (pm.length === 0) return { error: `Nessuna persona trovata con nome simile a "${persona}".` };
+          if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+          personaFiltro = { userId: pm[0].id, employeeId: null };
+          personaNome = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+        }
       }
 
       // Solo i rapportini INVIATI: le bozze non si approvano, gli approvati non si ri-approvano.
       let q = ctx.supabase
         .from("campo_rapportini")
-        .select("id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori")
+        .select("id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori, presenze, ufficio_employee_id")
         .eq("company_id", ctx.companyId)
         .eq("stato", "inviato")
         .gte("data_lavoro", daData)
         .lte("data_lavoro", aData);
       if (orderId) q = q.eq("order_id", orderId);
-      if (userIdFiltro) q = q.eq("user_id", userIdFiltro);
-      const { data: rapportini, error: qErr } = await q.limit(500);
+      const { data: rapportini, error: qErr } = await q.limit(501);
       if (qErr) return { error: `Lettura rapportini fallita: ${qErr.message}` };
+      // Oltre 500 il conteggio sarebbe parziale: meglio chiedere un periodo o una commessa più stretti.
+      if ((rapportini ?? []).length > 500) {
+        return { error: "Più di 500 rapportini in attesa in questo periodo: restringi le date o indica la commessa." };
+      }
 
-      const lista = rapportini ?? [];
+      // Le ore che l'approvazione registra davvero: le presenze della squadra quando ci sono,
+      // altrimenti le ore di chi ha compilato (o della persona inserita dall'ufficio).
+      type Presenza = { chi: string; employeeId: string | null; ore: number };
+      const presenzeDi = (r: any): Presenza[] => {
+        if (Array.isArray(r.presenze) && r.presenze.length > 0) {
+          return r.presenze.map((p: any) => ({
+            chi: String(p?.employee_id ?? p?.user_id ?? r.user_id ?? r.id),
+            employeeId: p?.employee_id ? String(p.employee_id) : null,
+            ore: Number(p?.ore) || 0,
+          }));
+        }
+        return [{
+          chi: String(r.ufficio_employee_id ?? r.user_id ?? r.id),
+          employeeId: r.ufficio_employee_id ? String(r.ufficio_employee_id) : null,
+          ore: (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0),
+        }];
+      };
+      const lista: any[] = (rapportini ?? []).filter((r: any) => !personaFiltro
+        || (personaFiltro.userId && r.user_id === personaFiltro.userId)
+        || (personaFiltro.employeeId && (r.ufficio_employee_id === personaFiltro.employeeId
+          || presenzeDi(r).some((p: Presenza) => p.employeeId === personaFiltro!.employeeId))));
       const perimetro = `${daData} → ${aData}${personaNome ? `, ${personaNome}` : ""}${orderCode ? `, ${orderCode}` : ""}`;
       if (lista.length === 0) {
         return { esito: "nessun rapportino da approvare", perimetro, nota: "In questo periodo non ci sono rapportini in attesa (stato 'inviato')." };
       }
 
-      const ore = lista.reduce((s: any, r: any) => s + (Number(r.ore_lavorate) || 0), 0);
-      const straord = lista.reduce((s: any, r: any) => s + (Number(r.ore_straordinario) || 0), 0);
-      const persone = new Set(lista.map((r: any) => r.user_id)).size;
+      const presenze: Presenza[] = lista.flatMap((r: any) => presenzeDi(r));
+      const ore = presenze.reduce((s: number, p: Presenza) => s + p.ore, 0);
+      const straord = lista.reduce((s: any, r: any) =>
+        s + (Array.isArray(r.presenze) && r.presenze.length > 0 ? 0 : Number(r.ore_straordinario) || 0), 0);
+      const persone = new Set(presenze.map((p: Presenza) => p.chi)).size;
+
+      // Chi non ha un costo orario entra a 0 €: lo si dice prima, come fa l'app.
+      const dipendentiConOre: string[] = [...new Set(presenze.map((p: Presenza) => p.employeeId).filter((id: string | null): id is string => !!id))];
+      const senzaCosto: string[] = [];
+      for (const id of dipendentiConOre.slice(0, 50)) {
+        const { data: costo } = await ctx.supabase.rpc("costo_orario_dipendente", { p_employee_id: id });
+        if (!(Number(costo) > 0)) senzaCosto.push(id);
+      }
+      let avvisoCosto: string | null = null;
+      if (senzaCosto.length > 0) {
+        const { data: nomi } = await ctx.supabase.from("employees").select("first_name, last_name")
+          .eq("company_id", ctx.companyId).in("id", senzaCosto);
+        avvisoCosto = `Costo orario non determinabile per ${(nomi ?? []).map((e: any) => `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim()).join(", ")}: approvando, le loro ore entrano nei costi a 0 €. Completa la scheda in Personale prima di approvare.`;
+      }
       const riepilogo = {
         rapportini: lista.length,
         persone,
-        ore_ordinarie: Math.round(ore * 100) / 100,
-        ore_straordinario: Math.round(straord * 100) / 100,
+        ore_totali: Math.round(ore * 100) / 100,
+        di_cui_straordinario: Math.round(straord * 100) / 100,
         perimetro,
+        ...(avvisoCosto ? { avviso_costo: avvisoCosto } : {}),
       };
 
       // Anteprima: nessuna scrittura, serve al riepilogo prima della conferma.
@@ -5127,7 +5178,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         esito: rifiuta ? "RIFIUTATI" : "APPROVATI",
         motivo: rifiuta ? motivo : null,
         link: "/azienda/rapportini",
-        nota: `${lista.length} rapportini (${riepilogo.ore_ordinarie} ore${straord > 0 ? ` + ${riepilogo.ore_straordinario} straordinario` : ""}) ora in stato "${nuovoStato}".`,
+        nota: `${lista.length} rapportini (${riepilogo.ore_totali} ore${straord > 0 ? `, di cui ${riepilogo.di_cui_straordinario} di straordinario` : ""}) ora in stato "${nuovoStato}".`,
       };
     },
     allowedRoles: ["super_admin", "company_admin"],

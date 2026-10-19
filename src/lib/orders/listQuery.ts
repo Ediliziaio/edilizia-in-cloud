@@ -105,7 +105,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color),
-          installments:order_installments(position, type, amount, is_paid, expected_date),
+          installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)),
+          variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at),
           order_items(id, status, quantity),
           order_employees(employee:employees(id, first_name, last_name)),
           order_external_teams(external_team:external_teams(id, name))
@@ -189,5 +190,6 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       }
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
-      return { orders: data as OrderWithDetails[], totalCount: count ?? 0 };
+      // Le date delle varianti (offline_signed_on…) mancano nei tipi generati: ci sono nel database.
+      return { orders: data as unknown as OrderWithDetails[], totalCount: count ?? 0 };
 }

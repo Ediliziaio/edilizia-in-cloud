@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
 import { incassiDellaCommessa } from "@/lib/orders/incassiCommessa";
+import { calculateInstallmentCollections, type VarianteDatata } from "@/lib/commissions";
 // 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
 // su iOS Safari il tasto virgola era bloccato da `type="number"` e
 // parseFloat tagliava il decimale italiano (es. "1.500,50" → 1.500).
@@ -878,6 +879,8 @@ interface FinancialSummaryReadOnlyProps {
   conPrimaNota?: boolean;
   /** Nome del cliente: aiuta il match banca↔rate (citato nella causale). */
   clienteNome?: string | null;
+  /** Varianti approvate con la data: il saldo già pagato conta quelle fino al giorno del pagamento. */
+  varianti?: ReadonlyArray<VarianteDatata>;
 }
 
 export function FinancialSummaryReadOnly({
@@ -893,6 +896,7 @@ export function FinancialSummaryReadOnly({
   orderCode,
   conPrimaNota,
   clienteNome,
+  varianti,
 }: FinancialSummaryReadOnlyProps) {
   const { effectiveCompany } = useAuth();
   // Una query per tutta la card: quali rate hanno già la loro registrazione.
@@ -911,9 +915,15 @@ export function FinancialSummaryReadOnly({
   const posSaldoFinale = installments[indiceSaldoFinale(installments)]?.position ?? null;
   const isSaldoFinale = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinale;
   const balanceAmount = importoSaldoFinale(installments, totalWithVat, financingCostValue);
-  const importoRata = (i: Installment) => (isSaldoFinale(i) ? balanceAmount : i.amount);
+  // Il saldo già pagato vale quanto è entrato quel giorno: una variante approvata dopo resta da incassare.
+  const incassiRate = varianti
+    ? calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost: financingCostValue, includeFinancing: true, varianti })
+    : null;
+  const importoRata = (i: Installment) => (isSaldoFinale(i)
+    ? (i.is_paid && incassiRate ? incassiRate[installments.indexOf(i)] ?? balanceAmount : balanceAmount)
+    : i.amount);
   // Stessa regola di intestazione e conto economico (incassiDellaCommessa).
-  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost });
+  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost, varianti });
   const collectedAmount = incassi.incassatoLordo;
   const dueAmount = incassi.daIncassareLordo;
 

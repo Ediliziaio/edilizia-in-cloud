@@ -8,9 +8,11 @@
 // utenti senza scheda dipendente finiscono in "altriOperatori" (visibili ma
 // senza costo, perché non abbiamo il loro contratto).
 //
-// Costo orario aziendale = (lordo + oneri INPS) / ore contrattuali mese.
+// Costo orario aziendale = lordo × mensilità × (100 + oneri del tipo di dipendente) %
+//                          / (ore contrattuali mese × 12 × ore produttive %), vedi costoOrarioDipendente.
 // Costo effettivo mese  = lordo + oneri + straordinari × costo orario
-// (stima prudente: SENZA maggiorazione CCNL, dichiarato in UI).
+// (stima prudente: SENZA maggiorazione CCNL, dichiarato in UI). Nei rapportini di squadra le
+// presenze portano solo le ore totali di ogni persona: lì lo straordinario non è distinto.
 // ============================================================================
 
 import { useMemo } from "react";

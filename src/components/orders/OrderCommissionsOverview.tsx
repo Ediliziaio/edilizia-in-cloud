@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import {
   buildCommissionBreakdown,
   calculateCollectedNetFromInstallments,
@@ -81,8 +82,10 @@ interface OrderLike {
   total_amount: number | null;
   vat_rate?: number | null;
   financing_cost?: number | null;
+  payment_type?: string | null;
   created_at: string | null;
   installments?: InstallmentLike[] | null;
+  variazioni?: Parameters<typeof variantiApprovateDatate>[0] | null;
   customer: {
     first_name: string | null;
     last_name: string | null;
@@ -409,11 +412,15 @@ function calculateDraftAmounts(args: {
 }) {
   const totalAmount = numeric(args.order?.total_amount);
   const collectedAmount = args.type === "percentage_collected" && args.order
+    // Stessa base dell'incassato della scheda commessa: contratto più varianti, saldo come residuo,
+    // rata della finanziaria compresa e il suo costo solo se il pagamento è a finanziamento.
     ? calculateCollectedNetFromInstallments({
       installments: args.order.installments ?? [],
-      totalAmount,
+      totalAmount: agreedContractValue(totalAmount, args.order.variazioni ?? []),
       vatRate: args.order.vat_rate ?? 22,
-      financingCost: args.order.financing_cost ?? 0,
+      financingCost: args.order.payment_type === "financing" ? args.order.financing_cost ?? 0 : 0,
+      includeFinancing: true,
+      varianti: variantiApprovateDatate(args.order.variazioni ?? []),
     })
     : totalAmount;
   const value = positiveNumeric(args.value);
@@ -687,11 +694,14 @@ export function OrderCommissionsOverview() {
           total_amount,
           vat_rate,
           financing_cost,
+          payment_type,
           created_at,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
-          installments:order_installments(type, amount, is_paid)
+          installments:order_installments(position, type, amount, is_paid, paid_date, fattura:documenti_fiscali(id, importo_pagato)),
+          variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at)
         `)
         .eq("company_id", effectiveCompany.id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(250);
 

@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
+import type { VarianteDatata } from "@/lib/commissions";
 
 /** "al 50%" ma "all'80%" / "all'8%" / "all'11%". */
 const alPct = (n: number) => {
@@ -160,6 +161,7 @@ export function EsposizioneCommessa({
   vatRate,
   financingCost,
   installments,
+  varianti,
   cashTotalGross,
   avanzamentoPct,
   anchorId,
@@ -169,6 +171,8 @@ export function EsposizioneCommessa({
   vatRate: number;
   financingCost: number;
   installments: RataEsposizione[];
+  /** Varianti approvate con la data (vedi useEsposizioneCommessa). */
+  varianti?: ReadonlyArray<VarianteDatata>;
   /** Target incassi lordo (totale ivato − finanziaria): stesso "su X" del piano rate. */
   cashTotalGross: number;
   /** Media % delle fasi lavorazione; null se la commessa non ha fasi. */
@@ -183,6 +187,7 @@ export function EsposizioneCommessa({
     vatRate,
     financingCost,
     installments,
+    varianti,
   });
 
   const incassataPct = cashTotalGross > 0 ? Math.min(100, (esposizione.incassato / cashTotalGross) * 100) : 0;

@@ -1,4 +1,4 @@
-import { agreedContractValue } from "@/lib/orders/contractValue";
+import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { salMaturato, type SalMatura } from "@/lib/orders/salMaturazione";
 import { calculateInstallmentCollections } from "@/lib/commissions";
 
@@ -31,7 +31,7 @@ export function calendarFinanceModel(input: {
     financing_cost: number | null;
     payment_type: string | null;
   };
-  variations: { status: string; impatto_economico: number | string | null }[];
+  variations: Parameters<typeof variantiApprovateDatate>[0];
   rates: CalendarInstallment[];
   sals: CalendarSal[];
   maturity: SalMatura;
@@ -61,12 +61,17 @@ export function calendarFinanceModel(input: {
     vatRate: input.order.vat_rate ?? 22,
     financingCost,
     includeFinancing: true,
+    varianti: variantiApprovateDatate(input.variations),
   });
   const rates = sorted.map((rate, index) => {
+    const saldoFinale = rate.type === "balance" && rate.position === lastBalance;
+    // Il saldo già pagato vale quanto incassato quel giorno: una variante approvata dopo resta da incassare.
     const amount = cent(
-      rate.type === "balance" && rate.position === lastBalance
-        ? Math.max(0, target - other)
-        : Number(rate.amount),
+      saldoFinale && rate.is_paid
+        ? collections[index]
+        : saldoFinale
+          ? Math.max(0, target - other)
+          : Number(rate.amount),
     );
     const collected = collections[index];
     const sal = input.sals.find((s) => s.installment_id === rate.id);

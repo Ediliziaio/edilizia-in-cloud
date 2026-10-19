@@ -1,4 +1,5 @@
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
+import type { VarianteDatata } from "@/lib/commissions";
 import { OrderCommissions } from "./OrderCommissions";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
@@ -27,6 +28,8 @@ interface OrdineEconomicoProps {
   customerId?: string | null;
   /** P.IVA dell'impresa, per comporre le causali dei bonifici parlanti. */
   pivaImpresa?: string | null;
+  /** Varianti approvate con la data, per il saldo già pagato. */
+  varianti?: ReadonlyArray<VarianteDatata>;
 }
 
 // NB: niente card "Conto Economico" qui — il conto economico completo
@@ -48,6 +51,7 @@ export function OrdineEconomico({
   clienteNome,
   customerId,
   pivaImpresa,
+  varianti,
 }: OrdineEconomicoProps) {
   // Le provvigioni sono un dato di margine (vedi usePermissions: can_view_margins
   // copre "margine e provvigioni"): un ruolo senza quel permesso non deve
@@ -78,6 +82,7 @@ export function OrdineEconomico({
         orderCode={orderCode}
         conPrimaNota={conPrimaNota}
         clienteNome={clienteNome}
+        varianti={varianti}
       />
       {/* Bonus, blocca prezzo e provvigioni: conti d'ufficio, dal telefono no. */}
       <div className="space-y-4 max-sm:hidden">

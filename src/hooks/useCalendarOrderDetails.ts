@@ -125,7 +125,7 @@ export function useCalendarOrderFinance(
           ),
           supabase
             .from("ordini_variazione")
-            .select("status,impatto_economico")
+            .select("status,impatto_economico,offline_signed_on,firmato_il,approval_recorded_at,richiesto_il,created_at")
             .eq("order_id", orderId!)
             .eq("company_id", company!)
             .abortSignal(signal),
@@ -196,7 +196,8 @@ export function useCalendarOrderFinance(
             ) ?? null,
         })),
         sals,
-        variations: variations.data ?? [],
+        // Le date delle varianti mancano nei tipi generati: ci sono nel database.
+        variations: (variations.data ?? []) as unknown as Parameters<typeof calendarFinanceModel>[0]["variations"],
         maturity: salMaturaValido(settings.data?.sal_matura_quando),
       });
     },
