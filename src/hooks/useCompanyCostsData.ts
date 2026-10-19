@@ -144,7 +144,16 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         .eq("order.company_id", companyId!)
         .is("order.deleted_at", null);
       if (error) throw error;
-      return (data || []) as any[];
+      // La squadra che ha già il suo costo in elenco (collegato alla squadra) non si conta due volte.
+      const { data: collegati, error: errCollegati } = await (supabase as any)
+        .from("company_costs")
+        .select("order_external_team_id")
+        .eq("company_id", companyId!)
+        .not("order_external_team_id", "is", null)
+        .limit(5000);
+      if (errCollegati) throw errCollegati;
+      const conCosto = new Set(((collegati ?? []) as Array<{ order_external_team_id: string }>).map((c) => c.order_external_team_id));
+      return ((data || []) as any[]).filter((t) => !conCosto.has(t.id));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
