@@ -96,6 +96,8 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
 function CarichiSection({ emailId }: { emailId: string }) {
   const { data: carichi } = useCarichiDdtPerEmail(emailId);
   const aggiorna = useAggiornaStatoCaricoDdt();
+  // Confermare o scartare un carico muove il magazzino: solo chi può modificarlo (come il database).
+  const puoCaricare = !!usePermissions().canEditWarehouse;
   const visibili = (carichi ?? []).filter((c) => c.stato !== "scartato");
   if (visibili.length === 0) return null;
   return (
@@ -148,7 +150,7 @@ function CarichiSection({ emailId }: { emailId: string }) {
             </table>
           </div>
 
-          {c.stato !== "confermato" && (
+          {c.stato !== "confermato" && puoCaricare && (
             <div className="mt-3 flex gap-2">
               <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                       disabled={aggiorna.isPending}

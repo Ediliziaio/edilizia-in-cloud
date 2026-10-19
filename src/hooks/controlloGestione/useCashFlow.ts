@@ -101,7 +101,8 @@ export function useCashFlow(anno: number, meseDa = 1, meseA = 12) {
         allPaymentRows((from,to)=>supabase.from('scadenze').select('id,direction,description,amount,paid_amount,due_date,status,cost_id,invoice_id,order_id,notes,auto_source').eq('company_id',companyId!).order('id').range(from,to)),
         allPaymentRows((from,to)=>supabase.from('prima_nota_entries').select('id,direction,amount,entry_date,scadenza_id,cost_id,installment_id,invoice_id,documento_fiscale_id').eq('company_id',companyId!).lte('entry_date',today).order('id').range(from,to)),
         allPaymentRows((from,to)=>supabase.from('company_costs').select('id,name,amount,vat_rate,due_date,is_paid,payment_method').eq('company_id',companyId!).or('is_paid.eq.false,is_paid.is.null').order('id').range(from,to)),
-        leggiRateDaIncassare(companyId!),
+        // Chi vede la cassa ma non le commesse non vede le rate: la cassa si calcola senza, invece di fermarsi.
+        leggiRateDaIncassare(companyId!).catch((e: { code?: string }) => (e?.code === '42501' ? [] as ForecastRate[] : Promise.reject(e))),
         // This table is not yet present in generated Supabase types.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         allPaymentRows((from,to)=>(supabase as any).from('cg_cash_flow_manuali').select('id,anno,mese,tipo,descrizione,importo,ricorrente').eq('company_id',companyId!).gte('anno',now.getFullYear()).lte('anno',anno).order('id').range(from,to)),

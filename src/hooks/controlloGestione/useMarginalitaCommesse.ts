@@ -39,15 +39,16 @@ export function useMarginalitaCommesse(
         const chunk = ids.slice(i, i + 200);
         const [emp, ext] = await Promise.all([
           supabase.from("order_employees").select("order_id, total_cost, hours_worked").in("order_id", chunk),
-          supabase.from("order_external_teams").select("order_id, total_cost").in("order_id", chunk),
+          supabase.from("order_external_teams").select("order_id, total_cost, vat_rate").in("order_id", chunk),
         ]);
         if (emp.error) throw emp.error;
         if (ext.error) throw ext.error;
         for (const row of (emp.data ?? []) as Array<{ order_id: string; total_cost: number | null; hours_worked: number | null }>) {
           bump(row.order_id, Number(row.total_cost ?? 0), Number(row.hours_worked ?? 0));
         }
-        for (const row of (ext.data ?? []) as Array<{ order_id: string; total_cost: number | null }>) {
-          bump(row.order_id, Number(row.total_cost ?? 0), 0);
+        for (const row of (ext.data ?? []) as Array<{ order_id: string; total_cost: number | null; vat_rate: number | null }>) {
+          // total_cost delle squadre esterne è IVA inclusa: il margine lavora senza IVA (come v_ordine_marginalita)
+          bump(row.order_id, Number(row.total_cost ?? 0) / (1 + Number(row.vat_rate ?? 22) / 100), 0);
         }
       }
       return normalizeMarginalitaCommesse(result, labById);

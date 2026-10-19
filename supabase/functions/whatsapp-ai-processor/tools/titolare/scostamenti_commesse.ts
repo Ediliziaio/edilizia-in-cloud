@@ -151,7 +151,18 @@ export async function scostamentiCommesse(
 
   if (error) return errResult("db_error", "Non riesco a leggere la marginalità delle commesse.");
 
+  // Le commesse nel cestino non sono scostamenti da guardare.
+  const { data: cestino, error: cestinoErr } = await ctx.supabase
+    .from("orders")
+    .select("id")
+    .eq("company_id", ctx.company_id)
+    .not("deleted_at", "is", null)
+    .limit(5000);
+  if (cestinoErr) return errResult("db_error", "Non riesco a leggere la marginalità delle commesse.");
+  const nelCestino = new Set(((cestino ?? []) as Array<{ id: string }>).map((r) => r.id));
+
   const all: Commessa[] = ((data ?? []) as VistaRow[])
+    .filter((r) => !nelCestino.has(r.id))
     .map((r) => {
       const preventivo = num(r.preventivo_totale) || num(r.preventivo_contratto);
       const consuntivo = num(r.consuntivo);

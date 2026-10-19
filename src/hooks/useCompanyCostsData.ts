@@ -4,6 +4,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays,
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { excludeArchivedOrders, loadArchivedOrderIds } from "@/lib/orders/archivedOrderScope";
 import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import {
   buildOrderItemCosts,
@@ -109,9 +110,23 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         .select("id, name, quantity, purchase_price, status, payment_method, supplier_id, deposit_amount, deposit_expected_date, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null);
       if (error) throw error;
-      return (data || []) as any[];
+      // Il materiale comprato con un ordine al fornitore ha già il suo costo (quello dell'ODA):
+      // la riga della commessa non si conta una seconda volta.
+      const righe = (data || []) as any[];
+      const coperte = new Set<string>();
+      const ids = righe.map((r) => r.id as string);
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data: poi, error: poiError } = await supabase
+          .from("purchase_order_items")
+          .select("order_item_id")
+          .in("order_item_id", ids.slice(i, i + 100));
+        if (poiError) throw poiError;
+        for (const r of poi ?? []) if (r.order_item_id) coperte.add(r.order_item_id);
+      }
+      return righe.filter((r) => !coperte.has(r.id));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -125,8 +140,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
-        .select("id, total_cost, payment_date, is_paid, paid_date, external_team:external_teams(name), order:orders!inner(id, order_code, company_id)")
-        .eq("order.company_id", companyId!);
+        .select("id, total_cost, vat_rate, payment_date, is_paid, paid_date, external_team:external_teams(name), order:orders!inner(id, order_code, company_id)")
+        .eq("order.company_id", companyId!)
+        .is("order.deleted_at", null);
       if (error) throw error;
       return (data || []) as any[];
     },
@@ -191,14 +207,16 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async (): Promise<{ marginePerc: number; commessaMedia: number } | null> => {
       const cutoff = new Date();
       cutoff.setFullYear(cutoff.getFullYear() - 1);
-      const { data, error } = await (supabase as any)
+      // le commesse nel cestino non fanno media
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data, error } = await excludeArchivedOrders((supabase as any)
         .from("v_ordine_marginalita")
         .select("preventivo_totale, consuntivo")
         .eq("company_id", companyId!)
         .gt("preventivo_totale", 0)
         .gt("consuntivo", 0)
         .gte("created_at", cutoff.toISOString())
-        .limit(500);
+        .limit(500), archivedIds);
       if (error) throw error;
       const rows = (data ?? []) as { preventivo_totale: number | null; consuntivo: number | null }[];
       if (rows.length === 0) return null;
