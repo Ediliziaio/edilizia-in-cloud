@@ -5,23 +5,17 @@
  * l'anteprima/test (automation-email-render): così quello che vedi in anteprima
  * è ESATTAMENTE quello che arriva.
  *
- * Email della piattaforma (il marketing di EdiliziaInCloud, lato super admin): stile
- * Gmail, come una email scritta a mano. Niente intestazione col nome, niente riquadro
- * né colori da newsletter: firma e riga per non ricevere più le email stanno già nel
- * testo. Restano l'anteprima nascosta e, se impostato, il testo di piè di pagina in
- * riga normale.
- *
- * Email delle aziende clienti: il layout con il loro logo e i loro colori.
+ * Stile Gmail per tutte (piattaforma e aziende clienti), come una email scritta a mano:
+ * niente intestazione col nome o il logo, niente riquadro né colori da newsletter;
+ * firma e riga per non ricevere più le email stanno già nel testo. Restano l'anteprima
+ * nascosta e, se l'azienda l'ha impostato, il suo testo di piè di pagina in riga normale.
  *
  * Se `bodyHtml` è un documento HTML completo (<html>/<!doctype>) lo lascia intatto.
  * Genera anche il plain-text per la consegna. Se il branding non si legge, il
  * corpo parte comunque.
  */
 import { loadBranding } from "./renderTemplate.ts";
-import { renderLayout, plainTextFooter } from "./email-templates/layout.ts";
 import { escapeHtml } from "./email-templates/types.ts";
-
-const AZIENDA_PIATTAFORMA = "00000000-0000-0000-0000-000000000001";
 
 export async function brandEmailBody(
   // deno-lint-ignore no-explicit-any
@@ -42,15 +36,7 @@ export async function brandEmailBody(
     .trim();
   if (isFullDoc) return { html: raw, text };
 
-  if (!companyId || companyId === AZIENDA_PIATTAFORMA) return emailStileGmail(adminClient, companyId, raw, text, preheader);
-
-  try {
-    const branding = await loadBranding(companyId, adminClient);
-    const html = renderLayout({ branding, innerBodyHtml: raw, preheaderText: preheader });
-    return { html, text: `${text}\n\n${plainTextFooter(branding)}` };
-  } catch (_e) {
-    return { html: raw, text };
-  }
+  return emailStileGmail(adminClient, companyId, raw, text, preheader);
 }
 
 async function emailStileGmail(
