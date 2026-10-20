@@ -5,16 +5,20 @@
  * Le ricerche cercavano la frase intera dentro un campo solo: «Lia Logar» non
  * trovava nessuno (il nome è «Lia», il cognome «Logar»), come «Elide Ruggiata»
  * sulla pagina Contatti di BeMade (24/09). Ora ogni parola deve comparire in uno
- * dei campi, e un numero si cerca nel telefono comunque sia scritto e nella
- * partita IVA.
+ * dei campi, e un numero si cerca nel telefono comunque sia scritto e nel
+ * codice fiscale (per le aziende è la partita IVA).
+ *
+ * Si cerca solo in nome, cognome, email, telefono, ragione sociale e codice
+ * fiscale: cercando «omar» la città «San Martino Siccomario» non è un risultato
+ * (BeMade, 20/10).
  *
  * Restituisce le condizioni per `.or()` di PostgREST: più `.or()` in fila
  * valgono tutte insieme (una per parola).
  */
 
 const MAX_PAROLE = 5;
-/** Chi è, come si raggiunge, dove sta, i suoi codici. */
-const CAMPI = ["first_name", "last_name", "email", "phone", "company_name", "city", "fiscal_code", "vat_number"] as const;
+/** Chi è, come si raggiunge, il suo codice fiscale. */
+const CAMPI = ["first_name", "last_name", "email", "phone", "company_name", "fiscal_code"] as const;
 
 /** Toglie i caratteri che rompono la sintassi di `.or()` e rende letterali i jolly. */
 function pulisci(parola: string): string {
@@ -56,6 +60,6 @@ export function filtriRicercaParole(testo: string, campi: readonly string[]): st
 
 export function filtriRicercaContatti(testo: string): string[] {
   const numero = cifreTelefono(testo);
-  if (numero) return [`phone.imatch.${espressioneCifre(numero)},vat_number.ilike.%${numero}%`];
+  if (numero) return [`phone.imatch.${espressioneCifre(numero)},fiscal_code.ilike.%${numero}%`];
   return filtriRicercaParole(testo, CAMPI);
 }

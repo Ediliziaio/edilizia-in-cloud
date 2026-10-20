@@ -66,10 +66,11 @@ describe("Ricerca contatti: nome, email, città, codici", () => {
     expect(trova(mario, filtriRicercaContatti("gmail"))).toBe(true);
   });
 
-  it("nome più città, azienda, codice fiscale", () => {
+  it("nome più azienda e codice fiscale; la città no", () => {
     const rossi = { ...vuoto, first_name: "Mario", last_name: "Rossi", city: "Monza", company_name: "Edil Rossi Srl", fiscal_code: "RSSMRA80A01F704X" };
-    expect(trova(rossi, filtriRicercaContatti("Rossi Monza"))).toBe(true);
-    expect(trova(rossi, filtriRicercaContatti("Rossi Milano"))).toBe(false);
+    expect(trova(rossi, filtriRicercaContatti("Rossi Monza"))).toBe(false);
+    // «omar» non trova chi abita a San Martino Siccomario
+    expect(trova({ ...vuoto, first_name: "Romolo", city: "San Martino Siccomario" }, filtriRicercaContatti("omar"))).toBe(false);
     expect(trova(rossi, filtriRicercaContatti("edil srl"))).toBe(true);
     expect(trova(rossi, filtriRicercaContatti("rssmra80a01f704x"))).toBe(true);
   });
@@ -102,8 +103,9 @@ describe("Ricerca contatti: i numeri", () => {
     expect(trova({ ...vuoto, phone: "+393455126799" }, filtriRicercaContatti("3455126755"))).toBe(false);
   });
 
-  it("un numero lungo si cerca anche nella partita IVA: prima finiva solo sul telefono", () => {
-    expect(trova({ ...vuoto, vat_number: "IT01234567890" }, filtriRicercaContatti("01234567890"))).toBe(true);
+  it("un numero lungo si cerca anche nel codice fiscale (la partita IVA di un'azienda)", () => {
+    expect(trova({ ...vuoto, fiscal_code: "01234567890" }, filtriRicercaContatti("01234567890"))).toBe(true);
+    expect(trova({ ...vuoto, vat_number: "IT01234567890" }, filtriRicercaContatti("01234567890"))).toBe(false);
   });
 
   it("l'espressione mette «qualsiasi non cifra» fra una cifra e l'altra", () => {
