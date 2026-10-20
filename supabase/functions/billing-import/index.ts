@@ -83,12 +83,12 @@ Deno.serve(async (req) => {
     let failed = 0;
     const importErrors: string[] = [];
 
-    // Anagrafica: aggancia (o crea) il contatto cliente → invoices.client_id (FK marketing_contacts).
-    // Cache per-run su P.IVA/CF: più fatture dello stesso cliente puntano allo stesso contatto
-    // e non lo si ricrea. Best-effort: se fallisce, la fattura resta senza link (non blocca il sync).
+    // Anagrafica: aggancia il contatto che ESISTE già (stessa P.IVA o CF) → invoices.client_id.
+    // Non ne crea di nuovi: chi riceve una fattura è un cliente della fatturazione, non un
+    // contatto del CRM; nome, P.IVA e indirizzo restano comunque sulla fattura (client_*).
+    // Cache per-run su P.IVA/CF. Best-effort: se fallisce, la fattura resta senza link.
     const contactCache = new Map<string, string>();
-    // Chiavi già cercate in blocco e non trovate: si crea il contatto senza
-    // rifare la select (una query in meno per ogni cliente nuovo).
+    // Chiavi già cercate in blocco e non trovate: non si rifà la select.
     const cercatiAssenti = new Set<string>();
     /** Una query per pagina invece di una per fattura. */
     const precaricaClienti = async (lista: any[]) => {
@@ -128,24 +128,7 @@ Deno.serve(async (req) => {
           const { data: found } = await q.maybeSingle();
           if (found?.id) { contactCache.set(key, found.id); return found.id; }
         }
-        const { data: created } = await supabase.from("marketing_contacts").insert({
-          company_id: companyId,
-          first_name: (x.clientName || "").trim() || "Cliente",
-          company_name: x.clientName || null,
-          vat_number: vat || null,
-          fiscal_code: cf || null,
-          email: x.clientEmail || null,
-          address: x.clientAddress || null,
-          city: x.clientCity || null,
-          postal_code: x.clientZip || null,
-          country: x.clientCountry || "IT",
-          contact_type: "company",
-          source: "fatturazione",
-          tags: ["fatturazione"],
-          unsubscribed: false,
-          score: 0,
-        }).select("id").single();
-        if (created?.id) { contactCache.set(key, created.id); return created.id; }
+        cercatiAssenti.add(key);
       } catch { /* best-effort */ }
       return null;
     };
@@ -280,12 +263,11 @@ Deno.serve(async (req) => {
       const clientId = await resolveClientId(inv);
       const match = await resolveOrderId(inv);
 
-      const invoiceData = {
+      const invoiceData: Record<string, unknown> = {
         company_id: companyId,
         document_type: inv.documentType || "invoice",
         status: inv.status || "issued",
         invoice_number: inv.number,
-        client_id: clientId,
         client_company_name: inv.clientName,
         client_vat_number: inv.clientVat || null,
         client_fiscal_code: inv.clientFiscalCode || null,
@@ -309,6 +291,10 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+
+      // Il collegamento al contatto si scrive solo se c'è: un aggiornamento non
+      // stacca la fattura dal contatto a cui era già legata.
+      if (clientId) invoiceData.client_id = clientId;
 
       if (existing) {
         // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
