@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
-import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,31 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 // ─── Types ────────────────────────────────────────────────────
 
+/**
+ * Giorni fra la data scritta in fattura e la consegna dello SDI, contati sul
+ * calendario italiano: il fornitore può trasmettere fino a 12 giorni dopo
+ * (15 del mese dopo per le differite), e la differenza si vede qui.
+ */
+export function giorniDallaFattura(f: { data_fattura: string; data_ricezione_sdi: string | null }): number | null {
+  if (!f.data_ricezione_sdi || !f.data_fattura) return null;
+  const arrivo = new Date(f.data_ricezione_sdi).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+  const giorni = Math.round((Date.parse(arrivo) - Date.parse(f.data_fattura.slice(0, 10))) / 86_400_000);
+  return Number.isFinite(giorni) ? giorni : null;
+}
+
+function ArrivataIl({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
+  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title="Data di arrivo non disponibile: fattura caricata a mano o importata">—</span>;
+  const giorni = giorniDallaFattura(f);
+  return (
+    <span title={`Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}`}>
+      {formatDateShort(f.data_ricezione_sdi)}
+      {giorni != null && giorni > 0 && (
+        <span className="block text-[11px] leading-tight text-muted-foreground">{giorni === 1 ? "1 giorno dopo" : `${giorni} giorni dopo`}</span>
+      )}
+    </span>
+  );
+}
+
 interface FatturaRicevuta {
   id: string;
   company_id: string;
@@ -94,6 +119,8 @@ interface FatturaRicevuta {
   tipo_documento: string;
   numero_fattura: string;
   data_fattura: string;
+  /** Quando lo SDI l'ha consegnata (openapi); vuota per le importate a mano. */
+  data_ricezione_sdi: string | null;
   // Nullable: alcuni provider (es. Aruba dal cassetto SDI) non espongono gli
   // importi nella lista → restano NULL finché non si apre l'XML.
   imponibile_totale: number | null;
@@ -228,7 +255,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
@@ -958,6 +985,7 @@ export default function FattureRicevutePage() {
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                   N. {f.numero_fattura} · {formatDateShort(f.data_fattura)}
+                  {f.data_ricezione_sdi ? ` · arrivata ${formatDateShort(f.data_ricezione_sdi)}` : ""}
                   {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
                 </div>
               </div>
@@ -980,6 +1008,7 @@ export default function FattureRicevutePage() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Numero</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Arrivata il</TableHead>
                 <TableHead className="text-right">Imponibile</TableHead>
                 <TableHead className="text-right">IVA</TableHead>
                 <TableHead className="text-right">Totale</TableHead>
@@ -1020,6 +1049,7 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   <TableCell className="font-mono text-sm">{f.numero_fattura}</TableCell>
                   <TableCell>{formatDateShort(f.data_fattura)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm"><ArrivataIl f={f} /></TableCell>
                   <TableCell className="text-right">
                     {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground" title="Importo non incluso nella lista del provider: apri l'XML per il dettaglio">—</span>}
                   </TableCell>
@@ -1204,6 +1234,7 @@ export default function FattureRicevutePage() {
               </SheetHeader>
               <p className="mt-1 text-xs text-muted-foreground">
                 N. {dettaglioMobile.numero_fattura} · {formatDateShort(dettaglioMobile.data_fattura)}
+                {dettaglioMobile.data_ricezione_sdi ? ` · arrivata ${formatDateTime(dettaglioMobile.data_ricezione_sdi)}` : ""}
                 {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
               </p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
