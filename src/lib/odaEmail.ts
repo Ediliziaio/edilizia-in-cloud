@@ -28,6 +28,8 @@ export interface OdaEmailDati {
   consegnaPrevista?: string | null;
   pagamento?: string | null;
   commessaCodice?: string | null;
+  /** Il nostro codice cliente presso il fornitore: lo cercano per primo. */
+  codiceCliente?: string | null;
   note?: string | null;
   subtotal: number;
   vatTotal: number;
@@ -81,6 +83,7 @@ export function buildOdaEmailBody(d: OdaEmailDati): string {
     : `<tr><td colspan="4" style="padding:10px 8px;color:#888;font-style:italic;">Nessun dettaglio articoli: fa fede l'importo complessivo.</td></tr>`;
 
   const condizioni = [
+    d.codiceCliente ? `<li>Nostro codice cliente: <strong>${esc(d.codiceCliente)}</strong></li>` : "",
     consegna ? `<li>Consegna richiesta: <strong>${esc(consegna)}</strong></li>` : "",
     d.pagamento ? `<li>Pagamento: ${esc(d.pagamento)}</li>` : "",
     d.commessaCodice ? `<li>Riferimento cantiere: ${esc(d.commessaCodice)}</li>` : "",

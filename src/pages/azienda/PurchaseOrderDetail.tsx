@@ -47,6 +47,7 @@ import { calcolaScadenza, TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
 import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { emailPerOrdini, terminiPagamentoTesto } from "@/lib/suppliers/anagraficaFornitore";
 import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -153,6 +154,7 @@ export default function PurchaseOrderDetail() {
     consegnaPrevista: order.expected_delivery_date,
     pagamento: order.payment_terms,
     commessaCodice: order.orders?.order_code ?? null,
+    codiceCliente: supplier?.codice_cliente ?? null,
     note: order.notes,
     subtotal: Number(order.subtotal),
     vatTotal: Number(order.vat_total),
@@ -168,7 +170,8 @@ export default function PurchaseOrderDetail() {
   };
   const composeContext: ComposeContext = {
     mode: "new",
-    initialTo: supplier?.email ? [supplier.email] : [],
+    // A chi va l'ordine: email per gli ordini, poi referente degli ordini, poi l'email generale.
+    initialTo: emailPerOrdini(supplier) ? [emailPerOrdini(supplier)!] : [],
     initialSubject: buildOdaEmailSubject(datiEmail),
     initialBodyHtml: buildOdaEmailBody(datiEmail),
   };
@@ -458,7 +461,16 @@ export default function PurchaseOrderDetail() {
           <QuoteCard title="Fornitore" icon={<Truck className="h-4 w-4" />}>
             <div className="space-y-2">
               <p className="font-semibold text-slate-900">{supplier?.name || "—"}</p>
-              {supplier?.email && <p className="text-sm text-slate-500">{supplier.email}</p>}
+              {emailPerOrdini(supplier) && <p className="text-sm text-slate-500">{emailPerOrdini(supplier)}</p>}
+              {supplier?.codice_cliente && <p className="text-xs text-slate-500">Nostro codice cliente: {supplier.codice_cliente}</p>}
+              {(terminiPagamentoTesto(supplier ?? {}) || supplier?.sconto_percentuale != null) && (
+                <p className="text-xs text-slate-500">
+                  {[
+                    terminiPagamentoTesto(supplier ?? {}) && `Pagamento concordato: ${terminiPagamentoTesto(supplier ?? {})}`,
+                    supplier?.sconto_percentuale != null && `sconto ${String(supplier.sconto_percentuale).replace(".", ",")}%`,
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              )}
               {supplier?.address && <p className="text-xs text-slate-500">{supplier.address}, {supplier.city} {supplier.province}</p>}
               {supplier?.vat_number && <p className="text-xs text-slate-500">P.IVA: {supplier.vat_number}</p>}
               {supplier?.iban && (

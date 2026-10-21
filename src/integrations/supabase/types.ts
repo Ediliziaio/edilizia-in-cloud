@@ -86346,6 +86346,17 @@ export type Database = {
           vat_number: string | null
           vat_rate: number | null
           website: string | null
+          altri_referenti: Json
+          codice_cliente: string | null
+          codice_sdi: string | null
+          email_ordini: string | null
+          pec: string | null
+          ritiro_citta: string | null
+          ritiro_indirizzo: string | null
+          ritiro_note: string | null
+          sconto_percentuale: number | null
+          termini_fine_mese: boolean
+          termini_giorni: number | null
         }
         Insert: {
           address?: string | null
@@ -86382,6 +86393,17 @@ export type Database = {
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
+          altri_referenti?: Json
+          codice_cliente?: string | null
+          codice_sdi?: string | null
+          email_ordini?: string | null
+          pec?: string | null
+          ritiro_citta?: string | null
+          ritiro_indirizzo?: string | null
+          ritiro_note?: string | null
+          sconto_percentuale?: number | null
+          termini_fine_mese?: boolean
+          termini_giorni?: number | null
         }
         Update: {
           address?: string | null
@@ -86418,6 +86440,17 @@ export type Database = {
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
+          altri_referenti?: Json
+          codice_cliente?: string | null
+          codice_sdi?: string | null
+          email_ordini?: string | null
+          pec?: string | null
+          ritiro_citta?: string | null
+          ritiro_indirizzo?: string | null
+          ritiro_note?: string | null
+          sconto_percentuale?: number | null
+          termini_fine_mese?: boolean
+          termini_giorni?: number | null
         }
         Relationships: [
           {

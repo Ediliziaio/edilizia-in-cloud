@@ -287,7 +287,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("*, suppliers(name, email, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_code)")
+        .select("*, suppliers(name, email, email_ordini, altri_referenti, codice_cliente, termini_giorni, termini_fine_mese, sconto_percentuale, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_code)")
         .eq("id", poId!)
         .single();
       if (error) throw error;

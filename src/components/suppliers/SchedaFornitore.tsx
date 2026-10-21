@@ -3,7 +3,10 @@ import { Button } from "@/components/ui/button";
 import { etichettaPagamentoFornitore } from "@/lib/impostazioni/pagamentiFornitori";
 import { formatCurrency } from "@/lib/formatters";
 import {
+  etichettaRuoloReferente,
+  referentiDi,
   sitoFornitore,
+  terminiPagamentoTesto,
   type Supplier,
 } from "@/lib/suppliers/anagraficaFornitore";
 import type { ReactNode } from "react";
@@ -100,6 +103,26 @@ export function SchedaFornitore({
             Aggiungi referente
           </Button>
         )}
+        {referentiDi(s.altri_referenti).length > 0 && (
+          <div className="space-y-3 border-t pt-3">
+            {referentiDi(s.altri_referenti).map((r, i) => (
+              <div key={i} className="min-w-0 space-y-1">
+                <p className="text-xs text-muted-foreground">{etichettaRuoloReferente(r.ruolo)}</p>
+                {r.nome && <p className="text-sm font-medium">{r.nome}</p>}
+                {r.email && (
+                  <a className="block break-all text-sm text-primary hover:underline" href={`mailto:${encodeURIComponent(r.email)}`}>
+                    {r.email}
+                  </a>
+                )}
+                {r.telefono && (
+                  <a className="block text-sm text-primary hover:underline" href={`tel:${r.telefono.replace(/[^\d+]/g, "")}`}>
+                    {r.telefono}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Pannello>
       <Pannello
         titolo="Contatti"
@@ -109,7 +132,17 @@ export function SchedaFornitore({
           Recapiti generali dell’azienda
         </p>
         <Recapiti email={s.email} phone={s.phone} />
-        <dl>
+        <dl className="space-y-3">
+          <Dato
+            nome="Email per gli ordini"
+            valore={
+              s.email_ordini && (
+                <a className="break-all text-primary hover:underline" href={`mailto:${encodeURIComponent(s.email_ordini)}`}>
+                  {s.email_ordini}
+                </a>
+              )
+            }
+          />
           <Dato
             nome="Sito web"
             valore={
@@ -142,6 +175,8 @@ export function SchedaFornitore({
           />
           <Dato nome="P.IVA" valore={s.vat_number} />
           <Dato nome="Codice fiscale" valore={s.fiscal_code} />
+          <Dato nome="PEC" valore={s.pec} />
+          <Dato nome="Codice destinatario SDI" valore={s.codice_sdi} />
           <Dato
             nome="Aliquota IVA"
             valore={s.vat_rate == null ? undefined : `${s.vat_rate}%`}
@@ -171,6 +206,12 @@ export function SchedaFornitore({
               }
             />
             <Dato nome="Banca" valore={s.bank_name} />
+            <Dato nome="Termini di pagamento" valore={terminiPagamentoTesto(s) ?? undefined} />
+            <Dato nome="Il nostro codice cliente" valore={s.codice_cliente} />
+            <Dato
+              nome="Sconto concordato"
+              valore={s.sconto_percentuale == null ? undefined : `${String(s.sconto_percentuale).replace(".", ",")}%`}
+            />
             <Dato
               nome="Consegna indicativa"
               valore={
@@ -202,6 +243,17 @@ export function SchedaFornitore({
           </p>
         </Pannello>
       </div>
+      {(s.ritiro_indirizzo || s.ritiro_citta || s.ritiro_note) && (
+        <Pannello
+          titolo="Ritiro merce / magazzino"
+          icona={<MapPin className="h-4 w-4 text-primary" />}
+        >
+          <dl className="space-y-3">
+            <Dato nome="Indirizzo" valore={[s.ritiro_indirizzo, s.ritiro_citta].filter(Boolean).join(", ")} />
+            <Dato nome="Orari e note" valore={s.ritiro_note} />
+          </dl>
+        </Pannello>
+      )}
       <Pannello
         titolo="Note"
         icona={<Building2 className="h-4 w-4 text-primary" />}
