@@ -7,7 +7,7 @@ vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => s
 vi.mock("../../../supabase/functions/_shared/sendEmailUnified.ts", () => ({ sendEmailUnified: async (args: unknown) => { stato.email(args); return { ok: stato.emailOk, status: stato.emailOk ? 200 : 503 }; } }));
 vi.mock("../../../supabase/functions/_shared/inviaSmsFirma.ts", () => ({ inviaSmsCodiceFirma: async () => ({ inviato: stato.smsOk }) }));
 vi.mock("../../../supabase/functions/_shared/getBranding.ts", () => ({ getBrandingForCompany: async () => ({ siteUrl: "https://example.test", platformName: "Demo & Figli" }) }));
-vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async (): Promise<unknown[]> => [] }));
+vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async (): Promise<unknown[]> => [], informativaPrivacyDellaFirma: async (): Promise<string | null> => null }));
 vi.mock("../../../supabase/functions/_shared/pdfFirmato.ts", () => ({ assicuraPdfFirmato: async () => { stato.pdf(); return { path: "c-1/firmato.pdf", codiceVerifica: "ABCD-1234-5678" }; } }));
 
 const TOKEN = "12345678-1234-1234-1234-123456789abc";

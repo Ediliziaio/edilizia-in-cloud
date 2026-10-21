@@ -86,6 +86,7 @@ export default function FirmaDocumento() {
   const [recessoAccettato, setRecessoAccettato] = useState(false);
   const [clausoleApprovate, setClausoleApprovate] = useState<string[]>([]);
   const [documentoLetto, setDocumentoLetto] = useState(false);
+  const [privacyAccettata, setPrivacyAccettata] = useState(false);
   const [invioOtpInCorso, setInvioOtpInCorso] = useState(false);
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
@@ -306,6 +307,7 @@ export default function FirmaDocumento() {
           b2c_recesso_accettato: sessione?.tipo_firmatario === 'b2c' ? recessoAccettato : null,
           b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? clausoleApprovate : null,
           clausole_approvate: clausoleApprovate,
+          privacy_accettata: sessione?.informativa_privacy ? privacyAccettata : null,
         },
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
@@ -629,9 +631,21 @@ export default function FirmaDocumento() {
             Confermo di aver letto e compreso il documento e di accettarne il contenuto
           </label>
         </div>
+        {sessione.informativa_privacy && (
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="privacy"
+              checked={privacyAccettata}
+              onCheckedChange={v => setPrivacyAccettata(!!v)}
+            />
+            <label htmlFor="privacy" className="text-sm text-slate-700 cursor-pointer whitespace-pre-line">
+              {sessione.informativa_privacy}
+            </label>
+          </div>
+        )}
         <Button
           className="w-full h-14 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
-          disabled={!documentoLetto || firmaInCorso}
+          disabled={!documentoLetto || (!!sessione.informativa_privacy && !privacyAccettata) || firmaInCorso}
           onClick={completaFirma}
         >
           {firmaInCorso ? (

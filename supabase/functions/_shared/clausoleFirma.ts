@@ -16,6 +16,7 @@
 import {
   clausoleDaApprovare, condizioniStandard, righeDelleCondizioni, type SettoreCondizioni,
 } from "./condizioniStandard.ts";
+import { risolviTestiLegali, CONSENSO, type ClausolaAziendale } from "./quoteLegal.ts";
 
 export interface ClausolaFirma {
   id: string;
@@ -63,4 +64,22 @@ export async function clausoleDellaFirma(sb: any, r: RichiestaFirma): Promise<Cl
   }
   return clausoleDaApprovare(righeDelleCondizioni(condizioniStandard(settore)))
     .map((testo, i) => ({ id: `std-${i + 1}`, testo }));
+}
+
+/**
+ * L'informativa privacy da accettare alla firma di un contratto (21/10/2026).
+ * La firma con link del preventivo generico la chiedeva già; quella dei moduli
+ * (Ristrutturazione, Bagni…) e del fotovoltaico no. Il testo è quello che
+ * l'azienda ha scritto in Impostazioni → Condizioni e firma, altrimenti il
+ * nostro. Per ordini di lavoro, verbali e documenti di cantiere: niente.
+ */
+// deno-lint-ignore no-explicit-any
+export async function informativaPrivacyDellaFirma(sb: any, r: RichiestaFirma): Promise<string | null> {
+  if (r.tipo_documento !== "quote" && r.tipo_documento !== "fv") return null;
+  const { data } = await sb
+    .from("quote_clause_templates")
+    .select("id, category, title, content, active, sort_order, applicable_to")
+    .eq("company_id", r.company_id)
+    .eq("active", true);
+  return risolviTestiLegali((data ?? []) as ClausolaAziendale[])[CONSENSO.PRIVACY] ?? null;
 }

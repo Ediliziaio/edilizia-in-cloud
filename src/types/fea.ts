@@ -198,6 +198,8 @@ export interface FEASessionePubblica {
   b2c_clausole: FEAClausolaVessatoria[] | null;
   /** Clausole da approvare a parte (art. 1341 c.c.): per ogni firmatario di un contratto, privato o azienda. */
   clausole_1341?: FEAClausolaVessatoria[] | null;
+  /** Informativa privacy da accettare con una spunta prima di firmare un contratto. */
+  informativa_privacy?: string | null;
   /** Titolo dell'offerta (es. «Sostituzione serramenti villa»), se preventivo. */
   titolo?: string | null;
   /** Totale del documento, IVA inclusa, se preventivo. */

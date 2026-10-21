@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { clausoleDellaFirma } from "../_shared/clausoleFirma.ts";
+import { clausoleDellaFirma, informativaPrivacyDellaFirma } from "../_shared/clausoleFirma.ts";
 import { mascheraTelefono } from "../_shared/telefonoE164.ts";
 
 function mascheraEmail(email: string | null | undefined): string | null {
@@ -201,6 +201,7 @@ Deno.serve(async (req: Request) => {
     // Le clausole da approvare a parte (art. 1341 c.c.) valgono per ogni firmatario
     // di un contratto, non solo per i privati.
     const clausole1341 = await clausoleDellaFirma(supabaseAdmin, sigReq);
+    const informativa_privacy = await informativaPrivacyDellaFirma(supabaseAdmin, sigReq);
     if (sigReq.tipo_firmatario === "b2c") b2c_clausole = clausole1341;
 
     // Audit log link_aperto
@@ -227,6 +228,8 @@ Deno.serve(async (req: Request) => {
       b2c_testo_recesso,
       b2c_clausole,
       clausole_1341: clausole1341,
+      // Da accettare con una spunta prima di firmare un contratto.
+      informativa_privacy,
       // Dettagli che il cliente vuole vedere prima di firmare
       titolo,
       importo_totale,

@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { clausoleDellaFirma } from "../_shared/clausoleFirma.ts";
+import { clausoleDellaFirma, informativaPrivacyDellaFirma } from "../_shared/clausoleFirma.ts";
 import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
 import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 
@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
       b2c_recesso_accettato,
       b2c_clausole_approvate,
       clausole_approvate,
+      privacy_accettata,
     } = body;
 
     const varianti = variantiTokenFirma(token);
@@ -135,6 +136,12 @@ Deno.serve(async (req: Request) => {
     const approvate = Array.isArray(arrivate) ? arrivate.filter((x): x is string => typeof x === "string") : [];
     if (attese.some((c) => !approvate.includes(c.id))) {
       return errore(400, "Per firmare approva ogni clausola specifica del contratto.");
+    }
+
+    // Informativa privacy: chi firma un contratto la accetta con una spunta.
+    const informativaPrivacy = await informativaPrivacyDellaFirma(supabaseAdmin, sigReq);
+    if (informativaPrivacy && privacy_accettata !== true) {
+      return errore(400, "Per firmare conferma di aver letto l'informativa privacy.");
     }
 
     const ora = new Date().toISOString();
@@ -247,6 +254,9 @@ Deno.serve(async (req: Request) => {
         tipo_firmatario: sigReq.tipo_firmatario,
         documento_hash: sigReq.documento_hash,
         b2c_recesso: sigReq.tipo_firmatario === "b2c" ? (b2c_recesso_accettato ?? true) : null,
+        // Il consenso con il testo che chi firma ha visto: è la prova.
+        privacy_accettata: informativaPrivacy ? true : null,
+        informativa_privacy: informativaPrivacy,
       },
     });
 
