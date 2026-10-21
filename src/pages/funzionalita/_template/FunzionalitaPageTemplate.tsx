@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import OperationalStory from "@/components/marketing/OperationalStory";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { visualThemeForFeature, marketingVisualIntro } from "@/lib/marketing/visuals";
@@ -178,8 +179,10 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
 /* ================================================================== */
 export default function FunzionalitaPageTemplate({
   config,
+  afterHero,
 }: {
   config: FunzionalitaPageConfig;
+  afterHero?: ReactNode;
 }) {
   const url = `${SITE_URL}/funzionalita/${config.slug}`;
 
@@ -423,6 +426,8 @@ export default function FunzionalitaPageTemplate({
           </div>
         </div>
       </section>
+
+      {afterHero}
 
       {/* ════════════════════════════════════════════════════════════ */}
       {/* BETA / TRUST BANNER                                           */}

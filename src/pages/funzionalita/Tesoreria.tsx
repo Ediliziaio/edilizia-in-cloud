@@ -1,3 +1,4 @@
+import EditorialVideo from "@/components/marketing/EditorialVideo";
 import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
@@ -447,5 +448,5 @@ const config: FunzionalitaPageConfig = {
 };
 
 export default function Tesoreria() {
-  return <FunzionalitaPageTemplate config={config} />;
+  return <FunzionalitaPageTemplate config={config} afterHero={<EditorialVideo video="cash" />} />;
 }

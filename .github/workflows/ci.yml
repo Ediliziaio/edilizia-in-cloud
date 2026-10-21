@@ -88,6 +88,7 @@ jobs:
           src/test/ui/blogSeoMetadata.test.tsx
           src/test/ui/calendarioInPagina.test.tsx
           src/test/ui/marketingVideo.test.tsx
+          src/test/ui/editorialVideo.test.tsx
           src/test/logic/marketingPrerenderSlugs.test.ts
           src/test/logic/comparisonCrawlerParity.test.ts
           src/test/logic/prerenderJsonLd.test.ts

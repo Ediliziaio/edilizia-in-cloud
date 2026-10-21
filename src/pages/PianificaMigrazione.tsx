@@ -1,3 +1,4 @@
+import EditorialVideo from "@/components/marketing/EditorialVideo";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -437,6 +438,8 @@ export default function PianificaMigrazione() {
 <MarketingVisual theme="documents" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
 </div>
       </section>
+
+      <EditorialVideo video="migration" />
 
       {/* ── DA QUALI SOFTWARE ── */}
       <section className="py-14 sm:py-20 px-5 sm:px-6 bg-white">
