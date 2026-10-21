@@ -33,6 +33,8 @@ export interface ForecastMovement {
   expectedDate?: string | null;
   note?: string;
   orderId?: string | null;
+  /** Codice e cliente della commessa, per il filtro comune della pagina. */
+  orderLabel?: string;
   /**
    * Incasso che potrebbe essere già compreso nelle rate della stessa commessa (fattura o scadenza
    * non collegata a una rata): resta fuori dal piano finché qualcuno non lo collega.
@@ -440,9 +442,19 @@ export function buildForecastLedger(
   const notedInvoices = new Set(s.notes.map((n) => n.invoice_id));
   const notedInstallments = new Set(s.notes.map((n) => n.installment_id));
   const notedNative = new Set(s.notes.map((n) => n.documento_fiscale_id));
+  const orderLabel = (id: string | null | undefined): string | undefined => {
+    const o = id ? orderMap.get(id) : undefined;
+    if (!o) return undefined;
+    const client = o.client_name || o.client_company;
+    return [o.order_code, client].filter(Boolean).join(" · ") || undefined;
+  };
   const add = (m: ForecastMovement, paid = false) => {
     if (m.cents > 0)
-      (paid ? collected : movements).push({ ...m, date: validDay(m.date) });
+      (paid ? collected : movements).push({
+        ...m,
+        date: validDay(m.date),
+        orderLabel: m.orderLabel ?? orderLabel(m.orderId),
+      });
   };
   const netIncome = (
     cents: number,
@@ -1380,6 +1392,27 @@ export function projectForecast(
     excludedEstimates,
     included,
     outside,
+  };
+}
+/**
+ * Ritardo medio reale degli incassi: giorni tra la data attesa e quella dell'incasso registrato,
+ * negli ultimi 12 mesi (un anticipo conta zero). Null se nessun incasso ha una data attesa.
+ */
+export function meanCollectionDelay(
+  collected: ForecastMovement[],
+  today: string,
+): { days: number | null; samples: number } {
+  const from = moveDay(today, -366);
+  const late = collected
+    .filter(
+      (m) => m.date && m.expectedDate && m.date >= from && m.date <= today,
+    )
+    .map((m) => Math.max(0, daysBetween(m.expectedDate!, m.date!)));
+  return {
+    days: late.length
+      ? Math.round(late.reduce((sum, d) => sum + d, 0) / late.length)
+      : null,
+    samples: late.length,
   };
 }
 export function forecastWeeks(days: ForecastDay[]) {

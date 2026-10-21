@@ -5,25 +5,27 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 vi.mock("@/lib/csvExport", () => ({ exportToCSV: vi.fn() }));
-vi.mock("@/components/forecast/MarginTab", () => ({
-  MarginTab: () => <p>Marginalità di verifica</p>,
-}));
-vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  AreaChart: () => <div>Grafico di verifica</div>,
-  Area: (): null => null,
-  CartesianGrid: (): null => null,
-  ReferenceLine: (): null => null,
-  Tooltip: (): null => null,
-  XAxis: (): null => null,
-  YAxis: (): null => null,
-}));
+vi.mock("recharts", () => {
+  const Nothing = (): null => null;
+  return {
+    ResponsiveContainer: ({ children }: { children: ReactNode }) => (
+      <div>{children}</div>
+    ),
+    ComposedChart: () => <div>Grafico di verifica</div>,
+    Bar: Nothing,
+    Line: Nothing,
+    CartesianGrid: Nothing,
+    ReferenceDot: Nothing,
+    ReferenceLine: Nothing,
+    Tooltip: Nothing,
+    XAxis: Nothing,
+    YAxis: Nothing,
+  };
+});
 import { ForecastWorkspace } from "@/components/forecast/ForecastWorkspace";
 import { forecastFixture } from "@/test/fixtures/forecastDataset";
 import { exportToCSV } from "@/lib/csvExport";
@@ -32,29 +34,71 @@ const click = (element: HTMLElement) => {
   fireEvent.mouseDown(element, { button: 0, ctrlKey: false });
   fireEvent.click(element);
 };
-const mount = (data: ForecastDataset = forecastFixture) =>
+function SearchSpy(): ReactNode {
+  return <output data-testid="url">{useLocation().search}</output>;
+}
+const urlSearch = () => screen.getByTestId("url").textContent;
+const mount = (data: ForecastDataset = forecastFixture, url = "/") =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <ForecastWorkspace data={data} onRefresh={vi.fn()} />
+      <SearchSpy />
     </MemoryRouter>,
   );
+const exported = (call = 0) => vi.mocked(exportToCSV).mock.calls[call][0];
+const overdueSupplier = {
+  id: "old-supplier",
+  description: "Fornitore scaduto",
+  counterparty: "",
+  category: "fornitori" as const,
+  direction: "out" as const,
+  cents: 9_300_000,
+  date: "2026-09-01",
+  source: "Spesa registrata",
+  href: "/azienda/costi",
+  estimated: false,
+};
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
 });
 afterEach(cleanup);
 
-describe("forecast workspace decisions", () => {
-  it("opens on future cash with all four tabs available", () => {
+describe("previsionale: schede e filtri comuni", () => {
+  it("opens on the overview with the six tabs and the renamed figures", () => {
     mount();
-    expect(screen.getByRole("tab", { name: "Cassa futura" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    for (const name of ["Movimenti", "Incassato", "Marginalità"])
+    for (const name of [
+      "Settimane",
+      "Movimenti",
+      "Da sistemare",
+      "Incassato",
+      "Fonti e ipotesi",
+    ])
       expect(screen.getByRole("tab", { name })).toBeVisible();
-    expect(screen.getByText("Minimo nei 90 giorni")).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Marginalità" })).toBeNull();
+    expect(screen.getByText("Ti mancano")).toBeVisible();
+    expect(screen.getByText(/per restare sopra/)).toBeVisible();
+    expect(screen.getByText("Incassi scaduti da sollecitare")).toBeVisible();
     expect(screen.getByText("Sotto la soglia dal 14 ott")).toBeVisible();
+  });
+  it("reads the tab and the filters from the URL and writes them back", () => {
+    mount(forecastFixture, "/?scheda=settimane&giorni=30");
+    expect(screen.getByRole("tab", { name: "Settimane" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "30 giorni" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    click(screen.getByRole("button", { name: "180 giorni" }));
+    expect(urlSearch()).toContain("giorni=180");
+    click(screen.getByRole("button", { name: "Azzera" }));
+    expect(urlSearch()).toBe("?scheda=settimane");
   });
   it("shows an unavailable opening balance instead of zero", () => {
     mount({
@@ -68,7 +112,7 @@ describe("forecast workspace decisions", () => {
       screen.getByRole("link", { name: "Completa in Tesoreria" }),
     ).toHaveAttribute("href", "/azienda/tesoreria");
   });
-  it("shows source failures and provides a retry", async () => {
+  it("shows source failures in every tab with a retry, keeping the verdict", () => {
     const refresh = vi.fn();
     render(
       <MemoryRouter>
@@ -79,14 +123,21 @@ describe("forecast workspace decisions", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Conti bancari");
+    expect(screen.getByText("Sotto la soglia dal 14 ott")).toBeVisible();
+    expect(
+      screen.getByText(/Verifica prima di decidere: mancano F24/),
+    ).toBeVisible();
+    click(screen.getByRole("tab", { name: "Movimenti" }));
     click(screen.getByRole("button", { name: "Riprova il caricamento" }));
     expect(refresh).toHaveBeenCalledOnce();
   });
-  it("exports the active scenario dates and declares excluded amounts", async () => {
+  it("exports the active scenario and declares excluded amounts", () => {
     mount();
-    click(screen.getByRole("button", { name: "Simula ritardo di 15 giorni" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Scenario incassi" }), {
+      target: { value: "15" },
+    });
     click(screen.getByRole("button", { name: "Esporta piano" }));
-    const rows = vi.mocked(exportToCSV).mock.calls[0][0];
+    const rows = exported();
     expect(rows.find((r) => r.descrizione === "SAL commessa")).toMatchObject({
       data: "2026-10-31",
       ritardo_giorni: "15",
@@ -100,22 +151,62 @@ describe("forecast workspace decisions", () => {
       rows.find((r) => r.descrizione === "Fattura scaduta")?.inclusione,
     ).toBe("Escluso: incasso scaduto da confermare");
   });
-  it("requires an explicit assumption to include an overdue receipt", async () => {
-    mount();
-    click(
-      screen.getByRole("checkbox", {
-        name: "Ipotizza l’incasso degli scaduti da oggi",
-      }),
-    );
+  it("uses the real average delay from the collected tab as a scenario", () => {
+    mount({
+      ...forecastFixture,
+      collected: [
+        { ...forecastFixture.collected[0], expectedDate: "2026-10-03" },
+      ],
+    });
+    const option = screen.getByRole("option", {
+      name: "Ritardo medio reale (10 giorni)",
+    });
+    expect(option).not.toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "Scenario incassi" }), {
+      target: { value: "reale" },
+    });
     click(screen.getByRole("button", { name: "Esporta piano" }));
-    const rows = vi.mocked(exportToCSV).mock.calls[0][0];
-    expect(rows.find((r) => r.descrizione === "Fattura scaduta")).toMatchObject(
-      { data: "2026-10-14", inclusione: "Incluso" },
-    );
+    expect(
+      exported().find((r) => r.descrizione === "SAL commessa"),
+    ).toMatchObject({ data: "2026-10-26", ritardo_giorni: "10" });
   });
-  it("opens undated source documents from the task list", async () => {
+  it("requires an explicit assumption to include an overdue receipt", () => {
     mount();
-    click(screen.getByRole("button", { name: /Movimenti senza data/ }));
+    click(screen.getByRole("checkbox", { name: "Includi incassi scaduti" }));
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      exported().find((r) => r.descrizione === "Fattura scaduta"),
+    ).toMatchObject({ data: "2026-10-14", inclusione: "Incluso" });
+  });
+  it("leaves overdue unpaid expenses out until the switch includes them", () => {
+    mount({
+      ...forecastFixture,
+      movements: [...forecastFixture.movements, overdueSupplier],
+    });
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      exported().find((r) => r.descrizione === "Fornitore scaduto")?.inclusione,
+    ).toBe("Escluso: uscita scaduta non segnata pagata");
+    click(screen.getByRole("checkbox", { name: "Includi uscite scadute" }));
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      exported(1).find((r) => r.descrizione === "Fornitore scaduto"),
+    ).toMatchObject({ data: "2026-10-14", inclusione: "Incluso" });
+  });
+  it("lists what to fix and opens each list in Movimenti", () => {
+    mount({
+      ...forecastFixture,
+      movements: [...forecastFixture.movements, overdueSupplier],
+    });
+    click(screen.getByRole("tab", { name: "Da sistemare" }));
+    expect(
+      screen.getByText("Uscite scadute non segnate pagate"),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Apri Spese" })).toHaveAttribute(
+      "href",
+      "/azienda/costi",
+    );
+    click(screen.getByRole("button", { name: "Vedi Movimenti senza data" }));
     expect(screen.getByRole("tab", { name: "Movimenti" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -124,126 +215,100 @@ describe("forecast workspace decisions", () => {
       screen.getByRole("link", { name: "Apri fonte: Spesa senza scadenza" }),
     ).toHaveAttribute("href", "/azienda/costi");
   });
-  it("exposes the daily minimum in weekly rows and opens that week's movements", async () => {
-    mount();
-    click(screen.getByRole("button", { name: "settimane" }));
+  it("shows weeks below the threshold and opens that week's movements", () => {
+    mount(forecastFixture, "/?scheda=settimane");
     const table = screen.getByRole("table", {
       name: "Piano settimanale con minimo giornaliero e saldo finale",
     });
-    expect(within(table).getByText("Minimo giornaliero")).toBeVisible();
+    expect(within(table).getAllByText("sotto soglia").length).toBeGreaterThan(0);
     click(screen.getByRole("button", { name: "Apri movimenti 14 ott" }));
     expect(screen.getByText(/Periodo 14 ott – 20 ott/)).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Apri fonte: SAL commessa" }),
     ).toHaveAttribute("href", "/azienda/ordini/example");
   });
-  it("keeps filters on details without changing the plan", async () => {
+  it("sorts the movements by amount", () => {
+    mount(forecastFixture, "/?scheda=movimenti");
+    fireEvent.change(screen.getByRole("combobox", { name: "Ordina movimenti" }), {
+      target: { value: "importo-desc" },
+    });
+    const links = screen
+      .getAllByRole("link", { name: /Apri fonte/ })
+      .map((l) => l.getAttribute("aria-label"));
+    expect(links[0]).toBe("Apri fonte: SAL commessa");
+  });
+  it("filters every tab by category from the common bar", () => {
     mount();
+    fireEvent.change(screen.getByRole("combobox", { name: "Categoria" }), {
+      target: { value: "clienti" },
+    });
+    expect(urlSearch()).toContain("categoria=clienti");
+    expect(screen.getByText(/Vista filtrata/)).toBeVisible();
     click(screen.getByRole("tab", { name: "Movimenti" }));
+    expect(
+      screen.queryByRole("link", { name: "Apri fonte: Saldo materiali" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Apri fonte: SAL commessa" }),
+    ).toBeVisible();
+  });
+  it("moves a single receipt only in simulation and restores it", () => {
+    mount(forecastFixture, "/?scheda=movimenti");
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Direzione movimenti" }),
-      { target: { value: "out" } },
+      screen.getByLabelText("Sposta incasso: SAL commessa"),
+      { target: { value: "2026-11-20" } },
     );
+    expect(screen.getByText("Data spostata")).toBeVisible();
     expect(
-      screen.queryByRole("link", { name: "Apri fonte: SAL commessa" }),
-    ).toBeNull();
-    click(screen.getByRole("tab", { name: "Cassa futura" }));
-    expect(screen.getByText(/A fine periodo:.*13.000/)).toBeVisible();
-    click(screen.getByRole("tab", { name: "Movimenti" }));
+      JSON.parse(localStorage.getItem("forecast-spostamenti-v1:forecast-qa")!),
+    ).toEqual({ customer: "2026-11-20" });
+    click(screen.getByRole("button", { name: "Esporta piano" }));
     expect(
-      screen.getByRole("combobox", { name: "Direzione movimenti" }),
-    ).toHaveValue("out");
-    expect(
-      screen.queryByRole("link", { name: "Apri fonte: SAL commessa" }),
-    ).toBeNull();
+      exported().find((r) => r.descrizione === "SAL commessa")?.data,
+    ).toBe("2026-11-20");
+    click(screen.getByRole("button", { name: "Ripristina" }));
+    expect(screen.queryByText("Data spostata")).toBeNull();
   });
   it("exports all filtered rows without changing the whole plan export", () => {
-    mount();
-    click(screen.getByRole("tab", { name: "Movimenti" }));
+    mount(forecastFixture, "/?scheda=movimenti");
     fireEvent.change(
       screen.getByRole("combobox", { name: "Direzione movimenti" }),
       { target: { value: "out" } },
     );
     click(screen.getByRole("button", { name: "Esporta vista" }));
-    const filtered = vi.mocked(exportToCSV).mock.calls[0][0];
+    const filtered = exported();
     expect(filtered.length).toBeGreaterThan(0);
     expect(filtered.every((r) => r.direzione === "Uscita")).toBe(true);
     click(screen.getByRole("button", { name: "Esporta piano" }));
     expect(
-      vi
-        .mocked(exportToCSV)
-        .mock.calls[1][0].find((r) => r.descrizione === "SAL commessa"),
+      exported(1).find((r) => r.descrizione === "SAL commessa"),
     ).toBeDefined();
   });
-  it("resets a previous search when opening an actionable missing-date filter", () => {
-    mount();
-    click(screen.getByRole("tab", { name: "Movimenti" }));
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Cerca nei movimenti" }),
-      { target: { value: "SAL" } },
-    );
-    click(screen.getByRole("tab", { name: "Cassa futura" }));
-    click(screen.getByRole("button", { name: /Movimenti senza data/ }));
-    expect(
-      screen.getByRole("textbox", { name: "Cerca nei movimenti" }),
-    ).toHaveValue("");
-    expect(
-      screen.getByRole("link", { name: "Apri fonte: Spesa senza scadenza" }),
-    ).toBeVisible();
-  });
-  it("stores planning preferences separately for each company", async () => {
+  it("stores the safety threshold separately for each company", () => {
     const first = mount();
-    click(screen.getByRole("button", { name: "30 giorni" }));
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Soglia di sicurezza in euro" }),
+      { target: { value: "1200" } },
+    );
     first.unmount();
     mount({ ...forecastFixture, companyId: "other-company" });
-    expect(screen.getByRole("button", { name: "90 giorni" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  });
-  it("retains collected receipts and distinguishes margins from cash", async () => {
+    expect(
+      screen.getByRole("spinbutton", { name: "Soglia di sicurezza in euro" }),
+    ).toHaveValue(5000);
+    cleanup();
     mount();
-    click(screen.getByRole("tab", { name: "Incassato" }));
+    expect(
+      screen.getByRole("spinbutton", { name: "Soglia di sicurezza in euro" }),
+    ).toHaveValue(1200);
+  });
+  it("retains collected receipts and points margins to the jobs page", () => {
+    mount(forecastFixture, "/?scheda=incassato");
     expect(
       screen.getByRole("link", { name: "Apri fonte: Incasso registrato" }),
     ).toHaveAttribute("href", "/azienda/prima-nota");
-    click(screen.getByRole("tab", { name: "Marginalità" }));
-    expect(await screen.findByText("Marginalità di verifica")).toBeVisible();
-  });
-  it("keeps the verdict visible when a source is missing, with a secondary note", () => {
-    mount({ ...forecastFixture, issues: ["F24"] });
-    expect(screen.getByText("Sotto la soglia dal 14 ott")).toBeVisible();
-    expect(screen.getByText(/Verifica prima di decidere: mancano F24/)).toBeVisible();
-  });
-  it("leaves overdue unpaid expenses out until the switch includes them", () => {
-    const data = {
-      ...forecastFixture,
-      movements: [
-        ...forecastFixture.movements,
-        {
-          id: "old-supplier",
-          description: "Fornitore scaduto",
-          counterparty: "",
-          category: "fornitori" as const,
-          direction: "out" as const,
-          cents: 9_300_000,
-          date: "2026-09-01",
-          source: "Spesa registrata",
-          href: "/azienda/costi",
-          estimated: false,
-        },
-      ],
-    };
-    mount(data);
-    expect(screen.getByText("Uscite scadute non segnate pagate")).toBeVisible();
-    click(screen.getByRole("button", { name: "Esporta piano" }));
+    click(screen.getByRole("tab", { name: "Fonti e ipotesi" }));
     expect(
-      vi.mocked(exportToCSV).mock.calls[0][0].find((r) => r.descrizione === "Fornitore scaduto")?.inclusione,
-    ).toBe("Escluso: uscita scaduta non segnata pagata");
-    click(screen.getByRole("checkbox", { name: "Includi le uscite scadute da oggi" }));
-    click(screen.getByRole("button", { name: "Esporta piano" }));
-    expect(
-      vi.mocked(exportToCSV).mock.calls[1][0].find((r) => r.descrizione === "Fornitore scaduto"),
-    ).toMatchObject({ data: "2026-10-14", inclusione: "Incluso" });
+      screen.getByRole("link", { name: "Commesse → Marginalità" }),
+    ).toHaveAttribute("href", "/azienda/ordini?tab=marginalita");
   });
 });
