@@ -4,7 +4,6 @@
  * Download PDF via edge function generate-cedolino-pdf
  */
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Receipt, Download, Loader2, UserX, ChevronDown, ChevronUp, ShieldAlert,
 } from "lucide-react";
@@ -15,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
+import { useMieiDocumentiPaghe, useMyCedolini, type Cedolino } from "@/hooks/useMyCedolini";
+import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -32,70 +33,30 @@ const STATO_CONFIG: Record<string, { label: string; className: string }> = {
   pagato: { label: "Pagato", className: "bg-green-50 text-green-700 border-green-200" },
 };
 
-// ── Cedolino row type ──────────────────────────────────────────────────────
-interface Cedolino {
-  id: string;
-  mese: number;
-  anno: number;
-  lordo: number;
-  netto: number;
-  contributi_dipendente: number | null;
-  ritenute_irpef: number | null;
-  stato: string;
-  note: string | null;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CedoliniPersonali() {
   const companyId = useEffectiveCompanyId();
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  // Se profilo.employee_id è null, prova a recuperare employee_id dalla tabella employees
-  const { data: employeeId, isLoading: loadingEmployee } = useQuery({
-    queryKey: ["my-employee-id", profilo?.employee_id, user?.id],
-    queryFn: async () => {
-      if (profilo?.employee_id) return profilo.employee_id;
-      // Fallback: cerca per user_id
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      // Un errore reale (RLS/DB) non deve essere confuso con "nessun collegamento":
-      // lo propaghiamo così la UI può mostrare un vero stato d'errore invece di
-      // "profilo non collegato".
-      if (error) throw error;
-      return data?.id ?? null;
-    },
-    enabled: !!profilo,
-    staleTime: 10 * 60 * 1000,
-  });
-
-  // Cedolini del dipendente
-  const { data: cedolini = [], isLoading: loadingCedolini } = useQuery({
-    queryKey: ["my-cedolini", employeeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("cedolini")
-        .select("id, mese, anno, lordo, netto, contributi_dipendente, ritenute_irpef, stato, note")
-        .eq("employee_id", employeeId!)
-        .order("anno", { ascending: false })
-        .order("mese", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Cedolino[];
-    },
-    enabled: !!employeeId,
-    staleTime: 5 * 60 * 1000,
-  });
+  // employee_id e cedolini: hook condiviso con il riepilogo di «Il mio stato»
+  const { employeeId, cedolini, loadingEmployee, loadingCedolini } = useMyCedolini();
+  const { data: altriDocumenti = [] } = useMieiDocumentiPaghe();
 
   // ── Download PDF cedolino ─────────────────────────────────────────────
   const handleDownload = async (cedolino: Cedolino) => {
     if (!companyId) return;
     setDownloadingId(cedolino.id);
     try {
+      // Il PDF vero del consulente, se c'è: aprirlo vale come consegna della busta.
+      if (cedolino.documento_id) {
+        await apriDocumentoPaghe(cedolino.documento_id).catch(() => {
+          toast.error("Non riesco ad aprire la busta paga. Riprova tra poco.");
+        });
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("generate-cedolino-pdf", {
         body: { cedolino_id: cedolino.id, company_id: companyId },
       });
@@ -301,6 +262,29 @@ export default function CedoliniPersonali() {
           )}
         </CardContent>
       </Card>
+
+      {/* CU, foglio presenze e gli altri documenti del consulente intestati a me. */}
+      {altriDocumenti.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Altri documenti</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {altriDocumenti.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error("Non riesco ad aprire il documento. Riprova tra poco."))}
+                className="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm hover:bg-muted/50"
+              >
+                <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{d.titolo}</span>
+                <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

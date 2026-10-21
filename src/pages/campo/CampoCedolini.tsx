@@ -9,6 +9,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
+import { useMieiDocumentiPaghe } from "@/hooks/useMyCedolini";
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -61,6 +64,7 @@ export default function CampoCedolini() {
     },
     enabled: !!employeeId,
   });
+  const { data: altriDocumenti = [] } = useMieiDocumentiPaghe();
   // Un errore di lettura NON è «nessun cedolino»: con la rete debole l'operaio leggeva che l'ufficio non ne aveva caricati.
   const nonRiesco = erroreScheda || erroreCedolini;
 
@@ -161,7 +165,17 @@ export default function CampoCedolini() {
                       </p>
                       <p className="text-[10px] text-muted-foreground">Netto</p>
                     </div>
-                    {c.pdf_url && (
+                    {c.documento_id ? (
+                      // Il PDF vero del consulente: aprirlo vale come consegna.
+                      <button
+                        type="button"
+                        aria-label="Apri la busta paga"
+                        onClick={() => apriDocumentoPaghe(c.documento_id).catch(() => toast.error("Non riesco ad aprire la busta paga. Riprova tra poco."))}
+                        className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                      >
+                        <Download className="w-4 h-4 text-primary" />
+                      </button>
+                    ) : c.pdf_url && (
                       <a
                         href={c.pdf_url}
                         target="_blank"
@@ -178,6 +192,29 @@ export default function CampoCedolini() {
           )}
         </CardContent>
       </Card>}
+
+      {/* CU, foglio presenze e gli altri documenti del consulente intestati a me. */}
+      {!nonRiesco && altriDocumenti.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Altri documenti</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {altriDocumenti.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => apriDocumentoPaghe(d.id).catch(() => toast.error("Non riesco ad aprire il documento. Riprova tra poco."))}
+                className="flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm hover:bg-muted/50"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{d.titolo}</span>
+                <Download className="h-4 w-4 shrink-0 text-primary" />
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -4,8 +4,7 @@
  * Nessun GPS richiesto — timbratura sede ufficio
  */
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { format, differenceInMinutes, parseISO, endOfMonth } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   LogIn, LogOut, Coffee, PauseCircle, Clock, CalendarDays,
@@ -16,10 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import {
+  calcolaOreLavorate,
+  riepilogoMese,
   useMyHrProfilo,
+  useMyTimbratureMese,
   useMyTodayTimbrature,
   useTimbra,
 } from "@/hooks/useTimbratura";
@@ -27,26 +28,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RichiesteHrPersonali } from "@/components/hr/RichiesteHrPersonali";
 import type { HrTimbratura, TimbraturaTipo } from "@/types/hr";
 import { cn } from "@/lib/utils";
-
-// ── Calcolo ore lavorate da array di timbrature ────────────────────────────
-function calcolaOreLavorate(timbrs: HrTimbratura[]): number {
-  let minutiPausa = 0;
-  const entrata = timbrs.find(t => t.tipo === "entrata");
-  const uscita = timbrs.find(t => t.tipo === "uscita");
-  if (!entrata) return 0;
-  const fine = uscita ? parseISO(uscita.timestamp) : new Date();
-  const minuti = differenceInMinutes(fine, parseISO(entrata.timestamp));
-  for (let i = 0; i < timbrs.length - 1; i++) {
-    const cur = timbrs[i];
-    const nxt = timbrs[i + 1];
-    const isPausaStart = cur.tipo === "pausa_inizio" || cur.tipo === "inizio_pausa";
-    const isPausaEnd = nxt.tipo === "pausa_fine" || nxt.tipo === "fine_pausa";
-    if (isPausaStart && isPausaEnd) {
-      minutiPausa += differenceInMinutes(parseISO(nxt.timestamp), parseISO(cur.timestamp));
-    }
-  }
-  return Math.max(0, (minuti - minutiPausa) / 60);
-}
 
 // ── Stato corrente basato sull'ultima timbratura ───────────────────────────
 type StatoTimbratura = "non_timbrato" | "dentro" | "in_pausa" | "uscito";
@@ -109,26 +90,8 @@ export default function TimbraturePersonali() {
   const mesiRecenti = getMesiRecenti();
   const [meseSelezionato, setMeseSelezionato] = useState(mesiRecenti[0].value);
 
-  // Storico mese
-  const { data: storicoMese = [], isLoading: loadingStorico } = useQuery({
-    queryKey: ["my-timbrature-mese", profilo?.id, meseSelezionato],
-    queryFn: async () => {
-      const [y, m] = meseSelezionato.split("-");
-      const start = `${y}-${m}-01`;
-      const end = format(endOfMonth(new Date(Number(y), Number(m) - 1)), "yyyy-MM-dd");
-      const { data, error } = await supabase
-        .from("hr_timbrature")
-        .select("*")
-        .eq("profilo_id", profilo!.id)
-        .gte("data_evento", start)
-        .lte("data_evento", end)
-        .order("timestamp", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as unknown as HrTimbratura[];
-    },
-    enabled: !!profilo?.id,
-    staleTime: 2 * 60 * 1000,
-  });
+  // Storico mese (hook condiviso con «Il mio stato»: stessa chiave di cache)
+  const { data: storicoMese = [], isLoading: loadingStorico } = useMyTimbratureMese(profilo?.id, meseSelezionato);
 
   // ── Guard ruolo: solo company_staff e company_admin ───────────────────
   if (role && !["company_staff", "company_admin"].includes(role)) {
@@ -177,22 +140,13 @@ export default function TimbraturePersonali() {
   const oreOggi = calcolaOreLavorate(timbratureOggi);
   const { label: statoLabel, className: statoClass } = STATO_CONFIG[stato];
 
-  // Raggruppa storico per giorno
-  const storicoByDay: Record<string, HrTimbratura[]> = {};
-  storicoMese.forEach(t => {
-    const day = t.data_evento;
-    if (!storicoByDay[day]) storicoByDay[day] = [];
-    storicoByDay[day].push(t);
-  });
+  // Storico per giorno e riepilogo mese (calcolo condiviso con «Il mio stato»)
+  const mese = riepilogoMese(storicoMese, profilo.ore_giornaliere);
+  const storicoByDay = mese.perGiorno;
   const giorni = Object.keys(storicoByDay).sort((a, b) => b.localeCompare(a));
-
-  // Riepilogo mese
-  const totalMinutiMese = Object.values(storicoByDay).reduce((acc, ts) => {
-    return acc + calcolaOreLavorate(ts) * 60;
-  }, 0);
-  const oreTotatliMese = totalMinutiMese / 60;
-  const giorniPresenti = Object.values(storicoByDay).filter(ts => ts.some(t => t.tipo === "entrata")).length;
-  const oreAttese = profilo.ore_giornaliere * giorniPresenti;
+  const oreTotatliMese = mese.ore;
+  const giorniPresenti = mese.giorniPresenti;
+  const oreAttese = mese.oreAttese;
 
   return (
     <div className="space-y-4">
