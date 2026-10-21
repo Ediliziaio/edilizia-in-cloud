@@ -29,7 +29,7 @@ import {
   ChevronDown, ChevronUp, ClipboardList, Send, Shield,
   Sparkles, Target, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
@@ -580,14 +580,22 @@ export function TabDashboard({ anno }: Props) {
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={64} tickFormatter={(v: number) => formatEuroRiquadro(v)} />
+                    {/* Etichette brevi («−200 mila €»): quelle intere andavano a capo. */}
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      width={78}
+                      tickFormatter={(v: number) =>
+                        new Intl.NumberFormat("it-IT", { notation: "compact", maximumFractionDigits: 1 }).format(v) + " €"
+                      }
+                    />
+                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
                       labelFormatter={(l) => String(l)}
                     />
-                    <Line type="monotone" dataKey="saldo" name="Saldo" stroke="#2563eb" strokeWidth={2} dot />
+                    <Line type="linear" dataKey="saldo" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot />
                   </LineChart>
                 </ResponsiveContainer>
               )}
