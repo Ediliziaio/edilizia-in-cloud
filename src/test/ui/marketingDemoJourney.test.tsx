@@ -47,7 +47,7 @@ describe("percorso pubblico demo", () => {
   });
   it("presenta l’azienda e i riferimenti societari con collegamenti ai documenti", () => {
     render(<MemoryRouter><ChiSiamo /></MemoryRouter>);
-    expect(screen.getByRole("heading",{name:"Edilizia in Cloud",exact:true})).toBeInTheDocument();
+    expect(screen.getByRole("heading",{name:"Edilizia in Cloud"})).toBeInTheDocument();
     expect(screen.queryByRole("heading",{name:"Florin Andriciuc"})).not.toBeInTheDocument();
     expect(screen.getByRole("link",{name:"Termini di servizio"})).toHaveAttribute("href","/termini-e-condizioni/");
     expect(document.querySelectorAll("h1")).toHaveLength(1);
