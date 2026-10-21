@@ -235,7 +235,7 @@ describe("condizioni di base: nessun preventivo esce senza contratto", () => {
       const testo = condizioniStandard(settore);
       expect(testo).toMatch(atteso);
       expect(testo).toContain("Clausole da approvare specificamente");
-      expect(testo).toMatch(/Art\. 15 — Legge applicabile e foro competente/);
+      expect(testo).toMatch(/Art\. 21 — Legge applicabile e foro competente/);
     }
   });
 

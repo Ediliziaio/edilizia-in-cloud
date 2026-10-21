@@ -71,7 +71,7 @@ describe("condizioni: una lettura sola per tutti i motori", () => {
 
   it("articolo per articolo: ogni gruppo comincia con il suo titolo", () => {
     const gruppi = perArticoli(righeDaStampare(righe, { conRiquadroFirma: true }));
-    expect(gruppi.length).toBe(15);
+    expect(gruppi.length).toBe(21);
     expect(gruppi.every((g) => g[0].tipo === "h2")).toBe(true);
   });
 

@@ -183,17 +183,50 @@ export function condizioniStandard(settore: SettoreCondizioni = "generico"): str
       ],
     },
     {
+      titolo: "Titoli edilizi e direzione dei lavori",
+      righe: [
+        "Quando l'intervento richiede un titolo edilizio (CILA, SCIA o permesso di costruire), la pratica è predisposta e presentata dal tecnico incaricato dal Committente, salvo che il preventivo la ponga espressamente a carico dell'Impresa. I lavori soggetti a titolo iniziano solo dopo la sua presentazione o il suo rilascio.",
+        "Se il Committente nomina un direttore dei lavori, ne comunica il nominativo per iscritto prima dell'inizio. Le sue disposizioni sono vincolanti per l'Impresa quando sono date per iscritto; quelle che comportano varianti seguono l'articolo sulle varianti.",
+      ],
+    },
+    {
       titolo: "Sicurezza e regolarità",
       righe: [
-        "L'Impresa opera nel rispetto del D.lgs. 81/2008, è in regola con gli obblighi contributivi e assicurativi ed è coperta da polizza di responsabilità civile. Quando l'intervento lo richiede, il Committente nomina i coordinatori per la sicurezza e l'Impresa consegna il proprio piano operativo.",
+        "L'Impresa opera nel rispetto del D.lgs. 81/2008, è in regola con gli obblighi contributivi e assicurativi ed è coperta da polizza di responsabilità civile verso terzi: estremi e massimali sono consegnati al Committente che li richiede. Quando l'intervento lo richiede, il Committente nomina i coordinatori per la sicurezza e l'Impresa consegna il proprio piano operativo.",
         "L'Impresa può affidare a terzi parte delle lavorazioni, restando l'unica responsabile verso il Committente.",
       ],
     },
     { titolo: settoriale.titolo, righe: settoriale.righe },
     {
-      titolo: "Consegna e verifica dei lavori",
+      titolo: "Rifiuti di cantiere",
+      righe: [
+        "I rifiuti prodotti dalle lavorazioni sono gestiti dall'Impresa, che li conferisce a impianti autorizzati accompagnati dal formulario di identificazione (D.lgs. 152/2006). Il trasporto e lo smaltimento sono compresi solo se indicati nel preventivo; i rifiuti speciali o pericolosi non previsti sono quotati a parte prima di procedere.",
+      ],
+    },
+    {
+      titolo: "Stati di avanzamento e ritenuta di garanzia",
+      righe: [
+        "Quando il piano dei pagamenti prevede pagamenti a stato di avanzamento, l'Impresa presenta il SAL con le quantità eseguite: il Committente lo verifica entro 7 giorni dal ricevimento, trascorsi i quali il SAL si intende accettato.",
+        "Se il preventivo prevede una ritenuta di garanzia, la percentuale indicata è trattenuta su ogni pagamento in acconto e versata all'Impresa con il saldo, dopo la verifica finale dell'opera senza difformità da sanare.",
+      ],
+    },
+    {
+      titolo: "Termine dei lavori e penale",
+      righe: [
+        "I tempi sono stimati, come indicato all'articolo sui tempi di esecuzione, salvo che il preventivo indichi espressamente una data di fine lavori come vincolante. In quel caso, per ogni settimana di ritardo imputabile all'Impresa è dovuta la penale indicata nel preventivo, fino a un massimo del 10% del corrispettivo; la penale copre il danno da ritardo, salvo dolo o colpa grave.",
+      ],
+    },
+    {
+      titolo: "Revisione dei prezzi",
+      righe: [
+        "I prezzi sono fissi per la durata dei lavori indicata nel preventivo. Se per circostanze imprevedibili il costo dei materiali o della manodopera aumenta o diminuisce in misura superiore al decimo del corrispettivo, la differenza eccedente il decimo è riconosciuta secondo l'art. 1664 c.c.",
+      ],
+    },
+    {
+      titolo: "Consegna, verifica e collaudo",
       righe: [
         "A fine lavori le parti verificano insieme l'opera. Eventuali difformità vanno annotate in quel momento; quelle non annotate e riconoscibili si intendono accettate. Il Committente non può occupare o utilizzare l'opera prima della verifica e del saldo, salvo diverso accordo scritto.",
+        "Se il Committente fa collaudare l'opera da un tecnico di sua fiducia, il collaudo si svolge entro 30 giorni dalla comunicazione di fine lavori; se nel termine non è eseguito o non ne sono comunicati i rilievi, l'opera si intende accettata (art. 1665 c.c.).",
       ],
     },
     {
@@ -208,6 +241,13 @@ export function condizioniStandard(settore: SettoreCondizioni = "generico"): str
       titolo: "Riserva di proprietà",
       righe: [
         "I materiali e i beni forniti restano di proprietà dell'Impresa fino al pagamento integrale del corrispettivo.",
+      ],
+    },
+    {
+      titolo: "Recesso del Committente e risoluzione",
+      righe: [
+        "Il Committente può recedere dal contratto anche a lavori iniziati, tenendo indenne l'Impresa delle spese sostenute, dei lavori eseguiti e del mancato guadagno (art. 1671 c.c.). Resta fermo il diritto di recesso del consumatore previsto all'articolo seguente.",
+        "In caso di grave inadempimento di una delle parti, l'altra può intimare per iscritto di adempiere entro 15 giorni: decorso inutilmente il termine, il contratto si intende risolto (art. 1454 c.c.), salvo il risarcimento del danno.",
       ],
     },
     {
@@ -226,7 +266,8 @@ export function condizioniStandard(settore: SettoreCondizioni = "generico"): str
     {
       titolo: "Legge applicabile e foro competente",
       righe: [
-        "Il contratto è regolato dalla legge italiana. Per ogni controversia è competente il foro della sede dell'Impresa; se il Committente è un consumatore, è competente in via esclusiva il foro del suo luogo di residenza o domicilio eletto.",
+        "Il contratto è regolato dalla legge italiana. Prima di agire in giudizio le parti possono tentare una mediazione presso un organismo iscritto al registro del Ministero della Giustizia (D.lgs. 28/2010).",
+        "Per ogni controversia è competente il foro della sede dell'Impresa; se il Committente è un consumatore, è competente in via esclusiva il foro del suo luogo di residenza o domicilio eletto.",
       ],
     },
   ];
@@ -240,7 +281,7 @@ export function condizioniStandard(settore: SettoreCondizioni = "generico"): str
   // vessatoria — valgono gli artt. 33 e seguenti del Codice del Consumo — ma
   // l'elenco resta, perché è ciò che rende il documento un contratto completo.
   const numeri = {
-    pagamenti: 4, tempi: 5, varianti: 6, consegna: articoli.findIndex((a) => a.titolo === "Consegna e verifica dei lavori") + 1,
+    pagamenti: 4, tempi: 5, varianti: 6, consegna: articoli.findIndex((a) => a.titolo === "Consegna, verifica e collaudo") + 1,
     proprieta: articoli.findIndex((a) => a.titolo === "Riserva di proprietà") + 1,
     foro: articoli.length,
   };
@@ -250,7 +291,7 @@ Ai sensi degli artt. 1341 e 1342 c.c. il Committente approva specificamente le c
 - Art. ${numeri.pagamenti} — Pagamenti (sospensione dei lavori in caso di ritardo)
 - Art. ${numeri.tempi} — Tempi di esecuzione (cause non imputabili all'Impresa)
 - Art. ${numeri.varianti} — Varianti e lavori non previsti (contabilizzazione a misura)
-- Art. ${numeri.consegna} — Consegna e verifica dei lavori (difformità non annotate)
+- Art. ${numeri.consegna} — Consegna, verifica e collaudo (difformità non annotate, collaudo non eseguito nel termine)
 - Art. ${numeri.proprieta} — Riserva di proprietà
 - Art. ${numeri.foro} — Legge applicabile e foro competente`;
 
