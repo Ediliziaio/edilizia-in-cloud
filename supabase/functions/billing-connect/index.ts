@@ -4,10 +4,20 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { scegliAziendaFic, type AziendaFic } from "../_shared/ficSceltaAzienda.ts";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID     = Deno.env.get("FIC_CLIENT_ID") || "";
 const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET") || "";
 const FIC_REDIRECT_URI  = Deno.env.get("FIC_REDIRECT_URI") || "";
+
+/** Partita IVA e codice fiscale dell'azienda, da riconoscere fra le aziende di Fatture in Cloud. */
+async function codiciFiscaliAzienda(companyId: string): Promise<Array<string | null>> {
+  const [{ data: co }, { data: an }] = await Promise.all([
+    supabase.from("companies").select("vat_number, fiscal_code").eq("id", companyId).maybeSingle(),
+    supabase.from("anagrafica_azienda").select("partita_iva, codice_fiscale").eq("company_id", companyId).maybeSingle(),
+  ]);
+  return [co?.vat_number ?? null, co?.fiscal_code ?? null, an?.partita_iva ?? null, an?.codice_fiscale ?? null];
+}
 
 serveConMetriche("billing-connect", async (req) => {
   const CORS = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
@@ -98,9 +108,34 @@ serveConMetriche("billing-connect", async (req) => {
       headers: { Authorization: `Bearer ${td.access_token}` },
     });
     const compData = compRes.ok ? await compRes.json() : null;
-    const ficCo = compData?.data?.companies?.[0];
+    const aziendeFic: AziendaFic[] = Array.isArray(compData?.data?.companies) ? compData.data.companies : [];
+    const nostriCodici = await codiciFiscaliAzienda(companyId);
+    const scelta = scegliAziendaFic(aziendeFic, nostriCodici);
     // Senza company_external_id l'import non sa quale azienda FIC interrogare (/c/{id}).
-    if (!ficCo?.id) return json({ error: "Nessuna azienda trovata sul tuo account Fatture in Cloud." }, 400);
+    if ("nessuna" in scelta) return json({ error: "Nessuna azienda trovata sul tuo account Fatture in Cloud." }, 400);
+    if ("daScegliere" in scelta) {
+      // Più aziende e nessuna con la nostra partita IVA: il collegamento resta
+      // spento (niente import) finché chi collega non dice quale.
+      await supabase.from("billing_integrations").upsert({
+        company_id: companyId,
+        provider: "fattureincloud",
+        is_active: false,
+        access_token: td.access_token,
+        refresh_token: td.refresh_token,
+        token_expires_at: new Date(Date.now() + (td.expires_in || 86400) * 1000).toISOString(),
+        company_external_id: null,
+        provider_company_name: null,
+        provider_vat_number: null,
+        auto_sync: true,
+        scrittura_incassi_autorizzata: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "company_id,provider" });
+      return json({
+        scegli_azienda: true,
+        aziende: scelta.daScegliere.map((a) => ({ id: String(a.id), name: a.name ?? null, vat_number: a.vat_number ?? a.tax_code ?? null })),
+      });
+    }
+    const ficCo = scelta.azienda;
 
     await supabase.from("billing_integrations").upsert({
       company_id: companyId,
@@ -121,6 +156,31 @@ serveConMetriche("billing-connect", async (req) => {
     }, { onConflict: "company_id,provider" });
 
     return json({ success: true, company_name: ficCo?.name, vat_number: ficCo?.vat_number });
+  }
+
+  // ── OAuth2 FIC: l'utente sceglie quale azienda dell'account collegare
+  if (action === "fic_scegli_azienda" && req.method === "POST") {
+    const ficCompanyId = typeof body.fic_company_id === "string" ? body.fic_company_id : "";
+    const { data: integ } = await supabase.from("billing_integrations")
+      .select("id, access_token").eq("company_id", companyId).eq("provider", "fattureincloud").maybeSingle();
+    if (!integ?.access_token) return json({ error: "Collegamento non trovato: ricollega Fatture in Cloud." }, 404);
+    // L'elenco si rilegge con il token: si collega solo un'azienda che l'account vede davvero.
+    const compRes = await fetch("https://api-v2.fattureincloud.it/user/companies", {
+      headers: { Authorization: `Bearer ${integ.access_token}` },
+    });
+    const compData = compRes.ok ? await compRes.json() : null;
+    const aziendeFic: AziendaFic[] = Array.isArray(compData?.data?.companies) ? compData.data.companies : [];
+    const ficCo = aziendeFic.find((a) => String(a.id) === ficCompanyId);
+    if (!ficCo) return json({ error: "Questa azienda non è nel tuo account Fatture in Cloud." }, 400);
+    const { error } = await supabase.from("billing_integrations").update({
+      is_active: true,
+      company_external_id: String(ficCo.id),
+      provider_company_name: ficCo.name ?? null,
+      provider_vat_number: ficCo.vat_number ?? null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", integ.id);
+    if (error) return json({ error: `Salvataggio non riuscito: ${error.message}` }, 500);
+    return json({ success: true, company_name: ficCo.name, vat_number: ficCo.vat_number });
   }
 
   // ── Configura provider con API key

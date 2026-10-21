@@ -37,8 +37,31 @@ function postResultToOpener(status: "ok" | "error", message: string | null, comp
 
 export default function FicOAuthCallbackPage() {
   const [searchParams] = useSearchParams();
-  const [phase, setPhase] = useState<"exchanging" | "ok" | "error">("exchanging");
+  const [phase, setPhase] = useState<"exchanging" | "scegli" | "ok" | "error">("exchanging");
   const [message, setMessage] = useState<string | null>(null);
+  // Più aziende nello stesso account Fatture in Cloud e nessuna con la nostra P.IVA: sceglie chi collega.
+  const [aziende, setAziende] = useState<Array<{ id: string; name: string | null; vat_number: string | null }>>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState<string | null>(null);
+
+  const scegli = async (ficCompanyId: string) => {
+    setSalvando(ficCompanyId);
+    const { data, error } = await supabase.functions.invoke("billing-connect", {
+      body: { action: "fic_scegli_azienda", fic_company_id: ficCompanyId, company_id: companyId },
+    });
+    const risposta = data as { error?: string; company_name?: string } | null;
+    setSalvando(null);
+    if (error || risposta?.error) {
+      const msg = risposta?.error || error?.message || "Scelta non salvata";
+      setMessage(msg);
+      setPhase("error");
+      postResultToOpener("error", msg);
+      return;
+    }
+    setPhase("ok");
+    setMessage(risposta?.company_name ?? null);
+    postResultToOpener("ok", null, risposta?.company_name ?? null);
+  };
   const ran = useRef(false);
 
   useEffect(() => {
@@ -53,6 +76,7 @@ export default function FicOAuthCallbackPage() {
       const stateRaw = searchParams.get("state");
       if (stateRaw) companyIdFromState = (JSON.parse(atob(stateRaw)) as { company_id?: string })?.company_id ?? null;
     } catch { /* state non decodificabile: la function userà l'azienda effettiva */ }
+    setCompanyId(companyIdFromState);
 
     (async () => {
       if (oauthError || !code) {
@@ -66,12 +90,22 @@ export default function FicOAuthCallbackPage() {
         const { data, error } = await supabase.functions.invoke("billing-connect", {
           body: { action: "fic_oauth_callback", code, company_id: companyIdFromState },
         });
-        const errBody = data as { error?: string; company_name?: string } | null;
+        const errBody = data as {
+          error?: string;
+          company_name?: string;
+          scegli_azienda?: boolean;
+          aziende?: Array<{ id: string; name: string | null; vat_number: string | null }>;
+        } | null;
         if (error || errBody?.error) {
           const msg = errBody?.error || error?.message || "Scambio token non riuscito";
           setMessage(msg);
           setPhase("error");
           postResultToOpener("error", msg);
+          return;
+        }
+        if (errBody?.scegli_azienda && errBody.aziende?.length) {
+          setAziende(errBody.aziende);
+          setPhase("scegli");
           return;
         }
         setPhase("ok");
@@ -88,7 +122,7 @@ export default function FicOAuthCallbackPage() {
 
   // Chiusura automatica dopo l'esito.
   useEffect(() => {
-    if (phase === "exchanging") return;
+    if (phase === "exchanging" || phase === "scegli") return;
     const t = setTimeout(() => {
       try { window.close(); } catch { /* fallthrough */ }
     }, phase === "ok" ? 1200 : 3000);
@@ -105,6 +139,33 @@ export default function FicOAuthCallbackPage() {
             </div>
             <h1 className="text-xl font-semibold text-slate-900">Collegamento a Fatture in Cloud…</h1>
             <p className="mt-2 text-sm text-slate-600">Sto completando l'autorizzazione, un istante.</p>
+          </>
+        )}
+
+        {phase === "scegli" && (
+          <>
+            <h1 className="text-xl font-semibold text-slate-900">Quale azienda colleghi?</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Il tuo account Fatture in Cloud gestisce più aziende e nessuna ha la partita IVA di questa.
+              Scegli quella da cui importare le fatture.
+            </p>
+            <div className="mt-5 space-y-2 text-left">
+              {aziende.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  disabled={!!salvando}
+                  onClick={() => void scegli(a.id)}
+                  className="flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-60"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-slate-900">{a.name || `Azienda ${a.id}`}</span>
+                    {a.vat_number && <span className="block text-xs text-slate-500">P.IVA {a.vat_number}</span>}
+                  </span>
+                  {salvando === a.id && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-600" />}
+                </button>
+              ))}
+            </div>
           </>
         )}
 
@@ -132,7 +193,7 @@ export default function FicOAuthCallbackPage() {
           </>
         )}
 
-        {phase !== "exchanging" && (
+        {phase !== "exchanging" && phase !== "scegli" && (
           <Button
             type="button"
             variant="outline"
