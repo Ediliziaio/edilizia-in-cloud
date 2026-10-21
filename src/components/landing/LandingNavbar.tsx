@@ -1,3 +1,4 @@
+import "@/styles/marketing-accessibility.css";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -269,6 +270,11 @@ export default function LandingNavbar() {
   const navRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const isHome = location.pathname === "/home" || location.pathname === "/";
+
+  useEffect(() => {
+    document.body.classList.add("marketing-site");
+    return () => document.body.classList.remove("marketing-site");
+  }, []);
 
   // Scroll background
   useEffect(() => {

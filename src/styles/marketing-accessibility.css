@@ -1,0 +1,24 @@
+/* Scoped to pages with the public site navigation; no effect on the app. */
+.marketing-site :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: 4px;
+}
+.marketing-site :is(section[id], h2[id], h3[id]) {
+  scroll-margin-top: 6rem;
+}
+@media (max-width: 767px) {
+  .marketing-site :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: 16px;
+  }
+  .marketing-site :is(input, select, textarea) {
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-site *, .marketing-site *::before, .marketing-site *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

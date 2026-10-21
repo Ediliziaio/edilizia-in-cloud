@@ -1,3 +1,6 @@
+import OperationalStory from "@/components/marketing/OperationalStory";
+import MarketingVisual from "@/components/marketing/MarketingVisual";
+import { visualThemeForFeature, marketingVisualIntro } from "@/lib/marketing/visuals";
 import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -8,7 +11,7 @@ import {
   Quote,
   ShieldCheck,
   Sparkles,
-  Star,
+  Users,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -23,7 +26,7 @@ import { BlogCover } from "@/components/blog/BlogCover";
 const TRUST_BADGES = [
   { icon: ShieldCheck, label: "GDPR Compliant" },
   { icon: Zap, label: "Avvio assistito" },
-  { icon: Star, label: "4.9/5 stelle" },
+  { icon: Users, label: marketingMessages.companies },
   { icon: BadgeCheck, label: "Made in Italy" },
 ];
 
@@ -168,64 +171,7 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
 /* ================================================================== */
 /* DASHBOARD MOCK (visual filler)                                       */
 /* ================================================================== */
-function DashboardMock({ vertical }: { vertical: string }) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 shadow-2xl backdrop-blur">
-      <div className="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2">
-        <div className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
-          <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-        </div>
-        <div className="ml-3 text-[11px] font-mono text-white/40">
-          edilizia-in-cloud · {vertical}
-        </div>
-      </div>
-      <div className="grid gap-3 p-5 sm:grid-cols-3">
-        {["Attivi", "In ritardo", "Margine"].map((l, i) => (
-          <div key={l} className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-              {l}
-            </div>
-            <div className="mt-1 text-2xl font-black text-white">
-              {[12, 2, "+18%"][i]}
-            </div>
-            <div className="mt-1 h-1.5 rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-eic-orange"
-                style={{ width: ["72%", "20%", "85%"][i] }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="space-y-2 px-5 pb-5">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between rounded-lg bg-white/5 p-3 ring-1 ring-white/10"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="h-8 w-8 rounded-md bg-gradient-to-br from-orange-300 to-eic-orange"
-                aria-hidden
-              />
-              <div>
-                <div className="text-xs font-semibold text-white">
-                  {vertical} · scheda #{i}
-                </div>
-                <div className="text-[10px] text-white/40">aggiornato adesso</div>
-              </div>
-            </div>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-500/30">
-              ok
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+
 
 /* ================================================================== */
 /* MAIN PAGE                                                            */
@@ -385,34 +331,29 @@ export default function FunzionalitaPageTemplate({
           <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-4">
-          <div className="mx-auto max-w-3xl text-center">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+          <div className="min-w-0 text-center lg:text-left">
             <span className="inline-flex items-center gap-2 rounded-full border border-eic-orange/40 bg-eic-orange/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
               {config.heroBadge}
             </span>
             <h1
               id="hero-title"
-              className="mt-6 text-3xl font-black leading-tight text-white sm:text-5xl md:text-6xl"
+              className="mt-6 text-3xl font-bold tracking-tight leading-tight text-white sm:text-4xl xl:text-5xl"
             >
               {config.heroH1Lead}{" "}
               <span className="bg-gradient-to-br from-orange-300 to-eic-orange bg-clip-text text-transparent">
                 {config.heroH1Highlight}
               </span>
-              {config.heroH1Tail ? <span> {config.heroH1Tail}</span> : null}
+
             </h1>
             {/* Prima la definizione (cio' che un motore AI cita), poi il
                 sottotitolo (cio' che convince chi legge). */}
-            {config.definizione ? (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/85 sm:text-lg">
-                {config.definizione}
-              </p>
-            ) : null}
-            <p className={`mx-auto max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg ${config.definizione ? "mt-4" : "mt-6"}`}>
-              {config.heroSubheadline}
-            </p>
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/80">{marketingVisualIntro[visualThemeForFeature(config.slug)]}</p>
+            <details className="mt-4 max-w-2xl mx-auto lg:mx-0 text-sm text-white/70"><summary className="cursor-pointer font-semibold text-white/85">Come si usa nel lavoro quotidiano</summary>{config.definizione && <p className="mt-3 leading-relaxed">{config.definizione}</p>}<p className="mt-3 leading-relaxed">{config.heroSubheadline}</p></details>
 
             {/* Reassurance points */}
-            <ul className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/70">
+            <ul className="mx-auto mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-white/70">
               {config.reassurancePoints.map((p) => (
                 <li key={p} className="inline-flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -422,10 +363,10 @@ export default function FunzionalitaPageTemplate({
             </ul>
 
             {/* CTAs */}
-            <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="mt-9 flex flex-col items-center lg:justify-start justify-center gap-4 sm:flex-row">
               <Link
                 to="/demo/"
-                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:text-lg"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-eic-orange px-5 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:text-base"
               >
                 {config.heroPrimaryCta}
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -433,7 +374,7 @@ export default function FunzionalitaPageTemplate({
               {config.heroSecondaryCta && (
                 <Link
                   to={config.heroSecondaryCtaTo ?? "/funzionalita"}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-8 py-4 text-base font-semibold text-white backdrop-blur transition-colors hover:bg-white/10 sm:text-lg"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-white/10 sm:text-base"
                 >
                   {config.heroSecondaryCta}
                 </Link>
@@ -441,7 +382,7 @@ export default function FunzionalitaPageTemplate({
             </div>
 
             {/* Proof chips */}
-            <ul className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-2">
+            <ul className="mx-auto mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-2">
               {config.proofPoints.map((p) => (
                 <li
                   key={p}
@@ -452,6 +393,8 @@ export default function FunzionalitaPageTemplate({
                 </li>
               ))}
             </ul>
+          </div>
+          <MarketingVisual theme={visualThemeForFeature(config.slug)} priority tone="dark" caption={`Illustrazione · ${config.vertical}`} className="text-white/70" />
           </div>
 
           {/* Objective row */}
@@ -738,7 +681,7 @@ export default function FunzionalitaPageTemplate({
           <div className="mt-10 text-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark"
+              className="inline-flex items-center gap-2 rounded-full bg-eic-orange px-5 py-3 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark"
             >
               {config.mechanismCta}
               <ArrowRight className="h-5 w-5" />
@@ -823,7 +766,7 @@ export default function FunzionalitaPageTemplate({
                 </div>
               ))}
             </div>
-            <DashboardMock vertical={config.vertical} />
+            <OperationalStory theme={visualThemeForFeature(config.slug)} />
           </div>
           <div className="mt-12 grid gap-5 sm:grid-cols-3">
             {config.resultStats.map((s) => (

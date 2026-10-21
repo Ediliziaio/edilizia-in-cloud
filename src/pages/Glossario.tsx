@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Search, ArrowRight, BookOpen } from "lucide-react";
@@ -151,7 +152,8 @@ export default function Glossario() {
 
       {/* Hero */}
       <section className="bg-[#111111] pt-36 pb-20">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+        <div className="max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
             <BookOpen size={14} className="text-eic-orange" />
             <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Glossario</span>
@@ -175,6 +177,8 @@ export default function Glossario() {
             />
           </div>
         </div>
+<MarketingVisual theme="documents" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* Filters */}

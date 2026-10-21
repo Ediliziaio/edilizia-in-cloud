@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import React from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -316,7 +317,8 @@ export default function CasiStudio() {
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
-        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-5 sm:px-6 text-center">
+        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-6xl mx-auto px-5 sm:px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <span className="inline-flex items-center gap-2 mb-5 sm:mb-6 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-[10px] sm:text-xs font-bold uppercase tracking-widest">
               <Star size={12} className="fill-current" /> Casi Studio Reali
@@ -338,6 +340,8 @@ export default function CasiStudio() {
             </div>
           </div>
         </div>
+<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* Proof strip */}

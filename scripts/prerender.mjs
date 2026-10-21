@@ -1,3 +1,4 @@
+import { collectBlogSlugs } from "./collect-blog-slugs.mjs";
 /**
  * Prerender SPA — genera HTML statici per tutte le rotte pubbliche.
  *
@@ -220,12 +221,7 @@ function loadBlogSlugs() {
     const file = join(ROOT, rel);
     if (!existsSync(file)) continue;
     const src = readFileSync(file, "utf-8");
-    const re = /\bslug:\s*"([^"]+)"/g;
-    let m;
-    while ((m = re.exec(src)) !== null) {
-      // Skip the type definition `slug: string;`
-      if (m[1] && m[1] !== "string") slugs.add(m[1]);
-    }
+    for (const slug of collectBlogSlugs(src)) slugs.add(slug);
   }
   return [...slugs];
 }

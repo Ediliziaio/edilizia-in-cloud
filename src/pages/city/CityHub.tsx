@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -281,7 +282,8 @@ export default function CityHub() {
 
       {/* Hero */}
       <section className="py-16 bg-gradient-to-b from-[#FFF7F0] to-white border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+        <div className="max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className="inline-flex items-center gap-2 bg-eic-orange/10 text-eic-orange px-4 py-2 rounded-full text-sm font-semibold mb-6">
             <MapPin className="h-4 w-4" />
             Guida 2026 — copertura nazionale, {CITIES.length} città
@@ -309,6 +311,8 @@ export default function CityHub() {
             </Link>
           </div>
         </div>
+<MarketingVisual theme="operations" priority caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* Cos'è (e cosa non è) */}

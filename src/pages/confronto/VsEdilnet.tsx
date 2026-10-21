@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
@@ -219,7 +220,8 @@ export default function VsEdilnet() {
 
       {/* ── HERO ── */}
       <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
             CONFRONTO ONESTO — 2026
           </span>
@@ -247,6 +249,8 @@ export default function VsEdilnet() {
             </Link>
           </div>
         </div>
+<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* ── TL;DR ── */}

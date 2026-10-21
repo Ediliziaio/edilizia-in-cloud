@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -31,13 +32,16 @@ export default function Confronto() {
     <JsonLd id="jsonld-itemlist-confronto" data={{ "@context": "https://schema.org", "@type": "ItemList", name: "Confronti con Edilizia in Cloud", url: `${SITE_URL}/confronto/`, numberOfItems: softwareComparisons.length, itemListElement: softwareComparisons.map((guide, index) => ({ "@type": "ListItem", position: index + 1, name: `Edilizia in Cloud vs ${guide.name}`, url: `${SITE_URL}${guide.path}` })) }} />
     <JsonLd id="jsonld-faq-confronto" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.q, acceptedAnswer: { "@type": "Answer", text: faq.a } })) }} />
     <header className="bg-[#111111] text-white pt-28 pb-12 md:pt-36 md:pb-16 px-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
         <p className="text-sm text-orange-300">Scegli sul lavoro che devi fare ogni giorno</p>
         <h1 className="mt-4 text-3xl md:text-5xl leading-tight tracking-tight font-bold max-w-3xl">Confronto gestionali per imprese edili: quale scegliere?</h1>
         <p className="mt-6 text-base md:text-lg text-white/80 leading-relaxed max-w-3xl">Edilizia in Cloud collega preventivo, cantiere e controllo dei costi. Qui trovi le differenze con Pillar, TeamSystem Construction, PriMus ACCA e altre alternative, partendo dai processi della tua impresa.</p>
         <p className="mt-4 text-sm text-white/65">{marketingMessages.companies} · {marketingMessages.activation}</p>
         <nav aria-label="Percorsi di confronto" className="mt-8 flex flex-wrap gap-3"><Link to={pillarComparisonFocus.path} className="rounded-full bg-white text-[#111111] px-5 py-3 text-sm font-semibold">Edilizia in Cloud vs Pillar</Link><a href="#esigenze" className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold">Parti dalla tua esigenza</a><a href="#concorrenti" className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold">Scegli il software da confrontare</a></nav>
       </div>
+<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
     </header>
     <main className="max-w-6xl mx-auto px-6 py-12 md:py-16 space-y-16">
       <section id="confronto-pillar" className="scroll-mt-24 rounded-3xl border border-orange-200 bg-orange-50/50 p-6 md:p-8" aria-labelledby="pillar-heading">

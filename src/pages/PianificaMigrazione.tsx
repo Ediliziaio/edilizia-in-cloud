@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -382,12 +383,13 @@ export default function PianificaMigrazione() {
 
         <div
           ref={heroAnim.ref}
-          className="relative z-10 max-w-5xl mx-auto text-center transition-all duration-1000"
+          className="relative z-10 max-w-6xl mx-auto text-center transition-all duration-1000 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left"
           style={{
             opacity: heroAnim.isVisible ? 1 : 0,
             transform: heroAnim.isVisible ? "translateY(0)" : "translateY(32px)",
           }}
         >
+<div className="min-w-0">
           <div
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-7"
             style={{ background: "rgba(249,116,21,0.18)", color: "#F97415", border: "1px solid rgba(249,116,21,0.35)" }}
@@ -432,6 +434,8 @@ export default function PianificaMigrazione() {
             <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> Cancelli quando vuoi</span>
           </div>
         </div>
+<MarketingVisual theme="documents" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* ── DA QUALI SOFTWARE ── */}

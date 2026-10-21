@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Zap, ExternalLink } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -124,7 +125,8 @@ export default function Integrazioni() {
 
       {/* Hero */}
       <section className="bg-[#111111] pt-36 pb-20">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+        <div className="max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
             <Zap size={14} className="text-eic-orange" />
             <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Integrazioni</span>
@@ -150,6 +152,8 @@ export default function Integrazioni() {
             ))}
           </div>
         </div>
+<MarketingVisual theme="automation" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* Integrations by category */}

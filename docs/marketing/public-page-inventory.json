@@ -1,0 +1,1654 @@
+[
+  {
+    "route": "/",
+    "file": "src/pages/Home.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 12527
+  },
+  {
+    "route": "/autore/florin-andriciuc",
+    "file": "src/pages/AutoreFlorin.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 7630
+  },
+  {
+    "route": "/avviso-legale",
+    "file": "src/pages/AvvisoLegale.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 14014
+  },
+  {
+    "route": "/blog",
+    "file": "src/pages/Blog.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 16616
+  },
+  {
+    "route": "/calendario-demo",
+    "file": "src/pages/CalendarioDemo.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 4853
+  },
+  {
+    "route": "/casi-studio",
+    "file": "src/pages/CasiStudio.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 27720
+  },
+  {
+    "route": "/chi-siamo",
+    "file": "src/pages/ChiSiamo.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 12575
+  },
+  {
+    "route": "/condizioni-utilizzo",
+    "file": "src/pages/CondizioniUtilizzoSito.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 23033
+  },
+  {
+    "route": "/confronto",
+    "file": "src/pages/Confronto.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 12951
+  },
+  {
+    "route": "/confronto/vs-buildertrend",
+    "file": "src/pages/confronto/VsBuildertrend.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 35033
+  },
+  {
+    "route": "/confronto/vs-edilnet",
+    "file": "src/pages/confronto/VsEdilnet.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 32881
+  },
+  {
+    "route": "/confronto/vs-excel",
+    "file": "src/pages/confronto/VsExcel.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 34260
+  },
+  {
+    "route": "/confronto/vs-primus",
+    "file": "src/pages/confronto/VsPrimus.tsx",
+    "template": "comparison",
+    "hasDirectImage": false,
+    "textLength": 250
+  },
+  {
+    "route": "/confronto/vs-teamsystem",
+    "file": "src/pages/confronto/VsTeamSystem.tsx",
+    "template": "comparison",
+    "hasDirectImage": false,
+    "textLength": 262
+  },
+  {
+    "route": "/cookie-policy",
+    "file": "src/pages/CookiePolicy.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 17393
+  },
+  {
+    "route": "/demo",
+    "file": "src/pages/Demo.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 34776
+  },
+  {
+    "route": "/diventa-partner",
+    "file": "src/pages/DiventaPartner.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 65755
+  },
+  {
+    "route": "/dpa",
+    "file": "src/pages/DPA.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 49505
+  },
+  {
+    "route": "/formazione",
+    "file": "src/pages/Formazione.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 28751
+  },
+  {
+    "route": "/funzionalita",
+    "file": "src/pages/Funzionalita.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 26624
+  },
+  {
+    "route": "/funzionalita/agenti-ai",
+    "file": "src/pages/funzionalita/AgentiAi.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25876
+  },
+  {
+    "route": "/funzionalita/app-cantiere-mobile",
+    "file": "src/pages/funzionalita/AppCantiereMobile.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26782
+  },
+  {
+    "route": "/funzionalita/automazioni",
+    "file": "src/pages/funzionalita/Automazioni.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25011
+  },
+  {
+    "route": "/funzionalita/calendario-lavori",
+    "file": "src/pages/funzionalita/CalendarioLavori.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25731
+  },
+  {
+    "route": "/funzionalita/cassa-cantiere",
+    "file": "src/pages/funzionalita/CassaCantiere.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26166
+  },
+  {
+    "route": "/funzionalita/cassetto-sdi",
+    "file": "src/pages/funzionalita/CassettoSdi.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24711
+  },
+  {
+    "route": "/funzionalita/cedolini-paga",
+    "file": "src/pages/funzionalita/CedoliniPaga.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25064
+  },
+  {
+    "route": "/funzionalita/chat-interna",
+    "file": "src/pages/funzionalita/ChatInterna.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25557
+  },
+  {
+    "route": "/funzionalita/conserva-digitale",
+    "file": "src/pages/funzionalita/ConservaDigitale.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25604
+  },
+  {
+    "route": "/funzionalita/contabilita-fiscale",
+    "file": "src/pages/funzionalita/ContabilitaFiscale.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25471
+  },
+  {
+    "route": "/funzionalita/crm-edilizia",
+    "file": "src/pages/funzionalita/CrmEdilizia.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25216
+  },
+  {
+    "route": "/funzionalita/cruscotto-aziendale",
+    "file": "src/pages/funzionalita/CruscottoAziendale.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25452
+  },
+  {
+    "route": "/funzionalita/ddt-digitali",
+    "file": "src/pages/funzionalita/DdtDigitali.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25728
+  },
+  {
+    "route": "/funzionalita/email-marketing",
+    "file": "src/pages/funzionalita/EmailMarketing.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25178
+  },
+  {
+    "route": "/funzionalita/fatturazione-elettronica",
+    "file": "src/pages/funzionalita/FatturazioneElettronica.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25071
+  },
+  {
+    "route": "/funzionalita/ferie-permessi",
+    "file": "src/pages/funzionalita/FeriePermessi.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24664
+  },
+  {
+    "route": "/funzionalita/finanziamenti-cantieri",
+    "file": "src/pages/funzionalita/FinanziamentiCantieri.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27360
+  },
+  {
+    "route": "/funzionalita/firma-elettronica",
+    "file": "src/pages/funzionalita/FirmaElettronica.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25456
+  },
+  {
+    "route": "/funzionalita/foto-cantiere",
+    "file": "src/pages/funzionalita/FotoCantiere.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26070
+  },
+  {
+    "route": "/funzionalita/fotovoltaico",
+    "file": "src/pages/funzionalita/Fotovoltaico.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27104
+  },
+  {
+    "route": "/funzionalita/gestione-cantieri",
+    "file": "src/pages/funzionalita/GestioneCantieri.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25574
+  },
+  {
+    "route": "/funzionalita/gestione-subappalti",
+    "file": "src/pages/funzionalita/GestioneSubappalti.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27226
+  },
+  {
+    "route": "/funzionalita/giornale-lavori",
+    "file": "src/pages/funzionalita/GiornaleLavori.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25540
+  },
+  {
+    "route": "/funzionalita/gestione-commesse",
+    "file": "src/pages/funzionalita/GestioneCommesse.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26585
+  },
+  {
+    "route": "/funzionalita/contabilita-lavori",
+    "file": "src/pages/funzionalita/ContabilitaLavori.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26786
+  },
+  {
+    "route": "/funzionalita/computo-metrico",
+    "file": "src/pages/funzionalita/ComputoMetrico.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27141
+  },
+  {
+    "route": "/funzionalita/rapportini-cantiere",
+    "file": "src/pages/funzionalita/RapportiniCantiere.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27051
+  },
+  {
+    "route": "/funzionalita/mezzi-attrezzature",
+    "file": "src/pages/funzionalita/MezziAttrezzature.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27336
+  },
+  {
+    "route": "/funzionalita/direzione-lavori",
+    "file": "src/pages/funzionalita/DirezioneLavori.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27409
+  },
+  {
+    "route": "/funzionalita/hr-personale",
+    "file": "src/pages/funzionalita/HrPersonale.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26995
+  },
+  {
+    "route": "/funzionalita/lead-form-facebook",
+    "file": "src/pages/funzionalita/LeadFormFacebook.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 27161
+  },
+  {
+    "route": "/funzionalita/magazzino-cantiere",
+    "file": "src/pages/funzionalita/MagazzinoCantiere.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 12245
+  },
+  {
+    "route": "/funzionalita/manutenzione-impianti",
+    "file": "src/pages/funzionalita/ManutenzioneImpianti.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26369
+  },
+  {
+    "route": "/funzionalita/margini-cantiere",
+    "file": "src/pages/funzionalita/MarginiCantiere.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26686
+  },
+  {
+    "route": "/funzionalita/ordini-acquisto",
+    "file": "src/pages/funzionalita/OrdiniAcquisto.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24903
+  },
+  {
+    "route": "/funzionalita/pipeline-vendite",
+    "file": "src/pages/funzionalita/PipelineVendite.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24938
+  },
+  {
+    "route": "/funzionalita/portale-clienti",
+    "file": "src/pages/funzionalita/PortaleClienti.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 23862
+  },
+  {
+    "route": "/funzionalita/preventivi-edilizia",
+    "file": "src/pages/funzionalita/PreventiviEdilizia.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26878
+  },
+  {
+    "route": "/funzionalita/prima-nota",
+    "file": "src/pages/funzionalita/PrimaNota.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24371
+  },
+  {
+    "route": "/funzionalita/quote-builder-ai",
+    "file": "src/pages/funzionalita/QuoteBuilderAi.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26961
+  },
+  {
+    "route": "/funzionalita/registro-iva",
+    "file": "src/pages/funzionalita/RegistroIva.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25346
+  },
+  {
+    "route": "/funzionalita/render-bagni",
+    "file": "src/pages/funzionalita/render/RenderBagni.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 19004
+  },
+  {
+    "route": "/funzionalita/render-infissi",
+    "file": "src/pages/funzionalita/RenderInfissi.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 99192
+  },
+  {
+    "route": "/funzionalita/render-pavimenti",
+    "file": "src/pages/funzionalita/render/RenderPavimenti.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 18979
+  },
+  {
+    "route": "/funzionalita/render-piscine",
+    "file": "src/pages/funzionalita/render/RenderPiscine.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 19824
+  },
+  {
+    "route": "/funzionalita/render-ristrutturazioni",
+    "file": "src/pages/funzionalita/render/RenderRistrutturazioni.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 18910
+  },
+  {
+    "route": "/funzionalita/render-stanza",
+    "file": "src/pages/funzionalita/render/RenderStanza.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 19104
+  },
+  {
+    "route": "/funzionalita/render-tetti",
+    "file": "src/pages/funzionalita/render/RenderTetti.tsx",
+    "template": "render",
+    "hasDirectImage": false,
+    "textLength": 18927
+  },
+  {
+    "route": "/funzionalita/report-fatturazione",
+    "file": "src/pages/funzionalita/ReportFatturazione.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25830
+  },
+  {
+    "route": "/funzionalita/ritenute-garanzia",
+    "file": "src/pages/funzionalita/RitenuteGaranzia.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26830
+  },
+  {
+    "route": "/funzionalita/scadenzario",
+    "file": "src/pages/funzionalita/Scadenzario.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24415
+  },
+  {
+    "route": "/funzionalita/sicurezza-cantiere",
+    "file": "src/pages/funzionalita/SicurezzaCantiere.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 26410
+  },
+  {
+    "route": "/funzionalita/sms-marketing",
+    "file": "src/pages/funzionalita/SmsMarketing.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24385
+  },
+  {
+    "route": "/funzionalita/tesoreria",
+    "file": "src/pages/funzionalita/Tesoreria.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24722
+  },
+  {
+    "route": "/funzionalita/ticket-assistenza",
+    "file": "src/pages/funzionalita/TicketAssistenza.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25974
+  },
+  {
+    "route": "/funzionalita/timbrature-gps",
+    "file": "src/pages/funzionalita/TimbratureGps.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 24357
+  },
+  {
+    "route": "/funzionalita/whatsapp-marketing",
+    "file": "src/pages/funzionalita/WhatsappMarketing.tsx",
+    "template": "function",
+    "hasDirectImage": false,
+    "textLength": 25668
+  },
+  {
+    "route": "/glossario-edilizia",
+    "file": "src/pages/Glossario.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 30917
+  },
+  {
+    "route": "/integrazioni",
+    "file": "src/pages/Integrazioni.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 21897
+  },
+  {
+    "route": "/offerta-2-mesi-gratis",
+    "file": "src/pages/Offerta2MesiGratis.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 33902
+  },
+  {
+    "route": "/per/commercialista-edilizia",
+    "file": "src/pages/per/CommercialistaEdilizia.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 18334
+  },
+  {
+    "route": "/per/fotovoltaico",
+    "file": "src/pages/per/Fotovoltaico.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 19348
+  },
+  {
+    "route": "/per/grandi-imprese",
+    "file": "src/pages/per/GrandiImprese.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 23854
+  },
+  {
+    "route": "/per/impiantisti",
+    "file": "src/pages/per/Impiantisti.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 17965
+  },
+  {
+    "route": "/per/imprese-edili",
+    "file": "src/pages/per/ImpreseCostuzione.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 16414
+  },
+  {
+    "route": "/novita",
+    "file": "src/pages/Novita.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 10102
+  },
+  {
+    "route": "/per/medie-imprese",
+    "file": "src/pages/per/MedieImprese.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 22508
+  },
+  {
+    "route": "/per/piccole-imprese",
+    "file": "src/pages/per/PiccoleImprese.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 18546
+  },
+  {
+    "route": "/per/ristrutturatori",
+    "file": "src/pages/per/Ristrutturatori.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 18810
+  },
+  {
+    "route": "/per/serramentisti",
+    "file": "src/pages/per/Serramentisti.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 22273
+  },
+  {
+    "route": "/per/geometri",
+    "file": "src/pages/per/Geometri.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 19958
+  },
+  {
+    "route": "/per/muratori",
+    "file": "src/pages/per/Muratori.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 19101
+  },
+  {
+    "route": "/per/installatori",
+    "file": "src/pages/per/Installatori.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 19323
+  },
+  {
+    "route": "/per/movimento-terra",
+    "file": "src/pages/per/MovimentoTerra.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 20037
+  },
+  {
+    "route": "/per/cartongessisti",
+    "file": "src/pages/per/Cartongessisti.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 19846
+  },
+  {
+    "route": "/per/carpenteria-metallica",
+    "file": "src/pages/per/CarpenteriaMetallica.tsx",
+    "template": "sector",
+    "hasDirectImage": true,
+    "textLength": 20720
+  },
+  {
+    "route": "/pianifica-migrazione",
+    "file": "src/pages/PianificaMigrazione.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 45956
+  },
+  {
+    "route": "/prezzi",
+    "file": "src/pages/Prezzi.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 65876
+  },
+  {
+    "route": "/strumenti",
+    "file": "src/pages/Strumenti.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 7601
+  },
+  {
+    "route": "/strumenti/calcolo-congruita-manodopera",
+    "file": "src/pages/strumenti/CalcoloCongruita.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 11944
+  },
+  {
+    "route": "/strumenti/calcolo-costo-orario-operaio",
+    "file": "src/pages/strumenti/CalcoloCostoOrario.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 10548
+  },
+  {
+    "route": "/strumenti/calcolo-ritenuta-garanzia",
+    "file": "src/pages/strumenti/CalcoloRitenuta.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 9175
+  },
+  {
+    "route": "/privacy-policy",
+    "file": "src/pages/PrivacyPolicy.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 45157
+  },
+  {
+    "route": "/software-gestionale-edilizia",
+    "file": "src/pages/city/CityHub.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 37634
+  },
+  {
+    "route": "/software-gestionale-edilizia-milano",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-roma",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-torino",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-napoli",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-bologna",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-firenze",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-genova",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-bari",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-verona",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-brescia",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-palermo",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-catania",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-venezia",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-padova",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-bergamo",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-modena",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-parma",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-salerno",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-trieste",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-cagliari",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-perugia",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-ancona",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-udine",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-messina",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-livorno",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-prato",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-vicenza",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-foggia",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-pescara",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-taranto",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-cosenza",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-trento",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-bolzano",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-ferrara",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-como",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-lecco",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-monza",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-varese",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-treviso",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-latina",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-pisa",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-reggio-emilia",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/software-gestionale-edilizia-reggio-calabria",
+    "file": "src/pages/city/CityLanding.tsx",
+    "template": "city",
+    "hasDirectImage": true,
+    "textLength": 221961
+  },
+  {
+    "route": "/strumenti/calcolatore-margine-commessa",
+    "file": "src/pages/strumenti/CalcolatoreMargineCommessa.tsx",
+    "template": "individual",
+    "hasDirectImage": true,
+    "textLength": 56533
+  },
+  {
+    "route": "/termini-e-condizioni",
+    "file": "src/pages/TerminiServizio.tsx",
+    "template": "individual",
+    "hasDirectImage": false,
+    "textLength": 63729
+  },
+  {
+    "route": "/blog/modello-preventivo-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/contratto-subappalto-edile-fac-simile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 19
+  },
+  {
+    "route": "/blog/software-gestione-cantieri-gratis",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/app-gestione-cantieri-gratis",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 7
+  },
+  {
+    "route": "/blog/computo-metrico-gratis",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/gestionale-edilizia-opinioni",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/incentivi-digitalizzazione-edilizia-2026",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/reverse-charge-edilizia",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/registro-presenze-cantiere-obbligatorio",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/pos-piano-operativo-sicurezza-fac-simile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/prezzario-regionale-edilizia",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/cartello-di-cantiere-obbligatorio",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/notifica-preliminare-cantiere",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/libretto-delle-misure",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/split-payment-lavori-pubblici",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/migliori-software-gestionali-edilizia-confronto",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/edilizia-in-cloud-vs-teamsystem-construction",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 7
+  },
+  {
+    "route": "/blog/edilizia-in-cloud-vs-planradar",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 17
+  },
+  {
+    "route": "/blog/edilizia-in-cloud-vs-dylog-edilizia",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 18
+  },
+  {
+    "route": "/blog/edilizia-in-cloud-vs-pillar",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/chi-gestisce-i-numeri-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 21
+  },
+  {
+    "route": "/blog/excel-whatsapp-carta-gestione-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 21
+  },
+  {
+    "route": "/blog/rapportino-di-cantiere-app-e-modello",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/gestionale-cantiere-piccola-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/ddt-cantiere-digitale",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 13
+  },
+  {
+    "route": "/blog/gestionale-edilizia-per-geometra",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/software-computo-metrico",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/gestione-squadre-cantiere",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/ridurre-costi-cantieri-edili",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/gestione-cantieri-digitale",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/analisi-margini-imprese-edili",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/marketing-digitale-imprese-edili",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/digitalizzare-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/come-organizzare-cantiere-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 22
+  },
+  {
+    "route": "/blog/documentazione-obbligatoria-cantiere-2025",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/come-fare-preventivo-edilizia",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/alternativa-excel-cantieri",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 13
+  },
+  {
+    "route": "/blog/sal-cantiere-come-funziona",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/durc-edilizia-guida-completa",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/giornale-dei-lavori-cantiere",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/subappalto-edilizia-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/acquisire-clienti-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 6
+  },
+  {
+    "route": "/blog/gestione-operai-cantiere-presenze-ore",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 14
+  },
+  {
+    "route": "/blog/sito-web-impresa-edile-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 5
+  },
+  {
+    "route": "/blog/digitalizzazione-impresa-edile-passo-passo",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 6
+  },
+  {
+    "route": "/blog/computo-metrico-estimativo-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 17
+  },
+  {
+    "route": "/blog/bim-edilizia-guida-pratica",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 9
+  },
+  {
+    "route": "/blog/cassa-edile-come-funziona",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 21
+  },
+  {
+    "route": "/blog/appalti-pubblici-edilizia-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/sicurezza-cantieri-dlgs-81",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/ccnl-edilizia-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 7
+  },
+  {
+    "route": "/blog/attestazione-soa-imprese-edili",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/superbonus-imprese-edili-2026",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 7
+  },
+  {
+    "route": "/blog/gestione-liquidita-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 15
+  },
+  {
+    "route": "/blog/pnrr-edilizia-imprese-2026",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 13
+  },
+  {
+    "route": "/blog/come-scegliere-software-gestionale-edilizia",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 19
+  },
+  {
+    "route": "/blog/gestione-subappaltatori-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/cassa-impresa-edile-non-torna",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/trovare-operai-edili-qualificati",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/passaparola-impresa-edile-non-basta",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/gestire-piu-cantieri-contemporaneamente",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/burocrazia-impresa-edile-scadenze-documenti",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/delegare-impresa-edile-senza-perdere-controllo",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/preventivi-edili-non-si-chiudono",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/segnali-crisi-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/aumentare-vendite-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/richieste-preventivo-ristrutturazione-online",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/google-ads-impresa-edile-errori-budget",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/crm-edilizia-gestire-lead-preventivi-follow-up",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 16
+  },
+  {
+    "route": "/blog/come-trovare-clienti-serramentisti",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 12
+  },
+  {
+    "route": "/blog/come-trovare-clienti-rifacimento-tetti",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/come-trovare-clienti-fotovoltaico",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/sistema-fatturazione-aziende-edili",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/fattura-corretta-serramentisti",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/preventivo-rifacimento-tetto-come-farlo",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/seo-locale-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/recupero-crediti-impresa-edile-fatture-scadute",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 11
+  },
+  {
+    "route": "/blog/intelligenza-artificiale-edilizia-2026",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 10
+  },
+  {
+    "route": "/blog/ai-analisi-margini-cantiere",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/quanto-costa-gestionale-impresa-edile",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 14
+  },
+  {
+    "route": "/blog/patente-a-crediti-edilizia-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 18
+  },
+  {
+    "route": "/blog/durc-congruita-manodopera-soglie",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 15
+  },
+  {
+    "route": "/blog/cila-scia-permesso-di-costruire-differenze",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 8
+  },
+  {
+    "route": "/blog/contabilita-di-cantiere-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 22
+  },
+  {
+    "route": "/blog/ritenuta-di-garanzia-appalti-come-funziona",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 17
+  },
+  {
+    "route": "/blog/report-avanzamento-cantiere-guida",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 6
+  },
+  {
+    "route": "/blog/nota-di-credito-edilizia-quando-come",
+    "file": "src/pages/BlogPost.tsx",
+    "template": "article",
+    "hasDirectImage": true,
+    "textLength": 7
+  }
+]

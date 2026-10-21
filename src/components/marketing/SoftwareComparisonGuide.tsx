@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -19,7 +20,8 @@ export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGu
     ] }} />
     <JsonLd id="jsonld-comparison-faq" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: guide.faqs.map((faq) => ({ "@type": "Question", name: faq.q, acceptedAnswer: { "@type": "Answer", text: faq.a } })) }} />
     <header className="bg-[#111111] text-white px-6 pt-28 pb-12 md:pt-36 md:pb-16">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
         <Link to="/confronto/" className="text-sm text-white/70 hover:text-white">← Tutti i confronti</Link>
         <p className="mt-8 text-sm text-orange-300">Preventivi, cantiere e controllo economico</p>
         <h1 className="mt-3 max-w-4xl text-3xl md:text-5xl font-bold tracking-tight leading-tight">{guide.title}</h1>
@@ -29,6 +31,8 @@ export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGu
           <a href="#prova-pratica" className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold">Guarda il flusso della commessa</a>
         </div>
       </div>
+<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
     </header>
     <main className="max-w-6xl mx-auto px-6 py-12 md:py-16 space-y-14">
       <section aria-labelledby="quando-scegliere">

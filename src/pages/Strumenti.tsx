@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 /**
  * Hub degli strumenti gratuiti.
  *
@@ -140,6 +141,7 @@ export default function Strumenti() {
             })}
           </div>
 
+          <MarketingVisual theme="finance" className="mt-10 max-w-xl mx-auto" caption="Dal dato di partenza alla lettura dei costi · Illustrazione" />
           <section className="mt-12" aria-labelledby="perche">
             <h2 id="perche" className="text-2xl font-bold text-gray-900">
               Perché questi quattro

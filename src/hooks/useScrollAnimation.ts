@@ -14,6 +14,10 @@ export function useScrollAnimation(options: UseScrollAnimationOptions = {}) {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    if (typeof IntersectionObserver === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setIsVisible(true);
+      return;
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {

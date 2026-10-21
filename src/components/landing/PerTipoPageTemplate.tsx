@@ -234,13 +234,6 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
   const garantieAnim = useScrollAnimation();
   const faqAnim = useScrollAnimation();
 
-  const [scrollY, setScrollY] = useState(0);
-  useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   useSEO({
     title: config.seoTitle,
     description: config.seoDescription,
@@ -308,7 +301,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         {/* Background image with parallax */}
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.13]"
-          style={{ backgroundImage: `url(${config.heroImage})`, transform: `translateY(${scrollY * 0.25}px)` }}
+          style={{ backgroundImage: `url(${config.heroImage})` }}
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(13,13,13,0.3) 0%, rgba(13,13,13,0.8) 60%, rgba(13,13,13,1) 100%)" }} />

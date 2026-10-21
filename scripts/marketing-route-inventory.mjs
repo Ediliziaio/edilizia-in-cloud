@@ -1,0 +1,24 @@
+import { build } from "esbuild";
+import { createRequire } from "node:module";
+import ts from 'typescript';import fs from 'node:fs';import path from 'node:path';
+const source=fs.readFileSync('scripts/prerender.mjs','utf8');
+const ast=ts.createSourceFile('prerender.mjs',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);let routes=[];
+function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='STATIC_ROUTES'&&ts.isArrayLiteralExpression(n.initializer))routes=n.initializer.elements.filter(ts.isStringLiteral).map(x=>x.text);ts.forEachChild(n,visit)}visit(ast);
+const app=fs.readFileSync('src/App.tsx','utf8'),imports={};
+for(const m of app.matchAll(/const\s+(\w+)\s*=\s*lazy\(\(\)\s*=>\s*import\(["']([^"']+)/g))imports[m[1]]=m[2].replace(/^@\//,'src/').replace(/^\.\//,'src/');
+for(const m of app.matchAll(/import\s+(\w+)\s+from\s+["'](@\/[^"']+)/g))imports[m[1]]=m[2].replace(/^@\//,'src/');
+const routeFiles={'/prezzi':'src/pages/Prezzi.tsx'};for(const m of app.matchAll(/<Route\s+path="([^"]+)"[^>]*element=\{<([A-Z]\w*)/g))routeFiles[m[1]]=imports[m[2]];
+const report=routes.map(route=>{
+ let file=routeFiles[route]||routeFiles[route+'/'];
+ if(!file&&route.startsWith('/software-gestionale-edilizia-'))file='src/pages/city/CityLanding';
+ if(!file&&route==='/')file='src/pages/Home';
+ if(file&&!path.extname(file))file+='.tsx';
+ const text=file&&fs.existsSync(file)?fs.readFileSync(file,'utf8'):'';
+ let template=text.includes('FunzionalitaPageTemplate')?'function':text.includes('PerTipoPageTemplate')?'sector':text.includes('RenderPageTemplate')?'render':text.includes('SoftwareComparisonGuide')?'comparison':route.startsWith('/software-gestionale-edilizia')?'city':'individual';
+ return {route,file:file||null,template,hasDirectImage:/<img\b|backgroundImage|heroImage|coverImage|BlogCover|Picture|MarketingVisual/.test(text),textLength:text.length};
+});
+fs.mkdirSync('.tmp',{recursive:true});
+await build({entryPoints:['src/data/blogPosts.ts'],bundle:true,platform:'node',format:'cjs',outfile:'.tmp/public-blog-inventory.cjs'});
+const {blogPosts}=createRequire(import.meta.url)(path.resolve('.tmp/public-blog-inventory.cjs'));
+for(const post of blogPosts)report.push({route:'/blog/'+post.slug,file:'src/pages/BlogPost.tsx',template:'article',hasDirectImage:true,textLength:post.content?.length||0});
+fs.mkdirSync('docs/marketing',{recursive:true});fs.writeFileSync('docs/marketing/public-page-inventory.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({count:report.length,unmapped:report.filter(x=>!x.file).map(x=>x.route),groups:Object.fromEntries([...new Set(report.map(x=>x.template))].map(key=>[key,report.filter(x=>x.template===key).length])),noDirectImage:report.filter(x=>x.file&&!x.hasDirectImage&&x.template==='individual').map(x=>({route:x.route,file:x.file}))},null,2));

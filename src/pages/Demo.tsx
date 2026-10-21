@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -336,6 +337,7 @@ export default function Demo() {
             <ol className="mt-7 space-y-6">{demoSteps.map(step => <li key={step.step} className="flex gap-4"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white border border-orange-100 text-sm font-bold text-orange-700">{step.step}</span><div><h3 className="font-semibold">{step.title}</h3><p className="mt-1 text-sm leading-relaxed text-gray-600">{step.desc}</p></div></li>)}</ol>
             <p className="mt-8 text-sm text-gray-600">{marketingMessages.companies} · {marketingMessages.activation}</p>
             <Link to="/funzionalita/gestione-commesse/" className="mt-4 inline-block font-semibold text-orange-700 underline underline-offset-4">Prima vuoi esplorare le commesse?</Link>
+            <MarketingVisual theme="operations" className="mt-7 max-w-sm" />
           </aside>
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-8 md:p-10">
             {submitted ? (
