@@ -1,9 +1,12 @@
 /**
  * useProcurementAnalysis — i dati della pagina Analisi Acquisti.
  *
- * Tre letture indipendenti, ognuna col suo caricamento e il suo errore:
- *   - analisi: ordini, fatture ricevute e scadenze del periodo (e dell'anno
- *     prima), lette a pagine complete e calcolate da `calcolaAnalisiAcquisti`.
+ * Letture indipendenti, ognuna col suo caricamento e il suo errore:
+ *   - analisi: la funzione SQL `analisi_acquisti` (tutti i conti nel
+ *     database). Se la funzione non c'è ancora (PGRST202), ordini, fatture e
+ *     scadenze si leggono a pagine e si calcolano qui con
+ *     `calcolaAnalisiAcquisti`, con le stesse regole.
+ *   - anagrafiche: fornitori e commesse per i filtri.
  *   - prezzi: righe degli ordini degli ultimi 12 mesi → confronto prezzi.
  *   - firma → primo ordine.
  *
@@ -26,6 +29,7 @@ import {
   type DatiGrezziAcquisti,
   type FatturaRiga,
   type FiltriAnalisi,
+  type AnalisiAcquistiDati,
   type FornitoreAnagrafica,
   type OrdineAcquistoRiga,
   type Periodo,
@@ -118,6 +122,18 @@ async function leggiDatiGrezzi(companyId: string, periodo: Periodo): Promise<Dat
   return { ordini, fatture, scadenze, fornitori, commesse };
 }
 
+/** Errore di «funzione non trovata»: la migrazione non è ancora applicata. */
+export function funzioneMancante(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message ?? "");
+}
+
+export interface EsitoAnalisi {
+  analisi: AnalisiAcquistiDati;
+  /** «database» = funzione SQL; «browser» = calcolo di riserva. */
+  origine: "database" | "browser";
+}
+
 export function useProcurementAnalysis(periodo: Periodo, filtri: FiltriAnalisi = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -126,13 +142,43 @@ export function useProcurementAnalysis(periodo: Periodo, filtri: FiltriAnalisi =
     queryKey: ["procurement", "analisi", companyId, periodo.dal, periodo.al, filtri.fornitoreId ?? "", filtri.commessaId ?? "", filtri.categoria ?? ""],
     enabled: !!companyId,
     staleTime: STALE,
-    queryFn: async () => {
+    queryFn: async (): Promise<EsitoAnalisi> => {
+      const { data, error } = await db.rpc("analisi_acquisti", {
+        p_dal: periodo.dal,
+        p_al: periodo.al,
+        p_fornitore: filtri.fornitoreId || null,
+        p_commessa: filtri.commessaId && filtri.commessaId !== "nessuna" ? filtri.commessaId : null,
+        p_senza_commessa: filtri.commessaId === "nessuna",
+        p_categoria: filtri.categoria || null,
+      });
+      if (!error && data) return { analisi: data as AnalisiAcquistiDati, origine: "database" };
+      if (error && !funzioneMancante(error)) throw error;
       const grezzi = await leggiDatiGrezzi(companyId!, periodo);
-      return {
-        analisi: calcolaAnalisiAcquisti(grezzi, periodo, filtri),
-        fornitori: grezzi.fornitori,
-        commesse: grezzi.commesse,
-      };
+      return { analisi: calcolaAnalisiAcquisti(grezzi, periodo, filtri), origine: "browser" };
+    },
+  });
+
+  // Fornitori e commesse per i filtri (tre colonne, a pagine).
+  const anagraficheQuery = useQuery({
+    queryKey: ["procurement", "anagrafiche", companyId],
+    enabled: !!companyId,
+    staleTime: STALE,
+    queryFn: async () => {
+      const [fornitori, commesse] = await Promise.all([
+        leggiTutteLeRighe<FornitoreAnagrafica>((da, a) =>
+          db.from("suppliers").select("id, name, product_category").eq("company_id", companyId!).order("id").range(da, a),
+        ),
+        leggiTutteLeRighe<CommessaAnagrafica>((da, a) =>
+          db
+            .from("orders")
+            .select("id, order_code, client_name")
+            .eq("company_id", companyId!)
+            .is("deleted_at", null)
+            .order("id")
+            .range(da, a),
+        ),
+      ]);
+      return { fornitori, commesse };
     },
   });
 
@@ -210,5 +256,5 @@ export function useProcurementAnalysis(periodo: Periodo, filtri: FiltriAnalisi =
     },
   });
 
-  return { analisiQuery, prezziQuery, firmaQuery };
+  return { analisiQuery, anagraficheQuery, prezziQuery, firmaQuery };
 }
