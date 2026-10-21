@@ -5,6 +5,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { buildInteractivePayload } from "../../interactive.ts";
 
 export const listaApprovazioniDef: Omit<ToolDef, "handler"> = {
   name: "lista_approvazioni",
@@ -40,13 +41,20 @@ export async function listaApprovazioni(
     );
   }
 
-  const lista = segnalazioni.slice(0, 8).map((s, i) => {
-    const emoji = s.priorita === "alta" ? "🔴" : "🟠";
-    return `${emoji} ${i + 1}. ${(s.subject ?? "").substring(0, 90)}`;
-  }).join("\n");
-
+  // Scelta a bottoni: toccare una richiesta ne manda l'oggetto, così la apro.
   return okResult(
-    { items: segnalazioni },
-    `📋 *${segnalazioni.length} richieste in sospeso*\n\n${lista}\n\n_Scrivi il numero per vedere i dettagli._`,
+    {
+      items: segnalazioni,
+      __interactive: buildInteractivePayload(
+        `📋 ${segnalazioni.length} richieste in sospeso. Tocca quella da vedere:`,
+        segnalazioni.slice(0, 10).map((s) => ({
+          id: `richiesta:${s.id}`,
+          title: (s.subject ?? "Richiesta").substring(0, 24),
+          description: s.priorita === "alta" ? "🔴 Priorità alta" : "🟠 Priorità media",
+        })),
+        "Vedi richiesta",
+      ),
+    },
+    "",
   );
 }

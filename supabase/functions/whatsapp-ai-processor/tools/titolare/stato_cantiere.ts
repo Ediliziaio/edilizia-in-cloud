@@ -5,6 +5,7 @@ import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { fmtEur } from "../shared/formato.ts";
 import { oreCantiere } from "../shared/oreCantiere.ts";
+import { buildInteractivePayload } from "../../interactive.ts";
 
 export const statoCantiereDef: Omit<ToolDef, "handler"> = {
   name: "stato_cantiere",
@@ -44,8 +45,12 @@ export async function statoCantiere(
       return errResult("not_found", `Non trovo cantieri con "${args.query}".`);
     }
     if (ms.length > 1) {
-      const opts = ms.map((m, i) => `${i + 1}. ${m.name}`).join("\n");
-      return errResult("ambiguous", `Ho trovato ${ms.length} cantieri:\n${opts}\n\nQuale intendevi?`);
+      // Scelta a bottoni: toccare un cantiere manda il suo nome, e io lo ricerco.
+      return okResult({ __interactive: buildInteractivePayload(
+        `Ho trovato ${ms.length} cantieri. Quale?`,
+        ms.slice(0, 10).map((m) => ({ id: `cantiere:${m.id}`, title: m.name })),
+        "Scegli il cantiere",
+      ) }, "");
     }
     orderId = ms[0].id;
   }

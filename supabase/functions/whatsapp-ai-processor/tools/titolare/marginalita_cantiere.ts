@@ -6,6 +6,7 @@ import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { fmtEur } from "../shared/formato.ts";
 import { oreCantiere } from "../shared/oreCantiere.ts";
+import { buildInteractivePayload } from "../../interactive.ts";
 
 export const marginalitaCantiereDef: Omit<ToolDef, "handler"> = {
   name: "marginalita_cantiere",
@@ -43,8 +44,12 @@ export async function marginalitaCantiere(
     const ms = (matches ?? []) as TrigramRow[];
     if (ms.length === 0) return errResult("not_found", `Nessun cantiere per "${args.query}".`);
     if (ms.length > 1) {
-      const opts = ms.map((m, i) => `${i + 1}. ${m.name}`).join("\n");
-      return errResult("ambiguous", `${ms.length} cantieri trovati:\n${opts}\n\nQuale?`);
+      // Scelta a bottoni: toccare un cantiere manda il suo nome, e io lo ricerco.
+      return okResult({ __interactive: buildInteractivePayload(
+        `${ms.length} cantieri trovati. Quale?`,
+        ms.slice(0, 10).map((m) => ({ id: `cantiere:${m.id}`, title: m.name })),
+        "Scegli il cantiere",
+      ) }, "");
     }
     orderId = ms[0].id;
   }

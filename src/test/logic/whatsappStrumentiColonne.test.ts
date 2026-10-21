@@ -76,9 +76,11 @@ describe("segnalazioni in sospeso", () => {
   });
   it("sono i ticket dal cantiere ancora aperti", async () => {
     const esito = await listaApprovazioni(ctx);
-    expect(esito.user_message).toContain("perde un tubo");
-    expect(esito.user_message).not.toContain("Richiesta del cliente");
-    expect(esito.user_message).not.toContain("già fatto");
+    // Le richieste sono bottoni interattivi (si toccano), non un elenco da leggere.
+    const bottoni = JSON.stringify((esito.data as { __interactive?: unknown })?.__interactive ?? "");
+    expect(bottoni).toContain("perde un tubo");
+    expect(bottoni).not.toContain("Richiesta del cliente");
+    expect(bottoni).not.toContain("già fatto");
   });
   it("approvare la risolve, e una già risolta resta com'è", async () => {
     const esito = await approvaRichiesta(ctx, { richiesta_id: "t1", esito: "approvata" });
