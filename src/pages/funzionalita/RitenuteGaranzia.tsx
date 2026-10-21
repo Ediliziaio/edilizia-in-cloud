@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Archive,
@@ -50,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import storico ritenute",
+    "Avvio assistito con import storico ritenute",
     "Calcolo automatico 0,5% e 4% su ogni SAL",
     "Notifiche scadenze svincolo automatiche",
   ],
@@ -67,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 130 imprese edili italiane operano in appalti pubblici e subappalti gestendo ritenute con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo il modulo Ritenute in 48 ore: importiamo lo storico SAL e ritenute applicate, configuriamo aliquote 0,5% L. 296/2006 e 4% INPS subappalto, pianifichiamo le scadenze svincolo, integriamo controllo DURC committenti/subappaltatori, predisponiamo l'archivio documentale conforme. 4 sessioni 1-a-1 fino al primo svincolo recuperato.",
+    "Attiviamo il modulo Ritenute con tempi concordati: importiamo lo storico SAL e ritenute applicate, configuriamo aliquote 0,5% L. 296/2006 e 4% INPS subappalto, pianifichiamo le scadenze svincolo, integriamo controllo DURC committenti/subappaltatori, predisponiamo l'archivio documentale conforme. 4 sessioni 1-a-1 fino al primo svincolo recuperato.",
 
   speedH2:
     "Su 100 cantieri pubblici, l'impresa media non recupera 0,5-1,5% del valore appaltato per ritenute mai svincolate. Su un appalto da 500k€ sono 2.500-7.500€.",
@@ -215,7 +216,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Liquidità recuperata, conformità garantita, zero blocchi DURC.",
   commercialBody:
-    "Le imprese che gestiscono appalti pubblici con Edilizia in Cloud recuperano in media 0,5-1% del fatturato annuale in ritenute prima dimenticate, azzerano i blocchi cantiere per DURC scaduti e dimezzano i tempi amministrativi su gestione svincoli e subappalti. Non è marginale: è denaro liquido recuperato.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Euro,
@@ -470,12 +471,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di lasciare denaro presso committenti pubblici. Inizia a recuperare ogni svincolo.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il modulo Ritenute di Garanzia dentro la tua impresa: setup in 48 ore, import storico SAL e ritenute, calcolo automatico 0,5% e 4% INPS, controllo DURC mensile, archivio decennale conforme. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il modulo Ritenute di Garanzia dentro la tua impresa: avvio assistito, import storico SAL e ritenute, calcolo automatico 0,5% e 4% INPS, controllo DURC mensile, archivio decennale conforme. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · Import storico incluso · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Import storico incluso · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Ritenute",
-  stickyCtaMicrocopy: "Setup 48h · Recupero svincoli storici",
+  stickyCtaMicrocopy: "Avvio assistito · Recupero svincoli storici",
 
   applicationSubCategory: "Construction Retention Management Software",
 

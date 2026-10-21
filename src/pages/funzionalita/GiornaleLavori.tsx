@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BookOpen,
@@ -49,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Conforme Allegato II.14 D.Lgs 36/2023",
     "Firma DL e RUP integrata",
   ],
@@ -66,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano il Giornale Lavori digitale per essere pronte alle ispezioni.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il Giornale Lavori digitale è già pronto: lo attiviamo in 48 ore configurando i template conformi all'Allegato II.14 del D.Lgs 36/2023, abilitiamo l'app mobile per il capocantiere, configuriamo le firme di Direttore Lavori e RUP, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo giornale lavori chiuso e firmato.",
+    "Il Giornale Lavori digitale è già pronto: lo attiviamo insieme alla tua impresa configurando i template conformi all'Allegato II.14 del D.Lgs 36/2023, abilitiamo l'app mobile per il capocantiere, configuriamo le firme di Direttore Lavori e RUP, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo giornale lavori chiuso e firmato.",
 
   speedH2:
     "Il giornale lavori cartaceo è il primo punto debole in caso di ispezione. Il digitale risolve.",
@@ -218,7 +219,7 @@ const config: FunzionalitaPageConfig = {
   commercialH2:
     "Conformità normativa garantita + tempo segreteria recuperato + difesa legale solida.",
   commercialBody:
-    "Il Giornale Lavori digitale non è solo conformità: è anche un acceleratore operativo e una protezione legale. Le imprese che lo attivano risparmiano 2-3 ore/settimana di segreteria e hanno difesa documentale forte in ogni contestazione.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: ShieldCheck,
@@ -444,10 +445,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare il Giornale Lavori digitale dentro la tua impresa edile. Conforme Allegato II.14 D.Lgs 36/2023, firme DL/RUP eIDAS, esportazione PDF/A, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Conforme normativa · Firme eIDAS",
+  finalCtaMicrocopy: "Avvio assistito · Conforme normativa · Firme eIDAS",
 
   stickyCtaLabel: "Prova gratis Giornale Lavori",
-  stickyCtaMicrocopy: "Setup 48h · Conforme art. 15",
+  stickyCtaMicrocopy: "Avvio assistito · Conforme art. 15",
 
   applicationSubCategory: "Construction Daily Site Diary Software",
 

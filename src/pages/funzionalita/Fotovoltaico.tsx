@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BarChart3,
@@ -52,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import portafoglio impianti",
+    "Avvio assistito con import portafoglio impianti",
     "Pratiche GSE e distributore preconfigurate",
     "Modelli Superbonus 110% e Conto Termico inclusi",
   ],
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 180 imprese installatrici fotovoltaico in Italia gestiscono il loro portafoglio impianti con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo il modulo Fotovoltaico in 48 ore: importiamo i tuoi impianti attivi, configuriamo i template di pratica GSE (Scambio sul Posto, Ritiro Dedicato, autoconsumo), i modelli Superbonus 110% / Conto Termico, le pratiche TICA al distributore e i prezzari pannelli/inverter. 4 sessioni 1-a-1 con un consulente verticale FV fino al primo impianto chiuso end-to-end.",
+    "Attiviamo il modulo Fotovoltaico con tempi concordati: importiamo i tuoi impianti attivi, configuriamo i template di pratica GSE (Scambio sul Posto, Ritiro Dedicato, autoconsumo), i modelli Superbonus 110% / Conto Termico, le pratiche TICA al distributore e i prezzari pannelli/inverter. 4 sessioni 1-a-1 con un consulente verticale FV fino al primo impianto chiuso end-to-end.",
 
   speedH2:
     "Da sopralluogo ad allaccio in 60 giorni. Non in 6 mesi come capita oggi a chi tiene tutto su Excel.",
@@ -217,7 +218,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Più impianti chiusi, marginalità più alta, zero scadenze GSE perse.",
   commercialBody:
-    "Le imprese installatrici che adottano Edilizia in Cloud chiudono in media il 40% di impianti in più all'anno a parità di team, alzano il margine medio di 3-4 punti grazie al tracking puntuale dei costi e azzerano le pratiche GSE perse per dimenticanza. Il fotovoltaico ha margini sottili: la differenza la fa l'efficienza burocratica.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingUp,
@@ -472,12 +473,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di rincorrere pratiche GSE. Inizia a chiudere impianti FV in 60 giorni.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il modulo Fotovoltaico dentro la tua impresa: setup in 48 ore, pratiche GSE/TICA preconfigurate, archivio prodotti pannelli/inverter, monitoraggio produzione cliente. Onboarding 1-a-1 con consulente verticale FV. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il modulo Fotovoltaico dentro la tua impresa: avvio assistito, pratiche GSE/TICA preconfigurate, archivio prodotti pannelli/inverter, monitoraggio produzione cliente. Onboarding 1-a-1 con consulente verticale FV. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · Pratiche GSE preconfigurate · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Pratiche GSE preconfigurate · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Fotovoltaico",
-  stickyCtaMicrocopy: "Setup 48h · Pratiche GSE incluse",
+  stickyCtaMicrocopy: "Avvio assistito · Pratiche GSE incluse",
 
   applicationSubCategory: "Solar Construction Management Software",
 

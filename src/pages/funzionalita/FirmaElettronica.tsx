@@ -53,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Conforme eIDAS", "Marca temporale inclusa"],
+  reassurancePoints: ["Avvio assistito", "Conforme eIDAS", "Marca temporale inclusa"],
   proofPoints: [
     "Firma cliente in 30 secondi",
     "Validità legale equivalente firma autografa",
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 380 imprese italiane usano la Firma Elettronica integrata per chiudere preventivi e SAL in giornata.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Firma Elettronica è integrata in ogni modulo: preventivi, SAL, contratti, varianti, ordini fornitori, DURC. La attiviamo in 48 ore, configuriamo i template legali della tua azienda, integriamo la marca temporale e ti accompagniamo in 3 sessioni 1-a-1 finché il primo cliente firma online.",
+    "La Firma Elettronica è integrata in ogni modulo: preventivi, SAL, contratti, varianti, ordini fornitori, DURC. La attiviamo insieme alla tua impresa, configuriamo i template legali della tua azienda, integriamo la marca temporale e ti accompagniamo in 3 sessioni 1-a-1 finché il primo cliente firma online.",
 
   speedH2: "Stampante, scansione, mail, raccomandata: il SAL impiega 5 giorni. Online: 30 secondi.",
   speedSubheadline:
@@ -295,7 +295,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore di follow-up firme risparmiate/anno", value: `${Math.round(a * 12 * 0.3)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 9 giorni medi di accelerazione cassa per SAL e 0.25% costo finanziario annuo. A questo si aggiungono ore di follow-up risparmiate dal titolare.",
+      "Simulazione illustrativa basata su 9 giorni medi di accelerazione cassa per SAL e 0.25% costo finanziario annuo. A questo si aggiungono ore di follow-up risparmiate dal titolare.",
   },
 
   salesKicker: "Impatto operativo",
@@ -466,12 +466,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di stampare, firmare, scansionare. Inizia a chiudere documenti in 30 secondi.",
   finalCtaBody:
-    "31 giorni gratuiti per integrare la firma elettronica eIDAS dentro la tua impresa edile. Setup in 48 ore, marca temporale qualificata inclusa, archivio cloud immutabile. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per integrare la firma elettronica eIDAS dentro la tua impresa edile. Avvio assistito, marca temporale qualificata inclusa, archivio cloud immutabile. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · eIDAS conforme · Marca temporale inclusa",
+  finalCtaMicrocopy: "Avvio assistito · eIDAS conforme · Marca temporale inclusa",
 
   stickyCtaLabel: "Prova gratis Firma Elettronica",
-  stickyCtaMicrocopy: "Setup 48h · eIDAS conforme",
+  stickyCtaMicrocopy: "Avvio assistito · eIDAS conforme",
 
   applicationSubCategory: "Construction Electronic Signature Software",
 

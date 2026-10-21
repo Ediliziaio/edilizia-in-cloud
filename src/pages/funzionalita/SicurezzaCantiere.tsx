@@ -52,7 +52,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Conforme D.Lgs 81/2008",
     "Alert automatici scadenze",
   ],
@@ -441,10 +441,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare il modulo Sicurezza Cantiere dentro la tua impresa edile. POS sul modello ministeriale, avvisi sulle scadenze e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Conforme D.Lgs 81/08 · Alert automatici",
+  finalCtaMicrocopy: "Avvio assistito · Conforme D.Lgs 81/08 · Alert automatici",
 
   stickyCtaLabel: "Prova gratis Sicurezza Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · Conforme D.Lgs 81/08",
+  stickyCtaMicrocopy: "Avvio assistito · Conforme D.Lgs 81/08",
 
   applicationSubCategory: "Construction Site Safety Management Software",
 

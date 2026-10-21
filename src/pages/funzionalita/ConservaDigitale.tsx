@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Archive,
@@ -70,9 +71,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane affidano la conservazione decennale a Edilizia in Cloud, eliminando faldoni e responsabilità interna sul CAD.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Conservazione Digitale la attiviamo in 48 ore: configuriamo il responsabile della conservazione delegato (AgID), importiamo gli archivi storici, configuriamo le classi documentali, attiviamo la marca temporale qualificata e ti accompagniamo in 4 sessioni 1-a-1 fino al primo invio in conservazione.",
+    "La Conservazione Digitale la attiviamo insieme alla tua impresa: configuriamo il responsabile della conservazione delegato (AgID), importiamo gli archivi storici, configuriamo le classi documentali, attiviamo la marca temporale qualificata e ti accompagniamo in 4 sessioni 1-a-1 fino al primo invio in conservazione.",
 
   speedH2:
     "Un'impresa edile con 200 fatture/mese genera 24.000 documenti in 10 anni. Tenerli a norma in cartaceo costa 8.000-15.000€.",
@@ -216,9 +217,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo Conservazione Digitale",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Sollievo di responsabilità penale + 60% di costo risparmiato + esibizione immediata.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "La Conservazione Digitale a norma CAD non è solo riduzione di costi: è trasferimento di responsabilità a una figura accreditata AgID, è eliminazione di rischio penale, è conformità senza sforzo. Le imprese edili che attivano il modulo riducono in media del 60% il costo storico di archiviazione.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: ShieldCheck,
@@ -299,7 +300,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Costo storico totale evitato (€)", value: `€ ${b.toLocaleString("it-IT")}` },
     ],
     closingPitch:
-      "Stima prudenziale basata sul -60% di costo storico osservato sui clienti migrati dalla carta. Aggiungi il sollievo di responsabilità penale del titolare e i tempi di esibizione GdF ridotti del 95%.",
+      "Simulazione illustrativa basata sul -60% di costo storico osservato sui clienti migrati dalla carta. Aggiungi il sollievo di responsabilità penale del titolare e i tempi di esibizione GdF ridotti del 95%.",
   },
 
   salesKicker: "Impatto operativo",
@@ -326,7 +327,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Marca temporale qualificata AgID",
@@ -435,12 +436,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di accumulare faldoni. Smetti di essere il responsabile della conservazione di legge.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la tua impresa edile in conformità CAD totale. Setup in 48 ore, marca temporale qualificata AgID, responsabile della conservazione delegato e migrazione archivio storico inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la tua impresa edile in conformità CAD totale. Avvio assistito, marca temporale qualificata AgID, responsabile della conservazione delegato e migrazione archivio storico inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Marca AgID · Responsabile delegato",
+  finalCtaMicrocopy: "Avvio assistito · Marca AgID · Responsabile delegato",
 
   stickyCtaLabel: "Prova gratis Conservazione Digitale",
-  stickyCtaMicrocopy: "Setup 48h · Conformità CAD garantita",
+  stickyCtaMicrocopy: "Avvio assistito · Conformità CAD garantita",
 
   applicationSubCategory: "Construction Digital Preservation Software",
 

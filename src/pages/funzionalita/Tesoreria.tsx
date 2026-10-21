@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   ArrowDownUp,
@@ -50,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Multi-banca PSD2 nativo", "Previsionale 90 giorni"],
+  reassurancePoints: ["Avvio assistito", "Multi-banca PSD2 nativo", "Previsionale 90 giorni"],
   proofPoints: [
     "Posizione consolidata real-time",
     "Alert sconfinamento automatici",
@@ -64,9 +65,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane gestiscono la tesoreria multi-banca con Edilizia in Cloud, eliminando sorprese di sconfinamento.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Tesoreria la attiviamo in 48 ore: configuriamo le connessioni PSD2 con tutti i tuoi conti, importiamo lo storico, attiviamo previsionale 30/60/90 gg basato su scadenze, configuriamo alert sconfinamento e ti accompagniamo in 4 sessioni 1-a-1 con il nostro tesoriere dedicato.",
+    "La Tesoreria la attiviamo insieme alla tua impresa: configuriamo le connessioni PSD2 con tutti i tuoi conti, importiamo lo storico, attiviamo previsionale 30/60/90 gg basato su scadenze, configuriamo alert sconfinamento e ti accompagniamo in 4 sessioni 1-a-1 con il nostro tesoriere dedicato.",
 
   speedH2:
     "Senza tesoreria consolidata, scopri lo sconfinamento dall'estratto conto. Con interessi al 14% pagati per inerzia.",
@@ -210,9 +211,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo Tesoreria",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "60% di interessi passivi evitati. Pagamenti pianificati come una banca privata.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "La Tesoreria multi-banca non aumenta la tua liquidità: ottimizza l'uso di quella che hai. Le imprese che la attivano riducono in media del 60% gli interessi passivi su sconfinamenti evitabili e migliorano le condizioni bancarie grazie a dati strutturati.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingDown,
@@ -294,7 +295,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Previsionale cassa rolling", value: "30/60/90 giorni" },
     ],
     closingPitch:
-      "Stima prudenziale basata su -60% di interessi su sconfinamenti evitabili (alert tempestivi + trasferimenti automatici). Aggiungi le condizioni bancarie migliorate (-0,3% medio sui tassi) e gli sconti pagamento anticipato colti.",
+      "Simulazione illustrativa basata su -60% di interessi su sconfinamenti evitabili (alert tempestivi + trasferimenti automatici). Aggiungi le condizioni bancarie migliorate (-0,3% medio sui tassi) e gli sconti pagamento anticipato colti.",
   },
 
   salesKicker: "Impatto operativo",
@@ -321,7 +322,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Sync PSD2 multi-banca multi-conto",
@@ -429,12 +430,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di scoprire lo sconfinamento dall'estratto conto. Inizia a pianificare la cassa come una banca privata.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Tesoreria multi-banca dentro la tua impresa edile. Setup in 48 ore, sync PSD2 con tutte le banche italiane, previsionale 90 giorni e alert sconfinamento inclusi. Onboarding 1-a-1 con tesoriere dedicato, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Tesoreria multi-banca dentro la tua impresa edile. Avvio assistito, sync PSD2 con tutte le banche italiane, previsionale 90 giorni e alert sconfinamento inclusi. Onboarding 1-a-1 con tesoriere dedicato, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Multi-banca PSD2 · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Multi-banca PSD2 · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Tesoreria",
-  stickyCtaMicrocopy: "Setup 48h · Multi-banca PSD2",
+  stickyCtaMicrocopy: "Avvio assistito · Multi-banca PSD2",
 
   applicationSubCategory: "Construction Treasury Management Software",
 

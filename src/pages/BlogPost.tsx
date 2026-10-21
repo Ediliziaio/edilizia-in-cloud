@@ -1,3 +1,5 @@
+import { BLOG_AUTHOR } from "@/data/blogAuthorProfile";
+import { buildBlogHowTo } from "@/lib/seo/blogHowTo";
 import { useEffect, useState, useRef } from "react";
 import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { useParams, Link } from "react-router-dom";
@@ -255,6 +257,7 @@ export default function BlogPost() {
           canonical: `/blog/${post.slug}/`,
           ogImage: coverImageAbs,
           type: "article",
+          articleAuthor: BLOG_AUTHOR.url,
           publishedTime: post.publishedAt,
           modifiedTime: post.updatedAt ?? post.publishedAt,
           keywords: post.tags.join(", "),
@@ -329,8 +332,8 @@ export default function BlogPost() {
       "@id": "https://www.ediliziaincloud.com/#author-flo",
       name: post.author.name,
       jobTitle: post.author.role,
-      url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/",
-      sameAs: ["https://www.linkedin.com/in/florinandriciuc/", "https://www.linkedin.com/company/edilizia-in-cloud"],
+      url: BLOG_AUTHOR.url,
+      sameAs: BLOG_AUTHOR.sameAs,
       worksFor: { "@id": "https://www.ediliziaincloud.com/#organization" },
     },
     publisher: { "@id": "https://www.ediliziaincloud.com/#organization" },
@@ -342,30 +345,7 @@ export default function BlogPost() {
     },
   };
 
-  // Generate HowTo schema for how-to style posts
-  const isHowTo = /^(come-|sal-|durc-|giornale-|cassa-|computo-|appalti-|bim-|subappalto-|acquisire-|sito-web-|digitalizzazione-|gestione-operai-|sicurezza-|ccnl-|attestazione-|superbonus-|gestione-liquidita-|pnrr-|come-scegliere-|gestione-subappal)/.test(post.slug);
-  const listBlocks = post.content.filter((c) => c.type === "list" && c.items && c.items.length > 0);
-  const howToSteps = listBlocks.flatMap((block) =>
-    (block.items ?? []).map((item, i) => ({
-      "@type": "HowToStep",
-      position: i + 1,
-      name: item.split(":")[0].replace(/^\d+\.\s*/, "").trim(),
-      text: item,
-    }))
-  );
-  const howToData =
-    isHowTo && howToSteps.length > 0
-      ? {
-          "@context": "https://schema.org",
-          "@type": "HowTo",
-          name: post.title,
-          description: post.excerpt,
-          image: { "@type": "ImageObject", url: coverImageAbs, width: 1200, height: 630 },
-          estimatedCost: { "@type": "MonetaryAmount", currency: "EUR", value: "0" },
-          totalTime: `PT${post.readTime}M`,
-          step: howToSteps,
-        }
-      : null;
+  const howToData = buildBlogHowTo(post, coverImageAbs);
 
   // FAQPage: solo per i post che dichiarano FAQ redazionali (post.faqs).
   const faqData =
@@ -459,62 +439,44 @@ export default function BlogPost() {
         ]
       }} />
 
-      {/* Hero with cover image */}
-      <div className="relative w-full" style={{ maxHeight: 480, overflow: "hidden" }}>
-        <BlogCover
-          src={post.coverImage}
-          alt={post.title}
-          {...prioritaCaricamento("high")}
-          loading="eager"
-          sizes="100vw"
-          className="w-full object-cover"
-          style={{ maxHeight: 480, minHeight: 320, width: "100%", objectFit: "cover" }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-[#0a0a0a]/40 to-transparent" />
-        {/* Hero content */}
-        <div className="absolute inset-0 flex items-end">
-          <div className="max-w-5xl mx-auto px-6 pb-10 w-full">
-            <Link
-              to="/blog/"
-              className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm mb-4 transition-colors"
-            >
-              <ArrowLeft size={14} /> Blog
-            </Link>
-            <div className="flex items-center gap-3 mb-4">
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}
-              >
-                {post.category}
-              </span>
-              <span className="text-white/60 text-sm flex items-center gap-1">
-                <Clock size={13} /> {post.readTime} min di lettura
-              </span>
-            </div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-tight max-w-3xl">
-              {post.title}
-            </h1>
-            <div className="mt-4 flex items-center gap-3 text-sm text-white/60">
+      {/* Le copertine includono già un titolo stampato: nell'intestazione
+          si usa solo il titolo HTML. Le immagini restano nelle schede e OG. */}
+      <header className="bg-[#0a0a0a] pt-28 pb-10 sm:pt-32 sm:pb-14">
+        <div className="max-w-5xl mx-auto px-6">
+          <Link
+            to="/blog/"
+            className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors"
+          >
+            <ArrowLeft size={14} /> Blog
+          </Link>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
+              {post.category}
+            </span>
+            <span className="text-white/70 text-sm flex items-center gap-1">
+              <Clock size={13} /> {post.readTime} min di lettura
+            </span>
+          </div>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-tight max-w-3xl">
+            {post.title}
+          </h1>
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-white/70">
+            <Link to="/autore/florin-andriciuc/" className="inline-flex items-center gap-3 font-medium text-white/90 hover:text-white transition-colors">
               {post.author.avatar && (
-                <img width={32} height={32} loading="lazy" src={post.author.avatar} alt={post.author.name} className="w-8 h-8 rounded-full object-cover border border-white/30" />
+                <img width={32} height={32} loading="lazy" src={post.author.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-white/30" />
               )}
-              <span className="font-medium text-white/80">{post.author.name}</span>
-              <span>·</span>
-              <span>{post.author.role}</span>
-              <span>·</span>
-              <span>{formatDate(post.publishedAt)}</span>
-              {/* E-E-A-T: la data di aggiornamento era solo nello schema JSON-LD,
-                  invisibile a lettori e AI che citano il testo della pagina. */}
-              {post.updatedAt && post.updatedAt !== post.publishedAt && (
-                <>
-                  <span>·</span>
-                  <span className="text-white/80">Aggiornato il {formatDate(post.updatedAt)}</span>
-                </>
-              )}
-            </div>
+              {post.author.name}
+            </Link>
+            <span>{post.author.role}</span>
+            <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
+            {post.updatedAt && post.updatedAt !== post.publishedAt && (
+              <time dateTime={post.updatedAt} className="text-white/80">
+                Aggiornato il {formatDate(post.updatedAt)}
+              </time>
+            )}
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Article body + sidebar */}
       <div className="max-w-6xl mx-auto px-6 py-14">
@@ -688,7 +650,7 @@ export default function BlogPost() {
                                 ✓
                               </span>
                               <span className="text-gray-600 leading-relaxed">
-                                {linkify(item)}
+                                {renderRichText(item)}
                               </span>
                             </li>
                           ))}

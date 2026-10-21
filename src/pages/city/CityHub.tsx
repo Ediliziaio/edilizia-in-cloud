@@ -305,7 +305,7 @@ export default function CityHub() {
               to="/prezzi/"
               className="inline-flex items-center gap-2 border-2 border-gray-200 text-[#111111] px-8 py-4 rounded-xl font-bold text-lg hover:border-eic-orange hover:text-eic-orange transition-colors"
             >
-              Vedi i Prezzi
+              Scopri i piani
             </Link>
           </div>
         </div>

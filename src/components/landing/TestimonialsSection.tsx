@@ -109,6 +109,10 @@ export default function TestimonialsSection() {
 
       <div ref={ref} className="max-w-7xl mx-auto px-6 relative z-10">
 
+        <p className="text-center text-white/60 text-sm mb-6">
+          Le esperienze riportate sono individuali: non rappresentano una media né un risultato economico garantito.
+        </p>
+
         {/* Header */}
         <div className={`text-center mb-12 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
           <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">

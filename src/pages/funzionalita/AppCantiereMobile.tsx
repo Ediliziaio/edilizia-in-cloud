@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Camera,
@@ -52,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import operai e cantieri",
+    "Avvio assistito con import operai e cantieri",
     "iOS e Android nativi, non web app",
     "Funziona offline in cantieri senza segnale",
   ],
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 410 imprese edili italiane usano App Cantiere Mobile per gestire i loro team in cantiere.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo l'App in 48 ore: importiamo anagrafiche operai e capocantieri, configuriamo cantieri attivi con geofencing, attiviamo timbratura GPS conforme CCNL Edilizia, configuriamo permessi per ruolo (capocantiere, operaio, tecnico), formiamo il team con 4 sessioni 1-a-1 fino al primo cantiere gestito 100% via app.",
+    "Attiviamo l'App con tempi concordati: importiamo anagrafiche operai e capocantieri, configuriamo cantieri attivi con geofencing, attiviamo timbratura GPS conforme CCNL Edilizia, configuriamo permessi per ruolo (capocantiere, operaio, tecnico), formiamo il team con 4 sessioni 1-a-1 fino al primo cantiere gestito 100% via app.",
 
   speedH2:
     "Capocantiere passa il 30-40% della giornata tornando in ufficio per consegnare carta, prendere ricambi, firmare documenti. App Cantiere lo elimina.",
@@ -217,7 +218,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Capocantieri produttivi, dati real-time, amministrazione che si fa da sola.",
   commercialBody:
-    "Le imprese edili che adottano l'App Cantiere Mobile recuperano in media 4-8 ore alla settimana per capocantiere, alimentano dashboard live in ufficio senza data entry e azzerano gli errori di timbratura, paga, fattura legati al cartaceo. Il ritorno operativo si vede dalla prima settimana.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingUp,
@@ -472,12 +473,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di far perdere ore ai tuoi capocantieri in viaggi inutili. Inizia a metterli in cantiere col telefono in mano.",
   finalCtaBody:
-    "31 giorni gratuiti per portare l'App Cantiere Mobile dentro la tua impresa: setup in 48 ore, app iOS/Android nativa, timbratura GPS conforme CCNL Edilizia, foto cantiere geolocalizzate, offline-first totale. Onboarding 1-a-1, formazione team inclusa. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare l'App Cantiere Mobile dentro la tua impresa: avvio assistito, app iOS/Android nativa, timbratura GPS conforme CCNL Edilizia, foto cantiere geolocalizzate, offline-first totale. Onboarding 1-a-1, formazione team inclusa. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · iOS/Android nativi · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · iOS/Android nativi · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis App Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · iOS/Android nativi",
+  stickyCtaMicrocopy: "Avvio assistito · iOS/Android nativi",
 
   applicationSubCategory: "Construction Mobile App Software",
 

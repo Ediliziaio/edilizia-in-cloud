@@ -13,6 +13,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { validateJsonLd } from "./validate-jsonld.mjs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,7 +67,7 @@ function checkFile(file) {
   const h1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : null;
   const isPrerendered = /name=["']x-prerendered["']/.test(html);
 
-  const errors = [];
+  const errors = validateJsonLd(html);
   const warnings = [];
 
   // 1. Size check

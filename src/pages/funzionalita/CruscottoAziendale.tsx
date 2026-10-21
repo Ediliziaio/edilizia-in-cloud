@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "KPI aggiornati in tempo reale",
     "Mobile-first per il cantiere",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano il Cruscotto Aziendale per decidere ogni giorno con dati aggiornati.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il Cruscotto Aziendale è già pronto: lo attiviamo in 48 ore configurando i KPI critici per la tua impresa (margini, cassa 90gg, fatturato, pipeline), connettendo i moduli Cantieri/Fatturazione/CRM, e ti accompagniamo in 3 sessioni 1-a-1 fino a quando il dashboard mostra i tuoi numeri reali.",
+    "Il Cruscotto Aziendale è già pronto: lo attiviamo insieme alla tua impresa configurando i KPI critici per la tua impresa (margini, cassa 90gg, fatturato, pipeline), connettendo i moduli Cantieri/Fatturazione/CRM, e ti accompagniamo in 3 sessioni 1-a-1 fino a quando il dashboard mostra i tuoi numeri reali.",
 
   speedH2:
     "Il commercialista ti dà il bilancio a 60 giorni di distanza. Per decidere serve oggi.",
@@ -217,7 +217,7 @@ const config: FunzionalitaPageConfig = {
 
   commercialKicker: "Perché conviene davvero",
   commercialH2:
-    "Decisioni più rapide e informate = +3% margine recuperato. Su un'impresa da 5M, sono 150.000 €.",
+    "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Il Cruscotto Aziendale non è un report tool: è uno strumento decisionale. Le imprese che lo attivano vedono migliorare il margine medio cantieri del 2-4% nei primi 12 mesi, perché identificano e correggono prima i cantieri sotto target.",
   commercialLevers: [
@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il Cruscotto è incluso nei piani Edilizia in Cloud?",
-      a: "Il Cruscotto Aziendale è incluso nei piani Professionista e Impresa AI. Niente costi extra. Setup in 48 ore con onboarding 1-a-1 incluso, configurazione KPI personalizzati durante l'onboarding.",
+      a: "Il Cruscotto Aziendale è incluso nei piani Professionista e Impresa AI. Niente costi extra. Avvio assistito con onboarding 1-a-1 incluso, configurazione KPI personalizzati durante l'onboarding.",
     },
   ],
 
@@ -444,10 +444,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare il Cruscotto Aziendale dentro la tua impresa edile. 12 KPI critici pre-configurati, drill-down per cantiere/cliente, mobile-first e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · KPI real-time · Mobile-first",
+  finalCtaMicrocopy: "Avvio assistito · KPI real-time · Mobile-first",
 
   stickyCtaLabel: "Prova gratis Cruscotto Aziendale",
-  stickyCtaMicrocopy: "Setup 48h · KPI real-time mobile",
+  stickyCtaMicrocopy: "Avvio assistito · KPI real-time mobile",
 
   applicationSubCategory: "Construction Business Intelligence Software",
 

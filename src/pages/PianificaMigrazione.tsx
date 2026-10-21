@@ -68,36 +68,36 @@ const cosaNonImportiamo = [
 const processo = [
   {
     n: "01",
-    title: "Audit gratuito (giorno 0)",
+    title: "Audit gratuito",
     desc: "Una call di 30 minuti con un nostro specialista migrazioni. Ci dici cosa usi oggi, ci mandi un export di prova. Ti diciamo subito cosa è migrabile e cosa no — senza fronzoli.",
     duration: "30 min",
     icon: Phone,
   },
   {
     n: "02",
-    title: "Mappatura dati (giorni 1–2)",
+    title: "Mappatura dati",
     desc: "Riceviamo i tuoi file (export, backup, dump SQL, Excel, PDF). Mappiamo ogni campo del vecchio gestionale al nostro schema. Tu non fai nulla: lavoriamo sui tuoi dati in ambiente isolato e cifrato.",
     duration: "1–2 giorni",
     icon: Database,
   },
   {
     n: "03",
-    title: "Import in ambiente di test (giorno 3)",
+    title: "Import in ambiente di test",
     desc: "Ti consegniamo un account di staging con tutti i tuoi dati già dentro. Tu controlli: cantieri, fatture, anagrafiche, archivio. Ti mandiamo il report con i numeri (record importati, scarti, anomalie).",
     duration: "1 giorno",
     icon: Layers,
   },
   {
     n: "04",
-    title: "Correzioni & validazione (giorno 4)",
+    title: "Correzioni & validazione",
     desc: "Se manca qualcosa, lo aggiungiamo. Se qualcosa è sbagliato, lo correggiamo. Ripetiamo finché non firmi tu il go-live. Nessuna pressione: andiamo live solo quando dici tu.",
     duration: "1 giorno",
     icon: CheckCircle2,
   },
   {
     n: "05",
-    title: "Go-live & onboarding (giorno 5)",
-    desc: "Spostiamo il tuo account da staging a produzione. Formazione 1-on-1 di 90 minuti per te e il tuo team. Da quel momento sei operativo. Setup completo in 48 ore garantite.",
+    title: "Go-live & onboarding",
+    desc: "Spostiamo il tuo account da staging a produzione. Formazione 1-on-1 di 90 minuti per te e il tuo team. Da quel momento sei operativo. Tempi di avvio concordati dopo la verifica dei dati.",
     duration: "90 min",
     icon: Zap,
   },
@@ -113,8 +113,8 @@ const processo = [
 const garanzie = [
   {
     icon: Clock,
-    title: "Setup in 48 ore o è gratis",
-    desc: "Se non andiamo live entro 48 ore lavorative dalla consegna dei dati, la migrazione è gratuita. Punto.",
+    title: "Avvio assistito o è gratis",
+    desc: "Il team concorda ambito e tempi dopo la verifica dei dati, prima di avviare la migrazione.",
   },
   {
     icon: ShieldCheck,
@@ -140,7 +140,7 @@ const faqs = [
   },
   {
     q: "Quanto tempo dura la migrazione?",
-    a: "48 ore garantite per il go-live, una volta ricevuti i dati. La timeline standard è: audit (giorno 0) → mappatura (1–2) → staging (3) → validazione (4) → go-live (5). Puoi continuare a usare il tuo vecchio software in parallelo finché non firmi tu il passaggio definitivo.",
+    a: "I tempi di avvio si concordano dopo la verifica dei dati. Il percorso comprende audit, mappatura, test, validazione e avvio. Il passaggio definitivo viene concordato con la tua impresa.",
   },
   {
     q: "Da quali software riuscite a migrare?",
@@ -202,10 +202,10 @@ const ANNI_DATI_OPTIONS = ["< 1 anno", "1–3 anni", "3–5 anni", "5–10 anni"
 
 export default function PianificaMigrazione() {
   useSEO({
-    title: "Pianifica la migrazione — Setup in 48 ore",
-    description: "Migra dal tuo gestionale attuale a Edilizia in Cloud in 48 ore. Migrazione gratuita assistita: cantieri, fatture, anagrafiche, archivio storico.",
+    title: "Pianifica la migrazione — Avvio assistito",
+    description: "Migra dal tuo gestionale attuale a Edilizia in Cloud con avvio assistito. Migrazione gratuita assistita: cantieri, fatture, anagrafiche, archivio storico.",
     canonical: "/pianifica-migrazione",
-    keywords: "migrazione gestionale edilizia, passare da primus, migrare da edilnet, importare dati gestionale, setup gestionale edilizia 48 ore, migrazione gratuita software edilizia",
+    keywords: "migrazione gestionale edilizia, passare da primus, migrare da edilnet, importare dati gestionale, avvio assistito gestionale edilizia, migrazione gratuita software edilizia",
   });
 
   const heroAnim = useScrollAnimation();
@@ -328,7 +328,7 @@ export default function PianificaMigrazione() {
       <HubSeoSchema
         pageName="Pianifica la migrazione"
         pagePath="/pianifica-migrazione"
-        pageDescription="Migrazione gratuita assistita in 48 ore dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Cantieri, fatture, anagrafiche, archivio storico."
+        pageDescription="Migrazione gratuita assistita con tempi concordati dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Cantieri, fatture, anagrafiche, archivio storico."
         breadcrumbs={[
           { name: "Home", url: "/" },
           { name: "Pianifica la migrazione", url: "/pianifica-migrazione" },
@@ -344,7 +344,7 @@ export default function PianificaMigrazione() {
           provider: { "@id": `${SITE_URL}/#organization` },
           areaServed: { "@type": "Country", name: "Italia" },
           description:
-            "Migrazione gratuita assistita dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Setup in 48 ore garantite.",
+            "Migrazione gratuita assistita dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Avvio assistito garantite.",
           serviceType: "Software migration & onboarding",
           offers: {
             "@type": "Offer",
@@ -393,7 +393,7 @@ export default function PianificaMigrazione() {
             style={{ background: "rgba(249,116,21,0.18)", color: "#F97415", border: "1px solid rgba(249,116,21,0.35)" }}
           >
             <Clock className="w-3.5 h-3.5" />
-            Setup in 48 ore garantite
+            Avvio assistito garantite
           </div>
 
           <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-6xl font-extrabold text-white sm:leading-tight mb-5 sm:mb-6 px-1">
@@ -403,7 +403,7 @@ export default function PianificaMigrazione() {
 
           <p className="text-base sm:text-lg md:text-xl text-white/70 leading-relaxed max-w-3xl mx-auto mb-8 sm:mb-10">
             Importiamo gratis cantieri, fatture, anagrafiche e archivio storico dal tuo software.
-            Tu approvi, noi facciamo. In 48 ore sei operativo su Edilizia in Cloud.
+            Tu approvi, noi facciamo. Concordiamo i tempi di avvio dopo la verifica dei dati.
           </p>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mb-10 sm:mb-12">
@@ -457,7 +457,7 @@ export default function PianificaMigrazione() {
               Qualunque sia il tuo gestionale attuale, lo trasferiamo
             </h2>
             <p className="text-[#111111]/60 max-w-2xl mx-auto">
-              Più di 200 imprese sono già passate a noi. Da gestionali enterprise, da fogli Excel, da archivi cartacei.
+              Oltre 150 aziende scelgono Edilizia in Cloud. Il team valuta l’importazione da gestionali, fogli Excel e archivi disponibili.
               Hai un caso particolare? Ne parliamo nell'audit gratuito.
             </p>
           </div>

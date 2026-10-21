@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Sync banca PSD2 automatico", "Categorizzazione AI"],
+  reassurancePoints: ["Avvio assistito", "Sync banca PSD2 automatico", "Categorizzazione AI"],
   proofPoints: [
     "Riconciliazione automatica fatture",
     "Dashboard cassa giornaliera",
@@ -64,9 +64,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano la Prima Nota Edilizia in Cloud per chiudere il mese in 1 ora invece di 8.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Prima Nota la attiviamo in 48 ore: configuriamo le connessioni PSD2 con le tue banche, importiamo lo storico movimenti, configuriamo le regole di categorizzazione AI per cantiere e capitolo, attiviamo la riconciliazione automatica con il cassetto SDI e ti accompagniamo in 4 sessioni 1-a-1 con il nostro contabile dedicato.",
+    "La Prima Nota la attiviamo insieme alla tua impresa: configuriamo le connessioni PSD2 con le tue banche, importiamo lo storico movimenti, configuriamo le regole di categorizzazione AI per cantiere e capitolo, attiviamo la riconciliazione automatica con il cassetto SDI e ti accompagniamo in 4 sessioni 1-a-1 con il nostro contabile dedicato.",
 
   speedH2:
     "Tre minuti per movimento × 1.500 movimenti/mese = 75 ore di prima nota a mano. Inaccettabile.",
@@ -271,7 +271,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto recuperi se l'AI fa la prima nota al posto tuo?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di movimenti contabili al mese e costo orario interno di amministrazione. La stima parte da 3 minuti risparmiati per movimento — il dato medio osservato sui clienti dopo 30 giorni.",
+    "Sposta i cursori sulla tua realtà: numero di movimenti contabili al mese e costo orario interno di amministrazione. La stima parte da 3 minuti risparmiati per movimento — un’ipotesi illustrativa da verificare dopo 30 giorni.",
   roi: {
     input1Label: "Movimenti contabili al mese",
     input1Default: 1000,
@@ -292,7 +292,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Riconciliazione automatica", value: "95% movimenti" },
     ],
     closingPitch:
-      "Stima prudenziale basata su 3 minuti risparmiati per movimento (importazione, classificazione, riconciliazione). Aggiungi la riduzione della parcella commercialista (-30% medio) e il valore decisionale del controllo cassa giornaliero.",
+      "Simulazione illustrativa basata su 3 minuti risparmiati per movimento (importazione, classificazione, riconciliazione). Aggiungi la riduzione della parcella commercialista (ipotesi illustrativa del 30%) e il valore decisionale del controllo cassa giornaliero.",
   },
 
   salesKicker: "Impatto operativo",
@@ -319,7 +319,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Connessione PSD2 multi-banca",
@@ -427,12 +427,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di ricopiare l'estratto conto. Inizia a chiudere il mese in 1 ora.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Prima Nota digitale dentro la tua impresa edile. Setup in 48 ore, sync PSD2 con tutte le banche italiane, AI di categorizzazione e riconciliazione automatica fatture inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Prima Nota digitale dentro la tua impresa edile. Avvio assistito, sync PSD2 con tutte le banche italiane, AI di categorizzazione e riconciliazione automatica fatture inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Sync banca PSD2 · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Sync banca PSD2 · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Prima Nota",
-  stickyCtaMicrocopy: "Setup 48h · Sync banca PSD2",
+  stickyCtaMicrocopy: "Avvio assistito · Sync banca PSD2",
 
   applicationSubCategory: "Construction Bookkeeping Software",
 

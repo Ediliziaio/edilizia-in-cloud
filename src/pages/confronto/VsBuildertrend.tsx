@@ -54,7 +54,7 @@ const rows: TableRow[] = [
   { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Gestione SAL avanzamento lavori", eic: { type: "check" }, competitor: { type: "partial", text: "Schedule, non SAL italiano" } },
   { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Onboarding dedicato" } },
+  { feature: "Avvio assistito", eic: { type: "check" }, competitor: { type: "partial", text: "Onboarding dedicato" } },
   { feature: "Utenti e progetti illimitati", eic: { type: "check" }, competitor: { type: "check" } },
   { feature: "Prezzo", eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" }, competitor: { type: "text", text: "Su preventivo (in dollari)" } },
 ];
@@ -105,7 +105,7 @@ const faqItems = [
   },
   {
     q: "Posso migrare da Buildertrend a Edilizia in Cloud?",
-    a: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
+    a: "Sì. Il team importa cantieri, clienti e documenti e ti rende avvio assistito, con formazione inclusa in italiano.",
   },
 ];
 
@@ -438,7 +438,7 @@ export default function VsBuildertrend() {
             <div className="text-3xl mb-4">📦</div>
             <h3 className="text-xl font-extrabold text-[#111111] mb-3">Usi già Buildertrend?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
-              Migriamo i tuoi cantieri, clienti e fornitori da Buildertrend a Edilizia in Cloud in 48 ore, gratuitamente. Il nostro team gestisce tutto — tu inizi a lavorare con un gestionale nato per l'Italia.
+              Migriamo i tuoi cantieri, clienti e fornitori da Buildertrend a Edilizia in Cloud con tempi concordati dopo la verifica dei dati. Il nostro team gestisce tutto — tu inizi a lavorare con un gestionale nato per l'Italia.
             </p>
             <button
               onClick={openModal}

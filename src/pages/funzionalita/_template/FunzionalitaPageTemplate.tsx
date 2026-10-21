@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -21,7 +22,7 @@ import { BlogCover } from "@/components/blog/BlogCover";
 
 const TRUST_BADGES = [
   { icon: ShieldCheck, label: "GDPR Compliant" },
-  { icon: Zap, label: "Setup in 48h" },
+  { icon: Zap, label: "Avvio assistito" },
   { icon: Star, label: "4.9/5 stelle" },
   { icon: BadgeCheck, label: "Made in Italy" },
 ];
@@ -871,6 +872,7 @@ export default function FunzionalitaPageTemplate({
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
               {config.roiSubheadline}
+              <span className="mt-3 block text-sm">Simulazione illustrativa con ipotesi modificabili: non è una previsione di risparmio. {marketingMessages.savingsDetail}</span>
             </p>
           </div>
           <div className="mt-12">

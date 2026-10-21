@@ -70,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 270 imprese edili italiane gestiscono la contabilità fiscale con piano dei conti settoriale Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Contabilità Fiscale è attivo in 48 ore: importiamo bilanci ultimi 3 anni, configuriamo piano dei conti edilizia (con conti dedicati per cantieri, subappalti, materiali edili, beni strumentali, ritenute di garanzia), agganciamo cassetto SDI per fatture, sincronizziamo cedolini paga e tesoreria. Quattro sessioni 1-a-1 con il nostro team contabile fino al primo bilancio mensile chiuso.",
+    "Il modulo Contabilità Fiscale è attivo con tempi concordati: importiamo bilanci ultimi 3 anni, configuriamo piano dei conti edilizia (con conti dedicati per cantieri, subappalti, materiali edili, beni strumentali, ritenute di garanzia), agganciamo cassetto SDI per fatture, sincronizziamo cedolini paga e tesoreria. Quattro sessioni 1-a-1 con il nostro team contabile fino al primo bilancio mensile chiuso.",
 
   speedH2:
     "Il commercialista ti consegna il bilancio a giugno per dirti come è andato l'anno prima.",
@@ -215,7 +215,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri il bilancio mensile in demo",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Contabilità integrata = -70% data entry + bilancio mensile + decisioni informate.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Le imprese edili con il modulo contabile integrato vedono ridurre del 70% il tempo di data entry, hanno bilancio mensile sempre aggiornato e prendono decisioni operative basate su dati reali e non su intuizioni. Il commercialista resta come consulente fiscale strategico.",
   commercialLevers: [
@@ -298,7 +298,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Bilanci infrannuali extra/anno", value: "12" },
     ],
     closingPitch:
-      "Stima prudenziale basata su 3 minuti per movimento risparmiati. Aggiungi i bilanci mensili che oggi non hai, le decisioni informate sui cantieri e i finanziamenti approvati senza ritardi documentali.",
+      "Simulazione illustrativa basata su 3 minuti per movimento risparmiati. Aggiungi i bilanci mensili che oggi non hai, le decisioni informate sui cantieri e i finanziamenti approvati senza ritardi documentali.",
   },
 
   salesKicker: "Impatto operativo",
@@ -325,7 +325,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Piano dei conti edilizia preconfigurato",
@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di movimenti?",
-      a: "Il modulo Contabilità Fiscale è incluso nel piano Impresa AI di Edilizia in Cloud con movimenti illimitati, accesso commercialista incluso, esportazione XBRL inclusa. Setup in 48 ore con import storico 3 anni, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Contabilità Fiscale è incluso nel piano Impresa AI di Edilizia in Cloud con movimenti illimitati, accesso commercialista incluso, esportazione XBRL inclusa. Avvio assistito con import storico 3 anni, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -428,10 +428,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare la contabilità edilizia in tempo reale. Piano dei conti settoriale, ammortamenti automatici, bilancio CEE, esportazione XBRL, accesso commercialista. Onboarding 1-a-1 con import storico 3 anni, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Piano conti edilizia · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Piano conti edilizia · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Contabilità Fiscale",
-  stickyCtaMicrocopy: "Setup 48h · Bilancio mensile",
+  stickyCtaMicrocopy: "Avvio assistito · Bilancio mensile",
 
   applicationSubCategory: "Construction Accounting Software",
 

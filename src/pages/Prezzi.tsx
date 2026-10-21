@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import { useState, useEffect, Fragment } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -317,8 +318,8 @@ export default function Prezzi() {
         </div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-5 max-w-3xl mx-auto">
-          Prezzi del gestionale per imprese edili:{" "}
-          <span className="text-eic-orange">un investimento che si ripaga da solo.</span>
+          Il gestionale per la tua impresa:{" "}
+          <span className="text-eic-orange">un flusso di lavoro collegato.</span>
         </h1>
         <p className="text-white/70 text-lg md:text-xl max-w-2xl mx-auto mb-10">
           Ogni piano include il Consulente del Controllo dedicato. Setup e migrazione dati gratis. Disdici quando vuoi.
@@ -384,7 +385,7 @@ export default function Prezzi() {
                   href="#piani"
                   className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl border border-white/20 text-white/90 font-semibold hover:border-white/40 hover:bg-white/5 transition-all"
                 >
-                  Vai ai piani e prezzi ↓
+                  Scopri i piani ↓
                 </a>
               </div>
               <p className="text-white/30 text-xs mt-4">Dopo i 31 giorni scegli il piano o cancelli — nessun addebito automatico</p>
@@ -400,10 +401,10 @@ export default function Prezzi() {
             <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
               <div>
                 <span className="inline-flex items-center rounded-full bg-eic-orange/10 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-eic-orange">
-                  Confronto reale dei costi
+                  Meno lavoro duplicato
                 </span>
                 <h2 className="mt-4 text-2xl md:text-3xl font-extrabold tracking-tight text-[#111111]">
-                  Quanto costa davvero un gestionale per imprese edili in Italia?
+                  Quanto tempo perdi tra strumenti scollegati?
                 </h2>
                 <p className="mt-4 text-base md:text-lg leading-relaxed text-gray-700">
                   Una impresa edile strutturata non paga solo “un software”: spesso somma diversi strumenti
@@ -415,7 +416,7 @@ export default function Prezzi() {
                   su Excel, aggiorni cliente, preventivo, magazzino e commessa in punti diversi.
                 </p>
                 <div className="mt-5 rounded-2xl border border-eic-orange/20 bg-white/80 p-4">
-                  <p className="text-sm font-bold text-[#111111]">Esempio prudente sulla preventivazione</p>
+                  <p className="text-sm font-bold text-[#111111]">Esempio illustrativo, non risparmio garantito</p>
                   <p className="mt-1 text-sm leading-relaxed text-gray-600">
                     3 preventivi/mese × 3 ore cad. × 50€/ora ={" "}
                     <strong className="text-[#111111]">5.400€/anno</strong> di tempo commerciale.
@@ -428,7 +429,7 @@ export default function Prezzi() {
                   {[
                     {
                       label: "Software separati",
-                      value: "~5.000€/anno",
+                      value: "Da rilevare",
                       note: "Licenze e strumenti scollegati",
                       tone: "red",
                     },
@@ -440,8 +441,8 @@ export default function Prezzi() {
                     },
                     {
                       label: "Edilizia in Cloud",
-                      value: "~0€ netti",
-                      note: "Il canone si ripaga col risparmio: un unico flusso operativo",
+                      value: "Da misurare",
+                      note: marketingMessages.savings,
                       tone: "emerald",
                     },
                   ].map((row) => (
@@ -735,7 +736,7 @@ export default function Prezzi() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[
               { icon: <Shield className="w-6 h-6 text-eic-orange" />, title: "Dati al sicuro", desc: "Cifratura, backup giornalieri automatici, conforme GDPR" },
-              { icon: <Zap className="w-6 h-6 text-eic-orange" />, title: "Setup incluso", desc: "Il nostro team configura tutto in 48 ore lavorative" },
+              { icon: <Zap className="w-6 h-6 text-eic-orange" />, title: "Setup incluso", desc: "Configurazione assistita, con tempi concordati dopo la verifica dei dati" },
               { icon: <RefreshCw className="w-6 h-6 text-eic-orange" />, title: "Aggiornamenti gratuiti", desc: "Nuove feature ogni mese, senza costi aggiuntivi" },
               { icon: <FileText className="w-6 h-6 text-eic-orange" />, title: "Migrazione dati gratis", desc: "Importiamo i tuoi dati da Excel o altri software" },
               { icon: <Headphones className="w-6 h-6 text-eic-orange" />, title: "Supporto italiano", desc: "Parli con persone reali, non bot o call center esteri" },
@@ -761,7 +762,7 @@ export default function Prezzi() {
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Calcolatore</p>
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
-              Calcola il tuo ROI
+              Stima il tempo dedicato alla gestione
             </h2>
             <p className="text-gray-500 text-lg max-w-xl mx-auto">
               Scopri in quanto tempo Edilizia in Cloud si ripaga.
@@ -821,13 +822,13 @@ export default function Prezzi() {
                   <div className="space-y-2 text-sm">
                     <RoiLine label="Costo ore non ottimizzate" value={`${fmt(costoExcel)}/anno`} />
                     <RoiLine label="Preventivazione manuale" value={`${fmt(costoPreventivazioneManuale)}/anno`} />
-                    <RoiLine label="Margini recuperabili (1.5%)" value={`${fmt(marginiRecuperabili)}/anno`} />
+                    <RoiLine label="Scenario ipotetico margine (1,5%)" value={`${fmt(marginiRecuperabili)}/anno`} />
                     <div className="border-t border-eic-orange/30 my-2" />
-                    <RoiLine label="Quanto perdi ogni anno senza EiC" value={`${fmt(valoreAnnuo)}/anno`} highlight />
+                    <RoiLine label="Valore annuo delle ipotesi inserite" value={`${fmt(valoreAnnuo)}/anno`} highlight />
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-3 italic">
-                  * Stima conservativa. Nella consulenza gratuita definiamo il piano su misura e il preventivo: la maggior parte dei clienti recupera il valore dell'investimento nelle prime 6 settimane.
+                  {marketingMessages.savingsDetail} Le voci dello scenario possono sovrapporsi: il totale non è una previsione di risparmio.
                 </p>
               </div>
             </div>
@@ -949,7 +950,7 @@ export default function Prezzi() {
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Hai dubbi?</p>
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">
-              Domande sui prezzi
+              Domande sui piani
             </h2>
           </div>
           <div className="space-y-3">
@@ -1020,7 +1021,7 @@ export default function Prezzi() {
             Ogni mese senza controllo è un mese di margini persi.
           </h2>
           <p className="text-white/80 text-lg mb-10">
-            Unisciti a 150+ imprese che controllano i numeri ogni giorno.
+            Unisciti a oltre 150 aziende che controllano i numeri ogni giorno.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <Link
@@ -1040,7 +1041,7 @@ export default function Prezzi() {
             </button>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-white/80 text-sm">
-            {["Disdici quando vuoi", "Setup in 48h", "Garanzia 31 giorni"].map((pill) => (
+            {["Disdici quando vuoi", "Avvio assistito", "Garanzia 31 giorni"].map((pill) => (
               <span key={pill} className="flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-white" />
                 {pill}

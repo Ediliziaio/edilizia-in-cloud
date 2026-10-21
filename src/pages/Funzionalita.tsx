@@ -394,7 +394,7 @@ export default function Funzionalita() {
             {[
               { icon: CheckCircle2, label: "Aggiornamenti mensili gratuiti" },
               { icon: CheckCircle2, label: "Nessun costo per moduli aggiuntivi" },
-              { icon: Zap, label: "Setup in 48 ore" },
+              { icon: Zap, label: "Avvio assistito" },
               { icon: Headphones, label: "Supporto WhatsApp dedicato" },
               { icon: ShieldCheck, label: "GDPR Compliant · Made in Italy" },
             ].map((b) => (
@@ -420,7 +420,7 @@ export default function Funzionalita() {
               to="/prezzi/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111111]/15 hover:border-eic-orange text-[#111111] hover:text-eic-orange font-bold text-base transition-colors"
             >
-              Vedi i prezzi
+              Scopri i piani
             </Link>
           </div>
         </div>

@@ -275,7 +275,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto vale, in euro, smettere di sprecare ore in fatturazione manuale?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero medio di fatture emesse al mese e costo orario dell'amministrazione. La stima parte da 15 minuti risparmiati per fattura, base media osservata nei nostri clienti.",
+    "Sposta i cursori sulla tua realtà: numero medio di fatture emesse al mese e costo orario dell'amministrazione. La stima parte da 15 minuti risparmiati per fattura, ipotesi illustrativa da verificare nella tua impresa.",
   roi: {
     input1Label: "Fatture emesse al mese",
     input1Default: 40,
@@ -476,7 +476,7 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per provare la fatturazione elettronica integrata di Edilizia in Cloud. Conservazione 10 anni inclusa, onboarding 1-a-1, zero rifiuti SDI dopo il primo mese. Quello che cambia è quanto velocemente incassi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Conservazione 10 anni inclusa · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Conservazione 10 anni inclusa · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Fatturazione SDI",
   stickyCtaMicrocopy: "Conservazione 10 anni inclusa",

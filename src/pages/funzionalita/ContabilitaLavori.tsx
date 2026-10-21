@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "SAL dalle voci di commessa",
     "Fatture di acconto collegate",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane emettono i SAL dal gestionale invece che da Excel.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Contabilità Lavori la attiviamo in 48 ore: importiamo le commesse aperte con le voci di preventivo, configuriamo le percentuali di avanzamento già maturate, colleghiamo la fatturazione e ti accompagniamo in 3 sessioni 1-a-1 fino al primo SAL emesso e fatturato. Dal primo mese fatturi gli avanzamenti senza ricostruire niente a mano.",
+    "La Contabilità Lavori la attiviamo insieme alla tua impresa: importiamo le commesse aperte con le voci di preventivo, configuriamo le percentuali di avanzamento già maturate, colleghiamo la fatturazione e ti accompagniamo in 3 sessioni 1-a-1 fino al primo SAL emesso e fatturato. Dal primo mese fatturi gli avanzamenti senza ricostruire niente a mano.",
 
   speedH2:
     "Ogni SAL fatto su Excel è mezza giornata persa e un rischio di errore che finisce in fattura.",
@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "La Contabilità Lavori è inclusa nei piani Edilizia in Cloud?",
-      a: "Sì, la Contabilità Lavori fa parte del gestionale Edilizia in Cloud insieme a commesse, preventivi e fatturazione, senza limiti sul numero di SAL o di appalti gestiti. Nella prova gratuita di 31 giorni la usi completa: setup in 48 ore con import delle commesse aperte e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+      a: "Sì, la Contabilità Lavori fa parte del gestionale Edilizia in Cloud insieme a commesse, preventivi e fatturazione, senza limiti sul numero di SAL o di appalti gestiti. Nella prova gratuita di 31 giorni la usi completa: avvio assistito con import delle commesse aperte e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
     },
   ],
 
@@ -434,12 +434,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di costruire i SAL su Excel. Inizia a fatturare gli avanzamenti quando maturano.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Contabilità Lavori dentro la tua impresa edile. SAL in pochi clic, libretto misure digitale, fatture di acconto collegate, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Contabilità Lavori dentro la tua impresa edile. SAL in pochi clic, libretto misure digitale, fatture di acconto collegate, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · SAL in 20 minuti · Fatture collegate",
+  finalCtaMicrocopy: "Avvio assistito · SAL in 20 minuti · Fatture collegate",
 
   stickyCtaLabel: "Prova gratis Contabilità Lavori",
-  stickyCtaMicrocopy: "Setup 48h · SAL senza Excel",
+  stickyCtaMicrocopy: "Avvio assistito · SAL senza Excel",
 
   applicationSubCategory: "Construction Progress Billing Software",
 

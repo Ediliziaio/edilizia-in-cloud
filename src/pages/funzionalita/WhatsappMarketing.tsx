@@ -52,7 +52,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con API Meta",
+    "Avvio assistito con API Meta",
     "Template approvati e GDPR",
     "Conversione 8x rispetto all'email",
   ],
@@ -69,9 +69,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano WhatsApp Marketing per riattivare clienti dormienti e velocizzare i follow-up.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "WhatsApp Marketing è già pronto: lo attiviamo in 48 ore configurando il tuo numero WhatsApp Business API certificato Meta, importiamo la rubrica clienti con consensi GDPR, prepariamo i primi 8 template approvati per il settore edile e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima campagna inviata.",
+    "WhatsApp Marketing è già pronto: lo attiviamo insieme alla tua impresa configurando il tuo numero WhatsApp Business API certificato Meta, importiamo la rubrica clienti con consensi GDPR, prepariamo i primi 8 template approvati per il settore edile e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima campagna inviata.",
 
   speedH2:
     "L'email finisce nello spam. WhatsApp viene aperto in 4 minuti. È l'unico canale che funziona davvero.",
@@ -198,7 +198,7 @@ const config: FunzionalitaPageConfig = {
   mechanismH2:
     "Tre passaggi, un solo numero WhatsApp Business API certificato.",
   mechanismSubheadline:
-    "Niente shortcut da pop-up, niente automazioni grigie con rischio ban. Configuriamo il tuo numero WhatsApp Business API ufficiale, ti aiutiamo ad ottenere l'approvazione dei template Meta e attiviamo le prime campagne in 48 ore.",
+    "Niente shortcut da pop-up, niente automazioni grigie con rischio ban. Configuriamo il tuo numero WhatsApp Business API ufficiale, ti aiutiamo ad ottenere l'approvazione dei template Meta e attiviamo le prime campagne con tempi concordati.",
   mechanismSteps: [
     {
       icon: Lock,
@@ -334,7 +334,7 @@ const config: FunzionalitaPageConfig = {
 
   featureKicker: "Cosa ottieni davvero",
   featureH2:
-    "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+    "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Numero WhatsApp Business API certificato Meta",
@@ -447,10 +447,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per attivare WhatsApp Marketing nella tua impresa edile. Numero Business API certificato, 8 template approvati Meta, segmentazione CRM e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Template Meta inclusi · GDPR conforme",
+  finalCtaMicrocopy: "Avvio assistito · Template Meta inclusi · GDPR conforme",
 
   stickyCtaLabel: "Prova gratis WhatsApp Marketing",
-  stickyCtaMicrocopy: "Setup 48h · API Business certificata",
+  stickyCtaMicrocopy: "Avvio assistito · API Business certificata",
 
   applicationSubCategory: "Construction WhatsApp Marketing Software",
 

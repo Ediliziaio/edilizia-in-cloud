@@ -45,34 +45,40 @@ const esc = (s) =>
 
 const cap = (s) => (s.length > BODY_CAP ? s.slice(0, BODY_CAP).trimEnd() + "..." : s);
 
+// Anche il fallback deve esporre link veri, non il Markdown letterale.
+const rich = (text) => esc(text).replace(
+  /\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g,
+  '<a href="$2">$1</a>',
+);
+
 function renderPost(post) {
   const parts = [];
   for (const block of post.content) {
     switch (block.type) {
       case "intro":
-        if (block.body) parts.push(`<p>${esc(cap(block.body))}</p>`);
+        if (block.body) parts.push(`<p>${rich(cap(block.body))}</p>`);
         break;
       case "section":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
-        if (block.body) parts.push(`<p>${esc(cap(block.body))}</p>`);
+        if (block.body) parts.push(`<p>${rich(cap(block.body))}</p>`);
         break;
       case "list":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
         if (block.items?.length)
-          parts.push(`<ul>${block.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`);
+          parts.push(`<ul>${block.items.map((i) => `<li>${rich(i)}</li>`).join("")}</ul>`);
         break;
       case "table":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
         if (block.headers?.length && block.rows?.length)
           parts.push(
             `<table><thead><tr>${block.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${block.rows
-              .map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`)
+              .map((r) => `<tr>${r.map((c) => `<td>${rich(c)}</td>`).join("")}</tr>`)
               .join("")}</tbody></table>`,
           );
         break;
       case "callout":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
-        if (block.body) parts.push(`<p>${esc(cap(block.body))}</p>`);
+        if (block.body) parts.push(`<p>${rich(cap(block.body))}</p>`);
         break;
       // quote e cta esclusi dal sintetico: rumore per i motori, zero segnale.
       default:

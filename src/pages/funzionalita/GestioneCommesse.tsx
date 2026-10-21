@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BarChart3,
@@ -50,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Preventivo vs consuntivo automatico",
     "ODA, DDT e SAL collegati",
   ],
@@ -67,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane gestiscono i cantieri come commesse, con preventivo e consuntivo che si parlano.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Gestione Commesse la attiviamo in 48 ore: importiamo i cantieri aperti, colleghiamo preventivi e ordini d'acquisto esistenti, configuriamo le voci di costo e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima commessa letta con margine in tempo reale. Dal terzo giorno sai già quale cantiere sta guadagnando e quale sta perdendo.",
+    "La Gestione Commesse la attiviamo insieme alla tua impresa: importiamo i cantieri aperti, colleghiamo preventivi e ordini d'acquisto esistenti, configuriamo le voci di costo e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima commessa letta con margine in tempo reale. Dal terzo giorno sai già quale cantiere sta guadagnando e quale sta perdendo.",
 
   speedH2:
     "Il problema non è lavorare tanto. È scoprire a fine lavori che un cantiere ha mangiato il guadagno degli altri.",
@@ -217,7 +218,7 @@ const config: FunzionalitaPageConfig = {
   commercialH2:
     "Margine protetto, extra fatturati, tempo d'ufficio recuperato, decisioni prese sui numeri.",
   commercialBody:
-    "La Gestione Commesse non è un archivio: è il controllo economico dell'impresa, cantiere per cantiere. Le imprese che la attivano recuperano in media 3 punti di margine tra deriva costi bloccata per tempo ed extra finalmente fatturati.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingUp,
@@ -325,7 +326,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Cosa attiviamo in 48 ore sulla tua impresa.",
+  featureH2: "Non promesse generiche. Cosa attiviamo insieme alla tua impresa sulla tua impresa.",
   featureRows: [
     {
       label: "Commessa in 4 tab",
@@ -411,7 +412,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "La Gestione Commesse è inclusa nei piani o si paga a parte?",
-      a: "La Gestione Commesse è il cuore del gestionale Edilizia in Cloud ed è inclusa nei piani, senza limiti sul numero di commesse attive o archiviate. Nella prova gratuita di 31 giorni la usi completa, con setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+      a: "La Gestione Commesse è il cuore del gestionale Edilizia in Cloud ed è inclusa nei piani, senza limiti sul numero di commesse attive o archiviate. Nella prova gratuita di 31 giorni la usi completa, con avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
     },
   ],
 
@@ -434,12 +435,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di scoprire i margini a fine anno. Inizia a leggerli ogni mattina, commessa per commessa.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Gestione Commesse dentro la tua impresa edile. Setup in 48 ore, import dei cantieri aperti, preventivo vs consuntivo automatico, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Gestione Commesse dentro la tua impresa edile. Avvio assistito, import dei cantieri aperti, preventivo vs consuntivo automatico, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Margine in tempo reale · ODA, DDT e SAL collegati",
+  finalCtaMicrocopy: "Avvio assistito · Margine in tempo reale · ODA, DDT e SAL collegati",
 
   stickyCtaLabel: "Prova gratis Gestione Commesse",
-  stickyCtaMicrocopy: "Setup 48h · Margine in tempo reale",
+  stickyCtaMicrocopy: "Avvio assistito · Margine in tempo reale",
 
   applicationSubCategory: "Construction Job Costing Software",
 

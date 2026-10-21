@@ -25,6 +25,7 @@
  */
 
 import { chromium } from "playwright";
+import { validateJsonLd } from "./validate-jsonld.mjs";
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -433,6 +434,8 @@ async function main() {
         await page.waitForTimeout(150);
 
         let html = await page.content();
+        const sourceJsonLdErrors = validateJsonLd(html);
+        if (sourceJsonLdErrors.length) throw new Error(sourceJsonLdErrors.join("; "));
         let cssInPagina = 0;
         html = html.replace(' data-seo-applied="true"', "");
         // Il contenitore delle notifiche (sonner) vive solo nel browser: nella
@@ -570,6 +573,8 @@ async function main() {
           ? join(DIST, "_home")
           : join(DIST, route.replace(/^\//, ""));
         if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+        const artifactJsonLdErrors = validateJsonLd(html);
+        if (artifactJsonLdErrors.length) throw new Error(artifactJsonLdErrors.join("; "));
         writeFileSync(join(outDir, "index.html"), html, "utf-8");
 
         ok++;

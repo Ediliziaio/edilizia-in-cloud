@@ -53,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import lead",
+    "Avvio assistito con import lead",
     "Pipeline tipo Kanban edilizia",
     "+5% conversione preventivi media",
   ],
@@ -70,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano il CRM Edilizia per gestire pipeline preventivi e lead da Google Ads.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il CRM Edilizia è già pronto: lo attiviamo in 48 ore importando i lead esistenti dai vari canali (Google Ads, Facebook, contatti sito, passaparola), configuriamo la pipeline preventivi sui tuoi step reali, attiviamo i primi 5 follow-up automatici e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere chiuso dal CRM.",
+    "Il CRM Edilizia è già pronto: lo attiviamo insieme alla tua impresa importando i lead esistenti dai vari canali (Google Ads, Facebook, contatti sito, passaparola), configuriamo la pipeline preventivi sui tuoi step reali, attiviamo i primi 5 follow-up automatici e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere chiuso dal CRM.",
 
   speedH2:
     "Hai 50 preventivi pendenti in Excel. Non sai quale chiudere. Il CRM ti dice da dove partire.",
@@ -334,7 +334,7 @@ const config: FunzionalitaPageConfig = {
 
   featureKicker: "Cosa ottieni davvero",
   featureH2:
-    "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+    "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Aggregazione lead multi-canale",
@@ -447,10 +447,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per attivare il CRM Edilizia. Pipeline Kanban, integrazione Google/Facebook, follow-up automatici, segmentazione cantieri e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Pipeline Kanban · Integrazione Google/FB",
+  finalCtaMicrocopy: "Avvio assistito · Pipeline Kanban · Integrazione Google/FB",
 
   stickyCtaLabel: "Prova gratis CRM Edilizia",
-  stickyCtaMicrocopy: "Setup 48h · +5% conversione",
+  stickyCtaMicrocopy: "Avvio assistito · +5% conversione",
 
   applicationSubCategory: "Construction CRM Software",
 

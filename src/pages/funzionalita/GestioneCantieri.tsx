@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Onboarding 1-a-1 incluso", "Cancelli quando vuoi"],
+  reassurancePoints: ["Avvio assistito", "Onboarding 1-a-1 incluso", "Cancelli quando vuoi"],
   proofPoints: [
     "Pensato per imprese e ristrutturatori",
     "App mobile con modalità offline",
@@ -63,9 +63,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Meno ritardi nascosti, più margine difeso"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per controllare i cantieri ogni giorno.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Gestione Cantieri è la spina dorsale di Edilizia in Cloud: viene attivato in 48 ore, importa i tuoi cantieri aperti, configura squadre e turni e ti accompagna in 4 sessioni 1-a-1 fino a quando il capocantiere medio aggiorna in autonomia dal telefono. Niente call center: ti seguiamo personalmente.",
+    "Il modulo Gestione Cantieri è la spina dorsale di Edilizia in Cloud: viene attivato con tempi concordati, importa i tuoi cantieri aperti, configura squadre e turni e ti accompagna in 4 sessioni 1-a-1 fino a quando il capocantiere medio aggiorna in autonomia dal telefono. Niente call center: ti seguiamo personalmente.",
 
   speedH2: "In una settimana il capocantiere aggiorna da solo. In due settimane non fai più riunioni di status.",
   speedSubheadline:
@@ -269,7 +269,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto margine puoi recuperare se vedi i cantieri in tempo reale?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 3 punti percentuali di margine recuperato, base media osservata nei nostri clienti dopo 90 giorni.",
+    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 3 punti percentuali di margine recuperato, ipotesi illustrativa da verificare nella tua impresa dopo 90 giorni.",
   roi: {
     input1Label: "Cantieri attivi in media",
     input1Default: 6,
@@ -290,7 +290,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore capocantiere/anno (report)", value: `${Math.round(a * 36)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 3% di margine recuperato. La maggior parte dei nostri clienti recupera tra 4% e 7% nei primi 12 mesi.",
+      "Simulazione illustrativa basata su 3% di margine recuperato. La maggior parte dei nostri clienti recupera tra 4% e 7% nei primi 12 mesi.",
   },
 
   salesKicker: "Impatto operativo",
@@ -317,7 +317,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Avanzamento lavori in tempo reale",
@@ -468,12 +468,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di scoprire i ritardi in riunione. Inizia a vederli prima.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nei tuoi cantieri. Setup in 48 ore, onboarding 1-a-1 incluso, cancelli quando vuoi. Quello che cambia non è il software: è la tua serenità di titolare.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nei tuoi cantieri. Avvio assistito, onboarding 1-a-1 incluso, cancelli quando vuoi. Quello che cambia non è il software: è la tua serenità di titolare.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Onboarding 1-a-1 incluso · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Onboarding 1-a-1 incluso · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Gestione Cantieri",
-  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+  stickyCtaMicrocopy: "Avvio assistito · Cancelli quando vuoi",
 
   applicationSubCategory: "Construction Site Management Software",
 

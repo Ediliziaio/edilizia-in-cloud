@@ -101,7 +101,7 @@ export interface RenderPageConfig {
   /** Video demo: la sezione, il bottone del hero e lo schema VideoObject compaiono solo se src E poster sono dichiarati (file reali in public/). */
   videoSrc?: string;
   videoPoster?: string;
-  videoUploadDate?: string; // ISO, es. "2026-09-06"
+  videoUploadDate?: string; // Data reale ISO 8601 con ora e fuso, es. "2026-09-06T10:00:00+02:00"
 
   // Famiglia render — 5 cards
   familyH2: string;

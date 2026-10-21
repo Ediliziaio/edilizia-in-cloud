@@ -49,7 +49,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Avvisi scadenze automatici",
     "Assegnazioni per cantiere e persona",
   ],
@@ -66,9 +66,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane sanno sempre dove sono i loro mezzi e quando scadono revisioni e polizze.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Gestione Mezzi e Attrezzature la attiviamo in 48 ore: censiamo il parco (mezzi, attrezzature, ponteggi), carichiamo scadenze di revisioni, assicurazioni e verifiche, configuriamo gli avvisi automatici e ti accompagniamo in 2 sessioni 1-a-1 fino al primo mese di scadenze gestite senza pensieri. Dal primo giorno, chi cerca un attrezzo lo trova dall'app.",
+    "La Gestione Mezzi e Attrezzature la attiviamo insieme alla tua impresa: censiamo il parco (mezzi, attrezzature, ponteggi), carichiamo scadenze di revisioni, assicurazioni e verifiche, configuriamo gli avvisi automatici e ti accompagniamo in 2 sessioni 1-a-1 fino al primo mese di scadenze gestite senza pensieri. Dal primo giorno, chi cerca un attrezzo lo trova dall'app.",
 
   speedH2:
     "Un escavatore fermo per revisione scaduta costa più della revisione. Un attrezzo introvabile si ricompra.",
@@ -410,7 +410,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "La Gestione Mezzi e Attrezzature è inclusa nei piani Edilizia in Cloud?",
-      a: "Sì, fa parte del gestionale Edilizia in Cloud senza limiti sul numero di mezzi o attrezzature censite. Nella prova gratuita di 31 giorni la usi completa: censimento del parco in onboarding, avvisi scadenze, assegnazioni da app e storico manutenzioni, con setup in 48 ore e sessioni 1-a-1 incluse. Cancelli quando vuoi.",
+      a: "Sì, fa parte del gestionale Edilizia in Cloud senza limiti sul numero di mezzi o attrezzature censite. Nella prova gratuita di 31 giorni la usi completa: censimento del parco in onboarding, avvisi scadenze, assegnazioni da app e storico manutenzioni, con avvio assistito e sessioni 1-a-1 incluse. Cancelli quando vuoi.",
     },
   ],
 
@@ -433,12 +433,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di gestire il parco mezzi a memoria. Inizia a sapere dov'è tutto e quando scade, senza pensarci.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Gestione Mezzi e Attrezzature dentro la tua impresa edile. Censimento del parco, avvisi scadenze automatici, assegnazioni da app, storico manutenzioni, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Gestione Mezzi e Attrezzature dentro la tua impresa edile. Censimento del parco, avvisi scadenze automatici, assegnazioni da app, storico manutenzioni, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Avvisi scadenze · Chi ha cosa in 5 secondi",
+  finalCtaMicrocopy: "Avvio assistito · Avvisi scadenze · Chi ha cosa in 5 secondi",
 
   stickyCtaLabel: "Prova gratis Mezzi e Attrezzature",
-  stickyCtaMicrocopy: "Setup 48h · Zero scadenze bucate",
+  stickyCtaMicrocopy: "Avvio assistito · Zero scadenze bucate",
 
   applicationSubCategory: "Construction Equipment Management Software",
 

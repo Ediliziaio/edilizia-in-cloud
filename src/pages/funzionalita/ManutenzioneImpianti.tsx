@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Bell,
@@ -49,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import parco impianti",
+    "Avvio assistito con import parco impianti",
     "Scadenze DPR 74/2013 precaricate",
     "App tecnico iOS/Android offline-first",
   ],
@@ -66,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 240 imprese di manutenzione in Italia gestiscono il loro parco impianti con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo il modulo Manutenzione in 48 ore: importiamo il tuo parco impianti (climatizzazione, idraulici, elettrici, FV, antincendio), configuriamo le scadenze DPR 74/2013, i template libretto di impianto, i contratti di manutenzione ricorrenti e l'app tecnico in mobilità. 4 sessioni 1-a-1 fino al primo intervento chiuso end-to-end con firma cliente.",
+    "Attiviamo il modulo Manutenzione con tempi concordati: importiamo il tuo parco impianti (climatizzazione, idraulici, elettrici, FV, antincendio), configuriamo le scadenze DPR 74/2013, i template libretto di impianto, i contratti di manutenzione ricorrenti e l'app tecnico in mobilità. 4 sessioni 1-a-1 fino al primo intervento chiuso end-to-end con firma cliente.",
 
   speedH2:
     "Ogni intervento di manutenzione perso o ritardato è un libretto incompleto, una multa potenziale, un contratto a rischio rinnovo.",
@@ -212,9 +213,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la dashboard Manutenzione",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Più interventi chiusi, contratti rinnovati al 95%, multe DPR azzerate.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Le imprese di manutenzione che usano Edilizia in Cloud chiudono in media 4 interventi/giorno in più per tecnico, rinnovano il 95% dei contratti annuali (vs 70-80% con gestione cartacea) e azzerano le contestazioni per scadenze DPR 74/2013 perse. Il valore del parco impianti gestito cresce strutturalmente.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingUp,
@@ -469,12 +470,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di perdere scadenze DPR e contratti annuali. Inizia a far girare la macchina.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il modulo Manutenzione Impianti dentro la tua impresa: setup in 48 ore, parco impianti importato, scadenze DPR 74/2013 pre-caricate, app tecnico iOS/Android. Onboarding 1-a-1 incluso. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il modulo Manutenzione Impianti dentro la tua impresa: avvio assistito, parco impianti importato, scadenze DPR 74/2013 pre-caricate, app tecnico iOS/Android. Onboarding 1-a-1 incluso. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · App tecnico inclusa · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · App tecnico inclusa · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Manutenzione",
-  stickyCtaMicrocopy: "Setup 48h · App tecnico inclusa",
+  stickyCtaMicrocopy: "Avvio assistito · App tecnico inclusa",
 
   applicationSubCategory: "Facility Maintenance Software",
 

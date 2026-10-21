@@ -117,7 +117,7 @@ export default function FinalCtaSection() {
           </div>
 
           <p className="text-white/60 text-base mb-8 font-medium">
-            Demo gratuita di 30 minuti + prova di 31 giorni senza carta. Setup incluso in 48h. Nessun impegno.
+            Demo gratuita di 30 minuti + prova di 31 giorni senza carta. Avvio assistito. Nessun impegno.
           </p>
 
           {/* Buttons: primario = modal, secondario = telefono (per il titolare

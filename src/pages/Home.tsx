@@ -1,3 +1,4 @@
+import { landingFaqs } from "@/lib/marketing/landingFaqs";
 
 import { lazy, Suspense } from "react";
 import { useSEO } from "@/hooks/useSEO";
@@ -33,7 +34,7 @@ const SectionFallback = () => <div className="h-32" aria-hidden="true" />;
 export default function Home() {
   useSEO({
     title: "Gestionale Edilizia in Cloud con AI per Imprese Edili",
-    description: "Gestionale edilizia con AI scelto da oltre 150 imprese edili: cantieri, margini reali per commessa, fatturazione SDI, CRM e HR. Prova 31 giorni.",
+    description: "Gestionale edilizia con AI scelto da oltre 150 aziende: cantieri, margini reali per commessa, fatturazione SDI, CRM e HR. Prova 31 giorni.",
     canonical: "/",
     keywords: "gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, ERP edilizia cloud, software costruzioni, gestionale cantieri online, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, gestionale edilizia 2026, miglior software impresa edile italiana, software edilizia PMI, gestionale edilizia prezzi, software cantieri digitale",
   });
@@ -107,13 +108,6 @@ export default function Home() {
         "applicationSubCategory": "Construction Management Software",
         "operatingSystem": "Web, iOS, Android",
         "description": "Software gestionale per imprese edili con AI integrata: gestione cantieri, margini in tempo reale, fatturazione elettronica, CRM, HR.",
-        "offers": {
-          "@type": "AggregateOffer",
-          "priceCurrency": "EUR",
-          "lowPrice": "127",
-          "highPrice": "547",
-          "offerCount": "3"
-        },
         "aggregateRating": {
           "@type": "AggregateRating",
           "ratingValue": "4.9",
@@ -148,95 +142,7 @@ export default function Home() {
           "name": "Domus Group S.r.l.",
           "url": "https://www.ediliziaincloud.com"
         },
-        "offers": [
-          {
-            "@type": "Offer",
-            "name": "Piano Gestionale",
-            "price": "127",
-            "priceCurrency": "EUR",
-            "validFrom": "2026-04-13",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi/",
-            "description": "Gestione cantieri, finanza e documenti base",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
-              }
-            },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
-              "returnFees": "https://schema.org/FreeReturn"
-            }
-          },
-          {
-            "@type": "Offer",
-            "name": "Piano Professionista",
-            "price": "247",
-            "priceCurrency": "EUR",
-            "validFrom": "2026-04-13",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi/",
-            "description": "Tutto Starter + CRM, marketing, HR completo e AI",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
-              }
-            },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
-              "returnFees": "https://schema.org/FreeReturn"
-            }
-          },
-          {
-            "@type": "Offer",
-            "name": "Piano Impresa AI",
-            "price": "547",
-            "priceCurrency": "EUR",
-            "validFrom": "2026-04-13",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi/",
-            "description": "Multi-azienda, API, supporto dedicato",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
-              }
-            },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
-              "returnFees": "https://schema.org/FreeReturn"
-            }
-          }
-        ],
+
         "aggregateRating": {
           "@type": "AggregateRating",
           "ratingValue": "4.9",
@@ -262,80 +168,7 @@ export default function Home() {
       <JsonLd id="jsonld-faq-home" data={{
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Devo essere esperto di informatica per usarlo?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Quanto tempo ci vuole per vedere i primi risultati concreti?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso importare i dati che ho su Excel o altri gestionali?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Funziona anche in cantiere, da smartphone o tablet?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Cosa include esattamente la demo gratuita?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese edili. Ti mostriamo il software sul tuo caso specifico — non una demo generica — e rispondiamo a tutte le domande. Nessun obbligo d'acquisto."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "I miei dati sono al sicuro? Chi li vede?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "I dati sono protetti e cifrati, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso disdire quando voglio? Ci sono penali?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Edilizia in Cloud gestisce il DURC e la Cassa Edile?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì. Il software traccia le scadenze DURC per la tua impresa e per tutti i subappaltatori registrati, con alert automatici prima della scadenza. La gestione delle presenze è integrata per il corretto calcolo dei contributi Cassa Edile."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso usarlo per partecipare agli appalti pubblici?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì. Edilizia in Cloud è progettato anche per le imprese che lavorano con appalti pubblici: gestisce la rendicontazione SAL, il DURC, la documentazione richiesta dalle stazioni appaltanti e i fondi PNRR. Tutta la documentazione è archiviata digitalmente e sempre disponibile per i controlli."
-            }
-          }
-        ]
+        "mainEntity": landingFaqs.map(item => ({ "@type": "Question", name: item.question, acceptedAnswer: { "@type": "Answer", text: item.answer } }))
       }} />
 
       {/* LandingNavbar lazy: 60 lucide icons, lo carichiamo SOTTO al hero

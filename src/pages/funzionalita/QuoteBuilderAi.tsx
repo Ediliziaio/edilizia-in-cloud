@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BookOpen,
@@ -52,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import prezzari regionali",
+    "Avvio assistito con import prezzari regionali",
     "AI verticale edilizia addestrata su 800k preventivi",
     "Riconoscimento foto cantiere multi-ambiente",
   ],
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 380 imprese edili italiane generano preventivi con AI usando Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo Quote Builder AI in 48 ore: importiamo i tuoi prezzari (regionali DEI, listini interni, fornitori abituali), addestriamo l'AI sui tuoi pattern di preventivazione, configuriamo le voci ricorrenti del tuo settore (ristrutturazione, fotovoltaico, serramenti, ampliamenti). 4 sessioni 1-a-1 fino al primo preventivo generato in 5 minuti.",
+    "Attiviamo Quote Builder AI con tempi concordati: importiamo i tuoi prezzari (regionali DEI, listini interni, fornitori abituali), addestriamo l'AI sui tuoi pattern di preventivazione, configuriamo le voci ricorrenti del tuo settore (ristrutturazione, fotovoltaico, serramenti, ampliamenti). 4 sessioni 1-a-1 fino al primo preventivo generato in 5 minuti.",
 
   speedH2:
     "Un preventivo edilizia preparato a mano costa 4-12 ore di lavoro tecnico. Con Quote Builder AI scendi a 5-30 minuti senza perdere qualità tecnica.",
@@ -215,9 +216,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri Quote Builder AI",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "10x preventivi/settimana, conversione +30%, marginalità sempre protetta.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Le imprese edili che adottano Quote Builder AI generano in media 10 volte più preventivi a parità di team tecnico, alzano la conversione preventivo-contratto del 30% grazie alla velocità di risposta e proteggono la marginalità grazie a prezzari sempre aggiornati. È un cambio di paradigma operativo.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Rocket,
@@ -472,12 +473,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di passare le serate a fare preventivi a mano. Inizia a generarli in 5 minuti.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Quote Builder AI dentro la tua impresa: setup in 48 ore, prezzari regionali integrati, AI verticale edilizia addestrata, app sopralluogo guidata, PDF professionale brand impresa. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Quote Builder AI dentro la tua impresa: avvio assistito, prezzari regionali integrati, AI verticale edilizia addestrata, app sopralluogo guidata, PDF professionale brand impresa. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · Prezzari regionali inclusi · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Prezzari regionali inclusi · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Quote Builder AI",
-  stickyCtaMicrocopy: "Setup 48h · Preventivi in 5 minuti",
+  stickyCtaMicrocopy: "Avvio assistito · Preventivi in 5 minuti",
 
   applicationSubCategory: "Construction Quote AI Software",
 

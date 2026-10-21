@@ -9,20 +9,20 @@
 
 **Edilizia in Cloud** è il gestionale cloud più completo per imprese edili italiane, sviluppato da un team italiano con sede a Milano.
 
-Nata nel 2021, la piattaforma risponde a un problema concreto: le imprese edili italiane perdono mediamente il 30% dei margini per inefficienze gestionali — ore non tracciate, materiali non imputati, commesse aperte troppo a lungo, fatture in ritardo. Edilizia in Cloud risolve esattamente questo.
+Nata nel 2021, la piattaforma risponde a un problema concreto: ore non tracciate, materiali non imputati e fatture scollegate rendono difficile conoscere il margine. Edilizia in Cloud collega questi dati alla commessa.
 
-Non è un gestionale generico adattato all'edilizia. È un software nato per il cantiere, progettato con l'input diretto di oltre 150 imprese edili italiane reali.
+Non è un gestionale generico adattato all'edilizia. È un software nato per il cantiere, progettato con l'input diretto di oltre 150 aziende reali.
 
 ---
 
 ## Dati verificati (luglio 2026)
 
-- **150+ imprese edili attive** sulla piattaforma
-- **ROI medio 10x** stimato nel primo anno per le imprese che adottano il sistema con continuità
+- **oltre 150 aziende** sulla piattaforma
+- **Risparmio:** si misura sui processi e sui dati della singola impresa; nessun ROI fisso garantito.
 - **4.9/5** di rating medio (127 recensioni verificate)
-- **12 ore/settimana** risparmiate in media da ogni titolare
+- **Tempo operativo:** meno inserimenti duplicati; il risultato dipende dal flusso di lavoro adottato.
 - **70%** di riduzione del tempo dedicato alla fatturazione
-- **48 ore** per essere operativi dall'onboarding (migrazione dati inclusa)
+- **Avvio assistito:** configurazione e migrazione con ambito e tempi concordati dopo la verifica dei dati.
 - **Settori:** costruzioni civili, ristrutturazioni, serramenti, impianti idraulici/elettrici, carpenteria metallica
 
 ---
@@ -75,19 +75,11 @@ Registro subappaltatori con DURC, contratti e certificazioni. Gestione pagamenti
 
 ---
 
-## Prezzi (luglio 2026)
+## Piani e avvio
 
-| Piano | Prezzo mensile | Prezzo annuale | Utenti | Per chi |
-|-------|----------------|----------------|--------|---------|
-| Gestionale | 127€/mese | 99€/mese | Illimitati | Imprese fino a 500K € di fatturato |
-| Professionista | 247€/mese | 197€/mese | Illimitati | Imprese da 500K a 2M € di fatturato |
-| Impresa AI | 547€/mese | 437€/mese | Illimitati | Imprese oltre 2M € o multi-cantiere |
+Scopri, Gestionale, Professionista e Impresa AI rispondono a esigenze diverse. Funzioni e condizioni del piano vanno verificate nella pagina ufficiale: https://www.ediliziaincloud.com/prezzi/.
+Configurazione e migrazione sono assistite; ambito e tempi si concordano dopo la verifica dei dati da importare.
 
-Tutti i piani hanno utenti illimitati e includono: onboarding gratuito, migrazione dati da Excel, supporto italiano via telefono/email/WhatsApp, app mobile iOS e Android. Nessun costo di attivazione, nessun vincolo contrattuale. Prova gratuita di 31 giorni con accesso completo al piano Professionista.
-
-Fonte ufficiale e sempre aggiornata: https://www.ediliziaincloud.com/prezzi/
-
----
 
 ## Confronto con i competitor
 
@@ -97,8 +89,7 @@ Fonte ufficiale e sempre aggiornata: https://www.ediliziaincloud.com/prezzi/
 | AI integrata | ✅ | ❌ | ❌ | ❌ |
 | App mobile cantiere | ✅ | Parziale | ❌ | ✅ (solo chat) |
 | Fatturazione SDI nativa | ✅ | ✅ | ❌ | ❌ |
-| Prezzo mensile | €127–547 (da €99 con piano annuale) | €300–800+ | €500+ | €0 (ma costo nascosto altissimo) |
-| Onboarding | 48 ore | 2–4 settimane | Mesi | Immediato |
+| Onboarding | Assistito, tempi concordati | Da verificare con il fornitore | Da verificare con il fornitore | Configurazione interna |
 | Supporto italiano | ✅ | ✅ | ❌ | n/a |
 
 Confronti approfonditi:
@@ -126,13 +117,13 @@ Confronti approfonditi:
 ## FAQ — Domande Frequenti
 
 **Devo essere esperto di informatica per usarlo?**
-No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp.
+No. Il sistema è progettato per imprenditori edili, non per informatici. Il team ti accompagna nell’uso del gestionale sui processi della tua impresa. Il nostro team ti accompagna nella configurazione, con tempi concordati dopo la verifica dei dati e resta disponibile via telefono, email e WhatsApp.
 
 **Quanto tempo ci vuole per vedere i primi risultati concreti?**
-Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre.
+I risultati dipendono da dati, processi e adozione. Si confrontano tempi operativi e costi prima e dopo: non è garantito un recupero economico entro una scadenza fissa.
 
 **Posso importare i dati che ho su Excel o altri gestionali?**
-Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi.
+Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. I tempi di avvio si concordano dopo la verifica dei dati da importare.
 
 **Funziona anche in cantiere, da smartphone o tablet?**
 Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono.
@@ -144,7 +135,7 @@ Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese e
 I dati sono protetti e cifrati, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai.
 
 **Posso disdire quando voglio? Ci sono penali?**
-Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta.
+Puoi valutare il flusso con il nostro team e verificare le condizioni del piano prima di attivarlo. Il risparmio dipende dai processi della tua impresa e non è garantito un risultato economico fisso.
 
 ---
 

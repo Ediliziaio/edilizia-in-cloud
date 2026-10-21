@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BarChart3,
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 260 imprese edili italiane monitorano fatturato, incassato e KPI commerciali con il modulo Report di Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Report Fatturazione è attivo in 48 ore: importiamo le fatture degli ultimi 3 anni, configuriamo dashboard personalizzate per ruolo (titolare, commerciale, amministrazione), settiamo target mensili per cliente/cantiere/agente, attiviamo notifiche scaduti. Quattro sessioni 1-a-1 ti accompagnano fino al primo report mensile in PDF firmato e inviato alla banca.",
+    "Il modulo Report Fatturazione è attivo con tempi concordati: importiamo le fatture degli ultimi 3 anni, configuriamo dashboard personalizzate per ruolo (titolare, commerciale, amministrazione), settiamo target mensili per cliente/cantiere/agente, attiviamo notifiche scaduti. Quattro sessioni 1-a-1 ti accompagnano fino al primo report mensile in PDF firmato e inviato alla banca.",
 
   speedH2: "Il lunedì mattina passi 4 ore in Excel per sapere se questo mese sei in target.",
   speedSubheadline:
@@ -215,7 +216,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Dashboard live = decisioni in tempo reale + scaduti recuperati + target raggiunti.",
   commercialBody:
-    "Le imprese edili che hanno attivato il modulo Report Fatturazione recuperano in media il 70% del tempo dedicato all'assemblaggio Excel, riducono lo scaduto medio del 35% grazie al monitoraggio in tempo reale, e raggiungono il target annuale di fatturato con maggiore frequenza.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Clock,
@@ -296,7 +297,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Riduzione scaduto medio", value: "35%" },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 70% di tempo report recuperato a €30/h. Aggiungi gli scaduti recuperati grazie al monitoraggio in tempo reale e i target raggiunti grazie a decisioni proattive settimanali.",
+      "Simulazione illustrativa basata sul 70% di tempo report recuperato a €30/h. Aggiungi gli scaduti recuperati grazie al monitoraggio in tempo reale e i target raggiunti grazie a decisioni proattive settimanali.",
   },
 
   salesKicker: "Impatto operativo",
@@ -323,7 +324,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Dashboard mensile pronta al primo accesso",
@@ -402,7 +403,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di report o utenti?",
-      a: "Il modulo Report Fatturazione è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati, report illimitati, esportazione PDF firmati inclusa. Setup in 48 ore con import storico 3 anni, dashboard personalizzate, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Report Fatturazione è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati, report illimitati, esportazione PDF firmati inclusa. Avvio assistito con import storico 3 anni, dashboard personalizzate, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -426,10 +427,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare la reportistica fatturazione su una dashboard live multi-dimensionale. KPI commerciali, target vs actual, monitoraggio scaduti automatico, esportazione PDF firmato. Onboarding 1-a-1 con import storico 3 anni, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Dashboard live · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Dashboard live · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Report Fatturazione",
-  stickyCtaMicrocopy: "Setup 48h · Dashboard live",
+  stickyCtaMicrocopy: "Avvio assistito · Dashboard live",
 
   applicationSubCategory: "Construction Billing Reporting Software",
 

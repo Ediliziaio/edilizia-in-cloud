@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Prezzari sempre aggiornati", "Firma online a valore legale"],
+  reassurancePoints: ["Avvio assistito", "Prezzari sempre aggiornati", "Firma online a valore legale"],
   proofPoints: [
     "Prezzari regionali DEI integrati",
     "Firma elettronica del cliente",
@@ -64,9 +64,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Più trattative chiuse, meno preventivi nel cassetto"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per chiudere preventivi più velocemente.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Preventivi Edilizia è la porta d'ingresso del flusso commerciale: lo attiviamo in 48 ore, importiamo i tuoi listini e i tuoi preventivi storici, configuriamo i prezzari regionali della tua zona e ti accompagniamo in 4 sessioni 1-a-1 fino a quando emetti il primo preventivo firmato online dal cliente. Niente call center: ti seguiamo personalmente.",
+    "Il modulo Preventivi Edilizia è la porta d'ingresso del flusso commerciale: lo attiviamo insieme alla tua impresa, importiamo i tuoi listini e i tuoi preventivi storici, configuriamo i prezzari regionali della tua zona e ti accompagniamo in 4 sessioni 1-a-1 fino a quando emetti il primo preventivo firmato online dal cliente. Niente call center: ti seguiamo personalmente.",
 
   speedH2: "Dal sopralluogo al preventivo firmato in meno di 24 ore. Senza Excel, senza scanner, senza inseguire il cliente.",
   speedSubheadline:
@@ -270,7 +270,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto fatturato in più chiudi se rispondi in 24 ore invece di 5 giorni?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di preventivi che invii in un mese e ticket medio. La stima parte da +12 punti percentuali di tasso di chiusura, base media osservata nei nostri clienti dopo 90 giorni di utilizzo.",
+    "Sposta i cursori sulla tua realtà: numero di preventivi che invii in un mese e ticket medio. La stima parte da +12 punti percentuali di tasso di chiusura, ipotesi illustrativa da verificare nella tua impresa dopo 90 giorni di utilizzo.",
   roi: {
     input1Label: "Preventivi inviati al mese",
     input1Default: 12,
@@ -292,7 +292,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Volume gestito/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 12 * b) },
     ],
     closingPitch:
-      "Stima prudenziale basata su +12 punti percentuali di chiusura. La maggior parte dei nostri clienti registra tra il +10% e il +18% nei primi 12 mesi.",
+      "Simulazione illustrativa basata su +12 punti percentuali di chiusura. La maggior parte dei nostri clienti registra tra il +10% e il +18% nei primi 12 mesi.",
   },
 
   salesKicker: "Impatto operativo",
@@ -319,7 +319,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Computo metrico estimativo",
@@ -466,12 +466,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di mandare preventivi che finiscono nel cassetto. Inizia a mandarne di firmabili online.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nei tuoi sopralluoghi. Setup in 48 ore, prezzari regionali aggiornati, firma elettronica del cliente e conversione 1-click in commessa inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nei tuoi sopralluoghi. Avvio assistito, prezzari regionali aggiornati, firma elettronica del cliente e conversione 1-click in commessa inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Prezzari aggiornati · Firma online a valore legale",
+  finalCtaMicrocopy: "Avvio assistito · Prezzari aggiornati · Firma online a valore legale",
 
   stickyCtaLabel: "Prova gratis Preventivi Edilizia",
-  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+  stickyCtaMicrocopy: "Avvio assistito · Cancelli quando vuoi",
 
   applicationSubCategory: "Construction Estimating Software",
 

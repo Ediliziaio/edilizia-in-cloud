@@ -350,7 +350,7 @@ export default function QuickContactModal() {
                 </span>
                 <span className="text-[11px] font-semibold text-[#111111]/70">4.9/5</span>
                 <span className="text-[11px] text-[#111111]/40">·</span>
-                <span className="text-[11px] text-[#111111]/55">150+ imprese edili attive</span>
+                <span className="text-[11px] text-[#111111]/55">oltre 150 aziende</span>
               </div>
 
               <p className="text-center text-[10px] text-[#111111]/40 leading-relaxed pt-1">

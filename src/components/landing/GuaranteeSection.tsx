@@ -1,10 +1,11 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { ShieldCheck, Check } from "lucide-react";
 
 const points = [
   "Setup e onboarding inclusi",
-  "Nessuna domanda al rimborso",
-  "Garanzia scritta e firmata dal founder",
+  "Tempi di avvio concordati sui tuoi dati",
+  "Risultati misurati sui processi della tua impresa",
 ];
 
 export default function GuaranteeSection() {
@@ -37,10 +38,10 @@ export default function GuaranteeSection() {
               >
                 <ShieldCheck className="w-10 h-10 md:w-12 md:h-12 mb-2" strokeWidth={2.2} />
                 <p className="text-center text-[11px] md:text-xs font-extrabold leading-tight uppercase tracking-wide px-4">
-                  100%
+                  Ufficio
                   <br />
-                  Soddisfatti
-                  <br />o Rimborsati
+                  e cantiere
+                  <br />collegati
                 </p>
                 {/* dotted ring */}
                 <span
@@ -53,15 +54,13 @@ export default function GuaranteeSection() {
             {/* Content */}
             <div>
               <span className="inline-block mb-4 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest text-eic-orange-deep bg-eic-orange/10 border border-eic-orange/20">
-                La nostra promessa
+                Un percorso concreto
               </span>
               <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] leading-tight mb-5">
-                Garanzia ROI <span className="text-eic-orange">90 giorni</span>
+                Dal primo dato <span className="text-eic-orange">al controllo della commessa</span>
               </h2>
               <p className="text-base md:text-lg text-gray-700 leading-relaxed mb-6">
-                Se in <strong>90 giorni</strong> non identifichi almeno{" "}
-                <strong className="text-eic-orange">5.000€ di sprechi</strong> nella tua impresa edile,
-                ti restituiamo <strong>TUTTO</strong>. Senza domande.
+                {marketingMessages.activationDetail} {marketingMessages.savingsDetail}
               </p>
 
               <ul className="space-y-2.5">

@@ -53,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore, niente codice",
+    "Avvio assistito, niente codice",
     "50+ template pronti settoriali",
     "Risparmio medio 1,5h/sett per automazione",
   ],
@@ -70,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano le Automazioni per eliminare il lavoro ripetitivo di segreteria.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Le Automazioni sono già pronte: le attiviamo in 48 ore mappando i tuoi processi attuali, configurando le prime 8 automazioni più impattanti (reminder fatture, follow-up preventivi, notifiche SAL, scadenze visite mediche), e ti accompagniamo in 3 sessioni 1-a-1 fino a quando il sistema lavora da solo.",
+    "Le Automazioni sono già pronte: le attiviamo insieme alla tua impresa mappando i tuoi processi attuali, configurando le prime 8 automazioni più impattanti (reminder fatture, follow-up preventivi, notifiche SAL, scadenze visite mediche), e ti accompagniamo in 3 sessioni 1-a-1 fino a quando il sistema lavora da solo.",
 
   speedH2:
     "L'impresa edile media spreca 12 ore a settimana di segreteria in attività ripetitive. Sono 600 ore l'anno.",
@@ -334,7 +334,7 @@ const config: FunzionalitaPageConfig = {
 
   featureKicker: "Cosa ottieni davvero",
   featureH2:
-    "Non promesse generiche. Un elenco concreto di quello che attivi in 48 ore.",
+    "Non promesse generiche. Un elenco concreto di quello che configuriamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "30+ trigger nativi sui moduli edili",
@@ -447,10 +447,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per mettere le tue Automazioni in pilota automatico. 50+ template settoriali, editor no-code, onboarding 1-a-1 con configurazione delle 8 automazioni più impattanti. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · No-code · 50+ template pronti",
+  finalCtaMicrocopy: "Avvio assistito · No-code · 50+ template pronti",
 
   stickyCtaLabel: "Prova gratis Automazioni",
-  stickyCtaMicrocopy: "Setup 48h · 1,5h risparmiate/sett",
+  stickyCtaMicrocopy: "Avvio assistito · 1,5h risparmiate/sett",
 
   applicationSubCategory: "Construction Workflow Automation Software",
 

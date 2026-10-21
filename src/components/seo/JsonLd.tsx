@@ -1,5 +1,6 @@
 // src/components/seo/JsonLd.tsx
 import { useEffect } from "react";
+import { serializeJsonLd } from "@/lib/seo/serializeJsonLd";
 
 interface JsonLdProps {
   data: Record<string, unknown>;
@@ -19,7 +20,7 @@ export function JsonLd({ data, id = "jsonld-main" }: JsonLdProps): null {
       script.type = "application/ld+json";
       document.head.appendChild(script);
     }
-    script.textContent = JSON.stringify(data);
+    script.textContent = serializeJsonLd(data);
     return () => {
       const el = document.getElementById(id);
       if (el) el.remove();

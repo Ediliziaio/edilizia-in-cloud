@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BarChart3,
@@ -49,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Riconciliazione bancaria automatica", "Alert push su scoperti previsti"],
+  reassurancePoints: ["Avvio assistito", "Riconciliazione bancaria automatica", "Alert push su scoperti previsti"],
   proofPoints: [
     "Incassi previsti dai SAL firmati",
     "Pagamenti fornitori programmati",
@@ -64,7 +65,7 @@ const config: FunzionalitaPageConfig = {
 
   betaH2: "La cassa dei prossimi 90 giorni, costruita sui dati che hai già nel gestionale.",
   betaBody:
-    "Il modulo Cassa & Cash Flow è il pannello finanziario della tua impresa edile: lo attiviamo in 48 ore, importiamo i tuoi conti correnti via API PSD2 (UniCredit, Intesa Sanpaolo, BPER, BPM, Banco Desio, Crédit Agricole, Banca Popolare di Sondrio e oltre 30 banche italiane), riconciliamo automaticamente i movimenti con scadenzario e fatture, ti mostriamo cassa attesa a 30/60/90 giorni dal giorno 1.",
+    "Il modulo Cassa & Cash Flow è il pannello finanziario della tua impresa edile: lo attiviamo insieme alla tua impresa, importiamo i tuoi conti correnti via API PSD2 (UniCredit, Intesa Sanpaolo, BPER, BPM, Banco Desio, Crédit Agricole, Banca Popolare di Sondrio e oltre 30 banche italiane), riconciliamo automaticamente i movimenti con scadenzario e fatture, ti mostriamo cassa attesa a 30/60/90 giorni dal giorno 1.",
 
   speedH2: "Il previsionale di cassa edile non è un Excel del commercialista. È un sistema vivo che ti avvisa prima dello scoperto.",
   speedSubheadline:
@@ -208,7 +209,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Un mese senza scoperto bancario vale molto più di un anno di abbonamento.",
   commercialBody:
-    "Le imprese edili italiane sostengono in media 8.000-15.000€ di interessi passivi annui per scoperti evitabili e ritardi di pagamento causati da fornitori sospesi. Edilizia in Cloud ti dà 60-90 giorni di anticipo per evitarli, mentre il commercialista te li scopre quando sono già maturati.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Target,
@@ -290,7 +291,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore amministrative risparmiate/anno", value: "~120 h" },
     ],
     closingPitch:
-      "Stima prudenziale basata sulla riduzione del 70% degli scoperti evitabili. Aggiungi i costi indiretti (commissioni, valuta, sospensioni fornitura) e l'abbonamento si ripaga nelle prime 4 settimane.",
+      "Simulazione illustrativa basata sulla riduzione del 70% degli scoperti evitabili. Aggiungi i costi indiretti (commissioni, valuta, sospensioni fornitura) e l'abbonamento si ripaga nelle prime 4 settimane.",
   },
 
   salesKicker: "Impatto operativo",
@@ -317,7 +318,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Cash flow rolling a 30/60/90 giorni",
@@ -428,12 +429,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di scoprire gli scoperti il giorno dopo. Inizia a vederli con 60 giorni di anticipo.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nel controllo della tua cassa. Setup in 48 ore, connessione PSD2 alle banche, riconciliazione automatica e alert push inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nel controllo della tua cassa. Avvio assistito, connessione PSD2 alle banche, riconciliazione automatica e alert push inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · PSD2 sicuro · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · PSD2 sicuro · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Cassa Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · Forecast 90gg",
+  stickyCtaMicrocopy: "Avvio assistito · Forecast 90gg",
 
   applicationSubCategory: "Construction Cash Flow Management Software",
 

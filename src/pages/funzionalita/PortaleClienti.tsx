@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Brand del cliente personalizzato", "Accesso sicuro per cantiere"],
+  reassurancePoints: ["Avvio assistito", "Brand del cliente personalizzato", "Accesso sicuro per cantiere"],
   proofPoints: [
     "Avanzamento lavori in real time",
     "Foto cantiere geolocalizzate",
@@ -63,9 +63,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Cliente più tranquillo, impresa più professionale"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano il Portale Clienti per migliorare la trasparenza con i loro clienti finali.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il Portale Clienti è il volto digitale della tua impresa: lo attiviamo in 48 ore, lo personalizziamo con logo e colori della tua azienda, importiamo i clienti attivi, configuriamo accessi sicuri per cantiere e ti accompagniamo in 4 sessioni 1-a-1 fino a quando i clienti ricevono il primo invito al portale.",
+    "Il Portale Clienti è il volto digitale della tua impresa: lo attiviamo insieme alla tua impresa, lo personalizziamo con logo e colori della tua azienda, importiamo i clienti attivi, configuriamo accessi sicuri per cantiere e ti accompagniamo in 4 sessioni 1-a-1 fino a quando i clienti ricevono il primo invito al portale.",
 
   speedH2: "Il cliente ti chiama 'come va il cantiere' perché non sa. Smetti di farlo aspettare al telefono.",
   speedSubheadline:
@@ -290,7 +290,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Stima recensioni 5★ extra/anno", value: `${Math.round(a * 0.4)}` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 1,5h update/cliente/settimana ridotte del 60%. Aggiungi le recensioni 5 stelle che ne derivano e l'effetto su lead e ticket medio.",
+      "Simulazione illustrativa basata su 1,5h update/cliente/settimana ridotte del 60%. Aggiungi le recensioni 5 stelle che ne derivano e l'effetto su lead e ticket medio.",
   },
 
   salesKicker: "Impatto operativo",
@@ -317,7 +317,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     { label: "Brand personalizzato della tua impresa", value: "Logo, colori, dominio personalizzato (es. portale.tuaimpresa.it). Il cliente percepisce un servizio premium della tua azienda, non di Edilizia in Cloud." },
     { label: "Avanzamento cantiere in tempo reale", value: "Percentuale completamento, milestone, prossimi step. Aggiornato dai dati del capocantiere senza data entry duplicato." },
@@ -375,12 +375,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di rispondere alle stesse domande 20 volte. Inizia a far vedere il cantiere al cliente.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il Portale Clienti dentro la tua impresa edile. Setup in 48 ore, brand personalizzato, accesso sicuro per cantiere e firma elettronica eIDAS inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il Portale Clienti dentro la tua impresa edile. Avvio assistito, brand personalizzato, accesso sicuro per cantiere e firma elettronica eIDAS inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Brand personalizzato · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Brand personalizzato · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Portale Clienti",
-  stickyCtaMicrocopy: "Setup 48h · Cliente illimitati",
+  stickyCtaMicrocopy: "Avvio assistito · Cliente illimitati",
 
   applicationSubCategory: "Construction Customer Portal Software",
 

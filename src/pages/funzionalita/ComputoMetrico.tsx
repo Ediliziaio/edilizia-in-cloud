@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Voci da listino e prezzari",
     "AI da foto e testo inclusa",
   ],
@@ -68,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane costruiscono computi e preventivi dalle stesse voci, senza ricopiature.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il Computo Metrico lo attiviamo in 48 ore: importiamo il tuo listino con prezzi e tariffe manodopera, configuriamo le categorie di lavorazione, attiviamo l'AI che compila da foto e testo e ti accompagniamo in 3 sessioni 1-a-1 fino al primo computo trasformato in preventivo inviato. Dal primo lavoro nuovo, il giro computo-preventivo cambia passo.",
+    "Il Computo Metrico lo attiviamo insieme alla tua impresa: importiamo il tuo listino con prezzi e tariffe manodopera, configuriamo le categorie di lavorazione, attiviamo l'AI che compila da foto e testo e ti accompagniamo in 3 sessioni 1-a-1 fino al primo computo trasformato in preventivo inviato. Dal primo lavoro nuovo, il giro computo-preventivo cambia passo.",
 
   speedH2:
     "Ogni computo fatto a mano è una serata persa. Ogni voce dimenticata è margine regalato.",
@@ -435,12 +435,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di fare i computi di sera su Excel. Inizia a farli in un'ora, con i tuoi prezzi e l'AI che lavora per te.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il Computo Metrico dentro la tua impresa edile. Import del listino, AI da foto e testo, computo che diventa preventivo e consuntivo, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il Computo Metrico dentro la tua impresa edile. Import del listino, AI da foto e testo, computo che diventa preventivo e consuntivo, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Listino con i tuoi prezzi · AI inclusa",
+  finalCtaMicrocopy: "Avvio assistito · Listino con i tuoi prezzi · AI inclusa",
 
   stickyCtaLabel: "Prova gratis Computo Metrico",
-  stickyCtaMicrocopy: "Setup 48h · Computo in 1 ora",
+  stickyCtaMicrocopy: "Avvio assistito · Computo in 1 ora",
 
   applicationSubCategory: "Construction Estimating Software",
 

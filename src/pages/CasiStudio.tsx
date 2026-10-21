@@ -237,7 +237,7 @@ const aggregateResults = [
   { value: "8", label: "casi verticali documentati" },
   { value: "3-16 gg", label: "tempo medio di avvio" },
   { value: "+7.6 pt", label: "margine medio recuperato" },
-  { value: "150+", label: "imprese attive sulla piattaforma" },
+  { value: "Oltre 150", label: "aziende sulla piattaforma" },
 ];
 
 export default function CasiStudio() {
@@ -305,8 +305,7 @@ export default function CasiStudio() {
             "worksFor": { "@type": "Organization", "name": c.company }
           },
           "reviewBody": c.quote,
-          "datePublished": REVIEW_DATES[i] ?? "2025-06-01",
-          "itemReviewed": { "@id": `${SITE_URL}/#softwareapplication` }
+          "datePublished": REVIEW_DATES[i] ?? "2025-06-01"
         }))
       }} />
 
@@ -330,8 +329,8 @@ export default function CasiStudio() {
             </p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center items-center gap-3 sm:gap-6">
               {[
-                { Icon: Users, label: "150+ imprese attive" },
-                { Icon: BarChart3, label: "ROI medio 10x" },
+                { Icon: Users, label: "oltre 150 aziende" },
+                { Icon: BarChart3, label: "Risparmio da misurare" },
                 { Icon: TrendingUp, label: "4.9/5 soddisfazione" },
               ].map(({ Icon, label }, i) => (
                 <span key={i} className="flex items-center gap-2 text-white/60 text-sm"><Icon size={14} className="text-eic-orange" />{label}</span>

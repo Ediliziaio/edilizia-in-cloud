@@ -39,11 +39,11 @@ export default function DemoGrazie() {
               </svg>
             </div>
             <h1 className="text-[28px] font-extrabold leading-[1.15] text-white sm:text-4xl">
-              Richiesta ricevuta. Ora scegli quando.
+              Scegli quando vedere il prodotto.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-white/70 sm:text-lg">
               Trenta minuti sul tuo modo di lavorare: cantieri, preventivi, margini.
-              Scegli il giorno e l&apos;ora che ti comodano — la demo è confermata subito.
+              Scegli il giorno e l&apos;ora tra le disponibilità del calendario. L’appuntamento è fissato quando completi la prenotazione.
             </p>
           </div>
         </section>
@@ -57,7 +57,7 @@ export default function DemoGrazie() {
             <div className="mt-8 text-center">
               <p className="text-sm text-[#111111]/60">
                 Preferisci essere richiamato? Ti chiamiamo noi entro 24 ore lavorative,
-                senza che tu faccia niente.
+                se hai già inviato il modulo di richiesta.
               </p>
               <div className="mt-5 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                 <Link

@@ -475,7 +475,7 @@ export default function Formazione() {
             <span className="text-eic-orange">finché non inizi a usarlo.</span>
           </h2>
           <p className="text-white/60 mb-8">
-            31 giorni gratis. Onboarding 1:1 incluso. Setup in 48 ore.
+            31 giorni gratis. Onboarding 1:1 incluso. Avvio assistito.
           </p>
           <Link to="/demo/" className="inline-flex items-center gap-2 px-8 py-4 bg-eic-orange text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
             Inizia la prova gratuita <ArrowRight size={18} />

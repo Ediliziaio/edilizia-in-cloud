@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BarChart3,
@@ -51,7 +52,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Alert push automatici", "Scostamento per voce di costo"],
+  reassurancePoints: ["Avvio assistito", "Alert push automatici", "Scostamento per voce di costo"],
   proofPoints: [
     "Margine reale aggiornato ogni notte",
     "Scostamento preventivo / consuntivo",
@@ -66,7 +67,7 @@ const config: FunzionalitaPageConfig = {
 
   betaH2: "Il margine di ogni cantiere, aggiornato mentre il cantiere è ancora aperto.",
   betaBody:
-    "Il modulo Margini Cantiere è il pannello di controllo finanziario della commessa: lo attiviamo in 48 ore, importiamo i tuoi cantieri aperti e i tuoi preventivi originali, configuriamo soglie di alert personalizzate sul tuo modello operativo e ti accompagniamo in 4 sessioni 1-a-1 fino a quando vedi il margine reale aggiornato di ogni cantiere senza dover chiedere a nessuno.",
+    "Il modulo Margini Cantiere è il pannello di controllo finanziario della commessa: lo attiviamo insieme alla tua impresa, importiamo i tuoi cantieri aperti e i tuoi preventivi originali, configuriamo soglie di alert personalizzate sul tuo modello operativo e ti accompagniamo in 4 sessioni 1-a-1 fino a quando vedi il margine reale aggiornato di ogni cantiere senza dover chiedere a nessuno.",
 
   speedH2: "Il margine reale visto giorno per giorno cambia il modo in cui guidi l'azienda.",
   speedSubheadline:
@@ -210,7 +211,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Il margine recuperato vale 10x l'abbonamento. Sempre.",
   commercialBody:
-    "Le imprese edili italiane perdono in media 3-5 punti di margine per cantiere a causa di costi non controllati in tempo reale. Su un cantiere da 200.000€, sono 6.000-10.000€ di margine evaporato. Recuperarne anche solo metà vale 30 anni di abbonamento Edilizia in Cloud.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Target,
@@ -270,7 +271,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto margine puoi recuperare se vedi i costi mentre accadono?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 4 punti percentuali di margine recuperato, base media osservata nei nostri clienti dopo 90 giorni.",
+    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 4 punti percentuali di margine recuperato, ipotesi illustrativa da verificare nella tua impresa dopo 90 giorni.",
   roi: {
     input1Label: "Cantieri attivi in media",
     input1Default: 6,
@@ -291,7 +292,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore controller risparmiate/anno", value: `${Math.round(a * 60)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 4% di margine recuperato. Le imprese più strutturate registrano tra il 5% e l'8% nei primi 12 mesi grazie agli alert preventivi.",
+      "Simulazione illustrativa basata su 4% di margine recuperato. Le imprese più strutturate registrano tra il 5% e l'8% nei primi 12 mesi grazie agli alert preventivi.",
   },
 
   salesKicker: "Impatto operativo",
@@ -318,7 +319,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Margine reale per commessa",
@@ -465,12 +466,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di scoprire i buchi a fine cantiere. Inizia a vederli mentre puoi correggerli.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nel controllo dei tuoi cantieri. Setup in 48 ore, alert push automatici sui cantieri a rischio, dashboard margini multi-cantiere e integrazione completa con preventivi, HR e subappalti. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nel controllo dei tuoi cantieri. Avvio assistito, alert push automatici sui cantieri a rischio, dashboard margini multi-cantiere e integrazione completa con preventivi, HR e subappalti. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Alert push · Dashboard sempre aggiornata",
+  finalCtaMicrocopy: "Avvio assistito · Alert push · Dashboard sempre aggiornata",
 
   stickyCtaLabel: "Prova gratis Margini Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+  stickyCtaMicrocopy: "Avvio assistito · Cancelli quando vuoi",
 
   applicationSubCategory: "Construction Cost Control Software",
 

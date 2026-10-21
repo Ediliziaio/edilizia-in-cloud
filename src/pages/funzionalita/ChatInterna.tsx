@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Bell,
@@ -68,9 +69,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 350 imprese edili italiane hanno sostituito WhatsApp privato con la chat aziendale Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Chat Interna è attivo in 48 ore: importiamo i numeri della tua squadra, configuriamo canali per cantiere e per funzione (ufficio, capicantiere, sicurezza), settiamo notifiche urgenti, attiviamo archiviazione decennale GDPR. Quattro sessioni 1-a-1 ti accompagnano fino al primo cantiere che migra completamente da WhatsApp privato.",
+    "Il modulo Chat Interna è attivo con tempi concordati: importiamo i numeri della tua squadra, configuriamo canali per cantiere e per funzione (ufficio, capicantiere, sicurezza), settiamo notifiche urgenti, attiviamo archiviazione decennale GDPR. Quattro sessioni 1-a-1 ti accompagnano fino al primo cantiere che migra completamente da WhatsApp privato.",
 
   speedH2:
     "Il titolare riceve 200 messaggi WhatsApp al giorno tra clienti, capocantieri, fornitori, figli.",
@@ -213,9 +214,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la chat di prova",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Comunicazione strutturata = -50% tempo coordinamento + GDPR + vita privata salva.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Le imprese edili che hanno migrato da WhatsApp privato a chat aziendale recuperano in media il 50% del tempo di coordinamento, mettono in regola la conformità GDPR, e i titolari riportano un drastico miglioramento del work-life balance dopo 90 giorni di utilizzo.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Clock,
@@ -296,7 +297,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Sanzioni GDPR potenzialmente evitate", value: "fino a 20M€" },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 50% di tempo coordinamento recuperato a €30/h. Aggiungi la conformità GDPR, la vita privata recuperata del titolare e la knowledge base aziendale che resta in azienda.",
+      "Simulazione illustrativa basata sul 50% di tempo coordinamento recuperato a €30/h. Aggiungi la conformità GDPR, la vita privata recuperata del titolare e la knowledge base aziendale che resta in azienda.",
   },
 
   salesKicker: "Impatto operativo",
@@ -323,7 +324,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Canali per cantiere e per funzione",
@@ -402,7 +403,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di utenti?",
-      a: "Il modulo Chat Interna è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati e archiviazione decennale inclusa. Setup in 48 ore, app mobile e desktop incluse, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Chat Interna è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati e archiviazione decennale inclusa. Avvio assistito, app mobile e desktop incluse, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -426,10 +427,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per migrare il coordinamento del team da WhatsApp a una chat aziendale GDPR compliant. Canali per cantiere, archivio decennale, ricerca full-text, app mobile e desktop. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · GDPR compliant · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · GDPR compliant · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Chat Interna",
-  stickyCtaMicrocopy: "Setup 48h · GDPR compliant",
+  stickyCtaMicrocopy: "Avvio assistito · GDPR compliant",
 
   applicationSubCategory: "Construction Team Communication Software",
 

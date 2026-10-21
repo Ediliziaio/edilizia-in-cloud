@@ -9,6 +9,7 @@ export interface SEOOptions {
   type?: "website" | "article";
   publishedTime?: string;
   modifiedTime?: string;
+  articleAuthor?: string;
   keywords?: string;
   section?: string;   // article section
   tags?: string[];    // article tags
@@ -128,7 +129,7 @@ export function useSEO(options: SEOOptions) {
 
   const {
     title, description, canonical, ogImage,
-    noindex = false, type = "website", publishedTime, modifiedTime,
+    noindex = false, type = "website", publishedTime, modifiedTime, articleAuthor,
     keywords, section, tags, senzaMarchio = false,
   } = options;
 
@@ -181,13 +182,24 @@ export function useSEO(options: SEOOptions) {
     set("property", "og:site_name",   "Edilizia in Cloud");
     set("property", "og:locale",      "it_IT");
 
+    // article:tag è una proprietà ripetibile: upsertMeta sovrascriverebbe
+    // sempre il primo elemento, perdendo tutti i tag precedenti.
+    const previousTags = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[property="article:tag"]'));
+    previousTags.forEach((tag) => tag.remove());
+    const currentTags = type === "article" ? [...new Set(tags ?? [])].map((tag) => {
+      const element = document.createElement("meta");
+      element.setAttribute("property", "article:tag");
+      element.content = tag;
+      document.head.appendChild(element);
+      return element;
+    }) : [];
+
     // Article-specific OG
     if (type === "article") {
       if (publishedTime) set("property", "article:published_time", publishedTime);
       if (modifiedTime)  set("property", "article:modified_time",  modifiedTime);
       if (section)       set("property", "article:section",        section);
-      if (tags)          tags.forEach(t => set("property", "article:tag", t));
-      set("property", "article:author", `${SITE_URL}/chi-siamo`);
+      set("property", "article:author", articleAuthor ?? `${SITE_URL}/chi-siamo/`);
     }
 
     // Twitter / X
@@ -212,6 +224,8 @@ export function useSEO(options: SEOOptions) {
     document.documentElement.setAttribute("data-seo-applied", "true");
 
     return () => {
+      currentTags.forEach((tag) => tag.remove());
+      previousTags.forEach((tag) => document.head.appendChild(tag));
       // Restore or remove each meta we touched
       entriesRef.current.forEach(({ attr, key, prev, created }) => {
         const el = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
@@ -224,7 +238,7 @@ export function useSEO(options: SEOOptions) {
     };
   }, [
     title, description, canonical, ogImage, noindex,
-    type, publishedTime, modifiedTime, keywords, section, senzaMarchio,
+    type, publishedTime, modifiedTime, articleAuthor, keywords, section, senzaMarchio,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     tags?.join(","),
   ]);
