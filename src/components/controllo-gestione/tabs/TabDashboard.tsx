@@ -248,7 +248,7 @@ export function TabDashboard({ anno }: Props) {
         owner: "Sistema",
         due: "Ora",
         href: "/azienda/controllo-gestione/health",
-        cta: "Vedi health-check",
+        cta: "Vedi controllo dei dati",
       });
     }
 
@@ -1075,7 +1075,7 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
       ],
       nextActions: context.azioni.slice(0, 3).map((action) => `${action.owner}: ${action.title}.`),
       links: [
-        { label: "Health-check", href: "/azienda/controllo-gestione/health" },
+        { label: "Controllo dei dati", href: "/azienda/controllo-gestione/health" },
         { label: "Pacchetto banca", href: "/azienda/controllo-gestione/pacchetto-banca" },
       ],
     };
