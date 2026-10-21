@@ -14,7 +14,11 @@ import {
   type RawPlanningOrder,
 } from "@/lib/calendar/planning";
 import type { CalendarAppointment, CalendarScope } from "@/types/calendar";
-import { appuntamentiPerCalendarioLavori } from "@/lib/calendar/appuntamentiRiservati";
+import {
+  appuntamentiPerCalendarioLavori,
+  caricaImpegniRiservati,
+  unisciImpegniRiservati,
+} from "@/lib/calendar/appuntamentiRiservati";
 
 const columns: string = `id, order_code, description, expected_date, work_start_date, work_end_date, work_start_time, work_end_time,
   warehouse_arrival_date, created_at, customer_id, current_status_id, indirizzo_lavori, work_address,work_lat,work_lng,distanza_sede_km,distanza_sede_minuti,distanza_sede_il,
@@ -203,10 +207,17 @@ export function useWorkCalendarData(
         if (!teamAppointments) q = q.eq("assigned_to", user!.id);
         return excludeArchivedOrders(q, archived, "order_id");
       });
-      return appuntamentiPerCalendarioLavori(rows, {
-        userId: user?.id,
-        vedeCrm: p.isAdmin || p.canViewMarketingAppointments,
-      });
+      const vedeCrm = p.isAdmin || p.canViewMarketingAppointments;
+      // Senza il CRM il database non dà gli appuntamenti commerciali dei
+      // colleghi: ne dà solo l'impegno (quando e chi), che si mostra «Occupato».
+      const impegni =
+        !vedeCrm && teamAppointments
+          ? await caricaImpegniRiservati(from, to, signal)
+          : [];
+      return unisciImpegniRiservati(
+        appuntamentiPerCalendarioLavori(rows, { userId: user?.id, vedeCrm }),
+        impegni,
+      );
     },
   });
   const unplanned = useQuery({

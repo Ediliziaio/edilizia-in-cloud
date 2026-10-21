@@ -35,3 +35,16 @@ describe("appuntamenti del CRM nel calendario dei lavori", () => {
     expect(a.title).toBe("Sopralluogo Rossi");
   });
 });
+
+describe("impegni dei colleghi dal database", () => {
+  it("si aggiungono come «Occupato», senza doppioni, in ordine di ora", async () => {
+    const { unisciImpegniRiservati } = await import("@/lib/calendar/appuntamentiRiservati");
+    const proprio = base({ id: "mio", assigned_to: "io", appointment_time: "11:00" });
+    const righe = unisciImpegniRiservati([proprio], [
+      { id: "mio", appointment_date: "2026-10-22", appointment_time: "11:00", appointment_end_time: null, appointment_type: "x", assigned_to: "io", created_by: "io", company_id: "c", is_completed: false, calendar_id: null, status: null },
+      { id: "altro", appointment_date: "2026-10-22", appointment_time: "09:00", appointment_end_time: "10:00", appointment_type: "sopralluogo", assigned_to: "collega", created_by: "collega", company_id: "c", is_completed: false, calendar_id: null, status: "confermato" },
+    ]);
+    expect(righe.map((r) => [r.id, r.title])).toEqual([["altro", "Occupato"], ["mio", "Sopralluogo Rossi"]]);
+    expect(righe[0].riservato).toBe(true);
+  });
+});
