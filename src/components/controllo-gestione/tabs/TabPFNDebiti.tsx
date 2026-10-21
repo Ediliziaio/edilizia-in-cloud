@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,16 +22,19 @@ import {
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import {
-  usePFN, useLoans, useAging,
+  usePFN, useLoans, useAging, useContiPFN,
   useUpsertLoan, useDeleteLoan,
   type Loan, type AgingFasce,
 } from "@/hooks/controlloGestione/usePFN";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { percIt } from "@/lib/controlloGestione/formatoCG";
+import { erroreFinanziamento } from "@/lib/controlloGestione/finanziamenti";
 import { cn } from "@/lib/utils";
 import {
   Building2, Plus, Trash2, AlertTriangle, TrendingDown, TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Props {
   anno: number;
@@ -50,6 +54,7 @@ export function TabPFNDebiti({ anno }: Props) {
 
 function PFNSection({ anno }: { anno: number }) {
   const q = usePFN(anno);
+  const conti = useContiPFN();
 
   if (q.isLoading) {
     return <Skeleton className="h-32 w-full rounded-2xl" />;
@@ -60,27 +65,33 @@ function PFNSection({ anno }: { anno: number }) {
   const { pfn, componenti } = q.data;
   const indebitamento = componenti.mutui_mlt + componenti.banche_negative;
   const liquidita = componenti.cassa + componenti.banche_positive;
+  const annoCorrente = new Date().getFullYear();
+  // Il Previsionale parte dal disponibile dichiarato dalla banca (o dal saldo se manca).
+  const disponibileTotale = conti.data?.reduce((s, c) => s + (c.disponibile ?? c.saldo), 0) ?? null;
+  const saldoContabile = componenti.banche_positive - componenti.banche_negative;
 
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Posizione Finanziaria Netta</CardTitle>
+        <CardTitle className="text-base">Posizione finanziaria netta (PFN)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          PFN = (Mutui MLT + Banche scoperte) − (Cassa + Banche positive)
+          Quanto devi alle banche meno i soldi che hai sui conti: (mutui e finanziamenti + conti in rosso) − (cassa + conti in attivo).
+          {" "}Se è <strong>negativa</strong> hai più liquidità che debiti finanziari; se è <strong>positiva</strong> sei indebitato per quella cifra.
+          {anno !== annoCorrente && ` È la posizione di oggi, non a fine ${anno}: i saldi storici dei conti non sono salvati.`}
         </p>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div
             className={cn(
-              "rounded-2xl p-4",
+              "min-w-0 rounded-2xl p-4",
               pfn > 0 ? "bg-rose-50" : "bg-emerald-50",
             )}
           >
-            <p className="text-xs text-muted-foreground">PFN totale</p>
+            <p className="text-xs text-muted-foreground">PFN oggi</p>
             <p
               className={cn(
-                "mt-1 flex items-center gap-2 text-2xl font-bold tabular-nums",
+                "mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tabular-nums",
                 pfn > 0 ? "text-rose-700" : "text-emerald-700",
               )}
             >
@@ -88,41 +99,81 @@ function PFNSection({ anno }: { anno: number }) {
               {formatCurrency(pfn)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {pfn > 0 ? "Indebitamento netto" : "Posizione di cassa netta"}
+              {pfn > 0
+                ? "Indebitamento netto: i debiti finanziari superano la liquidità"
+                : "Cassa netta: la liquidità copre tutti i debiti finanziari"}
             </p>
           </div>
-          <div className="rounded-2xl bg-amber-50 p-4">
-            <p className="text-xs text-muted-foreground">Indebitamento</p>
+          <div className="min-w-0 rounded-2xl bg-amber-50 p-4">
+            <p className="text-xs text-muted-foreground">Debiti finanziari</p>
             <p className="mt-1 text-xl font-bold tabular-nums text-amber-700">
               {formatCurrency(indebitamento)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Mutui {formatCurrency(componenti.mutui_mlt)} + Scoperti{" "}
+              Mutui {formatCurrency(componenti.mutui_mlt)} + conti in rosso{" "}
               {formatCurrency(componenti.banche_negative)}
             </p>
           </div>
-          <div className="rounded-2xl bg-blue-50 p-4">
+          <div className="min-w-0 rounded-2xl bg-blue-50 p-4">
             <p className="text-xs text-muted-foreground">Liquidità</p>
             <p className="mt-1 text-xl font-bold tabular-nums text-blue-700">
               {formatCurrency(liquidita)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Cassa {formatCurrency(componenti.cassa)} + Banche+{" "}
-              {formatCurrency(componenti.banche_positive)}
+              Conti in attivo {formatCurrency(componenti.banche_positive)}
+              {componenti.cassa !== 0 && ` + cassa ${formatCurrency(componenti.cassa)}`}
             </p>
           </div>
-          <div className="rounded-2xl bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">Indice copertura</p>
+          <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
+            <p className="text-xs text-muted-foreground">Copertura dei debiti</p>
             <p className="mt-1 text-xl font-bold tabular-nums">
-              {indebitamento > 0
-                ? `${((liquidita / indebitamento) * 100).toFixed(1)}%`
-                : "—"}
+              {indebitamento > 0 ? percIt((liquidita / indebitamento) * 100) : "—"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Liquidità / Indebitamento
+              Liquidità ÷ debiti finanziari: sopra il 100% potresti estinguerli tutti oggi.
             </p>
           </div>
         </div>
+
+        {conti.data && conti.data.length > 0 && (
+          <details className="rounded-xl border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">Da quali conti viene (saldo contabile e disponibile)</summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">Conti attivi con saldo contabile e disponibile</caption>
+                <thead className="text-xs text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="py-1.5 pr-3 text-left font-medium">Conto</th>
+                    <th scope="col" className="py-1.5 pr-3 text-right font-medium">Saldo contabile (PFN)</th>
+                    <th scope="col" className="py-1.5 text-right font-medium">Disponibile (Previsionale)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conti.data.map((c) => (
+                    <tr key={c.id} className="border-t">
+                      <td className="py-1.5 pr-3">{c.nome}</td>
+                      <td className={cn("whitespace-nowrap py-1.5 pr-3 text-right tabular-nums", c.saldo < 0 && "font-medium text-rose-700")}>{formatCurrency(c.saldo)}</td>
+                      <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-muted-foreground">
+                        {c.disponibile == null ? <span title="La banca non dichiara un disponibile: si usa il saldo">{formatCurrency(c.saldo)}*</span> : formatCurrency(c.disponibile)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t font-semibold">
+                    <td className="py-1.5 pr-3">Totale</td>
+                    <td className="whitespace-nowrap py-1.5 pr-3 text-right tabular-nums">{formatCurrency(saldoContabile)}</td>
+                    <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{disponibileTotale == null ? "—" : formatCurrency(disponibileTotale)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              La PFN usa il <strong>saldo contabile</strong> (quello del bilancio); il Previsionale parte dal{" "}
+              <strong>disponibile</strong>, cioè i soldi che puoi spendere oggi. Se i due totali sono molto diversi,
+              aggiorna i saldi in <Link to="/azienda/tesoreria" className="font-medium text-primary underline">Tesoreria</Link>.
+              {conti.data.some((c) => c.disponibile == null) && " * conto senza disponibile: vale il saldo."}
+            </p>
+          </details>
+        )}
       </CardContent>
     </Card>
   );
@@ -130,7 +181,12 @@ function PFNSection({ anno }: { anno: number }) {
 
 // ── B. Loans (Mutui MLT) ────────────────────────────────────────────────────
 
-const LOAN_EMPTY: Omit<Loan, "id" | "company_id" | "created_at" | "updated_at"> = {
+type LoanForm = Omit<Loan, "id" | "company_id" | "created_at" | "updated_at">;
+
+/** Giorno di calendario locale (toISOString è in UTC: dopo mezzanotte dava il giorno prima). */
+const oggiLocale = () => new Date().toLocaleDateString("en-CA");
+
+const loanVuoto = (): LoanForm => ({
   banca: "",
   descrizione: "",
   capitale_iniziale: 0,
@@ -139,36 +195,56 @@ const LOAN_EMPTY: Omit<Loan, "id" | "company_id" | "created_at" | "updated_at"> 
   rata_mensile: 0,
   durata_mesi: 0,
   rate_pagate: 0,
-  data_inizio: new Date().toISOString().slice(0, 10),
-  data_fine: new Date().toISOString().slice(0, 10),
+  data_inizio: oggiLocale(),
+  data_fine: oggiLocale(),
   is_active: true,
   note: "",
-};
+});
+
+/** Messaggio dell'errore in parole semplici (mai «[object Object]»). */
+function messaggioErrore(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  return "Riprova tra poco.";
+}
 
 function LoansSection() {
   const q = useLoans();
   const upsert = useUpsertLoan();
   const del = useDeleteLoan();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Loan | null>(null);
+  // Ogni apertura rimonta il modulo: prima «Nuovo mutuo» dopo una modifica
+  // ripartiva dai dati (e dall'id) del mutuo appena aperto e lo sovrascriveva.
+  const [aperture, setAperture] = useState(0);
 
   const handleNew = () => {
     setEditing(null);
+    setAperture((n) => n + 1);
     setEditorOpen(true);
   };
 
   const handleEdit = (loan: Loan) => {
     setEditing(loan);
+    setAperture((n) => n + 1);
     setEditorOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (loan: Loan) => {
+    const ok = await confirm({
+      title: `Eliminare il finanziamento «${loan.banca}»?`,
+      description: "Esce da PFN, Stato patrimoniale e indici. L'operazione non si annulla.",
+      confirmLabel: "Elimina",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
-      await del.mutateAsync(id);
-      toast({ title: "Mutuo eliminato" });
+      await del.mutateAsync(loan.id);
+      toast({ title: "Finanziamento eliminato" });
     } catch (e) {
-      toast({ title: "Errore", description: String(e), variant: "destructive" });
+      toast({ title: "Finanziamento non eliminato", description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -178,12 +254,13 @@ function LoansSection() {
         <div>
           <CardTitle className="text-base">Mutui & Finanziamenti MLT</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Quote residue e rate mensili — alimentano PFN e Cash Flow.
+            Capitale ancora da restituire e rata: entrano nella PFN, nello Stato patrimoniale e nella
+            copertura delle rate (DSCR). Le rate entrano nella previsione di cassa solo se sono nello scadenzario.
           </p>
         </div>
-        <Button size="sm" onClick={handleNew}>
+        <Button size="sm" onClick={handleNew} className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
-          Nuovo mutuo
+          Nuovo finanziamento
         </Button>
       </CardHeader>
       <CardContent>
@@ -191,8 +268,8 @@ function LoansSection() {
         {q.isError && <ErrorBlock onRetry={() => q.refetch()} />}
         {q.data && q.data.length === 0 && (
           <EmptyState
-            title="Nessun mutuo registrato"
-            description="Aggiungi i tuoi mutui MLT per popolare PFN, SP e Cash Flow."
+            title="Nessun finanziamento registrato"
+            description="Aggiungi mutui e finanziamenti a medio-lungo termine: senza, la PFN considera solo i conti correnti."
           />
         )}
         {q.data && q.data.length > 0 && (
@@ -232,7 +309,7 @@ function LoansSection() {
                         {formatCurrency(l.rata_mensile)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
-                        {l.tasso_pct.toFixed(2)}%
+                        {percIt(Number(l.tasso_pct), 2)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">
                         {residue}/{l.durata_mesi}
@@ -254,7 +331,7 @@ function LoansSection() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(l.id)}
+                            onClick={() => handleDelete(l)}
                             aria-label="Elimina finanziamento"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -271,16 +348,23 @@ function LoansSection() {
       </CardContent>
 
       <LoanEditor
+        key={`${editing?.id ?? "nuovo"}-${aperture}`}
         open={editorOpen}
         onOpenChange={setEditorOpen}
         loan={editing}
+        saving={upsert.isPending}
         onSubmit={async (input) => {
+          const problema = erroreFinanziamento(input);
+          if (problema) {
+            toast({ title: "Controlla i dati", description: problema, variant: "destructive" });
+            return;
+          }
           try {
-            await upsert.mutateAsync(input);
-            toast({ title: editing ? "Mutuo aggiornato" : "Mutuo creato" });
+            await upsert.mutateAsync(editing ? { ...input, id: editing.id } : input);
+            toast({ title: editing ? "Finanziamento aggiornato" : "Finanziamento aggiunto" });
             setEditorOpen(false);
           } catch (e) {
-            toast({ title: "Errore", description: String(e), variant: "destructive" });
+            toast({ title: "Finanziamento non salvato", description: messaggioErrore(e), variant: "destructive" });
           }
         }}
       />
@@ -289,20 +373,20 @@ function LoansSection() {
 }
 
 function LoanEditor({
-  open, onOpenChange, loan, onSubmit,
+  open, onOpenChange, loan, onSubmit, saving,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   loan: Loan | null;
-  onSubmit: (input: Loan | typeof LOAN_EMPTY & { id?: string }) => Promise<void>;
+  saving: boolean;
+  onSubmit: (input: LoanForm) => Promise<void>;
 }) {
-  const [form, setForm] = useState(loan ?? LOAN_EMPTY);
-
-  // Re-init quando cambia il loan in editing.
-  // (uso useEffect-like via key prop in parent ma qui basta resettare manualmente)
-  if (loan && form.banca !== loan.banca && form.id !== loan.id) {
-    setForm(loan);
-  }
+  // Il componente si rimonta a ogni apertura (key nel genitore): lo stato parte sempre giusto.
+  const [form, setForm] = useState<LoanForm>(() => {
+    if (!loan) return loanVuoto();
+    const { id: _id, company_id: _c, created_at: _cr, updated_at: _u, ...campi } = loan;
+    return campi;
+  });
 
   const handle = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -311,7 +395,7 @@ function LoanEditor({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>{loan ? "Modifica mutuo" : "Nuovo mutuo"}</SheetTitle>
+          <SheetTitle>{loan ? "Modifica finanziamento" : "Nuovo finanziamento"}</SheetTitle>
         </SheetHeader>
         <div className="mt-4 space-y-3">
           <div>
@@ -399,9 +483,10 @@ function LoanEditor({
           </div>
           <Button
             className="w-full"
-            onClick={() => onSubmit(loan ? { ...loan, ...form } : form)}
+            disabled={saving}
+            onClick={() => onSubmit(form)}
           >
-            {loan ? "Aggiorna" : "Crea mutuo"}
+            {loan ? "Salva le modifiche" : "Aggiungi finanziamento"}
           </Button>
         </div>
       </SheetContent>
@@ -434,13 +519,14 @@ function AgingSection() {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Aging scadenze</CardTitle>
+            <CardTitle className="text-base">Scadenze aperte per anzianità</CardTitle>
             <p className="text-xs text-muted-foreground">
               {direction === "out"
-                ? "Debiti aperti per fascia (a scadere / scaduto)"
-                : "Crediti aperti per fascia (a scadere / scaduto)"}
+                ? "Quanto devi ai fornitori secondo lo scadenzario, diviso per quanto è in ritardo."
+                : "Quanto ti devono i clienti secondo lo scadenzario, diviso per quanto è in ritardo."}
+              {q.data && ` Totale aperto ${formatCurrency(q.data.totale)} su ${q.data.n_aperte} posizioni.`}
             </p>
           </div>
           <ToggleGroup
@@ -513,7 +599,11 @@ function AgingSection() {
                   <tbody>
                     {q.data.righe.slice(0, 50).map((r) => (
                       <tr key={r.id} className="border-t">
-                        <td className="px-3 py-2 text-sm">{r.descrizione}</td>
+                        <td className="px-3 py-2 text-sm">
+                          <Link to="/azienda/scadenzario" className="hover:text-primary hover:underline">
+                            {r.descrizione || "Scadenza senza descrizione"}
+                          </Link>
+                        </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">
                           {r.controparte ?? "—"}
                         </td>
@@ -532,11 +622,10 @@ function AgingSection() {
                     ))}
                   </tbody>
                 </table>
-                {q.data.righe.length > 50 && (
-                  <p className="border-t bg-muted/20 p-2 text-center text-xs text-muted-foreground">
-                    Visualizzate prime 50 di {q.data.righe.length} righe.
-                  </p>
-                )}
+                <p className="border-t bg-muted/20 p-2 text-center text-xs text-muted-foreground">
+                  {q.data.righe.length > 50 ? `Le prime 50 di ${q.data.righe.length}, dalla più vecchia. ` : ""}
+                  <Link to="/azienda/scadenzario" className="font-medium text-primary underline">Apri lo scadenzario</Link> per segnarle pagate o cambiarne la data.
+                </p>
               </div>
             )}
           </>
