@@ -32,7 +32,7 @@ describe("scelte a bottoni al posto di «scrivi il numero»", () => {
     dueCantieri();
     const r = await statoCantiere(ctx, { query: "villa" });
     expect(r.ok).toBe(true);
-    const inter = (r.data as { __interactive?: unknown })?.__interactive;
+    const inter = ((r as { data?: unknown }).data as { __interactive?: unknown })?.__interactive;
     expect(inter).toBeTruthy();
     const dump = JSON.stringify(inter);
     expect(dump).toContain("Villa Rossi");
@@ -45,7 +45,7 @@ describe("scelte a bottoni al posto di «scrivi il numero»", () => {
     dueCantieri();
     const r = await marginalitaCantiere(ctx, { query: "villa" });
     expect(r.ok).toBe(true);
-    const dump = JSON.stringify((r.data as { __interactive?: unknown })?.__interactive ?? "");
+    const dump = JSON.stringify(((r as { data?: unknown }).data as { __interactive?: unknown })?.__interactive ?? "");
     expect(dump).toContain("Villa Rossi");
     expect(dump).toContain("Villa Bianchi");
   });
@@ -55,9 +55,9 @@ describe("scelte a bottoni al posto di «scrivi il numero»", () => {
       { id: "t1", company_id: "company", subject: "Betoniera rotta", priorita: "alta", status: "aperto", fonte: "campo", created_at: "2026-10-20", order_id: "o1" },
       { id: "t2", company_id: "company", subject: "Materiale mancante", priorita: "media", status: "aperto", fonte: "campo", created_at: "2026-10-19", order_id: "o2" },
     ];
-    const r = await listaApprovazioni(ctx, {});
+    const r = await listaApprovazioni(ctx);
     expect(r.ok).toBe(true);
-    const inter = (r.data as { __interactive?: unknown; items?: unknown[] })?.__interactive;
+    const inter = ((r as { data?: unknown }).data as { __interactive?: unknown; items?: unknown[] })?.__interactive;
     expect(inter).toBeTruthy();
     const dump = JSON.stringify(inter);
     expect(dump).toContain("Betoniera rotta");

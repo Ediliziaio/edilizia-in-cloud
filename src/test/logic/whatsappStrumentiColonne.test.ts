@@ -77,7 +77,7 @@ describe("segnalazioni in sospeso", () => {
   it("sono i ticket dal cantiere ancora aperti", async () => {
     const esito = await listaApprovazioni(ctx);
     // Le richieste sono bottoni interattivi (si toccano), non un elenco da leggere.
-    const bottoni = JSON.stringify((esito.data as { __interactive?: unknown })?.__interactive ?? "");
+    const bottoni = JSON.stringify(((esito as { data?: unknown }).data as { __interactive?: unknown })?.__interactive ?? "");
     expect(bottoni).toContain("perde un tubo");
     expect(bottoni).not.toContain("Richiesta del cliente");
     expect(bottoni).not.toContain("già fatto");
