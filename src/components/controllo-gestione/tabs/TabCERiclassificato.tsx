@@ -36,6 +36,10 @@ import { DettaglioVoceMeseSheet } from "@/components/controllo-gestione/ui/Detta
 import { isDrillDownEnabled } from "@/hooks/controlloGestione/useDettaglioVoceMese";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { formatPct } from "@/lib/controlloGestione/formatCG";
+import { etichettaVoce, spiegazioneImposte } from "@/lib/controlloGestione/contoEconomico";
+import { useImposte } from "@/hooks/controlloGestione/useImposte";
+import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
 
 interface TabCERiclassificatoProps {
   anno: number;
@@ -96,12 +100,14 @@ function calcDeltaPct(curr: number, prev: number): number | null {
   return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
-function formatPercent(value: number): string {
-  return new Intl.NumberFormat("it-IT", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(value);
-}
+/** Spiegazioni brevi dei margini per chi non fa il commercialista. */
+const SPIEGAZIONI_MARGINI: Record<string, string> = {
+  A: "Ricavi delle vendite più la variazione dei lavori in corso: quanto ha prodotto l'azienda nel periodo.",
+  D: "Ricavi meno materiali e lavorazioni (subappalti, noli, trasporti): quanto resta per pagare struttura e personale.",
+  E: "EBITDA o MOL: margine dopo personale e spese generali, prima di ammortamenti, interessi e tasse. È il numero che guardano le banche.",
+  F: "EBIT: margine operativo dopo gli ammortamenti (il costo dei mezzi e delle attrezzature distribuito negli anni).",
+  "08b": "Uscite di banca e costi senza una voce assegnata: vanno classificate in Configurazione. I giroconti tra conti propri non sono costi.",
+};
 
 export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificatoProps) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,6 +119,10 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
   } | null>(null);
   const ce = useCEriclassificato(anno, meseDa, meseA);
   const bep = useBEP(anno);
+  const imposte = useImposte(anno);
+  // Stessa fonte della Dashboard («N commesse in perdita»): la qualità dati
+  // diceva «nessuna anomalia» mentre sotto comparivano cantieri sotto zero.
+  const commesse = useMarginalitaCommesse(anno);
   const { insights } = useControlloGestioneInsights(anno);
 
   const handleVistaChange = (value: string) => {
@@ -203,13 +213,21 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
     const ebitPctPil = pil !== 0 ? (ebit / pil) * 100 : 0;
     const costoMaterie = findVoce(ce.data.voci, "B");
     const costoPersonale = findVoce(ce.data.voci, "06");
+    const costiNonClassificati = findVoce(ce.data.voci, "08b");
     const qualityChecks = buildQualityChecks({
       hasCedolini: ce.data.meta.has_cedolini,
       periodoLabel,
       ebitdaPctPil,
       costoMaterie,
       costoPersonale,
+      costiNonClassificati,
+      commesseInPerdita: commesse.data?.kpi.n_in_perdita ?? null,
     });
+    const spiegazioni: Record<string, string | null> = {
+      ...SPIEGAZIONI_MARGINI,
+      "15": spiegazioneImposte(ce.data.voci, imposte.data?.aliquote),
+    };
+    const annoInCorso = anno === new Date().getFullYear() && meseA === 12;
     const ceActions = buildCeActions({
       ebitdaPctPil,
       ebitPctPil,
@@ -239,9 +257,9 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
                   rows: [
                     { label: "Periodo", value: periodoLabel, note: "Periodo selezionato in pagina" },
                     { label: "Ricavi", value: formatCurrency(ricavi), note: "Ricavi delle vendite" },
-                    { label: "EBITDA", value: formatCurrency(ebitda), note: `${formatPercent(ebitdaPctPil)}% del PIL` },
-                    { label: "EBIT", value: formatCurrency(ebit), note: `${formatPercent(ebitPctPil)}% del PIL` },
-                    { label: "Utile", value: formatCurrency(utile), note: pil !== 0 ? `${formatPercent((utile / pil) * 100)}% del PIL` : "" },
+                    { label: "EBITDA", value: formatCurrency(ebitda), note: `${formatPct(ebitdaPctPil)} del valore della produzione` },
+                    { label: "EBIT", value: formatCurrency(ebit), note: `${formatPct(ebitPctPil)} del valore della produzione` },
+                    { label: "Utile", value: formatCurrency(utile), note: pil !== 0 ? `${formatPct((utile / pil) * 100)} del valore della produzione` : "" },
                     ...ceActions.map((action) => ({
                       label: action.title,
                       value: action.tone,
@@ -254,11 +272,12 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
                     { header: "Cod", key: "codice", width: 6 },
                     { header: "Voce", key: "label", width: 35 },
                     { header: "Importo", key: "valore", width: 16, type: "number" },
-                    { header: "% PIL", key: "pct_pil_disp", width: 10 },
+                    { header: "% sui ricavi", key: "pct_disp", width: 12 },
                   ],
                   rows: ce.data.voci.map((v) => ({
                     ...v,
-                    pct_pil_disp: v.pct_pil != null ? `${Number(v.pct_pil).toFixed(1)}%` : "",
+                    label: etichettaVoce(v.codice, v.label),
+                    pct_disp: pil !== 0 && v.valore !== 0 ? formatPct((v.valore / pil) * 100) : "",
                   })),
                   rowStyle: (row) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -274,6 +293,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
         </div>
         <CEExecutiveSummary
           periodoLabel={periodoLabel}
+          notaAnnoInCorso={annoInCorso}
           ricavi={ricavi}
           ebitda={ebitda}
           utile={utile}
@@ -295,6 +315,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
             <CardContent>
               <CETable
                 voci={ce.data.voci}
+                spiegazioni={spiegazioni}
                 isVoceClickable={(voce) =>
                   canDrillConsuntivo && isDrillDownEnabled(voce.codice) && voce.valore !== 0
                 }
@@ -310,26 +331,18 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           </Card>
 
           <div className="space-y-3 lg:col-span-1">
+            {/* Ricavi, EBITDA e utile stanno nella sintesi in alto: qui solo
+                quello che la sintesi non dice. */}
             <KPIBox
-              label="Ricavi delle vendite"
-              value={formatCurrency(ricavi)}
-              sub={ricavi !== pil ? `PIL ${formatCurrency(pil)}` : undefined}
-              tone="blue"
-            />
-            <KPIBox
-              label="MOL / EBITDA"
-              value={formatCurrency(ebitda)}
-              sub={`${ebitdaPctPil.toFixed(1)}% del PIL`}
-              tone={ebitda >= 0 ? "green" : "red"}
-            />
-            <KPIBox
-              label="EBIT (operativo)"
+              label="EBIT (risultato operativo)"
               value={formatCurrency(ebit)}
-              sub={pil !== 0 ? `${((ebit / pil) * 100).toFixed(1)}% del PIL` : undefined}
+              sub={pil !== 0 ? `${formatPct(ebitPctPil)} dei ricavi` : undefined}
               tone={ebit >= 0 ? "green" : "red"}
+              spiegazione={SPIEGAZIONI_MARGINI.F}
             />
             <KPIBox
-              label="Leva operativa (DOL)"
+              label="Leva operativa"
+              spiegazione="Quanto si muove l'utile operativo quando si muovono i ricavi: più costi fissi hai, più è alta."
               value={dol !== null ? `×${dol.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "—"}
               sub={
                 dol !== null
@@ -339,13 +352,8 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
               tone="blue"
             />
             <KPIBox
-              label="Utile di bilancio"
-              value={formatCurrency(utile)}
-              sub={pil !== 0 ? `${((utile / pil) * 100).toFixed(1)}% del PIL` : undefined}
-              tone={utile >= 0 ? "green" : "red"}
-            />
-            <KPIBox
-              label="Break Even Point"
+              label="Punto di pareggio"
+              spiegazione="Il giorno in cui i ricavi dell'anno coprono tutti i costi fissi: da lì in avanti ogni vendita porta utile."
               value={
                 bep.isLoading
                   ? "…"
@@ -355,18 +363,27 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
               }
               sub={
                 bep.data?.gia_raggiunto
-                  ? "BEP già raggiunto"
+                  ? "Già raggiunto: i costi fissi dell'anno sono coperti"
                   : bep.data?.giorni_residui != null
-                    ? `${bep.data.giorni_residui} giorni residui`
+                    ? `Mancano ${bep.data.giorni_residui} giorni`
                     : undefined
               }
               tone={bep.data?.gia_raggiunto ? "green" : "neutral"}
             />
+            {costiNonClassificati > 0 && (
+              <KPIBox
+                label="Costi da classificare"
+                value={formatCurrency(costiNonClassificati)}
+                sub={<Link className="underline underline-offset-2" to="/azienda/controllo-gestione/configurazione">Assegnali a una voce in Configurazione</Link>}
+                tone="neutral"
+                spiegazione={SPIEGAZIONI_MARGINI["08b"]}
+              />
+            )}
           </div>
 
           <Card className="rounded-2xl lg:col-span-3">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Andamento Ricavi vs Costi vs BEP</CardTitle>
+              <CardTitle className="text-base">Ricavi e costi progressivi: quando si va in utile</CardTitle>
             </CardHeader>
             <CardContent>
               <BEPChart anno={anno} />
@@ -406,6 +423,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
 
 function CEExecutiveSummary({
   periodoLabel,
+  notaAnnoInCorso,
   ricavi,
   ebitda,
   utile,
@@ -414,6 +432,7 @@ function CEExecutiveSummary({
   actions,
 }: {
   periodoLabel: string;
+  notaAnnoInCorso: boolean;
   ricavi: number;
   ebitda: number;
   utile: number;
@@ -435,14 +454,15 @@ function CEExecutiveSummary({
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Lightbulb className="h-4 w-4 text-amber-600" />
-                Sintesi CFO CE
+                In sintesi
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Lettura direzionale del conto economico per {periodoLabel.toLowerCase()}.
+                Conto economico: {periodoLabel.toLowerCase()}, importi IVA esclusa.
+                {notaAnnoInCorso && " Anno in corso: ricavi delle fatture emesse finora, costi anche quelli già programmati fino a dicembre."}
               </p>
             </div>
             <Badge variant="outline" className="w-fit">
-              {formatPercent(ebitdaPctPil)}% EBITDA/PIL
+              Margine EBITDA {formatPct(ebitdaPctPil)}
             </Badge>
           </div>
         </CardHeader>
@@ -497,10 +517,10 @@ function CEExecutiveSummary({
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                Qualità dati CE
+                Affidabilità dei numeri
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Controlli rapidi prima di usare i numeri per banca o direzione.
+                Controlli prima di usare questi numeri con la banca.
               </p>
             </div>
             <QualityBadge tone={worstTone} />
@@ -571,14 +591,18 @@ function buildQualityChecks({
   ebitdaPctPil,
   costoMaterie,
   costoPersonale,
+  costiNonClassificati = 0,
+  commesseInPerdita = null,
 }: {
   hasCedolini: boolean;
   periodoLabel: string;
   ebitdaPctPil: number;
   costoMaterie: number;
   costoPersonale: number;
+  costiNonClassificati?: number;
+  commesseInPerdita?: number | null;
 }): QualityCheck[] {
-  return [
+  const checks: QualityCheck[] = [
     {
       id: "periodo",
       label: `Periodo: ${periodoLabel}`,
@@ -597,10 +621,12 @@ function buildQualityChecks({
     },
     {
       id: "margine",
-      label: ebitdaPctPil > 45 ? "Margine molto alto" : "Margine operativo leggibile",
+      label: ebitdaPctPil > 45
+        ? `Margine EBITDA molto alto (${formatPct(ebitdaPctPil)})`
+        : `Margine EBITDA dell'azienda ${formatPct(ebitdaPctPil)}`,
       description: ebitdaPctPil > 45
-        ? "EBITDA/PIL sopra soglia: controlla che costi, paghe e ammortamenti siano completi."
-        : "La marginalità non mostra anomalie evidenti rispetto alle soglie interne.",
+        ? "Sopra il 45% è raro in edilizia: controlla che costi, paghe e ammortamenti ci siano tutti."
+        : "Il margine complessivo è in un intervallo plausibile. Riguarda l'azienda intera, non i singoli cantieri.",
       tone: ebitdaPctPil > 60 ? "danger" : ebitdaPctPil > 45 ? "warning" : "ok",
     },
     {
@@ -612,6 +638,23 @@ function buildQualityChecks({
       tone: costoMaterie === 0 || costoPersonale === 0 ? "warning" : "ok",
     },
   ];
+  if (commesseInPerdita != null && commesseInPerdita > 0) {
+    checks.push({
+      id: "commesse-perdita",
+      label: `${commesseInPerdita} ${commesseInPerdita === 1 ? "commessa" : "commesse"} in perdita`,
+      description: "Il margine complessivo è positivo ma alcune commesse chiudono sotto zero (margine atteso a fine lavori): vedi la scheda Commesse.",
+      tone: "warning",
+    });
+  }
+  if (costiNonClassificati > 0) {
+    checks.push({
+      id: "non-classificati",
+      label: `${formatCurrency(costiNonClassificati)} di costi senza voce`,
+      description: "Contano come spese generali e abbassano l'EBITDA. Assegnali a una voce in Configurazione (i giroconti tra conti propri non sono costi).",
+      tone: "warning",
+    });
+  }
+  return checks;
 }
 
 function buildCeActions({
@@ -635,8 +678,8 @@ function buildCeActions({
     actions.push({
       id: "periodo-parziale",
       tone: "warning",
-      title: "Confronto parziale",
-      body: "Stai guardando un periodo filtrato: usa forecast o stesso periodo prima di decidere.",
+      title: "Periodo parziale",
+      body: "Stai guardando solo una parte dell'anno: confrontala con lo stesso periodo o con il budget prima di decidere.",
       href: "/azienda/controllo-gestione/budget",
       cta: "Apri budget",
     });
@@ -647,7 +690,7 @@ function buildCeActions({
       id: "ebitda-alto",
       tone: ebitdaPctPil > 60 ? "danger" : "warning",
       title: "Verifica EBITDA",
-      body: `EBITDA/PIL al ${formatPercent(ebitdaPctPil)}%: ottimo se reale, rischioso se mancano costi.`,
+      body: `Margine EBITDA al ${formatPct(ebitdaPctPil)}: ottimo se reale, rischioso se mancano costi.`,
       href: "/azienda/controllo-gestione/health",
       cta: "Controlla dati",
     });
@@ -669,7 +712,7 @@ function buildCeActions({
       id: "ebit-basso",
       tone: "danger",
       title: "EBIT sotto soglia",
-      body: `EBIT/PIL al ${formatPercent(ebitPctPil)}%: sotto il 5% manca cuscinetto per imprevisti.`,
+      body: `Margine EBIT al ${formatPct(ebitPctPil)}: sotto il 5% manca un cuscinetto per gli imprevisti.`,
     });
   }
 
@@ -677,8 +720,8 @@ function buildCeActions({
     actions.push({
       id: "bep-ok",
       tone: "success",
-      title: "BEP raggiunto",
-      body: "Hai coperto i costi fissi: da qui guarda liquidità, accantonamenti e margini commessa.",
+      title: "Punto di pareggio raggiunto",
+      body: "I costi fissi dell'anno sono coperti: da qui guarda liquidità, accantonamenti e margini delle commesse.",
       href: "/azienda/controllo-gestione/cash-flow",
       cta: "Vedi cassa",
     });
@@ -811,7 +854,7 @@ function CEMensileView({ anno }: { anno: number }) {
                           !isGrasso && !isSub && "bg-background",
                         )}
                       >
-                        {v.label}
+                        {etichettaVoce(v.codice, v.label)}
                       </td>
                       {valoriMese.map((val, i) => {
                         const mese = i + 1;
@@ -831,13 +874,13 @@ function CEMensileView({ anno }: { anno: number }) {
                                     setDrill({
                                       mese,
                                       codice: v.codice,
-                                      label: v.label,
+                                      label: etichettaVoce(v.codice, v.label),
                                     })
                                 : undefined
                             }
                             title={
                               isClickable
-                                ? `Apri dettaglio ${v.label} · ${MESI_LABELS[i]}`
+                                ? `Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]}`
                                 : undefined
                             }
                           >
@@ -950,7 +993,7 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                  Δ% YoY
+                  Variazione sull'anno prima
                 </th>
                 <th className="w-12 px-2 py-2 text-center text-xs font-medium text-muted-foreground">
                   Trend
@@ -993,7 +1036,7 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                     <td className="px-2 py-2 font-mono text-xs text-muted-foreground">
                       {v.codice}
                     </td>
-                    <td className="px-3 py-2">{v.label}</td>
+                    <td className="px-3 py-2">{etichettaVoce(v.codice, v.label)}</td>
                     {valori.map((val, i) => (
                       <td
                         key={i}
