@@ -119,6 +119,8 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       descrizione_estesa: v.descrizione_estesa ?? null,
       // Senza l'ambiente nel payload ogni salvataggio azzerava il campo «Ambiente».
       ambiente: v.ambiente ?? null,
+      // Senza, ogni salvataggio toglieva la spunta di bene significativo.
+      bene_significativo: v.bene_significativo === true,
       ordine: v.ordine ?? i,
     }));
 

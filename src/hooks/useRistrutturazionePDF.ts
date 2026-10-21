@@ -77,6 +77,8 @@ export interface RstPdfTotali {
   marginePct: number | null;
   /** Il prezzo pieno è quello scritto a mano: il documento non mostra gli importi delle righe. */
   prezzoManuale?: boolean;
+  /** IVA divisa fra 10% e 22% per i beni significativi; null = un'aliquota sola. */
+  ivaRipartita?: import("@/lib/ristrutturazione/calcoli").IvaRipartita | null;
 }
 
 export interface RstPdfEnriched {
@@ -216,10 +218,12 @@ export async function enrichRistrutturazionePdf(opts: RstPdfPayload): Promise<Rs
     sconto_pct: v.sconto_pct,
     costo_materiali: v.costo_materiali,
     costo_manodopera: v.costo_manodopera,
+    bene_significativo: v.bene_significativo === true,
   }));
   const agg = calcTotaliComputo(allRows, {
     sconto_pct: scontoPct,
     iva_pct: ivaPct,
+    iva_beni_significativi: progetto.iva_beni_significativi === true,
     // Il prezzo scritto a mano in Economia prende il posto della somma delle righe.
     prezzo_manuale: progetto.prezzo_manuale ?? null,
   });
@@ -241,6 +245,7 @@ export async function enrichRistrutturazionePdf(opts: RstPdfPayload): Promise<Rs
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,
     prezzoManuale: agg.prezzoManuale,
+    ivaRipartita: agg.ivaRipartita ?? null,
   };
 
   // 5) Inline immagini critiche (logo template→company, cover, chi siamo) + media.

@@ -59,12 +59,19 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          bene_significativo: v.bene_significativo === true,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
-        { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: form.prezzo_manuale ?? null },
+        {
+          sconto_pct: scontoPct,
+          iva_pct: ivaPct,
+          prezzo_manuale: form.prezzo_manuale ?? null,
+          iva_beni_significativi: form.iva_beni_significativi === true,
+        },
       ),
-    [computo, scontoPct, ivaPct, form.prezzo_manuale],
+    [computo, scontoPct, ivaPct, form.prezzo_manuale, form.iva_beni_significativi],
   );
+  const vociBeniSignificativi = computo.filter((v) => v.bene_significativo).length;
 
   // Prezzo pieno prima dello sconto globale: la somma delle righe o il prezzo scritto.
   const imponibileLordo = totali.imponibileLordo;
@@ -156,6 +163,39 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 hint="In edilizia spesso 10% (ristrutturazione) o 4% (prima casa)."
               />
             </div>
+            {/* Beni significativi (DM 29/12/1999): solo con l'IVA al 10% della manutenzione. */}
+            {ivaPct === 10 && (
+              <div className="rounded-lg border p-3">
+                <label htmlFor="rst-beni-significativi" className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    id="rst-beni-significativi"
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-orange-600"
+                    checked={form.iva_beni_significativi === true}
+                    onChange={(e) => onChange("iva_beni_significativi", e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium">Applica le regole dei beni significativi</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      Infissi, caldaie, sanitari e rubinetteria, climatizzatori, ascensori… hanno il 10% solo fino al
+                      valore del resto dei lavori: la parte che lo supera va al 22% (DM 29/12/1999). Segna le voci nel
+                      Computo, in «Dettagli voce».
+                    </span>
+                  </span>
+                </label>
+                {form.iva_beni_significativi === true && (
+                  <p className="mt-2 text-[11px] text-slate-700">
+                    {vociBeniSignificativi === 0
+                      ? "Nessuna voce segnata come bene significativo: l'IVA resta tutta al 10%."
+                      : totali.ivaRipartita
+                        ? totali.ivaRipartita.imponibile22 > 0
+                          ? `Beni significativi ${formatCurrency(totali.ivaRipartita.beniSignificativi)}: al 10% ${formatCurrency(totali.ivaRipartita.imponibile10)}, al 22% ${formatCurrency(totali.ivaRipartita.imponibile22)}. IVA ${formatCurrency(totali.iva)}.`
+                          : `Beni significativi ${formatCurrency(totali.ivaRipartita.beniSignificativi)}: non superano il resto dei lavori, tutto resta al 10%.`
+                        : ""}
+                  </p>
+                )}
+              </div>
+            )}
             {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                 con la rata concreta sul totale corrente (scelta per-preventivo). */}
             <FinanziamentoQuoteToggle

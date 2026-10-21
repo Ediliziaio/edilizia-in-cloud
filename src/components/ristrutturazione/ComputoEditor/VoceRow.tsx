@@ -284,6 +284,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                     ? "Dettagli voce · aggiungi il costo: serve al margine"
                     : "Dettagli voce"}
                 {voce.ambiente ? ` · 📍 ${voce.ambiente}` : ""}
+                {voce.bene_significativo ? " · bene significativo" : ""}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -298,6 +299,18 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                     placeholder="es. Bagno, Cucina, Zona notte…"
                     className="h-6 flex-1 px-1.5 text-[11px]"
                   />
+                </label>
+                {/* Beni significativi (DM 29/12/1999): con l'IVA al 10% contano a parte. */}
+                <label className="flex cursor-pointer items-center gap-1.5 text-[11px]">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 accent-orange-600"
+                    checked={voce.bene_significativo === true}
+                    onChange={(e) => onChange({ bene_significativo: e.target.checked })}
+                  />
+                  <span className="text-muted-foreground">
+                    Bene significativo (infissi, caldaia, sanitari, rubinetteria, climatizzatore…): IVA agevolata solo fino al valore del resto dei lavori
+                  </span>
                 </label>
                 {/* I campi del costo anche quando manca (05/10/2026): il margine
                     dice «costi incompleti» e qui lo si scrive. La barra solo con un costo. */}

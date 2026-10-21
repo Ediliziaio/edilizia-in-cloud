@@ -138,12 +138,13 @@ async function generateProgettoCode(companyId: string): Promise<string> {
  */
 function totaliDaRighe(
   righe: ComputoRigaInput[],
-  parametri: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
+  parametri: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown; iva_beni_significativi?: unknown },
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
     iva_pct: Number(parametri.iva_pct ?? 22),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
+    iva_beni_significativi: parametri.iva_beni_significativi === true,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
 }
@@ -155,20 +156,21 @@ function totaliDaRighe(
 async function totaliConParametri(
   progettoId: string,
   companyId: string,
-  patch: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
+  patch: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown; iva_beni_significativi?: unknown },
 ): Promise<{ totale_imponibile: number; totale: number }> {
   const serveProgetto =
-    patch.sconto_pct === undefined || patch.iva_pct === undefined || patch.prezzo_manuale === undefined;
+    patch.sconto_pct === undefined || patch.iva_pct === undefined || patch.prezzo_manuale === undefined
+    || patch.iva_beni_significativi === undefined;
   const [voci, progetto] = await Promise.all([
     sb()
       .from("rst_computo_voci")
-      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera")
+      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera, bene_significativo")
       .eq("progetto_id", progettoId)
       .eq("company_id", companyId),
     serveProgetto
       ? sb()
           .from("rst_progetti")
-          .select("sconto_pct, iva_pct, prezzo_manuale")
+          .select("sconto_pct, iva_pct, prezzo_manuale, iva_beni_significativi")
           .eq("id", progettoId)
           .eq("company_id", companyId)
           .maybeSingle()
@@ -181,6 +183,7 @@ async function totaliConParametri(
     iva_pct: patch.iva_pct ?? progetto.data?.iva_pct,
     // `null` nel patch vuol dire «tolto»: non si riprende quello del DB.
     prezzo_manuale: patch.prezzo_manuale !== undefined ? patch.prezzo_manuale : progetto.data?.prezzo_manuale,
+    iva_beni_significativi: patch.iva_beni_significativi ?? progetto.data?.iva_beni_significativi,
   });
 }
 
@@ -217,7 +220,7 @@ export function useUpsertProgetto() {
         return inFila(id, async () => {
           // Sconto o IVA cambiati: i totali salvati si ricalcolano qui, come nel
           // salvataggio del computo. Senza, restavano quelli col vecchio sconto.
-          const totali = cambiaITotali(campi)
+          const totali = cambiaITotali(campi) || campi.iva_beni_significativi !== undefined
             ? await totaliConParametri(id, companyId, campi)
             : {};
           const { data, error } = await sb()
@@ -314,6 +317,7 @@ export function useClonaProgetto() {
           tipo_intervento: src.tipo_intervento,
           sconto_pct: src.sconto_pct,
           iva_pct: src.iva_pct,
+          iva_beni_significativi: src.iva_beni_significativi ?? false,
           prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
           // Il tetto di spesa fa parte della detrazione: senza, la copia prometteva più di quanto spetta.
@@ -343,6 +347,7 @@ export function useClonaProgetto() {
           prezzo_unitario: v.prezzo_unitario,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          bene_significativo: v.bene_significativo === true,
           sconto_pct: v.sconto_pct,
           importo: v.importo,
           margine_eur: v.margine_eur,
@@ -391,7 +396,7 @@ export function useSaveComputo(progettoId: string | undefined) {
         const [{ data: prog, error: pErr }, { data: vecchie, error: vErr }] = await Promise.all([
           sb()
             .from("rst_progetti")
-            .select("sconto_pct, iva_pct, prezzo_manuale")
+            .select("sconto_pct, iva_pct, prezzo_manuale, iva_beni_significativi")
             .eq("id", progettoId)
             .eq("company_id", companyId)
             .maybeSingle(),
@@ -449,6 +454,7 @@ export function useSaveComputo(progettoId: string | undefined) {
             immagine_url: r.immagine_url ?? null,
             descrizione_estesa: r.descrizione_estesa ?? null,
             ambiente: r.ambiente ?? null,
+            bene_significativo: r.bene_significativo === true,
             ordine: r.ordine ?? idx,
           };
         });

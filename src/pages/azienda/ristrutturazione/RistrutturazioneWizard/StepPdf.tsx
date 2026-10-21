@@ -119,16 +119,18 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          bene_significativo: v.bene_significativo === true,
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,
           iva_pct: Number(progetto.iva_pct ?? 22),
+          iva_beni_significativi: progetto.iva_beni_significativi === true,
           // Il prezzo scritto a mano in Economia: senza, anteprima e firma
           // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
           prezzo_manuale: progetto.prezzo_manuale ?? null,
         },
       ),
-    [computo, progetto.sconto_pct, progetto.iva_pct, progetto.prezzo_manuale],
+    [computo, progetto.sconto_pct, progetto.iva_pct, progetto.prezzo_manuale, progetto.iva_beni_significativi],
   );
 
   const numCapitoli = totali.perCapitolo.length;

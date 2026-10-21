@@ -40,6 +40,22 @@ export function stimaSuperficiVani(
 export interface ComputoRigaInput {
   capitolo_nome: string; quantita: number; prezzo_unitario: number; sconto_pct: number;
   costo_materiali: number; costo_manodopera: number;
+  /** Bene significativo (DM 29/12/1999): infissi, caldaie, sanitari e rubinetteria, climatizzatori… */
+  bene_significativo?: boolean | null;
+}
+
+/**
+ * IVA con i beni significativi (art. 7 L. 488/1999, DM 29/12/1999): nella
+ * manutenzione al 10% il bene significativo gode del 10% solo fino al valore
+ * del resto della prestazione (manodopera, altri materiali, opere); quello che
+ * avanza va al 22%. Gli importi sono già scontati.
+ */
+export interface IvaRipartita {
+  beniSignificativi: number;
+  imponibile10: number;
+  imponibile22: number;
+  iva10: number;
+  iva22: number;
 }
 
 /** Costo per unità della riga: materiali + manodopera, mai negativo. */
@@ -77,16 +93,17 @@ export function calcMargineRiga(r: Omit<ComputoRigaInput, "capitolo_nome">): {
  */
 export function calcTotaliComputo(
   righe: ComputoRigaInput[],
-  opts: { sconto_pct: number; iva_pct: number; prezzo_manuale?: number | null },
+  opts: { sconto_pct: number; iva_pct: number; prezzo_manuale?: number | null; iva_beni_significativi?: boolean | null },
 ) {
   // I conti sono in centesimi interi (06/10/2026): ogni riga arrotondata, poi somme e differenze.
   // Prima restavano in virgola mobile e i numeri stampati nel PDF non tornavano di un centesimo.
   const byCap = new Map<string, { nome: string; imponibileC: number; costo: number; voci: number }>();
   const manuale = n(opts.prezzo_manuale);
   const prezzoManuale = manuale > 0;
-  let sommaC = 0, costoTot = 0, righeSenzaCosto = 0;
+  let sommaC = 0, costoTot = 0, righeSenzaCosto = 0, beniC = 0;
   for (const r of righe) {
     const impC = centesimi(importoGrezzo(r));
+    if (r.bene_significativo) beniC += impC;
     const costoUnit = costoUnitario(r);
     const costoRiga = costoUnit * Math.max(0, n(r.quantita));
     if ((impC > 0 || (prezzoManuale && n(r.quantita) > 0)) && costoUnit <= 0) righeSenzaCosto += 1;
@@ -104,7 +121,27 @@ export function calcTotaliComputo(
   // coincide con quella stretta. Così imponibile + IVA = totale, e lordo − sconto = imponibile, a centesimi esatti.
   const nettoEsatto = euroDaCentesimi(lordoC) * (1 - scontoGlobale);
   const nettoC = centesimi(nettoEsatto);
-  const totaleC = centesimi(nettoEsatto * (1 + Math.max(0, n(opts.iva_pct)) / 100));
+  // Beni significativi: solo con l'IVA al 10%, l'opzione accesa e almeno una riga segnata.
+  // La quota dei beni sul netto è quella che hanno nella somma delle righe (anche col prezzo a mano).
+  let ivaRipartita: IvaRipartita | null = null;
+  let totaleC = centesimi(nettoEsatto * (1 + Math.max(0, n(opts.iva_pct)) / 100));
+  if (opts.iva_beni_significativi && n(opts.iva_pct) === 10 && beniC > 0 && sommaC > 0) {
+    const beni = nettoEsatto * (beniC / sommaC);
+    const altre = nettoEsatto - beni;
+    const eccedenza = Math.max(0, beni - altre);
+    const imp22C = centesimi(eccedenza);
+    const imp10C = nettoC - imp22C;
+    const iva10C = centesimi(euroDaCentesimi(imp10C) * 0.10);
+    const iva22C = centesimi(euroDaCentesimi(imp22C) * 0.22);
+    totaleC = nettoC + iva10C + iva22C;
+    ivaRipartita = {
+      beniSignificativi: euroDaCentesimi(centesimi(beni)),
+      imponibile10: euroDaCentesimi(imp10C),
+      imponibile22: euroDaCentesimi(imp22C),
+      iva10: euroDaCentesimi(iva10C),
+      iva22: euroDaCentesimi(iva22C),
+    };
+  }
   const ivaC = totaleC - nettoC;
   const imponibileLordo = euroDaCentesimi(lordoC);
   const imponibile = euroDaCentesimi(nettoC);
@@ -118,5 +155,13 @@ export function calcTotaliComputo(
     imponibile, iva, totale, costoTot, margineEur, marginePct,
     perCapitolo: [...byCap.values()].map((c) => ({ nome: c.nome, imponibile: euroDaCentesimi(c.imponibileC), costo: c.costo, voci: c.voci })),
     imponibileLordo, sommaVoci, prezzoManuale, costiCompleti, righeSenzaCosto,
+    // Solo quando l'IVA è davvero divisa: gli altri moduli danno gli stessi campi, campo per campo.
+    ...(ivaRipartita ? { ivaRipartita } : {}),
+  } as {
+    imponibile: number; iva: number; totale: number; costoTot: number;
+    margineEur: number | null; marginePct: number | null;
+    perCapitolo: Array<{ nome: string; imponibile: number; costo: number; voci: number }>;
+    imponibileLordo: number; sommaVoci: number; prezzoManuale: boolean; costiCompleti: boolean;
+    righeSenzaCosto: number; ivaRipartita?: IvaRipartita;
   };
 }

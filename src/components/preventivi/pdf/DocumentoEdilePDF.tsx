@@ -43,7 +43,7 @@ import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } fro
 import { TestoContrattoPdf } from './TestoContrattoPdf';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
-  DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
+  DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileTotali, DocEdileVoceElenco,
 } from "./documentoEdileTipi";
 
 // Must run before react-pdf resolves any image, including the first PDF preview.
@@ -68,6 +68,9 @@ const quantita = (q: number): string => {
 };
 // Percentuali all'italiana («7,5%», «7,25%»): il punto decimale e il decimale tagliato non vanno su un documento italiano.
 const percento = (v: number): string => percentualeIt(v);
+/** «IVA 10% inclusa», oppure «IVA 10% e 22% inclusa» quando i beni significativi superano il resto dei lavori. */
+const etichettaIvaInclusa = (t: DocEdileTotali): string =>
+  t.ivaRipartita && t.ivaRipartita.imponibile22 > 0 ? "IVA 10% e 22% inclusa" : `IVA ${percento(t.ivaPct)} inclusa`;
 
 // ─── Quanto occupa un capitolo, prima di disegnarlo ──────────────────────────
 // react-pdf non dice dove finisce una pagina. Per riempire con una foto le pagine
@@ -1652,7 +1655,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 { e: `Sconto ${percento(totali.scontoPct)}`, v: `- ${formatCurrency(totali.scontoEur)}` },
                 { e: "Imponibile netto", v: formatCurrency(totali.imponibile) },
               ] : []),
-              { e: `IVA ${percento(totali.ivaPct)}`, v: formatCurrency(totali.iva) },
+              // Beni significativi (DM 29/12/1999): l'IVA in due righe, 10% e 22%, ognuna con la sua base.
+              ...(totali.ivaRipartita && totali.ivaRipartita.imponibile22 > 0 ? [
+                { e: `IVA 10% su ${formatCurrency(totali.ivaRipartita.imponibile10)}`, v: formatCurrency(totali.ivaRipartita.iva10) },
+                { e: `IVA 22% su ${formatCurrency(totali.ivaRipartita.imponibile22)} (beni significativi)`, v: formatCurrency(totali.ivaRipartita.iva22) },
+              ] : [
+                { e: `IVA ${percento(totali.ivaPct)}`, v: formatCurrency(totali.iva) },
+              ]),
             ].map((r, i) => (
               <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio }}>{r.e}</Text>
@@ -1667,7 +1676,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <View>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.bianco, letterSpacing: 1.8 }}>IL TUO INVESTIMENTO</Text>
               <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>
-                {`IVA ${percento(totali.ivaPct)} inclusa${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
+                {`${etichettaIvaInclusa(totali)}${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
               </Text>
             </View>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 32, color: tema.bianco, letterSpacing: -0.6, paddingRight: 7 }}>{formatCurrency(totali.totale)}</Text>
@@ -1904,7 +1913,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <RigaRiepilogo tema={tema} etichetta="Oggetto" valore={dati.tipoIntervento || modulo.etichetta} />
             {dati.cantiere ? <RigaRiepilogo tema={tema} etichetta="Luogo dei lavori" valore={dati.cantiere} /> : null}
             <RigaRiepilogo tema={tema} etichetta="Documento" valore={[dati.codice ? `Preventivo ${dati.codice}` : "Preventivo", `del ${oggi()}`].join(" ")} />
-            <RigaRiepilogo tema={tema} etichetta="Importo" valore={`${formatCurrency(totali.totale)} · IVA ${percento(totali.ivaPct)} inclusa`} forte />
+            <RigaRiepilogo tema={tema} etichetta="Importo" valore={`${formatCurrency(totali.totale)} · ${etichettaIvaInclusa(totali)}`} forte />
             {modello.giorniValidita && modello.giorniValidita > 0 ? (
               <RigaRiepilogo tema={tema} etichetta="Validità" valore={`${modello.giorniValidita} giorni dalla data del documento`} />
             ) : null}

@@ -136,6 +136,7 @@ export default function CapitoloSection({
     copy.sconto_pct = voci[idx].sconto_pct;
     // La stanza non è un dato del listino: la copia resta nello stesso ambiente, senza finire in «Non assegnato».
     copy.ambiente = voci[idx].ambiente ?? null;
+    copy.bene_significativo = voci[idx].bene_significativo === true;
     const next = [...voci];
     next.splice(idx + 1, 0, copy);
     onChange(next.map((v, i) => ({ ...v, ordine: i })));

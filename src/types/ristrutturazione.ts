@@ -26,6 +26,8 @@ export interface RstComputoVoce {
   immagine_url?: string | null;
   /** La descrizione del prodotto, copiata dal listino quando la voce è stata scelta. */
   descrizione_estesa?: string | null;
+  /** Bene significativo (DM 29/12/1999): con l'IVA al 10% gode dell'agevolazione solo fino al valore del resto dei lavori. */
+  bene_significativo?: boolean | null;
 }
 export interface RstProgetto {
   fasi_previste?: Array<{ name: string; notes: string | null; sottofasi: Array<{ name: string; peso: number }> }>;
@@ -44,6 +46,8 @@ export interface RstProgetto {
   /** Numero di rate scelto per questo preventivo (rata nel PDF): null = quello del modello (finanziamento_promo.rate); il TAN è quello del modello. */
   finanziamento_rate?: number | null;
   sconto_pct: number; iva_pct: number; detrazione_pct: number;
+  /** IVA al 10% con i beni significativi: le voci segnate pagano il 22% sulla parte che supera il resto dei lavori. */
+  iva_beni_significativi?: boolean | null;
   /**
    * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle righe
    * del computo; sconto e IVA si calcolano sopra. Null = somma delle righe. Si

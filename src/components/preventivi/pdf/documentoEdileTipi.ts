@@ -58,6 +58,8 @@ export interface DocEdileTotali {
    * importi né i subtotali — solo le lavorazioni, e il prezzo nell'investimento.
    */
   prezzoManuale?: boolean;
+  /** IVA divisa fra 10% e 22% (beni significativi, DM 29/12/1999); assente = un'aliquota sola. */
+  ivaRipartita?: { beniSignificativi: number; imponibile10: number; imponibile22: number; iva10: number; iva22: number } | null;
 }
 
 export interface DocEdileOpzioniComputo {
