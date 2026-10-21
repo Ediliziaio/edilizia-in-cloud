@@ -78,6 +78,20 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run public website and structured data regressions
+        run: >-
+          bunx vitest run --maxWorkers=1
+          src/test/ui/marketingDemoJourney.test.tsx
+          src/test/ui/softwareComparisons.test.tsx
+          src/test/ui/warehouseFlow.test.tsx
+          src/test/ui/commessaFlowSection.test.tsx
+          src/test/ui/blogSeoMetadata.test.tsx
+          src/test/ui/calendarioInPagina.test.tsx
+          src/test/logic/comparisonCrawlerParity.test.ts
+          src/test/logic/prerenderJsonLd.test.ts
+          src/test/logic/searchConsoleStructuredData.test.ts
+          src/test/logic/prerenderPerIBot.test.ts
+
       - name: Run contract, intervention and office workflow regressions
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000

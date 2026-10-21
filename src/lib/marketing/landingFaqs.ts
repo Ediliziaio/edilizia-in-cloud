@@ -50,4 +50,3 @@ export const landingFaqs: FAQItem[] = [
       "Sì. Edilizia in Cloud è progettato anche per le imprese che lavorano con appalti pubblici: gestisce la rendicontazione SAL, il DURC, la documentazione richiesta dalle stazioni appaltanti e i fondi PNRR. Tutta la documentazione è archiviata digitalmente e sempre disponibile per i controlli.",
   },
 ];
-
