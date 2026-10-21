@@ -580,6 +580,8 @@ export function CalendarWeekView({
           style={getCalendarEventStyle(eventColors.appuntamento)}
           onClick={(event) => {
             event.stopPropagation();
+            // Appuntamento commerciale di un collega: si vede che è occupato, non si apre.
+            if (apt.riservato) return;
             setEditingAppointment(mapAppointmentToEditData(apt));
             setNewAppointmentSlot(null);
             setAppointmentDialogOpen(true);

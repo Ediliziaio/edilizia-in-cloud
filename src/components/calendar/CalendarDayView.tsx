@@ -753,6 +753,8 @@ export function CalendarDayView({
         onEditEvent={(event) => {
           setDetailsOpen(false);
           if (event.appointment) {
+            // Appuntamento commerciale di un collega: si vede che è occupato, non si apre.
+            if (event.appointment.riservato) return;
             setEditingAppointment(mapAppointmentToEditData(event.appointment));
             setAppointmentDialogOpen(true);
           } else if (

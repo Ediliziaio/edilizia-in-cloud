@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { differenceInMinutes, endOfMonth, format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
@@ -93,6 +94,62 @@ export function useMyTodayTimbrature(profiloId: string | undefined) {
   });
 }
 
+/**
+ * Ore lavorate in una giornata: dall'entrata all'uscita (o ad adesso, se non
+ * è ancora uscito), meno le pause. Condiviso da «Ore» e da «Il mio stato».
+ */
+export function calcolaOreLavorate(timbrs: HrTimbratura[]): number {
+  let minutiPausa = 0;
+  const entrata = timbrs.find(t => t.tipo === "entrata");
+  const uscita = timbrs.find(t => t.tipo === "uscita");
+  if (!entrata) return 0;
+  const fine = uscita ? parseISO(uscita.timestamp) : new Date();
+  const minuti = differenceInMinutes(fine, parseISO(entrata.timestamp));
+  for (let i = 0; i < timbrs.length - 1; i++) {
+    const cur = timbrs[i];
+    const nxt = timbrs[i + 1];
+    const isPausaStart = cur.tipo === "pausa_inizio" || cur.tipo === "inizio_pausa";
+    const isPausaEnd = nxt.tipo === "pausa_fine" || nxt.tipo === "fine_pausa";
+    if (isPausaStart && isPausaEnd) {
+      minutiPausa += differenceInMinutes(parseISO(nxt.timestamp), parseISO(cur.timestamp));
+    }
+  }
+  return Math.max(0, (minuti - minutiPausa) / 60);
+}
+
+/** Le timbrature di un mese («yyyy-MM») del proprio profilo. Una sola chiave per «Ore» e «Il mio stato». */
+export function useMyTimbratureMese(profiloId: string | undefined, mese: string) {
+  return useQuery({
+    queryKey: ["my-timbrature-mese", profiloId, mese],
+    queryFn: async () => {
+      const [y, m] = mese.split("-");
+      const start = `${y}-${m}-01`;
+      const end = format(endOfMonth(new Date(Number(y), Number(m) - 1)), "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("hr_timbrature")
+        .select("*")
+        .eq("profilo_id", profiloId!)
+        .gte("data_evento", start)
+        .lte("data_evento", end)
+        .order("timestamp", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as unknown as HrTimbratura[];
+    },
+    enabled: !!profiloId,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/** Riepilogo di un mese: ore lavorate, giorni presenti, ore attese da contratto e ore in più. */
+export function riepilogoMese(timbrature: HrTimbratura[], oreGiornaliere: number | null | undefined) {
+  const perGiorno: Record<string, HrTimbratura[]> = {};
+  for (const t of timbrature) (perGiorno[t.data_evento] ??= []).push(t);
+  const ore = Object.values(perGiorno).reduce((acc, ts) => acc + calcolaOreLavorate(ts), 0);
+  const giorniPresenti = Object.values(perGiorno).filter(ts => ts.some(t => t.tipo === "entrata")).length;
+  const oreAttese = (oreGiornaliere ?? 0) * giorniPresenti;
+  return { perGiorno, ore, giorniPresenti, oreAttese, oreInPiu: Math.max(0, ore - oreAttese) };
+}
+
 /** Clock in/out mutation */
 export function useTimbra() {
   const queryClient = useQueryClient();
@@ -141,9 +198,15 @@ export function useTimbra() {
       return data;
     },
     onSuccess: () => {
+      // Tutto ciò che mostra le timbrature, ovunque si sia timbrato (barra in
+      // alto, scheda Ore, chiosco): oggi, il mese di «Il mio stato», il pannello
+      // ufficio «chi è presente» e la Manodopera del giorno.
       queryClient.invalidateQueries({ queryKey: ["hr-my-timbrature-today"] });
+      queryClient.invalidateQueries({ queryKey: ["my-timbrature-mese"] });
       queryClient.invalidateQueries({ queryKey: ["hr-timbrature"] });
       queryClient.invalidateQueries({ queryKey: ["hr-giornate"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-live-status"] });
+      queryClient.invalidateQueries({ queryKey: ["manodopera"] });
     },
     onError: (error: unknown) => {
       toast.error("Errore timbratura: " + getErrorMessage(error));

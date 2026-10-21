@@ -19,7 +19,7 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Clock, ClipboardCheck, CheckCircle2, PlayCircle, PauseCircle, LogOut,
+  Clock, ClipboardCheck, CheckCircle2, PlayCircle,
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
   CloudSun, ChevronRight, CalendarDays, Droplets,
   MapPin, Plus, Pencil, Trash2, X, Filter,
@@ -64,7 +64,6 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Link } from "react-router-dom";
-import { logger } from "@/utils/logger";
 import {
   useWeatherForecast,
   weatherCodeToEmoji,
@@ -283,126 +282,6 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TimbraturaSede
-// ─────────────────────────────────────────────────────────────────────────────
-function TimbraturaSede() {
-  const { user, effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const queryClient = useQueryClient();
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-
-  const { data: profilo, isLoading: loadingProfilo } = useQuery({
-    queryKey: ["hr-my-profilo", user?.id, companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("hr_profili").select("id, nome, cognome").eq("company_id", companyId!).eq("user_id", user!.id).eq("attivo", true).maybeSingle();
-      if (error) { logger.error("TimbraturaSede — errore:", error); throw error; }
-      return data;
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: timbratureOggi = [], isLoading: loadingTimbrature } = useQuery({
-    queryKey: ["hr-timbrature-today", profilo?.id, todayStr],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("hr_timbrature").select("id, tipo, timestamp, ora_evento").eq("profilo_id", profilo!.id).eq("data_evento", todayStr).order("timestamp", { ascending: true });
-      if (error) { logger.error("TimbraturaSede — errore:", error); throw error; }
-      return data ?? [];
-    },
-    enabled: !!profilo?.id,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
-
-  const timbraMutation = useMutation({
-    mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
-      const now = new Date();
-      // data_evento e ora_evento sono colonne GENERATE dal DB (derivate da
-      // `timestamp` in fuso Europe/Rome): NON vanno passate nell'insert, o
-      // Postgres risponde "cannot insert a non-DEFAULT value into column".
-      const { error } = await supabase.from("hr_timbrature").insert({
-        company_id: companyId,
-        profilo_id: profilo!.id,
-        tipo,
-        timestamp: now.toISOString(),
-        lat: null,
-        lng: null,
-        fonte: "web",
-        note: "Sede ufficio",
-      } as any);
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Timbratura registrata"); queryClient.invalidateQueries({ queryKey: ["hr-timbrature-today"] }); },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); },
-  });
-
-  const oreLavorate = useMemo(() => {
-    let totaleMs = 0; let ultimaEntrata: Date | null = null;
-    for (const t of timbratureOggi) {
-      const ts = new Date((t as any).timestamp);
-      if ((t as any).tipo === "entrata" || (t as any).tipo === "pausa_fine") ultimaEntrata = ts;
-      else if (((t as any).tipo === "uscita" || (t as any).tipo === "pausa_inizio") && ultimaEntrata) { totaleMs += ts.getTime() - ultimaEntrata.getTime(); ultimaEntrata = null; }
-    }
-    if (ultimaEntrata) totaleMs += Date.now() - ultimaEntrata.getTime();
-    return Math.round((totaleMs / 3_600_000) * 10) / 10;
-  }, [timbratureOggi]);
-
-  const lastTimbro = timbratureOggi[timbratureOggi.length - 1] as any;
-  const isEntrato = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
-  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
-  const isUscito = lastTimbro?.tipo === "uscita";
-  const nonHaTimbrato = !lastTimbro;
-  const isLoading = loadingProfilo || loadingTimbrature;
-  const isMutating = timbraMutation.isPending;
-
-  if (!isLoading && !profilo) return (
-    <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4" />Timbratura Sede</CardTitle></CardHeader>
-    <CardContent><p className="text-sm text-muted-foreground">Il tuo profilo HR non è ancora configurato. Contatta l'amministratore.</p></CardContent></Card>
-  );
-
-  return (
-    <Card role="region" aria-label="Priorità del team">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4" />Timbratura Sede</CardTitle>
-          {isEntrato && <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">{oreLavorate}h lavorate oggi</span>}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : (
-          <>
-            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isEntrato ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" : isInPausa ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${isEntrato ? "bg-green-500 animate-pulse" : isInPausa ? "bg-amber-500 animate-pulse" : "bg-slate-400"}`} />
-              <span className="font-medium">{isUscito ? "Giornata completata" : isInPausa ? "In pausa" : isEntrato ? "In servizio" : "Non hai ancora timbrato"}</span>
-              {lastTimbro?.ora_evento && <span className="ml-auto text-xs opacity-75">ultimo: {lastTimbro.ora_evento.slice(0, 5)}</span>}
-            </div>
-            {!isUscito && (
-              <div className="flex flex-wrap gap-2">
-                {nonHaTimbrato && <Button className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Entrata</Button>}
-                {isEntrato && <><Button variant="outline" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}Pausa</Button><Button variant="destructive" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
-                {isInPausa && <><Button className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Fine Pausa</Button><Button variant="destructive" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
-              </div>
-            )}
-            {timbratureOggi.length > 0 && (
-              <div className="space-y-1 border-t pt-3">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Oggi</p>
-                {timbratureOggi.map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-                    <span className="font-medium tabular-nums">{t.ora_evento?.slice(0, 5)}</span>
-                    <span>—</span>
-                    <span>{t.tipo === "entrata" ? "Entrata" : t.tipo === "uscita" ? "Uscita" : t.tipo === "pausa_inizio" ? "Inizio pausa" : t.tipo === "pausa_fine" ? "Fine pausa" : t.tipo}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task Manager — Le mie Attività (stile Asana)
@@ -1380,10 +1259,30 @@ function TabAttivita() {
   const agendaTasks = dashboardTasksForAssignee(taskQuery.data ?? [], "me", user?.id);
   const seesTeam = !permissions.isLoading && (permissions.isAdmin || permissions.canViewTeamTasks);
 
+  // Striscia «focus del giorno»: colpo d'occhio su cosa fare, con le attività
+  // dell'utente. Toccare un numero porta all'elenco giusto.
+  const focus = dashboardTaskStats(agendaTasks, new Date(), statuses);
+  const vaiAlleAttivita = () => document.getElementById("le-mie-attivita")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const focusTiles = [
+    focus.overdue > 0 ? { key: "scadute", n: focus.overdue, label: "Scadute", cls: "border-red-300 bg-red-50 text-red-700", onClick: vaiAlleAttivita } : null,
+    { key: "oggi", n: focus.today, label: "Oggi", cls: "border-primary/30 bg-primary/5 text-primary", onClick: () => { setCalendarDate(format(new Date(), "yyyy-MM-dd")); vaiAlleAttivita(); } },
+    { key: "settimana", n: focus.week, label: "Prossimi 7 giorni", cls: "border-border bg-muted/40 text-foreground", onClick: vaiAlleAttivita },
+  ].filter(Boolean) as Array<{ key: string; n: number; label: string; cls: string; onClick: () => void }>;
+
   return (
     <div className="space-y-4">
-      {/* Timbratura in cima per lo staff non-admin */}
-      {!isAdmin && <TimbraturaSede />}
+      {/* La timbratura è nella barra in alto (TimbraHeaderButton), raggiungibile
+          da ogni pagina, non più qui nel corpo di Attività. */}
+
+      {/* Focus del giorno: cosa aspetta l'utente, in un colpo d'occhio. */}
+      <div className="flex flex-wrap gap-2">
+        {focusTiles.map((t) => (
+          <button key={t.key} type="button" onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97]", t.cls)}>
+            <span className="text-xl font-bold tabular-nums">{t.n}</span>
+            <span className="text-xs font-medium">{t.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Dal cantiere: rapportini, timbrature dimenticate e bolle da approvare, solo per chi può
           approvarli. Senza niente in attesa non occupa posto. */}
@@ -1393,9 +1292,19 @@ function TabAttivita() {
           Da tablet due colonne con le attività a larghezza fissa: a un terzo
           di pagina, a 1024px, il pannello restava di 210px e tagliava
           ricerca e filtri; sotto i 1024 finiva in fondo, dopo il calendario. */}
-      <div className="grid grid-cols-1 items-start gap-3 sm:gap-4 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid grid-cols-1 items-start gap-3 sm:gap-4 md:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        {/* Primaria: le mie attività — è quello che si usa ogni giorno, quindi in colonna larga. */}
+        <div id="le-mie-attivita" className="min-w-0 space-y-4 scroll-mt-20">
+          <MieAttivita
+            initialDueDate={addTaskDate}
+            calendarDate={calendarDate}
+            onCalendarDateClear={() => setCalendarDate(null)}
+            openTaskRequest={openTaskRequest}
+          />
+        </div>
+        {/* Secondaria: meteo compatto, agenda (parte da «Giorno») e priorità del team. */}
         <div className="min-w-0 space-y-3 sm:space-y-4">
-          <MeteoWidget compatto={isMobile} />
+          <MeteoWidget compatto />
           {isMobile && <Button variant="outline" className="w-full justify-between" onClick={() => setMobileAgenda(v => !v)} aria-expanded={mobileAgenda}><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Agenda personale</span><ChevronDown className={cn("h-4 w-4", mobileAgenda && "rotate-180")} /></Button>}
           {(!isMobile || mobileAgenda) && <DashboardAgenda
             tasks={agendaTasks} tasksLoading={taskQuery.isLoading} tasksError={taskQuery.isError} onTasksRetry={() => taskQuery.refetch()}
@@ -1403,16 +1312,7 @@ function TabAttivita() {
             onAddTask={date => setAddTaskDate({ date, requestId: ++requestSequence.current })}
             onTaskOpen={id => setOpenTaskRequest({ id, requestId: ++requestSequence.current })}
           />}
-
-        </div>
-        <div className="min-w-0 space-y-4">
-        <MieAttivita
-          initialDueDate={addTaskDate}
-          calendarDate={calendarDate}
-          onCalendarDateClear={() => setCalendarDate(null)}
-          openTaskRequest={openTaskRequest}
-        />
-        {seesTeam && (isMobile ? <div className="space-y-3"><Button variant="outline" className="w-full justify-between" onClick={() => setMobileTeam(v => !v)} aria-expanded={mobileTeam}><span className="flex items-center gap-2"><Users className="h-4 w-4" />Priorità del team</span><ChevronDown className={cn("h-4 w-4", mobileTeam && "rotate-180")} /></Button>{mobileTeam && <TeamTaskPulse compact />}</div> : <TeamTaskPulse compact />)}
+          {seesTeam && (isMobile ? <div className="space-y-3"><Button variant="outline" className="w-full justify-between" onClick={() => setMobileTeam(v => !v)} aria-expanded={mobileTeam}><span className="flex items-center gap-2"><Users className="h-4 w-4" />Priorità del team</span><ChevronDown className={cn("h-4 w-4", mobileTeam && "rotate-180")} /></Button>{mobileTeam && <TeamTaskPulse compact />}</div> : <TeamTaskPulse compact />)}
         </div>
       </div>
 

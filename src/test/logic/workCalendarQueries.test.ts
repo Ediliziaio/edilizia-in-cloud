@@ -47,6 +47,15 @@ vi.mock("@/lib/orders/archivedOrderScope", () => ({
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    // calendario_impegni_riservati: gli impegni dei colleghi per chi non vede il CRM.
+    rpc: (name: string, args: unknown) => {
+      state.calls.push({ table: name, method: "rpc", args: [args] });
+      const r: Record<string, unknown> = {
+        abortSignal: () => r,
+        then: (ok: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok),
+      };
+      return r;
+    },
     from: (table: string) => {
       let range = [0, 249];
       const filters: { method: string; args: unknown[] }[] = [];

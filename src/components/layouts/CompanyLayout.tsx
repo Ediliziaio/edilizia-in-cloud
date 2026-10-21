@@ -104,6 +104,7 @@ import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
 import { useConversazioniNonLette } from "@/hooks/useConversazioniNonLette";
 
 import { CommandPalette } from "@/components/CommandPalette";
+import { TimbraHeaderButton } from "@/components/layouts/TimbraHeaderButton";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
@@ -1718,6 +1719,9 @@ export function CompanyLayout() {
             <div className="hidden md:block flex-1" />
             {/* ViewAsDropdown — visibile SOLO durante impersonazione super_admin */}
             <ViewAsDropdown />
+            {/* Timbra: entrata/uscita/pausa da ovunque, con le ore di oggi e i
+                link a timbrature e ferie. Solo chi ha un profilo HR lo vede. */}
+            <TimbraHeaderButton />
             {/* v8.6.72 — Search Command Palette nascosta su mobile: spazio header limitato,
                 la ricerca dentro l'App grid + le ricerche per-pagina coprono i casi mobile. */}
             {!/^\/azienda\/impostazioni(?:\/|$)/.test(location.pathname) && <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 hidden md:inline-flex" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">

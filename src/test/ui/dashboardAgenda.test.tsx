@@ -49,11 +49,13 @@ describe("Agenda della Dashboard", () => {
     expect(screen.getByText(/Qui vedi le attività/).textContent).toContain("anche se sei amministratore");
   });
   it("selezionare un giorno filtra la lista con una data precisa", () => {
-    page(); fireEvent.click(screen.getByRole("button", { name: /^giovedì 15 ottobre 2026:/ }));
+    page(); fireEvent.click(screen.getByRole("button", { name: "mese" }));
+    fireEvent.click(screen.getByRole("button", { name: /^giovedì 15 ottobre 2026:/ }));
     expect(handlers.onDateSelect).toHaveBeenCalledWith("2026-10-15");
   });
   it("gli eventi aprono l'attività corretta e i record di provenienza", () => {
-    page(); const day = within(screen.getByRole("region", { name: "Eventi del giorno selezionato" }));
+    page(); fireEvent.click(screen.getByRole("button", { name: "mese" }));
+    const day = within(screen.getByRole("region", { name: "Eventi del giorno selezionato" }));
     fireEvent.click(day.getByRole("button", { name: "Apri attività: Verifica capitolato" }));
     expect(handlers.onTaskOpen).toHaveBeenCalledWith("task");
     expect(day.getByRole("link", { name: /Inizio posa/ }).getAttribute("href")).toBe("/azienda/ordini/order");
@@ -62,6 +64,7 @@ describe("Agenda della Dashboard", () => {
   });
   it("crea per la data selezionata, anche se è passata", () => {
     page({ selectedDate: "2026-10-13" });
+    fireEvent.click(screen.getByRole("button", { name: "mese" }));
     fireEvent.click(screen.getByRole("button", { name: "Nuova attività" }));
     expect(handlers.onAddTask).toHaveBeenCalledWith("2026-10-13");
   });
@@ -75,9 +78,13 @@ describe("Agenda della Dashboard", () => {
     expect(state.calls.at(-1)).toEqual(["2026-10-26", "2026-11-01"]);
     expect(screen.getByRole("button", { name: "domenica 1 novembre" })).toBeTruthy();
   });
-  it("nessun salto automatico al mese dell'ultima attività; Oggi è esplicito", () => {
+  it("nessun salto automatico al mese dell'ultima attività; si parte da oggi", () => {
     page({ tasks: [{ ...task, due_date: "2027-02-20" }] });
-    expect(state.calls[0]).toEqual(["2026-09-28", "2026-11-01"]);
+    // Default «giorno»: si parte da oggi, non dal mese dell'ultima attività (feb 2027).
+    expect(state.calls[0]).toEqual(["2026-10-14", "2026-10-14"]);
+    // E anche passando a «mese» si resta sul mese corrente, non salta al 2027.
+    fireEvent.click(screen.getByRole("button", { name: "mese" }));
+    expect(state.calls.at(-1)).toEqual(["2026-09-28", "2026-11-01"]);
     fireEvent.click(screen.getByRole("button", { name: "Oggi" }));
     expect(handlers.onDateSelect).toHaveBeenCalledWith("2026-10-14");
   });
@@ -103,7 +110,7 @@ describe("Agenda della Dashboard", () => {
     expect(screen.getByRole("button", { name: "Apri attività: Verifica capitolato" })).toBeTruthy();
   });
   it("appuntamenti e assenze altrui non compaiono neppure se presenti in cache", () => {
-    page();
+    page(); fireEvent.click(screen.getByRole("button", { name: "mese" }));
     expect(screen.queryByText("Appuntamento privato altrui")).toBeNull();
     expect(screen.queryByText(/Collega Privato/)).toBeNull();
     expect(within(screen.getByRole("region", { name: "Eventi del giorno selezionato" })).getByText("Permesso")).toBeTruthy();
