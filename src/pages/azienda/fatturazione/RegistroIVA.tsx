@@ -1,7 +1,7 @@
 // src/pages/azienda/fatturazione/RegistroIVA.tsx
 // GAP-05: Registro IVA acquisti e vendite con liquidazione periodica
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
@@ -25,7 +25,22 @@ const MESI = [
 // Tipi documento vendite (attive)
 const TIPI_VENDITE = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
   "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
-  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
+  "reverse_charge_interno"];
+
+// Le integrazioni (TD16-TD19): la loro IVA è a debito e insieme detraibile,
+// quindi compaiono anche fra gli acquisti. Stessa regola di liquidazione_iva_periodo.
+const TIPI_INTEGRAZIONE = ["reverse_charge_interno", "integrazione_servizi_estero",
+  "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+
+/**
+ * Reverse charge delle fatture ricevute (art. 17 c. 6 DPR 633/72): il
+ * subappaltatore fattura con natura N6.x e IVA zero, chi riceve la integra
+ * nei due registri con l'aliquota del lavoro (22% se non indicata).
+ */
+const ALIQUOTE_RC = [22, 10, 5, 4] as const;
+const eReverseCharge = (natura: unknown) => String(natura || "").toUpperCase().startsWith("N6");
+const ivaIntegrata = (imponibile: number, aliquota: number) => Math.round(imponibile * aliquota) / 100;
 
 // La nota di credito RIDUCE l'IVA del registro: gli importi in tabella sono
 // salvati positivi (stessa convenzione di ReportFatturazione: abs + segno dal
@@ -127,7 +142,7 @@ export default function RegistroIVA() {
       // fattura, come prima. Esclusione: lo stato 'rifiutata'.
       const { data, error } = await supabase
         .from("fatture_ricevute_periodo_iva" as never)
-        .select("id, numero_fattura, data_fattura, data_ricezione_sdi, data_detrazione, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
+        .select("id, numero_fattura, data_fattura, data_ricezione_sdi, data_detrazione, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva, aliquota_reverse_charge")
         .eq("company_id", companyId!)
         .gte("data_detrazione", `${anno}-01-01`)
         .lte("data_detrazione", `${anno}-12-31`)
@@ -187,8 +202,31 @@ export default function RegistroIVA() {
         });
       }
     }
+    // Reverse charge delle ricevute: l'IVA integrata è a debito, nel periodo di detrazione.
+    for (const doc of documentiAcquisti) {
+      if (!inPeriod(doc.data_detrazione ?? doc.data_fattura)) continue;
+      const nc = isNotaCreditoAcquisto(doc.tipo_documento);
+      const aliquota = Number(doc.aliquota_reverse_charge ?? 22);
+      for (const r of doc.riepilogo_iva || []) {
+        if (!eReverseCharge(r.natura)) continue;
+        const imponibile = conSegno(Math.abs(parseFloat(r.imponibile) || 0), nc);
+        const iva = conSegno(ivaIntegrata(Math.abs(parseFloat(r.imponibile) || 0), aliquota), nc);
+        rows.push({
+          data: doc.data_fattura,
+          numero: doc.numero_fattura,
+          controparte: doc.cedente_ragione_sociale || "—",
+          imponibile,
+          iva,
+          totale: imponibile + iva,
+          aliquota: String(aliquota),
+          natura: `Integrazione reverse charge (${r.natura})`,
+          tipo: "integrazione_rc",
+          notaCredito: nc,
+        });
+      }
+    }
     return rows;
-  }, [documentiVendite, mese, trimestre, periodoType]);
+  }, [documentiVendite, documentiAcquisti, mese, trimestre, periodoType]);
 
   // Righe acquisti
   const righeAcquisti = useMemo(() => {
@@ -201,7 +239,12 @@ export default function RegistroIVA() {
       if (riepilogo.length > 0) {
         for (const r of riepilogo) {
           const imponibile = conSegno(parseFloat(r.imponibile) || 0, nc);
-          const iva = conSegno(parseFloat(r.imposta) || 0, nc);
+          // Reverse charge: la riga N6.x porta l'IVA integrata, detraibile.
+          const rc = eReverseCharge(r.natura);
+          const aliquotaRc = Number(doc.aliquota_reverse_charge ?? 22);
+          const iva = rc
+            ? conSegno(ivaIntegrata(Math.abs(parseFloat(r.imponibile) || 0), aliquotaRc), nc)
+            : conSegno(parseFloat(r.imposta) || 0, nc);
           rows.push({
             data: doc.data_fattura,
             ricevuta,
@@ -210,9 +253,11 @@ export default function RegistroIVA() {
             imponibile,
             iva,
             totale: imponibile + iva,
-            aliquota: r.aliquota || "0",
-            natura: r.natura || "",
+            aliquota: rc ? String(aliquotaRc) : r.aliquota || "0",
+            natura: rc ? `${r.natura} · IVA integrata` : r.natura || "",
             notaCredito: nc,
+            fatturaId: rc ? doc.id : undefined,
+            aliquotaRc: rc ? aliquotaRc : undefined,
           });
         }
       } else {
@@ -230,8 +275,40 @@ export default function RegistroIVA() {
         });
       }
     }
+    // Le integrazioni emesse (TD16-TD19): la stessa IVA, detraibile.
+    for (const doc of documentiVendite) {
+      if (!TIPI_INTEGRAZIONE.includes(doc.tipo) || !inPeriod(doc.data_emissione)) continue;
+      const iva = Number(doc.iva_totale) || 0;
+      rows.push({
+        data: doc.data_emissione,
+        ricevuta: null,
+        numero: doc.numero,
+        controparte: doc.cliente_snapshot?.ragione_sociale || "—",
+        imponibile: 0,
+        iva,
+        totale: iva,
+        aliquota: "—",
+        natura: "Integrazione (detrazione)",
+        notaCredito: false,
+      });
+    }
     return rows;
-  }, [documentiAcquisti, mese, trimestre, periodoType]);
+  }, [documentiAcquisti, documentiVendite, mese, trimestre, periodoType]);
+
+  const queryClient = useQueryClient();
+  const cambiaAliquotaRc = async (fatturaId: string, aliquota: number) => {
+    const { error } = await supabase
+      .from("fatture_ricevute" as never)
+      .update({ aliquota_reverse_charge: aliquota } as never)
+      .eq("id", fatturaId)
+      .eq("company_id", companyId!);
+    if (error) {
+      toast.error("Aliquota non salvata", { description: error.message });
+      return;
+    }
+    toast.success(`Reverse charge integrato al ${aliquota}%`);
+    await queryClient.invalidateQueries({ queryKey: ["registro-iva-acquisti", companyId, anno] });
+  };
 
   // Totali liquidazione
   const totaleVendite = useMemo(() => ({
@@ -474,7 +551,19 @@ export default function RegistroIVA() {
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.imponibile)}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.iva)}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(r.totale)}</TableCell>
-                          <TableCell className="text-xs">{r.aliquota !== "—" ? `${r.aliquota}%` : "—"}</TableCell>
+                          <TableCell className="text-xs">
+                            {r.fatturaId ? (
+                              // Reverse charge: l'aliquota dipende dal lavoro (10% manutenzione su abitazioni…).
+                              <select
+                                aria-label={`Aliquota del reverse charge della fattura ${r.numero}`}
+                                className="h-7 rounded-md border bg-background px-1 text-xs"
+                                value={String(r.aliquotaRc)}
+                                onChange={(e) => void cambiaAliquotaRc(r.fatturaId, Number(e.target.value))}
+                              >
+                                {ALIQUOTE_RC.map((a) => <option key={a} value={a}>{a}%</option>)}
+                              </select>
+                            ) : r.aliquota !== "—" ? `${r.aliquota}%` : "—"}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">{r.natura || "—"}</TableCell>
                         </TableRow>
                       ))}
