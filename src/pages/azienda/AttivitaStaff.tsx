@@ -1392,8 +1392,9 @@ function TabAttivita() {
 
   return (
     <div className="space-y-4">
-      {/* Timbratura in cima per lo staff non-admin */}
-      {!isAdmin && <TimbraturaSede />}
+      {/* Timbratura in cima: la vede tutto lo staff, admin compresi (anche il
+          titolare timbra). */}
+      <TimbraturaSede />
 
       {/* Focus del giorno: cosa aspetta l'utente, in un colpo d'occhio. */}
       <div className="flex flex-wrap gap-2">
