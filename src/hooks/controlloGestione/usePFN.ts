@@ -27,7 +27,12 @@ export function usePFN(anno: number) {
     queryFn: async (): Promise<PFNResult> => {
       const { data, error } = await cgRpc<PFNResult>("cg_get_pfn_safe", { p_anno: anno });
       if (error) throw error;
-      return data as PFNResult;
+      // La RPC risponde per l'azienda della sessione sul server: se non è quella
+      // scelta qui (azienda appena cambiata), non salviamo numeri di un'altra azienda.
+      const pfn = data as PFNResult;
+      if (pfn?.meta?.company_id && pfn.meta.company_id !== companyId)
+        throw new Error("I dati sono arrivati per un'altra azienda: riprova tra un attimo.");
+      return pfn;
     },
     staleTime: 60_000,
   });
