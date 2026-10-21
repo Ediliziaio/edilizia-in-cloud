@@ -35,11 +35,16 @@ async function candidatoDaId(ctx: ToolCtx, id: string, candidati: CantiereCandid
     .select("id, order_code, description, client_name, indirizzo_lavori, status")
     .eq("company_id", ctx.company_id).eq("id", id).is("deleted_at", null).maybeSingle();
   if (!data || !commessaAperta(data.status)) return null;
-  const indirizzo = data.indirizzo_lavori ? ` — ${data.indirizzo_lavori}` : "";
+  const nome = data.client_name || data.description || data.order_code || "Cantiere";
+  const sotto = [
+    data.indirizzo_lavori,
+    data.description && data.description !== nome ? data.description : null,
+    data.order_code && data.order_code !== nome ? data.order_code : null,
+  ].filter(Boolean).join(" · ");
   return {
     id: data.id,
-    titolo: data.order_code || data.description || data.client_name || "Cantiere",
-    dettaglio: `${data.description || data.client_name || data.order_code || "Cantiere"}${indirizzo}`,
+    titolo: nome,
+    dettaglio: sotto || nome,
     punteggio: 0,
     motivo: null,
   };

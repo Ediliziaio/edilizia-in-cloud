@@ -101,7 +101,7 @@ describe("la conferma della bolla su WhatsApp", () => {
     expect(testo).toContain("Bolla n. 123 del 18/10/2026");
     expect(testo).toContain("Fornitore: Fornitore Demo");
     expect(testo).toContain("• Articolo 1 — 1 pz");
-    expect(testo).toContain("Cantiere: ORD-verdi · Lavori verdi (hai timbrato lì oggi)");
+    expect(testo).toContain("Cantiere: Lavori verdi — Via verdi 1 · ORD-verdi (hai timbrato lì oggi)");
     expect(testo).not.toContain("{");
     if (interactive.type === "button") {
       expect(interactive.action.buttons.map((b) => b.reply.title)).toEqual(["Sì", "Altro cantiere", "No"]);
@@ -124,7 +124,7 @@ describe("la conferma della bolla su WhatsApp", () => {
     expect(interactive.type).toBe("list");
     expect(interactive.body.text).toContain("Su quale cantiere?");
     // I nomi stanno nel testo, numerati: con due cantieri i bottoni mostrano solo il codice.
-    expect(interactive.body.text).toMatch(/\n1\. ORD-\w+ · Lavori \w+/);
+    expect(interactive.body.text).toMatch(/\n1\. Lavori \w+ · Via \w+ 1 · ORD-\w+/);
     if (interactive.type === "list") {
       const righe = interactive.action.sections[0].rows;
       expect(righe.at(-1)).toMatchObject({ id: `reject:${pending.id}`, title: "Annulla" });

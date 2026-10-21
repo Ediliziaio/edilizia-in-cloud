@@ -110,7 +110,7 @@ export async function caricaFotoCantiere(
     return errResult(error.message, "Errore salvando la foto.");
   }
 
-  const { data: o } = await ctx.supabase.from("orders").select("order_code, description").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();
-  const nome = [o?.order_code, o?.description].filter(Boolean).join(" · ") || "cantiere";
+  const { data: o } = await ctx.supabase.from("orders").select("order_code, description, client_name").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();
+  const nome = [o?.client_name || o?.description, o?.order_code].filter(Boolean).join(" · ") || "cantiere";
   return okResult({ id: inserted.id }, `✅ Foto salvata su ${nome}${motivo ? ` (${motivo})` : ""}.`);
 }

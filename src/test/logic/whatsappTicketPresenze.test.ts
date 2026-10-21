@@ -70,13 +70,13 @@ describe("entrata e uscita", () => {
     const esito = await registraPresenza(ctx, { tipo: "entrata", ora: "07:30", data_evento: "2026-10-18", order_id: "rossi" });
     expect(esito.ok).toBe(true);
     expect(db.tabelle.hr_timbrature[0]).toMatchObject({ profilo_id: "profilo-emp", tipo: "entrata", order_id: "rossi" });
-    expect(esito.user_message).toContain("su ORD-7 · Villa Rossi");
+    expect(esito.user_message).toContain("su Villa Rossi · ORD-7");
   });
 
   it("l'entrata propone il cantiere quando è chiaro; senza, si timbra lo stesso", async () => {
     const una = await freezeConfirmation(ctx, "registra_presenza", { tipo: "entrata" }, "messaggio", ADESSO);
     expect(una.pending.parametri?.order_id).toBe("rossi");
-    expect(una.interactive.body.text).toContain("Cantiere: ORD-7 · Villa Rossi (è l'unico tuo cantiere aperto)");
+    expect(una.interactive.body.text).toContain("Cantiere: Villa Rossi — Via Roma 1 · ORD-7 (è l'unico tuo cantiere aperto)");
     db.tabelle.order_employees.push({ order_id: "verdi", employee_id: "emp" });
     const due = await freezeConfirmation(ctx, "registra_presenza", { tipo: "entrata" }, "messaggio", ADESSO);
     expect(due.pending.parametri?.order_id).toBeUndefined();
@@ -102,13 +102,13 @@ describe("la foto di cantiere", () => {
     const esito = await caricaFotoCantiere(conFoto(), { descrizione: "Getto solaio" });
     expect(esito.ok).toBe(true);
     expect(db.tabelle.foto_cantiere[0]).toMatchObject({ order_id: "rossi", source: "whatsapp" });
-    expect(esito.user_message).toBe("✅ Foto salvata su ORD-7 · Villa Rossi (è l'unico tuo cantiere aperto).");
+    expect(esito.user_message).toBe("✅ Foto salvata su Villa Rossi · ORD-7 (è l'unico tuo cantiere aperto).");
   });
 
   it("se non è chiaro chiede da un elenco numerato", async () => {
     db.tabelle.order_employees.push({ order_id: "verdi", employee_id: "emp" });
     const esito = await caricaFotoCantiere(conFoto(), {});
     expect(esito).toMatchObject({ ok: false, error: "cantiere_ambiguous" });
-    expect(esito.ok === false && esito.user_message).toMatch(/1\. ORD-\d.*\n2\. ORD-\d/);
+    expect(esito.ok === false && esito.user_message).toMatch(/1\. .+ · ORD-\d[\s\S]*\n2\. .+ · ORD-\d/);
   });
 });

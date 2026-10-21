@@ -70,10 +70,6 @@ function ancoraInCorso(o: CommessaAperta, oggi: string): boolean {
   return !o.work_end_date || o.work_end_date >= giorniPrima(oggi, 14);
 }
 
-export function nomeCantiere(o: Pick<CommessaAperta, "order_code" | "description" | "client_name">): string {
-  return [o.order_code, o.description || o.client_name].filter(Boolean).join(" · ") || "Cantiere";
-}
-
 /**
  * Le commesse aperte che questa persona può usare. Per l'operaio solo le sue
  * (stesse assegnazioni dell'app Campo); per ufficio e amministratore le più
@@ -106,13 +102,6 @@ function dataBreve(giorno: string, oggi: string): string {
   if (giorno === giorniPrima(oggi, 1)) return "ieri";
   const [, m, g] = giorno.split("-");
   return `il ${g}/${m}`;
-}
-
-/** Il cliente accanto alla descrizione, quando la descrizione non lo dice già. */
-function clienteSeDiverso(o: Pick<CommessaAperta, "description" | "client_name">): string {
-  const cliente = (o.client_name ?? "").trim();
-  if (!cliente || !o.description) return "";
-  return o.description.toLowerCase().includes(cliente.toLowerCase()) ? "" : ` · ${cliente}`;
 }
 
 /**
@@ -230,11 +219,16 @@ export async function cantieriInOrdine(ctx: ToolCtx, aperte: CommessaAperta[], a
   return aperte.map((o) => {
     const p = punti.get(o.id);
     const nelleDate = (!o.work_start_date || o.work_start_date <= oggi) && (!o.work_end_date || o.work_end_date >= oggi);
-    const indirizzo = o.indirizzo_lavori ? ` — ${o.indirizzo_lavori}` : "";
+    const nome = o.client_name || o.description || o.order_code || "Cantiere";
+    const sotto = [
+      o.indirizzo_lavori,
+      o.description && o.description !== nome ? o.description : null,
+      o.order_code && o.order_code !== nome ? o.order_code : null,
+    ].filter(Boolean).join(" · ");
     return {
       id: o.id,
-      titolo: o.order_code || o.description || o.client_name || "Cantiere",
-      dettaglio: `${o.description || o.client_name || o.order_code || "Cantiere"}${clienteSeDiverso(o)}${indirizzo}`,
+      titolo: nome,
+      dettaglio: sotto || nome,
       punteggio: (p?.punteggio ?? 0) + (nelleDate ? 10 : 0),
       motivo: p?.motivo ?? null,
       aggiornata: o.updated_at ?? "",

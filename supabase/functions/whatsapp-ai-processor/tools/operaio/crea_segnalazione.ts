@@ -71,13 +71,13 @@ export async function creaSegnalazione(
   const priorita = PRIORITA[urgenza] ?? PRIORITA.media;
   const [{ data: ordine }, { data: dip }] = await Promise.all([
     orderId
-      ? ctx.supabase.from("orders").select("order_code, description").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle()
+      ? ctx.supabase.from("orders").select("order_code, description, client_name").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle()
       : Promise.resolve({ data: null }),
     ctx.employee_id
       ? ctx.supabase.from("employees").select("first_name, last_name").eq("company_id", ctx.company_id).eq("id", ctx.employee_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const cantiere = [ordine?.order_code, ordine?.description].filter(Boolean).join(" · ");
+  const cantiere = [ordine?.client_name || ordine?.description, ordine?.order_code].filter(Boolean).join(" · ");
   const chi = [dip?.first_name, dip?.last_name].filter(Boolean).join(" ") || "un operaio";
   const breve = descrizione.length > 80 ? `${descrizione.slice(0, 79)}…` : descrizione;
   const titolo = `${cantiere ? `${ordine?.order_code ?? cantiere}: ` : ""}${breve}`.slice(0, 200);

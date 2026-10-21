@@ -37,6 +37,6 @@ export async function generaPdfModelloBagno(ctx: ToolCtx, args: Record<string, u
       return errResult("pdf_not_verified", "Generazione del modello esatto non confermata. Nessun documento inviato; verifica nell’app prima di riprovare.");
     }
     verifiedDocumentUrl(result.signed_url, base, result.pdf_storage_path);
-    return okResult(result, `PDF del modello ${args.modello} generato dal progetto salvato. Non inviato come documento e non inviato al cliente. Link temporaneo per la verifica: ${result.signed_url}`);
-  } catch { return errResult("pdf_outcome_unknown", "Non riesco a confermare la generazione. Non ripeto automaticamente: verifica il progetto nell’app. Nessun invio WhatsApp effettuato da questo strumento."); }
+    return okResult(result, `PDF del modello ${args.modello} pronto: è una bozza solo per te. Aprilo da questo link per controllarlo: ${result.signed_url}`);
+  } catch { return errResult("pdf_outcome_unknown", "Non riesco a confermare la generazione. Controlla il progetto nell’app e riprova tu. Nessun messaggio WhatsApp inviato."); }
 }

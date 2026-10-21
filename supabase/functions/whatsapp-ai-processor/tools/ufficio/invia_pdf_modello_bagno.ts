@@ -56,7 +56,7 @@ export async function inviaPdfModelloBagno(ctx: ToolCtx, args: Record<string, un
               document: { link, filename: `Preventivo_bagno_${args.modello}.pdf`, caption: `Preventivo bagno — modello ${args.modello}` } }),
             signal: AbortSignal.timeout(30_000) });
         } catch {
-          return errResult("document_send_unknown", "PDF pronto, ma esito dell’invio sconosciuto. Non ripeto automaticamente: verifica la conversazione nell’app.");
+          return errResult("document_send_unknown", "PDF pronto, ma non so se è partito. Controlla la conversazione nell’app e riprova tu.");
         }
         const result = await response.json().catch((): null => null);
         if (!response.ok || !isWhatsAppReceipt(result)) {
@@ -64,7 +64,7 @@ export async function inviaPdfModelloBagno(ctx: ToolCtx, args: Record<string, un
         }
         return okResult({ artifact_id: artifact.id, model_id: artifact.model_id, pdf_generated: true,
           provider_accepted: true, delivered: false, customer_sent: false, meta_message_id: result.meta_message_id },
-        "WhatsApp ha accettato il PDF del modello verificato per il tuo numero. La consegna è ancora da verificare; non è stato inviato al cliente.");
+        "Inviato qui a te, WhatsApp l’ha accettato; se non arriva tra poco, riprova. Non l’ho inviato al cliente.");
       });
   } catch {
     return errResult("document_send_blocked", "Documento, progetto, permessi o operazione non verificabili. Nessun nuovo invio avviato: controlla il PDF e gli esiti nella conversazione dell’app.");

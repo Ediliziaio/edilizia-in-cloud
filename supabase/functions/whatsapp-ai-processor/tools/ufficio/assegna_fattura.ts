@@ -36,7 +36,7 @@ async function codiciCommesse(ctx: ToolCtx, ids: Array<string | null>): Promise<
   const { data: righe } = await ctx.supabase.from("orders").select("id, order_code, client_name, description")
     .eq("company_id", ctx.company_id).in("id", unici);
   return new Map(((righe ?? []) as Array<{ id: string; order_code: string | null; client_name: string | null; description: string | null }>)
-    .map((o) => [o.id, [o.order_code, o.client_name || o.description].filter(Boolean).join(" · ") || "una commessa"]));
+    .map((o) => [o.id, [o.client_name || o.description, o.order_code].filter(Boolean).join(" · ") || "una commessa"]));
 }
 
 interface Ricevuta { id: string; numero_fattura: string | null; data_fattura: string | null; cedente_ragione_sociale: string | null; totale_documento: number | null; company_cost_id: string | null }
@@ -165,15 +165,23 @@ export const assegnaFatturaDef: Omit<ToolDef, "handler"> = {
 export async function assegnaFattura(ctx: ToolCtx, args: Record<string, unknown>): Promise<ToolResult> {
   if (!ctx.user_id || ctx.kind !== "admin") return errResult("non_ammesso", "Le fatture le assegna l'amministratore dell'azienda.");
   const tipo = args.tipo === "ricevuta" || args.tipo === "emessa" ? args.tipo : null;
-  if (!tipo || typeof args.fattura_id !== "string") return errResult("invalid_args", "Dimmi quale fattura: cercala prima per numero o fornitore.");
+  if (!tipo || typeof args.fattura_id !== "string") return errResult("invalid_args", "Dimmi quale fattura: il numero o il fornitore.");
   if (typeof args.order_id !== "string") return errResult("site_missing", "Dimmi su quale commessa: il cliente, l'indirizzo o il codice.");
   const { data: esito, error } = await ctx.supabase.rpc("fattura_assegna_commessa", {
     p_company_id: ctx.company_id, p_user_id: ctx.user_id, p_tipo: tipo, p_fattura_id: args.fattura_id, p_order_id: args.order_id,
   });
   if (error) {
-    // I motivi scritti dal database («ripartita su più commesse», «non risulta») si dicono così come sono.
-    const motivo = (error as { code?: string; message?: string }).code === "P0001" ? (error as { message: string }).message : null;
-    return errResult("assegnazione_fallita", motivo ?? "Non sono riuscito ad assegnare la fattura. Nessuna modifica fatta: riprova dall'app.");
+    // Il database solleva con P0001 messaggi già scritti per l'utente (es.
+    // «fattura ripartita su più commesse»): quelli si inoltrano. Un errore
+    // tecnico di altro tipo non si mostra: va nel log e all'utente va una
+    // frase neutra.
+    const amichevole = (error as { code?: string; message?: string }).code === "P0001"
+      ? String((error as { message?: string }).message ?? "").trim()
+      : "";
+    if (!amichevole) {
+      console.error(JSON.stringify({ level: "error", fn: "assegna_fattura", passo: "rpc", code: (error as { code?: string }).code ?? null, message: (error as { message?: string }).message ?? null }));
+    }
+    return errResult("assegnazione_fallita", amichevole || "Non sono riuscito ad assegnare la fattura. Riprova o fallo dall'app.");
   }
   const e = (esito ?? {}) as { commessa?: string; era_su?: string | null; order_id?: string };
   const spostata = e.era_su && e.era_su !== e.order_id ? " Prima era su un'altra commessa." : "";

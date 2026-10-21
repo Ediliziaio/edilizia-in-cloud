@@ -79,7 +79,7 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
     sezioni = j.sezioni;
   } catch (e) {
     console.error(JSON.stringify({ level: "error", fn: "crea_preventivo_ai", error: String(e) }));
-    return errResult("motore_errore", "Analisi interrotta o con esito incerto. Nessuna bozza salvata; non rilancio automaticamente la generazione.");
+    return errResult("motore_errore", "Analisi interrotta o con esito incerto. Nessuna bozza salvata: controlla nell’app e riprova tu.");
   }
 
   const righe: RigaAI[] = sezioni.flatMap((s) => Array.isArray(s.righe) ? s.righe : []);
@@ -95,5 +95,5 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
   return okResult({ status: "anteprima_non_salvata", created: false, items, client_name: clienteNome,
     needs_clarification: !!issue || freeNeedsReview, clarification: issue ?? (freeNeedsReview ? "Conferma se le voci a zero sono gratuite oppure indica il prezzo mancante." : null),
     dati_da_confermare: proposed },
-    `Anteprima di ${items.length} voci per ${clienteNome}: nessun preventivo salvato e nulla inviato al cliente. ${issue ?? (freeNeedsReview ? "Verifica le voci a zero prima di confermare." : "Ora chiama chiedi_conferma con azione salva_preventivo_bozza e parametri dati_da_confermare: il sistema mostra all'utente tutte le voci e il totale.")}`);
+    `Anteprima di ${items.length} voci per ${clienteNome}: nessun preventivo salvato e nulla inviato al cliente. ${issue ?? (freeNeedsReview ? "Verifica le voci a zero prima di confermare." : "Controlla le voci e il totale, poi conferma per salvare la bozza.")}`);
 }

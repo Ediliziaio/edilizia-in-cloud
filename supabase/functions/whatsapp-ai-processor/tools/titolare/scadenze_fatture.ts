@@ -2,6 +2,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { fmtEur, dataIt } from "../shared/formato.ts";
 
 export const scadenzeFattureDef: Omit<ToolDef, "handler"> = {
   name: "scadenze_fatture",
@@ -50,7 +51,7 @@ export async function scadenzeFatture(
   }
 
   const { data: fatture, error } = await q.order("due_date", { ascending: true }).limit(20);
-  if (error) return errResult(error.message, "Errore caricando le scadenze.");
+  if (error) return errResult("scadenze_non_leggibili", "Non riesco a leggere le scadenze adesso. Riprova tra poco o guardale nell'app.");
 
   if (!fatture || fatture.length === 0) {
     const msg = soloScadute
@@ -59,7 +60,6 @@ export async function scadenzeFatture(
     return okResult({ fatture: [] }, msg);
   }
 
-  const fmtEur = (n: number) => "€ " + Number(n).toLocaleString("it-IT");
   const totaleAperto = fatture.reduce(
     (s, f) => s + (Number(f.total ?? 0) - Number(f.paid_amount ?? 0)),
     0,
@@ -69,7 +69,7 @@ export async function scadenzeFatture(
   const lista = fatture.slice(0, 10).map((f, i) => {
     const scFlag = (f.due_date ?? "") < today ? " ⚠️" : "";
     const residuo = Number(f.total ?? 0) - Number(f.paid_amount ?? 0);
-    return `${i + 1}. ${f.client_company_name || "N/D"} — ${fmtEur(residuo)} (scade ${f.due_date})${scFlag}`;
+    return `${i + 1}. ${f.client_company_name || "Cliente non indicato"} — ${fmtEur(residuo)} (scade ${dataIt(f.due_date)})${scFlag}`;
   }).join("\n");
 
   const header = soloScadute

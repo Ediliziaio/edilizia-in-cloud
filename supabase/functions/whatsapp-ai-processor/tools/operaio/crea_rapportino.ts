@@ -179,7 +179,6 @@ export async function creaRapportino(
   const oreTotali = (ordinarie: unknown, straordinario: unknown) => Number(ordinarie ?? 0) + Number(straordinario ?? 0);
   const presenze = (ordinarie: unknown, straordinario: unknown) => ctx.user_id ? undefined
     : [{ employee_id: ctx.employee_id, nome: nomeDipendente ?? "Operaio", ore: oreTotali(ordinarie, straordinario) }];
-  const conclusione = "L'ufficio lo controlla e lo approva. Materiali annotati, nessuno scarico di magazzino.";
 
   if (existing) {
     // Inviato o approvato: lo corregge l'ufficio. Una bozza dell'app o un
@@ -228,7 +227,8 @@ export async function creaRapportino(
 
     return okResult(
       { id: updated.id, is_new: false, cantiere_nome: cantiereNome },
-      `✅ Rapportino inviato all'ufficio per ${cantiereNome} · ${dataLavoro}. Ore ordinarie: ${ore ?? 0}h; straordinario: ${straordinario ?? 0}h. ${conclusione}`,
+      `✅ Rapportino inviato all'ufficio per ${cantiereNome}: lo approva l'ufficio.` +
+        (mergedMateriali.length > 0 ? " I materiali sono solo annotati: nessuno scarico di magazzino." : ""),
     );
   }
 
@@ -271,18 +271,10 @@ export async function creaRapportino(
       .eq("id", ctx.sessionId).eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId);
   }
 
-  const riepilogo = [
-    `✅ Rapportino inviato all'ufficio per ${cantiereNome} · ${dataLavoro}`,
-    args.ore_lavorate ? `• Ore: ${args.ore_lavorate}h${args.ore_straordinario ? ` + ${args.ore_straordinario}h di straordinario` : ""}` : null,
-    args.attivita?.length ? `• Lavori: ${args.attivita.join(", ")}` : null,
-    args.materiali_usati?.length
-      ? `• Materiali: ${args.materiali_usati.map((m) => m.descrizione).join(", ")}`
-      : null,
-    conclusione,
-  ].filter(Boolean).join("\n");
-
+  const conMateriali = Array.isArray(args.materiali_usati) && args.materiali_usati.length > 0;
   return okResult(
     { id: inserted.id, is_new: true, cantiere_nome: cantiereNome },
-    riepilogo,
+    `✅ Rapportino inviato all'ufficio per ${cantiereNome}: lo approva l'ufficio.` +
+      (conMateriali ? " I materiali sono solo annotati: nessuno scarico di magazzino." : ""),
   );
 }

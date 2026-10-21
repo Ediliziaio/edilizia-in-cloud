@@ -88,6 +88,6 @@ export async function registraMerceDaWhatsApp(ctx: ToolCtx, merce: MerceDaRegist
 
 /** Il nome breve del cantiere, per la risposta all'operaio. */
 export async function nomeDelCantiere(ctx: ToolCtx, orderId: string): Promise<string> {
-  const { data } = await ctx.supabase.from("orders").select("order_code, description").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();
-  return [data?.order_code, data?.description].filter(Boolean).join(" · ") || "il cantiere";
+  const { data } = await ctx.supabase.from("orders").select("order_code, description, client_name").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();
+  return [data?.client_name || data?.description, data?.order_code].filter(Boolean).join(" · ") || "il cantiere";
 }

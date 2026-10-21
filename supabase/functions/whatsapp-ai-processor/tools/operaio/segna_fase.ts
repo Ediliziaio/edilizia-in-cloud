@@ -20,7 +20,6 @@ export const segnaFaseDef: Omit<ToolDef, "handler"> = {
     properties: {
       fase: { type: "string", description: "Nome della fase detto dall'operaio (es. «massetto», «impianto elettrico»)." },
       order_id: { type: "string", description: "Cantiere confermato nella conferma." },
-      cantiere_hint: { type: "string", description: "Cantiere nominato dall'operaio, se l'ha detto." },
     },
     required: ["fase"],
     additionalProperties: false,
@@ -103,9 +102,9 @@ export async function segnaFase(ctx: ToolCtx, args: { fase?: string; order_id?: 
     .select("id").maybeSingle();
   if (updError || !aggiornata) return errResult("fase_non_salvata", "Non sono riuscito a segnare la fase. Segnala dall'app Campo, in Avanzamento.");
 
-  const { data: ordine } = await ctx.supabase.from("orders").select("order_code, description, percentuale_avanzamento")
+  const { data: ordine } = await ctx.supabase.from("orders").select("order_code, description, client_name, percentuale_avanzamento")
     .eq("company_id", ctx.company_id).eq("id", args.order_id).maybeSingle();
-  const cantiere = [ordine?.order_code, ordine?.description].filter(Boolean).join(" · ") || "il cantiere";
+  const cantiere = [ordine?.client_name || ordine?.description, ordine?.order_code].filter(Boolean).join(" · ") || "il cantiere";
   const avanzamento = typeof ordine?.percentuale_avanzamento === "number" ? ` Avanzamento del cantiere: ${ordine.percentuale_avanzamento}%.` : "";
   return okResult({ fase_id: fase.id, foto: foto.length },
     `✅ Fase «${fase.name}» completata su ${cantiere}${foto.length ? ", con la foto" : ""}.${avanzamento}`);

@@ -11,6 +11,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { fmtEur } from "../shared/formato.ts";
 
 /** Soglia di marginalità "sana" (%) — allineata a src/lib/commesse/scostamenti.ts. */
 const SOGLIA_VERDE_PERC = 15;
@@ -87,10 +88,6 @@ function semaforoEmoji(marginePerc: number, hasConsuntivo: boolean): string {
   if (marginePerc < 0) return "🔴";
   if (marginePerc < SOGLIA_VERDE_PERC) return "🟡";
   return "🟢";
-}
-
-function fmtEur(n: number): string {
-  return "€ " + Math.round(num(n)).toLocaleString("it-IT");
 }
 
 /**

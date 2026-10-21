@@ -145,14 +145,14 @@ export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args): Promise<Tool
     }),
     signal: AbortSignal.timeout(30_000),
   }); } catch {
-    return errResult("invio_esito_sconosciuto", "PDF pronto, ma esito dell’invio sconosciuto. Non ripeto automaticamente: verifica la conversazione nell’app.");
+    return errResult("invio_esito_sconosciuto", "PDF pronto, ma non so se è partito. Controlla la conversazione nell’app e riprova tu.");
   }
   const receipt = await inv.json().catch((): null => null);
   if (!inv.ok || !isWhatsAppReceipt(receipt)) {
     console.error(JSON.stringify({ level: "error", fn: "invia_pdf_preventivo", passo: "invio", status: inv.status }));
     return errResult("invio_non_confermato", "Il PDF è pronto ma l’invio WhatsApp non è confermato. Verifica la conversazione prima di riprovare; puoi aprirlo dall’app.");
   }
-  return okResult({ inviato: true, provider_accepted: true, delivered: false, customer_sent: false, quote_number: q.quote_number, meta_message_id: receipt.meta_message_id }, `📄 WhatsApp ha accettato il PDF del ${titolo}. La consegna resta da verificare in conversazione.`);
+  return okResult({ inviato: true, provider_accepted: true, delivered: false, customer_sent: false, quote_number: q.quote_number, meta_message_id: receipt.meta_message_id }, `📄 ${titolo}: inviato, WhatsApp l'ha accettato. Se non ti arriva tra poco, riprova.`);
   });
   } catch {
     return errResult("invio_non_verificabile", "Operazione o documento non verificabili. Nessun nuovo invio confermato: controlla gli esiti nell’app prima di riprovare.");

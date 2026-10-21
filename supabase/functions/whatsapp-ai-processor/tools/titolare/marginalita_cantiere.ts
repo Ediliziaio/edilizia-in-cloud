@@ -4,6 +4,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { fmtEur } from "../shared/formato.ts";
 import { oreCantiere } from "../shared/oreCantiere.ts";
 
 export const marginalitaCantiereDef: Omit<ToolDef, "handler"> = {
@@ -81,8 +82,6 @@ export async function marginalitaCantiere(
     ? ((margine / valoreLavorato) * 100).toFixed(1)
     : "n/d";
 
-  const fmtEur = (n: number) =>
-    "€ " + n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   const msg = [
     `📊 *${nome}* — Marginalità`,
@@ -95,8 +94,9 @@ export async function marginalitaCantiere(
     "",
     `${margine >= 0 ? "✅" : "⚠️"} Margine sul lavorato: ${fmtEur(margine)} (${marginePct}%)`,
     "",
-    "_Costi registrati finora, IVA esclusa: le ore ancora da approvare non hanno costo._",
-    sal < 50 ? "_Con il SAL ancora basso il margine esce prudente: acquisti e provvigioni contano già per intero._" : "",
+    sal < 50
+      ? "_Costi registrati finora, IVA esclusa; col SAL ancora basso il margine esce prudente._"
+      : "_Costi registrati finora, IVA esclusa._",
   ].filter((riga, i, righe) => riga !== "" || righe[i - 1] !== "").join("\n").trim();
 
   return okResult(

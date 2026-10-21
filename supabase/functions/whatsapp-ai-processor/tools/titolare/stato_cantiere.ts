@@ -3,6 +3,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { fmtEur } from "../shared/formato.ts";
 import { oreCantiere } from "../shared/oreCantiere.ts";
 
 export const statoCantiereDef: Omit<ToolDef, "handler"> = {
@@ -81,8 +82,6 @@ export async function statoCantiere(
     ? (((valoreLavorato - costiDiretti) / valoreLavorato) * 100).toFixed(1)
     : "n/d";
 
-  const fmtEur = (n: number) =>
-    "€ " + n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
   const msg = [
     `📊 *${nome}*${cantiere.client_name ? ` — ${cantiere.client_name}` : ""}`,

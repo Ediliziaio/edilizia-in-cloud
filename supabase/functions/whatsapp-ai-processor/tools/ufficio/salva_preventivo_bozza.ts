@@ -14,5 +14,6 @@ export async function salvaPreventivoBozza(ctx: ToolCtx, args: Record<string, un
   } as ToolContext);
   if (result?.error) return errResult("quote_save_unconfirmed", result.error);
   const eur = (value: number) => value.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
-  return okResult(result, `Bozza ${result.quote_number ?? result.quote_id} salvata: ${result.items_count} voci. Imponibile ${eur(result.subtotal_eur)}, IVA ${eur(result.vat_eur)}, totale ${eur(result.total_eur)}. Nulla inviato al cliente. Verifica la bozza nell’app prima di inviare il PDF.`);
+  const etichetta = result.quote_number ? `Bozza ${result.quote_number} salvata` : "Bozza salvata";
+  return okResult(result, `${etichetta}: ${result.items_count} voci. Imponibile ${eur(result.subtotal_eur)}, IVA ${eur(result.vat_eur)}, totale ${eur(result.total_eur)}. Nulla inviato al cliente. Verifica la bozza nell’app prima di inviare il PDF.`);
 }

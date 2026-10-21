@@ -56,7 +56,7 @@ describe("la bolla dell'operaio", () => {
     expect(caricati).toHaveLength(1);
     expect(caricati[0]).toMatch(/^campo-rapportini:company\/ordine\/acquisti\/.+\.jpg$/);
     expect(chiamata().p_foto_path).toBe(caricati[0].split(":")[1]);
-    expect(esito.user_message).toContain("messa su ORD-7 · Villa Rossi");
+    expect(esito.user_message).toContain("messa su Villa Rossi · ORD-7");
     expect(esito.user_message).toContain("diventa costo della commessa");
     // Il carico di magazzino resta per l'ufficio: dall'operaio non parte.
     expect(db.scritture.filter((w) => w.tabella === "email_ddt_carico" || w.tabella === "email_documento_estratto")).toHaveLength(0);

@@ -2,6 +2,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { fmtEur } from "../shared/formato.ts";
 
 export const costiMeseDef: Omit<ToolDef, "handler"> = {
   name: "costi_mese",
@@ -71,8 +72,6 @@ export async function costiMese(
   );
 
   const totale = totaleFatture + totaleStipendi;
-  const fmtEur = (n: number) =>
-    "€ " + Number(n).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   const meseName = new Date(y, m - 1, 1).toLocaleDateString("it-IT", {
     month: "long",

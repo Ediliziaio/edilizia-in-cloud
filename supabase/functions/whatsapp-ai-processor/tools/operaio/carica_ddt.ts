@@ -29,7 +29,7 @@ export const caricaDDTDef: Omit<ToolDef, "handler"> = {
     "Registra un DDT (Documento di Trasporto) ricevuto al cantiere a partire dalla foto. " +
     "Estrae i dati, cerca l'ordine d'acquisto del fornitore, confronta le quantità consegnate " +
     "con quelle ordinate e prepara una bozza di carico che il titolare conferma sul gestionale. " +
-    "Chiama dopo aver mostrato all'operaio i dati estratti (numero, fornitore, righe) e ricevuto conferma.",
+    "Il riepilogo dei dati e la conferma coi bottoni li prepara il sistema: non mostrare i dati a parole prima, chiama direttamente coi dati letti.",
   parameters: {
     type: "object",
     properties: {

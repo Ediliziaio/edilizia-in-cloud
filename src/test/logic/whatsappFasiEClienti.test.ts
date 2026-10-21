@@ -41,7 +41,7 @@ describe("«finito il massetto»", () => {
     const esito = await segnaFase(ctx, { fase: "massetto piano terra", order_id: "o1" });
     expect(esito.ok).toBe(true);
     expect(db.tabelle.order_work_phases[1]).toMatchObject({ status: "completata", percentuale: 100, completata_da: "u1" });
-    expect(esito.user_message).toContain("«Massetto piano terra» completata su ORD-7 · Villa Rossi");
+    expect(esito.user_message).toContain("«Massetto piano terra» completata su Villa Rossi · ORD-7");
   });
 
   it("con due fasi simili chiede quale, senza segnare niente", async () => {

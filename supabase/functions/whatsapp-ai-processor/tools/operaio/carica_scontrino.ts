@@ -22,7 +22,7 @@ export const caricaScontrinoDef = {
   description:
     "Registra la spesa di uno scontrino/ricevuta (es. ferramenta) come USCITA in Prima Nota. " +
     "Leggi importo, esercente e data dalla foto ricevuta. Se l'utente indica il cantiere, passalo. " +
-    "Serve almeno l'importo. Prima chiedi conferma mostrando importo ed esercente.",
+    "Serve almeno l'importo. Il riepilogo (importo ed esercente) e la conferma coi bottoni li mostra il sistema: non riscriverli a parole prima.",
   parameters: {
     type: "object",
     properties: {
@@ -125,5 +125,5 @@ export async function caricaScontrino(ctx: ToolCtx, args: Args): Promise<ToolRes
   if (error) return errResult("insert", "Non sono riuscito a registrare la spesa. Riprova, oppure inseriscila dall'app in Prima Nota.");
 
   const dove = orderId ? " sul cantiere" : cantiere ? ` (cantiere «${cantiere}» da abbinare nell'app)` : "";
-  return okResult({ importo, order_id: orderId }, `💶 Spesa di € ${importo}${esercente ? ` da ${esercente}` : ""} registrata${dove}.`);
+  return okResult({ importo, order_id: orderId }, `💶 Spesa di € ${importo.toLocaleString("it-IT", { minimumFractionDigits: 2 })}${esercente ? ` da ${esercente}` : ""} registrata${dove}.`);
 }

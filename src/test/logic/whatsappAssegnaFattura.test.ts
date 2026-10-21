@@ -67,7 +67,7 @@ describe("trovare la fattura", () => {
   it("le fatture emesse annullate non escono; quelle su una commessa lo dicono", async () => {
     const fatture = ((await cercaFattura(ctx, { testo: "rossi" })) as { data: { fatture: Array<{ fattura_id: string; descrizione: string }> } }).data.fatture;
     expect(fatture.map((f) => f.fattura_id)).toEqual(["inv-1"]);
-    expect(fatture[0].descrizione).toContain("ora su ORD-3 · Luca Verdi");
+    expect(fatture[0].descrizione).toContain("ora su Luca Verdi · ORD-3");
   });
 
   it("se non trova niente lo dice e chiede un altro dettaglio", async () => {
@@ -90,7 +90,7 @@ describe("trovare la commessa di Rossi", () => {
   it("con una sola commessa la propone con Sì / Altro / No; trova anche il cliente in anagrafica", async () => {
     const { pending, interactive } = await freezeConfirmation(ctx, "assegna_fattura", { fattura_id: "inv-1", tipo: "emessa", cantiere_hint: "Bianchi" }, "msg", ADESSO);
     expect(pending.parametri?.order_id).toBe("3");
-    expect(interactive.body.text).toContain("Commessa: ORD-3 · Ristrutturazione (come mi hai scritto)");
+    expect(interactive.body.text).toContain("Commessa: Luca Verdi · ORD-3 (come mi hai scritto)");
     expect(interactive.body.text).toContain("Fattura emessa n. 45");
   });
 

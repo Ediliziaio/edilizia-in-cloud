@@ -120,7 +120,16 @@ export function riepilogoConCantiere(action: string, args: Record<string, unknow
 }
 
 /** Complete preview, never a silently truncated approval. */
-export function confirmationPreview(action: string, args: Record<string, unknown>, siteName?: string, media?: ToolCtx["mediaCorrente"], quoteReview?: Record<string, unknown>): string {
+export function confirmationPreview(action: string, args: Record<string, unknown>, siteName?: string, media?: ToolCtx["mediaCorrente"], quoteReview?: Record<string, unknown>, oggettoRichiesta?: string | null): string {
+  if (action === "approva_richiesta") {
+    const esito = args.esito === "rifiutata" ? "Rifiutare (chiudere senza intervento)" : "Approvare (segnare come risolta)";
+    const righe = [names[action] ?? "Gestire la richiesta",
+      `Segnalazione: ${oggettoRichiesta ? testo(oggettoRichiesta, 300) : "segnalazione dal cantiere"}`,
+      `Cosa faccio: ${esito}`];
+    if (args.note) righe.push(`Note: ${testo(args.note)}`);
+    righe.push("", "Confermi?");
+    return righe.join("\n");
+  }
   if (action === "prepara_preventivo_modello" && quoteReview) {
     const money = (n: unknown) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(n));
     const items = quoteReview.voci_da_mostrare as Record<string, unknown>[];
@@ -235,10 +244,20 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
   }
   if (args.order_id) {
     await requireSiteAccess(ctx, String(args.order_id));
-    const { data, error } = await ctx.supabase.from("orders").select("id, description, order_code")
+    const { data, error } = await ctx.supabase.from("orders").select("id, description, order_code, client_name, indirizzo_lavori")
       .eq("id", args.order_id).eq("company_id", ctx.company_id).maybeSingle();
     if (error || !data) throw new Error("Cantiere non disponibile per la conferma.");
-    siteName = [data.order_code, data.description].filter(Boolean).join(" · ") + (motivoCantiere ? ` (${motivoCantiere})` : "");
+    const nome = data.client_name || data.description || data.order_code || "Cantiere";
+    const codice = data.order_code && data.order_code !== nome ? ` · ${data.order_code}` : "";
+    siteName = [nome, data.indirizzo_lavori].filter(Boolean).join(" — ") + codice + (motivoCantiere ? ` (${motivoCantiere})` : "");
+  }
+  // Approvazioni: il titolare deve vedere l'OGGETTO della segnalazione, non il
+  // suo codice. Lo recuperiamo qui e lo passiamo alla preview, come il siteName.
+  let oggettoRichiesta: string | null = null;
+  if (action === "approva_richiesta" && typeof args.richiesta_id === "string") {
+    const { data: tk } = await ctx.supabase.from("tickets")
+      .select("subject").eq("id", args.richiesta_id).eq("company_id", ctx.company_id).eq("fonte", "campo").maybeSingle();
+    oggettoRichiesta = (tk?.subject as string | undefined)?.trim() || null;
   }
   if (action === "crea_rapportino" && !args.data_lavoro) {
     args.data_lavoro = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(now);
@@ -277,7 +296,7 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
         `Salvo la bozza per ${r.cliente}: ${r.numero} voci (le trovi qui sopra), ${r.totaliBrevi}. Nulla viene inviato al cliente.`, bottoni),
     };
   }
-  const preview = confirmationPreview(action, args, siteName, media, quoteReview);
+  const preview = confirmationPreview(action, args, siteName, media, quoteReview, oggettoRichiesta);
   const altri = (cantieri ?? []).filter((c) => c.id !== args.order_id);
   return { pending, interactive: buildInteractivePayload(preview, [
     { id: `approve:${pending.id}`, title: "Sì" },

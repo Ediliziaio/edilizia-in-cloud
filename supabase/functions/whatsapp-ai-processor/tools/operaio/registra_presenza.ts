@@ -57,6 +57,14 @@ const TIPO_DB: Record<Args["tipo"], string> = {
   fine_pausa: "pausa_fine",
 };
 
+// Frase di esito con accordi giusti: «inizio pausa registrata» suonava male.
+const TIPO_ESITO: Record<Args["tipo"], string> = {
+  entrata: "Entrata registrata",
+  uscita: "Uscita registrata",
+  inizio_pausa: "Pausa iniziata",
+  fine_pausa: "Pausa finita",
+};
+
 /**
  * "HH:MM" di oggi in Europe/Rome → istante ISO assoluto.
  * L'edge gira in UTC: senza questa conversione una timbrata delle 07:00 finiva
@@ -87,7 +95,7 @@ export async function registraPresenza(
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(ora) || (args.data_evento &&
     (!/^\d{4}-\d{2}-\d{2}$/.test(args.data_evento) || !Number.isFinite(Date.parse(args.data_evento)) ||
       new Date(args.data_evento).toISOString().slice(0, 10) !== args.data_evento))) {
-    return errResult("invalid_time", "Indica una data valida e un orario HH:MM. Nessuna presenza registrata.");
+    return errResult("invalid_time", "Indica una data valida e l'orario, tipo 7:30. Nessuna presenza registrata.");
   }
 
   // Stessa risoluzione del trigger che specchia le timbrature di cantiere:
@@ -99,12 +107,12 @@ export async function registraPresenza(
       p_user_id: ctx.user_id,
       p_company_id: ctx.company_id,
     });
-    if (profErr) return errResult(profErr.message, "Errore cercando il tuo profilo HR.");
+    if (profErr) return errResult(profErr.message, "Non riesco a trovarti nell'elenco del personale. Chiedi all'ufficio di controllare, poi riprova.");
     profiloId = (data as string | null) ?? null;
   } else {
     const { data, error: profErr } = await ctx.supabase.from("hr_profili").select("id, attivo")
       .eq("company_id", ctx.company_id).eq("employee_id", ctx.employee_id);
-    if (profErr) return errResult(profErr.message, "Errore cercando il tuo profilo HR.");
+    if (profErr) return errResult(profErr.message, "Non riesco a trovarti nell'elenco del personale. Chiedi all'ufficio di controllare, poi riprova.");
     const righe = (data ?? []) as Array<{ id: string; attivo: boolean | null }>;
     profiloId = (righe.find((r) => r.attivo !== false) ?? righe[0])?.id ?? null;
   }
@@ -131,17 +139,17 @@ export async function registraPresenza(
     .select("id")
     .single();
 
-  if (error) return errResult(error.message, "Errore registrando la presenza.");
+  if (error) return errResult(error.message, "Non sono riuscito a registrare la presenza. Riprova, oppure timbra dall'app.");
 
   let dove = "";
   if (args.order_id) {
-    const { data: o } = await ctx.supabase.from("orders").select("order_code, description")
+    const { data: o } = await ctx.supabase.from("orders").select("order_code, description, client_name")
       .eq("company_id", ctx.company_id).eq("id", args.order_id).maybeSingle();
-    const nome = [o?.order_code, o?.description].filter(Boolean).join(" · ");
+    const nome = [o?.client_name || o?.description, o?.order_code].filter(Boolean).join(" · ");
     if (nome) dove = ` su ${nome}`;
   }
   return okResult(
     { id: inserted.id, tipo: args.tipo },
-    `✅ ${args.tipo.replace("_", " ")} registrata alle ${ora}${dove}.`,
+    `✅ ${TIPO_ESITO[args.tipo]} alle ${ora}${dove}.`,
   );
 }

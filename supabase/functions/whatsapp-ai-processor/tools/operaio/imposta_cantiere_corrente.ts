@@ -26,7 +26,7 @@ export async function impostaCantiereCorrente(
   args: { order_id?: string; cantiere_hint?: string },
 ): Promise<ToolResult<{ order_id: string; cantiere_nome: string }>> {
   if (!ctx.sessionId) {
-    return errResult("no_session", "Sessione non trovata, riprova tra poco.");
+    return errResult("no_session", "Non sono riuscito a impostare il cantiere. Riprova a dirmi dove sei oggi.");
   }
 
   let orderId = args.order_id;
@@ -40,7 +40,8 @@ export async function impostaCantiereCorrente(
     orderId = resolved.cantiere_id;
     nome = resolved.cantiere_nome ?? "";
   } else {
-    await requireSiteAccess(ctx, orderId);
+    try { await requireSiteAccess(ctx, orderId); }
+    catch { return errResult("cantiere_access_unavailable", "Non riesco a usare quel cantiere. Dimmi di nuovo dove sei."); }
     const { data: c } = await ctx.supabase
       .from("orders")
       .select("description, order_code")
@@ -57,7 +58,7 @@ export async function impostaCantiereCorrente(
       last_activity_at: new Date().toISOString(),
     })
     .eq("id", ctx.sessionId).eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId).select("id");
-  if (saveError || changed?.length !== 1) return errResult("session_not_saved", "Il cantiere corrente non è stato aggiornato. Verifica la sessione nell’app.");
+  if (saveError || changed?.length !== 1) return errResult("session_not_saved", "Non sono riuscito a impostare il cantiere. Riprova a dirmi dove sei oggi.");
 
   return okResult(
     { order_id: orderId, cantiere_nome: nome },

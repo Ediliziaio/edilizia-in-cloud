@@ -22,8 +22,6 @@ export const STR = {
       "Servizio AI in modalità economica per controllo costi. Risposte più brevi.",
     budget_hard:
       "Budget AI giornaliero esaurito. Riattivo domani.",
-    approvazione_conferma:
-      "Confermi l'approvazione di questa richiesta? Rispondi \"sì\" o \"no\".",
   },
   shared: {
     generic_error:
