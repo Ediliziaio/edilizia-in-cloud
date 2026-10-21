@@ -2197,7 +2197,7 @@ function CalendarInner() {
               type="button"
               onClick={() => setConflictsOpen(true)}
               className="inline-flex items-center gap-1.5 text-amber-700 hover:underline"
-              title="Possibili sovrapposizioni, da verificare sulle assegnazioni e sugli orari"
+              title="Persone o squadre su più lavori nello stesso giorno con orari che si accavallano (o senza orari), oppure assegnate fuori dalla squadra della commessa. Clicca per l'elenco."
             >
               <AlertTriangle className="h-3.5 w-3.5" />
               {viewStats.conflicts} verifiche sulle assegnazioni

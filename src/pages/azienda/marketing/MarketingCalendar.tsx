@@ -1289,7 +1289,9 @@ export default function MarketingCalendar() {
           type="button"
           onClick={() => setKpiFilter((f) => (f === "conflicts" ? "all" : "conflicts"))}
           aria-pressed={kpiFilter === "conflicts"}
-          title={kpiFilter === "conflicts" ? "Mostra tutti gli appuntamenti" : "Mostra solo gli appuntamenti in conflitto"}
+          title={kpiFilter === "conflicts"
+            ? "Mostra tutti gli appuntamenti"
+            : "Conflitti: appuntamenti della stessa persona che si accavallano negli orari, lo stesso giorno. Clicca per vedere solo quelli."}
           className={cn(
             "col-span-2 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-red-50/70 dark:hover:bg-red-950/40 md:col-span-1",
             headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card max-sm:hidden",
@@ -1314,6 +1316,12 @@ export default function MarketingCalendar() {
             Stai vedendo solo{" "}
             <strong>{kpiFilter === "unassigned" ? "gli appuntamenti da assegnare" : "gli appuntamenti in conflitto"}</strong>{" "}
             ({displayAppointments.length}).
+            {kpiFilter === "conflicts" && (
+              <span className="block text-xs text-muted-foreground">
+                Un conflitto è una persona con due appuntamenti che si accavallano negli orari, lo stesso giorno.
+                Senza ora di fine, l'appuntamento conta per {slotDurationMinutes} minuti. Sposta o riassegna uno dei due.
+              </span>
+            )}
           </span>
           <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={() => setKpiFilter("all")}>
             Mostra tutti

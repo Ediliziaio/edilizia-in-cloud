@@ -37,6 +37,21 @@ export function CalendarConflictsPanel({
             Giorni consecutivi con la stessa sovrapposizione sono raggruppati.
             Apri gli eventi per verificare date, persone e orari.
           </SheetDescription>
+          {/* Cosa conta come conflitto (21/10/2026): la parola da sola non diceva niente. */}
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+            <li>
+              <strong className="font-medium text-foreground">Stessa persona o squadra</strong> su più lavori o
+              appuntamenti nello stesso giorno, con orari che si accavallano.
+            </li>
+            <li>
+              <strong className="font-medium text-foreground">Orari mancanti</strong>: due impegni nello stesso
+              giorno senza ora non si possono confrontare. Basta mettere gli orari.
+            </li>
+            <li>
+              <strong className="font-medium text-foreground">Fuori squadra</strong>: un appuntamento di lavoro
+              (inizio lavori, posa, collaudo…) assegnato a chi non è nella squadra della commessa. È un avviso.
+            </li>
+          </ul>
         </SheetHeader>
         <div className="mt-4 space-y-3">
           {groups.map((group, i) => (
