@@ -97,7 +97,7 @@ describe("previsionale: schede e filtri comuni", () => {
     );
     click(screen.getByRole("button", { name: "180 giorni" }));
     expect(urlSearch()).toContain("giorni=180");
-    click(screen.getByRole("button", { name: "Azzera" }));
+    click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(urlSearch()).toBe("?scheda=settimane");
   });
   it("shows an unavailable opening balance instead of zero", () => {
@@ -172,7 +172,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("requires an explicit assumption to include an overdue receipt", () => {
     mount();
-    click(screen.getByRole("checkbox", { name: "Includi incassi scaduti" }));
+    click(screen.getByRole("button", { name: "Includi incassi scaduti" }));
     click(screen.getByRole("button", { name: "Esporta piano" }));
     expect(
       exported().find((r) => r.descrizione === "Fattura scaduta"),
@@ -187,7 +187,7 @@ describe("previsionale: schede e filtri comuni", () => {
     expect(
       exported().find((r) => r.descrizione === "Fornitore scaduto")?.inclusione,
     ).toBe("Escluso: uscita scaduta non segnata pagata");
-    click(screen.getByRole("checkbox", { name: "Includi uscite scadute" }));
+    click(screen.getByRole("button", { name: "Includi uscite scadute" }));
     click(screen.getByRole("button", { name: "Esporta piano" }));
     expect(
       exported(1).find((r) => r.descrizione === "Fornitore scaduto"),

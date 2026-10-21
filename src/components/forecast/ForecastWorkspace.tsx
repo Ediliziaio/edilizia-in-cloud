@@ -79,6 +79,8 @@ const tone = {
 };
 const section = "rounded-xl border bg-card text-card-foreground";
 const selectClass = "h-9 min-w-0 rounded-md border bg-background px-2 text-xs";
+const filtroEtichetta =
+  "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
 // ─── Filtri comuni, nell'URL ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -241,16 +243,29 @@ function Toggle({
   onChange: (value: boolean) => void;
   children: ReactNode;
 }) {
+  // Interruttore a pillola: acceso = pieno, spento = solo bordo.
   return (
-    <label className="flex min-h-9 cursor-pointer items-center gap-2 whitespace-nowrap text-xs">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-primary"
+    <button
+      type="button"
+      aria-pressed={checked}
+      aria-label={typeof children === "string" ? `Includi ${children.toLowerCase()}` : undefined}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs transition-colors",
+        checked
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "bg-background text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          checked ? "bg-primary" : "bg-muted-foreground/40",
+        )}
       />
       {children}
-    </label>
+    </button>
   );
 }
 
@@ -530,6 +545,14 @@ export function ForecastWorkspace({
           })),
     [granularity, projection.days, weeks],
   );
+  // Clic su un giorno o una settimana, da uno qualunque dei due grafici.
+  const apriPeriodoDelGrafico = (state: unknown) => {
+    const index = Number(
+      (state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex,
+    );
+    const row = Number.isInteger(index) ? chartRows[index] : undefined;
+    if (row) setChartPeriod({ start: row.start, end: row.end });
+  };
   const minimumRow =
     projection.minimumDate == null
       ? undefined
@@ -650,137 +673,156 @@ export function ForecastWorkspace({
         </div>
       </header>
 
-      {/* Barra filtri comune a tutte le schede */}
+      {/* Barra filtri comune a tutte le schede: sopra le ipotesi del piano,
+          sotto cosa entra e quali movimenti guardare. */}
       <div
         role="group"
         aria-label="Filtri del previsionale"
-        className={cn(
-          section,
-          "flex flex-wrap items-center gap-x-4 gap-y-2 p-3 print:hidden",
-        )}
+        className={cn(section, "divide-y print:hidden")}
       >
-        <div
-          className="flex rounded-md bg-muted p-0.5"
-          role="group"
-          aria-label="Orizzonte previsione"
-        >
-          {HORIZONS.map((days) => (
-            <button
-              key={days}
-              aria-pressed={f.horizon === days}
-              onClick={() =>
-                setFilter({ giorni: days === 90 ? null : String(days) })
-              }
-              className={cn(
-                "min-h-8 rounded px-2.5 text-xs tabular-nums",
-                f.horizon === days && "bg-background font-semibold shadow-sm",
-              )}
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3 p-3">
+          <div className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Orizzonte</span>
+            <div
+              className="flex rounded-md bg-muted p-0.5"
+              role="group"
+              aria-label="Orizzonte previsione"
             >
-              {days} giorni
-            </button>
-          ))}
+              {HORIZONS.map((days) => (
+                <button
+                  key={days}
+                  aria-pressed={f.horizon === days}
+                  onClick={() =>
+                    setFilter({ giorni: days === 90 ? null : String(days) })
+                  }
+                  className={cn(
+                    "min-h-8 rounded px-2.5 text-xs tabular-nums",
+                    f.horizon === days && "bg-background font-semibold shadow-sm",
+                  )}
+                >
+                  {days} giorni
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Incassi</span>
+            <select
+              aria-label="Scenario incassi"
+              className={cn(selectClass, "w-52")}
+              value={f.scenario}
+              onChange={(e) =>
+                setFilter({
+                  scenario: e.target.value === "puntuali" ? null : e.target.value,
+                })
+              }
+            >
+              <option value="puntuali">Incassi puntuali</option>
+              <option value="reale" disabled={delay.days == null}>
+                {delay.days == null
+                  ? "Ritardo medio reale (non disponibile)"
+                  : `Ritardo medio reale (${delay.days} giorni)`}
+              </option>
+              <option value="15">Incassi +15 giorni</option>
+              <option value="30">Incassi +30 giorni</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Soglia di sicurezza</span>
+            <div className="relative">
+              <Input
+                aria-label="Soglia di sicurezza in euro"
+                type="number"
+                min="0"
+                step="100"
+                value={f.threshold / 100}
+                onChange={(e) =>
+                  setThreshold(
+                    Math.max(0, Math.round(Number(e.target.value) * 100)),
+                  )
+                }
+                className="h-9 w-32 pr-7 text-right text-xs tabular-nums"
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                €
+              </span>
+            </div>
+          </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetFilters}
+            className="ml-auto h-9 text-muted-foreground"
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Azzera filtri
+          </Button>
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          Soglia €
-          <Input
-            aria-label="Soglia di sicurezza in euro"
-            type="number"
-            min="0"
-            step="100"
-            value={f.threshold / 100}
-            onChange={(e) =>
-              setThreshold(
-                Math.max(0, Math.round(Number(e.target.value) * 100)),
-              )
-            }
-            className="h-9 w-28 text-right tabular-nums"
-          />
-        </label>
-        <select
-          aria-label="Scenario incassi"
-          className={selectClass}
-          value={f.scenario}
-          onChange={(e) =>
-            setFilter({
-              scenario: e.target.value === "puntuali" ? null : e.target.value,
-            })
-          }
-        >
-          <option value="puntuali">Incassi puntuali</option>
-          <option value="reale" disabled={delay.days == null}>
-            {delay.days == null
-              ? "Ritardo medio reale (non disponibile)"
-              : `Ritardo medio reale (${delay.days} giorni)`}
-          </option>
-          <option value="15">Incassi +15 giorni</option>
-          <option value="30">Incassi +30 giorni</option>
-        </select>
-        <Toggle
-          checked={f.estimates}
-          onChange={(v) => setFilter({ stime: v ? null : "0" })}
-        >
-          Includi stime
-        </Toggle>
-        <Toggle
-          checked={f.overdueIn}
-          onChange={(v) => setFilter({ "incassi-scaduti": v ? "1" : null })}
-        >
-          Includi incassi scaduti
-        </Toggle>
-        <Toggle
-          checked={f.overdueOut}
-          onChange={(v) => setFilter({ "uscite-scadute": v ? "1" : null })}
-        >
-          Includi uscite scadute
-        </Toggle>
-        <select
-          aria-label="Commessa"
-          className={cn(selectClass, "max-w-[12rem]")}
-          value={f.order}
-          onChange={(e) => setFilter({ commessa: e.target.value })}
-        >
-          <option value="">Tutte le commesse</option>
-          {orders.map(([id, label]) => (
-            <option key={id} value={id}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Categoria"
-          className={selectClass}
-          value={f.category}
-          onChange={(e) => setFilter({ categoria: e.target.value })}
-        >
-          <option value="">Tutte le categorie</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {FORECAST_CATEGORIES[c]}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Fonte"
-          className={selectClass}
-          value={f.source}
-          onChange={(e) => setFilter({ fonte: e.target.value })}
-        >
-          <option value="">Tutte le fonti</option>
-          {sources.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={resetFilters}
-          className="h-9"
-        >
-          <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-          Azzera
-        </Button>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Cosa includere">
+            <span className={cn(filtroEtichetta, "mr-1")}>Includi</span>
+            <Toggle
+              checked={f.estimates}
+              onChange={(v) => setFilter({ stime: v ? null : "0" })}
+            >
+              Stime
+            </Toggle>
+            <Toggle
+              checked={f.overdueIn}
+              onChange={(v) => setFilter({ "incassi-scaduti": v ? "1" : null })}
+            >
+              Incassi scaduti
+            </Toggle>
+            <Toggle
+              checked={f.overdueOut}
+              onChange={(v) => setFilter({ "uscite-scadute": v ? "1" : null })}
+            >
+              Uscite scadute
+            </Toggle>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtra i movimenti">
+            <span className={cn(filtroEtichetta, "mr-1")}>Filtra</span>
+            <select
+              aria-label="Commessa"
+              className={cn(selectClass, "w-44")}
+              value={f.order}
+              onChange={(e) => setFilter({ commessa: e.target.value })}
+            >
+              <option value="">Tutte le commesse</option>
+              {orders.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Categoria"
+              className={cn(selectClass, "w-40")}
+              value={f.category}
+              onChange={(e) => setFilter({ categoria: e.target.value })}
+            >
+              <option value="">Tutte le categorie</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {FORECAST_CATEGORIES[c]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Fonte"
+              className={cn(selectClass, "w-36")}
+              value={f.source}
+              onChange={(e) => setFilter({ fonte: e.target.value })}
+            >
+              <option value="">Tutte le fonti</option>
+              {sources.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
       {filtered && (
         <p className="text-xs text-muted-foreground">
@@ -952,38 +994,25 @@ export function ForecastWorkspace({
               </div>
             ) : (
               <div
-                className="h-[300px] w-full px-1 py-3 sm:px-3"
+                className="w-full px-1 pt-3 sm:px-3"
                 aria-label="Grafico saldo con entrate e uscite"
               >
+                {/* Saldo e, sotto, entrate e uscite: due grafici con la stessa linea del
+                    tempo e ognuno la sua scala, invece di due scale sovrapposte. */}
+                <div className="h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={chartRows}
                     margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-                    stackOffset="sign"
-                    onClick={(state) => {
-                      const index = Number(
-                        (state as { activeTooltipIndex?: number | string } | null)
-                          ?.activeTooltipIndex,
-                      );
-                      const row = Number.isInteger(index)
-                        ? chartRows[index]
-                        : undefined;
-                      if (row) setChartPeriod({ start: row.start, end: row.end });
-                    }}
+                    syncId="previsionale-cassa"
+                    onClick={apriPeriodoDelGrafico}
                   >
                     <CartesianGrid
                       strokeDasharray="3 6"
                       vertical={false}
                       stroke={tone.grid}
                     />
-                    <XAxis
-                      dataKey="label"
-                      minTickGap={32}
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      stroke={tone.axis}
-                    />
+                    <XAxis dataKey="label" hide />
                     <YAxis
                       yAxisId="saldo"
                       width={60}
@@ -993,7 +1022,6 @@ export function ForecastWorkspace({
                       fontSize={11}
                       stroke={tone.axis}
                     />
-                    <YAxis yAxisId="flussi" orientation="right" hide />
                     <Tooltip
                       formatter={(value: number, name: string) => [
                         money(Math.abs(value)),
@@ -1029,24 +1057,6 @@ export function ForecastWorkspace({
                       stroke={tone.axis}
                       strokeOpacity={0.5}
                     />
-                    <Bar
-                      yAxisId="flussi"
-                      dataKey="income"
-                      stackId="flussi"
-                      fill={tone.in}
-                      fillOpacity={0.55}
-                      isAnimationActive={false}
-                      cursor="pointer"
-                    />
-                    <Bar
-                      yAxisId="flussi"
-                      dataKey="expense"
-                      stackId="flussi"
-                      fill={tone.out}
-                      fillOpacity={0.55}
-                      isAnimationActive={false}
-                      cursor="pointer"
-                    />
                     <Line
                       yAxisId="saldo"
                       type="stepAfter"
@@ -1074,6 +1084,66 @@ export function ForecastWorkspace({
                     )}
                   </ComposedChart>
                 </ResponsiveContainer>
+                </div>
+                <div className="h-[120px] border-t border-dashed pt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={chartRows}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                    stackOffset="sign"
+                    syncId="previsionale-cassa"
+                    onClick={apriPeriodoDelGrafico}
+                  >
+                    <XAxis
+                      dataKey="label"
+                      minTickGap={32}
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      stroke={tone.axis}
+                    />
+                    <YAxis
+                      width={60}
+                      tickFormatter={compact}
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      stroke={tone.axis}
+                      tickCount={3}
+                    />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        money(Math.abs(value)),
+                        name === "income" ? "Entrate" : "Uscite",
+                      ]}
+                      contentStyle={{
+                        borderRadius: 8,
+                        fontSize: 12,
+                        background: "hsl(var(--popover))",
+                        borderColor: "hsl(var(--border))",
+                        color: "hsl(var(--popover-foreground))",
+                      }}
+                    />
+                    <ReferenceLine y={0} stroke={tone.axis} strokeOpacity={0.5} />
+                    <Bar
+                      dataKey="income"
+                      stackId="flussi"
+                      fill={tone.in}
+                      fillOpacity={0.8}
+                      isAnimationActive={false}
+                      cursor="pointer"
+                    />
+                    <Bar
+                      dataKey="expense"
+                      stackId="flussi"
+                      fill={tone.out}
+                      fillOpacity={0.8}
+                      isAnimationActive={false}
+                      cursor="pointer"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                </div>
               </div>
             )}
             {chartPeriod && (
