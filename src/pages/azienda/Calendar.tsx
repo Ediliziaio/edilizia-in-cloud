@@ -2961,7 +2961,7 @@ function CalendarInner() {
         groups={conflictGroups}
         onAppointment={(id) => {
           const appointment = enrichedAppointments.find((a) => a.id === id);
-          if (!appointment) return;
+          if (!appointment || appointment.riservato) return;
           setEditingAppointment(mapAppointmentToEditData(appointment));
           setAppointmentDialogOpen(true);
         }}

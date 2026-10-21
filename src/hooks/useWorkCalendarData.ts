@@ -14,6 +14,7 @@ import {
   type RawPlanningOrder,
 } from "@/lib/calendar/planning";
 import type { CalendarAppointment, CalendarScope } from "@/types/calendar";
+import { appuntamentiPerCalendarioLavori } from "@/lib/calendar/appuntamentiRiservati";
 
 const columns: string = `id, order_code, description, expected_date, work_start_date, work_end_date, work_start_time, work_end_time,
   warehouse_arrival_date, created_at, customer_id, current_status_id, indirizzo_lavori, work_address,work_lat,work_lng,distanza_sede_km,distanza_sede_minuti,distanza_sede_il,
@@ -169,6 +170,7 @@ export function useWorkCalendarData(
       company,
       user?.id,
       scope,
+      p.isAdmin || p.canViewMarketingAppointments,
       from,
       to,
     ],
@@ -179,7 +181,7 @@ export function useWorkCalendarData(
     queryFn: async ({ signal }) => {
       if (!ready) throw new Error("Calendario non disponibile");
       const archived = await loadArchivedOrderIds(company!);
-      return loadDashboardRows<CalendarAppointment>((a, b) => {
+      const rows = await loadDashboardRows<CalendarAppointment>((a, b) => {
         let q = supabase
           .from("appointments")
           .select(
@@ -200,6 +202,10 @@ export function useWorkCalendarData(
           .abortSignal(signal);
         if (!teamAppointments) q = q.eq("assigned_to", user!.id);
         return excludeArchivedOrders(q, archived, "order_id");
+      });
+      return appuntamentiPerCalendarioLavori(rows, {
+        userId: user?.id,
+        vedeCrm: p.isAdmin || p.canViewMarketingAppointments,
       });
     },
   });

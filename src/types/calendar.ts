@@ -235,4 +235,6 @@ export interface CalendarAppointment {
     first_name: string;
     last_name: string;
   } | null;
+  /** Appuntamento commerciale di un collega mostrato come «Occupato» (appuntamentiRiservati.ts). */
+  riservato?: boolean;
 }

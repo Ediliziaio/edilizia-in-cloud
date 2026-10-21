@@ -223,6 +223,10 @@ export function EmployeeDialog({
                     <FormControl>
                       <Input type="email" placeholder="mario@esempio.it" {...field} />
                     </FormControl>
+                    {/* fn_employees_autolink_user: stessa email di un utente dell'azienda → scheda collegata. */}
+                    <FormDescription>
+                      Con l'email di un utente dell'app, la scheda si collega a lui: i giorni in cantiere lo segnano occupato nelle prenotazioni.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

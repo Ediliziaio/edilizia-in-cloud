@@ -216,6 +216,8 @@ export function CalendarMonthView({
         label: event.appointment.title || "Appuntamento",
         color: event.color,
         onClick: () => {
+          // Appuntamento commerciale di un collega: si vede che è occupato, non si apre.
+          if (event.appointment!.riservato) return;
           setDayDetailsOpen(false);
           setEditingAppointment(mapAppointmentToEditData(event.appointment!));
           setAppointmentDialogOpen(true);

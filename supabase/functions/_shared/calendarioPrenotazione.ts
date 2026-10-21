@@ -97,6 +97,21 @@ async function slotDelGiorno(
       if (eBusy) throw new Error(`impegni esterni: ${eBusy.message}`);
       impegni = (busy ?? []) as typeof impegni;
     }
+    // Impegni interni della persona (21/10/2026): i suoi appuntamenti su altri
+    // calendari o legati a una commessa, e le giornate di cantiere. Valgono
+    // sempre, non dipendono dal blocco degli impegni esterni. Gli appuntamenti
+    // di questo calendario li conta già `presi`; quello che si sposta non blocca se stesso.
+    const { data: interni, error: eInterni } = await admin
+      .from("impegni_interni_persona")
+      .select("start_at, end_at, fonte, appointment_id, calendar_id")
+      .eq("user_id", cal.owner_id)
+      .lt("start_at", `${dataIso}T23:59:59.999Z`)
+      .gt("end_at", `${dataIso}T00:00:00.000Z`);
+    if (eInterni) throw new Error(`impegni interni: ${eInterni.message}`);
+    for (const i of (interni ?? []) as Array<{ start_at: string; end_at: string; fonte: string; appointment_id: string | null; calendar_id: string | null }>) {
+      if (i.fonte === "appuntamento" && (i.calendar_id === cal.id || i.appointment_id === escludiAppuntamentoId)) continue;
+      impegni.push({ start_at: i.start_at, end_at: i.end_at });
+    }
   }
 
   return slotLiberi({
