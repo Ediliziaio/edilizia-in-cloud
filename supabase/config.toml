@@ -1137,3 +1137,7 @@ verify_jwt = false
 # Consenso, impronta del documento, PNG, stato e scadenza sono verificati server-side.
 [functions.firma-odv-webhook]
 verify_jwt = false
+
+# Cron ogni 10 minuti (x-cron-secret o service role, controllati nel codice).
+[functions.clienti-da-fatture-importate]
+verify_jwt = false
