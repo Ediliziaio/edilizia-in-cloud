@@ -19,6 +19,11 @@ describe("clienti dalle fatture importate", () => {
     expect(MODULO).toContain('role: "customer"');
   });
 
+  it("un codice fiscale di 11 cifre è un'azienda, e il CF resta quello della fattura", () => {
+    expect(MODULO).toContain("/^\\d{11}$/.test(cfFattura");
+    expect(MODULO).toContain("fiscal_code: cfFattura,");
+  });
+
   it("niente email, niente contatti CRM", () => {
     expect(MODULO).not.toMatch(/sendEmail|marketing_contacts/);
     expect(FUNZIONE).not.toMatch(/sendEmail|from\("marketing_contacts"\)/);

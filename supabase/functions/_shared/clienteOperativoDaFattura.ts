@@ -93,7 +93,11 @@ export async function clienteDaFatturaImportata(
 
     const intestatario = (fattura.client_company_name || "").trim();
     if (!intestatario) return { esito: "da_verificare", motivo: "Intestatario assente" };
-    const azienda = !!(fattura.client_vat_number || "").trim();
+    // Azienda: ha la partita IVA, oppure un codice fiscale di 11 cifre (quello
+    // delle società). Una persona ha il codice fiscale di 16 caratteri.
+    const cfFattura = (fattura.client_fiscal_code || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase() || null;
+    const ivaFattura = (fattura.client_vat_number || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/^IT/, "") || null;
+    const azienda = !!ivaFattura || /^\d{11}$/.test(cfFattura || "");
     const persona = azienda ? { first_name: "", last_name: intestatario } : nomeDaIntestatario(intestatario, fattura.client_fiscal_code);
 
     const pulito = sanitizeCustomerInput({
@@ -140,9 +144,11 @@ export async function clienteDaFatturaImportata(
       phone: pulito.phone,
       address: pulito.address,
       company_id: companyId,
-      // Come li confronta norm_id_fiscale: senza spazi né prefisso IT.
-      fiscal_code: pulito.fiscal_code ? pulito.fiscal_code.replace(/[^0-9A-Za-z]/g, "").toUpperCase() : null,
-      vat_number: pulito.vat_number ? pulito.vat_number.replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/^IT/, "") : null,
+      // I dati fiscali sono quelli della fattura, scritti come li confronta
+      // norm_id_fiscale: il sanitizer sposterebbe un CF di 11 cifre nella P.IVA,
+      // e la riconciliazione non ritroverebbe più il cliente.
+      fiscal_code: cfFattura,
+      vat_number: ivaFattura,
       is_business: azienda,
       business_name: azienda ? intestatario.slice(0, 200) : null,
       customer_type: "privato",
