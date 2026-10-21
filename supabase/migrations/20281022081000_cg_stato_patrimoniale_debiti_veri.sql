@@ -11,6 +11,11 @@
 --      - pagamento_fornitore: tutte (fattura ricevuta, da pagare) → 124.284 €
 --      - costo_aziendale: solo quelle già scadute alla data (affitti, utenze…
 --        di dicembre non sono ancora un debito oggi) → fino a 33.103,84 €
+--    Stessa fonte della scheda PFN (cg_get_aging 'out', 164.337,84 € su 24
+--    posizioni in Demo 2): qui le scadenze fiscali vanno nei debiti
+--    tributari, e restano fuori le previsionali e i costi ricorrenti non
+--    ancora scaduti. In Demo 2: 157.387,84 fornitori + 6.950,00 fiscali =
+--    164.337,84, lo stesso totale della PFN.
 -- 2. Debiti tributari: solo f24_entries (tabella vuota per tutte le aziende).
 --    Ora anche le scadenze fiscali aperte (6.950 € in Demo 2) e le ritenute
 --    dei cedolini emessi e non pagati.
