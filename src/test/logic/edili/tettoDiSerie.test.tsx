@@ -62,7 +62,9 @@ vi.mock("@/integrations/supabase/client", () => {
   const nulla = (): Promise<{ data: null; error: null }> => Promise.resolve({ data: null, error: null });
   return {
     supabase: {
-      from: (t: string) => catena(t), rpc: nulla, functions: { invoke: nulla },
+      from: (t: string) => catena(t),
+      rpc: (nome: string) => (nome === "genera_codice_progetto" ? Promise.resolve({ data: "X-2026-004", error: null }) : nulla()),
+      functions: { invoke: nulla },
       storage: { from: () => ({ createSignedUrl: nulla, createSignedUrls: () => Promise.resolve({ data: [] as unknown[], error: null }), getPublicUrl: () => ({ data: { publicUrl: "" } }) }) },
       auth: { getSession: () => Promise.resolve({ data: { session: null } }) },
     },

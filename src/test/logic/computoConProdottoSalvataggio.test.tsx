@@ -52,7 +52,7 @@ vi.mock("@/integrations/supabase/client", () => {
     });
     return p;
   };
-  return { supabase: { from: (t: string) => catena(t), rpc: () => Promise.resolve({ data: null as null, error: null as null }) } };
+  return { supabase: { from: (t: string) => catena(t), rpc: (nome: string) => Promise.resolve({ data: (nome === "genera_codice_progetto" ? "X-2026-004" : null) as string | null, error: null as null }) } };
 });
 
 const MODULI: Array<{ p: string; hook: () => Promise<Record<string, unknown>> }> = [

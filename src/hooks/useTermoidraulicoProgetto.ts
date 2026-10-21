@@ -118,24 +118,15 @@ export function useTermoidraulicoProgetto(id: string | undefined) {
 export type IdrProgettoPatch = Partial<Omit<IdrProgetto, "id" | "company_id">>;
 
 /**
- * Genera un codice progressivo leggibile per il progetto (es. IDR-2026-007).
- * La tabella `idr_progetti.code` non ha trigger DB: lo deriviamo client-side
- * dal numero di progetti già esistenti per l'azienda nell'anno corrente.
- * Best-effort: in caso di errore di conteggio si usa un fallback timestamp.
+ * Numero del preventivo (IDR-2026-007): lo dà il database, progressivo per
+ * anno e mai riusato (genera_codice_progetto, migrazione 20281021130000).
+ * Prima si contavano i progetti nel browser: il numero non ripartiva a
+ * gennaio e si ripeteva cancellandone uno.
  */
 async function generateProgettoCode(companyId: string): Promise<string> {
-  const year = new Date().getFullYear();
-  try {
-    const { count, error } = await sb()
-      .from("idr_progetti")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId);
-    if (error) throw error;
-    const n = (count ?? 0) + 1;
-    return `IDR-${year}-${String(n).padStart(3, "0")}`;
-  } catch {
-    return `IDR-${year}-${Date.now().toString().slice(-5)}`;
-  }
+  const { data, error } = await sb().rpc("genera_codice_progetto", { p_company_id: companyId, p_modulo: "termoidraulico" });
+  if (error || typeof data !== "string") throw new Error(error?.message || "Numero del preventivo non disponibile: riprova.");
+  return data;
 }
 
 // ─── Totali del progetto ──────────────────────────────────────────────────────
