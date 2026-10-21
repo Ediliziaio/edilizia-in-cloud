@@ -51,6 +51,11 @@ export type IntegrationStatusMap = Record<
     status: IntegrationConnectionStatus;
     /** Dettaglio compatto sotto lo stato (es: "Numero: +39 ...", "3 caselle · 1 da ricollegare") */
     detail?: string | null;
+    /**
+     * Il collegamento è stato chiuso dal fornitore (es. Meta: token scaduto o revocato):
+     * la scheda dice «Scollegato» e il pulsante è «Ricollega», che apre subito il collegamento.
+     */
+    daRicollegare?: boolean;
   }
 >;
 
@@ -77,6 +82,8 @@ export type IntegrationsGridProps = {
   onTroubleshoot?: (item: IntegrationItem) => void;
   /** "Moduli lead" nel kebab per gli item con leadFormsMenu=true (se connessi). */
   onManageForms?: (item: IntegrationItem) => void;
+  /** «Ricollega» su una scheda con `daRicollegare`: apre subito il collegamento. */
+  onRicollega?: (item: IntegrationItem) => void;
   /** Popup comandato da fuori: con `onPopupChange` la grid non lo tiene per sé. */
   popup?: PopupAperto;
   onPopupChange?: (popup: PopupAperto) => void;
@@ -108,6 +115,7 @@ export default function IntegrationsGrid({
   onDisconnect,
   onTroubleshoot,
   onManageForms,
+  onRicollega,
   popup: popupDaFuori,
   onPopupChange,
 }: IntegrationsGridProps) {
@@ -140,6 +148,11 @@ export default function IntegrationsGrid({
   const handleAction = (item: IntegrationItem) => {
     if (!canManage) {
       toast.error("Solo un amministratore aziendale può gestire le integrazioni.");
+      return;
+    }
+    // Un collegamento chiuso dal fornitore si ricollega con un clic.
+    if (statuses[item.id]?.daRicollegare && onRicollega) {
+      onRicollega(item);
       return;
     }
     // Un collegamento che non va (Meta) si apre sulla diagnosi, non sul
@@ -229,10 +242,13 @@ export default function IntegrationsGrid({
           {filteredItems.map((item) => {
             const status = statuses[item.id]?.status ?? "disconnected";
             const detail = statuses[item.id]?.detail;
-            const stato = STATO[status];
+            const daRicollegare = !!statuses[item.id]?.daRicollegare && !!onRicollega;
+            const stato = daRicollegare ? { tono: "errore" as Tono, label: "Scollegato" } : STATO[status];
             const connected = eCollegata(status);
             const problemi = haProblemi(status);
-            const ctaLabel = problemi
+            const ctaLabel = daRicollegare
+              ? "Ricollega"
+              : problemi
               ? "Risolvi"
               : connected
                 ? item.manageCtaLabel ?? "Gestisci"

@@ -339,7 +339,8 @@ export default function SettingsIntegrations() {
         : metaIntegration?.status === "error" || metaIntegration?.status === "token_expired"
           ? "error"
           : "disconnected";
-    result["meta"] = { status: metaStatus, detail: null };
+    // Token scaduto o revocato da Meta: non serve una diagnosi, serve ricollegarlo.
+    result["meta"] = { status: metaStatus, detail: null, daRicollegare: metaIntegration?.status === "token_expired" };
 
     // Google Business Profile
     const gbpConnected = gbpConnection?.status === "connected";
@@ -505,7 +506,16 @@ export default function SettingsIntegrations() {
     const profilo = (scheda: "calendari" | "email") => () =>
       navigate(`/azienda/impostazioni/mio-profilo?tab=${scheda}`);
 
-    if (statuses.meta?.status === "error") {
+    if (statuses.meta?.daRicollegare) {
+      voci.push({
+        id: "meta",
+        Logo: MetaAssetLogo,
+        titolo: "Facebook e Instagram",
+        messaggio: "Meta ha chiuso il collegamento: lead e messaggi non arrivano finché non lo ricolleghi.",
+        azione: "Ricollega",
+        onAzione: () => setMetaWizardStep("oauth"),
+      });
+    } else if (statuses.meta?.status === "error") {
       voci.push({
         id: "meta",
         Logo: MetaAssetLogo,
@@ -744,6 +754,7 @@ export default function SettingsIntegrations() {
         onDisconnect={handleDisconnect}
         onTroubleshoot={handleTroubleshoot}
         onManageForms={handleManageForms}
+        onRicollega={(item) => { if (item.id === "meta") setMetaWizardStep("oauth"); }}
         popup={popup}
         onPopupChange={setPopup}
       />
