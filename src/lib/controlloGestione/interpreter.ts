@@ -11,7 +11,8 @@
 
 import type { CEriclassificato, BEPResult, VoceCE } from "@/hooks/controlloGestione/useCEriclassificato";
 import type { SPResult, RatingResult } from "@/hooks/controlloGestione/useStatoPatrimoniale";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { formatNumero } from "@/lib/controlloGestione/formatCG";
 
 export type Severity = "success" | "info" | "warning" | "danger";
 export type InsightCategory =
@@ -52,6 +53,8 @@ export interface ScadenzaLite {
   cliente_nome?: string;
   importo: number;
   giorni_scadenza: number;
+  /** Data di scadenza (YYYY-MM-DD), per dire «scaduta dal …». */
+  scadenza?: string;
 }
 
 export interface Snapshot {
@@ -92,7 +95,7 @@ const ruleMolInCalo: Rule = (s) => {
     id: "mol-in-calo",
     category: "redditivita",
     severity: delta < -15 ? "danger" : "warning",
-    title: `MOL in calo del ${Math.abs(delta).toFixed(1)}% rispetto all'anno scorso`,
+    title: `MOL in calo del ${formatNumero(Math.abs(delta), 1)}% rispetto all'anno scorso`,
     body:
       `EBITDA passato da ${formatCurrency(ebitdaPrec)} a ${formatCurrency(ebitdaCorr)}. ` +
       `Verifica subappalti, materie prime e costo personale per individuare la causa principale.`,
@@ -114,7 +117,7 @@ const ruleMolEsplosivo: Rule = (s) => {
     id: "mol-esplosivo",
     category: "redditivita",
     severity: "success",
-    title: `MOL in crescita del ${delta.toFixed(0)}% rispetto all'anno scorso`,
+    title: `MOL in crescita del ${formatNumero(delta, 0)}% rispetto all'anno scorso`,
     body:
       `EBITDA salito da ${formatCurrency(ebitdaPrec)} a ${formatCurrency(ebitdaCorr)}. ` +
       `Approfitta del momento: consolida la liquidità, riduci i debiti e investi in formazione.`,
@@ -134,7 +137,7 @@ const ruleEbitMargineRischio: Rule = (s) => {
     id: "ebit-margine-rischio",
     category: "redditivita",
     severity: ebitMargine < 0 ? "danger" : "warning",
-    title: `EBIT al ${ebitMargine.toFixed(1)}% — sotto soglia di sicurezza`,
+    title: `EBIT al ${formatNumero(ebitMargine, 1)}% — sotto soglia di sicurezza`,
     body:
       `L'EBIT è ${formatCurrency(ebit)} su ${formatCurrency(ricavi)} di ricavi. ` +
       `Sotto il 5% non c'è margine per imprevisti. Rivedi prezzi e costi fissi entro 30 giorni.`,
@@ -157,7 +160,7 @@ const ruleRatingPeggiorato: Rule = (s) => {
     severity: deltaClassi <= -2 ? "danger" : "warning",
     title: `Rating sceso da ${seiMesiFa} a ${oggi} negli ultimi 6 mesi`,
     body:
-      `Se chiedi un finanziamento ora, il tasso aumenterà di circa +${impattoTasso.toFixed(1)} ` +
+      `Se chiedi un finanziamento ora, il tasso aumenterà di circa +${formatNumero(impattoTasso, 1)} ` +
       `punti. Su 100k€ a 5 anni sono circa ${formatCurrency(100000 * (impattoTasso / 100) * 5)} ` +
       `di interessi in più.`,
     drilldown: { label: "Apri Rating Bancario", href: "/azienda/controllo-gestione" },
@@ -192,20 +195,20 @@ const ruleBepNonRaggiunto: Rule = (s) => {
       id: "bep-in-corso",
       category: "bep",
       severity: s.bep.giorni_residui > 90 ? "warning" : "info",
-      title: `BEP previsto tra ${s.bep.giorni_residui} giorni`,
+      title: `Punto di pareggio previsto tra ${s.bep.giorni_residui} giorni`,
       body:
         `Devi ancora fatturare ${formatCurrency(Math.max(mancanti, 0))} per coprire i costi fissi. ` +
-        `Margine di contribuzione attuale: ${s.bep.margine_contribuzione_pct.toFixed(1)}%.`,
+        `Margine di contribuzione attuale: ${formatNumero(s.bep.margine_contribuzione_pct, 1)}%.`,
     };
   }
   return {
     id: "bep-non-raggiungibile",
     category: "bep",
     severity: "danger",
-    title: "BEP non raggiungibile a questo ritmo",
+    title: "Punto di pareggio non raggiungibile a questo ritmo",
     body:
       `A ritmo attuale i ricavi non copriranno i costi fissi entro l'anno. ` +
-      `Margine di contribuzione: ${s.bep.margine_contribuzione_pct.toFixed(1)}%. ` +
+      `Margine di contribuzione: ${formatNumero(s.bep.margine_contribuzione_pct, 1)}%. ` +
       `Aumenta i prezzi o riduci i costi variabili.`,
   };
 };
@@ -217,7 +220,7 @@ const ruleBepEarly: Rule = (s) => {
     id: "bep-early",
     category: "bep",
     severity: "success",
-    title: `BEP raggiunto in anticipo (giorno ${s.bep.bep_giorno_anno}/365)`,
+    title: `Punto di pareggio raggiunto in anticipo (giorno ${s.bep.bep_giorno_anno} dell'anno)`,
     body:
       `Hai coperto i costi fissi prima della fine dell'anno. Tutto il fatturato da qui in avanti ` +
       `contribuisce al margine. Valuta accantonamenti e investimenti.`,
@@ -237,7 +240,7 @@ const ruleLiquiditaCritica: Rule = (s) => {
     title: "Attività correnti sotto le passività correnti",
     body:
       `Le attività entro 12 mesi (${formatCurrency(ac)}) sono inferiori alle passività entro 12 mesi ` +
-      `(${formatCurrency(pc)}). Indice: ${acPc.toFixed(2)}. Fai cassa: solleciti incassi e rimanda ` +
+      `(${formatCurrency(pc)}). Indice: ${formatNumero(acPc, 2)}. Fai cassa: solleciti incassi e rimanda ` +
       `pagamenti non urgenti.`,
     drilldown: { label: "Apri Scadenzario", href: "/azienda/scadenzario" },
   };
@@ -258,21 +261,26 @@ const ruleLiquiditaSottoTrenta: Rule = (s) => {
 };
 
 const ruleCantieriInPerdita: Rule = (s) => {
-  const inPerdita = s.cantieri_attivi.filter((c) => c.margine_pct !== null && c.margine_pct < 5);
-  if (inPerdita.length === 0) return null;
-  const totalePerdita = inPerdita.reduce((acc, c) => acc + (c.margine_eur ?? 0), 0);
-  const top3 = [...inPerdita]
+  // Cantieri APERTI sotto il 5% di margine atteso; «in perdita» = sotto zero.
+  // Il titolo dice entrambi: la Dashboard conta le commesse in perdita (sotto
+  // zero, aperte e chiuse) e i due numeri sembravano in contraddizione.
+  const sottoSoglia = s.cantieri_attivi.filter((c) => c.margine_pct !== null && c.margine_pct < 5);
+  if (sottoSoglia.length === 0) return null;
+  const inPerdita = sottoSoglia.filter((c) => (c.margine_pct ?? 0) < 0);
+  const margineTotale = sottoSoglia.reduce((acc, c) => acc + (c.margine_eur ?? 0), 0);
+  const top3 = [...sottoSoglia]
     .sort((a, b) => (a.margine_pct ?? 0) - (b.margine_pct ?? 0))
     .slice(0, 3);
   return {
     id: "cantieri-in-perdita",
     category: "cantieri",
-    severity: "warning",
-    title: `${inPerdita.length} cantieri sotto il 5% di margine`,
+    severity: inPerdita.length > 0 ? "danger" : "warning",
+    title: `${sottoSoglia.length} cantieri aperti con margine sotto il 5%` +
+      (inPerdita.length > 0 ? `, di cui ${inPerdita.length} in perdita` : ""),
     body:
-      `Cantieri critici: ${top3.map((c) => `${c.nome} (${(c.margine_pct ?? 0).toFixed(1)}%)`).join(", ")}. ` +
-      `Margine cumulato: ${formatCurrency(totalePerdita)}. Rinegozia o chiudi.`,
-    drilldown: { label: "Apri Marginalità Cantieri", href: "/azienda/ordini?tab=marginalita" },
+      `I più critici: ${top3.map((c) => `${c.nome} (${formatNumero(c.margine_pct ?? 0, 1)}%)`).join(", ")}. ` +
+      `Margine atteso di questi cantieri, sommato: ${formatCurrency(margineTotale)}. Rivedi costi e varianti non fatturate.`,
+    drilldown: { label: "Apri le commesse", href: "/azienda/controllo-gestione/commesse" },
   };
 };
 
@@ -285,10 +293,11 @@ const ruleCreditiInsoluti60gg: Rule = (s) => {
     id: "crediti-insoluti-60gg",
     category: "crediti",
     severity: totale > 50000 ? "danger" : "warning",
-    title: `${formatCurrency(totale)} di crediti scaduti da oltre 60 giorni`,
+    title: `${formatCurrency(totale)} da incassare, scaduti da oltre 60 giorni`,
     body:
-      `Top 3: ${top.map((t) => `${t.cliente_nome ?? "Cliente"} ${formatCurrency(t.importo)}`).join(", ")}. ` +
-      `Sollecita ora: ogni mese di ritardo erode marginalità.`,
+      `${insoluti.length} ${insoluti.length === 1 ? "scadenza ancora aperta" : "scadenze ancora aperte"}, anche di anni precedenti. ` +
+      `Le più grandi: ${top.map((t) => `${t.cliente_nome ?? "Cliente"}: ${formatCurrency(t.importo)}${t.scadenza ? ` (scaduta il ${formatDateShort(t.scadenza)})` : ""}`).join("; ")}. ` +
+      `Sollecita ora, o segna come incassato quello che è già arrivato.`,
     drilldown: { label: "Apri Solleciti", href: "/azienda/scadenzario?filter=insoluti" },
   };
 };
@@ -310,7 +319,7 @@ const ruleConcentrazioneClienti: Rule = (s) => {
     id: "concentrazione-clienti",
     category: "redditivita",
     severity: pctTop > 50 ? "danger" : "warning",
-    title: `${top.nome} pesa il ${pctTop.toFixed(0)}% del fatturato`,
+    title: `${top.nome} pesa il ${formatNumero(pctTop, 0)}% del fatturato`,
     body:
       `Concentrazione del rischio elevata. Se questo cliente rallenta, l'impatto è devastante. ` +
       `Diversifica nei prossimi 6 mesi: target massimo 25% per singolo cliente.`,
@@ -328,7 +337,7 @@ const ruleCostoPersonaleEsploso: Rule = (s) => {
     id: "costo-personale-esploso",
     category: "redditivita",
     severity: delta > 40 ? "danger" : "warning",
-    title: `Costo del personale +${delta.toFixed(0)}% YoY`,
+    title: `Costo del personale +${formatNumero(delta, 0)}% YoY`,
     body:
       `Da ${formatCurrency(cpPrec)} a ${formatCurrency(cpCorr)}. Verifica se è dovuto a nuove ` +
       `assunzioni programmate (ok) o ad aumenti contrattuali / straordinari (rivedi pianificazione).`,
@@ -347,7 +356,7 @@ const ruleOneriFinanziariAlti: Rule = (s) => {
     id: "oneri-finanziari-alti",
     category: "fiscale",
     severity: incidenza > 6 ? "danger" : "warning",
-    title: `Oneri finanziari al ${incidenza.toFixed(1)}% del fatturato`,
+    title: `Oneri finanziari al ${formatNumero(incidenza, 1)}% del fatturato`,
     body:
       `${formatCurrency(of)} di interessi e spese bancarie su ${formatCurrency(ricavi)} di ricavi. ` +
       `Sopra il 3% indica indebitamento elevato. Valuta consolidamento o estinzione anticipata.`,
@@ -366,7 +375,7 @@ const ruleIndipendenzaFinanziariaBassa: Rule = (s) => {
     id: "indipendenza-bassa",
     category: "rating",
     severity: indipendenza < 0.10 ? "danger" : "warning",
-    title: `Mezzi propri al ${(indipendenza * 100).toFixed(1)}% del totale passivo`,
+    title: `Mezzi propri al ${formatNumero((indipendenza * 100), 1)}% del totale passivo`,
     body:
       `Sotto il 20% le banche ti vedono "fragile". Valuta aumento di capitale, ricapitalizzazione ` +
       `con utili a nuovo, o riduzione del debito a breve.`,

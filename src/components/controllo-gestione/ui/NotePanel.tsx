@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { messaggioErrore } from "@/lib/controlloGestione/formatCG";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +59,7 @@ export function NotePanel({ anno }: Props) {
       setContenuto("");
       toast({ title: "Nota salvata" });
     } catch (e) {
-      toast({ title: "Errore", description: String(e), variant: "destructive" });
+      toast({ title: "Errore", description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -148,7 +149,7 @@ export function NotePanel({ anno }: Props) {
                         await del.mutateAsync(n.id);
                         toast({ title: "Nota eliminata" });
                       } catch (e) {
-                        toast({ title: "Errore", description: String(e), variant: "destructive" });
+                        toast({ title: "Errore", description: messaggioErrore(e), variant: "destructive" });
                       }
                     }}
                   >
