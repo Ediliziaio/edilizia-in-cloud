@@ -21,6 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 // Pesante (approvazione con verifica economica e delle fasi): caricato solo
 // quando si apre il popup, per non appesantire la pagina Attività.
 const OrdineRapportiniCampo = lazy(() => import("@/components/orders/OrdineRapportiniCampo").then((m) => ({ default: m.OrdineRapportiniCampo })));
+// Timbrature dimenticate + bolle/acquisti del cantiere (si approvano qui dentro).
+const DaApprovareCommessa = lazy(() => import("@/components/orders/DaApprovareCommessa").then((m) => ({ default: m.DaApprovareCommessa })));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -85,6 +87,34 @@ export function DaApprovareCantieri() {
     ].filter((x): x is string => !!x);
     return [...new Set(ids)];
   }, [approvare.data]);
+  // Una riga per COMMESSA (niente doppioni quando dalla stessa ci sono più
+  // rapportini/bolle): si apre il popup e si approva tutto di quella commessa.
+  const gruppi = useMemo(() => {
+    const d = approvare.data;
+    if (!d) return { commesse: [] as Array<{ orderId: string; totale: number; piuVecchio: string | null; inRitardo: boolean; codiceFallback: string | null; nRapportini: number; nCorrezioni: number; nBolle: number }>, correzioniSenza: [] as DaApprovare["correzioni"], bolleSenza: [] as DaApprovare["bolle"] };
+    const map = new Map<string, { nRapportini: number; nCorrezioni: number; nBolle: number; giorni: string[]; codice: string | null }>();
+    const get = (id: string, codice: string | null) => {
+      let g = map.get(id);
+      if (!g) { g = { nRapportini: 0, nCorrezioni: 0, nBolle: 0, giorni: [], codice }; map.set(id, g); }
+      if (!g.codice && codice) g.codice = codice;
+      return g;
+    };
+    for (const r of d.rapportini) { const g = get(r.order_id, r.codice); g.nRapportini++; g.giorni.push(r.giorno); }
+    for (const c of d.correzioni) if (c.order_id) get(c.order_id, c.codice).nCorrezioni++;
+    for (const b of d.bolle) if (b.order_id) get(b.order_id, b.codice).nBolle++;
+    const commesse = [...map.entries()].map(([orderId, g]) => {
+      const piuVecchio = g.giorni.slice().sort()[0] ?? null;
+      return {
+        orderId,
+        totale: g.nRapportini + g.nCorrezioni + g.nBolle,
+        piuVecchio,
+        inRitardo: piuVecchio ? differenceInCalendarDays(new Date(), parseISO(piuVecchio)) > 14 : false,
+        codiceFallback: g.codice,
+        nRapportini: g.nRapportini, nCorrezioni: g.nCorrezioni, nBolle: g.nBolle,
+      };
+    }).sort((x, y) => (x.piuVecchio ?? "9999").localeCompare(y.piuVecchio ?? "9999")); // i più vecchi in cima
+    return { commesse, correzioniSenza: d.correzioni.filter((c) => !c.order_id), bolleSenza: d.bolle.filter((b) => !b.order_id) };
+  }, [approvare.data]);
   const nomi = useQuery({
     queryKey: ["ufficio-da-approvare-nomi", effectiveCompany?.id, orderIds],
     enabled: orderIds.length > 0,
@@ -140,22 +170,25 @@ export function DaApprovareCantieri() {
         : approvare.isError ? <p role="alert" className="p-4 text-sm text-destructive">Non riesco a leggere le approvazioni. <button className="underline" onClick={() => void approvare.refetch()}>Riprova</button></p>
         : (
           <ul className="divide-y">
-            {[...a!.rapportini].sort((x, y) => x.giorno.localeCompare(y.giorno)).map((r) => {
-              const inRitardo = differenceInCalendarDays(new Date(), parseISO(r.giorno)) > 14;
-              const codice = codiceDi(r.order_id);
+            {gruppi.commesse.map((g) => {
+              const pezzi = [
+                g.nRapportini > 0 ? `${g.nRapportini} rapportin${g.nRapportini === 1 ? "o" : "i"}` : null,
+                g.nCorrezioni > 0 ? `${g.nCorrezioni} timbratur${g.nCorrezioni === 1 ? "a" : "e"}` : null,
+                g.nBolle > 0 ? `${g.nBolle} boll${g.nBolle === 1 ? "a" : "e"}` : null,
+              ].filter(Boolean).join(" · ");
+              const codice = codiceDi(g.orderId);
               return (
-                <li key={`r-${r.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <li key={`o-${g.orderId}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                   <span className="min-w-0">
-                    {inRitardo && <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">in ritardo</span>}
-                    {r.collaudo && <span className="font-semibold">Collaudo · </span>}
-                    <strong>{etichetta(r.order_id, r.codice)}</strong> · {format(parseISO(r.giorno), "d MMM", { locale: it })} · {r.autore || "Cantiere"}{r.ore > 0 ? ` · ${r.ore} h` : ""}
+                    {g.inRitardo && <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">in ritardo</span>}
+                    <strong>{etichetta(g.orderId, g.codiceFallback)}</strong> · {g.totale} da approvare <span className="text-muted-foreground">({pezzi})</span>
                     {codice ? <span className="text-muted-foreground"> · {codice}</span> : null}
                   </span>
-                  <button type="button" onClick={() => setCommessaPopup({ id: r.order_id, titolo: etichetta(r.order_id, r.codice) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4">Apri e approva</button>
+                  <button type="button" onClick={() => setCommessaPopup({ id: g.orderId, titolo: etichetta(g.orderId, g.codiceFallback) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4">Apri e approva</button>
                 </li>
               );
             })}
-            {a!.correzioni.map((c) => (
+            {gruppi.correzioniSenza.map((c) => (
               <li key={`c-${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                 <span><strong>Timbratura dimenticata</strong> · {c.persona || "Operaio"} · {c.tipo} del {format(parseISO(c.ora), "d MMM 'alle' HH:mm", { locale: it })} · {etichetta(c.order_id, c.codice)}{codiceDi(c.order_id) ? ` · ${codiceDi(c.order_id)}` : ""} · «{c.motivo}»</span>
                 <span className="flex gap-2">
@@ -167,10 +200,10 @@ export function DaApprovareCantieri() {
                 </span>
               </li>
             ))}
-            {a!.bolle.map((b) => (
+            {gruppi.bolleSenza.map((b) => (
               <li key={`b-${b.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <span><strong>Bolla dal cantiere</strong> · {b.fornitore ?? "Fornitore"}{b.numero ? ` n. ${b.numero}` : ""}{(b.order_id || b.codice) ? ` · ${etichetta(b.order_id, b.codice)}` : ""}{codiceDi(b.order_id) ? ` · ${codiceDi(b.order_id)}` : ""} · {b.persona || "Operaio"}</span>
-                <Link to={b.order_id ? `/azienda/ordini/${b.order_id}?tab=cantiere&vista_cantiere=diario#section-rapportini` : "/azienda/magazzino"} className="font-medium text-primary underline underline-offset-4">Verifica</Link>
+                <span><strong>Bolla dal cantiere</strong> · {b.fornitore ?? "Fornitore"}{b.numero ? ` n. ${b.numero}` : ""} · {b.persona || "Operaio"}</span>
+                <Link to="/azienda/magazzino" className="font-medium text-primary underline underline-offset-4">Verifica</Link>
               </li>
             ))}
           </ul>
@@ -182,7 +215,12 @@ export function DaApprovareCantieri() {
           </DialogHeader>
           {commessaPopup && (
             <Suspense fallback={<p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Carico il cantiere…</p>}>
-              <OrdineRapportiniCampo orderId={commessaPopup.id} />
+              <div className="space-y-4">
+                {/* Timbrature dimenticate e bolle/acquisti: si approvano qui. */}
+                <DaApprovareCommessa orderId={commessaPopup.id} onApriRapportini={() => document.getElementById("popup-rapportini")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+                {/* Rapportini, con Approva/Rifiuta/PDF direttamente sulla riga. */}
+                <div id="popup-rapportini"><OrdineRapportiniCampo orderId={commessaPopup.id} azioniInRiga /></div>
+              </div>
             </Suspense>
           )}
         </DialogContent>

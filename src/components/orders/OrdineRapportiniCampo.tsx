@@ -36,7 +36,7 @@ import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-interface Props { orderId: string; }
+interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; }
 
 const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
   if (!value) return "—";
@@ -102,7 +102,7 @@ export function orePersoneRapportino(r: RigaOre): number {
   return (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
 }
 
-export function OrdineRapportiniCampo({ orderId }: Props) {
+export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
   const { role, effectiveCompany, user } = useAuth();
@@ -299,8 +299,9 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
           <ClipboardList className="h-4 w-4" />
           Rapportini Campo ({rapportini.length})
         </CardTitle>
-        {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori. */}
-        {!isLoading && !isError && rapportini.length > 0 && (
+        {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
+            Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
+        {!azioniInRiga && !isLoading && !isError && rapportini.length > 0 && (
           <dl className="flex flex-wrap gap-x-8 gap-y-3">
             <div>
               <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Ore registrate</dt>
@@ -353,10 +354,11 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                     return (
                       <div key={r.id} className={cn(aperto && "bg-slate-50/60")}>
                         {/* Riga del rapportino */}
+                        <div className="flex items-center">
                         <button
                           type="button"
                           aria-expanded={aperto}
-                          className="flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors max-sm:gap-2.5 max-sm:p-2.5 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 p-3 text-left transition-colors max-sm:gap-2.5 max-sm:p-2.5 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                           onClick={() => setExpandedId(aperto ? null : r.id)}
                         >
                           <TesseraGiorno data={r.data_lavoro} stato={stato} />
@@ -420,6 +422,23 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", aperto && "rotate-180")} aria-hidden="true" />
                           </div>
                         </button>
+                        {/* Azioni rapide sulla riga (popup di Attività): approva/rifiuta senza aprire il dettaglio. */}
+                        {azioniInRiga && puoDecidereSu(r.user_id) && stato === "inviato" && (
+                          <div className="flex shrink-0 items-center gap-1.5 pl-1 pr-3 max-sm:pr-2.5">
+                            {!isMobile && (
+                              <Button size="sm" variant="outline" onClick={() => pdfMutation.mutate(r)} disabled={pdfMutation.isPending} title={r.pdf_url ? "Scarica PDF" : "Genera PDF"}>
+                                {pdfMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                              </Button>
+                            )}
+                            <Button size="sm" onClick={() => setApprovalId(r.id)} disabled={approvaMutation.isPending}>
+                              <Check className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">Approva</span>
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => { setRifiutaId(r.id); setMotivoRifiuto(""); }}>
+                              <X className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">Rifiuta</span>
+                            </Button>
+                          </div>
+                        )}
+                        </div>
 
                         {/* Dettaglio espandibile: allineato al testo della riga, a sezioni con etichetta */}
                         {aperto && (

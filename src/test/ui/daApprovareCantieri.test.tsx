@@ -9,6 +9,9 @@ import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
 vi.mock("@/components/orders/OrdineRapportiniCampo", () => ({
   OrdineRapportiniCampo: ({ orderId }: { orderId: string }) => <div>Approvazione rapportini di {orderId}</div>,
 }));
+vi.mock("@/components/orders/DaApprovareCommessa", () => ({
+  DaApprovareCommessa: ({ orderId }: { orderId: string }) => <div>Timbrature e bolle di {orderId}</div>,
+}));
 
 // In Attività le cose da approvare del cantiere le vede solo chi è autorizzato ad approvarle.
 const state = vi.hoisted(() => ({
@@ -53,36 +56,43 @@ describe("Attività: dal cantiere, da approvare", () => {
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
-  it("chi può approvare vede rapportini e bolle con il collegamento alla commessa", async () => {
+  it("raggruppa per commessa (niente doppioni) e apre il popup per approvare tutto", async () => {
     state.permessi = { canViewOrders: true, canEditOrders: true, isLoading: false };
     mostra();
-    // «Apri e approva» ora è un pulsante che apre il popup, non un link che porta via dalla pagina.
     const apri = await screen.findByRole("button", { name: "Apri e approva" });
     expect(screen.getByText("Dal cantiere, da approvare")).toBeInTheDocument();
+    // Una sola riga per la commessa o1 (1 rapportino + 1 bolla): nome cliente + indirizzo, codice come riferimento.
+    await waitFor(() => expect(document.body.textContent).toMatch(/Mario Rossi · Via Roma 1 · 2 da approvare/));
+    expect(document.body.textContent).toMatch(/1 rapportino · 1 bolla/);
+    expect(document.body.textContent).toContain("ORD-1");
+    // Niente righe doppie: un solo pulsante per la commessa.
+    expect(screen.getAllByRole("button", { name: "Apri e approva" })).toHaveLength(1);
+    // Il popup mostra tutto il da approvare della commessa.
     fireEvent.click(apri);
     expect(await screen.findByText("Approvazione rapportini di o1")).toBeInTheDocument();
-    // Nome cliente + indirizzo al posto del codice; il codice resta come riferimento.
-    await waitFor(() => expect(document.body.textContent).toMatch(/Mario Rossi · Via Roma 1 · 18 ott · Marco Verdi · 8 h/));
-    expect(document.body.textContent).toContain("ORD-1");
-    expect(document.body.textContent).not.toMatch(/Rapportino · /);
-    expect(document.body.textContent).toMatch(/Bolla dal cantiere · Edilmarket n\. 12 · Mario Rossi · Via Roma 1/);
+    expect(screen.getByText("Timbrature e bolle di o1")).toBeInTheDocument();
   });
 
-  it("i rapportini più vecchi stanno in cima e segnano «in ritardo»", async () => {
+  it("una riga per commessa, le più vecchie in cima con «in ritardo»", async () => {
     state.permessi = { canViewOrders: true, canEditOrders: true, isLoading: false };
     state.dati = {
       rapportini: [
-        { id: "rNew", order_id: "o1", codice: "ORD-1", giorno: "2026-10-20", autore: "Marco Verdi", collaudo: false, ore: 8 },
+        { id: "rNew", order_id: "o2", codice: "ORD-2", giorno: "2026-10-20", autore: "Marco Verdi", collaudo: false, ore: 8 },
         { id: "rOld", order_id: "o1", codice: "ORD-1", giorno: "2026-04-11", autore: "Marco Ricci", collaudo: false, ore: 8 },
       ],
       correzioni: [], bolle: [],
     };
+    state.ordini = [
+      { id: "o1", client_name: "Cliente Vecchio", description: "", order_code: "ORD-1", indirizzo_lavori: "Via A" },
+      { id: "o2", client_name: "Cliente Nuovo", description: "", order_code: "ORD-2", indirizzo_lavori: "Via B" },
+    ];
     mostra();
     await screen.findAllByRole("button", { name: "Apri e approva" });
     await waitFor(() => expect(document.body.textContent).toContain("in ritardo"));
-    // Il vecchio (Marco Ricci) viene prima del nuovo (Marco Verdi).
+    // Due commesse distinte, la più vecchia in cima, un pulsante ciascuna.
     const testo = document.body.textContent ?? "";
-    expect(testo.indexOf("Marco Ricci")).toBeLessThan(testo.indexOf("Marco Verdi"));
+    expect(testo.indexOf("Cliente Vecchio")).toBeLessThan(testo.indexOf("Cliente Nuovo"));
+    expect(screen.getAllByRole("button", { name: "Apri e approva" })).toHaveLength(2);
   });
 
   it("niente in attesa: il riquadro non occupa posto", async () => {

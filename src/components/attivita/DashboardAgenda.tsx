@@ -33,7 +33,8 @@ export function DashboardAgenda({ tasks, tasksLoading, tasksError, onTasksRetry,
   const p = usePermissions();
   const mobile = useIsMobile();
   const [cursor, setCursor] = useState(new Date());
-  const [view, setView] = useState<"mese" | "settimana" | "giorno">(mobile ? "giorno" : "mese");
+  // Si parte da «Giorno»: chi apre Attività vede subito cosa deve fare oggi.
+  const [view, setView] = useState<"giorno" | "settimana" | "mese">("giorno");
   const prefKey = `agenda-dashboard-personal-v3:${effectiveCompany?.id}:${user?.id}`;
   const [layers, setLayers] = useState(() => {
     try { return readAgendaLayers(localStorage.getItem(prefKey)); } catch { return readAgendaLayers(null); }
@@ -93,7 +94,7 @@ export function DashboardAgenda({ tasks, tasksLoading, tasksError, onTasksRetry,
         {p.canViewCalendar && <Button asChild variant="outline" size="sm" className="h-8 gap-1 text-xs"><Link to="/azienda/calendario"><ExternalLink className="h-3 w-3" />Calendario lavori</Link></Button>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex rounded-lg bg-muted p-1" aria-label="Vista dell’agenda">{(["mese", "settimana", "giorno"] as const).map(v => <button key={v} aria-pressed={view === v} className={cn("rounded-md px-2.5 py-1.5 text-xs capitalize", view === v ? "bg-card font-medium shadow-sm" : "text-muted-foreground")} onClick={() => setView(v)}>{v}</button>)}</div>
+        <div className="flex rounded-lg bg-muted p-1" aria-label="Vista dell’agenda">{(["giorno", "settimana", "mese"] as const).map(v => <button key={v} aria-pressed={view === v} className={cn("rounded-md px-2.5 py-1.5 text-xs capitalize", view === v ? "bg-card font-medium shadow-sm" : "text-muted-foreground")} onClick={() => setView(v)}>{v}</button>)}</div>
         <div className="flex items-center gap-1"><Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => select(new Date())}>Oggi</Button><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Periodo precedente" onClick={() => navigate(-1)}><ChevronLeft className="h-4 w-4" /></Button><p className="min-w-0 px-1 text-center text-sm font-semibold capitalize" aria-live="polite">{label}</p><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Periodo successivo" onClick={() => navigate(1)}><ChevronRight className="h-4 w-4" /></Button></div>
       </div>
       <div className="flex flex-wrap gap-1.5" aria-label="Fonti dell’agenda">{visible.map(layer => <button key={layer} aria-pressed={layers.has(layer)} onClick={() => toggle(layer)} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium", layers.has(layer) ? AGENDA_LAYERS[layer].tone : "border-border text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", layers.has(layer) ? AGENDA_LAYERS[layer].dot : "bg-muted-foreground/40")} />{AGENDA_LAYERS[layer].label}</button>)}</div>
