@@ -12,7 +12,9 @@ import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
+import { Link } from "react-router-dom";
+import { indiziQuadratura, vociSenzaFonte } from "@/lib/controlloGestione/statoPatrimoniale";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
@@ -154,23 +156,48 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
     );
   }
 
+  const manuali = vociSenzaFonte(sp.data);
+  const indizi = quadratura.quadrato ? [] : indiziQuadratura(attivo, passivo, quadratura.differenza, manuali);
+  const annoPassato = anno < new Date().getFullYear();
+
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Situazione al {formatDate(sp.data.meta.data_riferimento)}.
+        {annoPassato && " Per un anno chiuso i saldi di banca sono quelli di oggi: per il bilancio vero fa fede il commercialista."}
+        {" "}Passa sopra una voce per sapere da dove viene il numero.
+      </p>
       {!quadratura.quadrato && (
         <Alert className="rounded-2xl border-amber-300 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-900">Bilancio non quadrato</AlertTitle>
-          <AlertDescription className="space-y-1 text-amber-800">
+          <AlertTitle className="text-amber-900">
+            Impieghi e fonti non coincidono: mancano {formatCurrency(Math.abs(quadratura.differenza))} {quadratura.differenza > 0 ? "di fonti" : "di impieghi"}
+          </AlertTitle>
+          <AlertDescription className="space-y-2 text-amber-900">
             <p>
-              Differenza Attivo − Passivo: <strong>{formatCurrency(quadratura.differenza)}</strong>.
-              Verifica le voci di patrimonio netto, cespiti e mutui MLT — sono i campi
-              che vanno alimentati a mano.
+              Il gestionale ricostruisce lo stato patrimoniale da fatture, scadenze, conti e cespiti:
+              quello che non è registrato qui manca. Dove guardare prima:
             </p>
+            {indizi.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5">
+                {indizi.map((i) => (
+                  <li key={i.testo}>
+                    {i.testo}
+                    {i.href && i.cta && (
+                      <>
+                        {" "}
+                        <Link to={i.href} className="font-medium underline underline-offset-2">{i.cta}</Link>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </AlertDescription>
         </Alert>
       )}
 
-      <SPColumns attivo={attivo} passivo={passivo} />
+      <SPColumns attivo={attivo} passivo={passivo} vociManuali={manuali} differenza={quadratura.differenza} />
     </div>
   );
 }
@@ -298,7 +325,7 @@ function SPConfrontoView({ anno }: { anno: number }) {
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                  Δ% YoY
+                  Variazione sull'anno prima
                 </th>
               </tr>
             </thead>
