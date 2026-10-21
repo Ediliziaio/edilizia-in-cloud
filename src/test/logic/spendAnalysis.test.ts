@@ -308,7 +308,7 @@ describe("firma → primo ordine", () => {
       firmato_il: "2026-03-06T10:00:00Z",
     }));
     expect(calcolaFirmaPrimoOrdine(righe)).toEqual({ mediaGiorni: 5, commesse: 3, base: "firma" });
-    const senza = righe.map((r) => ({ ...r, firmato_il: null }));
+    const senza = righe.map((r) => ({ ...r, firmato_il: null as string | null }));
     expect(calcolaFirmaPrimoOrdine(senza)).toEqual({ mediaGiorni: 10, commesse: 3, base: "creazione" });
   });
 });
