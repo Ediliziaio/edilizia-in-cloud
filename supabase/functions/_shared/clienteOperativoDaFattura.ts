@@ -36,11 +36,40 @@ type Fattura = {
   client_country: string | null;
 };
 
-/** Nome e cognome di una persona dall'intestatario: «ROSSI MARIO» → cognome ROSSI, nome MARIO. */
-export function nomeDaIntestatario(intestatario: string): { first_name: string; last_name: string } {
+const VOCALI = /[AEIOU]/;
+function lettere(parte: string): { consonanti: string[]; vocali: string[] } {
+  const l = parte.toUpperCase().normalize("NFD").replace(/[^A-Z]/g, "").split("");
+  return { consonanti: l.filter((c) => !VOCALI.test(c)), vocali: l.filter((c) => VOCALI.test(c)) };
+}
+/** Le 3 lettere del cognome nel codice fiscale. */
+export function codiceCognome(cognome: string): string {
+  const { consonanti, vocali } = lettere(cognome);
+  return [...consonanti, ...vocali, "X", "X", "X"].slice(0, 3).join("");
+}
+/** Le 3 lettere del nome nel codice fiscale (con 4+ consonanti: prima, terza e quarta). */
+export function codiceNome(nome: string): string {
+  const { consonanti, vocali } = lettere(nome);
+  if (consonanti.length >= 4) return consonanti[0] + consonanti[2] + consonanti[3];
+  return [...consonanti, ...vocali, "X", "X", "X"].slice(0, 3).join("");
+}
+
+/**
+ * Nome e cognome di una persona dall'intestatario. L'ordine sulle fatture non è
+ * fisso («ROSSI MARIO», «Elena Piovano»): decide il codice fiscale, che porta le
+ * lettere di cognome e nome. Senza codice fiscale: cognome prima, con la
+ * particella («DE LUCA ANNA») attaccata al cognome.
+ */
+export function nomeDaIntestatario(intestatario: string, codiceFiscale?: string | null): { first_name: string; last_name: string } {
   const parti = intestatario.replace(/\s+/g, " ").trim().split(" ");
   if (parti.length < 2) return { first_name: "", last_name: parti[0] || "—" };
-  // «DE LUCA ANNA»: la particella fa parte del cognome.
+  const cf = (codiceFiscale || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  if (cf.length === 16) {
+    for (let i = 1; i < parti.length; i++) {
+      const prima = parti.slice(0, i).join(" "), dopo = parti.slice(i).join(" ");
+      if (codiceCognome(prima) === cf.slice(0, 3) && codiceNome(dopo) === cf.slice(3, 6)) return { last_name: prima, first_name: dopo };
+      if (codiceCognome(dopo) === cf.slice(0, 3) && codiceNome(prima) === cf.slice(3, 6)) return { last_name: dopo, first_name: prima };
+    }
+  }
   const particella = /^(DE|DI|DA|DEL|DELLA|DELLO|DEGLI|DAL|DALLA|LO|LA|LI|D'|DELL')$/i.test(parti[0]);
   const lunghezza = particella && parti.length > 2 ? 2 : 1;
   return { last_name: parti.slice(0, lunghezza).join(" "), first_name: parti.slice(lunghezza).join(" ") };
@@ -65,7 +94,7 @@ export async function clienteDaFatturaImportata(
     const intestatario = (fattura.client_company_name || "").trim();
     if (!intestatario) return { esito: "da_verificare", motivo: "Intestatario assente" };
     const azienda = !!(fattura.client_vat_number || "").trim();
-    const persona = azienda ? { first_name: "", last_name: intestatario } : nomeDaIntestatario(intestatario);
+    const persona = azienda ? { first_name: "", last_name: intestatario } : nomeDaIntestatario(intestatario, fattura.client_fiscal_code);
 
     const pulito = sanitizeCustomerInput({
       first_name: persona.first_name, last_name: persona.last_name,

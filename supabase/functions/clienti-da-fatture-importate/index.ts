@@ -77,5 +77,5 @@ serveConMetricheRapida("clienti-da-fatture-importate", async (req) => {
   }
 
   console.log("[clienti-da-fatture-importate]", JSON.stringify({ guardate: fatture?.length ?? 0, ...conti }));
-  return json({ ok: true, guardate: fatture?.length ?? 0, ...conti, errori });
+  return json({ ok: true, guardate: fatture?.length ?? 0, ...conti, dettaglio_errori: errori });
 });
