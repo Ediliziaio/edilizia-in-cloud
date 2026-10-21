@@ -1,15 +1,16 @@
 /**
- * Tab Cash Flow Mensile Prospettico — replica l'Excel "OTP | Flusso Finanziario".
+ * Tab Cash Flow del Controllo di gestione.
  *
- * Mostra una matrice mese × {saldo apertura, entrate breakdown, uscite breakdown,
- * saldo chiusura}. Le voci manuali (anticipi, F24, IVA, ecc.) sono editabili
- * tramite drawer dedicato.
+ * Due viste:
+ *  - Registrato: i movimenti di prima nota dell'anno (consuntivo di cassa).
+ *  - Previsionale: gli stessi movimenti attesi della pagina Previsionale,
+ *    raggruppati per mese, più le voci manuali del CdG (riga a parte).
  *
- * Alert visuali:
- *  - saldo_fine < 0  → riga rossa con icona AlertTriangle
+ * Alert visuali: saldo di fine mese sotto zero → colonna rossa.
  */
 
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,12 @@ import {
   useUpsertCashFlowManuale,
   useDeleteCashFlowManuale,
   type CashFlowManuale,
+  type RigaCashFlow,
 } from "@/hooks/controlloGestione/useCashFlow";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
+import { euroIntero } from "@/lib/controlloGestione/formatoCG";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
 import {
@@ -48,20 +51,31 @@ const MESI_LABELS = [
   "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
 ];
 
-const RIGHE_ENTRATE = [
-  { key: "scadenze",  label: "Incassi clienti (scadenze)" },
-  { key: "commesse",  label: "Rate commesse non già a scadenza" },
-  { key: "fatture",   label: "Fatture aperte (extra)" },
-  { key: "manuali",   label: "Voci manuali entrata" },
-] as const;
+/** Righe della matrice, con i nomi delle categorie del Previsionale. */
+const RIGHE_ENTRATE: { key: RigaCashFlow; label: string }[] = [
+  { key: "clienti", label: "Incassi da clienti" },
+  { key: "blocca-prezzo", label: "Blocca prezzo" },
+  { key: "altri", label: "Altre entrate" },
+  { key: "manuali", label: "Voci manuali (solo CdG)" },
+];
 
-const RIGHE_USCITE = [
-  { key: "scadenze",  label: "Pagamenti fornitori (scadenze)" },
-  { key: "personale", label: "Costo personale (cedolini)" },
-  { key: "mutui",     label: "Rate mutui MLT" },
-  { key: "manuali",   label: "Voci manuali uscita" },
-  { key: "costi",     label: "Altri costi non a scadenza" },
-] as const;
+const RIGHE_USCITE: { key: RigaCashFlow; label: string }[] = [
+  { key: "fornitori", label: "Fornitori" },
+  { key: "personale", label: "Personale" },
+  { key: "fisco", label: "Fisco (F24, IVA)" },
+  { key: "squadre", label: "Squadre esterne" },
+  { key: "provvigioni", label: "Provvigioni" },
+  { key: "altri", label: "Altri costi" },
+  { key: "blocca-prezzo", label: "Blocca prezzo da restituire" },
+  { key: "manuali", label: "Voci manuali (solo CdG)" },
+];
+
+/** Errore di lettura in parole semplici (mai «[object Object]»). */
+function messaggioErrore(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  return "Riprova tra poco.";
+}
 
 export function TabCashFlow({ anno }: Props) {
   const [mode, setMode] = useState<'registrato' | 'previsionale'>('registrato');
@@ -71,8 +85,12 @@ export function TabCashFlow({ anno }: Props) {
       <Button size="sm" variant={mode === 'registrato' ? 'default' : 'ghost'} aria-pressed={mode === 'registrato'} onClick={() => setMode('registrato')}>Registrato</Button>
       <Button size="sm" variant={mode === 'previsionale' ? 'default' : 'ghost'} aria-pressed={mode === 'previsionale'} onClick={() => setMode('previsionale')}>Previsionale</Button>
     </div>
-    {mode === 'registrato' ? <RecordedCashFlow anno={anno} /> : historical ? <p role="note" className="rounded-lg border p-3 text-sm">Il {anno} è uno storico: usa “Registrato”. Il previsionale parte dal mese corrente, mai dal saldo di oggi applicato al passato.</p> : <>
-      <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Solo flussi ancora attesi: scadenze residue, rate collegate, costi da pagare e voci manuali extra. Stipendi e mutui non vengono aggiunti una seconda volta: inserisci le relative scadenze. Gli scaduti sono ipotizzati nel mese corrente, non incassi garantiti.</p>
+    {mode === 'registrato' ? <RecordedCashFlow anno={anno} /> : historical ? <p role="note" className="rounded-lg border p-3 text-sm">Il {anno} è uno storico: usa «Registrato». Il previsionale parte dal mese in corso, mai dal saldo di oggi applicato al passato.</p> : <>
+      <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        Stessi numeri della pagina <Link to="/azienda/previsionale" className="font-medium underline">Previsionale</Link>, mese per mese:
+        parte dalla disponibilità dei conti di oggi e somma solo incassi e pagamenti ancora attesi.
+        Incassi e pagamenti già scaduti restano fuori dal saldo finché non li confermi (vedi sotto).
+      </p>
       <ProjectedCashFlow anno={anno} />
     </>}
   </div>;
@@ -92,102 +110,88 @@ function ProjectedCashFlow({ anno }: Props) {
       </div>
     );
   }
-  if (cf.isError) return <ErrorBlock onRetry={() => cf.refetch()} />;
+  if (cf.isError) return <div className="space-y-2">
+    <ErrorBlock onRetry={() => cf.refetch()} />
+    <p className="text-sm text-muted-foreground">{messaggioErrore(cf.error)}</p>
+  </div>;
   if (!cf.data) return null;
 
-  const { mesi, meta } = cf.data;
+  const { mesi, meta, esclusi } = cf.data;
   const isAllZero = mesi.every((m) =>
     m.entrate_totali === 0 && m.uscite_totali === 0,
   );
+  const righeEntrate = RIGHE_ENTRATE.filter((r) => mesi.some((m) => (m.entrate[r.key] ?? 0) !== 0));
+  const righeUscite = RIGHE_USCITE.filter((r) => mesi.some((m) => (m.uscite[r.key] ?? 0) !== 0));
+  const totEntrate = mesi.reduce((s, m) => s + m.entrate_totali, 0);
+  const totUscite = mesi.reduce((s, m) => s + m.uscite_totali, 0);
+  const primoSotto = mesi.find((m) => m.sotto_zero);
 
   return (
     <div className="space-y-4">
-      {/* KPI head */}
-      {!!meta.da_verificare && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{meta.da_verificare} voci escluse: data o collegamento da verificare. La previsione non è completa finché non le sistemi.</p>}
-      {!!cf.data.verifiche?.length && <details className="rounded-lg border border-amber-200 bg-white p-3 text-sm">
-        <summary className="cursor-pointer font-medium text-amber-900">Cosa manca e dove correggerlo</summary>
-        <ul className="mt-2 max-h-64 divide-y overflow-y-auto">
-          {cf.data.verifiche.map(v => <li key={`${v.origine}:${v.id}`} className="py-2">
-            <p className="font-medium">{v.etichetta || 'Voce senza descrizione'}</p>
-            <p className="text-xs text-muted-foreground">{v.motivo}</p>
-            {v.origine === 'rata' && v.order_id ? <a className="text-xs font-medium text-blue-700 underline" href={`/azienda/ordini/${encodeURIComponent(v.order_id)}?tab=finanza&vista_economia=pagamenti`}>Apri pagamenti commessa</a>
-              : v.origine === 'costo' ? <a className="text-xs font-medium text-blue-700 underline" href="/azienda/costi">Apri costi</a>
-              : v.origine === 'scadenza' ? <a className="text-xs font-medium text-blue-700 underline" href="/azienda/scadenzario">Apri scadenzario</a>
-              : <Button variant="link" size="sm" className="h-auto px-0 py-1 text-xs" onClick={() => setEditorOpen(true)}>Apri voci manuali</Button>}
-          </li>)}
-        </ul>
-      </details>}
+      {meta.fonti_non_lette.length > 0 && (
+        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+          Non è stato possibile leggere: {meta.fonti_non_lette.join(", ")}. I numeri riguardano solo il resto.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
         <KPIBoxCF
-          label="Saldo apertura"
+          label={anno === new Date().getFullYear() ? "Disponibile oggi" : "Saldo a inizio anno"}
           value={formatCurrency(meta.saldo_apertura)}
+          sub={meta.saldo_fonte === "banca"
+            ? `Conti in Tesoreria${meta.saldi_aggiornati_al ? ` · al ${new Date(meta.saldi_aggiornati_al).toLocaleDateString("it-IT")}` : ""}`
+            : meta.saldo_fonte === "prima-nota" ? "Dalla prima nota (nessun conto)" : undefined}
           tone="neutral"
         />
         <KPIBoxCF
-          label="Saldo chiusura prev."
+          label={`Saldo previsto a fine ${anno}`}
           value={formatCurrency(meta.saldo_chiusura)}
+          sub={primoSotto ? `Sotto zero da ${MESI_LABELS[primoSotto.mese - 1]}` : undefined}
           tone={meta.saldo_chiusura >= 0 ? "green" : "red"}
         />
-        <KPIBoxCF
-          label="Entrate totali"
-          value={formatCurrency(mesi.reduce((s, m) => s + m.entrate_totali, 0))}
-          tone="blue"
-        />
-        <KPIBoxCF
-          label="Uscite totali"
-          value={formatCurrency(mesi.reduce((s, m) => s + m.uscite_totali, 0))}
-          tone="amber"
-        />
+        <KPIBoxCF label="Entrate attese" value={formatCurrency(totEntrate)} tone="blue" />
+        <KPIBoxCF label="Uscite attese" value={formatCurrency(totUscite)} tone="amber" />
       </div>
 
-      {/* Mobile no: spiegazione tecnica, esportazione e voci manuali sono da
-          scrivania. Restano i quattro numeri e i dodici mesi. */}
-      <div className="flex items-center justify-between max-sm:hidden">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Cash Flow Mensile Prospettico · {anno}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Saldi EUR registrati {meta.saldi_aggiornati_al ? `al ${new Date(meta.saldi_aggiornati_al).toLocaleDateString('it-IT')}` : '(data di aggiornamento da verificare)'}. Previsione dal mese corrente; non consuntivo.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <EsclusiDalSaldo esclusi={esclusi} manualiNetto={meta.manuali_netto} />
+
+      {/* Mobile: spiegazione tecnica, esportazione e voci manuali sono da
+          scrivania. Restano i quattro numeri e i mesi. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
+        <p className="text-sm text-muted-foreground">
+          Previsione mese per mese · {anno}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/azienda/previsionale"><ExternalLink className="mr-2 h-4 w-4" />Apri il previsionale completo</Link>
+          </Button>
           <ExportButton
             onExport={async () => {
+              const colonne = [
+                ...righeEntrate.map((r) => ({ key: `e_${r.key}`, header: `Entrate · ${r.label}` })),
+                ...righeUscite.map((r) => ({ key: `u_${r.key}`, header: `Uscite · ${r.label}` })),
+              ];
               await exportXlsx({
                 filename: `cash_flow_${anno}.xlsx`,
-                brand: { title: "Cash Flow Mensile Prospettico", subtitle: `Esercizio ${anno}` },
+                brand: { title: "Cash flow previsionale", subtitle: `Esercizio ${anno}` },
                 sheets: [
                   {
                     name: `CashFlow ${anno}`,
                     columns: [
                       { header: "Mese", key: "mese", width: 8 },
-                      { header: "Saldo apertura", key: "saldo_inizio", width: 16, type: "number" },
-                      { header: "Entrate scadenze", key: "ent_sc", width: 16, type: "number" },
-                      { header: "Entrate rate commesse", key: "ent_commesse", width: 20, type: "number" },
-                      { header: "Entrate manuali", key: "ent_man", width: 16, type: "number" },
+                      { header: "Saldo inizio mese", key: "saldo_inizio", width: 16, type: "number" },
+                      ...colonne.map((c) => ({ header: c.header, key: c.key, width: 18, type: "number" as const })),
                       { header: "Totale entrate", key: "entrate_totali", width: 16, type: "number" },
-                      { header: "Uscite scadenze", key: "usc_sc", width: 16, type: "number" },
-                      { header: "Uscite personale", key: "usc_pers", width: 16, type: "number" },
-                      { header: "Uscite mutui", key: "usc_mut", width: 14, type: "number" },
-                      { header: "Uscite altri costi", key: "usc_costi", width: 18, type: "number" },
-                      { header: "Uscite manuali", key: "usc_man", width: 16, type: "number" },
                       { header: "Totale uscite", key: "uscite_totali", width: 16, type: "number" },
                       { header: "Flusso netto", key: "flusso_netto", width: 16, type: "number" },
-                      { header: "Saldo chiusura", key: "saldo_fine", width: 16, type: "number" },
+                      { header: "Saldo fine mese", key: "saldo_fine", width: 16, type: "number" },
                     ],
                     rows: mesi.map((m) => ({
                       mese: MESI_LABELS[m.mese - 1],
                       saldo_inizio: m.saldo_inizio,
-                      ent_sc: m.entrate.scadenze,
-                      ent_commesse: m.entrate.commesse ?? 0,
-                      ent_man: m.entrate.manuali,
+                      ...Object.fromEntries(righeEntrate.map((r) => [`e_${r.key}`, m.entrate[r.key] ?? 0])),
+                      ...Object.fromEntries(righeUscite.map((r) => [`u_${r.key}`, m.uscite[r.key] ?? 0])),
                       entrate_totali: m.entrate_totali,
-                      usc_sc: m.uscite.scadenze,
-                      usc_pers: m.uscite.personale,
-                      usc_mut: m.uscite.mutui,
-                      usc_costi: m.uscite.costi,
-                      usc_man: m.uscite.manuali,
                       uscite_totali: m.uscite_totali,
                       flusso_netto: m.flusso_netto,
                       saldo_fine: m.saldo_fine,
@@ -203,15 +207,14 @@ function ProjectedCashFlow({ anno }: Props) {
         </div>
       </div>
 
-      {isAllZero && meta.saldo_apertura === 0 && (
+      {isAllZero && (
         <EmptyState
-          title="Nessun dato di cash flow"
-          description="Non risultano scadenze, rate di commessa o costi da pagare nel periodo. Puoi aggiungere una voce previsionale manuale."
+          title="Nessun movimento atteso"
+          description="Non risultano incassi o pagamenti con una data nei prossimi mesi. Controlla scadenze e rate delle commesse, oppure aggiungi una voce manuale."
         />
       )}
 
-      {/* Mobile: dodici righe (mese, entrate, uscite, saldo a fine mese) al
-          posto della matrice a quattordici colonne da scorrere di lato. */}
+      {/* Mobile: una riga per mese (entrate, uscite, saldo a fine mese). */}
       {isMobile && (
         <div className="overflow-hidden rounded-xl border bg-card">
           <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr] gap-2 border-b bg-muted/40 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -220,17 +223,17 @@ function ProjectedCashFlow({ anno }: Props) {
             <span className="text-right">Uscite</span>
             <span className="text-right">Saldo</span>
           </div>
-          <ul className="divide-y text-[13px] tabular-nums">
+          <ul className="divide-y text-[12px] tabular-nums">
             {mesi.map((m) => (
               <li
                 key={m.mese}
                 className={cn("grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center gap-2 px-3 py-2", m.saldo_fine < 0 && "bg-rose-50/60")}
               >
                 <span className="font-medium">{MESI_LABELS[m.mese - 1]}</span>
-                <span className="text-right text-emerald-700">{formatCurrencyCompact(m.entrate_totali)}</span>
-                <span className="text-right text-amber-700">{formatCurrencyCompact(m.uscite_totali)}</span>
+                <span className="text-right text-emerald-700">{euroIntero(m.entrate_totali)}</span>
+                <span className="text-right text-amber-700">{euroIntero(m.uscite_totali)}</span>
                 <span className={cn("text-right font-semibold", m.saldo_fine < 0 ? "text-rose-700" : "text-foreground")}>
-                  {formatCurrencyCompact(m.saldo_fine)}
+                  {euroIntero(m.saldo_fine)}
                 </span>
               </li>
             ))}
@@ -241,59 +244,41 @@ function ProjectedCashFlow({ anno }: Props) {
       {/* Tabella matrice */}
       <Card className="rounded-2xl max-sm:hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Matrice mensile</CardTitle>
+          <CardTitle className="text-base">Mese per mese (importi in euro, IVA compresa)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-xl border">
             <table className="w-full border-collapse text-sm">
+              <caption className="sr-only">Entrate, uscite e saldo previsti per mese, anno {anno}</caption>
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="sticky left-0 z-10 min-w-[200px] bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                  <th scope="col" className="sticky left-0 z-10 min-w-[200px] bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                     Voce
                   </th>
-                  {mesi.map((mese) => {
-                    return (
-                      <th
-                        key={mese.mese}
-                        className={cn(
-                          "min-w-[90px] px-2 py-2 text-right text-xs font-medium text-muted-foreground",
-                          mese?.sotto_zero && "bg-rose-50 text-rose-700",
-                        )}
-                      >
-                        {MESI_LABELS[mese.mese - 1]}
-                        {mese?.sotto_zero && (
-                          <AlertTriangle className="mx-auto h-3 w-3 text-rose-600" />
-                        )}
-                      </th>
-                    );
-                  })}
-                  <th className="min-w-[100px] bg-primary/5 px-2 py-2 text-right text-xs font-semibold">
+                  {mesi.map((mese) => (
+                    <th
+                      scope="col"
+                      key={mese.mese}
+                      className={cn(
+                        "min-w-[104px] px-2 py-2 text-right text-xs font-medium text-muted-foreground",
+                        mese.sotto_zero && "bg-rose-50 text-rose-700",
+                      )}
+                    >
+                      {MESI_LABELS[mese.mese - 1]}
+                      {mese.sotto_zero && (
+                        <AlertTriangle className="ml-auto h-3 w-3 text-rose-600" aria-label="saldo sotto zero" />
+                      )}
+                    </th>
+                  ))}
+                  <th scope="col" className="min-w-[112px] bg-primary/5 px-2 py-2 text-right text-xs font-semibold">
                     Totale
                   </th>
                 </tr>
               </thead>
 
               <tbody>
-                {/* Saldo apertura */}
-                <tr className="border-t bg-muted/30">
-                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2 font-semibold">
-                    Saldo apertura
-                  </td>
-                  {mesi.map((m, i) => (
-                    <td
-                      key={i}
-                      className={cn(
-                        "px-2 py-2 text-right tabular-nums text-xs",
-                        m.saldo_inizio < 0 && "text-destructive font-semibold",
-                      )}
-                    >
-                      {formatCurrencyCompact(m.saldo_inizio)}
-                    </td>
-                  ))}
-                  <td className="bg-primary/5 px-2 py-2 text-right text-xs">—</td>
-                </tr>
+                <RigaSaldo label="Saldo inizio mese" valori={mesi.map((m) => m.saldo_inizio)} />
 
-                {/* Sezione ENTRATE */}
                 <tr className="border-t bg-emerald-50/50">
                   <td
                     colSpan={mesi.length + 2}
@@ -302,48 +287,11 @@ function ProjectedCashFlow({ anno }: Props) {
                     Entrate
                   </td>
                 </tr>
-                {RIGHE_ENTRATE.map((r) => {
-                  const valori = mesi.map((m) => m.entrate[r.key] ?? 0);
-                  const totale = valori.reduce((a, b) => a + b, 0);
-                  if (totale === 0) return null;
-                  return (
-                    <tr key={`e-${r.key}`} className="border-t">
-                      <td className="sticky left-0 z-10 bg-background px-3 py-2 pl-6 text-sm">
-                        {r.label}
-                      </td>
-                      {valori.map((v, i) => (
-                        <td
-                          key={i}
-                          className="px-2 py-2 text-right tabular-nums text-xs"
-                        >
-                          {v !== 0 ? formatCurrencyCompact(v) : "—"}
-                        </td>
-                      ))}
-                      <td className="bg-primary/5 px-2 py-2 text-right text-xs font-semibold">
-                        {formatCurrencyCompact(totale)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="border-t bg-emerald-100/50 font-semibold">
-                  <td className="sticky left-0 z-10 bg-emerald-100/50 px-3 py-2">
-                    Totale entrate
-                  </td>
-                  {mesi.map((m, i) => (
-                    <td key={i} className="px-2 py-2 text-right tabular-nums text-xs">
-                      {m.entrate_totali !== 0
-                        ? formatCurrencyCompact(m.entrate_totali)
-                        : "—"}
-                    </td>
-                  ))}
-                  <td className="bg-primary/5 px-2 py-2 text-right text-xs font-bold">
-                    {formatCurrencyCompact(
-                      mesi.reduce((s, m) => s + m.entrate_totali, 0),
-                    )}
-                  </td>
-                </tr>
+                {righeEntrate.map((r) => (
+                  <RigaImporti key={`e-${r.key}`} label={r.label} valori={mesi.map((m) => m.entrate[r.key] ?? 0)} />
+                ))}
+                <RigaImporti label="Totale entrate" valori={mesi.map((m) => m.entrate_totali)} totale className="bg-emerald-100/50 font-semibold" />
 
-                {/* Sezione USCITE */}
                 <tr className="border-t bg-rose-50/50">
                   <td
                     colSpan={mesi.length + 2}
@@ -352,95 +300,30 @@ function ProjectedCashFlow({ anno }: Props) {
                     Uscite
                   </td>
                 </tr>
-                {RIGHE_USCITE.map((r) => {
-                  const valori = mesi.map((m) => m.uscite[r.key] ?? 0);
-                  const totale = valori.reduce((a, b) => a + b, 0);
-                  if (totale === 0) return null;
-                  return (
-                    <tr key={`u-${r.key}`} className="border-t">
-                      <td className="sticky left-0 z-10 bg-background px-3 py-2 pl-6 text-sm">
-                        {r.label}
-                      </td>
-                      {valori.map((v, i) => (
-                        <td
-                          key={i}
-                          className="px-2 py-2 text-right tabular-nums text-xs text-rose-700"
-                        >
-                          {v !== 0 ? `-${formatCurrencyCompact(v)}` : "—"}
-                        </td>
-                      ))}
-                      <td className="bg-primary/5 px-2 py-2 text-right text-xs font-semibold text-rose-700">
-                        -{formatCurrencyCompact(totale)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="border-t bg-rose-100/50 font-semibold">
-                  <td className="sticky left-0 z-10 bg-rose-100/50 px-3 py-2">
-                    Totale uscite
-                  </td>
-                  {mesi.map((m, i) => (
-                    <td
-                      key={i}
-                      className="px-2 py-2 text-right tabular-nums text-xs text-rose-700"
-                    >
-                      {m.uscite_totali !== 0
-                        ? `-${formatCurrencyCompact(m.uscite_totali)}`
-                        : "—"}
-                    </td>
-                  ))}
-                  <td className="bg-primary/5 px-2 py-2 text-right text-xs font-bold text-rose-700">
-                    -{formatCurrencyCompact(
-                      mesi.reduce((s, m) => s + m.uscite_totali, 0),
-                    )}
-                  </td>
-                </tr>
+                {righeUscite.map((r) => (
+                  <RigaImporti key={`u-${r.key}`} label={r.label} valori={mesi.map((m) => m.uscite[r.key] ?? 0)} uscita />
+                ))}
+                <RigaImporti label="Totale uscite" valori={mesi.map((m) => m.uscite_totali)} uscita totale className="bg-rose-100/50 font-semibold" />
 
-                {/* Flusso netto */}
                 <tr className="border-t bg-muted/30 font-medium">
-                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">
-                    Flusso netto del mese
-                  </td>
+                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Flusso netto del mese</td>
                   {mesi.map((m, i) => (
                     <td
                       key={i}
                       className={cn(
-                        "px-2 py-2 text-right tabular-nums text-xs",
+                        "whitespace-nowrap px-2 py-2 text-right tabular-nums text-xs",
                         m.flusso_netto < 0 ? "text-rose-700" : "text-emerald-700",
                       )}
                     >
-                      {m.flusso_netto !== 0
-                        ? formatCurrencyCompact(m.flusso_netto)
-                        : "—"}
+                      {m.flusso_netto !== 0 ? euroIntero(m.flusso_netto) : "—"}
                     </td>
                   ))}
-                  <td className="bg-primary/5 px-2 py-2 text-right text-xs font-bold">
-                    {formatCurrencyCompact(
-                      mesi.reduce((s, m) => s + m.flusso_netto, 0),
-                    )}
+                  <td className="whitespace-nowrap bg-primary/5 px-2 py-2 text-right text-xs font-bold tabular-nums">
+                    {euroIntero(totEntrate - totUscite)}
                   </td>
                 </tr>
 
-                {/* Saldo chiusura */}
-                <tr className="border-t-2 border-foreground/20 bg-primary/10 font-bold">
-                  <td className="sticky left-0 z-10 bg-primary/10 px-3 py-2.5">
-                    Saldo chiusura
-                  </td>
-                  {mesi.map((m, i) => (
-                    <td
-                      key={i}
-                      className={cn(
-                        "px-2 py-2.5 text-right tabular-nums text-sm",
-                        m.saldo_fine < 0
-                          ? "bg-rose-100 text-rose-800"
-                          : "text-foreground",
-                      )}
-                    >
-                      {formatCurrencyCompact(m.saldo_fine)}
-                    </td>
-                  ))}
-                  <td className="bg-primary/5 px-2 py-2.5 text-right text-sm">—</td>
-                </tr>
+                <RigaSaldo label="Saldo fine mese" valori={mesi.map((m) => m.saldo_fine)} forte />
               </tbody>
             </table>
           </div>
@@ -456,13 +339,87 @@ function ProjectedCashFlow({ anno }: Props) {
   );
 }
 
+function RigaImporti({ label, valori, uscita = false, totale = false, className }: {
+  label: string; valori: number[]; uscita?: boolean; totale?: boolean; className?: string;
+}) {
+  const somma = valori.reduce((a, b) => a + b, 0);
+  const fmt = (v: number) => (v !== 0 ? euroIntero(uscita ? -v : v) : "—");
+  return (
+    <tr className={cn("border-t", className)}>
+      <td className={cn("sticky left-0 z-10 px-3 py-2 text-sm", totale ? "bg-inherit" : "bg-background pl-6")}>{label}</td>
+      {valori.map((v, i) => (
+        <td key={i} className={cn("whitespace-nowrap px-2 py-2 text-right tabular-nums text-xs", uscita && "text-rose-700")}>
+          {fmt(v)}
+        </td>
+      ))}
+      <td className={cn("whitespace-nowrap bg-primary/5 px-2 py-2 text-right text-xs tabular-nums", totale ? "font-bold" : "font-semibold", uscita && "text-rose-700")}>
+        {euroIntero(uscita ? -somma : somma)}
+      </td>
+    </tr>
+  );
+}
+
+function RigaSaldo({ label, valori, forte = false }: { label: string; valori: number[]; forte?: boolean }) {
+  return (
+    <tr className={cn(forte ? "border-t-2 border-foreground/20 bg-primary/10 font-bold" : "border-t bg-muted/30")}>
+      <td className={cn("sticky left-0 z-10 px-3 py-2 font-semibold", forte ? "bg-primary/10" : "bg-muted/30")}>{label}</td>
+      {valori.map((v, i) => (
+        <td
+          key={i}
+          className={cn(
+            "whitespace-nowrap px-2 py-2 text-right tabular-nums",
+            forte ? "text-sm" : "text-xs",
+            v < 0 && (forte ? "bg-rose-100 text-rose-800" : "font-semibold text-destructive"),
+          )}
+        >
+          {euroIntero(v)}
+        </td>
+      ))}
+      <td className="bg-primary/5 px-2 py-2 text-right text-xs">—</td>
+    </tr>
+  );
+}
+
+/** Cosa resta fuori dal saldo e perché, con il link per confermarlo nel Previsionale. */
+function EsclusiDalSaldo({ esclusi, manualiNetto }: {
+  esclusi: NonNullable<ReturnType<typeof useCashFlow>["data"]>["esclusi"];
+  manualiNetto: number;
+}) {
+  const righe = [
+    { n: esclusi.incassi_scaduti.numero, testo: `${esclusi.incassi_scaduti.numero} incassi già scaduti per ${formatCurrency(esclusi.incassi_scaduti.importo)}: non sono soldi sicuri, li conti solo quando li confermi.`, href: "/azienda/previsionale?incassi-scaduti=1" },
+    { n: esclusi.uscite_scadute.numero, testo: `${esclusi.uscite_scadute.numero} pagamenti scaduti e non segnati pagati per ${formatCurrency(-esclusi.uscite_scadute.importo)}: spesso sono già pagati, controllali.`, href: "/azienda/previsionale?uscite-scadute=1" },
+    { n: esclusi.senza_data.numero, testo: `${esclusi.senza_data.numero} movimenti senza data (netto ${formatCurrency(esclusi.senza_data.importo)}): mettigli una data per vederli nel mese giusto.`, href: "/azienda/previsionale" },
+    { n: esclusi.forse_doppi.numero, testo: `${esclusi.forse_doppi.numero} incassi forse già compresi nelle rate (netto ${formatCurrency(esclusi.forse_doppi.importo)}): collegali alla rata giusta.`, href: "/azienda/previsionale" },
+  ].filter((r) => r.n > 0);
+  if (!righe.length && manualiNetto === 0) return null;
+  return (
+    <details className="rounded-lg border bg-white p-3 text-sm" open={righe.length > 0}>
+      <summary className="cursor-pointer font-medium">Cosa resta fuori dal saldo</summary>
+      <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+        {righe.map((r) => (
+          <li key={r.testo}>
+            {r.testo} <Link className="font-medium text-blue-700 underline" to={r.href}>Apri nel Previsionale</Link>
+          </li>
+        ))}
+        {manualiNetto !== 0 && (
+          <li>
+            Le voci manuali del Controllo di gestione ({formatCurrency(manualiNetto)} nel periodo) ci sono solo qui:
+            è l'unica differenza col saldo della pagina Previsionale.
+          </li>
+        )}
+      </ul>
+    </details>
+  );
+}
+
 // ── KPI mini-box ────────────────────────────────────────────────────────────
 
 function KPIBoxCF({
-  label, value, tone,
+  label, value, sub, tone,
 }: {
   label: string;
   value: string;
+  sub?: string;
   tone: "neutral" | "blue" | "green" | "amber" | "red";
 }) {
   const palette: Record<typeof tone, string> = {
@@ -473,10 +430,11 @@ function KPIBoxCF({
     red: "bg-rose-50",
   };
   return (
-    <Card className={cn("rounded-2xl border-0", palette[tone])}>
+    <Card className={cn("min-w-0 rounded-2xl border-0", palette[tone])}>
       <CardContent className="p-4 max-sm:px-3 max-sm:py-2.5">
         <p className="text-xs text-muted-foreground max-sm:text-[11px]">{label}</p>
-        <p className="mt-1 text-xl font-bold tabular-nums max-sm:mt-0.5 max-sm:text-[17px]">{value}</p>
+        <p className="mt-1 break-words text-xl font-bold tabular-nums max-sm:mt-0.5 max-sm:text-[15px]">{value}</p>
+        {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -513,7 +471,7 @@ function CashFlowManualiEditor({
   }>(() => ({
     mese: new Date().getMonth() + 1,
     tipo: "uscita",
-    categoria: "F24",
+    categoria: "Anticipo socio",
     descrizione: "",
     importo: "",
     note: "",
@@ -550,7 +508,7 @@ function CashFlowManualiEditor({
       setForm((f) => ({ ...f, descrizione: "", importo: "", note: "" }));
       toast({ title: "Voce aggiunta" });
     } catch (e) {
-      toast({ title: "Errore", description: String(e), variant: "destructive" });
+      toast({ title: "Voce non salvata", description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -559,7 +517,7 @@ function CashFlowManualiEditor({
       await del.mutateAsync(r.id);
       toast({ title: "Voce eliminata" });
     } catch (e) {
-      toast({ title: "Errore", description: String(e), variant: "destructive" });
+      toast({ title: "Voce non eliminata", description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
@@ -569,8 +527,10 @@ function CashFlowManualiEditor({
         <SheetHeader>
           <SheetTitle>Voci manuali Cash Flow · {anno}</SheetTitle>
           <p className="text-xs text-muted-foreground">
-            F24, IVA, anticipi soci, SAL, dividendi e tutto ciò che non passa
-            automaticamente da scadenze/cedolini/mutui.
+            Solo ciò che il gestionale non vede già: versamenti dei soci, dividendi,
+            finanziamenti, spese fuori dallo scadenzario. Scadenze, rate delle commesse,
+            stipendi, F24 registrati e IVA stimata sono già nel conto: inserirli qui
+            li conterebbe due volte.
           </p>
         </SheetHeader>
 
