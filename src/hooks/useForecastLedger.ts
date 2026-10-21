@@ -21,6 +21,7 @@ import {
   type ForecastMovement,
   type ForecastSources,
   type OpeningBalance,
+  type VatDocumentRow,
 } from "@/lib/finance/forecastLedger";
 
 interface ReadResult {
@@ -35,6 +36,10 @@ interface ReadQuery extends PromiseLike<ReadResult> {
   not(column: string, operator: string, value: string | null): ReadQuery;
   gte(column: string, value: string): ReadQuery;
   lte(column: string, value: string): ReadQuery;
+  /** Filtro PostgREST in alternativa, es. «is_paid.eq.false,due_date.gte.2026-10-01». */
+  or(filters: string): ReadQuery;
+  in(column: string, values: string[]): ReadQuery;
+  like(column: string, pattern: string): ReadQuery;
   order(column: string): ReadQuery;
   range(from: number, to: number): ReadQuery;
 }
@@ -81,6 +86,15 @@ export async function loadForecastDataset(
     throw new Error("Seleziona un’azienda per vedere il previsionale.");
   const s = emptyForecastSources();
   const issues: string[] = [];
+  const softWarnings: string[] = [];
+  const year = Number(today.slice(0, 4));
+  // L'IVA si stima sui mesi la cui liquidazione può ancora cadere da oggi in avanti: bastano
+  // gli ultimi tre mesi (il credito dei mesi prima si perde: limite dichiarato).
+  const vatFrom = (() => {
+    const d = calendarDate(`${today.slice(0, 7)}-01`);
+    d.setMonth(d.getMonth() - 3);
+    return dayKey(d);
+  })();
   const scoped = (table: string, columns: string) =>
     client.from(table).select(columns).eq("company_id", companyId).order("id");
   const jobScoped = (table: string, columns: string) =>
@@ -148,7 +162,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "invoices",
-          "id,total,paid_amount,due_date,status,invoice_number,client_company_name,order_id,document_type,payment_date,deleted_at",
+          "id,total,paid_amount,due_date,status,invoice_number,client_company_name,order_id,document_type,payment_date,deleted_at,issue_date,tax_amount",
         )
           .is("deleted_at", null)
           .neq("status", "draft")
@@ -160,7 +174,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "company_costs",
-          "id,name,amount,vat_rate,due_date,is_paid,order_id,category,purchase_order_id,recurrence,recurrence_auto,recurrence_end_date,supplier:suppliers(vat_rate)",
+          "id,name,amount,vat_rate,due_date,is_paid,order_id,category,purchase_order_id,recurrence,recurrence_auto,recurrence_end_date,supplier_id,supplier:suppliers(vat_rate)",
         ),
     },
     {
@@ -201,7 +215,10 @@ export async function loadForecastDataset(
         scoped(
           "purchase_orders",
           "id,total,status,oda_number,order_id,issue_date,expected_delivery_date,actual_delivery_date,payment_terms_base,payment_terms_giorni",
-        ).not("status", "in", "(ricevuto,annullato,bozza)"),
+          // Gli ODA ricevuti dell'ultimo anno entrano tra le uscite finché non diventano una spesa.
+        ).or(
+          `status.in.(inviato,confermato,parziale),and(status.eq.ricevuto,issue_date.gte.${moveDay(today, -366)})`,
+        ),
     },
     {
       key: "purchaseItems",
@@ -231,7 +248,8 @@ export async function loadForecastDataset(
         scoped(
           "hr_cedolini",
           "id,employee_id,anno,mese,netto,stato,data_pagamento",
-        ).neq("stato", "bozza"),
+        )
+          .neq("stato", "bozza"),
     },
     {
       key: "taxes",
@@ -284,6 +302,77 @@ export async function loadForecastDataset(
       }
     }),
     (async () => {
+      // Stima IVA: fonti facoltative. Se non si leggono (permessi, modulo spento) il piano resta
+      // valido e lo diciamo tra le ipotesi, senza segnare la previsione come incompleta.
+      try {
+        const [native, received, f24] = await Promise.all([
+          readForecastPages<{
+            data_emissione: string | null;
+            iva_totale: number | null;
+            tipo: string;
+          }>(() =>
+            scoped("documenti_fiscali", "id,data_emissione,iva_totale,tipo")
+              .in("tipo", ["fattura", "fattura_pa", "nota_credito"])
+              .not("stato", "in", "(bozza,annullata,rifiutata)")
+              .is("deleted_at", null)
+              .gte("data_emissione", vatFrom),
+          ),
+          readForecastPages<{
+            data_fattura: string | null;
+            iva_totale: number | null;
+            tipo_documento: string | null;
+          }>(() =>
+            scoped(
+              "fatture_ricevute",
+              "id,data_fattura,iva_totale,tipo_documento",
+            )
+              .neq("stato", "rifiutata")
+              .gte("data_fattura", vatFrom),
+          ),
+          readForecastPages<{
+            anno: number;
+            mese: number | null;
+            tributo_code: string | null;
+          }>(() =>
+            scoped("f24_entries", "id,anno,mese,tributo_code")
+              .like("tributo_code", "60%")
+              .gte("anno", String(year - 1)),
+          ),
+        ]);
+        s.vatDocuments.push(
+          ...native.map(
+            (d): VatDocumentRow => ({
+              date: d.data_emissione,
+              vat: d.iva_totale,
+              kind: "vendita",
+              credit: d.tipo === "nota_credito",
+              origin: "nativa",
+            }),
+          ),
+          ...received
+            // Autofatture e integrazioni (reverse charge) hanno l'IVA da entrambe le parti.
+            .filter(
+              (d) =>
+                !/^TD(16|17|18|19)$|self_invoice/i.test(d.tipo_documento ?? ""),
+            )
+            .map(
+              (d): VatDocumentRow => ({
+                date: d.data_fattura,
+                vat: d.iva_totale,
+                kind: "acquisto",
+                credit: /^TD04$|credit/i.test(d.tipo_documento ?? ""),
+                origin: "ricevuta",
+              }),
+            ),
+        );
+        s.vatF24 = f24;
+      } catch {
+        softWarnings.push(
+          "Stima IVA non disponibile: non è stato possibile leggere fatture o F24 dell’IVA.",
+        );
+      }
+    })(),
+    (async () => {
       try {
         const { data, error } = (await client.rpc("get_prima_nota_saldo", {
           p_company_id: companyId,
@@ -324,6 +413,25 @@ export async function loadForecastDataset(
       }
     })(),
   ]);
+  s.vatDocuments.push(
+    ...s.invoices
+      .filter(
+        (i) =>
+          (i.issue_date ?? "") >= vatFrom &&
+          !["proforma"].includes(i.document_type ?? ""),
+      )
+      .map(
+        (i): VatDocumentRow => ({
+          date: i.issue_date ?? null,
+          vat: i.tax_amount ?? 0,
+          kind: "vendita",
+          credit: ["credit_note", "nota_credito", "TD04"].includes(
+            i.document_type ?? "",
+          ),
+          origin: "esterna",
+        }),
+      ),
+  );
   let opening = resolveOpeningBalance(s.banks, []);
   // The full server aggregate, not the 12 months of detail used for collections.
   const pn = primaNota as { saldo?: number; entry_count?: number } | null;
@@ -338,11 +446,15 @@ export async function loadForecastDataset(
     today,
     1 - RITENUTA_BONIFICO_PARLANTE / (1 + IVA_SCORPORO_BANCA),
   );
+  const vatReady = !softWarnings.length;
   return {
     companyId,
     today,
     opening,
     ...ledger,
+    warnings: [...ledger.warnings, ...softWarnings].filter(
+      (w) => vatReady || !w.startsWith("IVA da versare stimata"),
+    ),
     issues: issues.sort(),
     updatedAt: new Date().toISOString(),
   };

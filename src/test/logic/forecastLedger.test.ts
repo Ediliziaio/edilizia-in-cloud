@@ -80,14 +80,50 @@ describe("a single cash forecast", () => {
     const p = projectForecast(rows, 300000, today, 30, 0, scenario);
     expect(p.overdueIncome).toHaveLength(1);
     expect(p.income).toBe(0);
-    expect(p.expense).toBe(250000);
-    expect(p.finalBalance).toBe(50000);
+    expect(p.expense).toBe(0);
+    expect(p.finalBalance).toBe(300000);
     expect(
       projectForecast(rows, 300000, today, 30, 0, {
         ...scenario,
         includeOverdueIncome: true,
+        includeOverdueExpense: true,
       }).finalBalance,
     ).toBe(150000);
+  });
+  it("keeps overdue unpaid expenses out of today unless asked, symmetric with income", () => {
+    const rows = [
+      movement({
+        id: "old-cost",
+        description: "Fornitore scaduto",
+        direction: "out",
+        date: "2026-09-01",
+        cents: 930000,
+      }),
+      movement({ id: "future-cost", direction: "out", date: moveDay(today, 3), cents: 1000 }),
+    ];
+    const p = projectForecast(rows, -48415, today, 30, 0, scenario);
+    expect(p.overdueExpense.map((m) => m.id)).toEqual(["old-cost"]);
+    expect(p.days[0].balance).toBe(-48415);
+    expect(forecastExportRows(p, -48415, 0, scenario).find((r) => r.descrizione === "Fornitore scaduto")?.inclusione).toBe(
+      "Escluso: uscita scaduta non segnata pagata",
+    );
+    const withOverdue = projectForecast(rows, -48415, today, 30, 0, {
+      ...scenario,
+      includeOverdueExpense: true,
+    });
+    expect(withOverdue.overdueExpense).toHaveLength(0);
+    expect(withOverdue.days[0].balance).toBe(-48415 - 930000);
+  });
+  it("moves a single receipt only in simulation, overriding the delay for that row", () => {
+    const rows = [movement({ id: "sal", date: moveDay(today, 5) })];
+    const p = projectForecast(rows, 0, today, 30, 0, {
+      ...scenario,
+      delayDays: 15,
+      dateOverrides: { sal: moveDay(today, 25) },
+    });
+    expect(p.included[0].date).toBe(moveDay(today, 25));
+    expect(p.included[0].note).toMatch(/solo simulazione/);
+    expect(rows[0].date).toBe(moveDay(today, 5));
   });
   it("delays only income and declares an income pushed outside the period", () => {
     const rows = [
@@ -826,5 +862,128 @@ describe("source amounts and exact duplicate links", () => {
       [10000, today, "Prima Nota"],
       [366000, "2026-09-01", "Rata commessa"],
     ]);
+  });
+});
+
+describe("giro 1: numeri giusti", () => {
+  it("dates the bank from the accounts that have a refresh, counting the undated ones apart", () => {
+    const opening = resolveOpeningBalance(
+      [
+        { id: "a", current_balance: 100, available_balance: null, balance_updated_at: "2026-10-01T08:00:00Z" },
+        { id: "b", current_balance: 50, available_balance: null, balance_updated_at: null },
+      ],
+      [],
+    );
+    expect(opening.updatedAt).toBe("2026-10-01T08:00:00Z");
+    expect(opening.undatedAccounts).toBe(1);
+  });
+  it("flags an invoice not linked to an open job installment as a possible duplicate, out of the plan", () => {
+    const s = emptyForecastSources();
+    s.orders = [{ id: "o", client_name: "Rossi" }];
+    s.installments = [
+      { id: "r1", order_id: "o", amount: 1000, expected_date: "2026-11-01", is_paid: false },
+      { id: "r2", order_id: "o", amount: 500, expected_date: "2026-10-20", is_paid: false, invoice_id: "linked" },
+    ];
+    s.rateDaIncassare = [
+      { id: "r1", order_id: "o", amount: 1000, expected_date: "2026-11-01" },
+      { id: "r2", order_id: "o", amount: 500, expected_date: "2026-10-20" },
+    ];
+    s.invoices = [
+      { id: "linked", total: 500, paid_amount: 0, due_date: "2026-10-20", status: "issued", order_id: "o" },
+      { id: "loose", total: 1000, paid_amount: 0, due_date: "2026-10-25", status: "issued", order_id: "o" },
+      { id: "other-job", total: 300, paid_amount: 0, due_date: "2026-10-25", status: "issued", order_id: "x" },
+    ];
+    const { movements } = buildForecastLedger(s, today);
+    const byId = new Map(movements.map((m) => [m.id, m]));
+    // Collegamento certo: conta la fattura, non la rata r2.
+    expect(byId.get("fattura:linked")?.possibleDuplicate).toBeUndefined();
+    expect(byId.has("rata:r2")).toBe(false);
+    // Senza collegamento sulla stessa commessa: possibile doppione, fuori dal saldo.
+    expect(byId.get("fattura:loose")?.possibleDuplicate).toBe(true);
+    expect(byId.get("fattura:other-job")?.possibleDuplicate).toBeUndefined();
+    const p = projectForecast(movements, 0, today, 90, 0, scenario);
+    expect(p.possibleDuplicates.map((m) => m.id)).toEqual(["fattura:loose"]);
+    expect(p.income).toBe(50000 + 100000 + 30000);
+  });
+  it("brings a received but unbilled purchase order into the expenses", () => {
+    const s = emptyForecastSources();
+    s.purchases = [
+      { id: "ric", total: 1220, status: "ricevuto", oda_number: "ODA-1", issue_date: today, expected_delivery_date: null, payment_terms_base: "data_ordine", payment_terms_giorni: 30 },
+      { id: "fatto", total: 500, status: "ricevuto", issue_date: today, expected_delivery_date: null },
+    ];
+    s.costs = [{ id: "c", name: "ODA fatto", amount: 410, vat_rate: 22, due_date: "2026-11-01", is_paid: true, purchase_order_id: "fatto" }];
+    const rows = buildForecastLedger(s, today).movements.filter((m) => m.id.startsWith("oda:"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: "oda:ric", cents: 122000, date: "2026-11-13", source: "ODA ricevuto" });
+  });
+  it("takes the payday from paid salaries, otherwise the end of the month, and says which", () => {
+    const employee = { id: "e", first_name: "A", last_name: "B", net_salary: 1500, gross_salary: 2000 };
+    const s = emptyForecastSources();
+    s.employees = [employee];
+    s.notes = [
+      { id: "n1", direction: "uscita", amount: 1500, entry_date: "2026-08-10", category: "Stipendi" },
+      { id: "n2", direction: "uscita", amount: 1500, entry_date: "2026-09-12", category: "stipendi" },
+    ];
+    s.payroll = [{ id: "p", employee_id: "e", anno: 2026, mese: 7, netto: 1500, stato: "pagato", data_pagamento: "2026-07-12" }];
+    const learned = buildForecastLedger(s, today);
+    expect(learned.movements.find((m) => m.id.startsWith("stipendio:"))?.date).toBe("2026-11-12");
+    expect(learned.warnings.join(" ")).toMatch(/giorno 12 del mese, mediana di 3 pagamenti/);
+    const fallback = emptyForecastSources();
+    fallback.employees = [employee];
+    const rows = buildForecastLedger(fallback, today);
+    expect(rows.movements.map((m) => m.date)).toEqual(["2026-10-31", "2026-11-30", "2026-12-31", "2027-01-31"]);
+    expect(rows.warnings.join(" ")).toMatch(/l’ultimo giorno del mese/);
+  });
+  it("estimates VAT to pay on the 16th of next month, only when positive and not already in F24", () => {
+    const s = emptyForecastSources();
+    s.vatDocuments = [
+      { date: "2026-09-05", vat: 2200, kind: "vendita", credit: false, origin: "esterna" },
+      { date: "2026-09-08", vat: 2000, kind: "vendita", credit: false, origin: "nativa" },
+      { date: "2026-09-20", vat: 700, kind: "acquisto", credit: false, origin: "ricevuta" },
+      { date: "2026-09-21", vat: 100, kind: "acquisto", credit: true, origin: "ricevuta" },
+      { date: "2026-10-02", vat: 500, kind: "vendita", credit: false, origin: "esterna" },
+      { date: "2026-10-03", vat: 900, kind: "acquisto", credit: false, origin: "ricevuta" },
+    ];
+    const rows = buildForecastLedger(s, "2026-10-14").movements;
+    // Settembre: 2200 (l'archivio esterno vale da solo) − 700 + 100 = 1600, al 16/10.
+    expect(rows).toEqual([
+      expect.objectContaining({ id: "iva:2026-09", cents: 160000, date: "2026-10-16", estimated: true, category: "fisco" }),
+    ]);
+    s.vatF24 = [{ anno: 2026, mese: 9, tributo_code: "6009" }];
+    expect(buildForecastLedger(s, "2026-10-14").movements).toHaveLength(0);
+    // Il 16 che cade di domenica slitta al lunedì.
+    s.vatF24 = [];
+    s.vatDocuments = [{ date: "2026-07-10", vat: 100, kind: "vendita", credit: false, origin: "esterna" }];
+    expect(buildForecastLedger(s, "2026-08-01").movements[0].date).toBe("2026-08-17");
+    // Stime spente: la stima IVA esce dal piano.
+    const p = projectForecast(buildForecastLedger(s, "2026-08-01").movements, 0, "2026-08-01", 30, 0, { ...scenario, includeEstimates: false });
+    expect(p.excludedEstimates).toHaveLength(1);
+  });
+  it("recognizes a recurring occurrence registered a few days off, and repeats weekly costs", () => {
+    const s = emptyForecastSources();
+    s.costs = [
+      { id: "mother", name: "Affitto", amount: 1000, vat_rate: 0, due_date: "2026-01-31", is_paid: true, recurrence: "monthly", recurrence_auto: true, recurrence_end_date: "2026-12-31" },
+      { id: "nov", name: "affitto ", amount: 1000, vat_rate: 0, due_date: "2026-11-28", is_paid: false },
+      { id: "w", name: "Pulizie", amount: 100, vat_rate: 0, due_date: "2026-10-01", is_paid: true, recurrence: "weekly", recurrence_auto: true, recurrence_end_date: "2026-11-05", supplier_id: "s" },
+      { id: "w-reg", name: "Fattura pulizie", amount: 100, vat_rate: 0, due_date: "2026-10-23", is_paid: false, supplier_id: "s" },
+    ];
+    const rows = buildForecastLedger(s, today).movements.filter((m) => m.estimated);
+    expect(rows.map((m) => m.id)).toEqual([
+      "ricorrente:w:2026-10-15",
+      "ricorrente:w:2026-10-29",
+      "ricorrente:mother:2026-10-31",
+      "ricorrente:w:2026-11-05",
+      "ricorrente:mother:2026-12-31",
+    ]);
+  });
+  it("matches a supplier payment to its deadline within one euro of rounding", () => {
+    const s = emptyForecastSources();
+    s.items = [
+      { id: "i", name: "Piastrelle", purchase_price: 999.99, quantity: 1, payment_method: "unico", deposit_amount: null, balance_amount: null, deposit_paid: false, balance_paid: false, deposit_expected_date: null, balance_expected_date: today, is_paid: false, order_id: "o", supplier: { name: "F", vat_rate: 22 } },
+    ];
+    s.deadlines = [
+      { id: "d", description: "Fornitore F", amount: 1220.5, paid_amount: 0, due_date: today, direction: "uscita", status: "da_pagare", order_item_id: "i" },
+    ];
+    expect(buildForecastLedger(s, today).movements.map((m) => m.id)).toEqual(["scadenza:d"]);
   });
 });

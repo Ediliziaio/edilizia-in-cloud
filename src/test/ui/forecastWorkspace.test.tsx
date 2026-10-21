@@ -210,4 +210,40 @@ describe("forecast workspace decisions", () => {
     click(screen.getByRole("tab", { name: "Marginalità" }));
     expect(await screen.findByText("Marginalità di verifica")).toBeVisible();
   });
+  it("keeps the verdict visible when a source is missing, with a secondary note", () => {
+    mount({ ...forecastFixture, issues: ["F24"] });
+    expect(screen.getByText("Sotto la soglia dal 14 ott")).toBeVisible();
+    expect(screen.getByText(/Verifica prima di decidere: mancano F24/)).toBeVisible();
+  });
+  it("leaves overdue unpaid expenses out until the switch includes them", () => {
+    const data = {
+      ...forecastFixture,
+      movements: [
+        ...forecastFixture.movements,
+        {
+          id: "old-supplier",
+          description: "Fornitore scaduto",
+          counterparty: "",
+          category: "fornitori" as const,
+          direction: "out" as const,
+          cents: 9_300_000,
+          date: "2026-09-01",
+          source: "Spesa registrata",
+          href: "/azienda/costi",
+          estimated: false,
+        },
+      ],
+    };
+    mount(data);
+    expect(screen.getByText("Uscite scadute non segnate pagate")).toBeVisible();
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      vi.mocked(exportToCSV).mock.calls[0][0].find((r) => r.descrizione === "Fornitore scaduto")?.inclusione,
+    ).toBe("Escluso: uscita scaduta non segnata pagata");
+    click(screen.getByRole("checkbox", { name: "Includi le uscite scadute da oggi" }));
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      vi.mocked(exportToCSV).mock.calls[1][0].find((r) => r.descrizione === "Fornitore scaduto"),
+    ).toMatchObject({ data: "2026-10-14", inclusione: "Incluso" });
+  });
 });

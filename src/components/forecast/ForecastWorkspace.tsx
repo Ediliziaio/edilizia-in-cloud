@@ -71,6 +71,7 @@ interface Preferences {
   delay: number;
   estimates: boolean;
   overdue: boolean;
+  overdueExpense: boolean;
 }
 const defaults: Preferences = {
   horizon: 90,
@@ -78,6 +79,7 @@ const defaults: Preferences = {
   delay: 0,
   estimates: true,
   overdue: false,
+  overdueExpense: false,
 };
 interface MovementControls {
   search: string;
@@ -102,6 +104,7 @@ function readPreferences(companyId: string): Preferences {
       delay: [0, 15, 30].includes(p.delay) ? p.delay : 0,
       estimates: p.estimates !== false,
       overdue: p.overdue === true,
+      overdueExpense: p.overdueExpense === true,
     };
   } catch {
     return defaults;
@@ -199,8 +202,9 @@ export function ForecastWorkspace({
       delayDays: prefs.delay,
       includeEstimates: prefs.estimates,
       includeOverdueIncome: prefs.overdue,
+      includeOverdueExpense: prefs.overdueExpense,
     }),
-    [prefs.delay, prefs.estimates, prefs.overdue],
+    [prefs.delay, prefs.estimates, prefs.overdue, prefs.overdueExpense],
   );
   const projection = useMemo(
     () =>
@@ -239,10 +243,27 @@ export function ForecastWorkspace({
   const undatedExpense = projection.undated
     .filter((m) => m.direction === "out")
     .reduce((sum, m) => sum + m.cents, 0);
+  // Vecchio = il conto aggiornato meno di recente, tra quelli che hanno una data, è fermo a
+  // prima di ieri. I conti senza data si segnalano a parte: non spengono e non accendono l'avviso.
   const bankOld =
     data.opening.source === "banca" &&
-    (!data.opening.updatedAt ||
-      data.opening.updatedAt.slice(0, 10) < moveDay(data.today, -1));
+    !!data.opening.updatedAt &&
+    data.opening.updatedAt.slice(0, 10) < moveDay(data.today, -1);
+  const undatedAccounts =
+    data.opening.source === "banca" ? (data.opening.undatedAccounts ?? 0) : 0;
+  const bankNote = bankOld
+    ? `Il saldo bancario è aggiornato al ${shortDate(data.opening.updatedAt)}: sincronizza i conti in Tesoreria.`
+    : undatedAccounts
+      ? `${undatedAccounts === 1 ? "Un conto non ha" : `${undatedAccounts} conti non hanno`} la data di aggiornamento del saldo: verificalo in Tesoreria.`
+      : null;
+  const overdueExpenseTotal = projection.overdueExpense.reduce(
+    (sum, m) => sum + m.cents,
+    0,
+  );
+  const duplicateTotal = projection.possibleDuplicates.reduce(
+    (sum, m) => sum + m.cents,
+    0,
+  );
   const incomplete = data.issues.length > 0;
   const openMovements = (filter: string) => {
     setDetailControls(defaultControls);
@@ -265,6 +286,8 @@ export function ForecastWorkspace({
         (m) => m.direction === "in" && m.date && m.date < data.today,
       );
     if (movementFilter === "senza-data") return projection.undated;
+    if (movementFilter === "uscite-scadute") return projection.overdueExpense;
+    if (movementFilter === "doppioni") return projection.possibleDuplicates;
     if (movementFilter === "stime")
       return data.movements.filter((m) => m.estimated);
     return data.movements.map((m) => plannedMap.get(m.id) ?? m);
@@ -409,13 +432,12 @@ export function ForecastWorkspace({
           </Button>
         </div>
       )}
-      {(bankOld || data.opening.warning) && (
+      {(bankNote || data.opening.warning) && (
         <div
           role="status"
           className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
         >
-          {data.opening.warning ||
-            "Il saldo bancario non ha un aggiornamento recente. Sincronizza i conti in Tesoreria."}{" "}
+          {data.opening.warning || bankNote}{" "}
           <Link className="font-semibold underline" to="/azienda/tesoreria">
             Apri Tesoreria
           </Link>
@@ -548,17 +570,22 @@ export function ForecastWorkspace({
               <h2 className="mt-1 text-lg font-semibold tracking-tight">
                 {data.opening.cents == null
                   ? "Completa il saldo per conoscere la cassa futura"
-                  : incomplete || bankOld
-                    ? "Verifica i dati prima di confermare il piano"
-                    : projection.firstBelow
-                      ? `Sotto la soglia dal ${shortDate(projection.firstBelow)}`
-                      : "La cassa prevista resta sopra la soglia"}
+                  : projection.firstBelow
+                    ? `Sotto la soglia dal ${shortDate(projection.firstBelow)}`
+                    : "La cassa prevista resta sopra la soglia"}
               </h2>
               <p className="mt-1 text-sm opacity-80">
                 {data.opening.cents == null
                   ? "Entrate e uscite sono consultabili. Il saldo non viene sostituito con uno zero."
                   : `A fine periodo: ${money(projection.finalBalance)} · flusso del periodo: ${money(projection.net)}.`}
               </p>
+              {data.opening.cents != null && (incomplete || bankNote) && (
+                <p className="mt-1 text-xs opacity-70">
+                  {incomplete
+                    ? `Verifica prima di decidere: mancano ${data.issues.join(", ")}.`
+                    : bankNote}
+                </p>
+              )}
             </div>
             <Button
               variant="secondary"
@@ -831,6 +858,16 @@ export function ForecastWorkspace({
                   onClick={() => openMovements("scaduti")}
                 />
                 <ActionRow
+                  title="Uscite scadute non segnate pagate"
+                  detail={`${projection.overdueExpense.length} · ${money(overdueExpenseTotal)} · fuori dal piano finché non le includi o le segni pagate`}
+                  onClick={() => openMovements("uscite-scadute")}
+                />
+                <ActionRow
+                  title="Possibili doppioni"
+                  detail={`${projection.possibleDuplicates.length} fatture · ${money(duplicateTotal)} · collegale alla rata per contarle una volta sola`}
+                  onClick={() => openMovements("doppioni")}
+                />
+                <ActionRow
                   title="Movimenti senza data"
                   detail={`${projection.undated.length} fuori piano · ${money(undatedExpense)} di uscite`}
                   onClick={() => openMovements("senza-data")}
@@ -906,6 +943,17 @@ export function ForecastWorkspace({
                   />
                   Ipotizza l’incasso degli scaduti da oggi
                 </label>
+                <label className="flex min-h-10 cursor-pointer items-center gap-3 leading-relaxed">
+                  <input
+                    type="checkbox"
+                    checked={prefs.overdueExpense}
+                    onChange={(e) =>
+                      updatePrefs({ overdueExpense: e.target.checked })
+                    }
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Includi le uscite scadute da oggi
+                </label>
               </div>
             </section>
           </div>
@@ -917,8 +965,10 @@ export function ForecastWorkspace({
               <p>
                 Importi di cassa: IVA inclusa ove prevista, residui non saldati,
                 ritenuta applicata alle commesse bonus secondo la configurazione
-                del gestionale. Le uscite scadute sono collocate oggi; gli
-                incassi scaduti entrano solo con l’ipotesi esplicita. I
+                del gestionale. Uscite e incassi scaduti restano fuori dal piano
+                (spesso sono già pagati ma non segnati) ed entrano oggi solo con
+                l’ipotesi esplicita. Le fatture di una commessa non collegate a
+                una rata restano fuori come possibili doppioni. I
                 movimenti senza data restano esclusi e dichiarati.
               </p>
               <p>
@@ -963,6 +1013,8 @@ export function ForecastWorkspace({
             >
               <option value="piano">Nel piano selezionato</option>
               <option value="scaduti">Incassi scaduti</option>
+              <option value="uscite-scadute">Uscite scadute</option>
+              <option value="doppioni">Possibili doppioni</option>
               <option value="senza-data">Senza data</option>
               <option value="stime">Stime</option>
               <option value="tutti">Tutti i movimenti aperti</option>

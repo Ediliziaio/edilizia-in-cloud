@@ -33,6 +33,11 @@ export interface ForecastMovement {
   expectedDate?: string | null;
   note?: string;
   orderId?: string | null;
+  /**
+   * Incasso che potrebbe essere già compreso nelle rate della stessa commessa (fattura o scadenza
+   * non collegata a una rata): resta fuori dal piano finché qualcuno non lo collega.
+   */
+  possibleDuplicate?: boolean;
 }
 export interface BankRow {
   id: string;
@@ -74,6 +79,8 @@ export interface InvoiceRow {
   document_type?: string | null;
   payment_date?: string | null;
   deleted_at?: string | null;
+  issue_date?: string | null;
+  tax_amount?: Money;
 }
 export interface CostRow {
   id: string;
@@ -88,6 +95,7 @@ export interface CostRow {
   recurrence?: string | null;
   recurrence_auto?: boolean | null;
   recurrence_end_date?: string | null;
+  supplier_id?: string | null;
   supplier?: { vat_rate: Money } | null;
 }
 export interface DeadlineRow {
@@ -230,6 +238,20 @@ export interface ForecastSources {
   blocked: ForecastMovement[];
   purchases: PurchaseRow[];
   purchaseItems: { purchase_order_id: string; order_item_id: string | null }[];
+  /** Documenti con l'IVA dei mesi recenti, per la stima della liquidazione. */
+  vatDocuments: VatDocumentRow[];
+  /** F24 IVA già registrati (codici 6001-6012): il loro mese non si stima. */
+  vatF24: { anno: number; mese: number | null; tributo_code: string | null }[];
+}
+/** Una fattura emessa o ricevuta ridotta a ciò che serve alla stima IVA. */
+export interface VatDocumentRow {
+  date: string | null;
+  vat: Money;
+  kind: "vendita" | "acquisto";
+  /** Nota di credito: l'IVA si sottrae. */
+  credit: boolean;
+  /** Da quale archivio arriva: le fatture sincronizzate e quelle del gestionale non si sommano. */
+  origin: "esterna" | "nativa" | "ricevuta";
 }
 export const emptyForecastSources = (): ForecastSources => ({
   banks: [],
@@ -251,6 +273,8 @@ export const emptyForecastSources = (): ForecastSources => ({
   blocked: [],
   purchases: [],
   purchaseItems: [],
+  vatDocuments: [],
+  vatF24: [],
 });
 export const toCents = (value: Money | undefined): number => {
   const n = Number(value);
@@ -293,11 +317,33 @@ const closed = (status: string): boolean =>
 const creditNote = (type?: string | null): boolean =>
   ["credit_note", "nota_credito", "TD04"].includes(type ?? "");
 const orderHref = (id: string): string => `/azienda/ordini/${id}`;
+/** Tolleranza sugli arrotondamenti quando si abbinano due importi della stessa uscita (1 €). */
+export const MATCH_TOLERANCE_CENTS = 100;
+const sameAmount = (a: number, b: number): boolean =>
+  Math.abs(a - b) <= MATCH_TOLERANCE_CENTS;
+const dayOrdinal = (value: string): number => {
+  const d = calendarDate(value);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000;
+};
+export const daysBetween = (from: string, to: string): number =>
+  Math.round(dayOrdinal(to) - dayOrdinal(from));
+/** La scadenza fiscale che cade di sabato o domenica slitta al lunedì. */
+export function nextWorkingDay(value: string): string {
+  const day = calendarDate(value).getDay();
+  return day === 6 ? moveDay(value, 2) : day === 0 ? moveDay(value, 1) : value;
+}
+const median = (values: number[]): number => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+};
 
 export interface OpeningBalance {
   cents: number | null;
   source: "banca" | "prima-nota" | "nessuna";
+  /** Il più vecchio aggiornamento tra i conti che lo dichiarano. */
   updatedAt: string | null;
+  /** Conti attivi senza data di aggiornamento: non si sa quanto è vecchio il loro saldo. */
+  undatedAccounts?: number;
   warning?: string;
 }
 export function resolveOpeningBalance(
@@ -328,13 +374,16 @@ export function resolveOpeningBalance(
       .map((b) => b.balance_updated_at)
       .filter((v): v is string => !!v)
       .sort();
+    // La data è quella del conto aggiornato meno di recente tra quelli che la hanno: un conto
+    // senza data non cancella l'informazione degli altri, ma viene contato a parte.
     return {
       cents: banks.reduce(
         (sum, b) => sum + toCents(b.available_balance ?? b.current_balance),
         0,
       ),
       source: "banca",
-      updatedAt: refreshed.length === banks.length ? refreshed[0] : null,
+      updatedAt: refreshed[0] ?? null,
+      undatedAccounts: banks.length - refreshed.length,
     };
   }
   if (notes.length)
@@ -379,16 +428,14 @@ export function buildForecastLedger(
   );
   const itemDeadlines = new Map<string, DeadlineRow[]>();
   for (const d of s.deadlines)
-    if (d.order_item_id)
-      itemDeadlines.set(d.order_item_id, [
-        ...(itemDeadlines.get(d.order_item_id) ?? []),
-        d,
-      ]);
-  const nativeDeadlines = new Set(
-    s.deadlines.flatMap((d) =>
-      [...(d.notes ?? "").matchAll(/\[DOC:([0-9a-f-]+)\]/gi)].map((m) => m[1]),
-    ),
-  );
+    if (d.order_item_id) {
+      const list = itemDeadlines.get(d.order_item_id);
+      if (list) list.push(d);
+      else itemDeadlines.set(d.order_item_id, [d]);
+    }
+  const docIds = (d: DeadlineRow): string[] =>
+    [...(d.notes ?? "").matchAll(/\[DOC:([0-9a-f-]+)\]/gi)].map((m) => m[1]);
+  const nativeDeadlines = new Set(s.deadlines.flatMap(docIds));
   const covered = new Set(s.coveredItems.map((i) => i.order_item_id));
   const notedInvoices = new Set(s.notes.map((n) => n.invoice_id));
   const notedInstallments = new Set(s.notes.map((n) => n.installment_id));
@@ -405,12 +452,54 @@ export function buildForecastLedger(
     orderId && orderMap.get(orderId)?.has_building_bonus && !financing
       ? Math.round(cents * withholdingFactor)
       : cents;
+  // Rate e incassi con la regola della scheda commessa (saldo = residuo, varianti approvate, piani
+  // storici). Il piano salvato serve solo a riconoscere le rate che hanno già la loro fattura o scadenza.
+  const rate = new Map(s.installments.map((r) => [r.id, r]));
+  const giaInScadenza = (r: InstallmentRow | undefined) =>
+    !!r &&
+    ((!!r.invoice_id &&
+      (invoices.has(r.invoice_id) || invoiceDeadlines.has(r.invoice_id))) ||
+      (!!r.documento_fiscale_id && nativeDeadlines.has(r.documento_fiscale_id)));
+  const countedRate = s.rateDaIncassare.filter((d) => {
+    const rata = rate.get(d.id);
+    return !(
+      rata?.order?.deleted_at ||
+      orderMap.get(d.order_id)?.deleted_at ||
+      giaInScadenza(rata)
+    );
+  });
+  // Doppio conteggio rata + fattura: una fattura (o la sua scadenza) è certamente la stessa cosa
+  // di una rata solo se la rata la indica (invoice_id / documento_fiscale_id). Se la commessa ha
+  // ancora rate aperte e la fattura non è collegata a nessuna, potrebbe essere già compresa lì:
+  // la segnaliamo come «possibile doppione» e la teniamo fuori dal saldo, invece di contarla due volte.
+  const ordersWithOpenRate = new Set(
+    countedRate.filter((d) => toCents(d.amount) > 0).map((d) => d.order_id),
+  );
+  const invoicesOnRate = new Set(
+    s.installments.map((r) => r.invoice_id).filter(Boolean),
+  );
+  const docsOnRate = new Set(
+    s.installments.map((r) => r.documento_fiscale_id).filter(Boolean),
+  );
+  const duplicateNote =
+    "Fattura della commessa non collegata a una rata: potrebbe essere già compresa nelle rate da incassare. Collegala alla rata nella scheda commessa per toglierla dai dubbi.";
+  const maybeDuplicate = (
+    orderId: string | null | undefined,
+    linked: boolean,
+  ): boolean => !!orderId && !linked && ordersWithOpenRate.has(orderId);
   for (const d of s.deadlines) {
     if (closed(d.status)) continue;
     // The actual invoice state takes precedence over a stale automatic deadline.
     const invoice = d.invoice_id ? invoices.get(d.invoice_id) : undefined;
     if (invoice && (closed(invoice.status) || invoice.deleted_at)) continue;
     const amount = Math.max(0, toCents(d.amount) - toCents(d.paid_amount));
+    const duplicate =
+      d.direction === "entrata" &&
+      maybeDuplicate(
+        d.order_id ?? invoice?.order_id,
+        (!!d.invoice_id && invoicesOnRate.has(d.invoice_id)) ||
+          docIds(d).some((id) => docsOnRate.has(id)),
+      );
     add({
       id: `scadenza:${d.id}`,
       description: d.description,
@@ -426,8 +515,9 @@ export function buildForecastLedger(
       date: d.due_date,
       source: "Scadenzario",
       href: "/azienda/scadenzario",
-      orderId: d.order_id,
+      orderId: d.order_id ?? invoice?.order_id,
       estimated: !!d.is_previsionale,
+      ...(duplicate ? { possibleDuplicate: true, note: duplicateNote } : {}),
     });
   }
   for (const i of s.invoices) {
@@ -451,6 +541,9 @@ export function buildForecastLedger(
         href: `/azienda/fatturazione/${i.id}`,
         orderId: i.order_id,
         estimated: false,
+        ...(!isCredit && maybeDuplicate(i.order_id, invoicesOnRate.has(i.id))
+          ? { possibleDuplicate: true, note: duplicateNote }
+          : {}),
       });
     if (
       !isCredit &&
@@ -475,18 +568,9 @@ export function buildForecastLedger(
         true,
       );
   }
-  // Rate e incassi con la regola della scheda commessa (saldo = residuo, varianti approvate, piani
-  // storici). Il piano salvato serve solo a riconoscere le rate che hanno già la loro fattura o scadenza.
-  const rate = new Map(s.installments.map((r) => [r.id, r]));
-  const giaInScadenza = (r: InstallmentRow | undefined) =>
-    !!r &&
-    ((!!r.invoice_id &&
-      (invoices.has(r.invoice_id) || invoiceDeadlines.has(r.invoice_id))) ||
-      (!!r.documento_fiscale_id && nativeDeadlines.has(r.documento_fiscale_id)));
-  for (const d of s.rateDaIncassare) {
+  for (const d of countedRate) {
     const rata = rate.get(d.id);
     const order = orderMap.get(d.order_id);
-    if (rata?.order?.deleted_at || order?.deleted_at || giaInScadenza(rata)) continue;
     add({
       id: `rata:${d.id}`,
       description:
@@ -567,8 +651,52 @@ export function buildForecastLedger(
             : undefined,
       });
     }
+  // Una occorrenza è già registrata se un'altra spesa con lo stesso nome (o dello stesso fornitore
+  // e dello stesso importo) cade entro 3 giorni: la data registrata a mano raramente coincide.
+  const costsByName = new Map<string, CostRow[]>();
+  const costsBySupplier = new Map<string, CostRow[]>();
+  const pushTo = (map: Map<string, CostRow[]>, key: string, c: CostRow) => {
+    const list = map.get(key);
+    if (list) list.push(c);
+    else map.set(key, [c]);
+  };
+  const nameKey = (name: string) => name.trim().toLocaleLowerCase("it-IT");
   for (const c of s.costs) {
-    const base = validDay(c.due_date);
+    pushTo(costsByName, nameKey(c.name), c);
+    if (c.supplier_id) pushTo(costsBySupplier, c.supplier_id, c);
+  }
+  const alreadyRegistered = (mother: CostRow, date: string, cents: number) => {
+    const near = (c: CostRow) => {
+      const day = validDay(c.due_date);
+      return (
+        c.id !== mother.id && !!day && Math.abs(daysBetween(day, date)) <= 3
+      );
+    };
+    return (
+      (costsByName.get(nameKey(mother.name)) ?? []).some(near) ||
+      (!!mother.supplier_id &&
+        (costsBySupplier.get(mother.supplier_id) ?? []).some(
+          (c) =>
+            near(c) &&
+            sameAmount(
+              grossCents(c.amount, c.vat_rate ?? c.supplier?.vat_rate),
+              cents,
+            ),
+        ))
+    );
+  };
+  const occurrences = (c: CostRow, base: string): string[] => {
+    const limit = moveDay(today, 120);
+    const dates: string[] = [];
+    if (c.recurrence === "weekly") {
+      const first = Math.max(1, Math.ceil(daysBetween(base, today) / 7));
+      for (let n = first; ; n++) {
+        const date = moveDay(base, n * 7);
+        if (date > limit) break;
+        dates.push(date);
+      }
+      return dates;
+    }
     const step =
       c.recurrence === "monthly"
         ? 1
@@ -577,7 +705,7 @@ export function buildForecastLedger(
           : c.recurrence === "yearly"
             ? 12
             : 0;
-    if (!c.recurrence_auto || !base || !step) continue;
+    if (!step) return dates;
     const anchor = calendarDate(base);
     const now = calendarDate(today);
     const elapsed =
@@ -601,25 +729,25 @@ export function buildForecastLedger(
           Math.min(anchor.getDate(), last),
         ),
       );
-      if (
-        date > moveDay(today, 120) ||
-        (c.recurrence_end_date && date > c.recurrence_end_date)
-      )
-        break;
-      if (
-        date < today ||
-        s.costs.some(
-          (existing) => existing.name === c.name && existing.due_date === date,
-        )
-      )
-        continue;
+      if (date > limit) break;
+      dates.push(date);
+    }
+    return dates;
+  };
+  for (const c of s.costs) {
+    const base = validDay(c.due_date);
+    if (!c.recurrence_auto || !base) continue;
+    const cents = grossCents(c.amount, c.vat_rate ?? c.supplier?.vat_rate);
+    for (const date of occurrences(c, base)) {
+      if (c.recurrence_end_date && date > c.recurrence_end_date) break;
+      if (date < today || alreadyRegistered(c, date, cents)) continue;
       add({
         id: `ricorrente:${c.id}:${date}`,
         description: c.name,
         counterparty: "",
         category: c.category === "Personale" ? "personale" : "altri",
         direction: "out",
-        cents: grossCents(c.amount, c.vat_rate ?? c.supplier?.vat_rate),
+        cents,
         date,
         source: "Stima ricorrenza",
         href: "/azienda/costi",
@@ -629,10 +757,20 @@ export function buildForecastLedger(
     }
   }
   const costPurchases = new Set(s.costs.map((c) => c.purchase_order_id));
+  const itemsById = new Map(s.items.map((i) => [i.id, i]));
+  const itemsByPurchase = new Map<string, Set<string>>();
+  for (const pi of s.purchaseItems) {
+    if (!pi.order_item_id) continue;
+    const set = itemsByPurchase.get(pi.purchase_order_id);
+    if (set) set.add(pi.order_item_id);
+    else itemsByPurchase.set(pi.purchase_order_id, new Set([pi.order_item_id]));
+  }
   for (const p of s.purchases) {
+    // «Ricevuto» non vuol dire pagato: finché la merce non diventa una spesa registrata
+    // (che porta la sua scadenza), l'ODA ricevuto resta un'uscita da pianificare.
     if (
       costPurchases.has(p.id) ||
-      !["inviato", "confermato", "parziale"].includes(p.status)
+      !["inviato", "confermato", "parziale", "ricevuto"].includes(p.status)
     )
       continue;
     const base = p.payment_terms_base;
@@ -645,13 +783,9 @@ export function buildForecastLedger(
       dateBase && p.payment_terms_giorni != null
         ? moveDay(dateBase, p.payment_terms_giorni)
         : null;
-    const itemIds = new Set(
-      s.purchaseItems
-        .filter((i) => i.purchase_order_id === p.id)
-        .map((i) => i.order_item_id),
-    );
-    const itemTotal = s.items
-      .filter((i) => itemIds.has(i.id))
+    const itemTotal = [...(itemsByPurchase.get(p.id) ?? [])]
+      .map((id) => itemsById.get(id))
+      .filter((i): i is SupplierItemRow => !!i)
       .reduce(
         (sum, i) =>
           sum +
@@ -670,13 +804,20 @@ export function buildForecastLedger(
       direction: "out",
       cents: Math.max(0, toCents(p.total) - itemTotal),
       date,
-      source: "ODA aperto",
+      source: p.status === "ricevuto" ? "ODA ricevuto" : "ODA aperto",
       href: `/azienda/ordini-acquisto/${p.id}`,
       orderId: p.order_id,
       estimated: true,
-      note: date
-        ? "Data stimata dalle condizioni di pagamento dell’ODA."
-        : "Scadenza da confermare: la consegna non è una data di pagamento.",
+      note: [
+        p.status === "ricevuto"
+          ? "Merce ricevuta ma non ancora registrata come spesa."
+          : "",
+        date
+          ? "Data stimata dalle condizioni di pagamento dell’ODA."
+          : "Scadenza da confermare: la consegna non è una data di pagamento.",
+      ]
+        .filter(Boolean)
+        .join(" "),
     });
   }
   for (const i of s.items) {
@@ -699,7 +840,9 @@ export function buildForecastLedger(
     const linked = itemDeadlines.get(i.id) ?? [];
     if (
       total > 0 &&
-      linked.some((d) => toCents(d.amount) === Math.round(total * (1 + vat)))
+      linked.some((d) =>
+        sameAmount(toCents(d.amount), Math.round(total * (1 + vat))),
+      )
     )
       continue;
     const consumed = new Set<string>();
@@ -717,7 +860,7 @@ export function buildForecastLedger(
           !closed(d.status) &&
           !!date &&
           validDay(d.due_date) === validDay(date) &&
-          toCents(d.amount) === amount
+          sameAmount(toCents(d.amount), amount)
         );
       });
       if (match) {
@@ -797,15 +940,35 @@ export function buildForecastLedger(
       estimated: false,
     });
 
-  const salaryDays = s.notes
-    .filter(
-      (n) =>
-        n.category?.toLowerCase() === "stipendi" && n.direction === "uscita",
-    )
-    .map((n) => Number(n.entry_date.slice(8, 10)))
-    .sort((a, b) => a - b);
-  const payday =
-    salaryDays.length >= 2 ? salaryDays[Math.floor(salaryDays.length / 2)] : 28;
+  // Il giorno degli stipendi non è fisso: nel gestionale non c'è un'impostazione HR che lo dica,
+  // quindi si ricava dai pagamenti veri (Prima Nota «stipendi» e cedolini pagati degli ultimi
+  // 12 mesi). Senza almeno due pagamenti si usa la fine del mese, e lo si dichiara.
+  const yearAgo = moveDay(today, -366);
+  const salaryDays = [
+    ...s.notes
+      .filter(
+        (n) =>
+          n.category?.toLowerCase() === "stipendi" &&
+          n.direction === "uscita" &&
+          n.entry_date >= yearAgo,
+      )
+      .map((n) => n.entry_date),
+    ...s.payroll
+      .filter((p) => p.stato === "pagato")
+      .map((p) => validDay(p.data_pagamento))
+      .filter((d): d is string => !!d && d >= yearAgo && d <= today),
+  ].map((d) => Number(d.slice(8, 10)));
+  const observedPayday = salaryDays.length >= 2 ? median(salaryDays) : null;
+  const paydayIn = (year: number, month: number): string => {
+    const last = new Date(year, month, 0).getDate();
+    return dayKey(
+      new Date(year, month - 1, Math.min(observedPayday ?? last, last)),
+    );
+  };
+  const paydayRule =
+    observedPayday != null
+      ? `il giorno ${observedPayday} del mese, mediana di ${salaryDays.length} pagamenti stipendio registrati negli ultimi 12 mesi`
+      : "l’ultimo giorno del mese, perché non ci sono almeno due pagamenti stipendio registrati da cui ricavarlo";
   const manualPayroll = s.costs.filter(
     (c) =>
       !c.is_paid &&
@@ -838,12 +1001,13 @@ export function buildForecastLedger(
         (p) => `${p.employee_id}:${p.anno}-${String(p.mese).padStart(2, "0")}`,
       ),
   );
+  const employeesById = new Map(s.employees.map((e) => [e.id, e]));
   for (const p of s.payroll) {
     if (p.stato === "bozza" || p.stato === "pagato") continue;
     const date = validDay(p.data_pagamento);
-    const employee = s.employees.find((e) => e.id === p.employee_id);
+    const employee = employeesById.get(p.employee_id);
     const residual = payrollResidual(
-      date ?? `${p.anno}-${String(p.mese).padStart(2, "0")}-28`,
+      date ?? paydayIn(p.anno, p.mese),
       toCents(p.netto),
     );
     add({
@@ -873,18 +1037,7 @@ export function buildForecastLedger(
     for (let offset = 0; offset < 4; offset++) {
       const month = calendarDate(`${today.slice(0, 7)}-01`);
       month.setMonth(month.getMonth() + offset);
-      const lastDay = new Date(
-        month.getFullYear(),
-        month.getMonth() + 1,
-        0,
-      ).getDate();
-      const date = dayKey(
-        new Date(
-          month.getFullYear(),
-          month.getMonth(),
-          Math.min(payday, lastDay),
-        ),
-      );
+      const date = paydayIn(month.getFullYear(), month.getMonth() + 1);
       if (
         date < today ||
         (e.data_assunzione || e.data_inizio_lavoro || e.created_at || "").slice(
@@ -915,7 +1068,7 @@ export function buildForecastLedger(
         source: "Stima personale",
         href: "/azienda/personale",
         estimated: true,
-        note: `${toCents(e.net_salary) > 0 ? "Netto" : "Lordo usato come stima prudente: netto mancante"}; ${salaryDays.length >= 2 ? "giorno ricavato dai pagamenti registrati" : "giorno 28 ipotizzato"}.`,
+        note: `${toCents(e.net_salary) > 0 ? "Netto" : "Lordo usato come stima prudente: netto mancante"}; ${observedPayday != null ? `giorno ${observedPayday} ricavato dai pagamenti registrati` : "fine mese ipotizzata: nessun giorno ricavabile dai pagamenti"}.`,
       });
     }
   }
@@ -923,18 +1076,23 @@ export function buildForecastLedger(
     warnings.add(
       "Le stime stipendio sono al netto delle spese stipendio già registrate nel mese di pagamento. Verifica gli abbinamenti nel dettaglio.",
     );
-  if (s.employees.length)
+  if (s.employees.length) {
     warnings.add(
       "Stipendi non ancora emessi stimati dall’anagrafica. Imposte e contributi entrano quando sono registrati in F24; verifica che siano completi.",
     );
+    warnings.add(`Giorno di pagamento degli stipendi: ${paydayRule}.`);
+  }
+  const installmentsByDoc = new Map<string, InstallmentRow>();
+  for (const r of s.installments)
+    if (r.documento_fiscale_id && !installmentsByDoc.has(r.documento_fiscale_id))
+      installmentsByDoc.set(r.documento_fiscale_id, r);
   for (const n of s.notes)
     if (n.direction === "entrata") {
-      const linked = s.installments.find(
-        (r) =>
-          r.id === n.installment_id ||
-          (!!n.documento_fiscale_id &&
-            r.documento_fiscale_id === n.documento_fiscale_id),
-      );
+      const linked =
+        (n.installment_id ? rate.get(n.installment_id) : undefined) ??
+        (n.documento_fiscale_id
+          ? installmentsByDoc.get(n.documento_fiscale_id)
+          : undefined);
       const invoice = n.invoice_id ? invoices.get(n.invoice_id) : undefined;
       add(
         {
@@ -954,6 +1112,9 @@ export function buildForecastLedger(
       );
     }
   for (const m of s.blocked) add(m);
+  const vat = vatEstimates(s, today);
+  vat.movements.forEach((m) => add(m));
+  vat.warnings.forEach((w) => warnings.add(w));
   return {
     movements: movements.sort(
       (a, b) =>
@@ -967,10 +1128,89 @@ export function buildForecastLedger(
   };
 }
 
+const VAT_F24_CODES = /^60(0[1-9]|1[0-2])$/;
+/**
+ * Stima dell'IVA da versare: per ogni mese, IVA delle fatture emesse meno IVA delle fatture
+ * ricevute, al 16 del mese dopo (o il primo giorno lavorativo), solo se positiva. Il credito di un
+ * mese passa al successivo. Limiti dichiarati: regime mensile, data documento (non data di
+ * ricezione SDI), niente acconto di dicembre, split payment o reverse charge; i mesi con un F24
+ * IVA già registrato non si stimano. Le fatture sincronizzate e quelle del gestionale non si
+ * sommano: per ogni mese vale l'archivio esterno se ha righe, altrimenti quello nativo.
+ */
+export function vatEstimates(
+  s: Pick<ForecastSources, "vatDocuments" | "vatF24">,
+  today: string,
+): { movements: ForecastMovement[]; warnings: string[] } {
+  if (!s.vatDocuments.length) return { movements: [], warnings: [] };
+  const months = new Map<
+    string,
+    { esterna: number; nativa: number; hasEsterna: boolean; acquisti: number }
+  >();
+  for (const doc of s.vatDocuments) {
+    const day = validDay(doc.date);
+    if (!day) continue;
+    const key = day.slice(0, 7);
+    const m = months.get(key) ?? {
+      esterna: 0,
+      nativa: 0,
+      hasEsterna: false,
+      acquisti: 0,
+    };
+    const cents = Math.abs(toCents(doc.vat)) * (doc.credit ? -1 : 1);
+    if (doc.kind === "acquisto") m.acquisti += cents;
+    else if (doc.origin === "esterna") {
+      m.esterna += cents;
+      m.hasEsterna = true;
+    } else m.nativa += cents;
+    months.set(key, m);
+  }
+  const registered = new Set(
+    s.vatF24
+      .filter((f) => VAT_F24_CODES.test(f.tributo_code ?? "") && f.mese)
+      .map((f) => `${f.anno}-${String(f.mese).padStart(2, "0")}`),
+  );
+  const movements: ForecastMovement[] = [];
+  let credit = 0;
+  for (const key of [...months.keys()].sort()) {
+    if (key > today.slice(0, 7)) break;
+    const m = months.get(key)!;
+    const balance =
+      (m.hasEsterna ? m.esterna : m.nativa) - m.acquisti - credit;
+    credit = balance < 0 ? -balance : 0;
+    const [year, month] = key.split("-").map(Number);
+    const due = nextWorkingDay(dayKey(new Date(year, month, 16)));
+    if (balance <= 0 || due < today || registered.has(key)) continue;
+    const current = key === today.slice(0, 7);
+    movements.push({
+      id: `iva:${key}`,
+      description: `IVA da versare · ${calendarDate(`${key}-01`).toLocaleDateString("it-IT", { month: "long", year: "numeric" })}`,
+      counterparty: "Erario",
+      category: "fisco",
+      direction: "out",
+      cents: balance,
+      date: due,
+      source: "Stima IVA",
+      href: "/azienda/contabilita-fiscale",
+      estimated: true,
+      note: `IVA delle fatture emesse meno IVA delle fatture ricevute${current ? " finora (il mese non è finito)" : ""}. Stima: verifica con il commercialista.`,
+    });
+  }
+  return {
+    movements,
+    warnings: [
+      "IVA da versare stimata come IVA delle vendite meno IVA degli acquisti del mese, al 16 del mese dopo: regime mensile, data del documento, senza acconto di dicembre, split payment o reverse charge. Se paghi l’IVA a trimestre o il commercialista registra già l’F24, verifica la stima o spegnila con «Includi stime».",
+    ],
+  };
+}
+
 export interface ForecastScenario {
   delayDays: number;
   includeOverdueIncome: boolean;
+  /** Le uscite scadute e non segnate pagate entrano oggi solo se lo chiedi: spesso sono già pagate. */
+  includeOverdueExpense?: boolean;
   includeEstimates: boolean;
+  /** Solo simulazione: data spostata a mano per un singolo incasso (id movimento → giorno). */
+  dateOverrides?: Record<string, string>;
 }
 export interface ForecastDay {
   date: string;
@@ -992,6 +1232,8 @@ export interface ForecastProjection {
   need: number | null;
   undated: ForecastMovement[];
   overdueIncome: ForecastMovement[];
+  overdueExpense: ForecastMovement[];
+  possibleDuplicates: ForecastMovement[];
   excludedEstimates: ForecastMovement[];
   included: ForecastMovement[];
   outside: ForecastMovement[];
@@ -1008,10 +1250,32 @@ export function projectForecast(
   const included: ForecastMovement[] = [];
   const undated: ForecastMovement[] = [];
   const overdueIncome: ForecastMovement[] = [];
+  const overdueExpense: ForecastMovement[] = [];
+  const possibleDuplicates: ForecastMovement[] = [];
   const excludedEstimates: ForecastMovement[] = [];
   const outside: ForecastMovement[] = [];
   const end = moveDay(today, horizon - 1);
-  for (const m of movements) {
+  for (const source of movements) {
+    const moved =
+      source.direction === "in"
+        ? validDay(scenario.dateOverrides?.[source.id])
+        : null;
+    const m = moved
+      ? {
+          ...source,
+          date: moved,
+          note: [
+            source.note,
+            `Data spostata a mano (era ${source.date ?? "senza data"}): solo simulazione.`,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        }
+      : source;
+    if (m.possibleDuplicate) {
+      possibleDuplicates.push(m);
+      continue;
+    }
     if (!m.date) {
       undated.push(m);
       continue;
@@ -1028,9 +1292,21 @@ export function projectForecast(
       overdueIncome.push(m);
       continue;
     }
+    if (
+      m.direction === "out" &&
+      m.date < today &&
+      !scenario.includeOverdueExpense
+    ) {
+      overdueExpense.push(m);
+      continue;
+    }
     const effectiveDate =
       m.direction === "in"
-        ? moveDay(m.date < today ? today : m.date, scenario.delayDays)
+        ? moved
+          ? m.date < today
+            ? today
+            : m.date
+          : moveDay(m.date < today ? today : m.date, scenario.delayDays)
         : m.date < today
           ? today
           : m.date;
@@ -1051,10 +1327,9 @@ export function projectForecast(
       continue;
     }
     included.push(planned);
-    buckets.set(effectiveDate, [
-      ...(buckets.get(effectiveDate) ?? []),
-      planned,
-    ]);
+    const bucket = buckets.get(effectiveDate);
+    if (bucket) bucket.push(planned);
+    else buckets.set(effectiveDate, [planned]);
   }
   let balance = opening;
   let minimum = opening;
@@ -1100,6 +1375,8 @@ export function projectForecast(
     need: minimum == null ? null : Math.max(0, threshold - minimum),
     undated,
     overdueIncome,
+    overdueExpense,
+    possibleDuplicates,
     excludedEstimates,
     included,
     outside,
@@ -1151,6 +1428,12 @@ export function forecastExportRows(
     ...projection.undated.map((m) => row(m, "Escluso: senza data")),
     ...projection.overdueIncome.map((m) =>
       row(m, "Escluso: incasso scaduto da confermare"),
+    ),
+    ...projection.overdueExpense.map((m) =>
+      row(m, "Escluso: uscita scaduta non segnata pagata"),
+    ),
+    ...projection.possibleDuplicates.map((m) =>
+      row(m, "Escluso: possibile doppione di una rata"),
     ),
     ...projection.excludedEstimates.map((m) =>
       row(m, "Escluso: stime disattivate"),
