@@ -62,7 +62,20 @@ export function leggiImporto(testo: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const EURO_PIENO = new Intl.NumberFormat("it-IT", { ...SEMPRE, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * Messaggio leggibile da un errore qualsiasi. Gli errori del database non sono
+ * `Error`: `String(e)` mostrava «[object Object]».
+ */
+export function messaggioErrore(e: unknown): string {
+  const msg = typeof e === "object" && e !== null && "message" in e && typeof (e as { message: unknown }).message === "string"
+    ? (e as { message: string }).message
+    : String(e);
+  if (/row-level security|permission denied|42501/i.test(msg)) return "Non hai il permesso di salvare questo dato.";
+  if (/Failed to fetch|NetworkError/i.test(msg)) return "Connessione assente: riprova tra poco.";
+  return msg;
+}
+
+const EURO_PIENO =new Intl.NumberFormat("it-IT", { ...SEMPRE, minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Riscrive all'italiana gli importi dentro un testo già composto altrove

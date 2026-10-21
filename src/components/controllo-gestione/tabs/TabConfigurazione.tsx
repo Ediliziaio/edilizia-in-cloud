@@ -90,8 +90,8 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
     return (
       <EmptyState
         title="Nessuna voce di classificazione"
-        description="Carica il template predefinito (45 voci di costo/ricavo già mappate per imprese edili) e poi personalizzale come preferisci."
-        ctaLabel={bootstrap.isPending ? "Caricamento…" : "Carica template predefinito"}
+        description="Carica le 45 voci di costo e ricavo già pronte per un'impresa edile, poi cambiale come preferisci."
+        ctaLabel={bootstrap.isPending ? "Caricamento…" : "Carica le voci standard"}
         onCta={bootstrap.isPending ? undefined : () => bootstrap.mutate()}
         icon={
           bootstrap.isPending ? (
@@ -108,10 +108,17 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
     <div className="space-y-4">
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Classificazione voci di bilancio</CardTitle>
+          <CardTitle className="text-base">Come si leggono i costi nel conto economico</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Rinomina, riassegna a una macro-voce diversa o cambia il tipo F/V/Z.
-            Le modifiche aggiornano il CE riclassificato e il calcolo del BEP.
+            Ogni categoria di spesa va in una voce del conto economico. Il tipo dice se è un costo
+            fisso (c'è anche senza lavoro), variabile (cresce con i cantieri) o straordinario: serve
+            al calcolo del punto di pareggio.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            La stessa spesa può comparire con due provenienze (un costo registrato e il bonifico in
+            banca): il conto economico conta il bonifico solo se non è già collegato a quel costo o
+            a una scadenza. Se ci sono cedolini, il costo del personale viene dai cedolini e le
+            altre voci «Costo del personale» non si sommano.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -127,16 +134,16 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
               />
             </div>
             <Select value={macroFilter} onValueChange={(v) => setMacroFilter(v as MacroVoce | "all")}>
-              <SelectTrigger className="md:w-56"><SelectValue placeholder="Tutte le macro-voci" /></SelectTrigger>
+              <SelectTrigger className="md:w-56" aria-label="Voce del conto economico"><SelectValue placeholder="Tutte le voci" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le macro-voci</SelectItem>
+                <SelectItem value="all">Tutte le voci</SelectItem>
                 {(Object.keys(MACRO_VOCE_LABELS) as MacroVoce[]).map((mv) => (
                   <SelectItem key={mv} value={mv}>{MACRO_VOCE_LABELS[mv]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={tipoFilter} onValueChange={(v) => setTipoFilter(v as ClassTipo | "all")}>
-              <SelectTrigger className="md:w-40"><SelectValue placeholder="Tutti i tipi" /></SelectTrigger>
+              <SelectTrigger className="md:w-40" aria-label="Tipo di costo"><SelectValue placeholder="Tutti i tipi" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i tipi</SelectItem>
                 <SelectItem value="F">F — Fissa</SelectItem>
@@ -151,7 +158,7 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
               onClick={() => bootstrap.mutate()}
             >
               {bootstrap.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              <span className="ml-1.5">Aggiungi voci default</span>
+              <span className="ml-1.5">Aggiungi le voci standard</span>
             </Button>
           </div>
 
@@ -160,10 +167,10 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[28%]">Nome</TableHead>
-                  <TableHead className="w-[22%]">Macro-voce (CE)</TableHead>
-                  <TableHead className="w-[14%]">Tipo</TableHead>
-                  <TableHead className="w-[20%]">Sorgente</TableHead>
+                  <TableHead className="w-[30%]">Nome</TableHead>
+                  <TableHead className="w-[24%]">Voce del conto economico</TableHead>
+                  <TableHead className="w-[16%]">Tipo</TableHead>
+                  <TableHead className="w-[18%]">Da dove arriva</TableHead>
                   <TableHead className="w-[8%] text-center">Attiva</TableHead>
                 </TableRow>
               </TableHeader>
@@ -214,8 +221,9 @@ function ClassificazioneRow({ voce, onPatch }: RowProps) {
             className={cn("h-8 text-sm", dirty && "border-orange-400")}
           />
         </div>
-        <p className="mt-1 text-[10px] text-muted-foreground font-mono">
-          {voce.voce_chiave} → {voce.source_value ?? "—"}
+        {/* Il nome tecnico (es. «salari_stipendi_cc») solo nel tooltip. */}
+        <p className="mt-1 text-[11px] text-muted-foreground" title={`Codice: ${voce.voce_chiave}`}>
+          {voce.source_value ? <>Categoria «{voce.source_value}»</> : "Senza categoria"}
         </p>
       </TableCell>
       <TableCell>
@@ -239,8 +247,8 @@ function ClassificazioneRow({ voce, onPatch }: RowProps) {
         </Select>
       </TableCell>
       <TableCell>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          {SOURCE_LABELS[voce.source_table]}
+        <Badge variant="outline" className="text-[11px] font-normal">
+          {SOURCE_LABELS[voce.source_table] ?? voce.source_table}
         </Badge>
       </TableCell>
       <TableCell className="text-center">

@@ -19,7 +19,7 @@ import {
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { useBudgetConfronto, useUpsertBudget } from "@/hooks/controlloGestione/useBudget";
 import { etichettaMesiChiusi, type RigaBudget } from "@/lib/controlloGestione/budgetCE";
-import { formatEuroRiquadro, formatPct, leggiImporto } from "@/lib/controlloGestione/formatCG";
+import { formatEuroRiquadro, formatPct, leggiImporto, messaggioErrore } from "@/lib/controlloGestione/formatCG";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Info, Pencil } from "lucide-react";
@@ -280,7 +280,7 @@ function BudgetEditor({
       toast({ title: "Budget salvato" });
       onClose();
     } catch (e) {
-      toast({ title: "Budget non salvato", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: "Budget non salvato", description: messaggioErrore(e), variant: "destructive" });
     }
   };
 
