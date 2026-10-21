@@ -18,7 +18,8 @@ import { useCashFlow } from "@/hooks/controlloGestione/useCashFlow";
 import { usePFN } from "@/hooks/controlloGestione/usePFN";
 import { useIndiciAvanzati } from "@/hooks/controlloGestione/useIndiciAvanzati";
 import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
-import { useBudgetForecast } from "@/hooks/controlloGestione/useBudget";
+import { useBudgetConfronto } from "@/hooks/controlloGestione/useBudget";
+import { formatEuroRiquadro, formatImportiNelTesto, formatNumero, formatPct } from "@/lib/controlloGestione/formatCG";
 import { CogestEmptyState } from "@/components/controllo-gestione/CogestEmptyState";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -107,7 +108,7 @@ export function TabDashboard({ anno }: Props) {
   const idx = useIndiciAvanzati(anno);
   const com = useMarginalitaCommesse(anno);
   const bep = useBEP(anno);
-  const bdg = useBudgetForecast(anno);
+  const bdg = useBudgetConfronto(anno);
   const rt  = useRating(anno);
   const [cfoQuestion, setCfoQuestion] = useState<string>(CFO_QUICK_PROMPTS[0]);
   const [cfoAnswer, setCfoAnswer] = useState<CfoAnswer | null>(null);
@@ -134,12 +135,15 @@ export function TabDashboard({ anno }: Props) {
   // Mini chart andamento ricavi mensile YTD
   const chartData = useMemo(() => {
     if (!cf.data) return [];
-    return cf.data.mesi.map((m) => ({
-      mese: MESI_LABELS[m.mese - 1],
-      saldo: m.saldo_fine,
-      entrate: m.entrate_totali,
-      uscite: -m.uscite_totali,
-    }));
+    // Il previsionale parte da oggi: a ottobre sono tre mesi. Il punto «Oggi»
+    // (saldo dei conti adesso) dà l'inizio della linea.
+    return [
+      { mese: "Oggi", saldo: cf.data.meta.saldo_apertura },
+      ...cf.data.mesi.map((m) => ({
+        mese: `Fine ${MESI_LABELS[m.mese - 1].toLowerCase()}`,
+        saldo: m.saldo_fine,
+      })),
+    ];
   }, [cf.data]);
 
   const worstCashMonth = useMemo(() => {
@@ -151,7 +155,8 @@ export function TabDashboard({ anno }: Props) {
   }, [cf.data]);
 
   const budgetRicavi = useMemo(
-    () => bdg.data?.voci.find((v) => v.codice === "01") ?? null,
+    // Solo se il budget c'è: senza, ogni confronto sarebbe contro zero.
+    () => (bdg.data?.haBudget ? bdg.data.righe.find((v) => v.codice === "01") ?? null : null),
     [bdg.data],
   );
 
@@ -174,7 +179,7 @@ export function TabDashboard({ anno }: Props) {
     if (com.data && com.data.kpi.n_in_perdita > 0) {
       out.push({
         severity: "rosso",
-        testo: `${com.data.kpi.n_in_perdita} commesse stimate in perdita a fine cantiere. Richiede revisione preventivi.`,
+        testo: `${com.data.kpi.n_in_perdita} ${com.data.kpi.n_in_perdita === 1 ? "commessa stimata" : "commesse stimate"} in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse). Rivedi costi e preventivi.`,
         href: "/azienda/controllo-gestione/commesse",
       });
     }
@@ -189,13 +194,13 @@ export function TabDashboard({ anno }: Props) {
     if (idx.data?.altman.classe === "distress") {
       out.push({
         severity: "rosso",
-        testo: `Z-score Altman in area distress (${idx.data.altman.z_score?.toFixed(2)}). Rischio default elevato.`,
+        testo: `Punteggio di solidità (Z-score di Altman) in zona di pericolo: ${formatNumero(idx.data.altman.z_score, 2)}. Rischio di insolvenza elevato.`,
         href: "/azienda/controllo-gestione/indici",
       });
     } else if (idx.data?.altman.classe === "grey") {
       out.push({
         severity: "giallo",
-        testo: `Z-score Altman in area grigia (${idx.data.altman.z_score?.toFixed(2)}). Monitora con attenzione.`,
+        testo: `Punteggio di solidità (Z-score di Altman) in zona grigia: ${formatNumero(idx.data.altman.z_score, 2)}. Da tenere d'occhio.`,
         href: "/azienda/controllo-gestione/indici",
       });
     }
@@ -203,18 +208,17 @@ export function TabDashboard({ anno }: Props) {
     if (idx.data?.dscr.valore != null && idx.data.dscr.valore < 1.2 && idx.data.dscr.classe !== "na") {
       out.push({
         severity: "giallo",
-        testo: `DSCR ${idx.data.dscr.valore.toFixed(2)}x sotto soglia banca (1.20). Difficoltà a rinnovare/ottenere mutui.`,
+        testo: `Copertura delle rate (DSCR) ${formatNumero(idx.data.dscr.valore, 2)}: sotto la soglia delle banche (1,20). Rinnovare o ottenere mutui sarà difficile.`,
         href: "/azienda/controllo-gestione/indici",
       });
     }
 
     // Variance budget critica
-    if (bdg.data) {
-      const ricaviBdg = bdg.data.voci.find((v) => v.codice === "01");
-      if (ricaviBdg && ricaviBdg.semaforo === "rosso") {
+    if (budgetRicavi) {
+      if (budgetRicavi.semaforo === "rosso") {
         out.push({
           severity: "rosso",
-          testo: `Forecast ricavi ${ricaviBdg.variance_pct?.toFixed(0)}% vs budget. Sotto target.`,
+          testo: `Ricavi previsti a fine anno ${formatPct(budgetRicavi.scostamentoPct, 0, true)} rispetto al budget: sotto l'obiettivo.`,
           href: "/azienda/controllo-gestione/budget",
         });
       }
@@ -229,7 +233,7 @@ export function TabDashboard({ anno }: Props) {
       out.push({ severity: "verde", testo: "Nessuna criticità rilevata. Tutti gli indicatori in range." });
     }
     return out;
-  }, [cf.data, com.data, bep.data, idx.data, bdg.data, isPreparingDashboard]);
+  }, [cf.data, com.data, bep.data, idx.data, budgetRicavi, isPreparingDashboard]);
 
   const recommendedActions = useMemo<RecommendedAction[]>(() => {
     const out: RecommendedAction[] = [];
@@ -253,7 +257,7 @@ export function TabDashboard({ anno }: Props) {
         id: "quadratura-bilancio",
         priority: "alta",
         title: "Riconcilia il bilancio prima di usarlo per decisioni",
-        reason: `Attivo e passivo differiscono di ${formatCurrency(Math.abs(sp.data.quadratura.differenza))}.`,
+        reason: `Attivo e passivo differiscono di ${formatCurrency(Math.abs(sp.data.quadratura.differenza))}: nella scheda Stato patrimoniale trovi le voci che mancano.`,
         impact: "Evita analisi e report banca basati su dati non quadrati.",
         owner: "Amministrazione",
         due: "Oggi",
@@ -295,7 +299,7 @@ export function TabDashboard({ anno }: Props) {
         id: "budget-ricavi",
         priority: "media",
         title: "Riallinea forecast ricavi e piano commerciale",
-        reason: `Forecast ricavi ${budgetRicavi.variance_pct?.toFixed(0) ?? "n.d."}% vs budget.`,
+        reason: `Ricavi previsti a fine anno ${formatPct(budgetRicavi.scostamentoPct, 0, true)} rispetto al budget.`,
         impact: "Serve una decisione: recupero vendite, revisione target o taglio costi.",
         owner: "Direzione commerciale",
         due: "Entro 7 giorni",
@@ -309,7 +313,7 @@ export function TabDashboard({ anno }: Props) {
         id: "rating-bancario",
         priority: "media",
         title: "Prepara un piano per migliorare il rating bancario",
-        reason: `Classe attuale ${rt.data.classe}, score ${rt.data.score.toFixed(1)}.`,
+        reason: `Classe attuale ${rt.data.classe}, punteggio ${formatNumero(rt.data.score, 1)}.`,
         impact: "Migliora negoziazione bancaria e accesso a nuove linee.",
         owner: "Direzione + consulente",
         due: "Entro mese",
@@ -323,7 +327,7 @@ export function TabDashboard({ anno }: Props) {
         id: "pfn-ebitda",
         priority: "media",
         title: "Riduci l'indebitamento rispetto alla marginalità",
-        reason: `PFN/EBITDA stimato ${(pfn.data.pfn / ebitda).toFixed(1)}x.`,
+        reason: `Debiti finanziari netti pari a ${formatNumero(pfn.data.pfn / ebitda, 1)} anni di margine (PFN/EBITDA): le banche guardano con attenzione sopra 1,5.`,
         impact: "Riduce pressione su cassa, rating e rinnovo fidi.",
         owner: "Direzione finanziaria",
         due: "Prossimi 30 giorni",
@@ -365,7 +369,7 @@ export function TabDashboard({ anno }: Props) {
     ratingScore: rt.data?.attendibile === true ? rt.data.score : null,
     commesseInPerdita: com.data?.kpi.n_in_perdita ?? 0,
     margineAttesoCommesse: com.data?.kpi.margine_atteso_totale ?? null,
-    budgetRicaviVariancePct: budgetRicavi?.variance_pct ?? null,
+    budgetRicaviVariancePct: budgetRicavi?.scostamentoPct ?? null,
     bilancioQuadrato: sp.data?.quadratura.quadrato ?? null,
     azioni: recommendedActions,
   }), [
@@ -448,7 +452,7 @@ export function TabDashboard({ anno }: Props) {
 
       {rt.data && rt.data.attendibile !== true && (
         <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <strong>Dati da riconciliare.</strong> Il rating è provvisorio. {(rt.data.motivi ?? []).join(" · ")}{" "}
+          <strong>Dati da riconciliare.</strong> Il rating è provvisorio. {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
           <Link className="underline" to="/azienda/controllo-gestione/health">Apri controlli dei dati</Link>
         </div>
       )}
@@ -456,48 +460,54 @@ export function TabDashboard({ anno }: Props) {
       <div className="grid grid-cols-2 gap-3 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
         <KPIMacro
           label="Ricavi"
-          value={ce.data ? formatCurrency(ricavi) : "—"}
-          sub={`Esercizio ${anno}`}
+          value={ce.data ? ricavi : null}
+          sub={`Fatturato ${anno}, IVA esclusa`}
+          spiegazione="Fatture emesse nell'anno, senza IVA."
           icon={<TrendingUp className="h-4 w-4" />}
           tone="blue"
           href="/azienda/controllo-gestione/ce"
         />
         <KPIMacro
           label="EBITDA"
-          value={ce.data ? formatCurrency(ebitda) : "—"}
-          sub={ce.data && pil > 0 ? `${((ebitda / pil) * 100).toFixed(1)}% del PIL` : "—"}
+          value={ce.data ? ebitda : null}
+          sub={ce.data && pil > 0 ? `Margine ${formatPct((ebitda / pil) * 100)}` : "—"}
+          spiegazione="EBITDA (MOL): quanto resta dei ricavi dopo materiali, lavorazioni, personale e spese generali, prima di ammortamenti, interessi e tasse."
           icon={<Activity className="h-4 w-4" />}
           tone={ebitda >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
         />
         <KPIMacro
           label="Utile previsto"
-          value={ce.data ? formatCurrency(utile) : "—"}
-          sub={ce.data && pil > 0 ? `${((utile / pil) * 100).toFixed(1)}% del PIL` : "—"}
+          value={ce.data ? utile : null}
+          sub={ce.data && pil > 0 ? `Margine ${formatPct((utile / pil) * 100)}` : "—"}
+          spiegazione="Utile dopo ammortamenti, interessi e imposte stimate. Per l'anno in corso comprende i costi già programmati."
           icon={<Wallet className="h-4 w-4" />}
           tone={utile >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
         />
         <KPIMacro
           label="Cassa fine anno prevista"
-          value={cf.data ? formatCurrency(cf.data.meta.saldo_chiusura) : "—"}
-          sub={cf.data ? `Da apertura ${formatCurrency(cf.data.meta.saldo_apertura)}` : anno < new Date().getFullYear() ? "Per lo storico usa Cash Flow · Registrato" : "—"}
+          value={cf.data ? cf.data.meta.saldo_chiusura : null}
+          sub={cf.data ? `Oggi ${formatEuroRiquadro(cf.data.meta.saldo_apertura)}` : anno < new Date().getFullYear() ? "Per gli anni chiusi vedi Cash Flow" : "—"}
+          spiegazione="Saldo dei conti a fine anno: saldo di oggi più incassi attesi meno pagamenti in scadenza."
           icon={<Banknote className="h-4 w-4" />}
           tone={!cf.data ? "neutral" : cf.data.meta.saldo_chiusura >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/cash-flow"
         />
         <KPIMacro
           label="PFN"
-          value={pfn.data ? formatCurrency(pfn.data.pfn) : "—"}
-          sub={pfn.data ? (pfn.data.pfn > 0 ? "Indebitamento netto" : "Cassa netta") : "—"}
+          value={pfn.data ? pfn.data.pfn : null}
+          sub={pfn.data ? (pfn.data.pfn > 0 ? "Più debiti che liquidità" : "Più liquidità che debiti") : "—"}
+          spiegazione="PFN (posizione finanziaria netta): mutui e scoperti meno soldi in banca. Sotto zero vuol dire che la liquidità copre i debiti."
           icon={pfn.data && pfn.data.pfn > 0 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
           tone={!pfn.data ? "neutral" : pfn.data.pfn > 0 ? "amber" : "green"}
           href="/azienda/controllo-gestione/pfn-debiti"
         />
         <KPIMacro
           label="Rating bancario"
-          value={rt.data ? rt.data.attendibile === true ? rt.data.classe : "Da riconciliare" : "—"}
-          sub={rt.data ? rt.data.attendibile === true ? `Score ${rt.data.score.toFixed(1)} · valutazione interna` : `Stima ${rt.data.classe} non validata` : "—"}
+          value={rt.data ? rt.data.attendibile === true ? rt.data.classe : "Provvisorio" : "—"}
+          sub={rt.data ? rt.data.attendibile === true ? `Punteggio ${formatNumero(rt.data.score, 1)} · stima interna` : `Stima ${rt.data.classe}, dati da riconciliare` : "—"}
+          spiegazione="Stima interna di come una banca giudica l'azienda, da AAA (ottimo) a CCC. Non è il rating ufficiale della banca."
           icon={<Shield className="h-4 w-4" />}
           tone={!rt.data ? "neutral" : rt.data.attendibile !== true ? "amber"
                 : (rt.data.classe === "AAA" || rt.data.classe === "AA" || rt.data.classe === "A") ? "green"
@@ -557,7 +567,7 @@ export function TabDashboard({ anno }: Props) {
         {!isMobile && (
         <Card className="rounded-2xl lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Cassa: andamento previsto {anno}</CardTitle>
+            <CardTitle className="text-base">Cassa prevista da oggi a fine {anno}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-56">
@@ -572,12 +582,12 @@ export function TabDashboard({ anno }: Props) {
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                    <YAxis tick={{ fontSize: 11 }} width={64} tickFormatter={(v: number) => formatEuroRiquadro(v)} />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
-                      labelFormatter={(l) => `Mese: ${l}`}
+                      labelFormatter={(l) => String(l)}
                     />
-                    <Line type="monotone" dataKey="saldo" stroke="#2563eb" strokeWidth={2} dot />
+                    <Line type="monotone" dataKey="saldo" name="Saldo" stroke="#2563eb" strokeWidth={2} dot />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -924,11 +934,13 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
 }
 
 function KPIMacro({
-  label, value, sub, icon, tone, href,
+  label, value, sub, icon, tone, href, spiegazione,
 }: {
   label: string;
-  value: string;
+  /** Numero in euro (mostrato compatto, pieno nel tooltip) o testo già pronto. */
+  value: number | string | null;
   sub: string;
+  spiegazione?: string;
   icon: React.ReactNode;
   tone: "blue" | "green" | "red" | "amber" | "neutral";
   href?: string;
@@ -949,11 +961,18 @@ function KPIMacro({
     <Card className={cn("rounded-2xl border-0 transition hover:shadow-sm", palette[tone])}>
       <CardContent className="p-2.5 sm:p-4 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
+          <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate" title={spiegazione}>{label}</p>
           <span className="text-muted-foreground shrink-0">{icon}</span>
         </div>
-        <p className="mt-1 text-base sm:text-xl font-bold tabular-nums truncate">{value}</p>
-        <p className="hidden text-[10px] sm:block sm:text-[11px] text-muted-foreground truncate">{sub}</p>
+        {/* Niente truncate sul numero: «4.655.616,...» non diceva nulla. Sopra il
+            milione «4,66 Mln €», l'importo pieno nel tooltip. */}
+        <p
+          className="mt-1 text-base sm:text-xl font-bold tabular-nums leading-tight break-words"
+          title={typeof value === "number" ? formatCurrency(value) : undefined}
+        >
+          {typeof value === "number" ? formatEuroRiquadro(value) : value ?? "—"}
+        </p>
+        <p className="hidden text-[10px] sm:block sm:text-[11px] text-muted-foreground leading-snug">{sub}</p>
       </CardContent>
     </Card>
   );
@@ -984,7 +1003,7 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
       nextActions: [
         "Ordina gli incassi per scadenza e sollecita quelli che coprono il mese peggiore.",
         "Rimanda uscite non essenziali e verifica F24, fornitori e rate mutui.",
-        "Aggiorna le voci manuali del cash flow per vedere subito l'effetto.",
+        "Aggiorna le voci manuali del Cash Flow per vedere subito l'effetto.",
       ],
       links: [
         { label: "Apri cash flow", href: "/azienda/controllo-gestione/cash-flow" },
@@ -996,14 +1015,14 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
   if (q.includes("rating") || q.includes("banca") || q.includes("finanziamento")) {
     return {
       title: "Piano rating banca",
-      summary: `Classe attuale ${context.ratingClasse ?? "n.d."}${context.ratingScore !== null ? `, score ${context.ratingScore.toFixed(1)}` : ""}.`,
+      summary: `Classe attuale ${context.ratingClasse ?? "non disponibile (dati da riconciliare)"}${context.ratingScore !== null ? `, punteggio ${formatNumero(context.ratingScore, 1)}` : ""}.`,
       focus: [
         context.bilancioQuadrato === false
           ? "Il bilancio non è quadrato: prima va riconciliato, altrimenti il pacchetto banca perde credibilità."
           : "La quadratura non segnala blocchi prioritari.",
         `PFN: ${context.pfn !== null ? formatCurrency(context.pfn) : "n.d."}.`,
         ebitdaMargin !== null
-          ? `EBITDA margin: ${ebitdaMargin.toFixed(1)}%.`
+          ? `Margine EBITDA: ${formatPct(ebitdaMargin)}.`
           : "Margine EBITDA non calcolabile perché mancano ricavi.",
       ],
       nextActions: [
@@ -1026,9 +1045,9 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
         : "Non emergono commesse in perdita, conviene lavorare su forecast e costo atteso.",
       focus: [
         `Margine atteso commesse: ${context.margineAttesoCommesse !== null ? formatCurrency(context.margineAttesoCommesse) : "n.d."}.`,
-        ebitdaMargin !== null ? `EBITDA sul PIL: ${ebitdaMargin.toFixed(1)}%.` : "EBITDA non valutabile.",
+        ebitdaMargin !== null ? `Margine EBITDA: ${formatPct(ebitdaMargin)}.` : "EBITDA non valutabile.",
         context.budgetRicaviVariancePct !== null
-          ? `Scostamento forecast ricavi vs budget: ${formatSignedPercent(context.budgetRicaviVariancePct)}.`
+          ? `Ricavi previsti rispetto al budget: ${formatPct(context.budgetRicaviVariancePct, 1, true)}.`
           : "Budget ricavi non confrontabile.",
       ],
       nextActions: [
@@ -1051,7 +1070,7 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
         : "La situazione è leggibile: consolidare dati e monitorare cassa.",
       focus: [
         `Ricavi: ${formatCurrency(context.ricavi)}.`,
-        `Utile previsto: ${formatCurrency(context.utile)}${utileMargin !== null ? ` (${utileMargin.toFixed(1)}%)` : ""}.`,
+        `Utile previsto: ${formatCurrency(context.utile)}${utileMargin !== null ? ` (${formatPct(utileMargin)})` : ""}.`,
         `Rating: ${context.ratingClasse ?? "n.d."}.`,
       ],
       nextActions: context.azioni.slice(0, 3).map((action) => `${action.owner}: ${action.title}.`),
@@ -1082,6 +1101,4 @@ function isRatingAtLeast(current: string, threshold: string) {
   return order.indexOf(current) >= order.indexOf(threshold);
 }
 
-function formatSignedPercent(value: number) {
-  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
+
