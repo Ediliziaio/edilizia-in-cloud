@@ -175,6 +175,10 @@ export async function loadForecastDataset(
         scoped(
           "company_costs",
           "id,name,amount,vat_rate,due_date,is_paid,order_id,category,purchase_order_id,recurrence,recurrence_auto,recurrence_end_date,supplier_id,supplier:suppliers(vat_rate)",
+          // Lo storico delle spese pagate serve solo per: ricorrenze (la spesa madre), ODA già
+          // diventati spesa, e occorrenze vicine a oggi da non ripetere. Il resto non cambia il piano.
+        ).or(
+          `is_paid.eq.false,is_paid.is.null,recurrence_auto.eq.true,purchase_order_id.not.is.null,due_date.gte.${moveDay(today, -7)}`,
         ),
     },
     {
@@ -230,6 +234,7 @@ export async function loadForecastDataset(
             "purchase_order_id,order_item_id,purchase:purchase_orders!inner(company_id)",
           )
           .eq("purchase.company_id", companyId)
+          .not("purchase.status", "in", "(annullato,bozza)")
           .order("id"),
     },
     {
@@ -249,7 +254,9 @@ export async function loadForecastDataset(
           "hr_cedolini",
           "id,employee_id,anno,mese,netto,stato,data_pagamento",
         )
-          .neq("stato", "bozza"),
+          .neq("stato", "bozza")
+          // I cedolini pagati servono solo per i periodi recenti e per il giorno di paga.
+          .or(`stato.neq.pagato,anno.gte.${year - 1}`),
     },
     {
       key: "taxes",
@@ -493,7 +500,9 @@ export function useForecastLedger() {
     queryKey: ["cashflow", "ledger", companyId, today],
     enabled: !!companyId,
     queryFn: () => loadForecastDataset(companyId!, today),
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
+    // Diciotto fonti: si ricarica con «Aggiorna» o quando un'altra pagina invalida i dati, non a
+    // ogni ritorno sulla finestra.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
