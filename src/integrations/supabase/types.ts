@@ -27509,6 +27509,7 @@ export type Database = {
           quantita: number
           scomposizione_id: string | null
           simbolo: string
+          unita: string | null
           updated_at: string
         }
         Insert: {
@@ -27533,6 +27534,7 @@ export type Database = {
           quantita: number
           scomposizione_id?: string | null
           simbolo: string
+          unita?: string | null
           updated_at?: string
         }
         Update: {
@@ -27557,6 +27559,7 @@ export type Database = {
           quantita?: number
           scomposizione_id?: string | null
           simbolo?: string
+          unita?: string | null
           updated_at?: string
         }
         Relationships: [

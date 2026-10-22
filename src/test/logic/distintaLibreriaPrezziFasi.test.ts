@@ -151,6 +151,23 @@ describe("fase proposta dall'AI", () => {
   });
 });
 
+describe("conteggi delle tavole: l'unità del conteggio", () => {
+  const conteggio = (extra: Record<string, unknown>) => ({ id: "k", simbolo: "Canalina 100×60", quantita: 42.5, ...extra });
+  it("una lunghezza misurata dal CAD entra in metri, non a pezzi", () => {
+    const r = generaDistinta({ voci: [], scomposizioni: [], conteggi: [conteggio({ unita: "m" })] });
+    expect(r.righe[0]).toMatchObject({ unita_misura: "m", quantita_calcolata: 42.5 });
+    expect(r.avvisi[0].messaggio).toContain("a metri");
+  });
+  it("senza unità o 'pz': pezzi come prima (arrotondati per l'acquisto)", () => {
+    expect(generaDistinta({ voci: [], scomposizioni: [], conteggi: [conteggio({ unita: null, quantita: 3 })] }).righe[0].unita_misura).toBe("pz");
+    expect(generaDistinta({ voci: [], scomposizioni: [], conteggi: [conteggio({ quantita: 3 })] }).righe[0].unita_misura).toBe("pz");
+  });
+  it("una lunghezza trova la scomposizione a metro (dorsale: tubo e tre cavi)", () => {
+    const r = generaDistinta({ voci: [], scomposizioni: catalogo, conteggi: [conteggio({ simbolo: "Linea dorsale", unita: "m", quantita: 10 })] });
+    expect(r.righe.find((x) => x.descrizione === "Cavo unipolare")).toMatchObject({ unita_misura: "m", quantita_calcolata: 33 });
+  });
+});
+
 describe("elenco unico: filtri, ordinamento, righe che si tolgono", () => {
   const righe = [
     { name: "Cavo", status: "ordinato", supplier_id: "f2", position: 2 },

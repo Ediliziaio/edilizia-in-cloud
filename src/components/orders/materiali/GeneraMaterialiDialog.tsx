@@ -54,7 +54,7 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
       const [scomposizioni, fasi, conteggi] = await Promise.all([
         caricaScomposizioni(companyId),
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
-        supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id")
+        supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
           .eq("order_id", orderId).eq("confermato", true),
       ]);
       if (fasi.error) throw fasi.error;

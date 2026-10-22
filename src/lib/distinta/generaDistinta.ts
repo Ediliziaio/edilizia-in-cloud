@@ -72,6 +72,8 @@ export interface ConteggioConfermato {
   scomposizione_id?: string | null;
   /** Fase di lavoro scelta per il conteggio. */
   phase_id?: string | null;
+  /** Unità del conteggio: 'pz' (simboli contati) o 'm' (lunghezze misurate dal disegno CAD). Vuota = pezzi. */
+  unita?: string | null;
 }
 
 export type OrigineRiga =
@@ -369,8 +371,11 @@ export function generaDistinta(input: {
     const q = Number(k.quantita);
     if (!(q > 0)) continue;
     const testo = normalizzaTesto(`${k.simbolo} ${k.descrizione_legenda ?? ""}`);
+    const unita = normalizzaUnita(k.unita ?? "pz");
+    // Una lunghezza (m) trova solo le scomposizioni a metro o senza unità;
+    // i pezzi si riconoscono come prima.
     const s = (k.scomposizione_id && attive.find((x) => x.id === k.scomposizione_id))
-      || trovaScomposizione(attive, { codice: k.simbolo, testo, unita: null });
+      || trovaScomposizione(attive, { codice: k.simbolo, testo, unita: unita === "m" ? "m" : null });
     const provenienza = (quantita: number): OrigineRiga => ({
       tipo: "planimetria", conteggio_id: k.id, documento_id: k.documento_id ?? null, documento: k.documento_nome ?? null,
       locale: k.locale ?? null, simbolo: k.simbolo, quantita_simbolo: q, quantita,
@@ -383,15 +388,18 @@ export function generaDistinta(input: {
       parti.push(...partiDaComponenti(s, q, base, provenienza, null));
     } else {
       // Senza scomposizione il simbolo della legenda è già la cosa da comprare
-      // (es. «plafoniera LED 600×600 35 W»): una riga a pezzi.
+      // (es. «plafoniera LED 600×600 35 W»): una riga nell'unità del
+      // conteggio, pezzi o metri (le lunghezze misurate dal disegno CAD).
       const descrizione = (k.descrizione_legenda || k.simbolo).trim();
       parti.push({
-        ...base, descrizione, specifiche: null, unita: "pz", netta: q, conSfrido: q, sfrido: 0,
+        ...base, descrizione, specifiche: null, unita, netta: q, conSfrido: q, sfrido: 0,
         provenienza: provenienza(q), categoria: null, article_template_id: null, supplier_id: null, scomposizione_id: null,
       });
       avvisi.push({
         tipo: "conteggio_senza_scomposizione", conteggio_id: k.id,
-        messaggio: `Simbolo «${k.simbolo}» (${q}): preso come fornitura a pezzi; se è un punto (presa, luce…) serve una scomposizione`,
+        messaggio: unita === "m"
+          ? `«${k.simbolo}» (${q} m): presa come fornitura a metri; se è una linea con più materiali (tubo e cavi) serve una scomposizione a metro`
+          : `Simbolo «${k.simbolo}» (${q}): preso come fornitura a pezzi; se è un punto (presa, luce…) serve una scomposizione`,
       });
     }
   }
