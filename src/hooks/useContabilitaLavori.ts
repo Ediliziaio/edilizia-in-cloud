@@ -69,6 +69,8 @@ export interface SalVoceDb {
 export interface CertificatoDb {
   id: string; sal_id: string; numero: number; data: string; imponibile: number; aliquota_iva: number; iva: number; totale: number;
   split_payment: boolean; da_pagare_impresa: number; note: string | null;
+  /** La fattura emessa per il certificato, se collegata. */
+  documento_fiscale_id?: string | null;
 }
 
 const num = (v: unknown) => (v == null ? 0 : Number(v));
@@ -344,6 +346,46 @@ export function useEmettiCertificato(orderId: string, companyId: string) {
       if (error) throw new Error(error.message);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+// ── Fattura del certificato ─────────────────────────────────────────────────
+
+/** Collega (o scollega, con null) la fattura al certificato: l'unica cosa che il database lascia cambiare. */
+export function useCollegaFatturaCertificato(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ certificatoId, documentoId }: { certificatoId: string; documentoId: string | null }) => {
+      const { data, error } = await supabase.from("lp_certificati_pagamento")
+        .update({ documento_fiscale_id: documentoId }).eq("id", certificatoId).select("id");
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error("Collega la fattura chi ha «Ordini e Commesse» sulla commessa.");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+export interface FatturaCommessa { id: string; numero: string | null; data_emissione: string | null; stato: string; totale_documento: number | null; tipo: string }
+
+/** Le fatture della commessa (create dalla commessa o collegate a mano), per il collegamento al certificato. */
+export function useFattureCommessa(orderId: string | undefined, companyId: string, attivo: boolean) {
+  return useQuery({
+    queryKey: [...chiave(orderId), "fatture", companyId],
+    enabled: !!orderId && !!companyId && attivo,
+    queryFn: async (): Promise<FatturaCommessa[]> => {
+      // Tabelle della fatturazione non ancora nei tipi generati (come in useFatturaOrdineLink).
+      const { data: link } = await (supabase.from("fattura_ordine" as never).select("fattura_id")
+        .eq("ordine_id" as never, orderId as never) as unknown as PromiseLike<{ data: { fattura_id: string }[] | null }>);
+      const ids = (link ?? []).map(l => l.fattura_id);
+      const colonne = "id, numero, data_emissione, stato, totale_documento, tipo";
+      const filtro = ids.length ? `ordine_id.eq.${orderId},id.in.(${ids.join(",")})` : `ordine_id.eq.${orderId}`;
+      const { data, error } = await (supabase.from("documenti_fiscali" as never).select(colonne)
+        .eq("company_id" as never, companyId as never).is("deleted_at" as never, null)
+        .in("tipo" as never, ["fattura", "fattura_pa", "acconto_fattura"] as never).or(filtro)
+        .order("data_emissione" as never, { ascending: false }).limit(100) as unknown as PromiseLike<{ data: FatturaCommessa[] | null; error: { message: string } | null }>);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
   });
 }
 
