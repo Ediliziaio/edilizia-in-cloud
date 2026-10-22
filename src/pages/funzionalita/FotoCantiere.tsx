@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "App mobile capocantiere",
     "Geolocalizzazione e timestamp automatici",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano Foto Cantiere per organizzare migliaia di foto e condividerle col cliente.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Foto Cantiere è già pronto: lo attiviamo in 48 ore configurando l'app mobile per i capocantieri, abilitiamo la condivisione automatica al portale cliente, importiamo l'archivio storico se hai foto su Drive/Dropbox, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere completamente documentato.",
+    "Foto Cantiere è già pronto: lo attiviamo insieme alla tua impresa configurando l'app mobile per i capocantieri, abilitiamo la condivisione automatica al portale cliente, importiamo l'archivio storico se hai foto su Drive/Dropbox, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere completamente documentato.",
 
   speedH2:
     "Le foto sparpagliate su WhatsApp del capocantiere costano 6 ore al mese di segreteria. Lo capisci solo quando perdi una contestazione.",
@@ -445,10 +445,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare Foto Cantiere dentro la tua impresa edile. App mobile capocantiere, organizzazione automatica, archivio cloud immutabile, condivisione cliente, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · App mobile · Foto illimitate",
+  finalCtaMicrocopy: "Avvio assistito · App mobile · Foto illimitate",
 
   stickyCtaLabel: "Prova gratis Foto Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · App offline · Cloud immutabile",
+  stickyCtaMicrocopy: "Avvio assistito · App offline · Cloud immutabile",
 
   applicationSubCategory: "Construction Photo Documentation Software",
 

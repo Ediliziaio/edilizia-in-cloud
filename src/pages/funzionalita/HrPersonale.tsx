@@ -53,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Straordinari 25/50/100% separati", "Ore pronte per il consulente"],
+  reassurancePoints: ["Avvio assistito", "Straordinari 25/50/100% separati", "Ore pronte per il consulente"],
   proofPoints: [
     "Timbrature GPS conformi al CCNL",
     "Ferie e malattie da app mobile",
@@ -68,7 +68,7 @@ const config: FunzionalitaPageConfig = {
 
   betaH2: "Personale e presenze in un'unica app, collegata ai cantieri dove le ore nascono.",
   betaBody:
-    "Il modulo HR e Personale è il nervo centrale della tua impresa edile: lo attiviamo in 48 ore, importiamo l'anagrafica operai e impiegati con stipendi e costi orari e ti accompagniamo in 4 sessioni 1-a-1 fino a quando l'operaio medio timbra dal telefono e tu vedi il costo orario reale per commessa.",
+    "Il modulo HR e Personale è il nervo centrale della tua impresa edile: lo attiviamo insieme alla tua impresa, importiamo l'anagrafica operai e impiegati con stipendi e costi orari e ti accompagniamo in 4 sessioni 1-a-1 fino a quando l'operaio medio timbra dal telefono e tu vedi il costo orario reale per commessa.",
 
   speedH2: "L'operaio timbra dal telefono. Tu vedi il costo orario reale di ogni cantiere giorno per giorno.",
   speedSubheadline:
@@ -294,7 +294,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Costo HR attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 1.5 * 50 * b) },
     ],
     closingPitch:
-      "Stima prudenziale basata su 1,5h HR/operaio/settimana risparmiate (-80% con timbrature digitali). Le imprese più strutturate registrano riduzioni fino al 90%.",
+      "Simulazione illustrativa basata su 1,5h HR/operaio/settimana risparmiate (-80% con timbrature digitali). Le imprese più strutturate registrano riduzioni fino al 90%.",
   },
 
   salesKicker: "Impatto operativo",
@@ -321,7 +321,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Timbrature GPS multi-cantiere",
@@ -468,12 +468,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di gestire il personale tra Excel, WhatsApp e fogli cartacei. Inizia a gestirlo da un'app.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nella tua amministrazione HR. Setup in 48 ore, importazione anagrafica operai e bozza di cedolino per il consulente del lavoro inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nella tua amministrazione HR. Avvio assistito, importazione anagrafica operai e bozza di cedolino per il consulente del lavoro inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Ore pronte per il consulente · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Ore pronte per il consulente · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis HR e Personale",
-  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+  stickyCtaMicrocopy: "Avvio assistito · Cancelli quando vuoi",
 
   applicationSubCategory: "Construction Workforce Management Software",
 

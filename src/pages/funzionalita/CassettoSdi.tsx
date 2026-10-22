@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Archive,
@@ -52,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Sincronizzazione 24/7 con AdE", "Conformità GDPR e CAD"],
+  reassurancePoints: ["Avvio assistito", "Sincronizzazione 24/7 con AdE", "Conformità GDPR e CAD"],
   proofPoints: [
     "Sync continuo cassetto fiscale",
     "Ricerca semantica su tutte le fatture",
@@ -66,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane sincronizzano il Cassetto Fiscale con il gestionale, eliminando il portale AdE come collo di bottiglia.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il Cassetto SDI lo attiviamo in 48 ore: configuriamo le credenziali Entratel/SPID/CIE, attiviamo la delega del commercialista, importiamo le fatture passive degli ultimi 5 anni, configuriamo le categorie cantiere e ti accompagniamo in 4 sessioni 1-a-1 con la nostra squadra fiscale.",
+    "Il Cassetto SDI lo attiviamo insieme alla tua impresa: configuriamo le credenziali Entratel/SPID/CIE, attiviamo la delega del commercialista, importiamo le fatture passive degli ultimi 5 anni, configuriamo le categorie cantiere e ti accompagniamo in 4 sessioni 1-a-1 con la nostra squadra fiscale.",
 
   speedH2:
     "Scaricare le fatture dal portale Agenzia Entrate brucia 8 minuti per fattura. Su 200 fatture al mese fa 26 ore.",
@@ -214,7 +215,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Recupero IVA garantito. Sanzioni evitate. Commercialista che ti chiama meno.",
   commercialBody:
-    "Le imprese edili che attivano il Cassetto SDI Edilizia in Cloud recuperano in media il 4-7% di IVA che prima si perdeva (fatture sfuggite, classificazioni sbagliate, deduzioni mancate) e riducono dell'80% il tempo di interazione con il commercialista.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: ShieldCheck,
@@ -298,7 +299,7 @@ const config: FunzionalitaPageConfig = {
       },
     ],
     closingPitch:
-      "Stima prudenziale basata su 8 minuti risparmiati per fattura passiva (login Entratel, download, classificazione, archiviazione). Aggiungi l'IVA recuperata da fatture sfuggite e le sanzioni evitate.",
+      "Simulazione illustrativa basata su 8 minuti risparmiati per fattura passiva (login Entratel, download, classificazione, archiviazione). Aggiungi l'IVA recuperata da fatture sfuggite e le sanzioni evitate.",
   },
 
   salesKicker: "Impatto operativo",
@@ -325,7 +326,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Sincronizzazione cassetto AdE 24/7",
@@ -433,12 +434,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di entrare nel portale Entratel ogni 2 giorni. Inizia a ricevere le fatture nel gestionale.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il Cassetto Fiscale SDI dentro la tua impresa edile. Setup in 48 ore, sincronizzazione 24/7, conservazione decennale e onboarding 1-a-1 con la nostra squadra fiscale incluso. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il Cassetto Fiscale SDI dentro la tua impresa edile. Avvio assistito, sincronizzazione 24/7, conservazione decennale e onboarding 1-a-1 con la nostra squadra fiscale incluso. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Sync continuo AdE · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Sync continuo AdE · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Cassetto SDI",
-  stickyCtaMicrocopy: "Setup 48h · Sync AdE 24/7",
+  stickyCtaMicrocopy: "Avvio assistito · Sync AdE 24/7",
 
   applicationSubCategory: "Construction Tax Drawer Software",
 

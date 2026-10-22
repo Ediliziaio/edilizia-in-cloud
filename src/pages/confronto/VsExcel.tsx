@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
@@ -71,7 +72,7 @@ const otherVsLinks = [
 const tldrPoints = [
   "Excel è gratis solo in apparenza: il costo nascosto stimato è ~€2.000/mese in ore amministrative perse e decisioni su dati obsoleti.",
   "Edilizia in Cloud elimina formule sbagliate, file in 12 versioni e calcoli manuali con dati real-time e alert margini: si parte da un piano gratuito per sempre.",
-  "Migrazione gratuita da Excel in 48 ore, AI per analisi margini in tempo reale e SDI nativo: tutto incluso.",
+  "Migrazione assistita da Excel, AI per analisi margini in tempo reale e SDI nativo: tutto incluso.",
 ];
 
 const switchTestimonials = [
@@ -135,7 +136,7 @@ const faqItems = [
   },
   {
     q: "Posso migrare i miei dati da Excel a Edilizia in Cloud?",
-    a: "Sì. Il team di Edilizia in Cloud migra gratuitamente tutti i tuoi dati da Excel: cantieri, clienti, fornitori e storico. Di solito bastano 48 ore per essere completamente operativi.",
+    a: "Sì. Il team di Edilizia in Cloud migra gratuitamente tutti i tuoi dati da Excel: cantieri, clienti, fornitori e storico. I tempi si concordano dopo la verifica dei dati da importare.",
   },
   {
     q: "Edilizia in Cloud è difficile da usare rispetto a Excel?",
@@ -255,7 +256,8 @@ export default function VsExcel() {
 
       {/* ── HERO ── */}
       <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
             CONFRONTO ONESTO — 2026
           </span>
@@ -264,7 +266,7 @@ export default function VsExcel() {
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             Excel sembra gratuito. In realtà ti costa ore di lavoro, margini persi e decisioni sbagliate. Scopri quanto
-            stai davvero perdendo e perché 150+ imprese edili hanno smesso di usarlo.
+            stai davvero perdendo e perché oltre 150 aziende hanno smesso di usarlo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -281,6 +283,8 @@ export default function VsExcel() {
             </Link>
           </div>
         </div>
+<MarketingVisual theme="finance" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* ── TL;DR ── */}
@@ -458,7 +462,7 @@ export default function VsExcel() {
             <h3 className="text-xl font-extrabold text-[#111111] mb-3">Usi ancora Excel?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
               Migriamo tutti i tuoi dati da Excel a Edilizia in Cloud gratuitamente: cantieri, clienti, fornitori e
-              storico. Di solito bastano 48 ore per essere completamente operativi. Zero stress, zero perdita di dati.
+              storico. I tempi si concordano dopo la verifica dei dati da importare. Zero stress, zero perdita di dati.
             </p>
             <button
               onClick={openModal}
@@ -667,7 +671,7 @@ export default function VsExcel() {
             Pronto a smettere con i fogli di calcolo?
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. Migrazione gratuita da Excel in 48 ore. Cancella quando vuoi.
+            31 giorni gratis. Migrazione assistita da Excel. Cancella quando vuoi.
           </p>
           <button
             onClick={openModal}

@@ -1,3 +1,4 @@
+import { BLOG_AUTHOR } from "./blogAuthorProfile";
 export interface BlogPost {
   id: string;
   slug: string;
@@ -1678,7 +1679,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Inizia la digitalizzazione dal problema più costoso",
-        body: "Edilizia in Cloud ti aiuta a digitalizzare il processo più impattante prima: gestione cantieri e controllo margini. Setup in 48 ore, formazione gratuita, migrazione da Excel inclusa.",
+        body: "Edilizia in Cloud ti aiuta a digitalizzare il processo più impattante prima: gestione cantieri e controllo margini. Avvio assistito, formazione gratuita, migrazione da Excel inclusa.",
       },
     ],
   },
@@ -1697,7 +1698,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     publishedAt: "2026-01-18",
     readTime: 14,
-    author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+    author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/computo-metrico-estimativo-guida.jpg",
     content: [
       {
@@ -1833,7 +1834,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     publishedAt: "2026-01-21",
     readTime: 8,
-    author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+    author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/bim-edilizia-guida-pratica.jpg",
     content: [
       {
@@ -1919,7 +1920,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-24",
     readTime: 15,
     updatedAt: "2026-10-18",
-    author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+    author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/cassa-edile-come-funziona.jpg",
     content: [
       {
@@ -2081,7 +2082,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     publishedAt: "2026-01-27",
     readTime: 10,
-    author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+    author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/appalti-pubblici-edilizia-guida.jpg",
     content: [
       {
@@ -2698,14 +2699,14 @@ export const blogPosts: BlogPost[] = [
     slug: "come-scegliere-software-gestionale-edilizia",
     faqs: [
       { q: "Quali funzionalità sono indispensabili in un gestionale per l'edilizia?", a: "Gestione commesse con margine in tempo reale, fatturazione elettronica SDI integrata, SAL e avanzamento lavori, ore e presenze per cantiere, DDT digitali, preventivi professionali e scadenzario. Tutto usabile da smartphone, perché l'impresa vive in cantiere e non in ufficio." },
-      { q: "Meglio un gestionale verticale per l'edilizia o un ERP generico?", a: "Per una PMI edile quasi sempre il verticale: parla la lingua del cantiere (commesse, SAL, subappalti, Cassa Edile), si avvia in giorni e non in mesi, e non richiede consulenti per ogni modifica. L'ERP generico ha senso solo per strutture grandi con processi molto personalizzati." },
-      { q: "Quanto dura l'implementazione di un gestionale edile?", a: "Con un cloud verticale: import dati e configurazione in pochi giorni, squadra operativa in 2-4 settimane. Diffida di implementazioni da 6-12 mesi: nel frattempo l'azienda continua a lavorare coi vecchi strumenti, le due modalità convivono e il progetto muore per esaurimento. Gli avvii troppo lunghi sono una delle cause più frequenti di abbandono." },
+      { q: "Meglio un gestionale verticale per l'edilizia o un ERP generico?", a: "Dipende dai processi e dalle integrazioni richieste. Un verticale può facilitare il flusso della commessa, ma anche prodotti come TeamSystem Construction sono dedicati all'edilizia. Confronta i prodotti specifici, i moduli necessari e il modo in cui li useranno ufficio e squadra." },
+      { q: "Quanto dura l'implementazione di un gestionale edile?", a: "Dipende da perimetro, dati da importare, integrazioni e formazione. Chiedi una verifica preliminare e un piano con attività, responsabilità e tempi concordati. La durata non va promessa prima di conoscere i dati e i processi dell'impresa." },
       { q: "Come si calcola il costo reale di un gestionale?", a: "Sommando su tre anni tutte le voci, non confrontando i canoni mensili: canone per il numero reale di utenti, setup e onboarding, migrazione dati, formazione (che è tempo interno, quindi costo vero), integrazioni e personalizzazioni. Un software da 50 € al mese con 3.000 € di attivazione costa più di uno da 100 € al mese senza attivazione per tutto il primo anno e mezzo." },
       { q: "Come si usa davvero un periodo di prova?", a: "Caricandoci dentro un cantiere vero, non i dati demo. Prendi una commessa già chiusa di cui conosci il risultato, inseriscila per intero — preventivo, ore, DDT, fatture, SAL — e verifica se il margine che il software calcola coincide con quello che sai. È l'unica prova che dice qualcosa: tutto il resto è guardare un'interfaccia." },
       { q: "Chi deve scegliere il gestionale in un'impresa edile?", a: "Chi lo sceglie deve essere chi ne ha bisogno — di norma il titolare o il responsabile tecnico — ma la scelta va fatta coinvolgendo chi dovrà usarlo tutti i giorni: capocantiere e amministrazione. Un software scelto solo dall'alto e imposto in basso viene aggirato entro due mesi, e non con il sabotaggio: semplicemente le persone continuano a usare WhatsApp e i fogli, perché nessuno ha chiesto loro se funzionava." },
     ],
-    title: "Come Scegliere il Software Gestionale per l'Edilizia",
-    excerpt: "Molti progetti di digitalizzazione in edilizia si arenano nel primo anno. Come scegliere il gestionale giusto: funzionalità, criteri e costo su 3 anni.",
+    title: "Come scegliere un gestionale per imprese edili",
+    excerpt: "Requisiti, prova su una commessa e domande da fare ai fornitori: una guida per scegliere il gestionale edile con ufficio e squadra.",
     category: "Digitalizzazione",
     tags: ["come scegliere software gestionale edilizia", "software edilizia confronto", "gestionale impresa edile criteri", "ERP edilizia valutazione", "migliore software cantieri", "costo gestionale edilizia", "software verticale edilizia", "prova gratuita gestionale"],
     publishedAt: "2026-02-17",
@@ -2716,7 +2717,7 @@ export const blogPosts: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Scegliere il software gestionale sbagliato per la tua impresa edile è uno degli errori più costosi che puoi fare — non tanto per il costo del software in sé, quanto per il tempo perso nell'implementazione, il training della squadra e il fallimento del progetto di digitalizzazione. Una quota consistente dei progetti di digitalizzazione nelle PMI edili si arena nel primo anno, e quasi mai perché il software fosse cattivo: perché è stato scelto con i criteri sbagliati, o perché nessuno in azienda aveva davvero il compito di farlo funzionare. Questa guida ti aiuta a valutare correttamente le alternative, capire cosa chiedere ai vendor e fare una scelta che duri nel tempo. Se vuoi vedere subito i nomi, nel [confronto dei migliori software gestionali per l'edilizia](/blog/migliori-software-gestionali-edilizia-confronto/) trovi i principali prodotti messi a confronto su funzioni e prezzi pubblici.",
+        body: "Per scegliere un gestionale per imprese edili, parti da una commessa reale e da chi dovrà usarlo: titolare, ufficio e squadra. Definisci i passaggi indispensabili, fai eseguire la stessa prova ai fornitori e verifica quali dati vengono inseriti una sola volta.\n\nQuesta guida riguarda il metodo di scelta. Per vedere nomi e differenze, apri il [confronto dei gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/). Se stai già valutando un prodotto, vai al [confronto con TeamSystem Construction](/confronto/vs-teamsystem/) oppure alla [differenza fra PriMus e un gestionale di commessa](/confronto/vs-primus/). Il [centro dei confronti](/confronto/) raccoglie le altre alternative.",
       },
       {
         type: "section",

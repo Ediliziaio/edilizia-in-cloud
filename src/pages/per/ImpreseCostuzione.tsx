@@ -298,7 +298,7 @@ const config: PerTipoConfig = {
   schemaFaq: [
     {
       q: "Qual è il miglior gestionale per imprese di costruzione?",
-      a: "Edilizia in Cloud è il gestionale con AI scelto da oltre 150 imprese edili: controlla margini reali per commessa, gestisce SAL automatici, subappaltatori con ritenute di garanzia e previsione cassa a 90 giorni.",
+      a: "Edilizia in Cloud è il gestionale con AI scelto da oltre 150 aziende: controlla margini reali per commessa, gestisce SAL automatici, subappaltatori con ritenute di garanzia e previsione cassa a 90 giorni.",
     },
     {
       q: "Come si gestiscono i SAL con un software per costruzioni?",

@@ -49,7 +49,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con account Facebook collegato",
+    "Avvio assistito con account Facebook collegato",
     "Qualificazione AI per intent edilizia",
     "Distribuzione automatica ai commerciali",
   ],
@@ -66,9 +66,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 290 imprese edili italiane convertono lead Facebook in clienti paganti con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo il modulo Lead Form Facebook in 48 ore: colleghiamo il tuo Business Manager Facebook/Instagram, configuriamo sync con tutte le campagne Lead Ads attive, calibriamo qualificazione AI sui pattern del tuo settore (ristrutturazioni, fotovoltaico, serramenti), distribuiamo ai commerciali. 4 sessioni 1-a-1 fino al primo lead convertito in cliente.",
+    "Attiviamo il modulo Lead Form Facebook con tempi concordati: colleghiamo il tuo Business Manager Facebook/Instagram, configuriamo sync con tutte le campagne Lead Ads attive, calibriamo qualificazione AI sui pattern del tuo settore (ristrutturazioni, fotovoltaico, serramenti), distribuiamo ai commerciali. 4 sessioni 1-a-1 fino al primo lead convertito in cliente.",
 
   speedH2:
     "Lead Facebook risponde entro 5 minuti = conversione 21x più alta che dopo 30 minuti. È la differenza tra impresa che cresce e impresa che spende soldi in advertising senza ROI.",
@@ -212,7 +212,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la dashboard Lead Facebook",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Conversione +60%, costo per cliente -30%, ROI campagne finalmente misurabile.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Le imprese edili che adottano Edilizia in Cloud per gestione Lead Facebook registrano un aumento medio del 60% del tasso di conversione lead-cliente, una riduzione del 30% del costo per cliente acquisito e ROI campagne Facebook misurabile in tempo reale. Il budget marketing diventa investimento, non spesa.",
   commercialLevers: [
@@ -469,12 +469,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di perdere lead Facebook entro 30 minuti. Inizia a chiuderli entro 5.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il modulo Lead Form Facebook dentro la tua impresa: setup in 48 ore, sync Business Manager nativa, qualificazione AI verticale edilizia, distribuzione automatica commerciali, automazione SMS/WhatsApp/email. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il modulo Lead Form Facebook dentro la tua impresa: avvio assistito, sync Business Manager nativa, qualificazione AI verticale edilizia, distribuzione automatica commerciali, automazione SMS/WhatsApp/email. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · Sync Facebook nativa · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Sync Facebook nativa · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Lead Facebook",
-  stickyCtaMicrocopy: "Setup 48h · Sync Facebook inclusa",
+  stickyCtaMicrocopy: "Avvio assistito · Sync Facebook inclusa",
 
   applicationSubCategory: "Construction Lead Generation Software",
 

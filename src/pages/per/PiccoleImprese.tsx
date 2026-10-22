@@ -255,7 +255,7 @@ const config: PerTipoConfig = {
   faq: [
     {
       q: "È complicato da usare per chi non è esperto di computer?",
-      a: "No. Se sai usare WhatsApp, sai usare Edilizia in Cloud. L'app è pensata per chi lavora in cantiere con le mani, non per gli informatici. Il nostro team ti configura tutto in 48 ore e ti fa una demo guidata senza termini tecnici. Hai sempre un numero diretto a cui chiamare.",
+      a: "No. Se sai usare WhatsApp, sai usare Edilizia in Cloud. L'app è pensata per chi lavora in cantiere con le mani, non per gli informatici. Il nostro team ti accompagna nella configurazione, con tempi concordati dopo la verifica dei dati e ti fa una demo guidata senza termini tecnici. Hai sempre un numero diretto a cui chiamare.",
     },
     {
       q: "Gestisce davvero la fatturazione elettronica SDI?",

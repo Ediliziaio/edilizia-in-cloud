@@ -5,6 +5,9 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { clausoleDellaFirma, informativaPrivacyDellaFirma } from "../_shared/clausoleFirma.ts";
 import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
 import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
+import { controllaSessioneFirma, firmatarioIdentificato, ipDellaRichiesta } from "../_shared/firmaAvanzata.ts";
+import { rileggiDocumentoCongelato } from "../_shared/documentoCongelato.ts";
+import { conservaProveFirma } from "../_shared/proveFirma.ts";
 
 // Risolve l'utente "proprietario" del documento a cui inviare la notifica:
 //  - quote → quotes.assigned_to || quotes.created_by
@@ -73,7 +76,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const {
       token,
-      user_agent,
+      sessione_firma,
       lat,
       lng,
       b2c_recesso_accettato,
@@ -90,8 +93,9 @@ Deno.serve(async (req: Request) => {
     // Solo il PRIMO IP: x-forwarded-for è spesso una lista "client, proxy…" e
     // firma_ip è INET — con la lista il cast fallisce e l'UPDATE della firma
     // andrebbe in errore: il cliente non riuscirebbe a firmare.
-    const ip = (req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "")
-      .split(",")[0].trim() || null;
+    const ip = ipDellaRichiesta(req);
+    // Il dispositivo lo dice la richiesta, non un campo scritto dal browser.
+    const user_agent = req.headers.get("user-agent")?.slice(0, 500) ?? null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -103,7 +107,7 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by, categoria")
+      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, tipo_documento, created_by, categoria, documento_path, livello_firma, sessione_firma_hash, sessione_firma_scadenza")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 
@@ -122,6 +126,41 @@ Deno.serve(async (req: Request) => {
         return errore(409, "Documento già firmato");
       }
       return errore(409, `Stato non valido per la firma: ${sigReq.status}. Verifica prima il codice OTP.`);
+    }
+
+    // Solo il browser che ha inserito il codice giusto, entro 15 minuti.
+    if (!(await controllaSessioneFirma(sigReq, sessione_firma))) {
+      return new Response(JSON.stringify({ error: "Il tempo per firmare è scaduto: richiedi un nuovo codice.", code: "sessione_scaduta" }), {
+        status: 401, headers: { ...corsH, "Content-Type": "application/json" },
+      });
+    }
+
+    // Firma avanzata: chi firma deve essersi identificato con un documento valido.
+    const firmatario = sigReq.livello_firma === "avanzata"
+      ? await firmatarioIdentificato(supabaseAdmin, sigReq.company_id, sigReq.signer_email)
+      : null;
+    if (sigReq.livello_firma === "avanzata" && !firmatario?.dichiarazione_accettata_at) {
+      return new Response(JSON.stringify({
+        error: firmatario ? "Prima di firmare accetta le condizioni del servizio di firma." : "Prima di firmare carica il tuo documento d'identità.",
+        code: "identificazione_richiesta",
+      }), {
+        status: 409, headers: { ...corsH, "Content-Type": "application/json" },
+      });
+    }
+
+    // Il documento firmato è la copia congelata all'invio: se non è più quella, non si firma.
+    let hashAllaFirma: string | null = null;
+    if (sigReq.documento_path) {
+      let controllo: { hash: string; integro: boolean };
+      try {
+        controllo = await rileggiDocumentoCongelato(supabaseAdmin, sigReq.documento_path, sigReq.documento_hash);
+      } catch {
+        return errore(503, "Il documento non si apre in questo momento. Riprova tra qualche istante.");
+      }
+      if (!controllo.integro) {
+        return errore(409, "Il documento risulta cambiato dopo l'invio e non si può firmare. Chiedi all'azienda di inviarlo di nuovo.");
+      }
+      hashAllaFirma = controllo.hash;
     }
 
     // Check B2C: recesso obbligatorio
@@ -151,10 +190,15 @@ Deno.serve(async (req: Request) => {
       status: "signed",
       signed_at: ora,
       firma_ip: ip,
-      firma_user_agent: user_agent ?? null,
+      firma_user_agent: user_agent,
       firma_lat: lat ?? null,
       firma_lng: lng ?? null,
+      // La chiave di sessione vale per una sola firma.
+      sessione_firma_hash: null,
+      sessione_firma_scadenza: null,
     };
+    if (hashAllaFirma) updatePayload.documento_hash_firma = hashAllaFirma;
+    if (firmatario) updatePayload.firmatario_id = firmatario.id;
 
     if (attese.length) {
       updatePayload.clausole_approvate = attese.map((c) => c.id);
@@ -173,6 +217,7 @@ Deno.serve(async (req: Request) => {
       .from("signature_requests")
       .update(updatePayload)
       .eq("id", sigReq.id).eq("status", "otp_verified")
+      .eq("sessione_firma_hash", sigReq.sessione_firma_hash)
       .eq("expires_at", sigReq.expires_at).gt("expires_at", ora)
       .select("id").maybeSingle();
     if (firmaErr) return errore(500, "Firma non registrata. Riprova tra qualche istante.");
@@ -198,7 +243,9 @@ Deno.serve(async (req: Request) => {
           .from("signature_requests")
           .update({ status: sigReq.status, signed_at: null, firma_ip: null, firma_user_agent: null,
             firma_lat: null, firma_lng: null, b2c_recesso: null, b2c_recesso_ts: null,
-            b2c_clausole: null, clausole_approvate: null, clausole_approvate_ts: null })
+            b2c_clausole: null, clausole_approvate: null, clausole_approvate_ts: null,
+            documento_hash_firma: null, firmatario_id: null,
+            sessione_firma_hash: sigReq.sessione_firma_hash, sessione_firma_scadenza: sigReq.sessione_firma_scadenza })
           .eq("id", sigReq.id).eq("status", "signed").eq("signed_at", ora);
         return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
       }
@@ -247,12 +294,15 @@ Deno.serve(async (req: Request) => {
       company_id: sigReq.company_id,
       evento: "firma_completata",
       ip,
-      user_agent: user_agent ?? null,
+      user_agent,
       lat: lat ?? null,
       lng: lng ?? null,
       metadati: {
         tipo_firmatario: sigReq.tipo_firmatario,
         documento_hash: sigReq.documento_hash,
+        documento_hash_firma: hashAllaFirma,
+        livello_firma: sigReq.livello_firma,
+        firmatario_id: firmatario?.id ?? null,
         b2c_recesso: sigReq.tipo_firmatario === "b2c" ? (b2c_recesso_accettato ?? true) : null,
         // Il consenso con il testo che chi firma ha visto: è la prova.
         privacy_accettata: informativaPrivacy ? true : null,
@@ -279,6 +329,12 @@ Deno.serve(async (req: Request) => {
         }
       } catch (pdfErr) {
         console.error("PDF firmato non generato:", pdfErr instanceof Error ? pdfErr.message : pdfErr);
+      }
+      // Le prove della firma, da conservare 20 anni (si riprova da fea-pdf-firmato).
+      try {
+        await conservaProveFirma(supabaseAdmin, sigReq.id);
+      } catch (proveErr) {
+        console.error("Prove della firma non conservate:", proveErr instanceof Error ? proveErr.message : proveErr);
       }
 
       // Copia al firmatario: ai privati come prima; alle aziende solo se c'è il PDF.

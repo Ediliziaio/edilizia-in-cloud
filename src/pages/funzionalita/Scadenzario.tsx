@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Solleciti multi-canale automatici", "Aging report in tempo reale"],
+  reassurancePoints: ["Avvio assistito", "Solleciti multi-canale automatici", "Aging report in tempo reale"],
   proofPoints: [
     "Alert pre-scadenza al titolare",
     "Solleciti email + WhatsApp + SMS",
@@ -65,9 +65,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano lo Scadenzario per recuperare crediti senza scocciare i clienti e senza credit manager.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Lo Scadenzario lo attiviamo in 48 ore: importiamo lo storico crediti, configuriamo le sequenze di sollecito (giorni, canali, tono), colleghiamo il cassetto fiscale per le fatture passive, attiviamo gli alert pre-scadenza per il titolare e ti accompagniamo in 4 sessioni 1-a-1 fino al primo recupero.",
+    "Lo Scadenzario lo attiviamo insieme alla tua impresa: importiamo lo storico crediti, configuriamo le sequenze di sollecito (giorni, canali, tono), colleghiamo il cassetto fiscale per le fatture passive, attiviamo gli alert pre-scadenza per il titolare e ti accompagniamo in 4 sessioni 1-a-1 fino al primo recupero.",
 
   speedH2:
     "Le imprese edili italiane incassano in media a 90 giorni. Con scadenzario automatico si scende a 60.",
@@ -210,7 +210,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo Scadenzario",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "DSO -30%, sofferenze -50%, titolare che torna a vendere.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Lo Scadenzario non è solo un modulo contabile: è un asset finanziario. Le imprese che lo attivano riducono i giorni medi di incasso del 30%, recuperano il 4% di crediti dalle sofferenze e liberano 20-30 ore al mese del titolare/segreteria.",
   commercialLevers: [
@@ -293,7 +293,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore titolare recuperate/anno", value: `${25 * 12} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 4% di recupero sulle sofferenze osservato sui clienti. Aggiungi il vantaggio finanziario della riduzione DSO (-30 giorni di anticipo banca) e il tempo del titolare che torna a vendere.",
+      "Simulazione illustrativa basata sul 4% di recupero sulle sofferenze osservato sui clienti. Aggiungi il vantaggio finanziario della riduzione DSO (-30 giorni di anticipo banca) e il tempo del titolare che torna a vendere.",
   },
 
   salesKicker: "Impatto operativo",
@@ -320,7 +320,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Scadenze automatiche da fatture SDI",
@@ -428,12 +428,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di chiamare clienti per soldi. Inizia a incassare 30 giorni prima.",
   finalCtaBody:
-    "31 giorni gratuiti per portare lo Scadenzario dentro la tua impresa edile. Setup in 48 ore, sequenze sollecito multi-canale, aging report live e riconciliazione PSD2 incluse. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare lo Scadenzario dentro la tua impresa edile. Avvio assistito, sequenze sollecito multi-canale, aging report live e riconciliazione PSD2 incluse. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · DSO -30% medio · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · DSO -30% medio · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Scadenzario",
-  stickyCtaMicrocopy: "Setup 48h · Solleciti automatici",
+  stickyCtaMicrocopy: "Avvio assistito · Solleciti automatici",
 
   applicationSubCategory: "Construction Accounts Receivable Software",
 

@@ -126,6 +126,24 @@ describe("POS preparato dai dati dell'app", () => {
     expect(contenuto.opera.cantiere.via).toBe("");
   });
 
+  it("fasi della commessa nella descrizione, turni dagli orari, addetti alle emergenze dagli attestati", async () => {
+    const t = base();
+    // Niente addetti tra le figure: si propongono da chi ha l'attestato.
+    t.sicurezza_figure = t.sicurezza_figure.filter((f) => !String(f.ruolo).startsWith("addetto_"));
+    t.order_work_phases = [
+      { company_id: AZ, order_id: ORD, name: "Montaggio ponteggio", position: 1 },
+      { company_id: AZ, order_id: ORD, name: "Posa cappotto", position: 2 },
+    ];
+    t.hr_profili[0] = { ...t.hr_profili[0], orario_inizio: "08:00:00", orario_fine: "17:00:00", pausa_pranzo_minuti: 60, giorni_lavorativi: ["Lun", "Mar", "Mer", "Gio", "Ven"] };
+    t.hr_documenti.push({ company_id: AZ, categoria: "corso_sicurezza", hr_profilo_id: "hr-luca", titolo: "Primo soccorso", ente: null, data_scadenza: null });
+    const { contenuto, contesto } = await preparaPosDaApp(dbFinto(t), AZ, ORD);
+    expect(contenuto.opera.descrizione_attivita).toContain("Fasi di lavoro: Montaggio ponteggio, Posa cappotto.");
+    expect(contesto.fasi).toEqual(["Montaggio ponteggio", "Posa cappotto"]);
+    expect(contenuto.opera.turni_lavoro).toBe("Turno unico diurno dalle 08:00 alle 17:00 con pausa di 60 minuti, dal lunedì al venerdì.");
+    expect(contenuto.emergenze.addetti).toEqual([expect.objectContaining({ nominativo: "Luca Bianchi", primo_soccorso: true, antincendio: false })]);
+    expect(contesto.avvisi.join(" ")).toMatch(/conferma che sono designati/);
+  });
+
   it("una commessa di un'altra azienda non si legge", async () => {
     await expect(preparaPosDaApp(dbFinto(base()), "altra-azienda", ORD)).rejects.toThrow(/Commessa non trovata/);
   });

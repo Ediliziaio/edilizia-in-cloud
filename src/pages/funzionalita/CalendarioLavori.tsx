@@ -70,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese edili italiane pianificano i cantieri con il calendario condiviso Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Calendario Lavori è attivo in 48 ore: importiamo i cantieri attivi con date di inizio/fine, configuriamo le squadre operative con competenze e disponibilità, agganciamo il meteo della tua provincia, sincronizziamo con Google Calendar/Outlook. Quattro sessioni 1-a-1 ti accompagnano fino alla prima settimana pianificata interamente sul gantt.",
+    "Il modulo Calendario Lavori è attivo con tempi concordati: importiamo i cantieri attivi con date di inizio/fine, configuriamo le squadre operative con competenze e disponibilità, agganciamo il meteo della tua provincia, sincronizziamo con Google Calendar/Outlook. Quattro sessioni 1-a-1 ti accompagnano fino alla prima settimana pianificata interamente sul gantt.",
 
   speedH2:
     "Excel della pianificazione cantieri si aggiorna lunedì e diventa obsoleto martedì pomeriggio.",
@@ -215,7 +215,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri il gantt di prova multi-cantiere",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Pianificazione viva = -50% tempo + zero conflitti + cantieri puntuali.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Le imprese edili che hanno attivato il calendario lavori riducono del 50% il tempo dedicato alla pianificazione settimanale, eliminano i conflitti di allocazione operai, rispettano le date di consegna ai clienti grazie all'integrazione meteo e alla visibilità multi-cantiere.",
   commercialLevers: [
@@ -298,7 +298,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Cantieri puntuali extra/anno", value: `${Math.round(a * 0.3)}` },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 50% di tempo pianificazione recuperato a €30/h. Aggiungi i cantieri puntuali in più, le sanzioni di ritardo evitate e le recensioni 5★ che ne derivano.",
+      "Simulazione illustrativa basata sul 50% di tempo pianificazione recuperato a €30/h. Aggiungi i cantieri puntuali in più, le sanzioni di ritardo evitate e le recensioni 5★ che ne derivano.",
   },
 
   salesKicker: "Impatto operativo",
@@ -325,7 +325,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Gantt multi-cantiere zoomabile",
@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di cantieri?",
-      a: "Il modulo Calendario Lavori è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con cantieri illimitati e utenti illimitati. Setup in 48 ore, app mobile inclusa, sincronizzazione Google/Outlook inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Calendario Lavori è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con cantieri illimitati e utenti illimitati. Avvio assistito, app mobile inclusa, sincronizzazione Google/Outlook inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -428,10 +428,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare la pianificazione cantieri su un gantt visuale multi-cantiere. Conflict detection automatica, meteo integrato, sincronizzazione Google e Outlook, app mobile per capocantieri. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Gantt multi-cantiere · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Gantt multi-cantiere · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Calendario Lavori",
-  stickyCtaMicrocopy: "Setup 48h · Gantt multi-cantiere",
+  stickyCtaMicrocopy: "Avvio assistito · Gantt multi-cantiere",
 
   applicationSubCategory: "Construction Scheduling Software",
 

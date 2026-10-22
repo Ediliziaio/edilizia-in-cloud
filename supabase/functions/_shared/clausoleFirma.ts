@@ -38,7 +38,21 @@ interface RichiestaFirma {
 }
 
 // deno-lint-ignore no-explicit-any
+/** Le clausole del contratto di subappalto da approvare a parte (stessi articoli del testo stampato). */
+export const CLAUSOLE_SUBAPPALTO: ClausolaFirma[] = [
+  { id: "sub-pagamenti", testo: "Stati di avanzamento e pagamenti: i pagamenti sono subordinati alla verifica del SAL e alla regolarità contributiva (DURC)." },
+  { id: "sub-ritenuta", testo: "Ritenuta di garanzia: su ogni SAL è trattenuta la percentuale pattuita, svincolata alla fine del periodo di garanzia." },
+  { id: "sub-responsabilita", testo: "Personale e responsabilità: il committente può sospendere i pagamenti fino alla prova del pagamento di retribuzioni e contributi (art. 29 D.Lgs. 276/2003)." },
+  { id: "sub-penali", testo: "Penali per il ritardo sul termine di fine lavori." },
+  { id: "sub-divieto", testo: "Divieto di subappaltare i lavori senza autorizzazione scritta del committente." },
+  { id: "sub-risoluzione", testo: "Risoluzione di diritto (art. 1456 c.c.) per gravi violazioni della sicurezza, DURC irregolare non sanato o subappalto non autorizzato." },
+  { id: "sub-foro", testo: "Foro competente: quello della sede del committente." },
+];
+
 export async function clausoleDellaFirma(sb: any, r: RichiestaFirma): Promise<ClausolaFirma[]> {
+  // Contratto di subappalto: le clausole che il testo del contratto chiede di
+  // approvare specificamente (artt. 1341-1342 c.c.), una per una.
+  if (r.tipo_documento === "subappalto") return CLAUSOLE_SUBAPPALTO;
   const eContratto = r.tipo_documento === "quote" || r.tipo_documento === "fv";
 
   // Quelle scritte dall'azienda.

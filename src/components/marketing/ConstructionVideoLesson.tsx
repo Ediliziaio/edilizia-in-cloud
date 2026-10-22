@@ -1,0 +1,5 @@
+import InlineYouTube from "@/components/marketing/InlineYouTube";
+
+export default function ConstructionVideoLesson() {
+  return <section className="px-5 py-14 sm:px-6 md:py-20 bg-[#f6f4ef]" aria-labelledby="video-costi-title"><div className="max-w-6xl mx-auto grid lg:grid-cols-[0.8fr_1.2fr] items-center gap-8 lg:gap-12"><div><p className="text-xs font-bold tracking-[0.16em] uppercase text-orange-700">Dal nostro canale · 2 minuti e 57 secondi</p><h2 id="video-costi-title" className="mt-4 text-2xl md:text-4xl font-bold tracking-tight leading-tight">Dove perdi soldi in cantiere?</h2><p className="mt-5 text-gray-600 leading-relaxed">Cinque punti da osservare nella gestione dell’impresa: un video per collegare il lavoro quotidiano al controllo dei costi.</p><p className="mt-4 text-sm text-gray-600">Guarda il video direttamente qui. Il player viene caricato solo quando premi Riproduci.</p></div><InlineYouTube videoId="XBFZYERpQuA" title="Dove perdi soldi in cantiere? I 5 buchi da controllare" poster="/images/marketing/video-costi-cantiere.webp" /></div></section>;
+}

@@ -1,3 +1,4 @@
+import { BLOG_AUTHOR } from "@/data/blogAuthorProfile";
 import { Link } from "react-router-dom";
 import { ArrowRight, Clock } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -13,13 +14,10 @@ import { FLO_AVATAR } from "@/data/blogAuthor";
 // sa, i profili (sameAs) e l'elenco completo delle guide.
 
 const AUTORE = {
-  nome: "Florin Andriciuc",
+  nome: BLOG_AUTHOR.name,
   ruolo: "Fondatore di Edilizia in Cloud · Imprenditore edile · CEO di AEDIX",
-  url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/",
-  sameAs: [
-    "https://www.linkedin.com/in/florinandriciuc/",
-    "https://www.linkedin.com/company/edilizia-in-cloud",
-  ],
+  url: BLOG_AUTHOR.url,
+  sameAs: BLOG_AUTHOR.sameAs,
 };
 
 const formatData = (iso: string) =>

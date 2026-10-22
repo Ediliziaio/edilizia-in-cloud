@@ -1,173 +1,260 @@
 /**
- * useProcurementAnalysis — dati per l'Analisi Acquisti (P2).
+ * useProcurementAnalysis — i dati della pagina Analisi Acquisti.
  *
- * Legge SOLO dati esistenti (nessuna migration/edge function):
- *   - vista `supplier_procurement_report` → spesa aggregata per fornitore.
- *   - `purchase_order_items` (+ join PO→fornitore, esclusi gli ordini annullati)
- *     → benchmark prezzi articolo.
- *   - `fatture_ricevute` (colonne essenziali) → spesa da fatture passive.
+ * Letture indipendenti, ognuna col suo caricamento e il suo errore:
+ *   - analisi: la funzione SQL `analisi_acquisti` (tutti i conti nel
+ *     database). Se la funzione non c'è ancora (PGRST202), ordini, fatture e
+ *     scadenze si leggono a pagine e si calcolano qui con
+ *     `calcolaAnalisiAcquisti`, con le stesse regole.
+ *   - anagrafiche: fornitori e commesse per i filtri.
+ *   - prezzi: righe degli ordini degli ultimi 12 mesi → confronto prezzi.
+ *   - firma → primo ordine.
  *
- * L'aggregazione/benchmark è delegata alle funzioni pure di
- * `@/lib/procurement/spendAnalysis` (testate). Qui solo fetch + coercion.
+ * Tutte le letture vanno a pagine (`leggiTutteLeRighe`): PostgREST si ferma a
+ * mille righe e prima la pagina contava solo quelle.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { leggiTutteLeRighe } from "@/lib/impostazioni/usoTag";
 import {
+  calcolaAnalisiAcquisti,
+  calcolaFirmaPrimoOrdine,
   computePriceBenchmarks,
-  summarizeInvoiceSpend,
-  summarizeSupplierSpend,
+  dataLocale,
+  periodoAnnoPrima,
   totalPotentialSaving,
-  type InvoiceSpendRow,
+  type CommessaAnagrafica,
+  type DatiGrezziAcquisti,
+  type FatturaRiga,
+  type FiltriAnalisi,
+  type AnalisiAcquistiDati,
+  type FornitoreAnagrafica,
+  type OrdineAcquistoRiga,
+  type Periodo,
   type PurchaseLine,
-  type SupplierSpendRow,
+  type RigaFirmaOrdine,
+  type ScadenzaRiga,
 } from "@/lib/procurement/spendAnalysis";
 
-/** Limite righe ordini analizzate (benchmark) — protegge da dataset enormi. */
-const MAX_PURCHASE_LINES = 5000;
-const MAX_INVOICES = 5000;
+const STALE = 5 * 60 * 1000;
 
 interface RawPurchaseItem {
+  id: string;
   description: string | null;
   sku: string | null;
   article_template_id: string | null;
   unit_of_measure: string | null;
   quantity: number | string | null;
   unit_price: number | string | null;
+  discount_percent: number | string | null;
+  line_total: number | string | null;
   purchase_orders: {
     supplier_id: string | null;
     issue_date: string | null;
-    status: string | null;
     suppliers: { name: string | null } | null;
   } | null;
 }
 
-export function useProcurementAnalysis() {
+/* eslint-disable @typescript-eslint/no-explicit-any -- le query a pagine passano per un builder generico */
+const db = supabase as any;
+
+/** Ordini, fatture, scadenze e anagrafiche che servono al calcolo nel browser. */
+async function leggiDatiGrezzi(companyId: string, periodo: Periodo): Promise<DatiGrezziAcquisti> {
+  const prima = periodoAnnoPrima(periodo);
+  const oggi = new Date();
+  const tra30 = dataLocale(new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + 30));
+
+  const [ordini, fatture, scadenze, fornitori, commesse] = await Promise.all([
+    leggiTutteLeRighe<OrdineAcquistoRiga>((da, a) =>
+      db
+        .from("purchase_orders")
+        .select("id, supplier_id, order_id, issue_date, status, subtotal, total, vat_total")
+        .eq("company_id", companyId)
+        .gte("issue_date", prima.dal)
+        .lte("issue_date", periodo.al)
+        .order("id")
+        .range(da, a),
+    ),
+    // Senza limite superiore: una fattura arrivata dopo il periodo chiude
+    // comunque un ordine del periodo («ordinato non fatturato»).
+    leggiTutteLeRighe<FatturaRiga>((da, a) =>
+      db
+        .from("fatture_ricevute")
+        .select(
+          "id, purchase_order_id, cedente_ragione_sociale, cedente_piva, data_fattura, imponibile_totale, totale_documento, iva_totale, tipo_documento, stato",
+        )
+        .eq("company_id", companyId)
+        .gte("data_fattura", prima.dal)
+        .order("id")
+        .range(da, a),
+    ),
+    leggiTutteLeRighe<ScadenzaRiga>((da, a) =>
+      db
+        .from("scadenze")
+        .select("id, supplier_id, order_id, due_date, amount, paid_amount, status, is_previsionale, tipo, description")
+        .eq("company_id", companyId)
+        .eq("tipo", "pagamento_fornitore")
+        .in("status", ["da_pagare", "parziale"])
+        .eq("is_previsionale", false)
+        .lte("due_date", tra30)
+        .order("id")
+        .range(da, a),
+    ),
+    leggiTutteLeRighe<FornitoreAnagrafica>((da, a) =>
+      db
+        .from("suppliers")
+        .select("id, name, vat_number, product_category")
+        .eq("company_id", companyId)
+        .order("id")
+        .range(da, a),
+    ),
+    leggiTutteLeRighe<CommessaAnagrafica>((da, a) =>
+      db
+        .from("orders")
+        .select("id, order_code, client_name")
+        .eq("company_id", companyId)
+        .order("id")
+        .range(da, a),
+    ),
+  ]);
+  return { ordini, fatture, scadenze, fornitori, commesse };
+}
+
+/** Errore di «funzione non trovata»: la migrazione non è ancora applicata. */
+export function funzioneMancante(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message ?? "");
+}
+
+export interface EsitoAnalisi {
+  analisi: AnalisiAcquistiDati;
+  /** «database» = funzione SQL; «browser» = calcolo di riserva. */
+  origine: "database" | "browser";
+}
+
+export function useProcurementAnalysis(periodo: Periodo, filtri: FiltriAnalisi = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const supplierSpendQuery = useQuery({
-    queryKey: ["procurement", "supplier-spend", companyId],
+  const analisiQuery = useQuery({
+    queryKey: ["procurement", "analisi", companyId, periodo.dal, periodo.al, filtri.fornitoreId ?? "", filtri.commessaId ?? "", filtri.categoria ?? ""],
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_procurement_report")
-        .select(
-          "supplier_id, name, product_category, is_active, is_foreign, purchase_order_count, purchase_order_total, open_due_count, open_due_amount, last_purchase_order_date",
-        )
-        .eq("company_id", companyId!);
-      if (error) throw error;
-      return summarizeSupplierSpend((data ?? []) as unknown as SupplierSpendRow[]);
+    staleTime: STALE,
+    queryFn: async (): Promise<EsitoAnalisi> => {
+      const { data, error } = await db.rpc("analisi_acquisti", {
+        p_dal: periodo.dal,
+        p_al: periodo.al,
+        p_fornitore: filtri.fornitoreId || null,
+        p_commessa: filtri.commessaId && filtri.commessaId !== "nessuna" ? filtri.commessaId : null,
+        p_senza_commessa: filtri.commessaId === "nessuna",
+        p_categoria: filtri.categoria || null,
+      });
+      if (!error && data) return { analisi: data as AnalisiAcquistiDati, origine: "database" };
+      if (error && !funzioneMancante(error)) throw error;
+      const grezzi = await leggiDatiGrezzi(companyId!, periodo);
+      return { analisi: calcolaAnalisiAcquisti(grezzi, periodo, filtri), origine: "browser" };
     },
   });
 
-  const benchmarkQuery = useQuery({
-    queryKey: ["procurement", "price-benchmark", companyId],
+  // Fornitori e commesse per i filtri (tre colonne, a pagine).
+  const anagraficheQuery = useQuery({
+    queryKey: ["procurement", "anagrafiche", companyId],
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
+    staleTime: STALE,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_order_items")
-        .select(
-          "description, sku, article_template_id, unit_of_measure, quantity, unit_price, purchase_orders!inner(supplier_id, issue_date, status, suppliers(name))",
-        )
-        .eq("company_id", companyId!)
-        .limit(MAX_PURCHASE_LINES);
-      if (error) throw error;
-
-      const lines: PurchaseLine[] = ((data ?? []) as unknown as RawPurchaseItem[])
-        // esclude righe di ordini annullati (allineato alla vista spesa)
-        .filter((r) => (r.purchase_orders?.status ?? "") !== "annullato")
-        .map((r) => ({
-          description: r.description,
-          sku: r.sku,
-          article_template_id: r.article_template_id,
-          unit_of_measure: r.unit_of_measure,
-          quantity: r.quantity,
-          unit_price: r.unit_price,
-          supplier_id: r.purchase_orders?.supplier_id ?? null,
-          supplier_name: r.purchase_orders?.suppliers?.name ?? null,
-          issue_date: r.purchase_orders?.issue_date ?? null,
-        }));
-
-      const benchmarks = computePriceBenchmarks(lines);
-      return {
-        benchmarks,
-        totalSaving: totalPotentialSaving(benchmarks),
-        analyzedLines: lines.length,
-      };
+      const [fornitori, commesse] = await Promise.all([
+        leggiTutteLeRighe<FornitoreAnagrafica>((da, a) =>
+          db.from("suppliers").select("id, name, product_category").eq("company_id", companyId!).order("id").range(da, a),
+        ),
+        leggiTutteLeRighe<CommessaAnagrafica>((da, a) =>
+          db
+            .from("orders")
+            .select("id, order_code, client_name")
+            .eq("company_id", companyId!)
+            .is("deleted_at", null)
+            .order("id")
+            .range(da, a),
+        ),
+      ]);
+      return { fornitori, commesse };
     },
   });
 
-  // ── Giorni firma → primo ordine d'acquisto (capp. Tempi del manuale) ─────
-  // Tra la firma della commessa e il primo ODA passano giorni che sono
-  // margine che si scioglie: materiali che arrivano tardi, cantiere fermo.
-  // Media sulle commesse degli ultimi 12 mesi che hanno almeno un ODA.
-  const leadTimeQuery = useQuery({
+  const prezziQuery = useQuery({
+    queryKey: ["procurement", "confronto-prezzi", companyId],
+    enabled: !!companyId,
+    staleTime: STALE,
+    queryFn: async () => {
+      const oggi = new Date();
+      const inizio = dataLocale(new Date(oggi.getFullYear() - 1, oggi.getMonth(), oggi.getDate()));
+      const righe = await leggiTutteLeRighe<RawPurchaseItem>((da, a) =>
+        db
+          .from("purchase_order_items")
+          .select(
+            "id, description, sku, article_template_id, unit_of_measure, quantity, unit_price, discount_percent, line_total, purchase_orders!inner(supplier_id, issue_date, status, suppliers(name))",
+          )
+          .eq("company_id", companyId!)
+          .gte("purchase_orders.issue_date", inizio)
+          .not("purchase_orders.status", "in", "(annullato,bozza)")
+          .order("id")
+          .range(da, a),
+      );
+      const lines: PurchaseLine[] = righe.map((r) => ({
+        description: r.description,
+        sku: r.sku,
+        article_template_id: r.article_template_id,
+        unit_of_measure: r.unit_of_measure,
+        quantity: r.quantity,
+        unit_price: r.unit_price,
+        discount_percent: r.discount_percent,
+        line_total: r.line_total,
+        supplier_id: r.purchase_orders?.supplier_id ?? null,
+        supplier_name: r.purchase_orders?.suppliers?.name ?? null,
+        issue_date: r.purchase_orders?.issue_date ?? null,
+      }));
+      const benchmarks = computePriceBenchmarks(lines, { oggi });
+      return { benchmarks, totalSaving: totalPotentialSaving(benchmarks), analyzedLines: lines.length };
+    },
+  });
+
+  // Firma → primo ordine d'acquisto: la firma vera del preventivo quando c'è,
+  // altrimenti la creazione della commessa (e la pagina lo dice).
+  const firmaQuery = useQuery({
     queryKey: ["procurement", "firma-ordine", companyId],
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
+    staleTime: STALE,
     queryFn: async () => {
       const cutoff = new Date();
       cutoff.setFullYear(cutoff.getFullYear() - 1);
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select("order_id, created_at, orders!inner(id, created_at, company_id)")
-        .eq("orders.company_id", companyId!)
-        .not("order_id", "is", null)
-        .gte("created_at", cutoff.toISOString())
-        .limit(1000);
-      if (error) throw error;
-      type Riga = { order_id: string; created_at: string; orders: { created_at: string } };
-      const primoOda = new Map<string, { firma: number; ordine: number }>();
-      ((data ?? []) as unknown as Riga[]).forEach((r) => {
-        const firma = new Date(r.orders.created_at).getTime();
-        const ordine = new Date(r.created_at).getTime();
-        const cur = primoOda.get(r.order_id);
-        if (!cur || ordine < cur.ordine) primoOda.set(r.order_id, { firma, ordine });
-      });
-      const giorni = [...primoOda.values()]
-        .map((v) => (v.ordine - v.firma) / 86400000)
-        .filter((g) => g >= 0 && g <= 365);
-      if (giorni.length < 3) return null;
-      return {
-        mediaGiorni: Math.round(giorni.reduce((s, g) => s + g, 0) / giorni.length),
-        commesse: giorni.length,
+      type Riga = {
+        id: string;
+        order_id: string;
+        created_at: string;
+        orders: { created_at: string; quotes: { signed_at: string | null } | null } | null;
       };
+      const righe = await leggiTutteLeRighe<Riga>((da, a) =>
+        db
+          .from("purchase_orders")
+          .select("id, order_id, created_at, orders!inner(created_at, company_id, quotes!orders_quote_id_fkey(signed_at))")
+          .eq("orders.company_id", companyId!)
+          .not("order_id", "is", null)
+          .gte("created_at", cutoff.toISOString())
+          .order("id")
+          .range(da, a),
+      );
+      const dati: RigaFirmaOrdine[] = righe
+        .filter((r) => r.orders)
+        .map((r) => ({
+          order_id: r.order_id,
+          created_at: r.created_at,
+          commessa_creata: r.orders!.created_at,
+          firmato_il: r.orders!.quotes?.signed_at ?? null,
+        }));
+      return calcolaFirmaPrimoOrdine(dati);
     },
   });
 
-  const invoiceSpendQuery = useQuery({
-    queryKey: ["procurement", "invoice-spend", companyId],
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fatture_ricevute")
-        .select(
-          "cedente_ragione_sociale, cedente_piva, data_fattura, imponibile_totale, totale_documento, tipo_documento",
-        )
-        .eq("company_id", companyId!)
-        .limit(MAX_INVOICES);
-      if (error) throw error;
-      return summarizeInvoiceSpend((data ?? []) as unknown as InvoiceSpendRow[]);
-    },
-  });
-
-  return {
-    firmaOrdine: leadTimeQuery.data ?? null,
-    supplierSpend: supplierSpendQuery.data ?? null,
-    benchmark: benchmarkQuery.data ?? null,
-    invoiceSpend: invoiceSpendQuery.data ?? null,
-    isLoading:
-      supplierSpendQuery.isLoading || benchmarkQuery.isLoading || invoiceSpendQuery.isLoading,
-    isError: supplierSpendQuery.isError || benchmarkQuery.isError || invoiceSpendQuery.isError,
-    error: supplierSpendQuery.error || benchmarkQuery.error || invoiceSpendQuery.error,
-  };
+  return { analisiQuery, anagraficheQuery, prezziQuery, firmaQuery };
 }

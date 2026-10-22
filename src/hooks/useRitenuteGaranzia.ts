@@ -83,7 +83,9 @@ export function useRitenuteGaranzia(orderId: string | undefined) {
     mutationFn: async (payload: { contratto_id: string; sal_id: string; importo: number; percentuale_applicata?: number; data_svincolo_prevista?: string; note?: string }) => {
       const { error } = await supabase
         .from('ritenute_garanzia')
-        .insert({ ...payload, company_id: companyId!, stato: 'trattenuta' });
+        // Senza SAL la ritenuta vale per il contratto; direzione passiva: commessa,
+        // svincolo e subappaltatore li completa il database dal contratto.
+        .insert({ ...payload, sal_id: payload.sal_id || null, direzione: 'passiva', company_id: companyId!, stato: 'trattenuta' });
       if (error) throw error;
     },
     onSuccess: () => {

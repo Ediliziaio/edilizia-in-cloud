@@ -21,11 +21,22 @@ import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSk
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import {
+  formatEuro,
+  formatEuroBreve,
+  formatNumero,
+  levaPiano,
+  margineEbitdaPiano,
+  roePiano,
+  roiPiano,
+  rosPiano,
+  variazioneLeggibile,
+  type IndicePiano,
+} from "@/lib/controlloGestione/indiciBanca";
 import { cn } from "@/lib/utils";
 
 interface TabPianoIndustrialeProps {
@@ -56,35 +67,17 @@ function scenarioLabel(s: PianoScenario | string): string {
   }
 }
 
-function formatPctDelta(delta: number | null): string {
-  if (delta === null || !Number.isFinite(delta)) return "—";
-  const sign = delta >= 0 ? "+" : "";
-  return `${sign}${new Intl.NumberFormat("it-IT", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(delta)}%`;
-}
-
-function calcDeltaPct(curr: number, prev: number): number | null {
-  if (prev === 0) return null;
-  return ((curr - prev) / Math.abs(prev)) * 100;
-}
-
-function formatPctValue(v: number | null): string {
-  if (v === null || !Number.isFinite(v)) return "—";
-  return `${new Intl.NumberFormat("it-IT", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(v)}%`;
-}
-
-function ratingTone(score?: number): { bg: string; text: string } {
-  if (score === undefined || score === null) {
-    return { bg: "bg-muted", text: "text-muted-foreground" };
+function ratingTone(classe?: string): { bg: string; text: string } {
+  switch (classe) {
+    case "AAA": case "AA": case "A":
+      return { bg: "bg-emerald-50", text: "text-emerald-700" };
+    case "BBB": case "BB":
+      return { bg: "bg-amber-50", text: "text-amber-700" };
+    case "B": case "CCC":
+      return { bg: "bg-rose-50", text: "text-rose-700" };
+    default:
+      return { bg: "bg-muted/30", text: "text-muted-foreground" };
   }
-  if (score >= 75) return { bg: "bg-emerald-100", text: "text-emerald-700" };
-  if (score >= 50) return { bg: "bg-amber-100", text: "text-amber-700" };
-  return { bg: "bg-rose-100", text: "text-rose-700" };
 }
 
 export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
@@ -92,6 +85,10 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
   const [whatIf, setWhatIf] = useState<PianoResult | null>(null);
   const [scenarioAttivo, setScenarioAttivo] = useState<PianoScenario>("base");
   const [bootstrapping, setBootstrapping] = useState(false);
+  // Anno di partenza: null = quello dello scenario (di solito l'anno scorso,
+  // l'ultimo chiuso); l'anno in corso viene stimato a fine anno.
+  const [annoPartenza, setAnnoPartenza] = useState<number | null>(null);
+  const annoCorrente = new Date().getFullYear();
   const qc = useQueryClient();
 
   // Risoluzione scenario → riga di assunzioni da passare alla RPC.
@@ -106,12 +103,16 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
     scenari.find((s) => s.scenario === scenarioAttivo)?.id ?? null;
   const activeAssumptionId = isCustomFilter ? scenarioId : assumptionFromToggle;
 
-  const baseQuery = usePianoIndustriale(activeAssumptionId);
+  const baseQuery = usePianoIndustriale(activeAssumptionId, annoPartenza);
 
   // Cambiare scenario azzera il what-if: le assunzioni personalizzate
   // appartengono allo scenario su cui sono state costruite.
   const handleChangeScenario = (s: PianoScenario) => {
     setScenarioAttivo(s);
+    setWhatIf(null);
+  };
+  const handleChangeAnno = (a: number | null) => {
+    setAnnoPartenza(a);
     setWhatIf(null);
   };
 
@@ -203,11 +204,16 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
       <PianoHeader
         piano={piano}
         scenarioAttivo={scenarioAttivo}
+        scenarioCustomNome={isCustomFilter ? rowFromFilter?.scenario ?? null : null}
         scenariDisponibili={scenariDisponibili}
         onChangeScenario={handleChangeScenario}
+        annoPartenza={annoPartenza}
+        annoCorrente={annoCorrente}
+        onChangeAnno={handleChangeAnno}
+        isWhatIf={!!whatIf}
       />
-      <CETablePrev periodi={piano.periodi} />
-      <SPTablePrev periodi={piano.periodi} />
+      <CETablePrev periodi={piano.periodi} stimata={!!piano.meta.base_stimata_fine_anno} />
+      <SPTablePrev periodi={piano.periodi} stimata={!!piano.meta.base_stimata_fine_anno} />
       <IndiciPrev periodi={piano.periodi} />
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
@@ -232,6 +238,7 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
                     onResult={setWhatIf}
                     onReset={() => setWhatIf(null)}
                     disabled={bootstrapping}
+                    annoPartenza={annoPartenza}
                   />
                 </div>
               </AccordionContent>
@@ -248,13 +255,23 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
 function PianoHeader({
   piano,
   scenarioAttivo,
+  scenarioCustomNome,
   scenariDisponibili,
   onChangeScenario,
+  annoPartenza,
+  annoCorrente,
+  onChangeAnno,
+  isWhatIf,
 }: {
   piano: PianoResult;
   scenarioAttivo: PianoScenario;
+  scenarioCustomNome: string | null;
   scenariDisponibili: PianoScenario[];
   onChangeScenario: (s: PianoScenario) => void;
+  annoPartenza: number | null;
+  annoCorrente: number;
+  onChangeAnno: (a: number | null) => void;
+  isWhatIf: boolean;
 }) {
   const periodi = piano.periodi;
   const annoBase = periodi[0];
@@ -263,85 +280,112 @@ function PianoHeader({
   const proiezioni = periodi.filter((p) => p.tipo === "proiezione");
   const ebitdaCumulato = proiezioni.reduce((acc, p) => acc + p.ebitda, 0);
   const ricaviProiezione = proiezioni.reduce((acc, p) => acc + p.ricavi, 0);
-  const ebitdaMediaPct =
-    ricaviProiezione > 0 ? (ebitdaCumulato / ricaviProiezione) * 100 : 0;
+  const ebitdaMediaPct = ricaviProiezione > 0 ? (ebitdaCumulato / ricaviProiezione) * 100 : null;
+  const investimentiTotali = proiezioni.reduce((acc, p) => acc + (p.investimento_anno ?? 0), 0);
 
-  const investimentiTotali = proiezioni.reduce(
-    (acc, p) => acc + (p.investimento_anno ?? 0),
-    0,
-  );
-
-  const ricaviDelta = annoBase
-    ? calcDeltaPct(annoFinale.ricavi, annoBase.ricavi)
-    : null;
-  const mpDelta = annoBase
-    ? calcDeltaPct(annoFinale.mezzi_propri, annoBase.mezzi_propri)
-    : null;
-
-  const ratingScore = annoFinale.rating_score ?? null;
   const ratingClasse = annoFinale.rating_classe ?? "—";
-  const tone = ratingTone(ratingScore ?? undefined);
+  const ratingScore = annoFinale.rating_score ?? null;
+  const tone = ratingTone(annoFinale.rating_classe);
+  const stimata = !!piano.meta.base_stimata_fine_anno;
+  const spNonQuadra = piano.meta.sp_base_quadrato === false;
+
+  const nomeScenario = isWhatIf
+    ? "Simulazione personalizzata"
+    : `Scenario ${scenarioCustomNome ?? scenarioLabel(scenarioAttivo).toLowerCase()}`;
+  const valoreAnno = annoPartenza === annoCorrente ? "corrente" : "scenario";
 
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-base">
-              Scenario {scenarioLabel(scenarioAttivo)} · {piano.meta.orizzonte} anni
+              {nomeScenario} · {piano.meta.orizzonte} anni
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Anno base {piano.meta.anno_base} · Orizzonte fino al{" "}
-              {annoFinale.anno}
+              Si parte dal {piano.meta.anno_base}
+              {stimata ? " stimato a fine anno (dati fin qui riportati a 12 mesi)" : " (anno chiuso)"} e si arriva al{" "}
+              {annoFinale.anno}. Le proiezioni applicano le ipotesi dello scenario ai numeri dell'anno di partenza.
             </p>
           </div>
-          <ToggleGroup
-            type="single"
-            value={scenarioAttivo}
-            onValueChange={(v) => v && onChangeScenario(v as PianoScenario)}
-            className="justify-start"
-          >
-            {scenariDisponibili.map((s) => (
-              <ToggleGroupItem key={s} value={s} variant="outline" size="sm">
-                {scenarioLabel(s)}
+          <div className="flex flex-col gap-2">
+            <ToggleGroup
+              type="single"
+              value={scenarioAttivo}
+              onValueChange={(v) => v && onChangeScenario(v as PianoScenario)}
+              className="justify-start"
+              aria-label="Scenario"
+            >
+              {scenariDisponibili.map((s) => (
+                <ToggleGroupItem key={s} value={s} variant="outline" size="sm">
+                  {scenarioLabel(s)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <ToggleGroup
+              type="single"
+              value={valoreAnno}
+              onValueChange={(v) => v && onChangeAnno(v === "corrente" ? annoCorrente : null)}
+              className="flex-wrap justify-start"
+              aria-label="Anno di partenza"
+            >
+              <ToggleGroupItem value="scenario" variant="outline" size="sm">
+                Parti dall'ultimo anno chiuso
               </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+              <ToggleGroupItem value="corrente" variant="outline" size="sm">
+                Parti dal {annoCorrente} stimato
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {spNonQuadra && (
+          <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Lo Stato patrimoniale del {piano.meta.anno_base} non quadra
+              {piano.meta.sp_base_differenza !== undefined ? ` (differenza di ${formatEuro(piano.meta.sp_base_differenza)})` : ""}:
+              mezzi propri, debiti e rating del piano sono provvisori.
+            </span>
+          </div>
+        )}
+        {annoBase && annoBase.ebitda < 0 && (
+          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+            Nel {annoBase.anno} il margine operativo lordo è negativo ({formatEuroBreve(annoBase.ebitda)}): le proiezioni
+            partono da una perdita. Se l'anno in corso va meglio, prova «Parti dal {annoCorrente} stimato».
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiSint
-            label="Ricavi finali"
-            value={formatCurrency(annoFinale.ricavi)}
-            sub={ricaviDelta !== null ? `${formatPctDelta(ricaviDelta)} vs anno 0` : undefined}
-            tone={ricaviDelta !== null && ricaviDelta >= 0 ? "green" : "neutral"}
+            label={`Ricavi ${annoFinale.anno}`}
+            value={formatEuroBreve(annoFinale.ricavi)}
+            sub={annoBase ? `${variazioneLeggibile(annoFinale.ricavi, annoBase.ricavi) ?? "—"} rispetto al ${annoBase.anno}` : undefined}
+            tone={annoFinale.ricavi >= (annoBase?.ricavi ?? 0) ? "green" : "neutral"}
           />
           <KpiSint
-            label="EBITDA cumulato"
-            value={formatCurrency(ebitdaCumulato)}
-            sub={`Media ${formatPctValue(ebitdaMediaPct)} sui ricavi`}
+            label="Margine operativo lordo nel piano"
+            value={formatEuroBreve(ebitdaCumulato)}
+            sub={ebitdaMediaPct !== null ? `Somma degli anni di piano · in media ${formatNumero(ebitdaMediaPct, 1)}% dei ricavi` : undefined}
             tone={ebitdaCumulato >= 0 ? "green" : "red"}
           />
           <KpiSint
-            label="Investimenti totali"
-            value={formatCurrency(investimentiTotali)}
-            sub={`${proiezioni.length} anni di piano`}
+            label="Investimenti nel piano"
+            value={formatEuroBreve(investimentiTotali)}
+            sub={`${proiezioni.length} anni`}
             tone="blue"
           />
           <KpiSint
-            label="Mezzi propri finali"
-            value={formatCurrency(annoFinale.mezzi_propri)}
-            sub={mpDelta !== null ? `${formatPctDelta(mpDelta)} vs anno 0` : undefined}
-            tone={mpDelta !== null && mpDelta >= 0 ? "green" : "neutral"}
+            label={`Mezzi propri ${annoFinale.anno}`}
+            value={formatEuroBreve(annoFinale.mezzi_propri)}
+            sub={annoBase ? `${variazioneLeggibile(annoFinale.mezzi_propri, annoBase.mezzi_propri) ?? "—"} rispetto al ${annoBase.anno}` : undefined}
+            tone={annoFinale.mezzi_propri < 0 ? "red" : annoFinale.mezzi_propri >= (annoBase?.mezzi_propri ?? 0) ? "green" : "neutral"}
           />
           <div className={cn("rounded-xl border px-4 py-3", tone.bg)}>
-            <div className="text-xs text-muted-foreground">Rating finale</div>
-            <div className={cn("mt-0.5 text-lg font-bold", tone.text)}>
-              {ratingClasse}
-            </div>
+            <div className="text-xs text-muted-foreground">Rating {annoFinale.anno}</div>
+            <div className={cn("mt-0.5 text-lg font-bold", tone.text)}>{ratingClasse}</div>
             <div className="text-xs text-muted-foreground">
-              Score {ratingScore !== null ? Math.round(ratingScore) : "—"} / 100
+              {ratingScore !== null ? `${Math.round(ratingScore)} punti su 100` : "—"} · stesse regole del Rating bancario
             </div>
           </div>
         </div>
@@ -362,210 +406,105 @@ function KpiSint({
   tone: "green" | "red" | "blue" | "neutral";
 }) {
   const bg =
-    tone === "green"
-      ? "bg-emerald-50"
-      : tone === "red"
-        ? "bg-rose-50"
-        : tone === "blue"
-          ? "bg-blue-50"
-          : "bg-muted/30";
+    tone === "green" ? "bg-emerald-50" : tone === "red" ? "bg-rose-50" : tone === "blue" ? "bg-blue-50" : "bg-muted/30";
   const text =
-    tone === "green"
-      ? "text-emerald-700"
-      : tone === "red"
-        ? "text-rose-700"
-        : tone === "blue"
-          ? "text-blue-700"
-          : "text-foreground";
+    tone === "green" ? "text-emerald-700" : tone === "red" ? "text-rose-700" : tone === "blue" ? "text-blue-700" : "text-foreground";
   return (
     <div className={cn("rounded-xl border px-4 py-3", bg)}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-bold tabular-nums", text)}>
-        {value}
-      </div>
+      <div className={cn("mt-0.5 text-lg font-bold tabular-nums", text)}>{value}</div>
       {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
 
-// ── Tabella CE Previsionale ────────────────────────────────────────────────
+// ── Tabelle previsionali ───────────────────────────────────────────────────
 
-interface CERigaPrev {
+interface RigaPrev {
   label: string;
   livello: "voce" | "subtot" | "subtot_grasso";
   pick: (p: PianoPeriodo) => number;
+  /** Variazione da un anno all'altro sotto il numero. */
+  variazione?: boolean;
 }
 
-const CE_RIGHE: CERigaPrev[] = [
-  { label: "Ricavi", livello: "voce", pick: (p) => p.ricavi },
+const CE_RIGHE: RigaPrev[] = [
+  { label: "Ricavi", livello: "voce", pick: (p) => p.ricavi, variazione: true },
   { label: "Costi variabili", livello: "voce", pick: (p) => p.costi_var },
   { label: "Costi fissi", livello: "voce", pick: (p) => p.costi_fissi },
-  { label: "EBITDA", livello: "subtot", pick: (p) => p.ebitda },
+  { label: "Margine operativo lordo (EBITDA)", livello: "subtot", pick: (p) => p.ebitda, variazione: true },
   { label: "Ammortamenti", livello: "voce", pick: (p) => p.ammortamenti },
-  {
-    label: "EBIT",
-    livello: "subtot",
-    pick: (p) => p.ebitda - p.ammortamenti,
-  },
+  { label: "Risultato operativo (EBIT)", livello: "subtot", pick: (p) => p.ebitda - p.ammortamenti },
   { label: "Oneri finanziari", livello: "voce", pick: (p) => p.oneri_finanziari },
-  { label: "Utile", livello: "subtot_grasso", pick: (p) => p.utile },
+  { label: "Utile dopo le imposte", livello: "subtot_grasso", pick: (p) => p.utile, variazione: true },
 ];
 
-function CETablePrev({ periodi }: { periodi: PianoPeriodo[] }) {
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Conto Economico Previsionale</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-muted/40">
-              <tr>
-                <th className="min-w-[180px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Voce
-                </th>
-                {periodi.map((p) => (
-                  <AnnoHeader key={p.t} periodo={p} />
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {CE_RIGHE.map((riga) => (
-                <CERigaPrevRow key={riga.label} riga={riga} periodi={periodi} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const SP_RIGHE: RigaPrev[] = [
+  { label: "Beni dell'azienda (al netto degli ammortamenti)", livello: "voce", pick: (p) => p.cespiti },
+  { label: "Mezzi propri", livello: "subtot", pick: (p) => p.mezzi_propri, variazione: true },
+  { label: "Debiti a medio-lungo termine", livello: "voce", pick: (p) => p.debito_mlt },
+];
 
-function AnnoHeader({ periodo }: { periodo: PianoPeriodo }) {
+function AnnoHeader({ periodo, stimata }: { periodo: PianoPeriodo; stimata: boolean }) {
+  const etichetta = periodo.tipo === "consuntivo" ? (stimata ? "Stima fine anno" : "Consuntivo") : "Proiezione";
   return (
-    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+    <th className="min-w-[110px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">
       <div className="flex flex-col items-end gap-1">
-        <span className="text-sm font-semibold text-foreground">
-          {periodo.anno}
-        </span>
+        <span className="text-sm font-semibold text-foreground">{periodo.anno}</span>
         <Badge
           variant="outline"
           className={cn(
-            "text-[10px]",
+            "whitespace-nowrap text-[10px]",
             periodo.tipo === "consuntivo"
               ? "border-muted-foreground/30 text-muted-foreground"
               : "border-orange-300 bg-orange-50 text-orange-700",
           )}
         >
-          {periodo.tipo === "consuntivo" ? "Consuntivo" : "Proiezione"}
+          {etichetta}
         </Badge>
       </div>
     </th>
   );
 }
 
-function CERigaPrevRow({
-  riga,
-  periodi,
-}: {
-  riga: CERigaPrev;
-  periodi: PianoPeriodo[];
+function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
+  titolo: string; righe: RigaPrev[]; periodi: PianoPeriodo[]; stimata: boolean; nota?: string;
 }) {
-  const isSub = riga.livello === "subtot";
-  const isGrasso = riga.livello === "subtot_grasso";
-
-  return (
-    <tr
-      className={cn(
-        "border-t",
-        isSub && "bg-muted/50 font-semibold",
-        isGrasso && "bg-primary/5 font-bold",
-      )}
-    >
-      <td className="px-3 py-2">{riga.label}</td>
-      {periodi.map((p, i) => {
-        const val = riga.pick(p);
-        const prev = i > 0 ? riga.pick(periodi[i - 1]) : null;
-        const delta = prev !== null ? calcDeltaPct(val, prev) : null;
-        return (
-          <td key={p.t} className="px-3 py-2 text-right tabular-nums">
-            <div className={cn(val < 0 && "text-destructive")}>
-              {formatCurrencyCompact(val)}
-            </div>
-            {delta !== null && (
-              <div className="text-[10px] text-muted-foreground">
-                {formatPctDelta(delta)}
-              </div>
-            )}
-          </td>
-        );
-      })}
-    </tr>
-  );
-}
-
-// ── Tabella SP Previsionale ────────────────────────────────────────────────
-
-interface SPRigaPrev {
-  label: string;
-  livello: "voce" | "subtot";
-  pick: (p: PianoPeriodo) => number;
-  showDelta?: boolean;
-}
-
-const SP_RIGHE: SPRigaPrev[] = [
-  { label: "Cespiti totali", livello: "voce", pick: (p) => p.cespiti },
-  { label: "Mezzi propri", livello: "subtot", pick: (p) => p.mezzi_propri, showDelta: true },
-  { label: "Debito MLT", livello: "voce", pick: (p) => p.debito_mlt },
-];
-
-function SPTablePrev({ periodi }: { periodi: PianoPeriodo[] }) {
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Stato Patrimoniale Previsionale</CardTitle>
+        <CardTitle className="text-base">{titolo}</CardTitle>
+        {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-muted/40">
               <tr>
-                <th className="min-w-[180px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                <th className="sticky left-0 z-10 min-w-[170px] bg-muted px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                   Voce
                 </th>
-                {periodi.map((p) => (
-                  <AnnoHeader key={p.t} periodo={p} />
-                ))}
+                {periodi.map((p) => <AnnoHeader key={p.t} periodo={p} stimata={stimata} />)}
               </tr>
             </thead>
             <tbody>
-              {SP_RIGHE.map((riga) => (
+              {righe.map((riga) => (
                 <tr
                   key={riga.label}
                   className={cn(
                     "border-t",
                     riga.livello === "subtot" && "bg-muted/50 font-semibold",
+                    riga.livello === "subtot_grasso" && "bg-primary/5 font-bold",
                   )}
                 >
-                  <td className="px-3 py-2">{riga.label}</td>
+                  <td className="sticky left-0 z-10 bg-card px-3 py-2">{riga.label}</td>
                   {periodi.map((p, i) => {
                     const val = riga.pick(p);
-                    const prev = i > 0 ? riga.pick(periodi[i - 1]) : null;
-                    const delta =
-                      riga.showDelta && prev !== null
-                        ? calcDeltaPct(val, prev)
-                        : null;
+                    const varz = riga.variazione && i > 0 ? variazioneLeggibile(val, riga.pick(periodi[i - 1])) : null;
                     return (
-                      <td key={p.t} className="px-3 py-2 text-right tabular-nums">
-                        <div className={cn(val < 0 && "text-destructive")}>
-                          {formatCurrencyCompact(val)}
-                        </div>
-                        {delta !== null && (
-                          <div className="text-[10px] text-muted-foreground">
-                            {formatPctDelta(delta)}
-                          </div>
-                        )}
+                      <td key={p.t} className="px-3 py-2 text-right tabular-nums" title={formatEuro(val)}>
+                        <div className={cn(val < 0 && "text-destructive")}>{formatEuroBreve(val)}</div>
+                        {varz && <div className="text-[10px] font-normal text-muted-foreground">{varz}</div>}
                       </td>
                     );
                   })}
@@ -579,86 +518,117 @@ function SPTablePrev({ periodi }: { periodi: PianoPeriodo[] }) {
   );
 }
 
-// ── Indici previsionali ────────────────────────────────────────────────────
-
-interface IndicePrev {
-  label: string;
-  /** Calcolo dell'indice come % a partire dal periodo. `null` = non calcolabile. */
-  calc: (p: PianoPeriodo) => number | null;
+function CETablePrev({ periodi, stimata }: { periodi: PianoPeriodo[]; stimata: boolean }) {
+  return (
+    <TabellaPrev
+      titolo="Conto economico previsionale"
+      righe={CE_RIGHE}
+      periodi={periodi}
+      stimata={stimata}
+      nota="Sotto ogni numero la variazione sull'anno prima: in percentuale tra valori positivi, in euro quando c'è una perdita."
+    />
+  );
 }
 
-const INDICI: IndicePrev[] = [
+function SPTablePrev({ periodi, stimata }: { periodi: PianoPeriodo[]; stimata: boolean }) {
+  return (
+    <TabellaPrev
+      titolo="Stato patrimoniale previsionale"
+      righe={SP_RIGHE}
+      periodi={periodi}
+      stimata={stimata}
+      nota="I debiti scendono con le rate dei mutui in corso e salgono con i nuovi finanziamenti dello scenario."
+    />
+  );
+}
+
+// ── Indici previsionali ────────────────────────────────────────────────────
+
+interface IndicePrevDef {
+  label: string;
+  spiegazione: string;
+  calc: (p: PianoPeriodo) => IndicePiano;
+  formato: (v: number) => string;
+}
+
+const pct = (v: number) => `${formatNumero(v, 1)}%`;
+
+const INDICI: IndicePrevDef[] = [
   {
-    label: "ROE %",
-    // Con mezzi propri ≤ 0 (deficit patrimoniale, frequente in edilizia) il ROE
-    // non è interpretabile: utile negativo / MP negativo dava un ROE POSITIVO
-    // fuorviante. Meglio "—" che un numero falso.
-    calc: (p) => (p.mezzi_propri > 0 ? (p.utile / p.mezzi_propri) * 100 : null),
+    label: "ROE",
+    spiegazione: "Utile / mezzi propri: quanto rendono i soldi messi dai soci.",
+    calc: roePiano,
+    formato: pct,
   },
   {
-    label: "ROS %",
-    calc: (p) => (p.ricavi > 0 ? (p.utile / p.ricavi) * 100 : null),
+    label: "ROI",
+    spiegazione: "Risultato operativo / (mezzi propri + debiti a lungo): quanto rende il capitale investito.",
+    calc: roiPiano,
+    formato: pct,
   },
   {
-    label: "Margine EBITDA %",
-    calc: (p) => (p.ricavi > 0 ? (p.ebitda / p.ricavi) * 100 : null),
+    label: "ROS",
+    spiegazione: "Risultato operativo / ricavi: quanto resta di ogni 100 € fatturati prima di interessi e imposte.",
+    calc: rosPiano,
+    formato: pct,
   },
   {
-    label: "Indipendenza %",
-    calc: (p) => {
-      const den = p.mezzi_propri + p.debito_mlt;
-      // Indipendenza con MP negativi = non significativa.
-      return den > 0 && p.mezzi_propri >= 0 ? (p.mezzi_propri / den) * 100 : null;
-    },
+    label: "Margine operativo lordo",
+    spiegazione: "EBITDA / ricavi.",
+    calc: margineEbitdaPiano,
+    formato: pct,
+  },
+  {
+    label: "Leva finanziaria",
+    spiegazione: "Debiti a lungo / mezzi propri: sopra 2 la banca ti vede molto indebitato.",
+    calc: levaPiano,
+    formato: (v) => formatNumero(v, 2),
   },
 ];
 
 function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
-  const indiciCalcolati = useMemo(
-    () =>
-      INDICI.map((ind) => ({
-        label: ind.label,
-        valori: periodi.map((p) => ind.calc(p)),
-      })),
+  const calcolati = useMemo(
+    () => INDICI.map((ind) => ({ ...ind, valori: periodi.map((p) => ind.calc(p)) })),
     [periodi],
+  );
+  const motivi = Array.from(
+    new Set(calcolati.flatMap((ind) => ind.valori.filter((v) => v.motivo).map((v) => `${ind.label}: ${v.motivo}`))),
   );
 
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Indici di Bilancio Previsionali</CardTitle>
+        <CardTitle className="text-base">Indici previsionali</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-muted/40">
               <tr>
-                <th className="min-w-[180px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                <th className="sticky left-0 z-10 min-w-[170px] bg-muted px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                   Indice
                 </th>
                 {periodi.map((p) => (
-                  <th
-                    key={p.t}
-                    className="min-w-[100px] px-3 py-2 text-right text-xs font-medium text-muted-foreground"
-                  >
+                  <th key={p.t} className="min-w-[90px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                     {p.anno}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {indiciCalcolati.map((ind) => (
+              {calcolati.map((ind) => (
                 <tr key={ind.label} className="border-t">
-                  <td className="px-3 py-2 font-medium">{ind.label}</td>
+                  <td className="sticky left-0 z-10 bg-card px-3 py-2">
+                    <p className="font-medium">{ind.label}</p>
+                    <p className="text-[11px] text-muted-foreground">{ind.spiegazione}</p>
+                  </td>
                   {ind.valori.map((v, i) => (
                     <td
                       key={i}
-                      className={cn(
-                        "px-3 py-2 text-right tabular-nums",
-                        v !== null && v < 0 && "text-destructive",
-                      )}
+                      className={cn("px-3 py-2 text-right tabular-nums", v.valore !== null && v.valore < 0 && "text-destructive")}
+                      title={v.motivo ?? undefined}
                     >
-                      {formatPctValue(v)}
+                      {v.valore === null ? <span className="text-muted-foreground">n.c.</span> : ind.formato(v.valore)}
                     </td>
                   ))}
                 </tr>
@@ -666,6 +636,11 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
             </tbody>
           </table>
         </div>
+        {motivi.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            n.c. = non calcolabile. {motivi.join(" · ")}.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

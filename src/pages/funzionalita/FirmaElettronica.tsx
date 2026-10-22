@@ -26,7 +26,7 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 const config: FunzionalitaPageConfig = {
   slug: "firma-elettronica",
   definizione:
-    "La Firma Elettronica di Edilizia in Cloud è una firma elettronica avanzata conforme al regolamento eIDAS integrata in tutto il gestionale: il cliente firma preventivi, SAL, varianti, contratti e autorizzazioni dal browser del telefono in trenta secondi, con marca temporale e prova d'identità.",
+    "La Firma Elettronica di Edilizia in Cloud è una firma elettronica avanzata (Regolamento eIDAS art. 26, DPCM 22/02/2013) integrata in tutto il gestionale: il cliente firma preventivi, contratti e verbali dal browser del telefono, con codice monouso e identificazione con documento d'identità al primo utilizzo.",
   vertical: "Firma Elettronica",
   productName: "Firma Elettronica Edilizia in Cloud",
   audience:
@@ -37,9 +37,9 @@ const config: FunzionalitaPageConfig = {
     title:
       "Firma Elettronica per Edilizia",
     description:
-      "Firma elettronica avanzata eIDAS per imprese edili: preventivi, SAL, varianti, contratti, DURC firmati online in 30 secondi dal cliente.",
+      "Firma elettronica avanzata per imprese edili: preventivi, contratti e verbali firmati online dal cliente, con codice monouso e documento d'identità.",
     keywords:
-      "firma elettronica edilizia, firma digitale impresa edile, firma SAL online, firma contratti edili, firma elettronica avanzata eIDAS, marca temporale edilizia, firma preventivi cliente, firma varianti cantiere, archivio firme cloud edilizia",
+      "firma elettronica edilizia, firma digitale impresa edile, firma SAL online, firma contratti edili, firma elettronica avanzata, firma preventivi cliente, firma varianti cantiere, archivio firme cloud edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
@@ -48,16 +48,16 @@ const config: FunzionalitaPageConfig = {
   heroH1Highlight: "in 30 secondi",
   heroH1Tail: "dal telefono del cliente",
   heroSubheadline:
-    "Firma elettronica avanzata conforme eIDAS integrata in tutto il software. Il cliente firma preventivi, SAL, varianti, contratti, DURC e autorizzazioni dal browser del telefono in 30 secondi. Marca temporale, archivio cloud immutabile, validità legale equivalente alla firma autografa. Niente più stampe, scansioni, raccomandate.",
+    "Firma elettronica avanzata integrata in tutto il software. Il cliente firma preventivi, contratti e verbali dal browser del telefono. Documento congelato con impronta, identificazione con documento d'identità, prove conservate 20 anni. Niente più stampe, scansioni, raccomandate.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Conforme eIDAS", "Marca temporale inclusa"],
+  reassurancePoints: ["Avvio assistito", "Firma elettronica avanzata", "Prove conservate 20 anni"],
   proofPoints: [
     "Firma cliente in 30 secondi",
     "Validità legale equivalente firma autografa",
-    "Archivio cloud immutabile + marca temporale",
+    "Archivio delle prove non modificabile, 20 anni",
   ],
 
   objectiveRow: [
@@ -67,16 +67,16 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 380 imprese italiane usano la Firma Elettronica integrata per chiudere preventivi e SAL in giornata.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Firma Elettronica è integrata in ogni modulo: preventivi, SAL, contratti, varianti, ordini fornitori, DURC. La attiviamo in 48 ore, configuriamo i template legali della tua azienda, integriamo la marca temporale e ti accompagniamo in 3 sessioni 1-a-1 finché il primo cliente firma online.",
+    "La Firma Elettronica è integrata in ogni modulo: preventivi, SAL, contratti, varianti, ordini fornitori, DURC. La attiviamo insieme alla tua impresa, configuriamo i template legali della tua azienda e ti accompagniamo in 3 sessioni 1-a-1 finché il primo cliente firma online.",
 
   speedH2: "Stampante, scansione, mail, raccomandata: il SAL impiega 5 giorni. Online: 30 secondi.",
   speedSubheadline:
-    "L'impresa edile media perde 2-5 giorni tra invio del documento, attesa firma, ritorno scansione, archiviazione. Con la firma elettronica il processo è istantaneo: pubblichi → cliente firma da telefono → notifica push a te → archiviato con marca temporale. Tre giorni diventano tre minuti.",
+    "L'impresa edile media perde 2-5 giorni tra invio del documento, attesa firma, ritorno scansione, archiviazione. Con la firma elettronica il processo è istantaneo: pubblichi → cliente firma da telefono → notifica push a te → archiviato con certificato di firma. Tre giorni diventano tre minuti.",
   speedStats: [
     { value: 96, prefix: "-", suffix: "%", label: "tempo medio per chiudere una firma cliente" },
-    { value: 100, suffix: "%", label: "documenti archiviati con marca temporale eIDAS" },
+    { value: 100, suffix: "%", label: "documenti firmati con certificato e codice di verifica" },
     { value: 30, suffix: "s", label: "tempo medio firma cliente da smartphone" },
   ],
 
@@ -87,7 +87,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: FileSignature,
       title: "Firma Elettronica",
-      text: "Firma eIDAS avanzata su preventivi, SAL, varianti, contratti, DURC, ordini fornitori.",
+      text: "Firma elettronica avanzata su preventivi, contratti di subappalto, verbali e moduli.",
       to: "/funzionalita/firma-elettronica",
     },
     {
@@ -123,7 +123,7 @@ const config: FunzionalitaPageConfig = {
   ],
   familyBonusTitle: "Una sola piattaforma. Una sola firma. Tutto archiviato a norma di legge.",
   familyBonusText:
-    "Quando emetti un preventivo, il cliente lo firma online dal portale. Quando il SAL è pronto, il cliente firma dal telefono. Quando il subappaltatore deve accettare, firma dal suo dispositivo. Ogni firma viene timestampata, archiviata in cloud immutabile, esportabile in PDF/A per compliance.",
+    "Quando emetti un preventivo, il cliente lo firma online dal portale. Quando il SAL è pronto, il cliente firma dal telefono. Quando il subappaltatore deve accettare, firma dal suo dispositivo. Ogni firma ha data e ora, impronta del documento e certificato, e le prove si conservano per 20 anni.",
 
   painKicker: "Il problema vero",
   painH2:
@@ -156,14 +156,14 @@ const config: FunzionalitaPageConfig = {
   baKicker: "Prima e dopo Edilizia in Cloud",
   baH2: "Stessi documenti, stessa azienda, stesso valore legale. Cambia il tempo e la prova.",
   baSubheadline:
-    "La firma elettronica avanzata eIDAS ha lo stesso valore legale della firma autografa, con un vantaggio probatorio superiore: marca temporale, log accessi, integrità del file garantita. In più: zero attesa.",
+    "La firma elettronica avanzata soddisfa la forma scritta e ha l'efficacia della scrittura privata (CAD artt. 20-21), con in più le prove: identità verificata, registro degli accessi, impronta del documento. In più: zero attesa.",
   baAreas: [
     {
       title: "Firma di un preventivo",
       before:
         "Stampi 8 pagine, consegni, cliente legge, firma, ritiri, scansioni, archivi. 3-7 giorni. Cliente che ci ripensa nel frattempo, lavoro perso.",
       after:
-        "Pubblichi il preventivo dal software, cliente riceve link via email/SMS, firma dal telefono in 30 secondi. Tu ricevi notifica push, archivio automatico con marca temporale.",
+        "Pubblichi il preventivo dal software, cliente riceve link via email/SMS, firma dal telefono in 30 secondi. Tu ricevi la notifica, il documento firmato si archivia da solo.",
     },
     {
       title: "Firma di un SAL e fattura collegata",
@@ -184,29 +184,29 @@ const config: FunzionalitaPageConfig = {
       before:
         "Cliente contesta 'non avevo approvato'. Cerchi la scansione, la trovi sfocata. Avvocato dice 'firma scansionata ha valore limitato'. Negozi sconto del 20-30%.",
       after:
-        "Esporti dal software il dossier completo: documento originale, firma elettronica avanzata eIDAS, marca temporale, log IP/dispositivo del firmatario. Validità legale piena, giudice accetta in 5 minuti.",
+        "Scarichi il documento firmato con il certificato: chi ha firmato, come è stato identificato, quando, da dove, l'impronta del documento e il codice di verifica.",
     },
   ],
 
   mechanismKicker: "Come funziona",
-  mechanismH2: "Tre passaggi. Niente token USB, niente CIE, niente SPID obbligatorio per il cliente.",
+  mechanismH2: "Tre passaggi. Niente token USB, niente CIE, niente SPID per il cliente.",
   mechanismSubheadline:
-    "La firma elettronica avanzata Edilizia in Cloud è progettata per il cliente medio dell'edilizia: niente strumenti speciali, basta un telefono. Per i contratti che richiedono firma qualificata supportiamo SPID/CIE come opzione aggiuntiva.",
+    "La firma elettronica avanzata Edilizia in Cloud è progettata per il cliente medio dell'edilizia: niente strumenti speciali, basta un telefono. Per gli atti che per legge richiedono la firma digitale (ad esempio le compravendite di immobili) serve una firma qualificata, che questo servizio non sostituisce.",
   mechanismSteps: [
     {
       icon: Send,
       title: "Pubblichi il documento dal software",
-      text: "Un click su 'Invia per firma'. Il documento viene generato in PDF/A, allegato a un link sicuro, inviato al cliente via email + SMS. Notifica anche al portale cliente se attivo.",
+      text: "Un click su 'Invia per firma'. Il documento viene generato in PDF e congelato: il cliente riceve per email un link sicuro e firma esattamente quella copia.",
     },
     {
       icon: PenTool,
       title: "Cliente firma dal telefono in 30 secondi",
-      text: "Cliente apre il link, vede il documento, scorre, conferma identità con OTP via SMS, firma con tracciamento del dispositivo (IP, data, ora, geolocalizzazione opzionale). Firma elettronica avanzata eIDAS valida.",
+      text: "Cliente apre il link, legge il documento, riceve un codice via email o SMS. Al primo documento carica la foto del documento d'identità. Si registrano data, ora, indirizzo di rete e dispositivo.",
     },
     {
       icon: Stamp,
-      title: "Marca temporale + archivio cloud immutabile",
-      text: "Documento firmato riceve marca temporale qualificata, viene archiviato in cloud immutabile (write-once), notifica push al titolare. Esportabile in PDF/A con tutto il dossier probatorio.",
+      title: "Certificato + prove conservate 20 anni",
+      text: "Il documento firmato ha un timbro su ogni pagina e il certificato di firma con codice di verifica. Le prove (documento, identità, registro) vanno in un archivio non modificabile per 20 anni. Notifica al titolare.",
     },
   ],
   mechanismCta: "Prova un flusso di firma",
@@ -229,7 +229,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: ShieldCheck,
       title: "Contestazioni dimezzate, prova probatoria piena",
-      text: "Marca temporale, log IP, hash documento immutabile. In caso di causa, dossier probatorio completo esportabile in 30 secondi. Avvocato vince causa in udienza preliminare.",
+      text: "Identità verificata, registro degli accessi, impronta del documento. In caso di contestazione hai il documento firmato con il suo certificato e le prove conservate.",
     },
     {
       icon: Sparkles,
@@ -241,22 +241,22 @@ const config: FunzionalitaPageConfig = {
   resultsKicker: "Risultati con Edilizia in Cloud",
   resultsH2: "Niente carta. Niente attesa. Niente contestazioni.",
   resultsBody:
-    "La firma elettronica avanzata trasforma documenti che richiedevano giorni in operazioni di pochi secondi, con prova probatoria superiore alla firma autografa scansionata. È il singolo cambiamento operativo con il ROI più rapido in qualsiasi software gestionale.",
+    "La firma elettronica avanzata trasforma documenti che richiedevano giorni in operazioni di pochi secondi, con prove più solide di una firma autografa scansionata. È il singolo cambiamento operativo con il ROI più rapido in qualsiasi software gestionale.",
   integrationPillars: [
     {
       icon: Award,
-      title: "Conformità eIDAS Regolamento UE 910/2014",
-      text: "Firma elettronica avanzata conforme allo standard europeo, validità legale equivalente alla firma autografa in tutta UE, accettata da tribunali italiani e stranieri.",
+      title: "Firma elettronica avanzata",
+      text: "Costruita sui requisiti del Regolamento UE 910/2014 (art. 26) e del DPCM 22/02/2013: identificazione del firmatario, controllo esclusivo del codice, documento non modificabile dopo la firma.",
     },
     {
       icon: Stamp,
-      title: "Marca temporale qualificata inclusa",
-      text: "Ogni documento firmato riceve marca temporale qualificata da Certification Authority accreditata AgID. Prova legale di 'data certa' opponibile a terzi.",
+      title: "Verifica pubblica con codice",
+      text: "Chiunque riceva il documento firmato può controllarlo online con il codice di verifica del certificato, e sapere se il file è identico a quello firmato.",
     },
     {
       icon: Archive,
-      title: "Archivio cloud immutabile write-once",
-      text: "Documenti firmati archiviati in cloud immutabile (write-once-read-many): nessuno può modificarli o cancellarli. Conservazione decennale conforme al CAD italiano.",
+      title: "Prove conservate 20 anni",
+      text: "Documento firmato, copia inviata, identificazione e registro degli eventi in un archivio che non si può modificare, per i 20 anni chiesti dalla legge sulla firma avanzata.",
     },
     {
       icon: Lock,
@@ -295,7 +295,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore di follow-up firme risparmiate/anno", value: `${Math.round(a * 12 * 0.3)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 9 giorni medi di accelerazione cassa per SAL e 0.25% costo finanziario annuo. A questo si aggiungono ore di follow-up risparmiate dal titolare.",
+      "Simulazione illustrativa basata su 9 giorni medi di accelerazione cassa per SAL e 0.25% costo finanziario annuo. A questo si aggiungono ore di follow-up risparmiate dal titolare.",
   },
 
   salesKicker: "Impatto operativo",
@@ -317,7 +317,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       title: "Dossier legale completo per ogni documento",
-      text: "Marca temporale, log accessi, hash crittografico, identità verificata. In caso di causa, esporti tutto in 30 secondi. Avvocato vince in udienza preliminare.",
+      text: "Identità verificata, registro degli accessi, impronta del documento, certificato con codice di verifica. In caso di contestazione hai tutto in un file.",
     },
   ],
 
@@ -325,14 +325,14 @@ const config: FunzionalitaPageConfig = {
   featureH2: "Una firma elettronica che lavora dentro al gestionale, non a fianco.",
   featureRows: [
     {
-      label: "Firma elettronica avanzata eIDAS",
+      label: "Firma elettronica avanzata",
       value:
-        "Conforme al Regolamento UE 910/2014. Validità legale equivalente alla firma autografa, opponibile a terzi, accettata in tribunale.",
+        "Identificazione con documento d'identità al primo utilizzo, codice monouso via email o SMS, documento congelato con impronta. Soddisfa la forma scritta (CAD art. 20).",
     },
     {
-      label: "Marca temporale qualificata inclusa",
+      label: "Certificato e codice di verifica",
       value:
-        "Marca temporale da Certification Authority accreditata AgID, prova di 'data certa' opponibile a terzi, conforme al CAD.",
+        "Timbro su ogni pagina, certificato con chi, quando, da dove e come, e un codice per verificare il documento online.",
     },
     {
       label: "Firma da telefono senza app",
@@ -342,12 +342,12 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Integrazione completa con preventivi, SAL, contratti",
       value:
-        "Un click 'Invia per firma' direttamente dal documento generato. Niente upload manuali, niente conversioni, archiviazione automatica con la marca temporale.",
+        "Un click 'Invia per firma' direttamente dal documento generato. Niente upload manuali, niente conversioni, archiviazione automatica.",
     },
     {
-      label: "Archivio cloud immutabile write-once",
+      label: "Prove conservate 20 anni",
       value:
-        "Documenti firmati archiviati in cloud immutabile, nessuno può modificarli, conservazione decennale conforme CAD italiano.",
+        "Documento firmato, identificazione e registro degli eventi in un archivio non modificabile, per 20 anni.",
     },
     {
       label: "Notifiche multi-canale + remind automatici",
@@ -355,9 +355,9 @@ const config: FunzionalitaPageConfig = {
         "Email + SMS al cliente, remind automatici a 24/48/72 ore se non ha firmato, notifica push al titolare quando il cliente firma.",
     },
     {
-      label: "Supporto SPID e CIE per firme qualificate",
+      label: "Verifica pubblica",
       value:
-        "Per contratti che richiedono firma qualificata, supportiamo SPID e CIE come opzione aggiuntiva. Configurabile per tipo documento.",
+        "Una pagina dove chiunque controlla un documento firmato con il codice del certificato.",
     },
   ],
 
@@ -388,11 +388,11 @@ const config: FunzionalitaPageConfig = {
   faqs: [
     {
       q: "La firma elettronica ha valore legale come la firma autografa?",
-      a: "Sì. La firma elettronica avanzata eIDAS conforme al Regolamento UE 910/2014 ha valore legale equivalente alla firma autografa, opponibile a terzi e accettata in tribunale italiano e UE. In più offre una prova probatoria superiore: marca temporale, log accessi, hash crittografico.",
+      a: "Sì, per la grande maggioranza dei documenti. La firma elettronica avanzata soddisfa la forma scritta e ha l'efficacia della scrittura privata (CAD artt. 20-21). Fanno eccezione gli atti che per legge richiedono la firma digitale, come le compravendite di immobili. In più hai le prove: identità verificata, registro degli accessi, impronta del documento.",
     },
     {
       q: "Il cliente deve avere SPID o CIE?",
-      a: "No. La firma elettronica avanzata Edilizia in Cloud usa OTP via SMS + tracciamento dispositivo, sufficiente per la maggior parte dei documenti edili (preventivi, SAL, varianti, contratti standard). Per contratti che richiedono firma qualificata supportiamo SPID/CIE come opzione aggiuntiva.",
+      a: "No. Al primo documento carica la foto del documento d'identità, poi firma con un codice via email o SMS. Basta per preventivi, contratti e verbali. Per gli atti che per legge richiedono la firma digitale serve una firma qualificata, che questo servizio non sostituisce.",
     },
     {
       q: "Quanto è veloce per il cliente?",
@@ -400,7 +400,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "I documenti firmati sono al sicuro?",
-      a: "Sì. Archivio cloud immutabile write-once-read-many: nessuno può modificarli o cancellarli, neanche noi. Conservazione decennale conforme CAD italiano, hash SHA-256 per garanzia integrità, esportabili in PDF/A in qualsiasi momento.",
+      a: "Sì. Le prove di ogni firma vanno in un archivio che non si può modificare e si conservano 20 anni; l'impronta SHA-256 dimostra che il documento non è cambiato. Il PDF firmato si scarica quando vuoi.",
     },
     {
       q: "Posso usarla anche per contratti subappaltatori e fornitori?",
@@ -408,7 +408,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? È inclusa nel piano?",
-      a: "La firma elettronica avanzata + marca temporale è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud, senza costo per firma. Numero firme illimitato. Il piano Gestionale ha un limite di 50 firme al mese. Cancelli quando vuoi.",
+      a: "La firma elettronica avanzata è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud, senza costo per firma. Numero firme illimitato. Il piano Gestionale ha un limite di 50 firme al mese. Cancelli quando vuoi.",
     },
   ],
 
@@ -425,7 +425,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/funzionalita/gestione-cantieri",
       title: "Gestione Cantieri",
-      text: "SAL e varianti firmati elettronicamente con marca temporale.",
+      text: "SAL e varianti firmati elettronicamente.",
     },
     {
       to: "/funzionalita/portale-clienti",
@@ -466,12 +466,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di stampare, firmare, scansionare. Inizia a chiudere documenti in 30 secondi.",
   finalCtaBody:
-    "31 giorni gratuiti per integrare la firma elettronica eIDAS dentro la tua impresa edile. Setup in 48 ore, marca temporale qualificata inclusa, archivio cloud immutabile. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per integrare la firma elettronica avanzata dentro la tua impresa edile. Avvio assistito, prove conservate 20 anni. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · eIDAS conforme · Marca temporale inclusa",
+  finalCtaMicrocopy: "Avvio assistito · Firma elettronica avanzata · Prove conservate 20 anni",
 
   stickyCtaLabel: "Prova gratis Firma Elettronica",
-  stickyCtaMicrocopy: "Setup 48h · eIDAS conforme",
+  stickyCtaMicrocopy: "Avvio assistito · Firma avanzata",
 
   applicationSubCategory: "Construction Electronic Signature Software",
 

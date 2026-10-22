@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useRef, useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Building2, TrendingUp, Star, Clock } from "lucide-react";
@@ -5,6 +6,7 @@ import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 
 interface Stat {
   icon: React.ElementType;
+  display?: string;
   prefix: string;
   value: number;
   suffix: string;
@@ -17,44 +19,14 @@ interface Stat {
 }
 
 const stats: Stat[] = [
-  {
-    icon: Building2,
-    prefix: "",
-    value: 150,
-    suffix: "+",
-    label: "Imprese Edili Attive",
-    sublabel: "che usano Edilizia in Cloud ogni giorno",
-  },
-  {
-    // Ancorata alla Garanzia ROI 90 giorni (claim verificabile, non stimato):
-    // value 5 + suffix ".000+" → render "€5.000+" col separatore migliaia.
-    // startFrom 1 evita il flash iniziale "€0.000+" durante il count-up.
-    icon: TrendingUp,
-    prefix: "€",
-    value: 5,
-    suffix: ".000+",
-    startFrom: 1,
-    label: "Sprechi Trovati in 90 Giorni",
-    sublabel: "garantito per iscritto: o li trovi, o ti rimborsiamo",
-  },
-  {
-    icon: Star,
-    prefix: "",
-    value: 4.9,
-    suffix: "/5",
-    decimals: 1,
-    startFrom: 4.5,
-    label: "Soddisfazione Media",
-    sublabel: "valutazione media dei nostri clienti attivi",
-  },
-  {
-    icon: Clock,
-    prefix: "",
-    value: 12,
-    suffix: "h",
-    label: "Risparmiate/Settimana",
-    sublabel: "in media per ogni imprenditore che usa il sistema",
-  },
+  { icon: Building2, prefix: "", value: 150, suffix: "+", display: marketingMessages.companies,
+    label: "Scelgono Edilizia in Cloud", sublabel: "per collegare ufficio e cantiere" },
+  { icon: TrendingUp, prefix: "", value: 0, suffix: "", display: "Meno doppioni",
+    label: "Risparmio da misurare", sublabel: "sui processi e sui dati della tua impresa" },
+  { icon: Star, prefix: "", value: 0, suffix: "", display: "Un solo flusso",
+    label: "Dal preventivo al margine", sublabel: "ore, materiali e fatture sulla commessa" },
+  { icon: Clock, prefix: "", value: 0, suffix: "", display: marketingMessages.activation,
+    label: "Con il nostro team", sublabel: "tempi concordati in base ai dati da importare" },
 ];
 
 function useCountUp(target: number, duration: number, active: boolean, decimals = 0, startFrom = 0) {
@@ -117,8 +89,8 @@ function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; 
             {stat.prefix}
           </span>
         )}
-        <span className="text-4xl md:text-6xl font-extrabold tracking-tight" style={{ color: "#F97415" }}>
-          {stat.decimals ? count.toFixed(stat.decimals) : Math.round(count)}
+        <span className="text-2xl md:text-3xl font-extrabold tracking-tight" style={{ color: "#F97415" }}>
+          {stat.display ?? (stat.decimals ? count.toFixed(stat.decimals) : Math.round(count))}
         </span>
         <span className="text-2xl md:text-3xl font-bold" style={{ color: "#F97415" }}>
           {stat.suffix}
@@ -182,10 +154,10 @@ export default function StatsSection() {
               border: "1px solid rgba(249, 116, 21, 0.25)",
             }}
           >
-            I Numeri che Contano
+            Il lavoro collegato
           </p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
-            Risultati <span style={{ color: "#F97415" }}>Reali</span>, Ogni Giorno
+            Più controllo, <span style={{ color: "#F97415" }}>ogni giorno</span>
           </h2>
         </div>
 

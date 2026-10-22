@@ -9,6 +9,7 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
+import { conservaProveFirma } from "../_shared/proveFirma.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -33,6 +34,8 @@ Deno.serve(async (req: Request) => {
     if (r.status !== "signed") return risposta(409, { error: "Il documento non è ancora firmato" });
 
     const esito = await assicuraPdfFirmato(supabaseAdmin, r.id as string);
+    // Se alla firma la conservazione delle prove non era riuscita, si rifà qui.
+    await conservaProveFirma(supabaseAdmin, r.id as string).catch((e) => console.error("Prove non conservate:", e));
     const nomeFile = `documento-firmato-${esito.codiceVerifica}.pdf`;
     const { data: firmato, error } = await supabaseAdmin.storage
       .from("quote-pdfs")

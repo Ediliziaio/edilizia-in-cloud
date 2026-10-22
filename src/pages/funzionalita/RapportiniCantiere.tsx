@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Compilazione in 2 minuti da smartphone",
     "Firma cliente a fine lavori",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane hanno mandato in pensione il blocchetto dei rapportini.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "I Rapportini di Cantiere li attiviamo in 48 ore: installiamo l'app sugli smartphone della squadra, configuriamo cantieri, operai e mezzi, prepariamo il modello PDF con il tuo logo e ti accompagniamo in 2 sessioni 1-a-1 fino al primo rapportino firmato dal cliente. Dal primo giorno i capisquadra compilano dal telefono, l'ufficio smette di decifrare calligrafie.",
+    "I Rapportini di Cantiere li attiviamo insieme alla tua impresa: installiamo l'app sugli smartphone della squadra, configuriamo cantieri, operai e mezzi, prepariamo il modello PDF con il tuo logo e ti accompagniamo in 2 sessioni 1-a-1 fino al primo rapportino firmato dal cliente. Dal primo giorno i capisquadra compilano dal telefono, l'ufficio smette di decifrare calligrafie.",
 
   speedH2:
     "Il blocchetto dei rapportini è il punto dove l'impresa perde ore, materiali e ragioni.",
@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "I Rapportini di Cantiere sono inclusi nei piani Edilizia in Cloud?",
-      a: "Sì, i Rapportini di Cantiere fanno parte del gestionale Edilizia in Cloud, senza limiti sul numero di rapportini, cantieri o utenti in squadra. Nella prova gratuita di 31 giorni li usi completi, con app mobile, firma cliente, PDF con il tuo logo, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+      a: "Sì, i Rapportini di Cantiere fanno parte del gestionale Edilizia in Cloud, senza limiti sul numero di rapportini, cantieri o utenti in squadra. Nella prova gratuita di 31 giorni li usi completi, con app mobile, firma cliente, PDF con il tuo logo, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
     },
   ],
 
@@ -434,12 +434,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di rincorrere fogli scritti a memoria. Inizia a chiudere ogni giornata in 2 minuti, con foto e firma.",
   finalCtaBody:
-    "31 giorni gratuiti per portare i Rapportini di Cantiere dentro la tua impresa edile. App per la squadra, foto e nota vocale, firma cliente a fine lavori, PDF con il tuo logo, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare i Rapportini di Cantiere dentro la tua impresa edile. App per la squadra, foto e nota vocale, firma cliente a fine lavori, PDF con il tuo logo, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · 2 minuti a rapportino · Firma cliente inclusa",
+  finalCtaMicrocopy: "Avvio assistito · 2 minuti a rapportino · Firma cliente inclusa",
 
   stickyCtaLabel: "Prova gratis Rapportini Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · Foto, vocale e firma",
+  stickyCtaMicrocopy: "Avvio assistito · Foto, vocale e firma",
 
   applicationSubCategory: "Construction Daily Report Software",
 

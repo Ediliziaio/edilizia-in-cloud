@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import type { ReactElement } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -233,13 +234,6 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
   const garantieAnim = useScrollAnimation();
   const faqAnim = useScrollAnimation();
 
-  const [scrollY, setScrollY] = useState(0);
-  useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   useSEO({
     title: config.seoTitle,
     description: config.seoDescription,
@@ -272,15 +266,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         "url": `https://www.ediliziaincloud.com${config.seoCanonical}`,
         "provider": { "@id": "https://www.ediliziaincloud.com/#organization" },
         "areaServed": { "@type": "Country", "name": "Italia" },
-        "hasOfferCatalog": {
-          "@type": "OfferCatalog",
-          "name": "Piani Edilizia in Cloud",
-          "itemListElement": [
-            { "@type": "Offer", "name": "Gestionale", "price": 127, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Professionista", "price": 247, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Impresa AI", "price": 547, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" }
-          ]
-        }
+
       }} />
       {/* FAQPage schema per snippet "People Also Ask" e citabilità AI Overviews.
           faqId era già declarato ma mai emesso — il blocco JsonLd è stato
@@ -315,7 +301,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         {/* Background image with parallax */}
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.13]"
-          style={{ backgroundImage: `url(${config.heroImage})`, transform: `translateY(${scrollY * 0.25}px)` }}
+          style={{ backgroundImage: `url(${config.heroImage})` }}
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(13,13,13,0.3) 0%, rgba(13,13,13,0.8) 60%, rgba(13,13,13,1) 100%)" }} />
@@ -350,13 +336,13 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               Prova Gratis 31 Giorni →
             </Link>
             <Link to="/prezzi/" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
-              Vedi i Prezzi
+              Scopri i piani
             </Link>
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-6 mt-8 transition-all duration-700 delay-400 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             {[
-              { Icon: Star, label: "4.9/5 stelle · 150+ imprese" },
-              { Icon: Clock, label: "Setup completo in 48h" },
+              { Icon: Star, label: "4.9/5 stelle · oltre 150 aziende" },
+              { Icon: Clock, label: "Avvio assistito" },
               { Icon: Shield, label: "GDPR" },
             ].map(({ Icon, label }, i) => (
               <span key={i} className="flex items-center gap-2 text-white/45 text-sm">
@@ -517,29 +503,29 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           <div className={`rounded-2xl border border-white/10 bg-white/[0.04] p-6 md:p-8 transition-all duration-700 delay-400 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="text-center md:text-left">
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Totale stimato perso ogni anno</p>
+                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Scenario illustrativo annuo</p>
                 <p className="text-4xl md:text-5xl font-extrabold text-red-400">{config.roi.totalLoss}</p>
               </div>
               <div className="text-white/30 text-3xl font-thin hidden md:block">vs</div>
               <div className="text-center md:text-left">
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Edilizia in Cloud ti costa</p>
-                <p className="text-4xl md:text-5xl font-extrabold text-eic-orange">{config.roi.softwareCost}</p>
-                <p className="text-white/30 text-xs mt-1">all'anno (piano Professionista)</p>
+                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Risparmio effettivo</p>
+                <p className="text-4xl md:text-5xl font-extrabold text-eic-orange">Da misurare</p>
+                <p className="text-white/30 text-xs mt-1">sui tuoi dati, prima e dopo</p>
               </div>
               <div className="text-center">
                 <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-eic-orange/50 bg-eic-orange/10">
-                  <p className="text-white/40 text-[10px] uppercase tracking-wide">ROI</p>
-                  <p className="text-3xl font-extrabold text-eic-orange">{config.roi.roiX}</p>
-                  <p className="text-white/40 text-[10px]">nel 1° anno</p>
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide">Verifica</p>
+                  <p className="text-3xl font-extrabold text-eic-orange">Su misura</p>
+                  <p className="text-white/40 text-[10px]">nella tua impresa</p>
                 </div>
               </div>
             </div>
             <div className="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
               <p className="text-white/40 text-sm">
-                🎯 <span className="text-white/60">31 giorni gratis</span> per verificarlo tu stesso. Se non vedi i risultati, non paghi nulla.
+                {marketingMessages.savingsDetail}
               </p>
               <Link to="/demo/" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-eic-orange text-white font-bold text-sm hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
-                Calcola il tuo ROI reale <ArrowRight size={14} />
+                Valuta il tuo flusso in demo <ArrowRight size={14} />
               </Link>
             </div>
           </div>
@@ -838,7 +824,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               </div>
               <div className="space-y-2 text-gray-600 text-sm leading-relaxed">
                 <p><strong className="text-[#111111]">Non ti lasciamo da solo davanti a uno schermo.</strong></p>
-                <p>Entro 48 ore dall'attivazione, un nostro tecnico configura tutto con te: cantieri, squadre, clienti, fornitori.</p>
+                <p>Un nostro tecnico concorda i tempi di avvio e configura con te: cantieri, squadre, clienti, fornitori.</p>
                 <p className="mt-3 pt-3 border-t border-gray-100">
                   Sei operativo dal primo giorno.<br />
                   <strong className="text-[#111111]">O non ti addebitiamo nulla finché non lo sei.</strong>
@@ -998,15 +984,15 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
             <Link to="/prezzi/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all">
-              Vedi i Prezzi
+              Scopri i piani
             </Link>
           </div>
           {/* Trust icons row */}
           <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-6">
             {[
               { Icon: Shield, label: "Dati al sicuro", sub: "GDPR · Cifratura" },
-              { Icon: Clock, label: "Setup in 48h", sub: "Il team ti configura tutto" },
-              { Icon: TrendingUp, label: "ROI medio 10x", sub: "Nel primo anno" },
+              { Icon: Clock, label: "Avvio assistito", sub: "Il team ti configura tutto" },
+              { Icon: TrendingUp, label: "Risparmio da misurare", sub: "Sui dati della tua impresa" },
             ].map(({ Icon, label, sub }, i) => (
               <div key={i} className="text-center">
                 <div className="w-9 h-9 rounded-full bg-eic-orange/10 flex items-center justify-center mx-auto mb-2">

@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Cronoprogramma per fasi",
     "Conflitti segnalati in automatico",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane dirigono i lavori con cronoprogramma e giornale nello stesso sistema.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Direzione Lavori la attiviamo in 48 ore: carichiamo i cantieri aperti con le loro fasi, costruiamo il cronoprogramma, colleghiamo giornale lavori e calendario squadre e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere pianificato e monitorato. Dalla prima settimana, gli slittamenti si vedono sul cronoprogramma, non si scoprono in cantiere.",
+    "La Direzione Lavori la attiviamo insieme alla tua impresa: carichiamo i cantieri aperti con le loro fasi, costruiamo il cronoprogramma, colleghiamo giornale lavori e calendario squadre e ti accompagniamo in 3 sessioni 1-a-1 fino al primo cantiere pianificato e monitorato. Dalla prima settimana, gli slittamenti si vedono sul cronoprogramma, non si scoprono in cantiere.",
 
   speedH2:
     "Un ritardo visto con due settimane di anticipo si gestisce. Visto il giorno prima, si subisce.",
@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "La Direzione Lavori è inclusa nei piani Edilizia in Cloud?",
-      a: "Sì, gli strumenti di Direzione Lavori — cronoprogramma, calendario con conflitti, giornale lavori e documenti di commessa — fanno parte del gestionale Edilizia in Cloud, senza limiti sul numero di cantieri pianificati. Nella prova gratuita di 31 giorni usi tutto completo, con setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+      a: "Sì, gli strumenti di Direzione Lavori — cronoprogramma, calendario con conflitti, giornale lavori e documenti di commessa — fanno parte del gestionale Edilizia in Cloud, senza limiti sul numero di cantieri pianificati. Nella prova gratuita di 31 giorni usi tutto completo, con avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
     },
   ],
 
@@ -434,12 +434,12 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di dirigere i lavori a telefonate. Inizia a vedere slittamenti e conflitti prima che costino.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Direzione Lavori dentro la tua impresa edile. Cronoprogramma per fasi, calendario con conflitti, giornale lavori e documenti DL sulla commessa, setup in 48 ore e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Direzione Lavori dentro la tua impresa edile. Cronoprogramma per fasi, calendario con conflitti, giornale lavori e documenti DL sulla commessa, avvio assistito e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Cronoprogramma vivo · Conflitti segnalati",
+  finalCtaMicrocopy: "Avvio assistito · Cronoprogramma vivo · Conflitti segnalati",
 
   stickyCtaLabel: "Prova gratis Direzione Lavori",
-  stickyCtaMicrocopy: "Setup 48h · Cronoprogramma + calendario",
+  stickyCtaMicrocopy: "Avvio assistito · Cronoprogramma + calendario",
 
   applicationSubCategory: "Construction Scheduling Software",
 

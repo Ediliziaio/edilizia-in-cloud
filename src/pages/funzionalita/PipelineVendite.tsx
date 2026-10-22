@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Drag&drop kanban",
     "Forecast cassa automatico",
   ],
@@ -68,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano Pipeline Vendite per portare disciplina commerciale e fermare la perdita preventivi.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "La Pipeline Vendite la attiviamo in 48 ore: configuriamo le fasi della tua pipeline, importiamo i preventivi attivi, configuriamo le fonti lead (passaparola, web, social, agenti), attiviamo i trigger di follow-up automatico e ti accompagniamo in 4 sessioni 1-a-1 fino al primo preventivo firmato.",
+    "La Pipeline Vendite la attiviamo insieme alla tua impresa: configuriamo le fasi della tua pipeline, importiamo i preventivi attivi, configuriamo le fonti lead (passaparola, web, social, agenti), attiviamo i trigger di follow-up automatico e ti accompagniamo in 4 sessioni 1-a-1 fino al primo preventivo firmato.",
 
   speedH2:
     "Le imprese edili convertono mediamente il 18% dei preventivi. Con pipeline strutturata sale al 24%. 6 punti che valgono cantieri.",
@@ -214,7 +214,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo Pipeline Vendite",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "+6% di conversione. Forecast cassa attendibile. Marketing che spende dove rende.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "La Pipeline Vendite non è un CRM in più: è il sistema che impedisce ai preventivi di morire nel limbo. Le imprese che la attivano vedono crescere la conversione di 6 punti percentuali e ottenere forecast cassa attendibili per banca e investimenti.",
   commercialLevers: [
@@ -297,7 +297,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Tempo medio chiusura ridotto", value: "-40%" },
     ],
     closingPitch:
-      "Stima prudenziale basata sul +6% di conversione catturata grazie a follow-up automatici e pipeline disciplinata. Aggiungi il valore del marketing redirezionato verso fonti redditizie e del forecast cassa attendibile per banca.",
+      "Simulazione illustrativa basata sul +6% di conversione catturata grazie a follow-up automatici e pipeline disciplinata. Aggiungi il valore del marketing redirezionato verso fonti redditizie e del forecast cassa attendibile per banca.",
   },
 
   salesKicker: "Impatto operativo",
@@ -324,7 +324,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Pipeline kanban drag&drop",
@@ -432,12 +432,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di perdere preventivi nel limbo. Inizia a chiudere il 6% in più senza nuovi lead.",
   finalCtaBody:
-    "31 giorni gratuiti per portare la Pipeline Vendite dentro la tua impresa edile. Setup in 48 ore, kanban drag&drop, follow-up automatici, forecast cassa e conversion analytics inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare la Pipeline Vendite dentro la tua impresa edile. Avvio assistito, kanban drag&drop, follow-up automatici, forecast cassa e conversion analytics inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Kanban drag&drop · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Kanban drag&drop · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Pipeline Vendite",
-  stickyCtaMicrocopy: "Setup 48h · Kanban + forecast cassa",
+  stickyCtaMicrocopy: "Avvio assistito · Kanban + forecast cassa",
 
   applicationSubCategory: "Construction Sales Pipeline Software",
 

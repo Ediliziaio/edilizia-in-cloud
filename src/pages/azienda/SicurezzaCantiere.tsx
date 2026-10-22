@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw, Pencil, Trash2, UserCheck } from "lucide-react";
+import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw, Pencil, Trash2, UserCheck, FileText } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -35,11 +35,18 @@ import type {
 import { STATUS_COLORS, STATUS_LABELS } from "./SicurezzaCantiere/constants";
 import { PosElencoTab } from "@/components/sicurezza/PosElencoTab";
 import { FigureSicurezzaTab } from "@/components/sicurezza/FigureSicurezzaTab";
+import { corpoDuvriHtml } from "@/lib/sicurezza/duvriHtml";
+import { DocumentiSicurezza } from "@/components/sicurezza/DocumentiSicurezza";
+import { useSearchParams } from "react-router-dom";
 import {
   getSupabaseErrorMessage, escapeHtml, readFunctionError, isPastDate,
 } from "./SicurezzaCantiere/helpers";
 
+const SCHEDE = ["pos", "documenti", "figure", "duvri", "verbali", "subappaltatori", "scadenzario"];
+
 export default function SicurezzaCantiere() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const schedaAttiva = SCHEDE.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "pos";
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -90,7 +97,9 @@ export default function SicurezzaCantiere() {
 
   // Fetch POS documents
   const { data: posDocs = [] } = useQuery<Pick<PosDocument, "id" | "status" | "order_id" | "created_at">[]>({
-    queryKey: ["pos-documents", companyId],
+    // Sotto ["pos"]: è la chiave che le mutation di usePos invalidano (prima il
+    // numero dei POS in alto restava vecchio dopo una creazione o eliminazione).
+    queryKey: ["pos", "kpi", companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -254,8 +263,10 @@ export default function SicurezzaCantiere() {
     queryKey: ["has-subappaltatori", selectedOrderId],
     queryFn: async () => {
       if (!companyId || !selectedOrderId) return false;
+      // I subappaltatori della commessa sono quelli dell'elenco sicurezza: un
+      // ordine d'acquisto a un fornitore di materiali non è un subappalto.
       const { count, error } = await supabase
-        .from("purchase_orders")
+        .from("subappaltatori_sicurezza")
         .select("*", { count: "exact", head: true })
         .eq("company_id", companyId)
         .eq("order_id", selectedOrderId);
@@ -374,7 +385,6 @@ export default function SicurezzaCantiere() {
   });
 
   const buildDocHtml = (doc: PrintableSafetyDoc, tipo: "POS" | "DUVRI") => {
-    const contenuto = doc.generated_content || "Nessun contenuto disponibile.";
     const order = orders.find((o) => o.id === doc.order_id);
     const orderLabel = order?.order_code || order?.description || doc.order_id || "";
     const safeOrderLabel = escapeHtml(orderLabel);
@@ -391,7 +401,12 @@ export default function SicurezzaCantiere() {
     h1 { font-size: 1.5rem; border-bottom: 2px solid #333; padding-bottom: 8px; }
     .meta { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; font-size: 0.875rem; color: #555; }
     .meta span { display: flex; gap: 4px; }
-    .content { white-space: pre-wrap; margin-top: 24px; }
+    .content { white-space: pre-wrap; margin-top: 8px; }
+    h2 { font-size: 1.05rem; margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 8px; }
+    th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
+    th { background: #f2f2f2; }
+    table.firme td { height: 40px; width: 65%; }
     @media print { body { margin: 20px; } }
   </style>
 </head>
@@ -402,7 +417,7 @@ export default function SicurezzaCantiere() {
     <span><strong>Stato:</strong> ${safeStatus}</span>
     <span><strong>Generato:</strong> ${safeGeneratedDate}</span>
   </div>
-  <div class="content">${escapeHtml(contenuto)}</div>
+  ${corpoDuvriHtml(doc.generated_content)}
 </body>
 </html>`;
   };
@@ -460,12 +475,16 @@ export default function SicurezzaCantiere() {
       {/* Tabs POS / DUVRI */}
       {/* Mobile: POS, verbali e scadenze (quel che serve in cantiere). Figure e
           DUVRI si preparano al computer; i subappaltatori hanno la loro pagina. */}
-      <Tabs defaultValue="pos">
+      {/* La scheda segue ?tab= (link dalla commessa: «Tutti i verbali e le scadenze»). */}
+      <Tabs value={schedaAttiva} onValueChange={(v) => setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", v); return n; }, { replace: true })}>
         {/* Da 640 le schede stanno a sinistra, larghe quanto servono: su tutta
             la riga restavano sei voci centrate in una fascia grigia. */}
-        <TabsList className="flex flex-nowrap overflow-x-auto scrollbar-none sm:inline-flex sm:max-w-full max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+        <TabsList className="flex flex-nowrap overflow-x-auto scrollbar-none sm:inline-flex sm:max-w-full max-sm:grid max-sm:w-full max-sm:grid-cols-4">
           <TabsTrigger value="pos" className="shrink-0 gap-1.5">
             <HardHat className="h-4 w-4" /> POS
+          </TabsTrigger>
+          <TabsTrigger value="documenti" className="shrink-0 gap-1.5">
+            <FileText className="h-4 w-4" /> Documenti
           </TabsTrigger>
           <TabsTrigger value="figure" className="shrink-0 gap-1.5 max-sm:hidden">
             <UserCheck className="h-4 w-4" /> Figure
@@ -483,6 +502,11 @@ export default function SicurezzaCantiere() {
             <CalendarClock className="h-4 w-4" /> Scadenze
           </TabsTrigger>
         </TabsList>
+
+        {/* ───── DOCUMENTI: archivio di tutti i cantieri (PSC, notifica, PiMUS, DURC…) ───── */}
+        <TabsContent value="documenti" className="mt-4 max-sm:mt-3">
+          {companyId && <DocumentiSicurezza companyId={companyId} />}
+        </TabsContent>
 
         {/* ───── POS TAB: modello ufficiale (DI 9/9/2014) ───── */}
         <TabsContent value="pos" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
@@ -831,6 +855,7 @@ export default function SicurezzaCantiere() {
                           {a.scadenza_data && <span className="text-xs text-muted-foreground">{a.scadenza_data.split("-").reverse().join("/")}</span>}
                         </div>
                         {a.tipo && <p className="text-xs text-muted-foreground capitalize">{a.tipo.replace(/_/g, " ")}</p>}
+                        {a.order_id && (() => { const o = orders.find((x) => x.id === a.order_id); return o ? <p className="text-xs text-muted-foreground">Commessa: {o.order_code ?? o.description}</p> : null; })()}
                         {a.note && <p className="text-xs text-muted-foreground italic mt-1">{a.note}</p>}
                       </div>
                       <Button
@@ -1078,6 +1103,18 @@ export default function SicurezzaCantiere() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            {/* La commessa: prima order_id restava sempre vuoto e la scadenza non
+                si vedeva nel cantiere a cui si riferisce. */}
+            <div className="space-y-1">
+              <Label>Commessa</Label>
+              <Select value={adempimentoForm.order_id || "nessuna"} onValueChange={(v) => setAdempimentoForm((p) => ({ ...p, order_id: v === "nessuna" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Tutta l'azienda" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nessuna">Tutta l'azienda</SelectItem>
+                  {orders.map((o) => <SelectItem key={o.id} value={o.id}>{o.order_code ? `${o.order_code} · ` : ""}{o.description ?? ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label>Titolo *</Label>
               <Input value={adempimentoForm.titolo} onChange={(e) => setAdempimentoForm((p) => ({ ...p, titolo: e.target.value }))} placeholder="es. Corso di aggiornamento sicurezza" />

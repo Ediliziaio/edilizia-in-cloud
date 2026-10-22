@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -52,7 +53,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Firma elettronica eIDAS inclusa",
     "Riconciliazione DDT/fatture automatica",
   ],
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano Ordini Acquisto per portare disciplina nei loro processi di acquisto cantiere.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Gli Ordini Acquisto li attiviamo in 48 ore: importiamo l'anagrafica fornitori, configuriamo i listini storici, attiviamo la firma elettronica eIDAS, integriamo con il cassetto SDI per riconciliazione fatture passive e ti accompagniamo in 4 sessioni 1-a-1 fino al primo PO chiuso.",
+    "Gli Ordini Acquisto li attiviamo insieme alla tua impresa: importiamo l'anagrafica fornitori, configuriamo i listini storici, attiviamo la firma elettronica eIDAS, integriamo con il cassetto SDI per riconciliazione fatture passive e ti accompagniamo in 4 sessioni 1-a-1 fino al primo PO chiuso.",
 
   speedH2:
     "Ordini via WhatsApp + prezzi 'come l'altra volta' = 4-7% di costo extra che si paga senza accorgersene.",
@@ -215,9 +216,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo Ordini Acquisto",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "4% in meno sui costi acquisti. 95% di riconciliazione automatica. Margine cantiere certo.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Gli Ordini Acquisto digitali non rallentano l'operatività cantiere: la rendono tracciabile e controllata. Le imprese che li attivano recuperano in media il 4% sui costi acquisti grazie a prezzi listino e riconciliazioni automatiche.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingDown,
@@ -298,7 +299,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Tempo capocantiere risparmiato/anno", value: `${Math.round(a * 12 * 0.1)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 4% di recupero medio osservato (prezzi listino + contestazioni puntuali su DDT/fatture). Aggiungi il valore del controllo costi cantiere in tempo reale e la negoziazione annuale basata su dato vero.",
+      "Simulazione illustrativa basata sul 4% di recupero medio osservato (prezzi listino + contestazioni puntuali su DDT/fatture). Aggiungi il valore del controllo costi cantiere in tempo reale e la negoziazione annuale basata su dato vero.",
   },
 
   salesKicker: "Impatto operativo",
@@ -325,7 +326,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Generazione PO da app capocantiere",
@@ -433,12 +434,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di ordinare via WhatsApp. Inizia a controllare i prezzi e i tempi cantiere.",
   finalCtaBody:
-    "31 giorni gratuiti per portare gli Ordini Acquisto digitali dentro la tua impresa edile. Setup in 48 ore, listini fornitori, firma eIDAS e riconciliazione automatica DDT/fatture inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare gli Ordini Acquisto digitali dentro la tua impresa edile. Avvio assistito, listini fornitori, firma eIDAS e riconciliazione automatica DDT/fatture inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Firma eIDAS · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Firma eIDAS · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Ordini Acquisto",
-  stickyCtaMicrocopy: "Setup 48h · PO digitali firmati",
+  stickyCtaMicrocopy: "Avvio assistito · PO digitali firmati",
 
   applicationSubCategory: "Construction Purchase Order Software",
 

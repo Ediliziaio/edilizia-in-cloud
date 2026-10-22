@@ -70,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 240 imprese edili italiane gestiscono garanzia decennale e assistenza post-cantiere con il sistema ticket Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Ticket Assistenza è attivo in 48 ore: importiamo i cantieri chiusi degli ultimi 10 anni con date di consegna, configuriamo SLA per tipologia di intervento, attiviamo l'app per i tecnici e il portale di apertura ticket per i clienti. Quattro sessioni 1-a-1 ti accompagnano fino al primo ticket chiuso con dossier completo art. 1669 c.c.",
+    "Il modulo Ticket Assistenza è attivo con tempi concordati: importiamo i cantieri chiusi degli ultimi 10 anni con date di consegna, configuriamo SLA per tipologia di intervento, attiviamo l'app per i tecnici e il portale di apertura ticket per i clienti. Quattro sessioni 1-a-1 ti accompagnano fino al primo ticket chiuso con dossier completo art. 1669 c.c.",
 
   speedH2:
     "L'art. 1669 c.c. ti tiene responsabile per 10 anni. Senza tracciabilità ti difendi a memoria.",
@@ -298,7 +298,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Recensioni 5★ extra/anno", value: `${Math.round(a * 0.3)}` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 1,5h/ticket risparmiate grazie a dossier precaricato e knowledge base. Aggiungi le cause 1669 c.c. vinte e le recensioni 5★ generate dal post-vendita strutturato.",
+      "Simulazione illustrativa basata su 1,5h/ticket risparmiate grazie a dossier precaricato e knowledge base. Aggiungi le cause 1669 c.c. vinte e le recensioni 5★ generate dal post-vendita strutturato.",
   },
 
   salesKicker: "Impatto operativo",
@@ -325,7 +325,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Ticket numerato con priorità e SLA",
@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di ticket?",
-      a: "Il modulo Ticket Assistenza è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con ticket illimitati e tecnici illimitati. Setup in 48 ore, app tecnico inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Ticket Assistenza è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con ticket illimitati e tecnici illimitati. Avvio assistito, app tecnico inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -428,10 +428,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare il post-vendita edile dentro un sistema ticket strutturato. Garanzia decennale art. 1669 c.c., SLA, app tecnico mobile, knowledge base, integrazione portale cliente. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Garanzia 1669 c.c. tracciata · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Garanzia 1669 c.c. tracciata · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Ticket Assistenza",
-  stickyCtaMicrocopy: "Setup 48h · Dossier 1669 c.c. incluso",
+  stickyCtaMicrocopy: "Avvio assistito · Dossier 1669 c.c. incluso",
 
   applicationSubCategory: "Construction Helpdesk Software",
 

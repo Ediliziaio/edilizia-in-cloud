@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import type { CalendarAppointment } from "@/types/calendar";
 
 /**
@@ -43,4 +44,46 @@ export function appuntamentiPerCalendarioLavori(
 ): CalendarAppointment[] {
   if (opts.vedeCrm) return rows;
   return rows.map((a) => (appuntamentoRiservato(a, opts.userId) ? mascheraAppuntamentoRiservato(a) : a));
+}
+
+/** Riga di calendario_impegni_riservati(): solo quando e chi. */
+export type ImpegnoRiservato = Pick<
+  CalendarAppointment,
+  "id" | "appointment_date" | "appointment_time" | "appointment_type" | "assigned_to" | "created_by" | "company_id" | "is_completed"
+> & { appointment_end_time: string | null; calendar_id: string | null; status: string | null };
+
+export async function caricaImpegniRiservati(
+  dal: string,
+  al: string,
+  signal?: AbortSignal,
+): Promise<ImpegnoRiservato[]> {
+  // La funzione non è nei tipi generati: la si chiama come le altre RPC nuove.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any).rpc("calendario_impegni_riservati", { p_dal: dal, p_al: al });
+  if (signal) q = q.abortSignal(signal);
+  const { data, error } = await q;
+  if (error) throw new Error(`Impegni dei colleghi: ${error.message}`);
+  return (data ?? []) as ImpegnoRiservato[];
+}
+
+export function unisciImpegniRiservati(
+  rows: CalendarAppointment[],
+  impegni: ImpegnoRiservato[],
+): CalendarAppointment[] {
+  if (impegni.length === 0) return rows;
+  const presenti = new Set(rows.map((r) => r.id));
+  const extra = impegni
+    .filter((i) => !presenti.has(i.id))
+    .map((i) =>
+      mascheraAppuntamentoRiservato({
+        ...i,
+        title: "",
+        description: null,
+        order_id: null,
+        status: i.status ?? undefined,
+      }),
+    );
+  return [...rows, ...extra].sort((a, b) =>
+    `${a.appointment_date} ${a.appointment_time ?? ""} ${a.id}`.localeCompare(`${b.appointment_date} ${b.appointment_time ?? ""} ${b.id}`),
+  );
 }

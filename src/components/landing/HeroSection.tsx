@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useRef, useState } from "react";
 // GSAP + ScrollTrigger ora lazy: PageSpeed desktop flaggava 90KB di
 // JS + 2.7s di Script Evaluation per animazioni decorative non critiche
@@ -27,7 +28,7 @@ const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "il tu
 
 const microBadges = [
   { Icon: Shield, label: "GDPR Compliant" },
-  { Icon: Zap, label: "Setup in 48h" },
+  { Icon: Zap, label: marketingMessages.activation },
   { Icon: Star, label: "4.9/5 stelle" },
 ];
 
@@ -209,7 +210,7 @@ export default function HeroSection() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
             </span>
-            <span className="relative">Gestionale con AI per imprese edili — 150+ aziende già attive</span>
+            <span className="relative">Gestionale con AI per imprese edili — {marketingMessages.companies}</span>
           </span>
         </div>
 
@@ -217,7 +218,7 @@ export default function HeroSection() {
         <div className="gsap-hero-item">
           <h1 className="mx-auto mb-4 max-w-6xl font-extrabold leading-[1.03] tracking-tight md:mb-5">
             <span className="block text-white text-[clamp(2.15rem,5.1vw,5.25rem)]">
-              Aumenta margini, utili e guadagni.
+              Sai quanto rende ogni cantiere.
             </span>
             {/* SEO 2026-09-07: l'H1 della home non conteneva mai la keyword
                 ("gestionale edilizia"): chi la cercava trovava una pagina che
@@ -245,7 +246,7 @@ export default function HeroSection() {
           </div>
 
           <p className="text-sm md:text-base text-white/70 mb-0 max-w-xl mx-auto">
-            Il gestionale con AI costruito da zero per l'edilizia italiana: margini reali per commessa, cassa a 90 giorni, cantieri sotto controllo.
+            Preventivi, fasi, squadre, ore, materiali e fatture collegati alla commessa. Dall’ufficio al cantiere, vedi costi previsti, costi reali e margine senza ricopiare i dati.
           </p>
         </div>
 

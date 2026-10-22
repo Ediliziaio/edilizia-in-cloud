@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState, useMemo } from "react";
 import { useSEO, SITE_URL, WIKIDATA_ENTITY } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -235,7 +236,8 @@ export default function Funzionalita() {
           style={{ background: "radial-gradient(circle, #F97415 0%, transparent 70%)" }}
         />
 
-        <div className="max-w-6xl mx-auto relative">
+        <div className="max-w-6xl mx-auto relative grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className="max-w-3xl">
             <span className="inline-flex items-center gap-2 bg-eic-orange/10 text-eic-orange text-[11px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
               <Sparkles className="w-3 h-3" />
@@ -246,19 +248,19 @@ export default function Funzionalita() {
               Una piattaforma.{" "}
               <span className="text-eic-orange">{TOTAL_COUNT} funzionalità.</span>
               <br />
-              Zero integrazioni esterne.
+              Un flusso di lavoro collegato.
             </h1>
 
             <p className="text-base md:text-lg text-[#111111]/65 leading-relaxed mb-10 max-w-2xl">
               Cantieri, fatturazione SDI, Cassa Edile, CRM, marketing, AI e Render —
-              integrati e sincronizzati in tempo reale. Tutto incluso, qualunque piano scegli.
+              in una piattaforma condivisa. Le funzionalità disponibili seguono il piano e i servizi attivati.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl">
               {[
-                { value: `${TOTAL_COUNT}+`, label: "Funzionalità incluse" },
-                { value: "Zero", label: "Add-on a pagamento" },
-                { value: "48h", label: "Setup completo" },
+                { value: `${TOTAL_COUNT}+`, label: "Aree da esplorare" },
+                { value: "Unico", label: "Ambiente di lavoro" },
+                { value: "Assistito", label: "Avvio della piattaforma" },
                 { value: "100%", label: "Made for edilizia" },
               ].map((stat) => (
                 <div
@@ -272,6 +274,8 @@ export default function Funzionalita() {
             </div>
           </div>
         </div>
+<MarketingVisual theme="automation" priority caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* ── STICKY FILTERS + SEARCH ──────────────────────────────────────── */}
@@ -394,7 +398,7 @@ export default function Funzionalita() {
             {[
               { icon: CheckCircle2, label: "Aggiornamenti mensili gratuiti" },
               { icon: CheckCircle2, label: "Nessun costo per moduli aggiuntivi" },
-              { icon: Zap, label: "Setup in 48 ore" },
+              { icon: Zap, label: "Avvio assistito" },
               { icon: Headphones, label: "Supporto WhatsApp dedicato" },
               { icon: ShieldCheck, label: "GDPR Compliant · Made in Italy" },
             ].map((b) => (
@@ -420,7 +424,7 @@ export default function Funzionalita() {
               to="/prezzi/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111111]/15 hover:border-eic-orange text-[#111111] hover:text-eic-orange font-bold text-base transition-colors"
             >
-              Vedi i prezzi
+              Scopri i piani
             </Link>
           </div>
         </div>

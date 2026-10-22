@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +27,7 @@ import { useCompanyStructure } from "@/hooks/controlloGestione/useCompanyStructu
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/formatters";
+import { percIt } from "@/lib/controlloGestione/formatoCG";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Hammer, AlertTriangle, Timer } from "lucide-react";
@@ -64,11 +65,12 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 
 export function TabCommesse({ anno }: Props) {
   const [filter, setFilter] = useState<"all" | "in_corso" | "completato" | "assistenza">("all");
-  const [sortBy, setSortBy] = useState<"preventivo" | "manodopera">("preventivo");
+  const [sortBy, setSortBy] = useState<"preventivo" | "manodopera" | "perdita">("preventivo");
   // Mobile: numeri senza spiegazioni, filtro di stato e una riga per cantiere
   // (nome, cliente, margine a fine lavori). Ordinamento, semaforo riassunto,
   // formula ed esportazione restano al desktop.
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const statusFilter = filter === "all" ? null : filter;
   const q = useMarginalitaCommesse(anno, statusFilter);
   const { effectiveCompany } = useAuth();
@@ -113,10 +115,13 @@ export function TabCommesse({ anno }: Props) {
   const counts = useMemo(() => {
     if (!q.data) return null;
     const bySem: Record<Semaforo, number> = { verde: 0, giallo: 0, rosso: 0, grigio: 0 };
+    let senzaDati = 0;
     q.data.righe.forEach((r) => {
       bySem[r.semaforo] = (bySem[r.semaforo] ?? 0) + 1;
+      if (r.semaforo === "grigio" && !r.dati_economici_completi) senzaDati++;
     });
-    return bySem;
+    // «Non valutabile» = senza costi o preventivo, oppure ancora sotto il 20% di avanzamento.
+    return { ...bySem, senzaDati, troppoPresto: bySem.grigio - senzaDati };
   }, [q.data]);
 
   // Manodopera aggregata: soldi (€), tempo (ore) e incidenza sui costi diretti.
@@ -136,7 +141,11 @@ export function TabCommesse({ anno }: Props) {
   const righeSorted = useMemo(() => {
     if (!q.data) return [];
     const arr = [...q.data.righe];
-    if (sortBy === "manodopera") {
+    if (sortBy === "perdita") {
+      // Prima le commesse in perdita, dalla perdita più grande.
+      const chiave = (r: CommessaRiga) => (r.margine_atteso !== null && r.margine_atteso < 0 ? r.margine_atteso : Infinity);
+      arr.sort((a, b) => chiave(a) - chiave(b));
+    } else if (sortBy === "manodopera") {
       const incid = (r: CommessaRiga) => (r.consuntivo > 0 ? (r.costo_manodopera ?? 0) / r.consuntivo : 0);
       arr.sort((a, b) => incid(b) - incid(a) || (b.costo_manodopera ?? 0) - (a.costo_manodopera ?? 0));
     }
@@ -156,23 +165,27 @@ export function TabCommesse({ anno }: Props) {
     <TooltipProvider delayDuration={150}>
     <div className="space-y-4">
       {/* KPI bar */}
-      <p className="text-xs text-muted-foreground">{anno}: {kpi.n_anno ?? kpi.n_commesse} commesse · Pregresso da gestire: {kpi.n_pregresso ?? 0}. Archiviate escluse; stati ricavati dal workflow, avanzamento separato.</p>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+      <p className="text-xs text-muted-foreground">
+        Commesse del {anno}: quelle aperte nel {anno} ({kpi.n_anno ?? kpi.n_commesse})
+        {(kpi.n_pregresso ?? 0) > 0 && <> più {kpi.n_pregresso} degli anni prima ancora da chiudere (cantiere aperto o rate da incassare)</>}.
+        {" "}Le commesse archiviate non ci sono. Clicca una riga per aprire la commessa.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         <KPIMini
           label="Commesse"
           value={String(kpi.n_commesse)}
-          sub={`${kpi.n_in_corso} da completare · ${kpi.n_completate} completate · ${kpi.n_assistenza ?? 0} in assistenza`}
+          sub={`${kpi.n_in_corso} in lavorazione · ${kpi.n_completate} finite · ${kpi.n_assistenza ?? 0} in assistenza`}
         />
         <KPIMini
           label="Preventivato"
           value={formatCurrency(kpi.preventivo_totale)}
-          sub="Valore contratti"
+          sub="Contratti più varianti approvate, senza IVA"
           tone="blue"
         />
         <KPIMini
-          label="Consuntivato"
+          label="Costi sostenuti"
           value={formatCurrency(kpi.consuntivo_totale)}
-          sub="Costi diretti sostenuti"
+          sub="Costi diretti delle commesse valutabili"
           tone="amber"
         />
         <KPIMini
@@ -180,26 +193,35 @@ export function TabCommesse({ anno }: Props) {
           value={labor ? formatCurrency(labor.costo) : "—"}
           sub={
             labor
-              ? `${labor.ore.toLocaleString("it-IT")} ore${labor.incidenza !== null ? ` · ${labor.incidenza.toFixed(0)}% dei costi` : ""}`
+              ? `${labor.ore.toLocaleString("it-IT")} ore${labor.incidenza !== null ? ` · ${percIt(labor.incidenza, 0)} dei costi` : ""}`
               : "—"
           }
           tone="amber"
         />
         <KPIMini
-          label="Margine atteso fine"
+          label="Margine atteso a fine lavori"
           value={kpi.preventivo_valutabile > 0 ? formatCurrency(kpi.margine_atteso_totale) : "—"}
           sub={
             kpi.preventivo_valutabile > 0
-              ? `${((kpi.margine_atteso_totale / kpi.preventivo_valutabile) * 100).toFixed(1)}% sui dati valutabili`
+              ? `${percIt((kpi.margine_atteso_totale / kpi.preventivo_valutabile) * 100)} sulle commesse valutabili`
               : "Costi da completare"
           }
           tone={kpi.preventivo_valutabile <= 0 ? "amber" : kpi.margine_atteso_totale > 0 ? "green" : "red"}
         />
         <KPIMini
-          label={kpi.n_da_completare > 0 ? "Dati da completare" : "Commesse in perdita"}
-          value={String(kpi.n_da_completare > 0 ? kpi.n_da_completare : kpi.n_in_perdita)}
-          sub={kpi.n_da_completare > 0 ? "Margine non ancora valutabile" : kpi.n_in_perdita > 0 ? "Richiede attenzione" : "Tutte ok"}
-          tone={kpi.n_da_completare > 0 ? "amber" : kpi.n_in_perdita > 0 ? "red" : "green"}
+          label="Stimate in perdita"
+          value={String(kpi.n_in_perdita)}
+          sub={kpi.n_in_perdita > 0 ? "A fine lavori i costi supereranno il preventivo" : "Nessuna commessa in perdita"}
+          tone={kpi.n_in_perdita > 0 ? "red" : "green"}
+          onClick={kpi.n_in_perdita > 0 ? () => setSortBy("perdita") : undefined}
+        />
+        <KPIMini
+          label="Non valutabili"
+          value={String(counts?.grigio ?? 0)}
+          sub={counts && counts.grigio > 0
+            ? `${counts.senzaDati} senza costi o preventivo · ${counts.troppoPresto} sotto il 20% di avanzamento`
+            : "Tutte valutabili"}
+          tone={counts && counts.grigio > 0 ? "amber" : "neutral"}
         />
         {isMobile ? null : quotaStruttura !== null ? (
           <KPIMini
@@ -209,7 +231,7 @@ export function TabCommesse({ anno }: Props) {
             tone="blue"
           />
         ) : (
-          <Card className="rounded-2xl border-dashed bg-muted/30">
+          <Card className="min-w-0 rounded-2xl border-dashed bg-muted/30">
             <CardContent className="p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Quota struttura</p>
               <p className="mt-0.5 text-lg font-bold text-muted-foreground">—</p>
@@ -251,6 +273,7 @@ export function TabCommesse({ anno }: Props) {
             >
               <ToggleGroupItem value="preventivo" variant="outline" size="sm">Valore</ToggleGroupItem>
               <ToggleGroupItem value="manodopera" variant="outline" size="sm">Incidenza manodopera</ToggleGroupItem>
+              <ToggleGroupItem value="perdita" variant="outline" size="sm">Prima le perdite</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -272,12 +295,13 @@ export function TabCommesse({ anno }: Props) {
       {isMobile && righe.length > 0 && (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {righe.map((r) => (
-            <li key={r.id} className="flex items-center gap-2.5 py-2 pl-0 pr-3">
+            <li key={r.id}>
+              <Link to={`/azienda/ordini/${r.id}`} className="flex items-center gap-2.5 py-2 pl-0 pr-3 active:bg-muted/40">
               <span className={cn("block h-9 w-1 shrink-0 rounded-r", SEMAFORO_COLORS[r.semaforo])} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium leading-tight">{r.description || r.order_code}</p>
                 <p className="truncate text-[11px] text-muted-foreground">
-                  {r.cliente ?? "—"} · {(r.pct_avanzamento * 100).toFixed(0)}%
+                  {r.cliente ?? "—"} · {percIt(r.pct_avanzamento * 100, 0)}
                 </p>
               </div>
               <div className="shrink-0 text-right tabular-nums">
@@ -289,9 +313,10 @@ export function TabCommesse({ anno }: Props) {
                   {r.margine_atteso !== null ? formatCurrencyCompact(r.margine_atteso) : "—"}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {r.margine_atteso_perc !== null ? `${r.margine_atteso_perc.toFixed(0)}%` : "n.v."}
+                  {r.margine_atteso_perc !== null ? percIt(r.margine_atteso_perc, 0) : "non valutabile"}
                 </p>
               </div>
+              </Link>
             </li>
           ))}
         </ul>
@@ -303,10 +328,11 @@ export function TabCommesse({ anno }: Props) {
           <div>
             <CardTitle className="text-base">Marginalità per cantiere</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Margine atteso = Preventivo − (Consuntivo / % avanzamento), stimato dal 20% di avanzamento in su
-              (sotto è troppo presto → «non valutabile»). Semaforo verde se ≥ 15%, rosso se &lt; 0.
-              La colonna Tempo mostra il margine <em>al mese</em>: sotto la quota di struttura, il cantiere
-              non sta pagando l'affitto dell'azienda.
+              Stesso calcolo della scheda commessa: costi con la manodopera al costo orario per tipo e i rientri di
+              magazzino, avanzamento dalle fasi. Margine a fine lavori = preventivo − costi ÷ avanzamento, stimato dal
+              20% di avanzamento in su (prima è troppo presto: «non valutabile»). Verde da 15% in su, rosso sotto zero.
+              La colonna Tempo mostra il margine <em>al mese</em>: sotto la quota di struttura il cantiere non paga
+              l'affitto dell'azienda.
             </p>
           </div>
           <ExportButton
@@ -346,9 +372,9 @@ export function TabCommesse({ anno }: Props) {
                     return {
                       ...r,
                       margine_export: r.dati_economici_completi ? r.margine : null,
-                      pct_disp: `${(r.pct_avanzamento * 100).toFixed(0)}%`,
+                      pct_disp: percIt(r.pct_avanzamento * 100, 0),
                       incid_mo: r.consuntivo > 0
-                        ? `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}%`
+                        ? percIt((r.costo_manodopera / r.consuntivo) * 100, 0)
                         : "—",
                       mesi_apertura: mesi !== null ? fmtMesi(mesi) : "—",
                       margine_mese: alMese !== null ? Math.round(alMese) : null,
@@ -388,7 +414,15 @@ export function TabCommesse({ anno }: Props) {
                 </thead>
                 <tbody>
                   {righe.map((r) => (
-                    <tr key={r.id} className="border-t hover:bg-muted/20">
+                    <tr
+                      key={r.id}
+                      className="cursor-pointer border-t hover:bg-muted/20"
+                      onClick={(e) => {
+                        // Il link del nome gestisce da solo il clic (anche con Ctrl/Cmd).
+                        if ((e.target as HTMLElement).closest("a")) return;
+                        navigate(`/azienda/ordini/${r.id}`);
+                      }}
+                    >
                       <td className="px-1">
                         <span className={cn("block h-8 w-1.5 rounded-r", SEMAFORO_COLORS[r.semaforo])} />
                       </td>
@@ -396,14 +430,19 @@ export function TabCommesse({ anno }: Props) {
                         <div className="flex items-start gap-2">
                           <Hammer className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <div className="min-w-0">
-                            <p className="truncate font-medium">
+                            <Link to={`/azienda/ordini/${r.id}`} className="block truncate font-medium hover:text-primary hover:underline">
                               {r.order_code && (
                                 <span className="mr-1 font-mono text-xs text-muted-foreground">
                                   {r.order_code}
                                 </span>
                               )}
                               {r.description}
-                            </p>
+                            </Link>
+                            {r.creation_year !== undefined && r.creation_year < anno && (
+                              <Badge variant="outline" className="mt-0.5 text-[10px] font-normal">
+                                Del {r.creation_year} · {r.work_state === "completed" ? "rate da incassare" : "ancora aperta"}
+                              </Badge>
+                            )}
                             <p className="truncate text-xs text-muted-foreground">
                               {r.cliente ?? "—"}
                               {r.work_start && ` · dal ${formatDate(r.work_start)}`}
@@ -430,7 +469,7 @@ export function TabCommesse({ anno }: Props) {
                                   : "text-muted-foreground",
                               )}
                             >
-                              {r.consuntivo > 0 && `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}% costi`}
+                              {r.consuntivo > 0 && `${percIt((r.costo_manodopera / r.consuntivo) * 100, 0)} dei costi`}
                               {r.ore_manodopera > 0 && ` · ${r.ore_manodopera.toLocaleString("it-IT")} h`}
                             </span>
                           </>
@@ -442,7 +481,7 @@ export function TabCommesse({ anno }: Props) {
                         <div className="flex items-center gap-2">
                           <Progress value={Math.min(r.pct_avanzamento * 100, 100)} className="h-2 w-16" />
                           <span className="text-xs tabular-nums text-muted-foreground">
-                            {(r.pct_avanzamento * 100).toFixed(0)}%
+                            {percIt(r.pct_avanzamento * 100, 0)}
                           </span>
                         </div>
                       </td>
@@ -463,7 +502,7 @@ export function TabCommesse({ anno }: Props) {
                           <>
                             {formatCurrency(r.margine)}
                             <span className="ml-1 text-[10px] text-muted-foreground">
-                              ({r.margine_perc.toFixed(1)}%)
+                              ({percIt(r.margine_perc)})
                             </span>
                           </>
                         ) : (
@@ -485,12 +524,14 @@ export function TabCommesse({ anno }: Props) {
                             {formatCurrency(r.margine_atteso)}
                             {r.margine_atteso_perc !== null && (
                               <span className="ml-1 text-[10px] text-muted-foreground">
-                                ({r.margine_atteso_perc.toFixed(1)}%)
+                                ({percIt(r.margine_atteso_perc)})
                               </span>
                             )}
                           </>
                         ) : (
-                          "—"
+                          <span className="text-xs text-muted-foreground">
+                            {r.dati_economici_completi ? "Sotto il 20%: troppo presto" : "—"}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -606,12 +647,13 @@ function CellaTempo({
 }
 
 function KPIMini({
-  label, value, sub, tone = "neutral",
+  label, value, sub, tone = "neutral", onClick,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "neutral" | "blue" | "green" | "amber" | "red";
+  onClick?: () => void;
 }) {
   const palette: Record<typeof tone, string> = {
     neutral: "bg-muted/40",
@@ -621,10 +663,16 @@ function KPIMini({
     red: "bg-rose-50",
   };
   return (
-    <Card className={cn("rounded-2xl border-0", palette[tone])}>
+    <Card
+      className={cn("min-w-0 rounded-2xl border-0", palette[tone], onClick && "cursor-pointer hover:ring-1 hover:ring-primary/30")}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+    >
       <CardContent className="p-3 max-sm:py-2.5">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-lg font-bold tabular-nums max-sm:text-base">{value}</p>
+        <p className="mt-0.5 break-words text-lg font-bold leading-tight tabular-nums max-sm:text-base">{value}</p>
         {sub && <p className="text-[11px] text-muted-foreground max-sm:hidden">{sub}</p>}
       </CardContent>
     </Card>

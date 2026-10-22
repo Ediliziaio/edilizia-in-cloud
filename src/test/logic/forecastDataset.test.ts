@@ -27,6 +27,9 @@ function fakeClient(
         not: () => chain,
         gte: () => chain,
         lte: () => chain,
+        or: () => chain,
+        in: () => chain,
+        like: () => chain,
         eq(column: string, value: unknown) {
           filters.push({ table, column, value });
           return chain;
@@ -148,7 +151,7 @@ describe("forecast sources", () => {
       ),
     ).toEqual(new Set(["company-A"]));
     const tables = new Set(filters.map((f) => f.table));
-    expect(tables.size).toBe(19);
+    expect(tables.size).toBe(21);
     for (const table of tables)
       expect(
         filters.some(

@@ -34,16 +34,19 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Ordine non trovato", 404, corsH);
     }
 
-    // Fetch subappaltatori tramite purchase_orders
-    const { data: purchaseOrders } = await supabaseAdmin
-      .from("purchase_orders")
-      .select("supplier_id, suppliers(name)")
+    // I subappaltatori della commessa sono quelli dell'elenco sicurezza: prima si
+    // prendeva ogni fornitore con un ordine d'acquisto, e il fornitore di
+    // materiali finiva nel DUVRI come impresa che lavora in cantiere.
+    const { data: subSicurezza } = await supabaseAdmin
+      .from("subappaltatori_sicurezza")
+      .select("id, ragione_sociale, tipo_lavori")
       .eq("company_id", company_id)
       .eq("order_id", order_id);
 
-    const subappaltatori = (purchaseOrders || [])
-      .map((po: any) => ({ id: po.supplier_id, nome: po.suppliers?.name || "Sconosciuto" }))
-      .filter((s: any) => s.nome !== "Sconosciuto");
+    type SubDuvri = { id: string; nome: string; lavori: string };
+    const subappaltatori: SubDuvri[] = ((subSicurezza || []) as Array<{ id: string; ragione_sociale: string | null; tipo_lavori: string | null }>)
+      .map((s) => ({ id: s.id, nome: s.ragione_sociale || "", lavori: s.tipo_lavori || "" }))
+      .filter((s) => s.nome);
 
     // Fetch anagrafica
     const { data: anagrafica } = await supabaseAdmin
@@ -52,11 +55,21 @@ Deno.serve(async (req: Request) => {
       .eq("company_id", company_id)
       .maybeSingle();
 
+    // Fasi della commessa: dicono quando le imprese lavorano insieme (le interferenze).
+    const { data: fasi } = await supabaseAdmin
+      .from("order_work_phases")
+      .select("name, start_date, end_date")
+      .eq("company_id", company_id)
+      .eq("order_id", order_id)
+      .order("position");
+
     const cantiereData = {
       descrizione_lavori: order.description,
       committente: anagrafica?.ragione_sociale || "Non specificato",
-      subappaltatori: subappaltatori.map((s: any) => s.nome),
+      subappaltatori: subappaltatori.map((s) => (s.lavori ? `${s.nome}: ${s.lavori}` : s.nome)),
       numero_subappaltatori: subappaltatori.length,
+      fasi_di_lavoro: (fasi ?? []).map((f: { name: string; start_date: string | null; end_date: string | null }) =>
+        [f.name, f.start_date ? `dal ${f.start_date}` : "", f.end_date ? `al ${f.end_date}` : ""].filter(Boolean).join(" ")),
       costi_sicurezza_stimati: Number(costi_sicurezza) || 0,
     };
     const idempotencyKey = await buildStableAiIdempotencyKey("duvri_generate", [

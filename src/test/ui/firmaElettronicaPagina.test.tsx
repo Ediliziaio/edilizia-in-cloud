@@ -60,11 +60,11 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe("Firma elettronica: due sezioni, un solo titolo di pagina", () => {
-  it("niente titolo di pagina (lo mette il layout) e due sezioni con il loro titolo", async () => {
+describe("Firma elettronica: tre sezioni, un solo titolo di pagina", () => {
+  it("niente titolo di pagina (lo mette il layout) e tre sezioni con il loro titolo", async () => {
     open(); await caricata();
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Firma dei preventivi", "Firma con il codice"]);
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Firma dei preventivi", "Valore della firma", "Firma con il codice"]);
   });
 
   it("dice a quali documenti vale ciascuna sezione", async () => {

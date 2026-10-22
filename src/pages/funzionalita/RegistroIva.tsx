@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Archive,
@@ -67,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 290 imprese edili italiane gestiscono i registri IVA in automatico dal cassetto SDI con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Registro IVA è attivo in 48 ore: connettiamo il tuo cassetto SDI in modalità autorizzata, importiamo lo storico fatture degli ultimi 5 anni, configuriamo regole di registrazione (split payment, reverse charge edilizia, esenzioni). Quattro sessioni 1-a-1 ti accompagnano fino alla prima liquidazione periodica IVA generata automaticamente senza data entry.",
+    "Il modulo Registro IVA è attivo con tempi concordati: connettiamo il tuo cassetto SDI in modalità autorizzata, importiamo lo storico fatture degli ultimi 5 anni, configuriamo regole di registrazione (split payment, reverse charge edilizia, esenzioni). Quattro sessioni 1-a-1 ti accompagnano fino alla prima liquidazione periodica IVA generata automaticamente senza data entry.",
 
   speedH2: "Registri IVA fatti a mano = 2,5 minuti per fattura. Su 500 fatture/anno sono 21 ore.",
   speedSubheadline:
@@ -211,9 +212,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri il modulo registro IVA in demo",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Registri automatici = -80% tempo commercialista + zero errori reverse charge.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Le imprese edili che attivano il modulo Registro IVA recuperano in media l'80% del tempo di commercialista dedicato alla data entry, eliminano gli errori di reverse charge edilizia e azzerano le sanzioni LIPE tardive. Il commercialista smette di essere registratore e torna a essere consulente.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: TrendingUp,
@@ -294,7 +295,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Sanzioni LIPE potenzialmente evitate", value: "fino a 2.000€" },
     ],
     closingPitch:
-      "Stima prudenziale basata su 2,5 minuti per fattura risparmiati grazie a registrazione SDI automatica. Aggiungi le sanzioni reverse charge evitate, le LIPE puntuali e la verifica GdF chiusa in 5 minuti.",
+      "Simulazione illustrativa basata su 2,5 minuti per fattura risparmiati grazie a registrazione SDI automatica. Aggiungi le sanzioni reverse charge evitate, le LIPE puntuali e la verifica GdF chiusa in 5 minuti.",
   },
 
   salesKicker: "Impatto operativo",
@@ -321,7 +322,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Registri IVA automatici da SDI",
@@ -400,7 +401,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di fatture?",
-      a: "Il modulo Registro IVA è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con fatture illimitate, conservazione decennale inclusa, accesso commercialista incluso. Setup in 48 ore, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Registro IVA è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con fatture illimitate, conservazione decennale inclusa, accesso commercialista incluso. Avvio assistito, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -424,10 +425,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare il registro IVA edilizia in automatico dal cassetto SDI. Reverse charge edilizia preconfigurato, LIPE telematica, conservazione decennale CAD, accesso commercialista. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · SDI integrato · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · SDI integrato · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Registro IVA",
-  stickyCtaMicrocopy: "Setup 48h · SDI automatico",
+  stickyCtaMicrocopy: "Avvio assistito · SDI automatico",
 
   applicationSubCategory: "Construction VAT Register Software",
 

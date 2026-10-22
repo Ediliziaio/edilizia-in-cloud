@@ -1,3 +1,4 @@
+import { isVideoUploadDate } from "@/lib/seo/videoMetadata";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -558,7 +559,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
   // al meccanismo in 3 passi.
   const video =
     config.videoSrc && config.videoPoster
-      ? { src: config.videoSrc, poster: config.videoPoster, uploadDate: config.videoUploadDate || "2026-04-27" }
+      ? { src: config.videoSrc, poster: config.videoPoster, uploadDate: config.videoUploadDate }
       : null;
 
   // ROI calc defaults — tuned per vertical
@@ -629,7 +630,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           },
         }}
       />
-      {video && (
+      {video && isVideoUploadDate(video.uploadDate) && (
         <JsonLd
           id={`jsonld-video-${config.slug}`}
           data={{

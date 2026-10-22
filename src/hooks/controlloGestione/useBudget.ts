@@ -1,49 +1,19 @@
 /**
- * Hook React Query — Budget vs Consuntivo + Forecast.
+ * Hook React Query — Budget contro consuntivo e previsione di fine anno.
+ *
+ * Il confronto parte dallo STESSO conto economico della scheda CE
+ * (cg_get_ce_safe sui mesi chiusi): prima c'era una RPC a parte
+ * (cg_get_budget_consuntivo_forecast_safe) che per la stessa voce dava numeri
+ * diversi dal CE e non calcolava il budget dei totali (EBITDA, utile).
  */
 
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import type { Semaforo } from "./useMarginalitaCommesse";
-import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
+import { useCEriclassificato } from "@/hooks/controlloGestione/useCEriclassificato";
+import { costruisciBudget, mesiChiusi, type RiepilogoBudget } from "@/lib/controlloGestione/budgetCE";
 
-export interface VoceBudget {
-  codice: string;
-  label: string;
-  tipo: "voce" | "subtot" | "subtot_grasso";
-  budget: number;
-  consuntivo_ytd: number;
-  forecast_anno: number;
-  variance_eur: number;
-  variance_pct: number | null;
-  semaforo: Semaforo;
-}
-
-export interface BudgetResult {
-  meta: {
-    company_id: string;
-    anno: number;
-    mese_corrente: number;
-    is_anno_corrente: boolean;
-    generato_il: string;
-  };
-  voci: VoceBudget[];
-}
-
-export function useBudgetForecast(anno: number) {
-  return useQuery({
-    queryKey: ["cg", "budget-forecast", anno] as const,
-    queryFn: async (): Promise<BudgetResult> => {
-            const { data, error } = await cgRpc("cg_get_budget_consuntivo_forecast_safe", { p_anno: anno });
-      if (error) throw error;
-      return data as unknown as BudgetResult;
-    },
-    staleTime: 60_000,
-  });
-}
-
-// CRUD budget
 export interface BudgetRow {
   id: string;
   company_id: string;
@@ -78,8 +48,51 @@ export function useBudgetRows(anno: number) {
   });
 }
 
+/**
+ * Budget contro consuntivo sullo stesso CE della scheda CE riclassificato:
+ * consuntivo dei mesi chiusi, previsione lineare a 12 mesi, totali A…L anche
+ * per il budget.
+ */
+export function useBudgetConfronto(anno: number): {
+  data: RiepilogoBudget | undefined;
+  note: Record<string, string | null>;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
+} {
+  const n = mesiChiusi(anno);
+  const righe = useBudgetRows(anno);
+  // Con zero mesi chiusi (gennaio, o anno futuro) il CE non serve: lo si chiede
+  // comunque su gennaio (gli hook non possono essere condizionali) e lo si ignora.
+  const ce = useCEriclassificato(anno, 1, Math.max(n, 1));
+  const righeData = righe.data;
+  const ceData = ce.data;
+  const data = useMemo(() => {
+    if (!righeData || (n > 0 && !ceData)) return undefined;
+    const budget: Record<string, number> = {};
+    for (const r of righeData) budget[r.codice] = Number(r.importo) || 0;
+    return costruisciBudget(budget, n > 0 ? ceData?.voci : [], n);
+  }, [righeData, ceData, n]);
+  const note = useMemo(() => {
+    const out: Record<string, string | null> = {};
+    for (const r of righeData ?? []) out[r.codice] = r.note;
+    return out;
+  }, [righeData]);
+  return {
+    data,
+    note,
+    isLoading: righe.isLoading || (n > 0 && ce.isLoading),
+    isError: righe.isError || (n > 0 && ce.isError),
+    refetch: () => {
+      void righe.refetch();
+      void ce.refetch();
+    },
+  };
+}
+
 export function useUpsertBudget() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       anno: number;
@@ -87,10 +100,14 @@ export function useUpsertBudget() {
       importo: number;
       note?: string | null;
     }) => {
+      // company_id esplicito: la colonna non ha un valore predefinito e la
+      // regola di sicurezza lo vuole uguale all'azienda dell'utente. Senza,
+      // ogni salvataggio del budget veniva rifiutato («row-level security»).
+      if (!companyId) throw new Error("Azienda non riconosciuta: ricarica la pagina.");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_budget")
-        .upsert(input, { onConflict: "company_id,anno,codice" })
+        .upsert({ ...input, company_id: companyId }, { onConflict: "company_id,anno,codice" })
         .select()
         .single();
       if (error) throw error;
@@ -98,7 +115,6 @@ export function useUpsertBudget() {
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["cg", "budget-rows", vars.anno] });
-      qc.invalidateQueries({ queryKey: ["cg", "budget-forecast", vars.anno] });
     },
   });
 }

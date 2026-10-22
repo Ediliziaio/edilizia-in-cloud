@@ -4,6 +4,7 @@ import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoD
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { clausoleDellaFirma, informativaPrivacyDellaFirma } from "../_shared/clausoleFirma.ts";
 import { mascheraTelefono } from "../_shared/telefonoE164.ts";
+import { DICHIARAZIONE_VERSIONE, ipDellaRichiesta, statoIdentificazione, testoDichiarazione } from "../_shared/firmaAvanzata.ts";
 
 function mascheraEmail(email: string | null | undefined): string | null {
   if (!email || !email.includes("@")) return null;
@@ -50,7 +51,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -180,7 +181,32 @@ Deno.serve(async (req: Request) => {
       }
     } else if (tipo === "odv") {
       documento_titolo = "Variante";
+    } else if (tipo === "subappalto" && sigReq.contratto_subappalto_id) {
+      const { data: contratto } = await supabaseAdmin
+        .from("contratti_subappalto")
+        .select("numero_contratto, descrizione_lavori, importo_contrattuale, oneri_sicurezza, pdf_path")
+        .eq("id", sigReq.contratto_subappalto_id)
+        .single();
+      if (contratto) {
+        documento_titolo = `Contratto di subappalto${contratto.numero_contratto ? ` ${contratto.numero_contratto}` : ""}`;
+        titolo = contratto.descrizione_lavori ?? null;
+        importo_totale = (Number(contratto.importo_contrattuale) || 0) + (Number(contratto.oneri_sicurezza) || 0);
+        if (contratto.pdf_path) {
+          const { data: file } = await supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(contratto.pdf_path, 3600);
+          pdf_url = file?.signedUrl ?? null;
+        }
+      }
     }
+
+    // Dal 22/10/2026 chi firma vede la copia congelata all'invio, non la fonte viva.
+    if (sigReq.documento_path) {
+      const { data: copia } = await supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(sigReq.documento_path, 3600);
+      pdf_url = copia?.signedUrl ?? null;
+    }
+
+    // Firma avanzata: al primo documento con l'azienda chi firma si identifica.
+    const avanzata = sigReq.livello_firma === "avanzata";
+    const identita = avanzata ? await statoIdentificazione(supabaseAdmin, sigReq.company_id, sigReq.signer_email) : null;
 
     // Per B2C: carica fea_configurazione
     let b2c_testo_recesso: string | null = null;
@@ -209,7 +235,7 @@ Deno.serve(async (req: Request) => {
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "link_aperto",
-      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
+      ip: ipDellaRichiesta(req),
       user_agent: req.headers.get("user-agent") ?? null,
     });
 
@@ -239,6 +265,13 @@ Deno.serve(async (req: Request) => {
       signer_email_mascherata: mascheraEmail(sigReq.signer_email),
       // Il codice è arrivato anche via SMS a questo numero (solo se l'SMS è davvero partito)
       signer_telefono_mascherato: sigReq.otp_canale === "sms" ? mascheraTelefono(sigReq.signer_phone) : null,
+      livello_firma: avanzata ? "avanzata" : "semplice",
+      // Documento d'identità da caricare (se l'azienda non l'ha già fatto) e condizioni da accettare.
+      identificazione_richiesta: !!identita?.serveDocumento,
+      dichiarazione_richiesta: !!identita?.serveDichiarazione,
+      dichiarazione_fea: identita?.serveDichiarazione
+        ? { versione: DICHIARAZIONE_VERSIONE, testo: testoDichiarazione(azienda_nome, branding.siteUrl) }
+        : null,
       // Se un OTP è ancora valido, la pagina salta l'invio e mostra subito i 6 campi
       otp_valido_fino: sigReq.otp_scadenza && new Date(sigReq.otp_scadenza) > new Date(Date.now() + 30_000)
         ? sigReq.otp_scadenza

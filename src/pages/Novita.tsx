@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, Wrench, Smartphone, LayoutDashboard, FileText, Bot } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -144,7 +145,8 @@ export default function Novita() {
 
       {/* HERO */}
       <section className="bg-[#111111] pt-28 pb-14 px-4 md:pt-36 md:pb-20">
-        <div className="max-w-4xl mx-auto text-center">
+        <div className="max-w-6xl mx-auto text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/25">
             Prodotto vivo
           </p>
@@ -156,6 +158,8 @@ export default function Novita() {
             piani. Qui trovi le novità principali, mese per mese.
           </p>
         </div>
+<MarketingVisual theme="automation" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* TIMELINE */}

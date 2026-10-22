@@ -1,3 +1,4 @@
+import { collectBlogSlugs } from "./collect-blog-slugs.mjs";
 /**
  * Prerender SPA — genera HTML statici per tutte le rotte pubbliche.
  *
@@ -25,6 +26,7 @@
  */
 
 import { chromium } from "playwright";
+import { validateJsonLd } from "./validate-jsonld.mjs";
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -219,12 +221,7 @@ function loadBlogSlugs() {
     const file = join(ROOT, rel);
     if (!existsSync(file)) continue;
     const src = readFileSync(file, "utf-8");
-    const re = /\bslug:\s*"([^"]+)"/g;
-    let m;
-    while ((m = re.exec(src)) !== null) {
-      // Skip the type definition `slug: string;`
-      if (m[1] && m[1] !== "string") slugs.add(m[1]);
-    }
+    for (const slug of collectBlogSlugs(src)) slugs.add(slug);
   }
   return [...slugs];
 }
@@ -433,6 +430,8 @@ async function main() {
         await page.waitForTimeout(150);
 
         let html = await page.content();
+        const sourceJsonLdErrors = validateJsonLd(html);
+        if (sourceJsonLdErrors.length) throw new Error(sourceJsonLdErrors.join("; "));
         let cssInPagina = 0;
         html = html.replace(' data-seo-applied="true"', "");
         // Il contenitore delle notifiche (sonner) vive solo nel browser: nella
@@ -570,6 +569,8 @@ async function main() {
           ? join(DIST, "_home")
           : join(DIST, route.replace(/^\//, ""));
         if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+        const artifactJsonLdErrors = validateJsonLd(html);
+        if (artifactJsonLdErrors.length) throw new Error(artifactJsonLdErrors.join("; "));
         writeFileSync(join(outDir, "index.html"), html, "utf-8");
 
         ok++;

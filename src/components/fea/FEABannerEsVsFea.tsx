@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const rows = [
-  { aspetto: 'Valore legale', fes: 'Limitato', fea: 'Pieno (eIDAS)' },
-  { aspetto: 'Autenticazione', fes: 'Email link', fea: 'OTP SMS + Email' },
-  { aspetto: 'Documenti ammessi', fes: 'Generici', fea: 'Contratti, preventivi' },
-  { aspetto: 'Costo', fes: 'Incluso', fea: 'Add-on' },
+  { aspetto: 'Valore legale', fes: 'Valutato dal giudice caso per caso', fea: 'Forma scritta (CAD art. 20)' },
+  { aspetto: 'Chi firma', fes: 'Codice via email o SMS', fea: 'Documento d\'identità al primo utilizzo + codice' },
+  { aspetto: 'Documenti', fes: 'Conferme, prese visione', fea: 'Contratti, preventivi, verbali' },
+  { aspetto: 'Come si sceglie', fes: 'Interruttore spento', fea: 'Interruttore «Firma elettronica avanzata» acceso' },
 ];
 
 interface FEABannerEsVsFeaProps {

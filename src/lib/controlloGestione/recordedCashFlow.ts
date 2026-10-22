@@ -1,5 +1,5 @@
 export interface RecordedCashEntry {
-  id: string; direction: string; amount: number; entry_date: string; category: string;
+  id: string; direction: string; amount: number | string; entry_date: string; category: string;
 }
 export interface RecordedCashMonth { month: number; income: number; expense: number; net: number; count: number }
 
@@ -14,13 +14,15 @@ export function recordedCashFlow(entries: RecordedCashEntry[], year: number) {
     if (ids.has(entry.id)) continue;
     ids.add(entry.id);
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(entry.entry_date);
-    if (!match || !Number.isFinite(entry.amount) || entry.amount < 0 || !['entrata', 'uscita'].includes(entry.direction)) { invalid++; continue; }
+    // PostgREST può restituire un numeric come testo: lo si legge come numero, non lo si scarta.
+    const amount = Number(entry.amount);
+    if (!match || !Number.isFinite(amount) || amount < 0|| !['entrata', 'uscita'].includes(entry.direction)) { invalid++; continue; }
     const [, y, m, d] = match;
     const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
     if (date.toISOString().slice(0, 10) !== entry.entry_date) { invalid++; continue; }
     if (Number(y) !== year) continue;
     const bucket = months[Number(m) - 1];
-    bucket[entry.direction === 'entrata' ? 'income' : 'expense'] += Math.round(entry.amount * 100);
+    bucket[entry.direction === 'entrata' ? 'income' : 'expense'] += Math.round(amount * 100);
     bucket.count++;
   }
   for (const month of months) {

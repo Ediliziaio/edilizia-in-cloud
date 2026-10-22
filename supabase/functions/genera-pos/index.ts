@@ -8,7 +8,8 @@
  *   dati_app       { company_id, pos_id } → i dati dell'app aggiornati, da unire
  *                  nell'editor (lavorazioni e parti scritte a mano non si toccano).
  *   lavorazioni_ai { company_id, pos_id } → schede delle lavorazioni proposte
- *                  dall'AI, da rileggere e confermare una per una.
+ *                  dall'AI, da rileggere e confermare una per una, più le
+ *                  modalità organizzative del cantiere (lettera c) se mancano.
  *   approva        { company_id, pos_id } → approva solo se non manca nessuno dei
  *                  contenuti minimi. È l'unica strada: il database rifiuta
  *                  l'approvazione fatta da un utente direttamente.
@@ -80,18 +81,24 @@ Per ogni lavorazione compili i campi della tabella «Lavorazioni svolte in canti
 - svolgimento: "diretto", oppure "subappalto" SOLO se tra i subappaltatori della commessa ce n'è uno che fa quel lavoro
 - svolgimento_con: il nome di quel subappaltatore, altrimenti vuoto
 
+Inoltre scrivi modalita_organizzative: come è organizzato QUESTO cantiere (Allegato XV 3.2.1 lettera c), in 5-8 frasi brevi separate da a capo: recinzione e accessi, viabilità e aree di carico e scarico, aree di stoccaggio dei materiali, servizi igienico-assistenziali, gestione dei rifiuti, impianti di cantiere, coordinamento con le altre imprese presenti (se ce ne sono), rapporti col committente.
+
 Regole:
-- 3-6 lavorazioni, nell'ordine in cui si svolgono, specifiche per QUESTO cantiere. Frasi brevi.
+- Una lavorazione per ogni fase di lavoro della commessa, se le fasi ci sono (accorpando quelle minori), altrimenti 3-6; nell'ordine in cui si svolgono, specifiche per QUESTO cantiere. Frasi brevi.
+- Se una lavorazione richiede opere provvisionali in quota (ponteggi, trabattelli), indica i rischi di caduta dall'alto e le misure del Titolo IV Capo II.
 - MAI inventare nomi di persone, numeri di telefono, livelli di rumore in dB, marche, codici o date.
 - Scrivi in italiano tecnico, frasi brevi, senza markdown.
-- Rispondi SOLO con JSON valido, senza blocchi di codice e senza testo prima o dopo: {"lavorazioni": [ {...}, ... ]}. Niente a capo dentro le stringhe: gli elenchi sono array.`;
+- Rispondi SOLO con JSON valido, senza blocchi di codice e senza testo prima o dopo: {"modalita_organizzative": "…", "lavorazioni": [ {...}, ... ]}. Niente a capo dentro le stringhe delle lavorazioni: gli elenchi sono array.`;
 
-async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos: Record<string, unknown>, cors: Record<string, string>): Promise<Lavorazione[]> {
+async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos: Record<string, unknown>, cors: Record<string, string>): Promise<{ lavorazioni: Lavorazione[]; modalita_organizzative: string }> {
   const contenuto = normalizzaPos(pos.contenuto);
   const { contesto } = await preparaPosDaApp(db, companyId, String(pos.order_id));
   const dati = {
     descrizione_attivita: contenuto.opera.descrizione_attivita,
     modalita_organizzative: contenuto.opera.modalita_organizzative,
+    turni_di_lavoro: contenuto.opera.turni_lavoro,
+    fasi_di_lavoro_della_commessa: contesto.fasi ?? [],
+    indirizzo_cantiere: [contenuto.opera.cantiere.via, contenuto.opera.cantiere.localita].filter(Boolean).join(", "),
     data_inizio: contenuto.opera.data_inizio,
     data_fine: contenuto.opera.data_fine,
     lavoratori: contenuto.lavoratori.map((r) => `${r.numero} ${r.qualifica}`),
@@ -99,8 +106,8 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
     subappaltatori_della_commessa: contesto.subappaltatori.map((s) => `${s.ragione_sociale}: ${s.tipo_lavori || "lavori non indicati"}`),
     lavorazioni_gia_presenti: contenuto.lavorazioni.map((l) => l.titolo).filter(Boolean),
   };
-  if (!dati.descrizione_attivita.trim()) {
-    throw errorResponse("Scrivi prima la descrizione dell'attività di cantiere: l'AI parte da lì", 422, cors);
+  if (!dati.descrizione_attivita.trim() && !dati.fasi_di_lavoro_della_commessa.length) {
+    throw errorResponse("Scrivi prima la descrizione dell'attività di cantiere (o aggiungi le fasi alla commessa): l'AI parte da lì", 422, cors);
   }
 
   let risposta;
@@ -144,7 +151,8 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
     })
     .filter((l) => l.titolo.trim() || l.descrizione.trim());
   if (!lavorazioni.length) throw errorResponse("L'AI non ha proposto lavorazioni: riprova o scrivile a mano", 502, cors);
-  return lavorazioni;
+  const modalita = (parsed as { modalita_organizzative?: unknown })?.modalita_organizzative;
+  return { lavorazioni, modalita_organizzative: typeof modalita === "string" ? modalita.trim() : "" };
 }
 
 Deno.serve(async (req: Request) => {
@@ -211,8 +219,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (azione === "lavorazioni_ai") {
-      const lavorazioni = await proponiLavorazioni(db, companyId, userId, pos, cors);
-      return jsonResponse({ ok: true, lavorazioni }, 200, cors);
+      const proposta = await proponiLavorazioni(db, companyId, userId, pos, cors);
+      return jsonResponse({ ok: true, ...proposta }, 200, cors);
     }
 
     // approva

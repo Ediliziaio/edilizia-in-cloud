@@ -16,6 +16,8 @@ interface AssumptionEditorProps {
   onReset?: () => void;
   /** Disabilita gli sliders (es. quando non c'è uno scenario di base configurato). */
   disabled?: boolean;
+  /** Anno di partenza scelto nella scheda (null = quello dello scenario). */
+  annoPartenza?: number | null;
 }
 
 interface Assunzioni {
@@ -32,7 +34,7 @@ const DEFAULTS: Assunzioni = {
   orizzonte: 5,
 };
 
-export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = false }: AssumptionEditorProps) {
+export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = false, annoPartenza = null }: AssumptionEditorProps) {
   const [val, setVal] = useState<Assunzioni>(DEFAULTS);
   const mutation = useWhatIfMutation();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,6 +58,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
           override_investimento: val.investimento,
           orizzonte: val.orizzonte,
           assumption_id: scenarioId ?? undefined,
+          anno_partenza: annoPartenza,
         },
         {
           onSuccess: (data) => onResult(data),
@@ -67,7 +70,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [val.crescita, val.margine, val.investimento, val.orizzonte, scenarioId, touched]);
+  }, [val.crescita, val.margine, val.investimento, val.orizzonte, scenarioId, touched, annoPartenza]);
 
   const handleReset = () => {
     setVal(DEFAULTS);
@@ -93,14 +96,15 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Muovi uno slider per simulare un'ipotesi diversa dallo scenario selezionato.
+            Muovi un cursore per provare un'ipotesi diversa dallo scenario: i numeri sopra si aggiornano. Il margine
+            obiettivo cresce (o scende) in linea retta dall'anno di partenza all'ultimo anno.
           </p>
         )}
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Crescita ricavi</Label>
+            <Label className="text-sm">Crescita dei ricavi ogni anno</Label>
             <span className="text-sm font-semibold tabular-nums">{val.crescita}%</span>
           </div>
           <Slider
@@ -113,7 +117,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Margine target</Label>
+            <Label className="text-sm">Margine operativo lordo obiettivo (ultimo anno)</Label>
             <span className="text-sm font-semibold tabular-nums">{val.margine}%</span>
           </div>
           <Slider
@@ -126,7 +130,7 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Investimento annuo</Label>
+            <Label className="text-sm">Investimenti ogni anno</Label>
             <span className="text-sm font-semibold tabular-nums">
               {formatCurrency(val.investimento)}
             </span>

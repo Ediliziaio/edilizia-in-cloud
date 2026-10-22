@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -695,8 +696,9 @@ export default function DiventaPartner() {
               </div>
             </div>
 
-            {/* Stats card — esempio realistico Silver/Gold */}
+            {/* Visual della collaborazione, prima dell’esempio economico */}
             <div className="relative">
+              <MarketingVisual theme="sales" priority className="mb-5" />
               <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-eic-orange/5 rounded-full -translate-y-1/2 translate-x-1/2" />
 

@@ -25,40 +25,40 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const ALL_MODULES: Module[] = [
   // Cantieri
-  { icon: Building2, name: "Gestione Commesse", desc: "Margine reale, avanzamento e costi effettivi per ogni cantiere — aggiornati in tempo reale, accessibili da ovunque.", saving: "5-8 ore/sett. risparmiate", category: "Cantieri" },
-  { icon: HardHat, name: "Marginalità Cantieri", desc: "Confronta la profittabilità di tutti i cantieri attivi in un colpo d'occhio. Identifica subito quelli a rischio.", saving: "Margini +15% in media", category: "Cantieri" },
+  { icon: Building2, name: "Gestione Commesse", desc: "Margine reale, avanzamento e costi effettivi per ogni cantiere — aggiornati in tempo reale, accessibili da ovunque.", saving: "Risparmio da misurare sui tuoi dati", category: "Cantieri" },
+  { icon: HardHat, name: "Marginalità Cantieri", desc: "Confronta la profittabilità di tutti i cantieri attivi in un colpo d'occhio. Identifica subito quelli a rischio.", saving: "Risparmio da misurare sui tuoi dati", category: "Cantieri" },
   { icon: ClipboardList, name: "Giornale dei Lavori", desc: "Registro giornaliero attività compilabile da mobile direttamente in cantiere. SAL automatico, zero carta.", saving: "Zero verbali cartacei", category: "Cantieri" },
   { icon: ShieldCheck, name: "Sicurezza Cantiere", desc: "DPI, formazione, scadenze normative e documenti obbligatori centralizzati. Sempre in regola, senza sforzo.", saving: "100% compliance D.Lgs. 81/08", category: "Cantieri" },
   { icon: FileText, name: "Documenti Cantiere", desc: "SAL, ordini di variante, verbali e documenti tecnici — tutti aggiornati, sempre reperibili, mai persi.", saving: "Zero documenti smarriti", category: "Cantieri" },
-  { icon: ShoppingCart, name: "Ordini di Acquisto", desc: "Gestione acquisti materiali direttamente collegata alla commessa. Confronto fornitori e controllo spese in un click.", saving: "Risparmio 2.000-8.000€/anno", category: "Cantieri" },
+  { icon: ShoppingCart, name: "Ordini di Acquisto", desc: "Gestione acquisti materiali direttamente collegata alla commessa. Confronto fornitori e controllo spese in un click.", saving: "Risparmio da misurare sui tuoi dati", category: "Cantieri" },
 
   // Finanziario
-  { icon: Wallet, name: "Previsionale di Cassa", desc: "Forecast liquidità a 30/60/90 giorni basato su incassi attesi, scadenze fornitori e costi fissi reali. Zero sorprese.", saving: "Risparmio 3.000-15.000€/anno", category: "Finanziario" },
-  { icon: TrendingUp, name: "Tesoreria", desc: "Conti correnti, movimenti bancari e riconciliazione automatica. Tieni tutto il cash flow in un unico posto.", saving: "3 ore/sett. risparmiate", category: "Finanziario" },
-  { icon: BarChart3, name: "Costi Aziendali", desc: "Costi fissi, variabili e overhead con drill-down per categoria, commessa e periodo. Sai dove vanno i tuoi soldi.", saving: "Risparmio 5.000-25.000€/anno", category: "Finanziario" },
-  { icon: Receipt, name: "Fatturazione Elettronica", desc: "SDI nativo, DDT, note credito e ciclo passivo completo. Emetti e ricevi fatture in un click, già pronte per l'Agenzia delle Entrate.", saving: "2 ore/sett. eliminate", category: "Finanziario" },
+  { icon: Wallet, name: "Previsionale di Cassa", desc: "Forecast liquidità a 30/60/90 giorni basato su incassi attesi, scadenze fornitori e costi fissi reali. Zero sorprese.", saving: "Risparmio da misurare sui tuoi dati", category: "Finanziario" },
+  { icon: TrendingUp, name: "Tesoreria", desc: "Conti correnti, movimenti bancari e riconciliazione automatica. Tieni tutto il cash flow in un unico posto.", saving: "Risparmio da misurare sui tuoi dati", category: "Finanziario" },
+  { icon: BarChart3, name: "Costi Aziendali", desc: "Costi fissi, variabili e overhead con drill-down per categoria, commessa e periodo. Sai dove vanno i tuoi soldi.", saving: "Risparmio da misurare sui tuoi dati", category: "Finanziario" },
+  { icon: Receipt, name: "Fatturazione Elettronica", desc: "SDI nativo, DDT, note credito e ciclo passivo completo. Emetti e ricevi fatture in un click, già pronte per l'Agenzia delle Entrate.", saving: "Risparmio da misurare sui tuoi dati", category: "Finanziario" },
   { icon: FileCheck, name: "Prima Nota", desc: "Registro contabile sempre aggiornato e pronto da esportare per il commercialista. Zero errori, zero rincorse.", saving: "Zero errori contabili", category: "Finanziario" },
   { icon: Clock, name: "Scadenzario", desc: "Alert automatici su scadenze clienti e fornitori via email e WhatsApp. Non dimentichi più un pagamento — mai.", saving: "Zero pagamenti dimenticati", category: "Finanziario" },
 
   // Marketing
   { icon: Target, name: "CRM Contatti", desc: "Anagrafica clienti e prospect con storico completo: chiamate, preventivi, contratti e comunicazioni. Tutto in un posto.", saving: "Zero opportunità perse", category: "Marketing" },
-  { icon: Users, name: "Pipeline Opportunità", desc: "Vista kanban drag & drop delle trattative con forecast commerciale automatico. Sai sempre quanti lavori stai per chiudere.", saving: "Tasso chiusura +20%", category: "Marketing" },
+  { icon: Users, name: "Pipeline Opportunità", desc: "Vista kanban drag & drop delle trattative con forecast commerciale automatico. Sai sempre quanti lavori stai per chiudere.", saving: "Risultati commerciali da misurare", category: "Marketing" },
   { icon: FileSignature, name: "Preventivi Digitali", desc: "Crea preventivi professionali, mandali online e ricevi la firma elettronica dal cliente in pochi minuti — non settimane.", saving: "Chiudi in 48h, non 2 settimane", category: "Marketing" },
-  { icon: Mail, name: "Email Marketing", desc: "Campagne email con editor drag & drop, segmentazione avanzata e analytics. Resta in mente ai tuoi clienti ogni mese.", saving: "ROI email medio 42:1", category: "Marketing" },
-  { icon: MessageSquare, name: "WhatsApp Marketing", desc: "Messaggi e automazioni WhatsApp per seguire clienti, mandare preventivi e raccogliere feedback dove sono davvero.", saving: "Tasso apertura 98%", category: "Marketing" },
-  { icon: Zap, name: "Automazioni", desc: "Flow builder visuale: crea processi automatici per follow-up, alert interni, assegnazioni e notifiche — senza una riga di codice.", saving: "10+ ore/sett. automatizzate", category: "Marketing" },
+  { icon: Mail, name: "Email Marketing", desc: "Campagne email con editor drag & drop, segmentazione avanzata e analytics. Resta in mente ai tuoi clienti ogni mese.", saving: "Risparmio da misurare sui tuoi dati", category: "Marketing" },
+  { icon: MessageSquare, name: "WhatsApp Marketing", desc: "Messaggi e automazioni WhatsApp per seguire clienti, mandare preventivi e raccogliere feedback dove sono davvero.", saving: "Letture e risposte da monitorare", category: "Marketing" },
+  { icon: Zap, name: "Automazioni", desc: "Flow builder visuale: crea processi automatici per follow-up, alert interni, assegnazioni e notifiche — senza una riga di codice.", saving: "Risparmio da misurare sui tuoi dati", category: "Marketing" },
   { icon: BarChart2, name: "Lead da Facebook/Instagram", desc: "I lead generati dalle tue campagne social arrivano automaticamente nel CRM. Nessun copia-incolla, nessun lead perso.", saving: "Costo acquisizione -40%", category: "Marketing" },
   { icon: BarChart3, name: "Analisi Commerciale", desc: "Conversion rate, tempo medio di chiusura, performance del team e valore medio preventivi. Dati per decidere meglio.", saving: "Decisioni basate sui dati", category: "Marketing" },
 
   // HR
   { icon: Users, name: "Gestione Personale", desc: "Anagrafica dipendenti e squadre con documenti, contratti, scadenze e certificazioni. Tutto centralizzato, niente smarriti.", saving: "Zero documenti smarriti", category: "HR" },
   { icon: Clock, name: "Timbratura Kiosk", desc: "Badge in/out da tablet installato in cantiere. Presenze automatiche, certificate e pronte per le buste paga.", saving: "Contestazioni azzerate", category: "HR" },
-  { icon: DollarSign, name: "Costi Manodopera", desc: "Costo reale per ora, per dipendente e per cantiere — aggiornato in tempo reale. Sai esattamente quanto ti costa ogni lavoro.", saving: "Ottimizzazione ore 10-20%", category: "HR" },
+  { icon: DollarSign, name: "Costi Manodopera", desc: "Costo reale per ora, per dipendente e per cantiere — aggiornato in tempo reale. Sai esattamente quanto ti costa ogni lavoro.", saving: "Risparmio da misurare sui tuoi dati", category: "HR" },
   { icon: CalendarDays, name: "Calendario Squadre", desc: "Pianificazione team e risorse con vista Gantt, settimana e mese. Assegna, sposta e ottimizza senza conflitti.", saving: "Zero sovrapposizioni", category: "HR" },
 
   // AI
   { icon: Bot, name: "Agenti AI", desc: "Assistenti intelligenti personalizzati per la tua impresa: analizzano i tuoi dati, generano report e ti suggeriscono le azioni prioritarie.", saving: "Decisioni 3x più rapide", category: "AI" },
-  { icon: Cpu, name: "Flow Automazioni AI", desc: "Automazioni no-code potenziate dall'AI: collega moduli, trigger e azioni in pochi click. Il gestionale lavora anche quando non ci sei.", saving: "10+ ore/sett. automatizzate", category: "AI" },
+  { icon: Cpu, name: "Flow Automazioni AI", desc: "Automazioni no-code potenziate dall'AI: collega moduli, trigger e azioni in pochi click. Il gestionale lavora anche quando non ci sei.", saving: "Risparmio da misurare sui tuoi dati", category: "AI" },
   { icon: Workflow, name: "Chat Interna", desc: "Comunicazione team integrata con contesto cantiere, task e documenti. Fine alle email infinite e ai messaggi WhatsApp sparsi.", saving: "Zero dispersione informazioni", category: "AI" },
 ];
 

@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import dossier in corso",
+    "Avvio assistito con import dossier in corso",
     "Template pronti per banche e factor",
     "Asseverazioni e fatture SDI integrate",
   ],
@@ -68,9 +68,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 110 imprese edili italiane gestiscono cessioni del credito Superbonus e anticipi SAL con Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo il modulo Finanziamenti in 48 ore: importiamo i dossier cessione in corso, configuriamo template per banche e factor partner, integriamo asseverazioni tecniche e fatture SDI con codici natura corretti, predisponiamo flussi anticipo SAL e factoring. 4 sessioni 1-a-1 fino al primo dossier accettato.",
+    "Attiviamo il modulo Finanziamenti con tempi concordati: importiamo i dossier cessione in corso, configuriamo template per banche e factor partner, integriamo asseverazioni tecniche e fatture SDI con codici natura corretti, predisponiamo flussi anticipo SAL e factoring. 4 sessioni 1-a-1 fino al primo dossier accettato.",
 
   speedH2:
     "Un dossier cessione credito Superbonus preparato a mano costa 2 settimane. In quelle 2 settimane il prezzo della cessione cala dello 0,5-1%.",
@@ -214,7 +214,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la dashboard Finanziamenti",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Sconto cessione -2%, cassa più veloce, concorrenza banche reale.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Le imprese edili che usano Edilizia in Cloud per la gestione finanziamenti riducono lo sconto medio sulle cessioni del 2%, sbloccano anticipi SAL in 5-7 giorni anziché 3-4 settimane e sopravvivono ai cantieri Superbonus 110% senza tensioni di cassa. Il ROI si misura in liquidità reale recuperata.",
   commercialLevers: [
@@ -471,12 +471,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di accettare il primo sconto della banca. Inizia a far concorrere chi vuole il tuo credito.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il modulo Finanziamenti Cantieri dentro la tua impresa: setup in 48 ore, dossier cessione/anticipo/factoring pronti in 1 giorno, banche partner integrate, comparatore offerte, conformità Agenzia Entrate garantita. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il modulo Finanziamenti Cantieri dentro la tua impresa: avvio assistito, dossier cessione/anticipo/factoring pronti in 1 giorno, banche partner integrate, comparatore offerte, conformità Agenzia Entrate garantita. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · Banche partner incluse · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Banche partner incluse · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Finanziamenti",
-  stickyCtaMicrocopy: "Setup 48h · Dossier in 1 giorno",
+  stickyCtaMicrocopy: "Avvio assistito · Dossier in 1 giorno",
 
   applicationSubCategory: "Construction Financing Software",
 

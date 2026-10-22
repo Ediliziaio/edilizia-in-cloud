@@ -50,12 +50,16 @@ export function useImposte(anno: number) {
 
 export function useUpsertAliquote() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: ImposteAliquote) => {
+      // company_id esplicito (chiave della tabella, senza valore predefinito):
+      // senza, il primo salvataggio delle aliquote veniva rifiutato.
+      if (!companyId) throw new Error("Azienda non riconosciuta: ricarica la pagina.");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_aliquote_imposte")
-        .upsert(input)
+        .upsert({ ...input, company_id: companyId }, { onConflict: "company_id" })
         .select()
         .single();
       if (error) throw error;

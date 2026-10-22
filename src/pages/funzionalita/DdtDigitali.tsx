@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con import anagrafiche",
+    "Avvio assistito con import anagrafiche",
     "App autista iOS/Android con firma cliente",
     "Archivio cloud 10 anni a norma",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Riconciliazione automatica, fatturazione veloce, contestazioni -90%"],
   ],
 
-  betaH2: "Più di 210 imprese edili e fornitori italiani usano i DDT Digitali per consegne in cantiere.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Attiviamo i DDT Digitali in 48 ore: importiamo anagrafiche clienti/fornitori, configuriamo numeratori DDT, articoli e listini, app autista con firma cliente in cantiere, integrazione SDI per fatture differite, archivio cloud a norma. 4 sessioni 1-a-1 fino al primo DDT consegnato e firmato.",
+    "Attiviamo i DDT Digitali con tempi concordati: importiamo anagrafiche clienti/fornitori, configuriamo numeratori DDT, articoli e listini, app autista con firma cliente in cantiere, integrazione SDI per fatture differite, archivio cloud a norma. 4 sessioni 1-a-1 fino al primo DDT consegnato e firmato.",
 
   speedH2:
     "Un DDT compilato a mano costa 6-12 minuti. Moltiplicato per 50 DDT al mese, è una settimana lavorativa di amministrazione bruciata.",
@@ -213,7 +213,7 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la dashboard DDT Digitali",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Tempo amministrazione -75%, contestazioni -90%, conservazione a norma garantita.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "Le imprese che hanno adottato i DDT Digitali registrano una riduzione del 75% del tempo amministrazione su DDT, un calo del 90% delle contestazioni cliente per DDT smarriti e una conservazione decennale automaticamente conforme. Il ROI si vede già nel secondo mese.",
   commercialLevers: [
@@ -470,12 +470,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di scansionare DDT cartacei. Inizia a far firmare in cantiere con il telefono.",
   finalCtaBody:
-    "31 giorni gratuiti per portare i DDT Digitali dentro la tua impresa: setup in 48 ore, app autista iOS/Android, firma cliente eIDAS geolocalizzata, integrazione SDI fattura differita, conservazione cloud 10 anni inclusa. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare i DDT Digitali dentro la tua impresa: avvio assistito, app autista iOS/Android, firma cliente eIDAS geolocalizzata, integrazione SDI fattura differita, conservazione cloud 10 anni inclusa. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48 ore · App autista inclusa · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · App autista inclusa · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis DDT Digitali",
-  stickyCtaMicrocopy: "Setup 48h · App autista inclusa",
+  stickyCtaMicrocopy: "Avvio assistito · App autista inclusa",
 
   applicationSubCategory: "Construction Delivery Note Software",
 

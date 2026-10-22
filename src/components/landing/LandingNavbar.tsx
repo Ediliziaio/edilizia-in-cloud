@@ -1,3 +1,4 @@
+import "@/styles/marketing-accessibility.css";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -269,6 +270,11 @@ export default function LandingNavbar() {
   const navRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const isHome = location.pathname === "/home" || location.pathname === "/";
+
+  useEffect(() => {
+    document.body.classList.add("marketing-site");
+    return () => document.body.classList.remove("marketing-site");
+  }, []);
 
   // Scroll background
   useEffect(() => {
@@ -599,7 +605,7 @@ export default function LandingNavbar() {
                   Tutto il software edilizia in un unico posto.
                 </p>
                 <p className="text-xs text-[#111111]/55">
-                  51 funzionalità integrate. Setup in 48 ore. Cancelli quando vuoi.
+                  51 funzionalità integrate. Avvio assistito. Cancelli quando vuoi.
                 </p>
               </div>
               <Link
@@ -691,7 +697,7 @@ export default function LandingNavbar() {
             {/* Bottom CTA strip */}
             <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
               <p className="text-sm font-semibold text-[#111111]">
-                Scelto da 150+ imprese edili italiane.
+                Scelto da oltre 150 aziende.
               </p>
               <Link
                 to="/casi-studio/"
@@ -822,7 +828,7 @@ export default function LandingNavbar() {
                     Pensi di passare da un altro software?
                   </p>
                   <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
-                    Migrazione gratuita assistita: importiamo cantieri, anagrafiche, fatture e archivio storico. Setup in 48 ore.
+                    Migrazione gratuita assistita: importiamo cantieri, anagrafiche, fatture e archivio storico. Avvio assistito.
                   </p>
                 </div>
                 <Link

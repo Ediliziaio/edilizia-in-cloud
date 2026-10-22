@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Antifrode GPS + foto", "Conformità CCNL Edilizia"],
+  reassurancePoints: ["Avvio assistito", "Antifrode GPS + foto", "Conformità CCNL Edilizia"],
   proofPoints: [
     "Geofence cantiere automatico",
     "Foto-timbratura antifrode",
@@ -65,9 +65,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano Timbrature GPS per chiudere il problema delle ore non tracciate.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Le Timbrature GPS le attiviamo in 48 ore: configuriamo i geofence dei cantieri attivi (raggio personalizzabile), distribuiamo l'app agli operai, configuriamo i turni CCNL Edilizia, integriamo con il software cedolini paga e ti accompagniamo in 4 sessioni 1-a-1 fino al primo cedolino calcolato in automatico.",
+    "Le Timbrature GPS le attiviamo insieme alla tua impresa: configuriamo i geofence dei cantieri attivi (raggio personalizzabile), distribuiamo l'app agli operai, configuriamo i turni CCNL Edilizia, integriamo con il software cedolini paga e ti accompagniamo in 4 sessioni 1-a-1 fino al primo cedolino calcolato in automatico.",
 
   speedH2:
     "Un'impresa con 20 operai perde mediamente 6 ore/operaio/mese di ore dichiarate ma non lavorate. A 30€/h fa 43.200€/anno.",
@@ -294,7 +294,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Tempo titolare cedolini risparmiato/anno", value: `${11 * 12} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 30€/h costo orario lordo CCNL Edilizia (operaio comune + oneri). Aggiungi le 11+ ore mensili del titolare risparmiate sui cedolini e le sanzioni ASL evitate.",
+      "Simulazione illustrativa basata su 30€/h costo orario lordo CCNL Edilizia (operaio comune + oneri). Aggiungi le 11+ ore mensili del titolare risparmiate sui cedolini e le sanzioni ASL evitate.",
   },
 
   salesKicker: "Impatto operativo",
@@ -321,7 +321,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "App mobile iOS/Android",
@@ -429,12 +429,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di pagare ore non lavorate. Inizia a sapere chi era in cantiere e quando.",
   finalCtaBody:
-    "31 giorni gratuiti per portare le Timbrature GPS dentro la tua impresa edile. Setup in 48 ore, geofence cantieri, foto-timbratura, calcolo CCNL Edilizia automatico e integrazione cedolini paga inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare le Timbrature GPS dentro la tua impresa edile. Avvio assistito, geofence cantieri, foto-timbratura, calcolo CCNL Edilizia automatico e integrazione cedolini paga inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · GPS + foto antifrode · CCNL Edilizia",
+  finalCtaMicrocopy: "Avvio assistito · GPS + foto antifrode · CCNL Edilizia",
 
   stickyCtaLabel: "Prova gratis Timbrature GPS",
-  stickyCtaMicrocopy: "Setup 48h · Geofence + foto antifrode",
+  stickyCtaMicrocopy: "Avvio assistito · Geofence + foto antifrode",
 
   applicationSubCategory: "Construction Time Tracking GPS Software",
 

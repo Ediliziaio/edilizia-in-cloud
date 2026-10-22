@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
@@ -104,7 +105,7 @@ const faqItems = [
   },
   {
     q: "Come si confrontano i gestionali edili online?",
-    a: "Quattro criteri pratici per un confronto tra gestionali edili online: se puoi provarlo da solo prima di firmare o devi passare per forza da una trattativa; quanto passa tra firma e operatività; se il capocantiere può usarlo dal telefono; se margini e liquidità si vedono a cantiere aperto. Edilizia in Cloud: piano gratuito per partire e 31 giorni di prova completa con setup incluso, operativo in 48 ore, app mobile e margini in tempo reale.",
+    a: "Quattro criteri pratici per un confronto tra gestionali edili online: se puoi provarlo da solo prima di firmare o devi passare per forza da una trattativa; quanto passa tra firma e operatività; se il capocantiere può usarlo dal telefono; se margini e liquidità si vedono a cantiere aperto. Edilizia in Cloud: piano gratuito per partire e 31 giorni di prova completa con setup incluso, avvio assistito, app mobile e margini in tempo reale.",
   },
   {
     q: "Posso provare Edilizia in Cloud gratuitamente?",
@@ -219,7 +220,8 @@ export default function VsEdilnet() {
 
       {/* ── HERO ── */}
       <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
             CONFRONTO ONESTO — 2026
           </span>
@@ -247,6 +249,8 @@ export default function VsEdilnet() {
             </Link>
           </div>
         </div>
+<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
 
       {/* ── TL;DR ── */}
@@ -404,7 +408,7 @@ export default function VsEdilnet() {
             <h3 className="text-xl font-extrabold text-[#111111] mb-3">Prendi lavori dai portali?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
               Le richieste che arrivano da Edilnet o da altri canali finiscono spesso su fogli e chat. Le portiamo
-              dentro Edilizia in Cloud — anagrafiche, preventivi, cantieri — gratuitamente: in 48 ore lavori da un
+              dentro Edilizia in Cloud — anagrafiche, preventivi, cantieri — gratuitamente: con il nostro supporto lavori da un
               unico posto.
             </p>
             <button
@@ -610,7 +614,7 @@ export default function VsEdilnet() {
       <section className="bg-[#111111] py-20 px-4 text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Operativo in 48 ore, senza costi di setup
+            Avvio assistito, senza costi di setup
           </h2>
           <p className="text-white/70 mb-8 text-lg">
             31 giorni gratis. Migrazione gratuita dai tuoi dati esistenti. Cancella quando vuoi.

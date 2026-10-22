@@ -65,6 +65,7 @@ import { CronoprogrammaCommessa } from "@/components/orders/CronoprogrammaCommes
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
 import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { SicurezzaCommessa } from "@/components/sicurezza/SicurezzaCommessa";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
@@ -2094,6 +2095,11 @@ function OrderDetailInner() {
               {permissions.canEditOrders && companyId && <details className="mt-3 rounded-lg border bg-white px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Supporto AI per le assegnazioni</summary><div className="mt-3"><AllocazioneOperaiAIDialog orderId={id!} companyId={companyId} /></div></details>}
             </div>
             </>}
+            {vistaCantiere === "sicurezza" && <div id="section-sicurezza" className="scroll-mt-24">
+              {permissions.canViewSicurezzaCantiere && companyId
+                ? <ErrorBoundary><SicurezzaCommessa key={id} companyId={companyId} orderId={id!} /></ErrorBoundary>
+                : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Per vedere i documenti di sicurezza serve il permesso «Sicurezza cantiere». Chiedilo al titolare.</p>}
+            </div>}
             {vistaCantiere === "cronoprogramma" && <div id="section-cronoprogramma" className="scroll-mt-24">
               <ErrorBoundary>
                 <CronoprogrammaCommessa

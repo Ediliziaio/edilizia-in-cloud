@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -49,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "DURC tracciato automaticamente", "Conformità responsabilità solidale"],
+  reassurancePoints: ["Avvio assistito", "DURC tracciato automaticamente", "Conformità responsabilità solidale"],
   proofPoints: [
     "Ritenuta 4% INPS automatica",
     "Alert DURC in scadenza",
@@ -62,9 +63,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Zero rischio di responsabilità solidale, margine subappalti difeso"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per gestire subappaltatori senza rischi.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Gestione Subappalti è il presidio di compliance del cantiere: lo attiviamo in 48 ore, importiamo l'anagrafica subappaltatori e i contratti aperti, configuriamo il flusso DURC con i tuoi enti (Cassa Edile, INPS, INAIL) e ti accompagniamo in 4 sessioni 1-a-1 fino a quando ogni SAL passa con DURC verificato e ritenuta calcolata in automatico.",
+    "Il modulo Gestione Subappalti è il presidio di compliance del cantiere: lo attiviamo insieme alla tua impresa, importiamo l'anagrafica subappaltatori e i contratti aperti, configuriamo il flusso DURC con i tuoi enti (Cassa Edile, INPS, INAIL) e ti accompagniamo in 4 sessioni 1-a-1 fino a quando ogni SAL passa con DURC verificato e ritenuta calcolata in automatico.",
 
   speedH2: "Il subappalto non è solo un costo: è un rischio legale che vivi ogni giorno.",
   speedSubheadline:
@@ -208,7 +209,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Non un software amministrativo. Una scudo legale e finanziario per la tua impresa.",
   commercialBody:
-    "I subappalti generano in media il 25-50% del costo di una commessa edile. Tra rischio responsabilità solidale, ritenute non versate e DURC scaduti, una sola omissione può costarti decine di migliaia di euro di sanzioni e contestazioni. Edilizia in Cloud trasforma il presidio di compliance in un automatismo, non in una preoccupazione.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: ShieldCheck,
@@ -290,7 +291,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Ore amministrative risparmiate", value: `${Math.round(a * 24)} h` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 2% di rischio/margine recuperato. Una sola contestazione di responsabilità solidale evitata vale potenzialmente 10-50x l'abbonamento di un anno.",
+      "Simulazione illustrativa basata su 2% di rischio/margine recuperato. Una sola contestazione di responsabilità solidale evitata vale potenzialmente 10-50x l'abbonamento di un anno.",
   },
 
   salesKicker: "Impatto operativo",
@@ -317,7 +318,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Anagrafica subappaltatori completa",
@@ -464,12 +465,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di rischiare la responsabilità solidale. Inizia a pagare con tranquillità.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nella gestione dei tuoi subappalti. Setup in 48 ore, importazione anagrafica subappaltatori, configurazione DURC e ritenuta 4% inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nella gestione dei tuoi subappalti. Avvio assistito, importazione anagrafica subappaltatori, configurazione DURC e ritenuta 4% inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · DURC tracciati · Ritenuta 4% automatica",
+  finalCtaMicrocopy: "Avvio assistito · DURC tracciati · Ritenuta 4% automatica",
 
   stickyCtaLabel: "Prova gratis Subappalti",
-  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+  stickyCtaMicrocopy: "Avvio assistito · Cancelli quando vuoi",
 
   applicationSubCategory: "Construction Subcontractor Management Software",
 

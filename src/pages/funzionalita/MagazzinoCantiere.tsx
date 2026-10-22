@@ -1,455 +1,64 @@
-import {
-  AlertTriangle,
-  Barcode,
-  ClipboardCheck,
-  Database,
-  HardHat,
-  Inbox,
-  PackageCheck,
-  PackageOpen,
-  PackageX,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Tag,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-  Warehouse,
-  Zap,
-} from "lucide-react";
-import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
-import type { FunzionalitaPageConfig } from "./_template/types";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check, HardHat, BriefcaseBusiness, PackageCheck, Receipt, AlertCircle } from "lucide-react";
+import LandingNavbar from "@/components/landing/LandingNavbar";
+import LandingFooter from "@/components/landing/LandingFooter";
+import WarehouseFlow from "@/components/landing/WarehouseFlow";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { useSEO } from "@/hooks/useSEO";
+import { marketingMessages } from "@/lib/marketing/messages";
 
-const config: FunzionalitaPageConfig = {
-  slug: "magazzino-cantiere",
-  definizione:
-    "Magazzino Cantiere di Edilizia in Cloud è il magazzino multi-cantiere dell'impresa edile: ogni cantiere ha le proprie giacenze, i prelievi si registrano con i codici a barre, le scorte minime fanno partire il riordino in automatico e il magazzino è valorizzato con il metodo FIFO, conforme ai principi contabili.",
-  vertical: "Magazzino Cantiere",
-  productName: "Magazzino Cantiere Edilizia in Cloud",
-  audience:
-    "Imprese edili, ristrutturatori e general contractor che gestiscono multi-cantiere con magazzini distribuiti e vogliono stock controllato per cantiere, prelievi tracciati, scorte minime e codici a barre",
-  audienceShort: "imprese edili e general contractor multi-cantiere",
-
-  seo: {
-    title:
-      "Magazzino Cantiere Multi-Sito",
-    description:
-      "Gestione magazzino multi-cantiere con stock per cantiere, prelievi tracciati con codici a barre, scorte minime e ordini automatici, valorizzazione FIFO.",
-    keywords:
-      "magazzino cantiere edilizia, gestione magazzino multi-cantiere, stock cantiere, prelievi tracciati edilizia, codici a barre magazzino edilizia, scorte minime cantiere, valorizzazione FIFO edilizia, software magazzino edile",
-    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
-  },
-
-  heroBadge: "Funzionalità · Magazzino Cantiere",
-  heroH1Lead: "Stock per cantiere",
-  heroH1Highlight: "tracciato e valorizzato",
-  heroH1Tail: "FIFO",
-  heroSubheadline:
-    "Gestione magazzino multi-cantiere con stock dedicato per ogni cantiere, prelievi tracciati con codici a barre, scorte minime con riordino automatico, valorizzazione FIFO conforme principi contabili. Smetti di ricomprare ferro che hai già, di trovare scorte ammuffite, di stimare il valore di magazzino a fine anno.",
-  heroPrimaryCta: "Prova gratis 31 giorni",
-  heroSecondaryCta: "Tutte le funzionalità",
-  heroSecondaryCtaTo: "/funzionalita",
-
-  reassurancePoints: [
-    "Setup in 48 ore",
-    "Codici a barre inclusi",
-    "Valorizzazione FIFO automatica",
-  ],
-  proofPoints: [
-    "Stock per cantiere in tempo reale",
-    "Riordino automatico scorte minime",
-    "Inventario valorizzato real-time",
-  ],
-
-  objectiveRow: [
-    ["Obiettivo", "Eliminare doppi acquisti e materiali persi nei cantieri"],
-    ["Momento chiave", "Prelievo materiale dal magazzino al cantiere"],
-    ["Risultato", "8% di recupero su stock sprecato"],
-  ],
-
-  betaH2:
-    "Più di 300 imprese italiane usano il Magazzino Cantiere per controllare stock distribuiti e ridurre sprechi.",
-  betaBody:
-    "Il Magazzino Cantiere lo attiviamo in 48 ore: configuriamo i magazzini fisici (centrale + cantieri), importiamo l'anagrafica articoli, stampiamo etichette codici a barre, attiviamo le scorte minime con riordino automatico e ti accompagniamo in 4 sessioni 1-a-1 fino al primo inventario valorizzato.",
-
-  speedH2:
-    "Stima conservativa: un'impresa con 5 cantieri attivi spreca 8% di stock l'anno tra materiali persi e doppi acquisti.",
-  speedSubheadline:
-    "Senza tracking magazzino multi-sito, capita: ferro tondo già a cantiere Via Roma viene ricomprato perché 'non si trovava'; sacchi di cemento dimenticati in cantiere Milano si ammuffiscono; isolante per cantiere chiuso resta nel furgone per mesi. Stock sprecato silenzioso ma costante.",
-  speedStats: [
-    { value: 8, prefix: "+", suffix: "%", label: "recupero su stock sprecato annuo" },
-    { value: 100, suffix: "%", label: "prelievi tracciati con codici a barre" },
-    { value: 24, suffix: "/7", label: "stock per cantiere consultabile da app" },
-  ],
-
-  familyH2: "Il Magazzino Cantiere collegato a ordini, cantieri e margini.",
-  familySubheadline:
-    "Ogni DDT in arrivo aggiorna lo stock cantiere, ogni prelievo per posa lavori imputa il costo al cantiere giusto, ogni scorta minima genera un PO automatico al fornitore. Magazzino vivo, mai obsoleto.",
-  familyItems: [
-    {
-      icon: Tag,
-      title: "Ordini Acquisto",
-      text: "DDT in arrivo aggiornano automaticamente lo stock di magazzino cantiere.",
-      to: "/funzionalita/ordini-acquisto",
-    },
-    {
-      icon: HardHat,
-      title: "Gestione Cantieri",
-      text: "Prelievi imputati al cantiere giusto per costo materiali reale.",
-      to: "/funzionalita/gestione-cantieri",
-    },
-    {
-      icon: TrendingUp,
-      title: "Margini Cantiere",
-      text: "Valorizzazione FIFO alimenta analisi margine progetto in tempo reale.",
-      to: "/funzionalita/margini-cantiere",
-    },
-    {
-      icon: Inbox,
-      title: "Cassetto Fiscale SDI",
-      text: "Fatture passive riconciliate con DDT e movimenti di magazzino.",
-      to: "/funzionalita/cassetto-sdi",
-    },
-    {
-      icon: Wallet,
-      title: "Cassa Cantiere",
-      text: "Costo materiali reale alimenta valorizzazione SAL e fatturazione.",
-      to: "/funzionalita/cassa-cantiere",
-    },
-    {
-      icon: ClipboardCheck,
-      title: "Giornale Lavori",
-      text: "Materiali utilizzati al giorno tracciati nel giornale di cantiere.",
-      to: "/funzionalita/giornale-lavori",
-    },
-  ],
-  familyBonusTitle: "Una sola fonte di stock. Una sola valorizzazione. Niente più scorte fantasma.",
-  familyBonusText:
-    "Quando arriva un DDT, lo stock del cantiere si aggiorna. Quando l'operaio preleva materiale per posa, scansiona codice a barre e lo stock cala. Quando una scorta scende sotto soglia, il PO automatico parte al fornitore. Quando chiudi il cantiere, lo stock residuo si trasferisce al magazzino centrale. Tutto vivo, sempre vero.",
-
-  painKicker: "Il problema vero",
-  painH2:
-    "Ferro tondo ricomprato perché 'non si trovava'. Cemento ammuffito in cantiere chiuso. Inventario di fine anno fatto a occhio.",
-  painSubheadline:
-    "Il magazzino cantiere è la zona grigia di moltissime imprese edili: stock fisico in 5-10 cantieri diversi, nessun tracking centrale, prelievi non registrati, materiali che si perdono. Stima media: 8% di costo materiali sprecato silenziosamente.",
-  painPoints: [
-    {
-      icon: PackageX,
-      title: "Doppi acquisti per materiali 'introvabili'",
-      text: "Capocantiere ordina 50 sacchi di calce perché 'non si trovavano'. In realtà erano in cantiere Via Roma, dimenticati. Quando si scopre, alcuni sono già scaduti. Costo doppio + spreco.",
-    },
-    {
-      icon: AlertTriangle,
-      title: "Materiali rovinati in cantieri chiusi",
-      text: "Cantiere chiuso da 3 mesi, ma 8.000€ di materiale (isolante, sigillanti, pannelli) sono ancora lì. Pioggia, sole, ratti. Quando ci si torna, è tutto da buttare. Soldi bruciati senza accorgersene.",
-    },
-    {
-      icon: Search,
-      title: "Capocantiere che cerca per 30 minuti",
-      text: "Capocantiere chiede 'dov'è il sigillante poliuretanico?'. Non in magazzino centrale, non in furgone, forse in cantiere Milano. 30 minuti di telefonate, poi ricomprato. Tempo bruciato + acquisto doppio.",
-    },
-    {
-      icon: Database,
-      title: "Inventario di fine anno fatto a occhio",
-      text: "Il commercialista chiede valorizzazione magazzino al 31/12. Risposta: 'circa 35.000€'. Stima approssimativa, valorizzazione FIFO impossibile, bilancio non auditabile, IVA su rimanenze sbagliata.",
-    },
-  ],
-
-  baKicker: "Prima e dopo Edilizia in Cloud",
-  baH2: "Stessi cantieri, stessi materiali, stessi furgoni. Cambia il controllo e il valore reale.",
-  baSubheadline:
-    "Il Magazzino Cantiere non aumenta lo stock: lo rende visibile e tracciabile. Materiali che esistevano ma 'non si trovavano' tornano disponibili, materiali in cantieri chiusi tornano al centrale, scorte minime impediscono ordini emergenza.",
-  baAreas: [
-    {
-      title: "Visibilità stock multi-cantiere",
-      before:
-        "Stock disperso in 5-10 cantieri diversi, nessuna visibilità centrale. Capocantiere chiede a colleghi 'avete X?', telefonate, perdita tempo, doppi acquisti.",
-      after:
-        "Apri app, cerchi articolo: vedi stock in tempo reale per cantiere, magazzino centrale, furgone capocantiere. Sai dove andare a prelevare, niente doppi acquisti.",
-    },
-    {
-      title: "Tracking prelievi e movimenti",
-      before:
-        "Operaio preleva 30 mattoni dal magazzino cantiere, niente registrazione. A fine settimana, nessuno sa cosa è uscito, cosa è entrato, cosa serve riordinare.",
-      after:
-        "Operaio scansiona codice a barre articolo + cantiere su app, prelievo registrato, stock aggiornato in tempo reale. Imputazione automatica del costo al cantiere giusto.",
-    },
-    {
-      title: "Riordino automatico scorte minime",
-      before:
-        "Scorte minime gestite a memoria capocantiere. Ferro tondo finisce, capocantiere se ne accorge il giorno della posa, ordine emergenza con prezzo +20%.",
-      after:
-        "Scorte minime per articolo configurate. Quando stock scende sotto soglia, PO automatico parte al fornitore preferito con prezzo listino. Niente più ordini emergenza.",
-    },
-    {
-      title: "Inventario e valorizzazione",
-      before:
-        "Inventario fine anno fatto a occhio in 2 giorni di lavoro segreteria. Valorizzazione approssimativa, FIFO impossibile, bilancio non auditabile.",
-      after:
-        "Inventario sempre aggiornato, valorizzazione FIFO automatica per articolo, esportazione bilancio in 5 minuti. Stock real-time consultabile da titolare e commercialista.",
-    },
-  ],
-
-  mechanismKicker: "Come funziona",
-  mechanismH2: "Tre passaggi per portare ordine nel magazzino multi-cantiere.",
-  mechanismSubheadline:
-    "Il Magazzino Cantiere funziona con codici a barre stampati su etichette resistenti: ogni movimento è una scansione di 3 secondi, nessuna formazione complicata richiesta agli operai.",
-  mechanismSteps: [
-    {
-      icon: Barcode,
-      title: "Codici a barre per articoli e cantieri",
-      text: "Stampi etichette codici a barre per articoli (mattoni, ferro, sacchi cemento, ecc.) e identificativi cantiere. Operaio scansiona articolo + cantiere, prelievo registrato, niente compilazione manuale.",
-    },
-    {
-      icon: PackageCheck,
-      title: "Movimenti tracciati in tempo reale",
-      text: "Ogni DDT in arrivo aggiorna stock cantiere, ogni prelievo lo riduce, ogni trasferimento tra cantieri è registrato. Stock per cantiere consultabile da app capocantiere e dashboard titolare 24/7.",
-    },
-    {
-      icon: RefreshCw,
-      title: "Scorte minime e riordino automatico",
-      text: "Per ogni articolo configuri scorta minima per cantiere. Quando lo stock scende sotto soglia, sistema genera PO automatico al fornitore preferito, tu approvi in 5 secondi.",
-    },
-  ],
-  mechanismCta: "Apri la demo Magazzino Cantiere",
-
-  commercialKicker: "Perché conviene davvero",
-  commercialH2: "8% di recupero su stock sprecato. Inventario sempre vero. Niente più ordini emergenza.",
-  commercialBody:
-    "Il Magazzino Cantiere non aumenta lo stock: lo rende visibile e usabile. Le imprese che lo attivano recuperano in media l'8% sul costo materiali eliminando doppi acquisti, materiali rovinati e ordini emergenza con prezzo gonfiato.",
-  commercialLevers: [
-    {
-      icon: TrendingDown,
-      title: "8% recupero su costo materiali",
-      text: "Doppi acquisti eliminati (visibilità stock multi-cantiere), materiali rovinati ridotti (alert scadenza, recupero da cantieri chiusi), ordini emergenza azzerati (riordino automatico scorte minime).",
-    },
-    {
-      icon: Zap,
-      title: "Niente più ordini emergenza",
-      text: "Scorte minime con riordino automatico al fornitore preferito a prezzo listino. Niente più ordini last-minute con prezzi +20% perché 'serve domani'.",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Inventario auditabile e FIFO",
-      text: "Valorizzazione FIFO automatica conforme principi contabili. Bilancio auditabile dal revisore, IVA su rimanenze accurata, fido bancario più facile da ottenere.",
-    },
-    {
-      icon: Sparkles,
-      title: "Capocantiere che lavora più veloce",
-      text: "Niente più 30 minuti di telefonate per cercare materiali. Apri app, vedi dove sono, prelevi. Tempo recuperato per il lavoro vero in cantiere.",
-    },
-  ],
-
-  resultsKicker: "Risultati con Edilizia in Cloud",
-  resultsH2: "Lo stock smette di essere un mistero. Diventa una risorsa controllata.",
-  resultsBody:
-    "Quando ogni movimento di magazzino è tracciato e ogni cantiere ha visibilità sui propri stock, l'impresa cambia paradigma: niente più sprechi, niente più doppi acquisti, niente più inventari a sentimento. Le imprese che attivano Magazzino Cantiere vedono cambiare 4 dimensioni operative concrete.",
-  integrationPillars: [
-    {
-      icon: Warehouse,
-      title: "Multi-magazzino multi-cantiere",
-      text: "Magazzino centrale, magazzini cantiere, furgoni capocantiere. Stock per ogni location consultabile da app mobile e dashboard, sempre real-time.",
-    },
-    {
-      icon: Barcode,
-      title: "Codici a barre e scansione veloce",
-      text: "Etichette resistenti per articoli e cantieri. App scanner mobile o pistola Bluetooth. Movimento registrato in 3 secondi, niente compilazione manuale.",
-    },
-    {
-      icon: PackageOpen,
-      title: "Scorte minime e riordino automatico",
-      text: "Configurazione per articolo per cantiere. Quando stock scende sotto soglia, PO automatico al fornitore preferito a prezzo listino, tu approvi in 5 secondi.",
-    },
-    {
-      icon: Database,
-      title: "Valorizzazione FIFO automatica",
-      text: "Conforme principi contabili italiani. Inventario sempre aggiornato, esportazione bilancio in 5 minuti, audit trail completo per revisore o GdF.",
-    },
-  ],
-  resultStats: [
-    { value: 8, prefix: "+", suffix: "%", label: "recupero su stock sprecato annuo" },
-    { value: 100, suffix: "%", label: "prelievi tracciati con codici a barre" },
-    { value: 5, suffix: " min", label: "tempo per inventario valorizzato (era 2 giorni)" },
-  ],
-  resultsCta: "Apri la demo Magazzino Cantiere",
-
-  roiKicker: "Calcola il tuo ROI",
-  roiH2: "Quanto recuperi se il magazzino smette di essere una zona grigia?",
-  roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e valore stock medio per cantiere. La stima parte dall'8% di recupero su stock sprecato osservato sui clienti dopo 6 mesi.",
-  roi: {
-    input1Label: "Cantieri attivi",
-    input1Default: 6,
-    input1Min: 1,
-    input1Max: 50,
-    input1Step: 1,
-    input2Label: "Valore stock medio per cantiere (€)",
-    input2Default: 12000,
-    input2Min: 1000,
-    input2Max: 200000,
-    input2Step: 500,
-    input2Suffix: " €",
-    outputLabel: "Recupero annuo stimato",
-    computeOutput: (a, b) => Math.round(a * b * 0.08),
-    computeSecondary: (a, b) => [
-      { label: "Stock totale gestito", value: `€ ${(a * b).toLocaleString("it-IT")}` },
-      { label: "Riduzione doppi acquisti attesa", value: "8%" },
-      { label: "Tempo capocantiere recuperato/anno", value: `${a * 50} h` },
-    ],
-    closingPitch:
-      "Stima prudenziale basata sull'8% di recupero medio su stock sprecato (doppi acquisti, materiali rovinati, ordini emergenza). Aggiungi il valore del controllo costi cantiere in tempo reale e l'inventario sempre auditabile.",
-  },
-
-  salesKicker: "Impatto operativo",
-  salesH2: "Non un altro modulo software. Una disciplina che il magazzino non ha mai avuto.",
-  salesBody:
-    "Il Magazzino Cantiere Edilizia in Cloud non è solo un sistema di tracking: è una disciplina operativa applicata via app mobile e codici a barre. Le imprese che lo attivano vedono cambiare 4 dimensioni operative concrete.",
-  salesImpact: [
-    {
-      title: "Capocantiere veloce e informato",
-      text: "Capocantiere apre app, vede stock multi-cantiere in 5 secondi. Niente più 30 minuti di telefonate per cercare materiali, niente più doppi acquisti per dimenticanze.",
-    },
-    {
-      title: "Materiali recuperati da cantieri chiusi",
-      text: "Quando un cantiere chiude, lo stock residuo si trasferisce automaticamente al magazzino centrale. Materiali che prima si rovinavano in cantiere chiuso tornano disponibili.",
-    },
-    {
-      title: "Bilancio auditabile dal revisore",
-      text: "Valorizzazione FIFO automatica, audit trail completo, inventario aggiornato in tempo reale. Revisore o GdF possono auditare bilancio in 30 minuti.",
-    },
-    {
-      title: "Negoziazione fornitori basata su consumi",
-      text: "Storico consumi per articolo per cantiere. Negoziazione annuale fornitori basata su volumi reali, non stime. Sconti volume sistematici.",
-    },
-  ],
-
-  featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
-  featureRows: [
-    {
-      label: "Multi-magazzino multi-cantiere",
-      value:
-        "Magazzino centrale, magazzini cantiere, furgoni capocantiere. Numero illimitato, stock real-time per ogni location, dashboard consolidata e per location.",
-    },
-    {
-      label: "Codici a barre per articoli e cantieri",
-      value:
-        "Etichette resistenti incluse per primo setup. App scanner mobile (iOS/Android) o pistola Bluetooth. Movimento registrato in 3 secondi.",
-    },
-    {
-      label: "Tracking prelievi e trasferimenti",
-      value:
-        "Ogni movimento (carico DDT, prelievo, trasferimento tra cantieri, reso fornitore) è tracciato con timestamp, operatore, cantiere. Audit trail completo.",
-    },
-    {
-      label: "Scorte minime con riordino automatico",
-      value:
-        "Per ogni articolo per cantiere configuri scorta minima. Quando stock scende sotto soglia, PO automatico al fornitore preferito a prezzo listino.",
-    },
-    {
-      label: "Valorizzazione FIFO automatica",
-      value:
-        "Conforme principi contabili italiani. Aggiornamento real-time, esportazione bilancio in 5 minuti, IVA su rimanenze accurata.",
-    },
-    {
-      label: "Imputazione costo al cantiere",
-      value:
-        "Ogni prelievo imputa costo al cantiere giusto. Margine cantiere aggiornato in tempo reale, niente più stime a fine lavori.",
-    },
-    {
-      label: "Inventario e analisi consumi",
-      value:
-        "Storico consumi per articolo per cantiere, trend temporale, alert anomalie consumo. Strumenti decisionali per negoziazioni fornitori e ottimizzazione acquisti.",
-    },
-  ],
-
-  scenarioKicker: "Tre casi reali sul campo",
-  scenarioH2: "Tre situazioni in cui il Magazzino Cantiere cambia la giornata.",
-  scenarios: [
-    {
-      title: "Capocantiere cerca isolante alle 8 di mattina",
-      text: "Capocantiere ha urgenza di 20 m² di isolante. Apre app: 32 m² disponibili in cantiere chiuso a Verona, ritirabili oggi. Anziché ordinare nuovo (3 giorni di attesa, costo +280€), recupera dal cantiere chiuso in 1 ora.",
-    },
-    {
-      title: "Riordino ferro tondo automatico",
-      text: "Stock ferro tondo D14 scende sotto soglia 200 metri. Sistema genera PO automatico al fornitore preferito con prezzo listino. Tu approvi in 5 secondi, fornitore consegna in 2 giorni. Niente ordine emergenza con prezzo gonfiato.",
-    },
-    {
-      title: "Inventario per il commercialista al 31/12",
-      text: "Commercialista chiede valorizzazione magazzino al 31 dicembre. Esporti report FIFO in 5 minuti: 47.230€ stock multi-cantiere dettagliato per articolo. Bilancio chiuso in tempo, IVA su rimanenze accurata, audit revisore agile.",
-    },
-  ],
-
-  testimonialQuote:
-    "Avevo 7 cantieri attivi e stock disperso ovunque. Quando un capocantiere chiedeva qualcosa, partivano 5 telefonate. Spesso ricomprava perché 'non si trovava'. Ho attivato Magazzino Cantiere: nei primi 4 mesi ho scoperto 18.000€ di materiali in cantieri chiusi che credevo persi. Riportati al centrale, riutilizzati nei nuovi cantieri. Pagamento del modulo recuperato in 2 mesi.",
-  testimonialAuthor: "Giorgio B.",
-  testimonialRole: "Bianchi Costruzioni Spa, Modena",
-
-  faqKicker: "Domande frequenti",
-  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
-  faqs: [
-    {
-      q: "Devo etichettare ogni singolo articolo? Non è troppo lavoro?",
-      a: "No. Etichetti i contenitori (pallet di mattoni, bobine ferro, sacchi cemento) o le ubicazioni di stoccaggio. Per articoli sfusi (calce, sabbia) tracciamento per peso/volume. Onboarding include stampa etichette e setup primo magazzino: 1 giorno di lavoro per impresa media.",
-    },
-    {
-      q: "Funziona se i cantieri sono in zone senza copertura mobile?",
-      a: "Sì. App funziona offline: registra prelievi, trasferimenti, codici a barre localmente. Quando rientra in copertura, sync automatico. Nessuna perdita dati anche su cantieri remoti.",
-    },
-    {
-      q: "Si integra con il mio gestionale fornitori esistente?",
-      a: "Sì se è il gestionale Edilizia in Cloud (Ordini Acquisto, Cassetto SDI, Margini Cantiere). Per gestionali esterni, API REST disponibili nel piano Impresa AI per integrazione bidirezionale (DDT in arrivo, riordini automatici).",
-    },
-    {
-      q: "La valorizzazione FIFO è davvero auditabile?",
-      a: "Sì. Conforme principi contabili italiani OIC 13. Audit trail completo per ogni movimento (carico, prelievo, trasferimento) con costo storicizzato. Esportazione bilancio in formato accettato dal revisore, GdF, fido bancario.",
-    },
-    {
-      q: "Posso gestire scorte minime diverse per cantiere?",
-      a: "Sì. Per ogni articolo configuri scorta minima diversa per ogni cantiere/magazzino. Es. cantiere principale: 500 mattoni minimi, cantiere piccolo: 100 minimi. Sistema gestisce riordini automatici cantiere per cantiere.",
-    },
-    {
-      q: "Quanto costa? Ci sono limiti su numero cantieri o articoli?",
-      a: "Magazzino Cantiere è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Cantieri illimitati, articoli illimitati, app scanner inclusa. Etichette codici a barre e formazione iniziale incluse nei primi 30 giorni.",
-    },
-  ],
-
-  internalLinksKicker: "Esplora la piattaforma",
-  internalLinksH2: "Il Magazzino Cantiere è il cuore operativo dei materiali.",
-  internalLinksBody:
-    "Stock, prelievi, riordini si parlano con ordini fornitore, cantieri, fatture passive e analisi margini. Una sola fonte di verità sui materiali.",
-  internalLinks: [
-    { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "DDT in arrivo aggiornano stock di magazzino cantiere automaticamente." },
-    { to: "/funzionalita/gestione-cantieri", title: "Gestione Cantieri", text: "Prelievi imputati al cantiere giusto per costo materiali reale." },
-    { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Valorizzazione FIFO alimenta analisi margine progetto." },
-    { to: "/funzionalita/cassetto-sdi", title: "Cassetto Fiscale SDI", text: "Fatture passive riconciliate con DDT e movimenti magazzino." },
-    { to: "/funzionalita/cassa-cantiere", title: "Cassa Cantiere", text: "Costo materiali reale alimenta valorizzazione SAL e fatturazione." },
-    { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "Materiali utilizzati al giorno tracciati nel giornale di cantiere." },
-    { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Materiali forniti a subappaltatori tracciati con prelievi." },
-    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Magazzino Cantiere incluso nei piani Professionista e Impresa AI." },
-  ],
-
-  finalCtaH2: "Smetti di ricomprare materiali che hai già. Inizia a sapere dove sono e quanto valgono.",
-  finalCtaBody:
-    "31 giorni gratuiti per portare il Magazzino Cantiere dentro la tua impresa edile. Setup in 48 ore, codici a barre, scorte minime con riordino automatico, valorizzazione FIFO inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
-  finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Codici a barre inclusi · FIFO automatico",
-
-  stickyCtaLabel: "Prova gratis Magazzino Cantiere",
-  stickyCtaMicrocopy: "Setup 48h · Codici a barre + FIFO",
-
-  applicationSubCategory: "Construction Inventory Management Software",
-
-  relatedBlogSlugs: [
-    "ddt-cantiere-digitale",
-    "ridurre-costi-cantieri-edili",
-    "contabilita-di-cantiere-guida",
-  ],
-};
+const questions = [
+  { question: "La bolla non ha il prezzo: cosa registro?", answer: "Registra fornitore, numero e data del documento, materiali, quantità, unità e commessa. Se il prezzo non è disponibile, resta da completare. L’ufficio verifica la fattura quando arriva: il dato mancante non dimostra un costo di zero euro." },
+  { question: "Arrivano solo 60 dei 100 sacchi ordinati?", answer: "Tieni distinta la quantità ordinata da quella effettivamente ricevuta: nell’esempio sono 100 ordinati, 60 arrivati e 40 ancora da ricevere. Collega la bolla della consegna e verifica la parte mancante. La presenza di una consegna parziale non dimostra che tutto l’ordine sia arrivato." },
+  { question: "Una fattura contiene bolle di più cantieri?", answer: "L’ufficio controlla fornitore, riferimenti delle bolle e righe della fattura, poi verifica i collegamenti e le quote delle commesse. Nell’esempio 1.200 € di Roma e 2.400 € di Milano compongono una fattura netta da 3.600 €. Non promettiamo un abbinamento automatico senza controllo." },
+  { question: "L’operaio ha già pagato il materiale?", answer: "L’acquisto al banco distingue pagato da me, conto azienda e ritiro di un ordine già fatto. Il documento e la modalità vanno verificati dall’ufficio. Il rimborso al dipendente, il debito al fornitore e il costo della commessa non sono la stessa informazione." },
+  { question: "Come gestisco un reso o una nota di credito?", answer: "Il materiale restituito e l’eventuale nota di credito vanno collegati e verificati: quantità restituite, costo e movimento di denaro non cambiano necessariamente nello stesso momento. Il caso di reso va verificato in demo sul tuo flusso: questa anteprima non simula uno storno automatico." },
+  { question: "Le cifre e gli stati dell’esempio sono dati veri?", answer: "No. È una spiegazione interattiva con dati ipotetici, non una schermata operativa del gestionale. Le etichette riassumono controlli diversi: ordine, consegna, prezzo e attribuzione del costo. Nulla viene caricato o salvato nell’azienda." },
+];
 
 export default function MagazzinoCantiere() {
-  return <FunzionalitaPageTemplate config={config} />;
+  useSEO({
+    title: "Magazzino cantiere, DDT e fatture fornitori",
+    description: "Collega materiali, ordini, bolle e fatture alle commesse. Segui consegne, prezzi da completare e costi attribuiti, con verifica dell’ufficio.",
+    canonical: "/funzionalita/magazzino-cantiere/",
+    keywords: "magazzino cantiere, materiali commessa, bolle DDT cantiere, fatture fornitori commesse, acquisti operai, costo materiali",
+  });
+  return (
+    <div className="min-h-screen bg-white text-[#111111]">
+      <LandingNavbar />
+      <JsonLd id="jsonld-warehouse-page" data={{"@context":"https://schema.org","@type":"WebPage","@id":"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/#webpage",name:"Magazzino cantiere, bolle e costi delle commesse",url:"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/",description:"Materiali, ordini, consegne e fatture collegati alle commesse, con verifica dell’ufficio.",isPartOf:{"@id":"https://www.ediliziaincloud.com/#website"}}} />
+      <JsonLd id="jsonld-warehouse-breadcrumb" data={{"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"Home",item:"https://www.ediliziaincloud.com/"},{"@type":"ListItem",position:2,name:"Funzionalità",item:"https://www.ediliziaincloud.com/funzionalita/"},{"@type":"ListItem",position:3,name:"Magazzino cantiere",item:"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/"}]}} />
+      <main>
+        <section className="bg-[#f8f8f7] px-5 pb-14 pt-28 md:pb-20 md:pt-36">
+          <div className="mx-auto max-w-6xl">
+            <nav aria-label="Percorso" className="mb-8 flex flex-wrap items-center gap-2 text-xs text-black/45"><Link to="/funzionalita/" className="rounded outline-none hover:text-eic-orange focus-visible:ring-2 focus-visible:ring-eic-orange">Funzionalità</Link><span aria-hidden="true">/</span><span>Magazzino cantiere</span></nav>
+            <div className="grid items-start gap-9 lg:grid-cols-[1.4fr_0.8fr]">
+              <div><p className="mb-4 text-xs font-bold uppercase tracking-[0.17em] text-eic-orange-deep">Materiali, acquisti e commesse</p><h1 className="max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">Sai cosa è arrivato.<br /><span className="text-eic-orange-deep">E quanto costa al cantiere.</span></h1><p className="mt-6 max-w-2xl text-base leading-relaxed text-black/60 md:text-lg">Dal prelievo in magazzino alla bolla fotografata dall’operaio, fino alla fattura del fornitore: documenti e materiali trovano la commessa corretta. L’ufficio verifica prezzi e collegamenti.</p><div className="mt-7 flex flex-wrap items-center gap-3"><a href="#flusso-materiali" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#111111] px-6 py-3 text-sm font-bold text-white outline-none hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-eic-orange">Segui un esempio<ArrowRight size={16} aria-hidden="true" /></a><Link to="/demo/" className="inline-flex min-h-12 items-center rounded-full border border-black/15 px-6 py-3 text-sm font-semibold outline-none hover:border-eic-orange focus-visible:ring-2 focus-visible:ring-eic-orange">Valuta il tuo caso in demo</Link></div><p className="mt-5 text-xs text-black/45">{marketingMessages.companies} · {marketingMessages.activation}</p></div>
+              <aside aria-label="I controlli da tenere distinti" className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"><PackageCheck className="mb-5 text-eic-orange-deep" size={28} aria-hidden="true" /><h2 className="text-lg font-bold">Una bolla non è una fattura.</h2><p className="mt-3 text-sm leading-relaxed text-black/55">Un ordine dice cosa hai richiesto. La consegna dice cosa è arrivato. La fattura documenta l’importo da verificare. Il pagamento dice quando sono usciti i soldi.</p><ul className="mt-5 space-y-3 text-sm">{["Quantità ordinate e ricevute separate", "Prezzo mancante riconoscibile", "Costo della fornitura contato una volta"].map(text=><li key={text} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-eic-orange-deep" aria-hidden="true" />{text}</li>)}</ul></aside>
+            </div>
+          </div>
+        </section>
+
+        <WarehouseFlow />
+
+        <section aria-labelledby="warehouse-roles" className="px-5 py-16 md:py-20"><div className="mx-auto max-w-6xl"><p className="mb-3 text-xs font-bold uppercase tracking-widest text-eic-orange-deep">Un compito chiaro per ciascuno</p><h2 id="warehouse-roles" className="text-3xl font-extrabold tracking-tight md:text-4xl">In cantiere raccogli. In ufficio verifichi.</h2><div className="mt-8 grid gap-4 md:grid-cols-2">{[
+          {icon:HardHat,title:"Operaio e capocantiere",description:"Scelgono la commessa, caricano il documento e controllano cosa è arrivato.",items:["Foto della bolla o del documento d’acquisto", "Materiali, quantità e unità da controllare", "Modalità d’acquisto: pagato da me, conto azienda o ritiro"]},
+          {icon:BriefcaseBusiness,title:"Ufficio",description:"Verifica i dati del campo e completa il collegamento ai costi della commessa.",items:["Fornitore, numero documento e riferimenti", "Prezzi, fatture e quote delle commesse", "Eventuali rimborsi, differenze o documenti mancanti"]},
+        ].map(role=><article key={role.title} className="rounded-3xl border border-black/10 bg-[#f8f8f7] p-6 sm:p-7"><role.icon size={26} className="text-eic-orange-deep" aria-hidden="true" /><h3 className="mt-4 text-xl font-bold">{role.title}</h3><p className="mt-3 text-sm leading-relaxed text-black/55">{role.description}</p><ul className="mt-5 space-y-3">{role.items.map(item=><li key={item} className="flex items-start gap-2 text-sm"><Check size={15} className="mt-0.5 shrink-0 text-eic-orange-deep" aria-hidden="true" />{item}</li>)}</ul></article>)}</div><p className="mt-4 text-xs leading-relaxed text-black/45">Le operazioni disponibili dipendono dal ruolo e dalle funzioni del piano. L’esempio non concede accessi o modifica i permessi.</p></div></section>
+
+        <section aria-labelledby="warehouse-status" className="border-y border-black/5 bg-[#f8f8f7] px-5 py-14"><div className="mx-auto max-w-6xl"><h2 id="warehouse-status" className="text-2xl font-extrabold md:text-3xl">Consegnato non significa già fatturato.</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-black/55">Controlla separatamente ordine, consegna e costo. Queste situazioni possono coesistere sulla stessa fornitura.</p><div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
+          ["Ordine", "Confermato", "Il fornitore ha confermato l’ordine; verifica cosa è effettivamente arrivato."],
+          ["Consegna", "Arrivata in parte", "Una parte resta da ricevere: confronta quantità e documenti."],
+          ["Prezzo", "Da completare", "La bolla non basta a conoscere l’importo definitivo."],
+          ["Costo", "Da verificare", "L’ufficio controlla fattura, collegamenti e attribuzione alla commessa."],
+        ].map(([label,status,note])=><article key={label} className="rounded-2xl border border-black/10 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-black/40">{label}</p><h3 className="mt-2 text-base font-bold">{status}</h3><p className="mt-3 text-xs leading-relaxed text-black/55">{note}</p></article>)}</div></div></section>
+
+        <section aria-labelledby="warehouse-exceptions" className="px-5 py-16 md:py-20"><div className="mx-auto max-w-3xl"><p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-eic-orange-deep"><AlertCircle size={16} aria-hidden="true" />Anche quando non va tutto in ordine</p><h2 id="warehouse-exceptions" className="text-3xl font-extrabold tracking-tight">I casi da controllare, senza scorciatoie.</h2><div className="mt-7 divide-y divide-black/10">{questions.map(item=><details key={item.question} className="group py-5"><summary className="cursor-pointer rounded text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-eic-orange">{item.question}</summary><p className="mt-4 text-sm leading-relaxed text-black/60">{item.answer}</p></details>)}</div></div></section>
+
+        <section className="bg-[#111111] px-5 py-14 text-white"><div className="mx-auto max-w-4xl text-center"><Receipt size={30} className="mx-auto mb-5 text-eic-orange" aria-hidden="true" /><h2 className="text-3xl font-extrabold">Porta in demo una bolla e una fattura.</h2><p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/60">Verifichiamo sul tuo caso consegna, costo e commessa. {marketingMessages.activationDetail}</p><Link to="/demo/" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-eic-orange px-7 py-3 text-sm font-bold text-[#111111] outline-none hover:bg-orange-300 focus-visible:ring-2 focus-visible:ring-white">Richiedi una demo del flusso<ArrowRight size={16} aria-hidden="true" /></Link><div className="mt-7 flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs text-white/50"><Link to="/funzionalita/ordini-acquisto/" className="underline underline-offset-4">Ordini di acquisto</Link><Link to="/funzionalita/ddt-digitali/" className="underline underline-offset-4">Bolle e DDT</Link><Link to="/funzionalita/margini-cantiere/" className="underline underline-offset-4">Margini di cantiere</Link></div></div></section>
+      </main>
+      <LandingFooter />
+      <JsonLd id="jsonld-warehouse-faq" data={{"@context":"https://schema.org","@type":"FAQPage",mainEntity:questions.map(item=>({"@type":"Question",name:item.question,acceptedAnswer:{"@type":"Answer",text:item.answer}}))}} />
+    </div>
+  );
 }

@@ -1,3 +1,4 @@
+import { marketingMessages } from "@/lib/marketing/messages";
 import {
   AlertTriangle,
   Bell,
@@ -69,9 +70,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 310 imprese edili italiane gestiscono ferie, ROL e permessi degli operai con l'app Edilizia in Cloud.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Il modulo Ferie e Permessi è attivo in 48 ore: importiamo l'anagrafica dipendenti con saldi iniziali, configuriamo CCNL Edilizia industria/artigianato con maturazioni mensili e festività, attiviamo l'app self-service per ogni operaio. Quattro sessioni 1-a-1 ti accompagnano fino a quando il primo capocantiere approva la prima ferie da telefono.",
+    "Il modulo Ferie e Permessi è attivo con tempi concordati: importiamo l'anagrafica dipendenti con saldi iniziali, configuriamo CCNL Edilizia industria/artigianato con maturazioni mensili e festività, attiviamo l'app self-service per ogni operaio. Quattro sessioni 1-a-1 ti accompagnano fino a quando il primo capocantiere approva la prima ferie da telefono.",
 
   speedH2: "Il capocantiere perde 6 ore a settimana a gestire ferie, permessi e sostituzioni.",
   speedSubheadline:
@@ -213,9 +214,9 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri l'app self-service di prova",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "L'app ferie ti restituisce 6 ore/settimana di capocantiere e zero contestazioni.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
-    "Le imprese edili che hanno attivato il modulo Ferie e Permessi recuperano in media 6 ore a settimana di capocantiere e segreteria, eliminano le contestazioni di fine anno sui residui e migliorano sensibilmente il clima aziendale grazie alla trasparenza sui saldi.",
+    marketingMessages.savingsDetail,
   commercialLevers: [
     {
       icon: Clock,
@@ -296,7 +297,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Stima vertenze evitate/anno", value: `${Math.round(a / 20 + 1)}` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 70% di tempo amministrativo eliminato a €30/h. Aggiungi le vertenze sindacali evitate, le sostituzioni programmate e il clima aziendale migliorato.",
+      "Simulazione illustrativa basata su 70% di tempo amministrativo eliminato a €30/h. Aggiungi le vertenze sindacali evitate, le sostituzioni programmate e il clima aziendale migliorato.",
   },
 
   salesKicker: "Impatto operativo",
@@ -323,7 +324,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "App self-service operaio",
@@ -402,7 +403,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di dipendenti?",
-      a: "Il modulo Ferie e Permessi è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con dipendenti illimitati. Setup in 48 ore, app self-service inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Ferie e Permessi è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con dipendenti illimitati. Avvio assistito, app self-service inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -426,10 +427,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per portare la gestione ferie, ROL, permessi e banca ore dentro l'app self-service. CCNL Edilizia preconfigurato, approvazione capocantiere in 30 secondi, calendario condiviso. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · App self-service · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · App self-service · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Ferie e Permessi",
-  stickyCtaMicrocopy: "Setup 48h · App self-service",
+  stickyCtaMicrocopy: "Avvio assistito · App self-service",
 
   applicationSubCategory: "Construction HR Leave Management Software",
 

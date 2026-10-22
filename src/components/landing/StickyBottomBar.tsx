@@ -55,7 +55,7 @@ export default function StickyBottomBar() {
           </span>
           <span className="text-[12px] font-semibold text-white/85">4.9/5</span>
           <span className="text-[12px] text-white/50">·</span>
-          <span className="text-[12px] text-white/70">150+ imprese edili attive</span>
+          <span className="text-[12px] text-white/70">oltre 150 aziende</span>
         </div>
 
         {/* Text — short, sticky */}

@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore",
+    "Avvio assistito",
     "Deliverability 99% Italia",
     "Mittente personalizzato",
   ],
@@ -63,13 +63,13 @@ const config: FunzionalitaPageConfig = {
   objectiveRow: [
     ["Obiettivo", "Notifiche immediate al cliente lette nel 99% dei casi"],
     ["Momento chiave", "Sopralluogo, SAL, fattura, riattivazione cliente"],
-    ["Risultato", "ROI medio 12% del fatturato attivato via SMS"],
+    ["Risultato", "Ipotesi di ritorno del 12% del fatturato attivato via SMS"],
   ],
 
   betaH2:
-    "Più di 300 imprese italiane usano SMS Marketing per notifiche cantiere e campagne riattivazione clienti.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "L'SMS Marketing lo attiviamo in 48 ore: configuriamo il mittente personalizzato (nome impresa che appare sul telefono cliente), importiamo l'anagrafica clienti con consensi GDPR, configuriamo template transazionali (sopralluogo, SAL, fattura) e ti accompagniamo in 4 sessioni 1-a-1 fino al primo invio.",
+    "L'SMS Marketing lo attiviamo insieme alla tua impresa: configuriamo il mittente personalizzato (nome impresa che appare sul telefono cliente), importiamo l'anagrafica clienti con consensi GDPR, configuriamo template transazionali (sopralluogo, SAL, fattura) e ti accompagniamo in 4 sessioni 1-a-1 fino al primo invio.",
 
   speedH2:
     "L'SMS si legge nel 99% dei casi entro 3 minuti. L'email nel 25% dei casi entro 24 ore. Differenza enorme.",
@@ -213,14 +213,14 @@ const config: FunzionalitaPageConfig = {
   mechanismCta: "Apri la demo SMS Marketing",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Deliverability 99%. Lettura 99%. ROI medio 12% del fatturato attivato.",
+  commercialH2: "Meno inserimenti manuali. Più controllo sul lavoro.",
   commercialBody:
     "L'SMS Marketing non sostituisce email o WhatsApp: integra una strategia multi-canale dove l'SMS è il canale residuo più affidabile per notifiche urgenti. Le imprese edili che lo attivano vedono campagne riattivazione clienti generare 12% di fatturato medio sull'audience contattata.",
   commercialLevers: [
     {
       icon: TrendingUp,
       title: "Fatturato riattivato con SMS",
-      text: "Campagne segmentate a clienti dormienti: ROI medio 12% sull'audience contattata. Per impresa con 500 clienti contattabili = 60-100k di fatturato riattivato l'anno.",
+      text: "Campagne segmentate a clienti dormienti: Ipotesi di ritorno del 12% sull'audience contattata. Per impresa con 500 clienti contattabili = 60-100k di fatturato riattivato l'anno.",
     },
     {
       icon: ShieldCheck,
@@ -275,7 +275,7 @@ const config: FunzionalitaPageConfig = {
   roiKicker: "Calcola il tuo ROI",
   roiH2: "Quanto vale riattivare il 3% di clienti dormienti via SMS?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di contatti SMS in audience e ticket medio per cliente edilizia. La stima parte dal 3% di tasso di conversione e 12% di ROI medio osservato sui clienti riattivati.",
+    "Sposta i cursori sulla tua realtà: numero di contatti SMS in audience e ticket medio per cliente edilizia. La stima parte dal 3% di tasso di conversione e 12% di ipotesi illustrativa di ritorno sui clienti riattivati.",
   roi: {
     input1Label: "Contatti SMS audience",
     input1Default: 800,
@@ -296,7 +296,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Deliverability garantita", value: "99% Italia" },
     ],
     closingPitch:
-      "Stima prudenziale basata sul 3% di tasso conversione e 12% ROI medio sulle campagne riattivazione (audience clienti dormienti). Aggiungi il valore delle notifiche transazionali (sopralluoghi confermati, SAL firmati in tempo, DSO ridotto).",
+      "Simulazione illustrativa basata sul 3% di tasso conversione e 12% ROI medio sulle campagne riattivazione (audience clienti dormienti). Aggiungi il valore delle notifiche transazionali (sopralluoghi confermati, SAL firmati in tempo, DSO ridotto).",
   },
 
   salesKicker: "Impatto operativo",
@@ -323,7 +323,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di cosa attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Mittente personalizzato registrato",
@@ -431,12 +431,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di mandare email che nessuno legge. Inizia a far arrivare i messaggi.",
   finalCtaBody:
-    "31 giorni gratuiti per portare l'SMS Marketing dentro la tua impresa edile. Setup in 48 ore, mittente personalizzato registrato, trigger transazionali e campagne marketing segmentate inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare l'SMS Marketing dentro la tua impresa edile. Avvio assistito, mittente personalizzato registrato, trigger transazionali e campagne marketing segmentate inclusi. Onboarding 1-a-1, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Mittente personalizzato · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Mittente personalizzato · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis SMS Marketing",
-  stickyCtaMicrocopy: "Setup 48h · Deliverability 99% Italia",
+  stickyCtaMicrocopy: "Avvio assistito · Deliverability 99% Italia",
 
   applicationSubCategory: "Construction SMS Marketing Software",
 

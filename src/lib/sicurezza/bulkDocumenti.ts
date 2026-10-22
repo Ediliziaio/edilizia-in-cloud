@@ -29,6 +29,7 @@ export const TIPO_DOC_LABELS: Record<TipoDocumentoSub, string> = {
   visura_camerale: "Visura Camerale",
   attestazione_soa: "Attestazione SOA",
   dvr: "DVR",
+  pos: "POS",
   polizza_rc: "Polizza RC",
   iso_certificazione: "Certificazione ISO",
   altro: "Altro",
@@ -43,6 +44,7 @@ const CLASSIFIERS: Array<{ tipo: TipoDocumentoSub; re: RegExp }> = [
   { tipo: "attestazione_soa", re: /\bsoa\b|attestaz/i },
   { tipo: "visura_camerale", re: /visura|cciaa|camerale|registro[\s_-]*imprese/i },
   { tipo: "dvr", re: /\bdvr\b|valutazione[\s_-]*(?:dei[\s_-]*)?rischi/i },
+  { tipo: "pos", re: /\bpos\b|piano[\s_-]*operativo/i },
   { tipo: "polizza_rc", re: /polizz|assicuraz|fideiuss|\brc[to]?\b|\brct\b|\brco\b/i },
   { tipo: "iso_certificazione", re: /\biso\b|9001|14001|45001|18001|certificaz/i },
 ];

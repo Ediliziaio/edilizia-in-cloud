@@ -111,7 +111,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       },
       {
         q: "Quante imprese edili milanesi usano Edilizia in Cloud?",
-        a: "Oltre 40 imprese edili lombarde attive sulla piattaforma, di cui la maggioranza concentrata fra Milano città, hinterland (Monza, Sesto, Cinisello) e provincia di Bergamo. Tipologia: ristrutturazioni residenziali, gare private con developer, opere di urbanizzazione comunale.",
+        a: "Oltre 150 aziende scelgono Edilizia in Cloud in Italia. Il team valuta con te il flusso adatto alla tua impresa. Tipologia: ristrutturazioni residenziali, gare private con developer, opere di urbanizzazione comunale.",
       },
     ],
   },
@@ -125,7 +125,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 12.4964,
     heroTitle: "Gestionale Edilizia per Imprese di Roma",
     heroSubtitle:
-      "Software per imprese edili romane: gestione cantieri, margini in tempo reale, SAL e fatturazione elettronica. Già usato da oltre 30 imprese edili nel Lazio.",
+      "Software per imprese edili romane: gestione cantieri, margini in tempo reale, SAL e fatturazione elettronica. Oltre 150 aziende scelgono Edilizia in Cloud in Italia.",
     heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "30+", label: "Imprese edili laziali attive" },
@@ -3045,23 +3045,6 @@ export default function CityLanding() {
           "addressLocality": "Milano",
           "addressCountry": "IT",
         },
-        "review": {
-          "@type": "Review",
-          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
-          "author": { "@type": "Person", "name": config.localTestimonial.author },
-          "reviewBody": config.localTestimonial.quote,
-          "itemReviewed": {
-            "@type": "SoftwareApplication",
-            "name": "Edilizia in Cloud",
-            "url": baseUrl,
-          },
-        },
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "reviewCount": "127",
-          "bestRating": "5",
-        },
       }} />
       <JsonLd id="jsonld-city-software" data={{
         "@context": "https://schema.org",
@@ -3071,9 +3054,12 @@ export default function CityLanding() {
         "url": baseUrl,
         "description": config.heroSubtitle,
         "areaServed": { "@type": "City", "name": config.name },
-        "offers": {
-          "@type": "AggregateOffer",
-          "lowPrice": 127, "highPrice": 547, "priceCurrency": "EUR", "offerCount": 3,
+
+        "review": {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": config.localTestimonial.author },
+          "reviewBody": config.localTestimonial.quote,
         },
         "aggregateRating": {
           "@type": "AggregateRating",
@@ -3124,7 +3110,7 @@ export default function CityLanding() {
               to="/prezzi/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all"
             >
-              Vedi i Prezzi
+              Scopri i piani
             </Link>
           </div>
         </div>
@@ -3291,7 +3277,7 @@ export default function CityLanding() {
             Inizia gratis — con supporto dedicato in italiano
           </h2>
           <p className="text-white/60 text-lg mb-8">
-            31 giorni di prova gratuita. Il nostro team configura tutto con te in 48 ore.
+            31 giorni di prova gratuita. Il nostro team concorda tempi e configurazione dopo la verifica dei dati.
             Cancella quando vuoi, nessun obbligo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">

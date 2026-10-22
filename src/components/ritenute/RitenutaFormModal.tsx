@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { ContrattoSubappalto } from '@/hooks/useRitenuteGaranzia';
 import { formatCurrency } from '@/lib/formatters';
 import {
@@ -53,6 +55,24 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  // I SAL del contratto scelto, da un elenco: prima si scriveva a mano l'ID del
+  // SAL. Quelli che hanno già una ritenuta (creata in automatico col SAL) si
+  // escludono, per non registrarla due volte.
+  const { data: salDelContratto = [] } = useQuery({
+    queryKey: ['ritenuta-form-sal', form.contratto_id],
+    enabled: open && !!form.contratto_id,
+    queryFn: async () => {
+      const [sal, rit] = await Promise.all([
+        (supabase as any).from('sal_subappaltatori').select('id, numero_sal, data_emissione, ritenuta_importo, ritenuta_pct, stato').eq('contratto_id', form.contratto_id).order('numero_sal'),
+        (supabase as any).from('ritenute_garanzia').select('sal_id').eq('contratto_id', form.contratto_id).not('sal_id', 'is', null),
+      ]);
+      if (sal.error) throw sal.error;
+      const conRitenuta = new Set(((rit.data ?? []) as Array<{ sal_id: string }>).map((r) => r.sal_id));
+      return ((sal.data ?? []) as Array<{ id: string; numero_sal: number; data_emissione: string | null; ritenuta_importo: number; ritenuta_pct: number; stato: string }>)
+        .filter((x) => x.stato !== 'contestato' && !conRitenuta.has(x.id));
+    },
+  });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await onSubmit(form);
@@ -89,16 +109,34 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
             </Select>
           </div>
 
-          {/* SAL ID */}
+          {/* SAL */}
           <div className="space-y-1">
-            <Label htmlFor="sal_id">SAL ID</Label>
-            <Input
-              id="sal_id"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              value={form.sal_id}
-              onChange={(e) => set('sal_id', e.target.value)}
-              required
-            />
+            <Label htmlFor="sal_id">SAL</Label>
+            <Select
+              value={form.sal_id || 'nessuno'}
+              onValueChange={(v) => {
+                const sal = salDelContratto.find((x) => x.id === v);
+                setForm((prev) => ({
+                  ...prev,
+                  sal_id: v === 'nessuno' ? '' : v,
+                  ...(sal ? { importo: Number(sal.ritenuta_importo) || prev.importo, percentuale_applicata: Number(sal.ritenuta_pct) } : {}),
+                }));
+              }}
+              disabled={!form.contratto_id}
+            >
+              <SelectTrigger id="sal_id"><SelectValue placeholder={form.contratto_id ? 'Scegli il SAL' : 'Prima scegli il contratto'} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nessuno">Nessun SAL (ritenuta sul contratto)</SelectItem>
+                {salDelContratto.map((x) => (
+                  <SelectItem key={x.id} value={x.id}>
+                    SAL n. {x.numero_sal}{x.data_emissione ? ` del ${x.data_emissione.split('-').reverse().join('/')}` : ''} · ritenuta {formatCurrency(Number(x.ritenuta_importo) || 0)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.contratto_id && salDelContratto.length === 0 && (
+              <p className="text-xs text-muted-foreground">I SAL di questo contratto hanno già la loro ritenuta.</p>
+            )}
           </div>
 
           {/* Importo */}

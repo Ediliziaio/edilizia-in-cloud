@@ -50,7 +50,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "Setup in 48 ore con dominio verificato",
+    "Avvio assistito con dominio verificato",
     "Template settoriali pronti",
     "Deliverability 98%+",
   ],
@@ -67,9 +67,9 @@ const config: FunzionalitaPageConfig = {
   ],
 
   betaH2:
-    "Più di 300+ imprese italiane usano Email Marketing per nutrire lead e riattivare clienti chiusi.",
+    "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Email Marketing è già pronto: lo attiviamo in 48 ore configurando il tuo dominio (SPF, DKIM, DMARC), importiamo la rubrica clienti dal CRM, prepariamo 10 template settoriali per il settore edile e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima campagna inviata.",
+    "Email Marketing è già pronto: lo attiviamo insieme alla tua impresa configurando il tuo dominio (SPF, DKIM, DMARC), importiamo la rubrica clienti dal CRM, prepariamo 10 template settoriali per il settore edile e ti accompagniamo in 3 sessioni 1-a-1 fino alla prima campagna inviata.",
 
   speedH2:
     "Email mandate da Gmail finiscono nello spam. Email da dominio verificato arrivano. Differenza enorme.",
@@ -195,7 +195,7 @@ const config: FunzionalitaPageConfig = {
   mechanismH2:
     "Tre passaggi: dominio verificato, segmentazione automatica, campagne live.",
   mechanismSubheadline:
-    "Niente configurazioni tecniche da fare a mano. Configuriamo SPF, DKIM, DMARC sul tuo dominio per la deliverability, importiamo i contatti dal CRM con consensi GDPR e attiviamo le prime campagne in 48 ore.",
+    "Niente configurazioni tecniche da fare a mano. Configuriamo SPF, DKIM, DMARC sul tuo dominio per la deliverability, importiamo i contatti dal CRM con consensi GDPR e attiviamo le prime campagne con tempi concordati.",
   mechanismSteps: [
     {
       icon: ShieldCheck,
@@ -224,7 +224,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: TrendingUp,
       title: "ROI 36:1 medio sul settore",
-      text: "Per ogni euro speso in email marketing ben fatto, il ROI medio nel B2C edile italiano è 36 euro. Nessun altro canale digitale ha un rapporto comparabile, nemmeno Google Ads.",
+      text: "Per ogni euro speso in email marketing ben fatto, nello scenario illustrativo si ipotizzano 36 euro di ritorno. Il risultato effettivo dipende dalla campagna e va verificato sui dati reali.",
     },
     {
       icon: MailCheck,
@@ -273,7 +273,7 @@ const config: FunzionalitaPageConfig = {
   resultStats: [
     { value: 98, prefix: "+", suffix: "%", label: "deliverability in inbox primaria" },
     { value: 32, prefix: "+", suffix: "%", label: "apertura media campagne settoriali" },
-    { value: 36, prefix: "x", suffix: "", label: "ROI medio per euro investito" },
+    { value: 36, prefix: "x", suffix: "", label: "Ipotesi di ritorno per euro investito" },
   ],
   resultsCta: "Apri la dashboard Email Marketing",
 
@@ -331,7 +331,7 @@ const config: FunzionalitaPageConfig = {
 
   featureKicker: "Cosa ottieni davvero",
   featureH2:
-    "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+    "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Dominio verificato per deliverability massima",
@@ -444,10 +444,10 @@ const config: FunzionalitaPageConfig = {
   finalCtaBody:
     "31 giorni gratuiti per attivare Email Marketing nella tua impresa edile. Dominio verificato, 10 template settoriali, segmentazione CRM, automazioni post-cantiere e onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup 48h · Dominio verificato · GDPR conforme",
+  finalCtaMicrocopy: "Avvio assistito · Dominio verificato · GDPR conforme",
 
   stickyCtaLabel: "Prova gratis Email Marketing",
-  stickyCtaMicrocopy: "Setup 48h · Deliverability 98%+",
+  stickyCtaMicrocopy: "Avvio assistito · Deliverability 98%+",
 
   applicationSubCategory: "Construction Email Marketing Software",
 

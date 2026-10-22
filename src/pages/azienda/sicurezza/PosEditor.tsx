@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, X,
+  AlertTriangle, ArrowLeft, CheckCircle2, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -244,6 +244,14 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
     try {
       const r = await lavorazioniAiPos(companyId, pos.id);
       setProposte(r.lavorazioni);
+      // Le modalità organizzative (lettera c) si riempiono solo se sono vuote:
+      // quello che il titolare ha scritto non si tocca.
+      const modalita = r.modalita_organizzative;
+      if (modalita && !bozza.opera.modalita_organizzative.trim()) {
+        setBozza((prev) => ({ ...prev, opera: { ...prev.opera, modalita_organizzative: modalita } }));
+        setSporco(true);
+        toast.success("L'AI ha scritto le modalità organizzative del cantiere: rileggile, poi conferma le lavorazioni proposte e salva");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Proposte non arrivate");
     } finally {
@@ -294,6 +302,12 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
             {!ro && (
               <Button variant="outline" className="max-sm:hidden" onClick={() => setAggiornaAperto(true)}>
                 <RefreshCw className="mr-1 h-4 w-4" />Aggiorna dai dati dell'app
+              </Button>
+            )}
+            {!ro && (
+              <Button variant="outline" className="max-sm:hidden border-violet-200 text-violet-700 hover:bg-violet-50" onClick={proponiAi} disabled={proponendo}
+                title="Scrive le modalità organizzative e propone le schede delle lavorazioni dalle fasi della commessa">
+                {proponendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}Completa con l'AI
               </Button>
             )}
             {puoScrivere && !approvato && (

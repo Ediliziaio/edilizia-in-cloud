@@ -7,6 +7,7 @@ export const CANTIERE_VIEWS = [
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
+  { value: "sicurezza", label: "Sicurezza", description: "POS, PSC, notifica, PiMUS, DURC: cosa serve in questo cantiere e cosa manca." },
 ] as const;
 export type CantiereView = typeof CANTIERE_VIEWS[number]["value"];
 export const ECONOMIA_VIEWS = [
@@ -46,6 +47,7 @@ const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
   "section-assistenza": "collaudo", "section-sopralluoghi": "lavorazioni",
   "section-ufficio": "ufficio",
+  "section-sicurezza": "sicurezza",
 };
 export function resolveCantiereView(search: string, section?: string): CantiereView {
   if (section && Object.hasOwn(CANTIERE_SECTIONS, section)) return CANTIERE_SECTIONS[section]!;
@@ -70,6 +72,7 @@ const SECTION_TABS = {
   "section-sopralluoghi": "cantiere",
   "section-note": "panoramica",
   "section-ufficio": "cantiere",
+  "section-sicurezza": "cantiere",
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
   "section-pianificazione": "cantiere",

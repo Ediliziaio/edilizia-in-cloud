@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({company:'demo' as string|null,tables:{} as Record<string,Record<string,unknown>[]>,requests:[] as {table:string;filters:[string,string,unknown][];from:number;to:number}[],errorTable:''}));
-vi.mock('@tanstack/react-query',()=>({useQuery:(options:unknown)=>options}));
+vi.mock('@tanstack/react-query',()=>({useQuery:(options:unknown)=>options,useQueryClient:()=>({fetchQuery:({queryFn}:{queryFn:()=>unknown})=>queryFn()})}));
+const ledger=vi.hoisted(()=>({load:vi.fn()}));
+vi.mock('@/hooks/useForecastLedger',()=>({loadForecastDataset:ledger.load}));
 vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=>state.company}));
 const builderFor=(table:string,filters:[string,string,unknown][]=[])=>{
   const request={table,filters,from:0,to:0};
@@ -38,18 +40,20 @@ describe('operations tenant-scoped read models',()=>{
     expect((useOrderMaterialUsage('demo','job') as unknown as Options<unknown>).queryKey).toEqual(['order-material-usage','job','demo']);
     expect((useOrderMaterialUsage(null,'job') as unknown as Options<unknown>).enabled).toBe(false);
   });
-  it('uses the selected company on every forecast table, including joined installments',async()=>{
+  it('builds the CdG forecast from the Previsionale dataset of the selected company',async()=>{
+    const today=new Date();const day=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    ledger.load.mockResolvedValue({companyId:'demo',today:day,opening:{cents:100000,source:'banca',updatedAt:null},movements:[],collected:[],issues:[],warnings:[]});
     const config=useCashFlow(new Date().getFullYear()) as unknown as Options<{meta:{company_id:string;saldo_apertura:number}}>;
     expect((await config.queryFn()).meta).toMatchObject({company_id:'demo',saldo_apertura:1000});
-    expect(state.requests).toHaveLength(7);
-    expect(state.requests.every(r=>r.filters.some(f=>['company_id','orders.company_id'].includes(f[1])&&f[2]==='demo'))).toBe(true);
+    expect(ledger.load).toHaveBeenCalledWith('demo',day);
+    expect(state.requests.filter(r=>r.table==='cg_cash_flow_manuali').every(r=>r.filters.some(f=>f[1]==='company_id'&&f[2]==='demo'))).toBe(true);
     expect(config.queryKey.at(-1)).toBe('demo');
   });
-  it('does not turn missing bank balances or database failures into a zero cash forecast',async()=>{
+  it('does not turn a missing bank balance into a zero cash forecast',async()=>{
+    ledger.load.mockResolvedValue({companyId:'demo',today:'',opening:{cents:null,source:'banca',updatedAt:null,warning:'Il saldo di uno o più conti non è disponibile.'},movements:[],collected:[],issues:[],warnings:[]});
     const config=useCashFlow(new Date().getFullYear()) as unknown as Options<unknown>;
-    state.tables.bank_accounts[0].current_balance=null;
     await expect(config.queryFn()).rejects.toThrow(/saldo/);
-    state.errorTable='scadenze';await expect(config.queryFn()).rejects.toThrow('Read failed');
+    ledger.load.mockRejectedValue(new Error('Read failed'));await expect(config.queryFn()).rejects.toThrow('Read failed');
   });
   it('does not request a forecast for a historical year or without company context',()=>{
     expect((useCashFlow(new Date().getFullYear()-1) as unknown as Options<unknown>).enabled).toBe(false);

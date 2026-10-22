@@ -14,9 +14,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, Loader2, FileText } from "lucide-react";
+import { Plus, Download, Loader2, FileText, FileUp, Send, Search, Building2, CheckCircle2, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { CaricaBustePagaDialog } from "./CaricaBustePagaDialog";
+import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
+import { TIPI_DOCUMENTO, type TipoDocumentoPaghe } from "@/lib/paghe/lettoreBustePaga";
+
+/** Un documento ricavato dal PDF del consulente (hr_paghe_documenti). */
+interface DocumentoPaghe {
+  id: string;
+  tipo: TipoDocumentoPaghe;
+  per_dipendente: boolean;
+  cedolino_id: string | null;
+  caricamento_id: string | null;
+  titolo: string;
+  anno: number | null;
+  mese: number | null;
+  pubblicato_at: string | null;
+  visto_at: string | null;
+}
+
+const dataBreve = (iso: string) => new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -91,6 +110,55 @@ export function TabCedolini() {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [printTitle, setPrintTitle] = useState("");
+  const [caricaOpen, setCaricaOpen] = useState(false);
+  const [filterMese, setFilterMese] = useState("tutti");
+  const [cerca, setCerca] = useState("");
+
+  // I documenti caricati dal consulente nell'anno: il PDF vero di ogni busta,
+  // la consegna (pubblicata / aperta) e i documenti che restano all'azienda.
+  const { data: documenti = [] } = useQuery({
+    queryKey: ["paghe-documenti", companyId, filterYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hr_paghe_documenti" as never)
+        .select("id, tipo, per_dipendente, cedolino_id, caricamento_id, titolo, anno, mese, pubblicato_at, visto_at")
+        .eq("company_id", companyId!)
+        .eq("anno", parseInt(filterYear))
+        .is("sostituito_da", null)
+        .order("mese", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as DocumentoPaghe[];
+    },
+    enabled: !!companyId && !isRestricted,
+  });
+  const docPerCedolino = new Map(documenti.filter((d) => d.cedolino_id).map((d) => [d.cedolino_id!, d]));
+  // Tutto ciò che non è la busta di una riga qui sopra: documenti dell'ufficio,
+  // CU e fogli presenze dati al dipendente, buste di chi non ha la scheda completa.
+  const altriDocumenti = documenti.filter((d) => !d.cedolino_id);
+  const caricamentiDaPubblicare = [...new Set(documenti.filter((d) => d.per_dipendente && !d.pubblicato_at && d.caricamento_id).map((d) => d.caricamento_id!))];
+  const daPubblicare = documenti.filter((d) => d.per_dipendente && !d.pubblicato_at).length;
+
+  const pubblicaMutation = useMutation({
+    mutationFn: async () => {
+      for (const id of caricamentiDaPubblicare) {
+        const { error } = await supabase.rpc("paghe_pubblica" as never, { p_caricamento: id } as never);
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Buste paga pubblicate: i dipendenti hanno ricevuto l'avviso");
+      queryClient.invalidateQueries({ queryKey: ["paghe-documenti", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] });
+      // Il titolare che è anche dipendente vede subito la sua busta in «Il mio stato».
+      queryClient.invalidateQueries({ queryKey: ["my-cedolini"] });
+      queryClient.invalidateQueries({ queryKey: ["my-documenti-paghe"] });
+    },
+    onError: () => toast.error("Pubblicazione non riuscita. Riprova tra poco."),
+  });
+
+  const apri = async (documentoId: string) => {
+    try { await apriDocumentoPaghe(documentoId); } catch { toast.error("Non riesco ad aprire il documento. Riprova tra poco."); }
+  };
 
   const { data: cedolini = [], isLoading } = useQuery({
     queryKey: ["cedolini", companyId, filterYear],
@@ -323,7 +391,11 @@ export function TabCedolini() {
         .eq("company_id", companyId);
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] });
+      // Lo stato del cedolino muove anche la consegna del PDF (trigger nel database).
+      queryClient.invalidateQueries({ queryKey: ["paghe-documenti", companyId] });
+    },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -351,6 +423,11 @@ export function TabCedolini() {
   };
 
   const years = Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i));
+  const testoCerca = cerca.trim().toLowerCase();
+  const cedoliniVisibili = cedolini.filter((c: any) =>
+    (filterMese === "tutti" || c.mese === Number(filterMese))
+    && (!testoCerca || String(c.employee_name ?? "").toLowerCase().includes(testoCerca)));
+  const altriDocumentiVisibili = altriDocumenti.filter((d) => filterMese === "tutti" || d.mese === Number(filterMese));
 
   // Render gated DOPO tutti gli hook → Rules of Hooks rispettate (i ristretti
   // non vedono i dati e la query sensibile sopra è già disabilitata per loro).
@@ -368,9 +445,20 @@ export function TabCedolini() {
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
           <h3 className="font-semibold">Cedolini Paga</h3>
-          <Badge variant="secondary">{cedolini.length}</Badge>
+          <Badge variant="secondary">{cedoliniVisibili.length}</Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca dipendente" className="h-8 w-44 pl-7 text-sm" />
+          </div>
+          <Select value={filterMese} onValueChange={setFilterMese}>
+            <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i mesi</SelectItem>
+              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={filterYear} onValueChange={setFilterYear}>
             <SelectTrigger className="w-24 h-8">
               <SelectValue />
@@ -379,24 +467,43 @@ export function TabCedolini() {
               {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo cedolino
+          <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo a mano
           </Button>
+          {/* Caricare e pubblicare è del titolare (così le regole del database). */}
+          {permissions.isAdmin && (
+            <Button size="sm" onClick={() => setCaricaOpen(true)}>
+              <FileUp className="h-4 w-4 mr-1" aria-hidden="true" /> Carica dal consulente
+            </Button>
+          )}
         </div>
       </div>
+
+      {daPubblicare > 0 && permissions.isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>{daPubblicare} documenti per i dipendenti sono salvati ma non ancora pubblicati: i dipendenti non li vedono.</span>
+          <Button size="sm" onClick={() => pubblicaMutation.mutate()} disabled={pubblicaMutation.isPending}>
+            {pubblicaMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}Pubblica ora
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
-      ) : cedolini.length === 0 ? (
+      ) : cedoliniVisibili.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-2">
             <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">Nessun cedolino per il {filterYear}</p>
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Crea cedolino
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              {cedolini.length === 0 ? `Nessun cedolino per il ${filterYear}` : "Nessun cedolino con questi filtri"}
+            </p>
+            {cedolini.length === 0 && permissions.isAdmin && (
+              <Button size="sm" onClick={() => setCaricaOpen(true)}>
+                <FileUp className="h-4 w-4 mr-1" /> Carica il PDF del consulente
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -411,12 +518,14 @@ export function TabCedolini() {
                 <TableHead className="text-right hidden sm:table-cell">IRPEF</TableHead>
                 <TableHead className="text-right">Netto</TableHead>
                 <TableHead>Stato</TableHead>
+                <TableHead className="hidden md:table-cell">Consegna</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {cedolini.map((c: any) => {
+              {cedoliniVisibili.map((c: any) => {
                 const netto = c.netto ?? ((Number(c.lordo) || 0) - (Number(c.contributi_dipendente) || 0) - (Number(c.ritenute_irpef) || 0));
+                const doc = docPerCedolino.get(c.id);
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.employee_name}</TableCell>
@@ -442,12 +551,19 @@ export function TabCedolini() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell className="hidden md:table-cell text-xs">
+                      {!doc ? <span className="text-muted-foreground">—</span>
+                        : !doc.pubblicato_at ? <span className="text-amber-700">Non pubblicata</span>
+                        : doc.visto_at ? <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 className="h-3.5 w-3.5" />Aperta il {dataBreve(doc.visto_at)}</span>
+                        : <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />Non ancora aperta</span>}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        onClick={() => handleExportPdf(c)}
+                        title={doc ? "Apri il PDF del consulente" : "Scarica cedolino PDF"}
+                        onClick={() => (doc ? apri(doc.id) : handleExportPdf(c))}
                         disabled={isExporting && exportingId === c.id}
                         aria-label="Scarica cedolino PDF"
                       >
@@ -465,6 +581,34 @@ export function TabCedolini() {
           </Table>
         </div>
       )}
+
+      {/* Gli altri documenti del consulente: quelli dell'ufficio non arrivano mai ai dipendenti. */}
+      {altriDocumentiVisibili.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <h4 className="text-sm font-semibold">Altri documenti del consulente</h4>
+            <span className="text-xs text-muted-foreground">riepiloghi, presenze, F24, Cassa Edile, CU</span>
+          </div>
+          <div className="divide-y rounded-lg border">
+            {altriDocumentiVisibili.map((d) => (
+              <button key={d.id} type="button" onClick={() => apri(d.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50">
+                <Badge variant="outline" className="shrink-0">{TIPI_DOCUMENTO[d.tipo]?.label ?? d.tipo}</Badge>
+                <span className="min-w-0 flex-1 truncate">{d.titolo}</span>
+                <span className="hidden shrink-0 text-xs sm:inline">
+                  {!d.per_dipendente ? <span className="text-muted-foreground">Solo ufficio</span>
+                    : !d.pubblicato_at ? <span className="text-amber-700">Al dipendente · non pubblicato</span>
+                    : d.visto_at ? <span className="text-green-700">Al dipendente · aperto il {dataBreve(d.visto_at)}</span>
+                    : <span className="text-muted-foreground">Al dipendente · non ancora aperto</span>}
+                </span>
+                <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {companyId && <CaricaBustePagaDialog companyId={companyId} open={caricaOpen} onOpenChange={setCaricaOpen} />}
 
       {/* Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

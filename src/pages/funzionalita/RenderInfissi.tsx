@@ -27,6 +27,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import { BeforeAfterSlider as RenderBeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderLeadModal } from "@/components/render/RenderLeadModal";
+import { RENDER_INFISSI_VIDEO } from "@/lib/seo/videoMetadata";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
 
@@ -34,7 +35,7 @@ const HERO_BEFORE_IMAGE = "/images/render-infissi/demo-prima.webp";
 const HERO_AFTER_IMAGE = "/images/render-infissi/demo-dopo.webp";
 const JOURNEY_BEFORE_IMAGE = "/images/render-infissi/demo-latest-prima.webp";
 const JOURNEY_AFTER_IMAGE = "/images/render-infissi/demo-latest-dopo.webp";
-const YOUTUBE_RENDER_DEMO_ID = "wBpdDN21vb0";
+const YOUTUBE_RENDER_DEMO_ID = RENDER_INFISSI_VIDEO.id;
 const YOUTUBE_RENDER_DEMO_URL = `https://www.youtube.com/watch?v=${YOUTUBE_RENDER_DEMO_ID}`;
 const YOUTUBE_RENDER_DEMO_EMBED_URL = `https://www.youtube-nocookie.com/embed/${YOUTUBE_RENDER_DEMO_ID}?rel=0&modestbranding=1`;
 const YOUTUBE_RENDER_DEMO_AUTOPLAY_URL = `${YOUTUBE_RENDER_DEMO_EMBED_URL}&autoplay=1`;
@@ -160,7 +161,7 @@ const objections = [
   },
   {
     q: "Quanto costa? È vincolante?",
-    a: "Il Render Infissi fa parte dei piani EdiliziaInCloud. Hai 31 giorni di prova gratuita, setup in 48 ore, affiancamento singolo incluso e disdetta libera quando vuoi.",
+    a: "Il Render Infissi fa parte dei piani EdiliziaInCloud. Hai 31 giorni di prova gratuita, avvio assistito, affiancamento singolo incluso e disdetta libera quando vuoi.",
   },
   {
     q: "E se il mio cliente non usa WhatsApp o non guarda i video?",
@@ -944,7 +945,6 @@ export default function RenderInfissi() {
   });
 
   const pageUrl = `${SITE_URL}/funzionalita/render-infissi/`;
-  const videoUploadDate = "2026-04-27";
 
   return (
     <div ref={pageRef} className="min-h-screen bg-white text-[#0f172a]">
@@ -1032,10 +1032,10 @@ export default function RenderInfissi() {
           description:
             "Video demo di Render Infissi AI: in 60 secondi carichi la foto del cliente, scegli profilo, colore, vetro e oscurante, generi il prima/dopo e lo invii su WhatsApp.",
           thumbnailUrl: [YOUTUBE_RENDER_DEMO_THUMBNAIL],
-          uploadDate: videoUploadDate,
+          uploadDate: RENDER_INFISSI_VIDEO.uploadDate,
           contentUrl: YOUTUBE_RENDER_DEMO_URL,
           embedUrl: YOUTUBE_RENDER_DEMO_EMBED_URL,
-          duration: "PT1M",
+          duration: RENDER_INFISSI_VIDEO.duration,
           publisher: {
             "@type": "Organization",
             name: "Edilizia in Cloud",
@@ -2051,7 +2051,7 @@ export default function RenderInfissi() {
               {[
                 "31 giorni di prova gratuita",
                 "Garanzia di risultato a 90 giorni",
-                "Setup in 48 ore · migrazione dati inclusa",
+                "Avvio assistito · migrazione dati inclusa",
                 "Affiancamento singolo dedicato",
                 "Disdici quando vuoi, senza penali",
                 "Prezzo bloccato a vita per le prime 30 aziende",

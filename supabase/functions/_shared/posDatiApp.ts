@@ -80,7 +80,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (orderErr) throw new Error(`Commessa non leggibile: ${orderErr.message}`);
   if (!order || order.deleted_at) throw new Error("Commessa non trovata in questa azienda");
 
-  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes] = await Promise.all([
+  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes, fasiRes] = await Promise.all([
     db.from("anagrafica_azienda")
       .select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia, telefono, email, pec")
       .eq("company_id", companyId).maybeSingle(),
@@ -94,6 +94,8 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     db.from("mezzi_allocazioni")
       .select("quantita, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, tipo, unita_misura, deleted_at)")
       .eq("company_id", companyId).eq("order_id", orderId),
+    // Le fasi di lavoro della commessa: dicono cosa si fa davvero in cantiere.
+    db.from("order_work_phases").select("name, position").eq("company_id", companyId).eq("order_id", orderId).order("position"),
   ]);
 
   const avvisi: string[] = [];
@@ -110,8 +112,11 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   const indirizzoCantiere = s(order.work_address) || s(order.indirizzo_lavori);
   pos.opera.cantiere = dividiIndirizzo(indirizzoCantiere);
   if (!indirizzoCantiere) avvisi.push("La commessa non ha l'indirizzo del cantiere: scrivilo nel POS o nella commessa.");
-  pos.opera.descrizione_attivita = [s(order.tipo_lavoro), s(order.work_description) || s(order.description)]
-    .filter(Boolean).join(" — ");
+  const fasi = [...new Set(((fasiRes?.data ?? []) as Row[]).map((f) => s(f.name)).filter(Boolean))];
+  pos.opera.descrizione_attivita = [
+    [s(order.tipo_lavoro), s(order.work_description) || s(order.description)].filter(Boolean).join(" — "),
+    fasi.length ? `Fasi di lavoro: ${fasi.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
   pos.opera.data_inizio = s(order.work_start_date);
   pos.opera.data_fine = s(order.work_end_date) || s(order.expected_date);
 
@@ -285,6 +290,51 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     };
   });
 
+  // Addetti alle emergenze: se le Figure non li indicano, si propongono quelli
+  // della commessa che hanno l'attestato (primo soccorso, antincendio). Sono
+  // persone vere con un corso vero: il titolare conferma la designazione.
+  if (!pos.emergenze.addetti.length && attestati.length) {
+    const perHr = new Map(elenco.filter((p) => p.hrId).map((p) => [p.hrId!, p.nome]));
+    const proposti = new Map<string, AddettoEmergenze>();
+    for (const d of attestati) {
+      const nome = perHr.get(s(d.hr_profilo_id));
+      const t = s(d.titolo).toLowerCase();
+      const antincendio = /antincendio|incendi/.test(t);
+      const primoSoccorso = /primo\s+soccorso|pronto\s+soccorso/.test(t);
+      if (!nome || (!antincendio && !primoSoccorso)) continue;
+      const cur = proposti.get(nome) ?? { nominativo: nome, antincendio: false, primo_soccorso: false, mansioni_sicurezza: "" };
+      cur.antincendio ||= antincendio;
+      cur.primo_soccorso ||= primoSoccorso;
+      proposti.set(nome, cur);
+    }
+    for (const a of proposti.values()) {
+      a.mansioni_sicurezza = [a.antincendio && MANSIONI_PREDEFINITE.addetto_antincendio, a.primo_soccorso && MANSIONI_PREDEFINITE.addetto_primo_soccorso].filter(Boolean).join(" ");
+    }
+    pos.emergenze.addetti = [...proposti.values()];
+    if (proposti.size) avvisi.push("Addetti alle emergenze proposti da chi ha l'attestato: conferma che sono designati per questo cantiere.");
+  }
+
+  // Turni di lavoro: l'orario più comune di chi lavora sulla commessa.
+  if (!pos.opera.turni_lavoro && hrIds.length) {
+    const { data: orari } = await db.from("hr_profili").select("orario_inizio, orario_fine, pausa_pranzo_minuti, giorni_lavorativi").in("id", hrIds);
+    const conti = new Map<string, { n: number; testo: string }>();
+    for (const o of (orari ?? []) as Row[]) {
+      const inizio = s(o.orario_inizio).slice(0, 5);
+      const fine = s(o.orario_fine).slice(0, 5);
+      if (!inizio || !fine) continue;
+      const giorni = Array.isArray(o.giorni_lavorativi) ? (o.giorni_lavorativi as string[]) : [];
+      const settimana = giorni.join(",") === "Lun,Mar,Mer,Gio,Ven" ? "dal lunedì al venerdì"
+        : giorni.join(",") === "Lun,Mar,Mer,Gio,Ven,Sab" ? "dal lunedì al sabato"
+        : giorni.length ? giorni.join(", ") : "";
+      const pausa = Number(o.pausa_pranzo_minuti) > 0 ? ` con pausa di ${Number(o.pausa_pranzo_minuti)} minuti` : "";
+      const testo = `Turno unico diurno dalle ${inizio} alle ${fine}${pausa}${settimana ? `, ${settimana}` : ""}.`;
+      const k = testo;
+      conti.set(k, { n: (conti.get(k)?.n ?? 0) + 1, testo });
+    }
+    const piuComune = [...conti.values()].sort((x, y) => y.n - x.n)[0];
+    if (piuComune) pos.opera.turni_lavoro = piuComune.testo;
+  }
+
   // ── Contesto per le schede delle lavorazioni ─────────────────────────────
   const mezzi = ((mezziRes.data ?? []) as Row[]).map((m) => ({ nome: s(m.nome), tipo: s(m.tipo), targa: s(m.targa) || null }));
   // Le opere provvisionali contano nel POS (ponteggi: PiMUS): ci vanno con quanto è montato adesso.
@@ -309,7 +359,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     durc_scadenza: s(r.durc_scadenza) || null,
   }));
 
-  return { contenuto: pos, contesto: { mezzi, subappaltatori, avvisi }, order };
+  return { contenuto: pos, contesto: { mezzi, subappaltatori, fasi, avvisi }, order };
 }
 
 /** Colonne «vecchie» di pos_documents tenute allineate per la lista e per chi le legge ancora. */

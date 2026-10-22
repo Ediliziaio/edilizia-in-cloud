@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Privacy GDPR-first", "Addestrato sui tuoi dati"],
+  reassurancePoints: ["Avvio assistito", "Privacy GDPR-first", "Addestrato sui tuoi dati"],
   proofPoints: [
     "Agenti AI custom per impresa",
     "Privacy AI: dati mai condivisi",
@@ -64,9 +64,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Tecnico/segretaria/commerciale liberi per il lavoro vero"],
   ],
 
-  betaH2: "Più di 320 imprese italiane stanno integrando Agenti AI nei loro flussi commerciali e di cantiere.",
+  betaH2: "Oltre 150 aziende scelgono Edilizia in Cloud per collegare ufficio e cantiere.",
   betaBody:
-    "Gli Agenti AI di Edilizia in Cloud non sono ChatGPT generici: sono agenti custom addestrati sui dati specifici della tua impresa (anagrafica clienti, listini, preventivi storici, FAQ, manuali interni). Lo attiviamo in 48 ore, integriamo i canali (WhatsApp Business, email, chat sito web), configuriamo il primo agente (es. Risposta Lead) e ti accompagniamo in 4 sessioni 1-a-1 fino al rilascio in produzione.",
+    "Gli Agenti AI di Edilizia in Cloud non sono ChatGPT generici: sono agenti custom addestrati sui dati specifici della tua impresa (anagrafica clienti, listini, preventivi storici, FAQ, manuali interni). Lo attiviamo insieme alla tua impresa, integriamo i canali (WhatsApp Business, email, chat sito web), configuriamo il primo agente (es. Risposta Lead) e ti accompagniamo in 4 sessioni 1-a-1 fino al rilascio in produzione.",
 
   speedH2: "L'AI non sostituisce le persone. Le libera dal lavoro che non vogliono fare.",
   speedSubheadline:
@@ -185,7 +185,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   mechanismKicker: "Come funziona",
-  mechanismH2: "Tre passaggi, un agente AI custom in produzione in 48 ore.",
+  mechanismH2: "Tre passaggi per configurare il tuo agente AI con il nostro team.",
   mechanismSubheadline:
     "Gli Agenti AI di Edilizia in Cloud non sono ChatGPT generici: sono agenti specializzati addestrati sui dati della tua impresa. Setup guidato 1-a-1 fino al go-live.",
   mechanismSteps: [
@@ -292,7 +292,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Equivale a FTE risparmiato", value: `${(a * 0.7 / 40).toFixed(2)} FTE` },
     ],
     closingPitch:
-      "Stima prudenziale basata su 70% di task ripetitivi automatizzati. Aggiungi l'aumento del tasso di chiusura preventivi (+18%) e il ROI raddoppia entro i primi 6 mesi.",
+      "Simulazione illustrativa basata su 70% di task ripetitivi automatizzati. Aggiungi l'aumento del tasso di chiusura preventivi (+18%) e il ROI raddoppia entro i primi 6 mesi.",
   },
 
   salesKicker: "Impatto operativo",
@@ -319,7 +319,7 @@ const config: FunzionalitaPageConfig = {
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo insieme alla tua impresa.",
   featureRows: [
     {
       label: "Agente AI Risposta Clienti",
@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto tempo serve per addestrare un agente sui miei dati?",
-      a: "48 ore per il primo agente. Importiamo automaticamente anagrafica clienti, listini, preventivi storici, FAQ. Tu rivedi le risposte di test, alleniamo l'agente con 20-30 dialoghi simulati, vai in produzione con audit umano attivo per la prima settimana.",
+      a: "I tempi del primo agente si concordano dopo la verifica dei dati. Importiamo automaticamente anagrafica clienti, listini, preventivi storici, FAQ. Tu rivedi le risposte di test, alleniamo l'agente con 20-30 dialoghi simulati, vai in produzione con audit umano attivo per la prima settimana.",
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
@@ -430,12 +430,12 @@ const config: FunzionalitaPageConfig = {
 
   finalCtaH2: "Smetti di perdere lead fuori orario. Inizia ad avere un'AI che lavora con te.",
   finalCtaBody:
-    "31 giorni gratuiti per portare gli Agenti AI dentro la tua impresa edile. Setup in 48 ore, addestramento sui tuoi dati, integrazione con WhatsApp/email/chat e audit log inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare gli Agenti AI dentro la tua impresa edile. Avvio assistito, addestramento sui tuoi dati, integrazione con WhatsApp/email/chat e audit log inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · Privacy GDPR · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Avvio assistito · Privacy GDPR · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Agenti AI",
-  stickyCtaMicrocopy: "Setup 48h · 24/7 disponibili",
+  stickyCtaMicrocopy: "Avvio assistito · 24/7 disponibili",
 
   applicationSubCategory: "Construction AI Agents Software",
 

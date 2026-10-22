@@ -30,11 +30,11 @@ export function ExportButton({
     setLoading(true);
     try {
       await onExport();
-      toast({ title: "Export completato" });
+      toast({ title: "File scaricato" });
     } catch (e) {
       toast({
-        title: "Errore export",
-        description: String(e),
+        title: "Esportazione non riuscita",
+        description: e instanceof Error && e.message ? e.message : "Riprova tra qualche secondo.",
         variant: "destructive",
       });
     } finally {

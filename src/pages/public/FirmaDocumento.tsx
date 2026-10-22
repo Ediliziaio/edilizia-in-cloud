@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { AnteprimaDocumento, apriDocumento } from '@/components/fea/AnteprimaDocumento';
+import { IdentificazioneFirmatario } from '@/components/fea/IdentificazioneFirmatario';
+import { corpoErroreEdge } from '@/lib/fea/erroreEdge';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
+type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'identificazione' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
 
 // Testo di recesso di fallback (14 giorni, art. 52 Cod. Consumo): usato quando
 // l'azienda non ha una riga fea_configurazione con b2c_testo_recesso.
@@ -96,6 +98,8 @@ export default function FirmaDocumento() {
   const [rifiutoDialogAperto, setRifiutoDialogAperto] = useState(false);
   const [rifiutoMotivo, setRifiutoMotivo] = useState('');
   const [rifiutoInCorso, setRifiutoInCorso] = useState(false);
+  // Chiave data dal server dopo il codice giusto: senza, non si firma. Solo in memoria.
+  const [sessioneFirma, setSessioneFirma] = useState<string | null>(null);
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -273,16 +277,14 @@ export default function FirmaDocumento() {
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non corretto'));
       if (data?.error) throw new Error(data.error);
-      if (data?.success !== true) throw new Error('Verifica del codice non confermata. Riprova.');
-      // OTP verificato — passa allo step successivo.
-      // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
-      // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
-      const isB2c = sessione?.tipo_firmatario === 'b2c';
-      if (isB2c) {
-        setStep('b2c_recesso');
-      } else {
-        setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
+      if (data?.success !== true || typeof data?.sessione_firma !== 'string') throw new Error('Verifica del codice non confermata. Riprova.');
+      setSessioneFirma(data.sessione_firma);
+      // Firma avanzata: al primo documento con l'azienda chi firma si identifica.
+      if ((sessione?.identificazione_richiesta || sessione?.dichiarazione_richiesta) && sessione.dichiarazione_fea) {
+        setStep('identificazione');
+        return;
       }
+      vaiDopoIdentificazione();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Codice non corretto';
       setOtpError(msg);
@@ -294,14 +296,28 @@ export default function FirmaDocumento() {
     }
   };
 
+  function vaiDopoIdentificazione() {
+    // OTP verificato — passa allo step successivo.
+    // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
+    // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
+    if (sessione?.tipo_firmatario === 'b2c') setStep('b2c_recesso');
+    else setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
+  }
+
+  /** Il tempo per firmare (15 minuti dal codice) è finito: si richiede un codice nuovo. */
+  const sessioneScaduta = () => {
+    setSessioneFirma(null);
+    toast.error('Il tempo per firmare è scaduto: ti mandiamo un nuovo codice.');
+    void inviaOtp();
+  };
+
   const completaFirma = async () => {
     setFirmaInCorso(true);
     try {
       const { data, error } = await supabase.functions.invoke('fea-completa-firma', {
         body: {
           token,
-          ip: null, // il server legge dall'header
-          user_agent: navigator.userAgent,
+          sessione_firma: sessioneFirma,
           lat: geo?.lat ?? null,
           lng: geo?.lng ?? null,
           b2c_recesso_accettato: sessione?.tipo_firmatario === 'b2c' ? recessoAccettato : null,
@@ -310,7 +326,12 @@ export default function FirmaDocumento() {
           privacy_accettata: sessione?.informativa_privacy ? privacyAccettata : null,
         },
       });
-      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
+      if (error) {
+        const corpo = await corpoErroreEdge(error);
+        if (corpo.code === 'sessione_scaduta') { sessioneScaduta(); return; }
+        if (corpo.code === 'identificazione_richiesta' && sessione?.dichiarazione_fea) { setStep('identificazione'); return; }
+        throw new Error(corpo.error ?? 'Errore nella firma');
+      }
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Registrazione della firma non confermata. Riprova.');
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
@@ -443,7 +464,9 @@ export default function FirmaDocumento() {
           {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Continua con il codice'}
         </Button>
         <p className="text-slate-500 text-xs text-center">
-          Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}{sessione.signer_telefono_mascherato ? ` e via SMS al ${sessione.signer_telefono_mascherato}` : ''}. Due passaggi, un minuto.
+          Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}{sessione.signer_telefono_mascherato ? ` e via SMS al ${sessione.signer_telefono_mascherato}` : ''}. {sessione.identificazione_richiesta
+            ? 'Essendo il primo documento con questa azienda, ti chiederemo anche una foto del tuo documento d\'identità.'
+            : 'Due passaggi, un minuto.'}
         </p>
       </div>
     </Wrapper>
@@ -526,6 +549,24 @@ export default function FirmaDocumento() {
           <p className="text-slate-400 text-xs text-center">Tentativi errati: {otpTentativi}/5</p>
         )}
       </div>
+    </Wrapper>
+  );
+
+  if (step === 'identificazione' && sessione?.dichiarazione_fea && sessioneFirma) return (
+    <Wrapper largo>
+      <IdentificazioneFirmatario
+        token={token!}
+        sessioneFirma={sessioneFirma}
+        nomeFirmatario={sessione.signer_name ?? ''}
+        aziendaNome={sessione.azienda_nome}
+        dichiarazione={sessione.dichiarazione_fea}
+        soloDichiarazione={!sessione.identificazione_richiesta}
+        onFatto={() => {
+          setSessione({ ...sessione, identificazione_richiesta: false, dichiarazione_richiesta: false });
+          vaiDopoIdentificazione();
+        }}
+        onSessioneScaduta={sessioneScaduta}
+      />
     </Wrapper>
   );
 

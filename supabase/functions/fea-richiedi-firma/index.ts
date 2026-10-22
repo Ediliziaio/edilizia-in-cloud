@@ -5,6 +5,8 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { normalizzaTelefonoE164 } from "../_shared/telefonoE164.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
+import { congelaDocumento, DocumentoNonPronto } from "../_shared/documentoCongelato.ts";
+import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -49,7 +51,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!["order", "quote", "sessione", "odv", "fv"].includes(tipo_documento)) {
+    if (!["order", "quote", "sessione", "odv", "fv", "subappalto"].includes(tipo_documento)) {
       return new Response(
         JSON.stringify({ error: "tipo_documento non valido" }),
         { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
@@ -99,6 +101,8 @@ Deno.serve(async (req: Request) => {
       quote: "quotes",
       sessione: "documento_sessioni",
       fv: "fv_progetti",
+      // Contratto di subappalto (22/10/2026): il PDF congelato all'invio è in contratti_subappalto.pdf_path.
+      subappalto: "contratti_subappalto",
     };
     let company_id: string | null = (profile.company_id as string | null) ?? null;
     const tabella = tabellaDocumento[tipo_documento];
@@ -150,6 +154,24 @@ Deno.serve(async (req: Request) => {
     const branding = await getBrandingForCompany(supabaseAdmin, company_id);
     const azienda_nome = company?.name ?? branding.platformName;
 
+    // Il documento si congela ADESSO, per ogni tipo: chi firma vede e firma
+    // questa copia, e alla firma se ne ricontrolla l'impronta. Senza un
+    // documento vero non si manda niente in firma.
+    const richiestaId = crypto.randomUUID();
+    let congelato: { path: string; hash: string };
+    try {
+      congelato = await congelaDocumento(supabaseAdmin, {
+        tipo: tipo_documento, documentoId: documento_id, companyId: company_id, aziendaNome: azienda_nome,
+        categoria, note: noteRichiesta, firmatario: String(signer_name),
+      }, richiestaId);
+    } catch (e) {
+      if (e instanceof DocumentoNonPronto) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 400, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const livelloFirma = await livelloFirmaAzienda(supabaseAdmin, company_id);
+
     // Token univoco
     const token = crypto.randomUUID().replace(/-/g, "");
 
@@ -159,7 +181,11 @@ Deno.serve(async (req: Request) => {
 
     // Costruisci insertPayload
     const insertPayload: Record<string, unknown> = {
+      id: richiestaId,
       company_id,
+      documento_path: congelato.path,
+      documento_hash: congelato.hash,
+      livello_firma: livelloFirma,
       token,
       signer_email,
       signer_name,
@@ -192,42 +218,10 @@ Deno.serve(async (req: Request) => {
       // Preventivo Fotovoltaico (fv_progetti). Richiede colonna fv_progetto_id
       // su signature_requests (migration 20270618030000_signature_requests_fv_progetto).
       insertPayload.fv_progetto_id = documento_id;
+    } else if (tipo_documento === "subappalto") {
+      insertPayload.contratto_subappalto_id = documento_id;
     }
     // odv: nessun ID specifico (fallback)
-
-    // Best-effort: scarica il PDF del documento (se esiste) e calcola
-    // l'hash SHA-256 per l'integrità (documento_hash). Se fallisce si
-    // procede comunque senza hash.
-    try {
-      let pdfUrl: string | null = null;
-      if (tipo_documento === "sessione") {
-        const { data: sessione } = await supabaseAdmin
-          .from("documento_sessioni")
-          .select("pdf_url")
-          .eq("id", documento_id)
-          .single();
-        pdfUrl = sessione?.pdf_url ?? null;
-      } else if (tipo_documento === "quote") {
-        const { data: quote } = await supabaseAdmin
-          .from("quotes")
-          .select("pdf_url")
-          .eq("id", documento_id)
-          .single();
-        pdfUrl = quote?.pdf_url ?? null;
-      }
-
-      if (pdfUrl) {
-        const pdfRes = await fetchWithTimeout(pdfUrl, { timeoutMs: 15_000 });
-        if (!pdfRes.ok) throw new Error(`Download PDF fallito: HTTP ${pdfRes.status}`);
-        const pdfBytes = await pdfRes.arrayBuffer();
-        const digest = await crypto.subtle.digest("SHA-256", pdfBytes);
-        insertPayload.documento_hash = Array.from(new Uint8Array(digest))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-      }
-    } catch (hashErr) {
-      console.warn("documento_hash non calcolato:", hashErr instanceof Error ? hashErr.message : hashErr);
-    }
 
     // Inserisce in signature_requests
     const { data: inserted, error: insertErr } = await supabaseAdmin
@@ -238,6 +232,7 @@ Deno.serve(async (req: Request) => {
 
     if (insertErr || !inserted) {
       console.error("Insert error:", insertErr);
+      await supabaseAdmin.storage.from("quote-pdfs").remove([congelato.path]);
       return new Response(
         JSON.stringify({ error: "Errore nella creazione della richiesta di firma" }),
         { status: 500, headers: { ...corsH, "Content-Type": "application/json" } }
@@ -245,6 +240,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const request_id = inserted.id;
+    await supabaseAdmin.from("fea_audit_log").insert({
+      request_id, company_id, evento: "documento_congelato",
+      metadati: { path: congelato.path, documento_hash: congelato.hash, livello_firma: livelloFirma },
+    });
 
     if (tipo_documento === "quote") {
       const { error: quoteUpdateErr } = await supabaseAdmin

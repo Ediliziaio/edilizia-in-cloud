@@ -1,3 +1,6 @@
+import ConstructionVideoLesson from "@/components/marketing/ConstructionVideoLesson";
+import MarginVideoLesson from "@/components/marketing/MarginVideoLesson";
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import React from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -13,11 +16,11 @@ import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRigh
 const guides = [
   {
     category: "Avvio Rapido",
-    title: "Da zero a operativo in 48 ore",
+    title: "Prepara l’avvio della piattaforma",
     desc: "Il percorso completo per chi inizia: configurazione account, import dati da Excel, apertura primo cantiere, impostazione budget commessa. Segui questa guida e sei operativo domani.",
     readTime: "8 min",
     level: "Principiante",
-    result: "Operativo in 48h",
+    result: "Configurazione guidata",
   },
   {
     category: "Cantieri & Margini",
@@ -61,14 +64,7 @@ const guides = [
   },
 ];
 
-const videos = [
-  { title: "Tour completo — dalla home al cantiere in 15 minuti", duration: "15:32", category: "Overview", result: "Panoramica completa" },
-  { title: "Aprire il primo cantiere e impostare il budget", duration: "8:14", category: "Cantieri", result: "Primo cantiere live" },
-  { title: "Preventivo professionale in 10 minuti", duration: "9:45", category: "Preventivi", result: "Preventivo firmato digitalmente" },
-  { title: "App mobile per il capocantiere — timbrature e rapportini", duration: "6:22", category: "Mobile", result: "Team operativo" },
-  { title: "Dashboard margini: come leggere i dati in tempo reale", duration: "7:18", category: "Margini", result: "Controllo margini live" },
-  { title: "Fattura elettronica SDI", duration: "5:40", category: "Fatturazione", result: "Prima fattura SDI inviata" },
-];
+
 
 const learningPaths = [
   {
@@ -82,7 +78,7 @@ const learningPaths = [
       "Prima fattura elettronica SDI",
       "App mobile configurata per il team",
     ],
-    result: "Sei operativo in 48 ore",
+    result: "Avvio assistito",
     level: "Principiante",
     levelColor: "bg-green-100 text-green-700",
     cta: "Inizia dal percorso base",
@@ -114,7 +110,7 @@ const learningPaths = [
       "Modulo HR: contratti, buste paga, DPI",
       "AI insights: anomalie, previsioni, alert automatici",
     ],
-    result: "Gestisci 2x i cantieri con lo stesso team",
+    result: "Organizza il lavoro delle tue squadre",
     level: "Avanzato",
     levelColor: "bg-purple-100 text-purple-700",
     cta: "Attiva il percorso avanzato",
@@ -177,7 +173,6 @@ const faqs = [
 export default function Formazione() {
   const heroAnim = useScrollAnimation();
   const guidesAnim = useScrollAnimation();
-  const videosAnim = useScrollAnimation();
   const faqAnim = useScrollAnimation();
 
   useSEO({
@@ -213,23 +208,24 @@ export default function Formazione() {
       <section className="relative overflow-hidden pt-20 md:pt-32 pb-16 bg-[#111111]">
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
-        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+<div className="min-w-0">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-xs font-bold uppercase tracking-widest">
               <BookOpen size={12} /> EiC Academy
             </span>
             <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-4 leading-tight">
               Impara a usarlo.<br />
-              <span className="text-eic-orange">Inizia a guadagnare di più.</span>
+              <span className="text-eic-orange">Portalo nel lavoro di ogni giorno.</span>
             </h1>
             <p className="text-white/60 text-lg max-w-2xl mx-auto mb-8">
-              Chi padroneggia il gestionale guadagna in media il 23% in più per cantiere.
+              Impara a organizzare preventivi, cantieri e costi nel lavoro quotidiano.
               Guide pratiche, video, masterclass dal vivo e supporto 1:1 — tutto in italiano.
             </p>
             <div className="flex flex-wrap justify-center gap-6 mb-6">
               {[
                 { Icon: BookOpen, label: "6 Guide pratiche" },
-                { Icon: Play, label: "6 Video tutorial" },
+                { Icon: Play, label: "Video in pagina" },
                 { Icon: Users, label: "Masterclass mensili" },
                 { Icon: MessageCircle, label: "Supporto 1:1" },
               ].map(({ Icon, label }, i) => (
@@ -243,7 +239,11 @@ export default function Formazione() {
             </p>
           </div>
         </div>
+<MarketingVisual theme="people" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+</div>
       </section>
+
+      <MarginVideoLesson />
 
       {/* ── PERCORSI DI APPRENDIMENTO ── */}
       <section className="py-16 md:py-24 bg-white">
@@ -320,35 +320,7 @@ export default function Formazione() {
         </div>
       </section>
 
-      {/* ── VIDEO TUTORIAL ── */}
-      <section className="py-16 md:py-24 bg-white">
-        <div ref={videosAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-6xl mx-auto px-6">
-          <div className={`text-center mb-12 transition-all duration-700 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">Video Tutorial</span>
-            <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111]">Guarda. Replica subito.</h2>
-            <p className="text-gray-500 text-lg mt-2">Niente teoria. Solo schermo condiviso — vedi esattamente cosa fare, clic per clic.</p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {videos.map((v, i) => (
-              <Link key={i} to="/demo/"
-                className={`group block rounded-2xl overflow-hidden border border-gray-200 hover:border-eic-orange/40 hover:shadow-md transition-all duration-500 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
-                style={{ transitionDelay: `${100 + i * 80}ms` }}>
-                <div className="relative bg-[#111111] h-36 flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-eic-orange group-hover:scale-110 transition-all duration-300">
-                    <Play size={20} className="text-white ml-1" fill="currentColor" />
-                  </div>
-                  <span className="absolute bottom-3 right-3 px-2 py-0.5 bg-black/60 text-white text-xs rounded">{v.duration}</span>
-                  <span className="absolute top-3 left-3 px-2 py-0.5 bg-eic-orange/80 text-white text-xs font-bold rounded">{v.category}</span>
-                </div>
-                <div className="p-4 bg-white">
-                  <p className="font-semibold text-[#111111] text-sm group-hover:text-eic-orange transition-colors mb-1">{v.title}</p>
-                  <p className="text-eic-orange text-xs font-bold">🎯 {v.result}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ConstructionVideoLesson />
 
       {/* ── MASTERCLASS DAL VIVO ── */}
       <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
@@ -475,7 +447,7 @@ export default function Formazione() {
             <span className="text-eic-orange">finché non inizi a usarlo.</span>
           </h2>
           <p className="text-white/60 mb-8">
-            31 giorni gratis. Onboarding 1:1 incluso. Setup in 48 ore.
+            31 giorni gratis. Onboarding 1:1 incluso. Avvio assistito.
           </p>
           <Link to="/demo/" className="inline-flex items-center gap-2 px-8 py-4 bg-eic-orange text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
             Inizia la prova gratuita <ArrowRight size={18} />

@@ -13,6 +13,7 @@ import { useStatoPatrimoniale, useRating } from "./useStatoPatrimoniale";
 import { useMarginalitaCommesse } from "./useMarginalitaCommesse";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
+import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import {
   runRules,
   type CantiereLite,
@@ -67,22 +68,29 @@ function useSnapshotOperativo() {
       in30.setDate(in30.getDate() + 30);
       const in30Str = in30.toLocaleDateString("en-CA"); // data locale, no drift UTC
 
-      const [banks, aperte] = await Promise.all([
+      const [banks, aperteRighe] = await Promise.all([
         supabase
           .from("bank_accounts")
           .select("current_balance")
           .eq("company_id", companyId!)
           .eq("is_active", true),
-        supabase
-          .from("scadenze")
-          .select("id, direction, description, amount, paid_amount, due_date")
-          .eq("company_id", companyId!)
-          .in("status", ["da_pagare", "parziale"])
-          .lte("due_date", in30Str)
-          .limit(1000),
+        // A pagine: con .limit(1000) un'azienda con più di mille scadenze aperte
+        // perdeva in silenzio crediti scaduti e uscite dei prossimi 30 giorni.
+        // Le previsionali non sono debiti né crediti veri.
+        allPaymentRows((from, to) =>
+          supabase
+            .from("scadenze")
+            .select("id, direction, description, amount, paid_amount, due_date")
+            .eq("company_id", companyId!)
+            .in("status", ["da_pagare", "parziale"])
+            .or("is_previsionale.is.null,is_previsionale.eq.false")
+            .lte("due_date", in30Str)
+            .order("id")
+            .range(from, to),
+        ),
       ]);
       if (banks.error) throw banks.error;
-      if (aperte.error) throw aperte.error;
+      const aperte = { data: aperteRighe };
 
       const saldo_banche = (banks.data ?? []).reduce(
         (s, b) => s + Number(b.current_balance ?? 0),
@@ -105,6 +113,7 @@ function useSnapshotOperativo() {
           cliente_nome: r.description ?? undefined,
           importo: residuo,
           giorni_scadenza: giorni,
+          scadenza: r.due_date,
         });
         netto30 += r.direction === "entrata" ? residuo : -residuo;
       }
