@@ -5,6 +5,8 @@
  *      contate esattamente, legenda esclusa, assegnate al locale più vicino.
  *   2. «Conta i simboli disegnati» manda la tavola a riquadri all'AI con la
  *      legenda come guida: una stima con la sua affidabilità.
+ *   3. «Disegno CAD»: un DXF (o DWG salvato come DXF) letto nel browser;
+ *      blocchi contati esattamente e lunghezze per layer (DisegnoCadPannello).
  * Tutto entra come bozza: diventa materiale solo il conteggio confermato.
  */
 import { useMemo, useRef, useState } from "react";
@@ -24,12 +26,15 @@ import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 import { contaSigleDaTesto, type RisultatoConteggioTesto } from "@/lib/distinta/conteggioTesto";
 import { disegnaRiquadri, estraiTestoTavola, sommaRiquadri } from "@/lib/distinta/tavolePdf";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
+import DisegnoCadPannello from "./DisegnoCadPannello";
 
 interface Tavola { id: string; file_name: string; file_url: string }
 interface Conteggio {
   id: string; documento_id: string | null; documento_nome: string | null; phase_id: string | null; simbolo: string;
   descrizione_legenda: string | null; locale: string | null; quantita: number; metodo: string; confidenza: number | null; confermato: boolean;
 }
+/** Con l'unità: 'm' per le lunghezze dei disegni CAD, vuota = pezzi. */
+type ConteggioLetto = Conteggio & { unita?: string | null };
 
 const SENZA = "_senza";
 
@@ -55,13 +60,14 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
     queryFn: async () => {
       const [tavole, conteggi, fasi] = await Promise.all([
         supabase.from("order_attachments").select("id, file_name, file_url").eq("order_id", orderId).ilike("file_name", "%.pdf").order("created_at", { ascending: false }),
-        supabase.from("planimetrie_conteggi").select("id, documento_id, documento_nome, phase_id, simbolo, descrizione_legenda, locale, quantita, metodo, confidenza, confermato")
+        // «*»: la colonna unita arriva con la migrazione dei disegni CAD.
+        supabase.from("planimetrie_conteggi").select("*")
           .eq("order_id", orderId).order("documento_nome").order("simbolo").order("locale"),
         supabase.from("order_work_phases").select("id, name").eq("order_id", orderId).order("position"),
       ]);
       if (tavole.error) throw tavole.error;
       if (conteggi.error) throw conteggi.error;
-      return { tavole: (tavole.data ?? []) as Tavola[], conteggi: (conteggi.data ?? []) as Conteggio[], fasi: fasi.data ?? [] };
+      return { tavole: (tavole.data ?? []) as Tavola[], conteggi: (conteggi.data ?? []) as unknown as ConteggioLetto[], fasi: fasi.data ?? [] };
     },
   });
   const aggiorna = () => {
@@ -93,6 +99,7 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
   const [sceltaSimboli, setSceltaSimboli] = useState<Set<string>>(new Set());
   const [faseNuovi, setFaseNuovi] = useState<string>(SENZA);
   const [lavoro, setLavoro] = useState<string | null>(null);
+  const [vista, setVista] = useState<"pdf" | "cad">("pdf");
 
   const leggi = async () => {
     if (!tavola) return;
@@ -190,7 +197,10 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
     onSuccess: aggiorna,
   });
 
-  const conteggiTavola = useMemo(() => (dati.data?.conteggi ?? []).filter((c) => !tavola || c.documento_id === tavola.id), [dati.data, tavola]);
+  const conteggiTavola = useMemo(() => (dati.data?.conteggi ?? []).filter((c) => vista === "cad"
+    // I disegni CAD si leggono nel browser senza caricarli: niente documento.
+    ? !c.documento_id
+    : !tavola || c.documento_id === tavola.id), [dati.data, tavola, vista]);
   const daConfermare = conteggiTavola.filter((c) => !c.confermato).map((c) => c.id);
   const fasi = dati.data?.fasi ?? [];
 
@@ -204,6 +214,17 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex gap-1 text-sm" role="tablist" aria-label="Tipo di tavola">
+          <Button size="sm" role="tab" aria-selected={vista === "pdf"} variant={vista === "pdf" ? "default" : "outline"} className="h-8" onClick={() => setVista("pdf")}>Tavole PDF</Button>
+          <Button size="sm" role="tab" aria-selected={vista === "cad"} variant={vista === "cad" ? "default" : "outline"} className="h-8" onClick={() => setVista("cad")}>Disegno CAD (DWG / DXF)</Button>
+        </div>
+
+        {vista === "cad" && (
+          <DisegnoCadPannello orderId={orderId} companyId={companyId} fasi={fasi} puoScrivere={puoScrivere}
+            onSalvati={aggiorna} />
+        )}
+
+        {vista === "pdf" && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Select value={tavola?.id} onValueChange={(v) => { setTavolaId(v); setLettura(null); }}>
             <SelectTrigger className="h-8 w-80" aria-label="Tavola"><SelectValue placeholder="Nessuna tavola PDF nella commessa" /></SelectTrigger>
@@ -222,8 +243,9 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
           )}
           {lavoro && <span role="status" className="text-xs text-slate-600">{lavoro}</span>}
         </div>
+        )}
 
-        {lettura && puoScrivere && (
+        {vista === "pdf" && lettura && puoScrivere && (
           <div className="grid gap-3 md:grid-cols-2">
             <section aria-label="Sigle trovate" className="rounded border p-2 text-sm">
               <h4 className="mb-1 font-semibold">Sigle scritte sulla tavola (conteggio esatto)</h4>
@@ -279,7 +301,7 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
 
         <section aria-label="Conteggi della tavola" className="text-sm">
           <div className="mb-1 flex items-center justify-between">
-            <h4 className="font-semibold">Conteggi {tavola ? `di ${tavola.file_name}` : ""}</h4>
+            <h4 className="font-semibold">Conteggi {vista === "cad" ? "dei disegni CAD" : tavola ? `di ${tavola.file_name}` : ""}</h4>
             {puoScrivere && daConfermare.length > 0 && (
               <Button size="sm" variant="outline" className="h-7" onClick={() => confermaTutti.mutate(daConfermare)}>Conferma tutti ({daConfermare.length})</Button>
             )}
@@ -293,16 +315,17 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
                 <tbody className="divide-y">
                   {conteggiTavola.map((c) => (
                     <tr key={c.id} className={c.confermato ? "" : "bg-amber-50/40"}>
-                      <td className="px-2 py-1"><strong>{c.simbolo}</strong>{c.descrizione_legenda && c.descrizione_legenda !== c.simbolo ? <span className="text-slate-500"> · {c.descrizione_legenda}</span> : null}</td>
+                      <td className="px-2 py-1"><strong>{c.simbolo}</strong>{c.descrizione_legenda && c.descrizione_legenda !== c.simbolo ? <span className="text-slate-500"> · {c.descrizione_legenda}</span> : null}{vista === "cad" && c.documento_nome ? <span className="block text-[10px] text-slate-400">{c.documento_nome}</span> : null}</td>
                       <td className="px-2 py-1">{c.locale ?? "—"}</td>
                       <td className="px-2 py-1 text-right">
                         {puoScrivere ? (
                           <Input className="ml-auto h-7 w-20 text-right tabular-nums" defaultValue={String(c.quantita)} aria-label={`Quantità ${c.simbolo}`}
                             onBlur={(e) => { const q = Number(e.target.value.replace(",", ".")); if (Number.isFinite(q) && q >= 0 && q !== Number(c.quantita)) modifica.mutate({ id: c.id, patch: { quantita: q, metodo: c.metodo === "testo" ? "testo" : "manuale" } }); }} />
                         ) : c.quantita}
+                        {c.unita === "m" && <span className="text-slate-500"> m</span>}
                       </td>
                       <td className="px-2 py-1 text-slate-600">
-                        {c.metodo === "testo" ? "Testo (esatto)" : c.metodo === "ai_immagine" ? `AI · ${Math.round(Number(c.confidenza ?? 0) * 100)}%` : c.metodo === "manuale" ? "A mano" : "Disegno"}
+                        {c.metodo === "testo" ? "Testo (esatto)" : c.metodo === "dwg" ? "Disegno CAD (esatto)" : c.metodo === "ai_immagine" ? `AI · ${Math.round(Number(c.confidenza ?? 0) * 100)}%` : c.metodo === "manuale" ? "A mano" : "Disegno"}
                       </td>
                       <td className="px-2 py-1">
                         <Select value={c.phase_id ?? SENZA} disabled={!puoScrivere} onValueChange={(v) => modifica.mutate({ id: c.id, patch: { phase_id: v === SENZA ? null : v } })}>
