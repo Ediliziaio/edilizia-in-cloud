@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 import { catalogoComeScomposizioni, SCOMPOSIZIONI_STANDARD, vociPerImport } from "@/lib/distinta/scomposizioniStandard";
 import { generaDistinta, normalizzaTesto, trovaScomposizione } from "@/lib/distinta/generaDistinta";
 import { prezzoAttuale, scegliPrezzo, totaleStimato, chiaveDescrizione } from "@/lib/distinta/prezziMateriali";
-import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA } from "@/lib/distinta/faseProposta";
+import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
 import { propostaFasi } from "@/lib/distinta/fasiMateriali";
+import { conteggioStati, eliminabile, eMateriale, filtraPerFonte, ordinaRighe } from "@/lib/distinta/elencoArticoli";
 import { messaggioFasi, pulisciProposteFasi } from "../../../supabase/functions/_shared/distintaFasiAI";
 
 const catalogo = catalogoComeScomposizioni();
@@ -134,7 +135,7 @@ describe("fase proposta dall'AI", () => {
     expect(capitoliIncerti(voci, perParole)).toEqual([{ nome: "Speciali", esempi: ["Rivelatore ottico"] }]);
     const base = { "Impianto elettrico": "f1", Speciali: VALORE_NUOVA + "Speciali", "Senza capitolo": VALORE_SENZA };
     const sicuri = new Set(["Impianto elettrico"]);
-    const ai = [
+    const ai: SuggerimentoFase[] = [
       { capitolo: "Speciali", phase_id: "f1", nuova_fase: null, motivo: "", confidenza: 0.7 },
       { capitolo: "Impianto elettrico", phase_id: null, nuova_fase: "Altro", motivo: "", confidenza: 0.2 },
     ];
@@ -147,5 +148,30 @@ describe("fase proposta dall'AI", () => {
     const s = readFileSync(resolve(process.cwd(), "supabase/functions/distinta-proponi-fasi/index.ts"), "utf8");
     expect(s).toContain('import { aiRouterComplete } from "../_shared/aiRouter.ts"');
     expect(s).toContain("requireCompanyAccess");
+  });
+});
+
+describe("elenco unico: filtri, ordinamento, righe che si tolgono", () => {
+  const righe = [
+    { name: "Cavo", status: "ordinato", supplier_id: "f2", position: 2 },
+    { name: "Asola", status: "da_ordinare", stock_item_id: "g", position: 1 },
+    { name: "Box", status: "in_magazzino", supplier_id: "f1", position: 0 },
+  ];
+  const fornitore = (id: string | null) => ({ f1: "Zeta", f2: "Alfa" } as Record<string, string>)[id ?? ""] ?? null;
+  it("filtra per provenienza e ordina come chiesto", () => {
+    expect(filtraPerFonte(righe, "giacenza").map((r) => r.name)).toEqual(["Asola"]);
+    expect(filtraPerFonte(righe, "fornitore")).toHaveLength(2);
+    expect(ordinaRighe(righe, "posizione").map((r) => r.name)).toEqual(["Box", "Asola", "Cavo"]);
+    expect(ordinaRighe(righe, "nome").map((r) => r.name)).toEqual(["Asola", "Box", "Cavo"]);
+    expect(ordinaRighe(righe, "stato").map((r) => r.name)).toEqual(["Asola", "Cavo", "Box"]);
+    expect(ordinaRighe(righe, "fornitore", fornitore).map((r) => r.name)).toEqual(["Cavo", "Box", "Asola"]);
+    expect(conteggioStati(righe)).toEqual([["da_ordinare", 1], ["ordinato", 1], ["in_magazzino", 1]]);
+  });
+  it("si toglie solo ciò che non è mai entrato negli acquisti o in magazzino; le lavorazioni non sono materiali", () => {
+    expect(eliminabile({ stato: "da_ordinare", status: "da_ordinare" })).toBe(true);
+    expect(eliminabile({ stato: "in_offerta", status: "da_ordinare" })).toBe(false);
+    expect(eliminabile({ stato: "da_ordinare", stock_item_id: "g" })).toBe(false);
+    expect(eMateriale({ natura_riga: null })).toBe(true);
+    expect(eMateriale({ natura_riga: "lavorazione" })).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 import { planMaterial } from "@/lib/orders/materialProcurement";
 import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchaseOrder";
 import { statoAcquistoMateriale, type StatoAcquistoMateriale } from "@/lib/distinta/fasiMateriali";
+import { eliminabile, eMateriale } from "@/lib/distinta/elencoArticoli";
 import type { AzioneFase, StatoMaterialiFase } from "@/lib/distinta/statiFase";
 import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 
@@ -40,6 +41,23 @@ export interface MaterialeFase {
   stato: StatoAcquistoMateriale;
   ordinabile: boolean;
   avviso: string | null;
+  // ── Le altre colonne della riga, per l'elenco unico della commessa ──
+  /** materiale (default), lavorazione, descrizione. */
+  natura_riga?: string | null;
+  article_template_id?: string | null;
+  scomposizione_id?: string | null;
+  prezzo_fonte?: string | null;
+  standard_cost?: number | null;
+  delivery_date?: string | null;
+  is_paid?: boolean | null;
+  deposit_paid?: boolean | null;
+  balance_paid?: boolean | null;
+  payment_method?: string | null;
+  position?: number | null;
+  /** Numeri degli ordini d'acquisto che coprono la riga (non annullati). */
+  oda?: string[];
+  /** Quantità negli ordini emessi. */
+  ordinata?: number;
 }
 
 export interface FaseMateriali {
@@ -56,7 +74,8 @@ export interface FaseMateriali {
 }
 
 const COLONNE_MATERIALE =
-  "id, order_id, name, description, quantity, status, supplier_id, purchase_price, vat_rate, phase_id, unita_misura, specifiche, origine_materiale, quantita_calcolata, origini, locale, supplier_rfq_item_id, stock_item_id, posizioni, position";
+  "id, order_id, name, description, quantity, status, supplier_id, purchase_price, vat_rate, phase_id, unita_misura, specifiche, origine_materiale, quantita_calcolata, origini, locale, supplier_rfq_item_id, stock_item_id, posizioni, position, " +
+  "natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method";
 
 export const chiaviMateriali = {
   commessa: (orderId: string) => ["materiali-per-fase", orderId] as const,
@@ -71,7 +90,8 @@ export function useMaterialiPerFase(orderId: string | undefined) {
     queryFn: async () => {
       const [fasi, materiali, validazioni] = await Promise.all([
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId!).order("position"),
-        supabase.from("order_items").select(COLONNE_MATERIALE).eq("order_id", orderId!).eq("natura_riga", "materiale").order("position"),
+        // Tutte le righe della commessa: è l'elenco unico (materiali, lavorazioni, descrizioni).
+        supabase.from("order_items").select(COLONNE_MATERIALE).eq("order_id", orderId!).order("position"),
         supabase.from("materiali_fasi_validazione").select("phase_id, stato, note_validazione, validata_il, inviata_il").eq("order_id", orderId!),
       ]);
       if (fasi.error) throw fasi.error;
@@ -88,12 +108,18 @@ export function useMaterialiPerFase(orderId: string | undefined) {
     if (!d) return [];
     const materiali: MaterialeFase[] = d.righe.map((r) => {
       const piano = planMaterial({ ...r, quantity: Number(r.quantity) }, d.copertura);
+      const oda = [...new Set(d.copertura
+        .filter((c) => c.order_item_id === r.id && c.purchase_orders?.status !== "annullato")
+        .map((c) => c.purchase_orders?.oda_number)
+        .filter((n): n is string => !!n))];
       return {
         ...r,
         quantity: Number(r.quantity),
         stato: statoAcquistoMateriale({ ...r, drafted: piano.drafted, issued: piano.issued, received: piano.received }),
-        ordinabile: piano.canOrder,
-        avviso: piano.review,
+        ordinabile: piano.canOrder && eMateriale(r),
+        avviso: eMateriale(r) ? piano.review : null,
+        oda,
+        ordinata: piano.issued,
       };
     });
     const out: FaseMateriali[] = d.fasi.map((f) => {
@@ -125,6 +151,8 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
   const companyId = effectiveCompany?.id ?? "";
   const aggiorna = () => {
     qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
+    // Il riepilogo della commessa legge le stesse righe.
+    qc.invalidateQueries({ queryKey: ["order-items", orderId] });
     qc.invalidateQueries({ queryKey: ["material-procurement"] });
     qc.invalidateQueries({ queryKey: ["acquisti-da-fare"] });
   };
@@ -224,5 +252,22 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
-  return { cambiaStato, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini };
+  /**
+   * Toglie una riga mai entrata negli acquisti (da ordinare, niente offerta né
+   * ordine, non presa dal magazzino): le altre portano via in cascata arrivi e
+   * installazioni, e si tolgono da «Modifica commessa».
+   */
+  const elimina = useMutation({
+    mutationFn: async (m: MaterialeFase) => {
+      if (!eliminabile(m)) {
+        throw new Error("Questa riga è già negli acquisti o in magazzino: si toglie da «Modifica commessa»");
+      }
+      const { error } = await supabase.from("order_items").delete().eq("id", m.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Riga tolta dalla commessa"); aggiorna(); },
+    onError: (e) => toast.error(messaggio(e)),
+  });
+
+  return { cambiaStato, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina };
 }

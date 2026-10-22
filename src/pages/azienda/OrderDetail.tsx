@@ -73,7 +73,7 @@ import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/Or
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
-import { OrdineArticoli, OrderProcurementTools } from "@/components/orders/OrdineArticoli";
+import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
@@ -843,6 +843,8 @@ function OrderDetailInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      // L'elenco per fase legge le stesse righe.
+      queryClient.invalidateQueries({ queryKey: ["materiali-per-fase", id] });
       queryClient.invalidateQueries({ queryKey: ["forecast-pending-items"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-supplier-balances"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-installments"] });
@@ -858,6 +860,8 @@ function OrderDetailInner() {
   });
 
   const handleItemUpdate = (item: OrderItem) => { updateSingleItemMutation.mutate(item); };
+  // Posa dal listino → Manodopera, dalla finestra dell'articolo.
+  const addLaborMutation = useAggiungiPosaManodopera(id!);
 
   // Add new item mutation
   const addItemMutation = useMutation({
@@ -886,11 +890,16 @@ function OrderDetailInner() {
         standard_cost: item.standard_cost ?? 0,
         // Distinta/abaco (posizioni multiple dentro l'articolo)
         posizioni: (item.posizioni ?? null) as unknown as Json,
+        // Vista per fase: la fase da cui è stato aggiunto; unità e specifiche dei duplicati.
+        phase_id: item.phase_id ?? null,
+        unita_misura: item.unita_misura ?? null,
+        specifiche: item.specifiche ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["materiali-per-fase", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articolo aggiunto");
@@ -965,6 +974,10 @@ function OrderDetailInner() {
     // v8.6.35 — Tracking
     delivery_date: item.delivery_date || undefined,
     posizioni: (item as { posizioni?: import("@/components/orders/OrderItemsList").Posizione[] | null }).posizioni ?? undefined,
+    // Colonne della vista per fase (non sono in OrderItemData).
+    phase_id: (item as { phase_id?: string | null }).phase_id ?? null,
+    unita_misura: (item as { unita_misura?: string | null }).unita_misura ?? null,
+    specifiche: (item as { specifiche?: string | null }).specifiche ?? null,
     attachments: attachments.filter(att => att.order_item_id === item.id).map(att => ({
       id: att.id, file_name: att.file_name, file_url: att.file_url, file_type: att.file_type, file_size: att.file_size,
     })),
@@ -1571,10 +1584,27 @@ function OrderDetailInner() {
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             {activeMaterialiView === "articoli" && <>
-            {/* Materiali divisi per fase, con validazione del tecnico e acquisti (22/10/2026). */}
-            <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Materiali per fase non disponibili. Ricarica la pagina per riprovare.</p>}>
-              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico i materiali per fase…</p>}>
-                <MaterialiPerFase orderId={id!} orderCode={order.order_code} />
+            {/* Un solo elenco degli articoli, diviso per fase (23/10/2026): materiali,
+                lavorazioni e descrizioni, con validazione del tecnico, acquisti e
+                prezzi. Aggiungere, modificare, duplicare e allegare si fa da qui:
+                il vecchio «Articoli della Commessa» qui sotto non c'è più. */}
+            <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Articoli per fase non disponibili. Ricarica la pagina per riprovare.</p>}>
+              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico gli articoli per fase…</p>}>
+                <MaterialiPerFase
+                  orderId={id!}
+                  orderCode={order.order_code}
+                  editor={{
+                    items: displayItems,
+                    companyId: effectiveCompany?.id || "",
+                    onItemsChange: (newItems) => {
+                      const newItem = newItems.find((ni) => !ni.id);
+                      if (newItem) addItemMutation.mutate(newItem);
+                    },
+                    onItemUpdate: handleItemUpdate,
+                    onAttachmentsRefresh: handleAttachmentsRefresh,
+                    onAddLabor: (labor) => addLaborMutation.mutate(labor),
+                  }}
+                />
               </Suspense>
             </ErrorBoundary>
             <div id="section-materiali" className="scroll-mt-24">
@@ -1637,23 +1667,6 @@ function OrderDetailInner() {
                 );
               })()}
 
-            {/* Articoli */}
-            <OrdineArticoli
-              orderId={id!}
-              orderCode={order.order_code}
-              displayItems={displayItems}
-              orderItems={materialItems}
-              companyId={effectiveCompany?.id || ""}
-              onItemsChange={(newItems) => {
-                const newItem = newItems.find((ni) => !ni.id);
-                if (newItem) addItemMutation.mutate(newItem);
-              }}
-              onItemUpdate={handleItemUpdate}
-              onAttachmentsRefresh={handleAttachmentsRefresh}
-              showAttachments={false}
-              showSupplierPayments={false}
-              showProcurement={false}
-            />
             <div className="flex justify-end">
               <Button
                 variant="ghost"

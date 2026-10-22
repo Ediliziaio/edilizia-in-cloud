@@ -130,7 +130,18 @@ export interface OrderItem {
   survey_element_id?: string | null;
   /** Distinta/abaco: ogni posizione diventa una riga OdA/RDO. */
   posizioni?: Posizione[] | null;
+  /** Fase di lavoro della commessa (vista «per fase»): null = senza fase. */
+  phase_id?: string | null;
+  /** Unità e specifiche dei materiali generati: si portano dietro nei duplicati. */
+  unita_misura?: string | null;
+  specifiche?: string | null;
 }
+
+/** Cosa chiede la vista per fase alla finestra dell'articolo (soloFinestra). */
+export type RichiestaArticolo =
+  | { tipo: "nuovo"; phaseId: string | null; nonce: number }
+  | { tipo: "modifica"; id: string; nonce: number }
+  | { tipo: "duplica"; id: string; nonce: number };
 
 interface OrderItemsListProps {
   items: OrderItem[];
@@ -169,9 +180,16 @@ interface OrderItemsListProps {
    * `false` vede articoli, quantità e stati senza cifre di costo.
    */
   canViewCosts?: boolean;
+  /**
+   * Solo la finestra «Nuovo / Modifica articolo», senza l'elenco: la usa la
+   * vista per fase della commessa, che mostra le righe a modo suo e qui
+   * chiede di aprire, modificare o duplicare un articolo (`richiesta`).
+   */
+  soloFinestra?: boolean;
+  richiesta?: RichiestaArticolo | null;
 }
 
-const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
+export const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
   da_ordinare: { 
     label: "Da Ordinare", 
     badgeColor: "bg-amber-500 text-white hover:bg-amber-500",
@@ -219,7 +237,7 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
  * grezzo reso leggibile invece di restare muto come e' successo con
  * "in_lavorazione".
  */
-function statusConfig(status?: string | null) {
+export function statusConfig(status?: string | null) {
   if (status && STATUS_CONFIG[status as OrderItemStatus]) return STATUS_CONFIG[status as OrderItemStatus];
   if (!status) return STATUS_CONFIG.da_ordinare;
   return {
@@ -250,6 +268,8 @@ export function OrderItemsList({
   onAddLabor,
   allowDelete = true,
   canViewCosts = true,
+  soloFinestra = false,
+  richiesta = null,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -326,6 +346,8 @@ export function OrderItemsList({
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
+  /** Fase in cui nasce un articolo nuovo (undefined = l'elenco non usa le fasi). */
+  const [faseNuovo, setFaseNuovo] = useState<string | null | undefined>(undefined);
 
   const { effectiveCompany, user } = useAuth();
   // v8.6.34 — Usa fallbackCompanyId (companyId della commessa corrente) se
@@ -556,6 +578,7 @@ export function OrderItemsList({
 
   const openAddDialog = () => {
     resetForm();
+    setFaseNuovo(undefined);
     setDialogOpen(true);
   };
 
@@ -724,6 +747,8 @@ export function OrderItemsList({
       const newItem: OrderItem = {
         ...commonFields,
         position: items.length,
+        // Aggiunto dalla vista per fase: nasce nella fase da cui l'hai aggiunto.
+        ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
       };
       // v8.6.35 — Create mode: pendingAttachment va in coda (no id ancora).
       // Quando il parent farà insert in DB e items[] si refresha con id,
@@ -923,6 +948,30 @@ export function OrderItemsList({
     onItemsChange([...items, duplicate]);
   };
 
+  // Le richieste della vista per fase: aprire un articolo nuovo (nella fase
+  // scelta), modificarne uno, duplicarlo. Una volta per richiesta (nonce).
+  const richiestaGestita = useRef<number | null>(null);
+  useEffect(() => {
+    if (!richiesta || richiestaGestita.current === richiesta.nonce) return;
+    richiestaGestita.current = richiesta.nonce;
+    if (richiesta.tipo === "nuovo") {
+      // La richiesta arriva da fuori (vista per fase): aprire la finestra è l'effetto voluto.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      resetForm();
+      setFaseNuovo(richiesta.phaseId);
+      setDialogOpen(true);
+      return;
+    }
+    const indice = items.findIndex((i) => i.id === richiesta.id);
+    if (indice < 0) {
+      toast({ variant: "destructive", title: "Articolo non trovato", description: "Ricarica la pagina e riprova." });
+      return;
+    }
+    if (richiesta.tipo === "modifica") openEditDialog(indice);
+    else handleDuplicateItem(indice);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [richiesta]);
+
   const handleDeleteItem = (index: number) => {
     const newItems = items.filter((_, i) => i !== index);
     newItems.forEach((item, i) => { item.position = i; });
@@ -967,6 +1016,7 @@ export function OrderItemsList({
       purchase_price: stock.unit_cost,
       vat_rate: stock.vat_rate ?? 22,
       stock_item_id: stock.id,
+      ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
     };
     onItemsChange([...items, newItem]);
     onStockPick?.(stock.id, qty);
@@ -1479,6 +1529,255 @@ export function OrderItemsList({
     </div>
   );
 
+  // La finestra «Nuovo / Modifica articolo»: nell'elenco e, da sola, nella
+  // vista per fase della commessa (soloFinestra).
+  const finestra = (
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingIndex !== null
+                ? "Modifica i dettagli dell'articolo"
+                : "Aggiungi un articolo alla commessa"}
+            </DialogDescription>
+          </DialogHeader>
+          {dialogError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {dialogError}
+            </div>
+          )}
+
+          {editingIndex === null && stockItems.length > 0 ? (
+            <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as "new" | "stock")}>
+              <TabsList className="w-full">
+                <TabsTrigger value="new" className="flex-1 gap-1">
+                  <Plus className="h-3 w-3" />
+                  Nuovo Articolo
+                </TabsTrigger>
+                <TabsTrigger value="stock" className="flex-1 gap-1">
+                  <Warehouse className="h-3 w-3" />
+                  Da Magazzino
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="new">
+                {renderNewArticleForm()}
+                {/* Footer: ordine logico per scan-pattern italiano (sinistra→destra):
+                    [Annulla] [Aggiungi e continua] [Aggiungi]
+                    "Aggiungi" è la primary action (destra). "Aggiungi e continua"
+                    è secondary (per inserimenti rapidi). Tooltip su "continua"
+                    per chiarire la differenza alla prima visita. */}
+                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
+                    Annulla
+                  </Button>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleSaveAndContinue}
+                          disabled={!itemName.trim()}
+                          className="sm:order-2 gap-1.5"
+                          aria-label="Aggiungi e continua"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
+                          <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
+                    Aggiungi
+                  </Button>
+                </DialogFooter>
+              </TabsContent>
+
+              <TabsContent value="stock">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Articolo da Magazzino *</Label>
+                    <Popover open={stockPickerOpen} onOpenChange={setStockPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between text-left font-normal h-9"
+                        >
+                          {selectedStockItem ? (() => {
+                            const s = stockItems.find((it) => it.id === selectedStockItem);
+                            if (!s) return "Seleziona articolo…";
+                            return (
+                              <span className="truncate">
+                                {s.name}
+                                <span className="text-muted-foreground text-xs ml-2">· {s.warehouse?.name ?? "—"} · {s.quantity} pz</span>
+                              </span>
+                            );
+                          })() : (
+                            <span className="text-muted-foreground">Seleziona articolo… (cerca per nome o codice)</span>
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                        avoidCollisions={false}
+                      >
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Filtra per nome, codice o barcode…"
+                            value={stockSearch}
+                            onValueChange={setStockSearch}
+                          />
+                          <CommandList
+                            className="!max-h-[320px] overscroll-contain"
+                            onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}
+                          >
+                            {stockGroups.length === 0 ? (
+                              <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                                {stockSearchDebounced
+                                  ? `Nessun articolo trovato per "${stockSearchDebounced}"`
+                                  : "Nessun articolo in magazzino"}
+                              </CommandEmpty>
+                            ) : (
+                              stockGroups.map(([whName, items]) => (
+                                <CommandGroup key={whName} heading={`📦 ${whName} (${items.length})`}>
+                                  {items.map((s) => {
+                                    const noStock = s.quantity <= 0;
+                                    return (
+                                      <CommandItem
+                                        key={s.id}
+                                        value={s.id}
+                                        onSelect={() => {
+                                          setSelectedStockItem(s.id);
+                                          setStockPickerOpen(false);
+                                        }}
+                                        className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
+                                      >
+                                        <div className="flex items-center gap-2 w-full">
+                                          <Check className={cn("h-3.5 w-3.5 shrink-0", selectedStockItem === s.id ? "opacity-100" : "opacity-0")} />
+                                          <span className={cn("font-medium text-sm truncate", noStock && "text-muted-foreground")}>{s.name}</span>
+                                          {s.internal_code && (
+                                            <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">{s.internal_code}</Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 pl-5 text-[11px]">
+                                          <PackageCheck className={cn("h-2.5 w-2.5", noStock ? "text-destructive" : "text-emerald-600")} />
+                                          <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
+                                            Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
+                                          </span>
+                                          {canViewCosts && <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>}
+                                          {s.tracking_mode === "serialized" && (
+                                            <Badge variant="secondary" className="text-[9px] h-4" title="Articolo serializzato — ogni unità ha un codice univoco">SN</Badge>
+                                          )}
+                                          {noStock && <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>}
+                                        </div>
+                                      </CommandItem>
+                                    );
+                                  })}
+                                </CommandGroup>
+                              ))
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {selectedStockItem && (() => {
+                    const stock = stockItems.find((s) => s.id === selectedStockItem);
+                    if (!stock) return null;
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
+                          {canViewCosts && <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>}
+                          <div className="flex justify-between"><span>Disponibili:</span><span className="font-medium">{stock.quantity}</span></div>
+                          {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Quantità da prelevare</Label>
+                          <Input type="number" min="1" max={stock.quantity} value={stockPickQuantity} onChange={(e) => setStockPickQuantity(e.target.value)} />
+                          {parseInt(stockPickQuantity) > stock.quantity && (
+                            <p className="text-xs text-destructive">Quantità superiore alla disponibilità</p>
+                          )}
+                        </div>
+                        {canViewCosts && <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                          <div className="flex justify-between font-medium">
+                            <span>Costo totale:</span>
+                            <span>{formatCurrency(stock.unit_cost * (parseInt(stockPickQuantity) || 0))}</span>
+                          </div>
+                        </div>}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <DialogFooter className="mt-4 max-sm:flex-row">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="max-sm:hidden">Annulla</Button>
+                  <Button
+                    type="button"
+                    className="max-sm:flex-1"
+                    onClick={handlePickFromStock}
+                    disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
+                  >
+                    <Warehouse className="h-4 w-4 mr-2" />
+                    Preleva
+                  </Button>
+                </DialogFooter>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <>
+              {renderNewArticleForm()}
+              <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
+                  Annulla
+                </Button>
+                {/* "Aggiungi e continua" solo in creazione (non in edit) */}
+                {editingIndex === null && (
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleSaveAndContinue}
+                          disabled={!itemName.trim()}
+                          className="sm:order-2 gap-1.5"
+                          aria-label="Aggiungi e continua"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
+                          <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
+                  {editingIndex !== null ? "Salva modifiche" : "Aggiungi"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+  );
+
+  if (soloFinestra) return finestra;
+
   return (
     <Card>
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
@@ -1879,249 +2178,7 @@ export function OrderItemsList({
           </div>
         )}
 
-        {/* Add/Edit Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingIndex !== null
-                  ? "Modifica i dettagli dell'articolo"
-                  : "Aggiungi un articolo alla commessa"}
-              </DialogDescription>
-            </DialogHeader>
-            {dialogError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {dialogError}
-              </div>
-            )}
-
-            {editingIndex === null && stockItems.length > 0 ? (
-              <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as "new" | "stock")}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="new" className="flex-1 gap-1">
-                    <Plus className="h-3 w-3" />
-                    Nuovo Articolo
-                  </TabsTrigger>
-                  <TabsTrigger value="stock" className="flex-1 gap-1">
-                    <Warehouse className="h-3 w-3" />
-                    Da Magazzino
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="new">
-                  {renderNewArticleForm()}
-                  {/* Footer: ordine logico per scan-pattern italiano (sinistra→destra):
-                      [Annulla] [Aggiungi e continua] [Aggiungi]
-                      "Aggiungi" è la primary action (destra). "Aggiungi e continua"
-                      è secondary (per inserimenti rapidi). Tooltip su "continua"
-                      per chiarire la differenza alla prima visita. */}
-                  <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
-                      Annulla
-                    </Button>
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={handleSaveAndContinue}
-                            disabled={!itemName.trim()}
-                            className="sm:order-2 gap-1.5"
-                            aria-label="Aggiungi e continua"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
-                            <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
-                      Aggiungi
-                    </Button>
-                  </DialogFooter>
-                </TabsContent>
-
-                <TabsContent value="stock">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Articolo da Magazzino *</Label>
-                      <Popover open={stockPickerOpen} onOpenChange={setStockPickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className="w-full justify-between text-left font-normal h-9"
-                          >
-                            {selectedStockItem ? (() => {
-                              const s = stockItems.find((it) => it.id === selectedStockItem);
-                              if (!s) return "Seleziona articolo…";
-                              return (
-                                <span className="truncate">
-                                  {s.name}
-                                  <span className="text-muted-foreground text-xs ml-2">· {s.warehouse?.name ?? "—"} · {s.quantity} pz</span>
-                                </span>
-                              );
-                            })() : (
-                              <span className="text-muted-foreground">Seleziona articolo… (cerca per nome o codice)</span>
-                            )}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-[var(--radix-popover-trigger-width)] p-0"
-                          align="start"
-                          side="bottom"
-                          sideOffset={4}
-                          avoidCollisions={false}
-                        >
-                          <Command shouldFilter={false}>
-                            <CommandInput
-                              placeholder="Filtra per nome, codice o barcode…"
-                              value={stockSearch}
-                              onValueChange={setStockSearch}
-                            />
-                            <CommandList
-                              className="!max-h-[320px] overscroll-contain"
-                              onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}
-                            >
-                              {stockGroups.length === 0 ? (
-                                <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
-                                  {stockSearchDebounced
-                                    ? `Nessun articolo trovato per "${stockSearchDebounced}"`
-                                    : "Nessun articolo in magazzino"}
-                                </CommandEmpty>
-                              ) : (
-                                stockGroups.map(([whName, items]) => (
-                                  <CommandGroup key={whName} heading={`📦 ${whName} (${items.length})`}>
-                                    {items.map((s) => {
-                                      const noStock = s.quantity <= 0;
-                                      return (
-                                        <CommandItem
-                                          key={s.id}
-                                          value={s.id}
-                                          onSelect={() => {
-                                            setSelectedStockItem(s.id);
-                                            setStockPickerOpen(false);
-                                          }}
-                                          className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
-                                        >
-                                          <div className="flex items-center gap-2 w-full">
-                                            <Check className={cn("h-3.5 w-3.5 shrink-0", selectedStockItem === s.id ? "opacity-100" : "opacity-0")} />
-                                            <span className={cn("font-medium text-sm truncate", noStock && "text-muted-foreground")}>{s.name}</span>
-                                            {s.internal_code && (
-                                              <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">{s.internal_code}</Badge>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-2 pl-5 text-[11px]">
-                                            <PackageCheck className={cn("h-2.5 w-2.5", noStock ? "text-destructive" : "text-emerald-600")} />
-                                            <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
-                                              Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
-                                            </span>
-                                            {canViewCosts && <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>}
-                                            {s.tracking_mode === "serialized" && (
-                                              <Badge variant="secondary" className="text-[9px] h-4" title="Articolo serializzato — ogni unità ha un codice univoco">SN</Badge>
-                                            )}
-                                            {noStock && <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>}
-                                          </div>
-                                        </CommandItem>
-                                      );
-                                    })}
-                                  </CommandGroup>
-                                ))
-                              )}
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    {selectedStockItem && (() => {
-                      const stock = stockItems.find((s) => s.id === selectedStockItem);
-                      if (!stock) return null;
-                      return (
-                        <div className="space-y-3">
-                          <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                            {canViewCosts && <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>}
-                            <div className="flex justify-between"><span>Disponibili:</span><span className="font-medium">{stock.quantity}</span></div>
-                            {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Quantità da prelevare</Label>
-                            <Input type="number" min="1" max={stock.quantity} value={stockPickQuantity} onChange={(e) => setStockPickQuantity(e.target.value)} />
-                            {parseInt(stockPickQuantity) > stock.quantity && (
-                              <p className="text-xs text-destructive">Quantità superiore alla disponibilità</p>
-                            )}
-                          </div>
-                          {canViewCosts && <div className="p-3 rounded-lg bg-muted/50 text-sm">
-                            <div className="flex justify-between font-medium">
-                              <span>Costo totale:</span>
-                              <span>{formatCurrency(stock.unit_cost * (parseInt(stockPickQuantity) || 0))}</span>
-                            </div>
-                          </div>}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <DialogFooter className="mt-4 max-sm:flex-row">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="max-sm:hidden">Annulla</Button>
-                    <Button
-                      type="button"
-                      className="max-sm:flex-1"
-                      onClick={handlePickFromStock}
-                      disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
-                    >
-                      <Warehouse className="h-4 w-4 mr-2" />
-                      Preleva
-                    </Button>
-                  </DialogFooter>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              <>
-                {renderNewArticleForm()}
-                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
-                    Annulla
-                  </Button>
-                  {/* "Aggiungi e continua" solo in creazione (non in edit) */}
-                  {editingIndex === null && (
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={handleSaveAndContinue}
-                            disabled={!itemName.trim()}
-                            className="sm:order-2 gap-1.5"
-                            aria-label="Aggiungi e continua"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
-                            <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
-                    {editingIndex !== null ? "Salva modifiche" : "Aggiungi"}
-                  </Button>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
+        {finestra}
       </CardContent>
     </Card>
   );
