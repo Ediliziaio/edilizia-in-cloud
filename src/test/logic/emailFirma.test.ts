@@ -10,7 +10,7 @@ const percorso = "../../../supabase/functions/_shared/emailFirma";
 const m = (await import(/* @vite-ignore */ percorso)) as Modulo;
 
 const marchio = {
-  branding: { companyName: "Rossi Serramenti", logoUrl: null, primaryColor: "#0F766E", secondaryColor: "#F97316", footerText: null, showPoweredBy: false, replyTo: "x@y.it" },
+  branding: { companyName: "Rossi Serramenti", logoUrl: null as string | null, primaryColor: "#0F766E", secondaryColor: "#F97316", footerText: null as string | null, showPoweredBy: false, replyTo: "x@y.it" },
   telefono: "+39 333 1234567",
   email: "info@rossi.it",
 };
