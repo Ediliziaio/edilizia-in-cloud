@@ -53,6 +53,9 @@ export interface MaterialeFase {
   deposit_paid?: boolean | null;
   balance_paid?: boolean | null;
   payment_method?: string | null;
+  deposit_amount?: number | null;
+  balance_amount?: number | null;
+  balance_expected_date?: string | null;
   position?: number | null;
   /** Numeri degli ordini d'acquisto che coprono la riga (non annullati). */
   oda?: string[];
@@ -75,7 +78,8 @@ export interface FaseMateriali {
 
 const COLONNE_MATERIALE =
   "id, order_id, name, description, quantity, status, supplier_id, purchase_price, vat_rate, phase_id, unita_misura, specifiche, origine_materiale, quantita_calcolata, origini, locale, supplier_rfq_item_id, stock_item_id, posizioni, position, " +
-  "natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method";
+  "natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method, " +
+  "deposit_amount, balance_amount, balance_expected_date";
 
 export const chiaviMateriali = {
   commessa: (orderId: string) => ["materiali-per-fase", orderId] as const,

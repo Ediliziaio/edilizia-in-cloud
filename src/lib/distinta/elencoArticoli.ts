@@ -63,3 +63,27 @@ export function conteggioStati(righe: RigaElenco[]): [string, number][] {
 export function eliminabile(r: { stato: string; status?: string | null; stock_item_id?: string | null }): boolean {
   return r.stato === "da_ordinare" && !r.stock_item_id && (!r.status || r.status === "da_ordinare");
 }
+
+/**
+ * L'allegato dell'ordine d'acquisto tra quelli della riga: lo stesso criterio
+ * del vecchio elenco (nome che inizia con «ODA» o contiene «oda»).
+ */
+export function allegatoOda<T extends { file_name: string }>(allegati: T[] | null | undefined): T | null {
+  return (allegati ?? []).find((a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")) ?? null;
+}
+
+/** Acconto e saldo di una riga pagata a rate (50/50 o 30/70): null se non ci sono importi. */
+export function dettaglioAccontoSaldo(m: {
+  payment_method?: string | null; deposit_amount?: number | null; deposit_paid?: boolean | null;
+  balance_amount?: number | null; balance_paid?: boolean | null; balance_expected_date?: string | null;
+}): { acconto: number; accontoPagato: boolean; saldo: number; saldoPagato: boolean; saldoPrevisto: string | null } | null {
+  if (m.payment_method !== "50_50" && m.payment_method !== "30_70") return null;
+  if (!m.deposit_amount && !m.balance_amount) return null;
+  return {
+    acconto: Number(m.deposit_amount ?? 0),
+    accontoPagato: !!m.deposit_paid,
+    saldo: Number(m.balance_amount ?? 0),
+    saldoPagato: !!m.balance_paid,
+    saldoPrevisto: m.balance_paid ? null : m.balance_expected_date ?? null,
+  };
+}
