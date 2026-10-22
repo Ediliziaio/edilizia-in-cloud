@@ -23790,8 +23790,375 @@ export type Database = {
           },
         ]
       }
+      computo_eventi: {
+        Row: {
+          company_id: string
+          computo_upload_id: string
+          created_at: string
+          id: string
+          motivo: string | null
+          order_id: string | null
+          tipo: string
+          utente_id: string | null
+        }
+        Insert: {
+          company_id: string
+          computo_upload_id: string
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          order_id?: string | null
+          tipo: string
+          utente_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          computo_upload_id?: string
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          order_id?: string | null
+          tipo?: string
+          utente_id?: string | null
+        }
+        Relationships: []
+      }
+      lp_certificati_pagamento: {
+        Row: {
+          aliquota_iva: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          da_pagare_impresa: number
+          data: string
+          id: string
+          imponibile: number
+          iva: number
+          note: string | null
+          numero: number
+          order_id: string
+          sal_id: string
+          split_payment: boolean
+          totale: number
+        }
+        Insert: {
+          aliquota_iva: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          da_pagare_impresa: number
+          data?: string
+          id?: string
+          imponibile: number
+          iva: number
+          note?: string | null
+          numero?: number
+          order_id: string
+          sal_id: string
+          split_payment: boolean
+          totale: number
+        }
+        Update: {
+          aliquota_iva?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          da_pagare_impresa?: number
+          data?: string
+          id?: string
+          imponibile?: number
+          iva?: number
+          note?: string | null
+          numero?: number
+          order_id?: string
+          sal_id?: string
+          split_payment?: boolean
+          totale?: number
+        }
+        Relationships: []
+      }
+      lp_contabilita: {
+        Row: {
+          aliquota_iva: number
+          anticipazione_percentuale: number
+          company_id: string
+          consegna_lavori: string | null
+          contratto_data: string | null
+          contratto_estremi: string | null
+          created_at: string
+          direttore_lavori: string | null
+          id: string
+          impresa: string | null
+          order_id: string
+          ritenuta_percentuale: number
+          rup: string | null
+          sicurezza_modo: string
+          split_payment: boolean
+          updated_at: string
+        }
+        Insert: {
+          aliquota_iva?: number
+          anticipazione_percentuale?: number
+          company_id: string
+          consegna_lavori?: string | null
+          contratto_data?: string | null
+          contratto_estremi?: string | null
+          created_at?: string
+          direttore_lavori?: string | null
+          id?: string
+          impresa?: string | null
+          order_id: string
+          ritenuta_percentuale?: number
+          rup?: string | null
+          sicurezza_modo?: string
+          split_payment?: boolean
+          updated_at?: string
+        }
+        Update: {
+          aliquota_iva?: number
+          anticipazione_percentuale?: number
+          company_id?: string
+          consegna_lavori?: string | null
+          contratto_data?: string | null
+          contratto_estremi?: string | null
+          created_at?: string
+          direttore_lavori?: string | null
+          id?: string
+          impresa?: string | null
+          order_id?: string
+          ritenuta_percentuale?: number
+          rup?: string | null
+          sicurezza_modo?: string
+          split_payment?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lp_libretto: {
+        Row: {
+          allegati: Json
+          annotazioni: string | null
+          company_id: string
+          computo_upload_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          firmatario: string | null
+          firmato_at: string | null
+          firmato_da: string | null
+          id: string
+          numero: number
+          order_id: string
+          quantita: number
+          righe: Json
+          sal_id: string | null
+          updated_at: string
+          voce_id: string
+          voce_radice: string
+        }
+        Insert: {
+          allegati?: Json
+          annotazioni?: string | null
+          company_id: string
+          computo_upload_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          firmatario?: string | null
+          firmato_at?: string | null
+          firmato_da?: string | null
+          id?: string
+          numero?: number
+          order_id: string
+          quantita?: number
+          righe?: Json
+          sal_id?: string | null
+          updated_at?: string
+          voce_id: string
+          voce_radice?: string
+        }
+        Update: {
+          allegati?: Json
+          annotazioni?: string | null
+          company_id?: string
+          computo_upload_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          firmatario?: string | null
+          firmato_at?: string | null
+          firmato_da?: string | null
+          id?: string
+          numero?: number
+          order_id?: string
+          quantita?: number
+          righe?: Json
+          sal_id?: string | null
+          updated_at?: string
+          voce_id?: string
+          voce_radice?: string
+        }
+        Relationships: []
+      }
+      lp_sal: {
+        Row: {
+          anticipazione: number
+          anticipazione_percentuale: number
+          approvato_at: string | null
+          approvato_da: string | null
+          company_id: string
+          computo_upload_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          id: string
+          importo_sal: number
+          lavori_a_tutto: string
+          lavori_lordo: number
+          lavori_netti: number
+          netto_a_oggi: number
+          note: string | null
+          numero: number
+          order_id: string
+          recupero_anticipazione: number
+          ribasso: number
+          ribasso_percentuale: number
+          ritenuta: number
+          ritenuta_percentuale: number
+          sal_precedenti: number
+          sicurezza: number
+          sicurezza_modo: string
+          stato: string
+          totale_a_oggi: number
+        }
+        Insert: {
+          anticipazione?: number
+          anticipazione_percentuale?: number
+          approvato_at?: string | null
+          approvato_da?: string | null
+          company_id: string
+          computo_upload_id: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          importo_sal: number
+          lavori_a_tutto: string
+          lavori_lordo: number
+          lavori_netti: number
+          netto_a_oggi: number
+          note?: string | null
+          numero: number
+          order_id: string
+          recupero_anticipazione?: number
+          ribasso: number
+          ribasso_percentuale?: number
+          ritenuta: number
+          ritenuta_percentuale: number
+          sal_precedenti?: number
+          sicurezza: number
+          sicurezza_modo: string
+          stato?: string
+          totale_a_oggi: number
+        }
+        Update: {
+          anticipazione?: number
+          anticipazione_percentuale?: number
+          approvato_at?: string | null
+          approvato_da?: string | null
+          company_id?: string
+          computo_upload_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          importo_sal?: number
+          lavori_a_tutto?: string
+          lavori_lordo?: number
+          lavori_netti?: number
+          netto_a_oggi?: number
+          note?: string | null
+          numero?: number
+          order_id?: string
+          recupero_anticipazione?: number
+          ribasso?: number
+          ribasso_percentuale?: number
+          ritenuta?: number
+          ritenuta_percentuale?: number
+          sal_precedenti?: number
+          sicurezza?: number
+          sicurezza_modo?: string
+          stato?: string
+          totale_a_oggi?: number
+        }
+        Relationships: []
+      }
+      lp_sal_voci: {
+        Row: {
+          company_id: string
+          descrizione: string | null
+          id: string
+          importo_a_oggi: number
+          is_sicurezza: boolean
+          numero: string | null
+          order_id: string
+          ordine: number
+          prezzo: number
+          prezzo_ribassato: number
+          quantita_a_oggi: number
+          quantita_contratto: number
+          quantita_precedente: number
+          sal_id: string
+          tariffa: string | null
+          unita_misura: string | null
+          voce_radice: string
+        }
+        Insert: {
+          company_id: string
+          descrizione?: string | null
+          id?: string
+          importo_a_oggi?: number
+          is_sicurezza?: boolean
+          numero?: string | null
+          order_id: string
+          ordine?: number
+          prezzo?: number
+          prezzo_ribassato?: number
+          quantita_a_oggi?: number
+          quantita_contratto?: number
+          quantita_precedente?: number
+          sal_id: string
+          tariffa?: string | null
+          unita_misura?: string | null
+          voce_radice: string
+        }
+        Update: {
+          company_id?: string
+          descrizione?: string | null
+          id?: string
+          importo_a_oggi?: number
+          is_sicurezza?: boolean
+          numero?: string | null
+          order_id?: string
+          ordine?: number
+          prezzo?: number
+          prezzo_ribassato?: number
+          quantita_a_oggi?: number
+          quantita_contratto?: number
+          quantita_precedente?: number
+          sal_id?: string
+          tariffa?: string | null
+          unita_misura?: string | null
+          voce_radice?: string
+        }
+        Relationships: []
+      }
       computo_uploads: {
         Row: {
+          contrattuale_dal: string | null
+          motivo_variante: string | null
+          numero_variante: number | null
+          variante_di: string | null
           cig: string | null
           committente: string | null
           company_id: string
@@ -23827,6 +24194,10 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          contrattuale_dal?: string | null
+          motivo_variante?: string | null
+          numero_variante?: number | null
+          variante_di?: string | null
           cig?: string | null
           committente?: string | null
           company_id: string
@@ -23862,6 +24233,10 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          contrattuale_dal?: string | null
+          motivo_variante?: string | null
+          numero_variante?: number | null
+          variante_di?: string | null
           cig?: string | null
           committente?: string | null
           company_id?: string
@@ -24003,6 +24378,9 @@ export type Database = {
       }
       computo_voci_estratte: {
         Row: {
+          nuovo_prezzo: boolean
+          quadro_voce: string | null
+          voce_origine_id: string | null
           a_corpo: boolean
           ai_notes: string | null
           capitolo_nome: string | null
@@ -24043,6 +24421,9 @@ export type Database = {
           warnings: string[] | null
         }
         Insert: {
+          nuovo_prezzo?: boolean
+          quadro_voce?: string | null
+          voce_origine_id?: string | null
           a_corpo?: boolean
           ai_notes?: string | null
           capitolo_nome?: string | null
@@ -24083,6 +24464,9 @@ export type Database = {
           warnings?: string[] | null
         }
         Update: {
+          nuovo_prezzo?: boolean
+          quadro_voce?: string | null
+          voce_origine_id?: string | null
           a_corpo?: boolean
           ai_notes?: string | null
           capitolo_nome?: string | null
@@ -100316,6 +100700,53 @@ export type Database = {
       }
     }
     Functions: {
+      computo_approva_variante: {
+        Args: {
+          p_variante_id: string
+        }
+        Returns: undefined
+      }
+      computo_crea_variante: {
+        Args: {
+          p_motivo: string
+          p_titolo: string
+          p_upload_id: string
+        }
+        Returns: string
+      }
+      computo_sblocca_contrattuale: {
+        Args: {
+          p_motivo: string
+          p_upload_id: string
+        }
+        Returns: undefined
+      }
+      lp_quantita_riga: {
+        Args: {
+          r: Json
+        }
+        Returns: number
+      }
+      lp_sal_emetti: {
+        Args: {
+          p_order_id: string
+          p_sal: Json
+          p_voci: Json
+        }
+        Returns: string
+      }
+      puo_modificare_computo: {
+        Args: {
+          p_upload_id: string
+        }
+        Returns: boolean
+      }
+      puo_vedere_commessa: {
+        Args: {
+          p_order_id: string
+        }
+        Returns: boolean
+      }
       materiali_fase_cambia_stato: {
         Args: { p_azione: string; p_nota?: string; p_phase: string }
         Returns: Database["public"]["Tables"]["materiali_fasi_validazione"]["Row"]

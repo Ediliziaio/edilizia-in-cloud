@@ -21,9 +21,15 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ComputoAlbero, type EvidenzaVoce } from "./ComputoAlbero";
 import { filtraVoci, numeroVoce, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { controllaTotali, formatEuro, type ComputoVoceStrutturata, type ControlloTotali } from "@/lib/computo/computoStrutturato";
-import { quadroEconomico } from "@/lib/computo/quadroEconomico";
+import { quadroEconomicoCompleto, sezioneVoce, type QuadroEconomicoCompleto } from "@/lib/computo/quadroEconomico";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { ClassificazioneQuadro, ProspettoQuadro } from "./QuadroEconomicoLavori";
+import ContabilitaLavoriPubblici from "./contabilita/ContabilitaLavoriPubblici";
+import type { SchedaContabilita } from "./contabilita/comune";
 import {
-  computoInLettura, computoLetto, useCaricaComputo, useComputiCommessa, useModificaComputo, useScartaComputo, useVociComputo,
+  computoInLettura, computoLetto, useCaricaComputo, useClassificaVoci, useComputiCommessa, useModificaComputo, useSbloccaComputo, useScartaComputo, useVociComputo,
   type ComputoCommessa, type ModificaComputo, type StatoComputo,
 } from "@/hooks/useComputoCommessa";
 
@@ -110,15 +116,16 @@ function EsitoControllo({ controllo, onApriVoce }: { controllo: ControlloTotali;
   );
 }
 
-function LavoroPubblico({ computo, totale, oneri, bloccato, onSalva }: {
-  computo: ComputoCommessa; totale: number; oneri: number; bloccato: boolean; onSalva: (m: ModificaComputo) => void;
+function LavoroPubblico({ computo, voci, bloccato, onSalva }: {
+  computo: ComputoCommessa; voci: VoceComputo[]; bloccato: boolean; onSalva: (m: ModificaComputo) => void;
 }) {
+  const [classifica, setClassifica] = useState(false);
   // Il genitore cambia la «key» quando i dati salvati cambiano: la bozza riparte da quelli.
   const [bozza, setBozza] = useState({ stazione_appaltante: computo.stazione_appaltante ?? "", cig: computo.cig ?? "", cup: computo.cup ?? "",
     ribasso: computo.ribasso_percentuale == null ? "" : String(computo.ribasso_percentuale).replace(".", ",") });
   const ribasso = bozza.ribasso.trim() ? Number(bozza.ribasso.replace(",", ".")) : null;
   const ribassoValido = ribasso === null || (Number.isFinite(ribasso) && ribasso >= 0 && ribasso < 100);
-  const quadro = quadroEconomico(totale, oneri, ribassoValido ? ribasso : null);
+  const quadro = quadroEconomicoCompleto(voci, ribassoValido ? ribasso : null);
   const salva = () => {
     if (!ribassoValido) { toast.error("Il ribasso d'asta va da 0 a 100 (es. 12,345)."); return; }
     onSalva({ stazione_appaltante: bozza.stazione_appaltante.trim() || null, cig: bozza.cig.trim().toUpperCase() || null,
@@ -147,14 +154,14 @@ function LavoroPubblico({ computo, totale, oneri, bloccato, onSalva }: {
                 onChange={e => setBozza(b => ({ ...b, ribasso: e.target.value }))} placeholder="Es. 12,345" /></div>
             {!bloccato && <div className="flex items-end"><Button type="button" variant="outline" onClick={salva}>Salva i dati</Button></div>}
           </div>
-          <dl className="divide-y rounded-lg border text-sm">
-            <div className="flex justify-between gap-3 px-3 py-2"><dt>Importo dei lavori (dal computo)</dt><dd className="tabular-nums">{euro(quadro.importo_lavori)}</dd></div>
-            <div className="flex justify-between gap-3 px-3 py-2"><dt>di cui oneri della sicurezza <span className="text-slate-500">(non soggetti a ribasso)</span></dt><dd className="tabular-nums">{euro(quadro.oneri_sicurezza)}</dd></div>
-            <div className="flex justify-between gap-3 px-3 py-2"><dt>Importo soggetto a ribasso</dt><dd className="tabular-nums">{euro(quadro.soggetto_a_ribasso)}</dd></div>
-            <div className="flex justify-between gap-3 px-3 py-2"><dt>Ribasso d'asta {quadro.ribasso_percentuale.toLocaleString("it-IT", { maximumFractionDigits: 4 })}%</dt><dd className="tabular-nums">− {euro(quadro.ribasso_euro)}</dd></div>
-            <div className="flex justify-between gap-3 bg-slate-50 px-3 py-2 font-semibold"><dt>Importo contrattuale</dt><dd className="tabular-nums">{euro(quadro.importo_contrattuale)}</dd></div>
-          </dl>
-          <p className="text-xs text-slate-500">Importo contrattuale = (lavori − sicurezza) × (1 − ribasso) + sicurezza. La sicurezza è la somma delle voci della categoria «oneri della sicurezza».</p>
+          <ProspettoQuadro q={quadro} />
+          <p className="text-xs text-slate-500">Importo contrattuale = (lavori − sicurezza) × (1 − ribasso) + sicurezza. La sicurezza è la somma delle voci della categoria «oneri della sicurezza». IVA, spese tecniche, Inarcassa, collaudo, visto di conformità e imprevisti non sono lavori: stanno fra le somme a disposizione e non entrano nel contratto né nella contabilità.</p>
+          <div>
+            <Button type="button" size="sm" variant="ghost" className="px-1" onClick={() => setClassifica(c => !c)} aria-expanded={classifica}>
+              {classifica ? "Nascondi" : "Rivedi"} lavori e somme a disposizione, per capitolo e per voce
+            </Button>
+            {classifica && <ClassificazioneQuadro voci={voci} uploadId={computo.id} bloccato={bloccato} />}
+          </div>
         </CardContent>
       )}
     </Card>
@@ -166,13 +173,18 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
 }) {
   const confirm = useConfirm();
   const { data: computi = [], isLoading, error } = useComputiCommessa(orderId, companyId);
-  const attivi = computi.filter(c => c.stato !== "archiviato");
+  // Le perizie di variante non approvate stanno nella scheda «Varianti».
+  const attivi = computi.filter(c => c.stato !== "archiviato" && (!c.variante_di || c.stato === "contrattuale"));
   const [sceltoId, setSceltoId] = useState<string | null>(null);
   const computo = attivi.find(c => c.id === sceltoId) ?? attivi[0] ?? null;
   const letto = computoLetto(computo);
   const { data: voci = [], isLoading: vociLoading } = useVociComputo(computo?.id, letto);
   const modifica = useModificaComputo(orderId, companyId);
   const scarta = useScartaComputo(orderId, companyId);
+  const classificaVoci = useClassificaVoci(computo?.id);
+  const sblocca = useSbloccaComputo(orderId);
+  const [sblocco, setSblocco] = useState<{ aperto: boolean; motivo: string }>({ aperto: false, motivo: "" });
+  const [scheda, setScheda] = useState<SchedaContabilita | "computo">("computo");
   const [ricerca, setRicerca] = useState("");
   const [evidenza, setEvidenza] = useState<EvidenzaVoce | null>(null);
   const [nuovo, setNuovo] = useState(false);
@@ -180,7 +192,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
 
   // Calcoli semplici: li memorizza il compilatore di React.
   const totale = Math.round(voci.reduce((s, v) => s + (Number(v.importo_computo) || 0), 0) * 100) / 100;
-  const oneri = Math.round(voci.reduce((s, v) => s + (v.is_sicurezza ? Number(v.importo_computo) || 0 : 0), 0) * 100) / 100;
+  const quadroCompleto: QuadroEconomicoCompleto | null = computo?.lavoro_pubblico ? quadroEconomicoCompleto(voci, computo.ribasso_percentuale) : null;
   // Il controllo scritto all'import confronta con il documento (riepiloghi, totale); senza, si ricalcola dalle voci.
   let controllo: ControlloTotali | null = null;
   if (computo && letto && voci.length) {
@@ -200,11 +212,19 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   });
   const cambiaStato = async (stato: StatoComputo) => {
     if (!computo) return;
-    if (stato === "contrattuale" && !(await confirm({ title: "Rendere contrattuale il computo?",
-      description: "Il computo contrattuale diventa la base della commessa: non si potrà più sostituire né cambiare i dati del lavoro pubblico finché non lo riporti a «verificato».",
-      confirmLabel: "Rendi contrattuale" }))) return;
-    if (computo.stato === "contrattuale" && !(await confirm({ title: "Sbloccare il computo contrattuale?",
-      description: "Torna «verificato» e si può di nuovo modificare o sostituire. Fallo solo per una variante o un errore.", confirmLabel: "Sblocca", variant: "destructive" }))) return;
+    if (computo.stato === "contrattuale") { setSblocco({ aperto: true, motivo: "" }); return; }
+    if (stato === "contrattuale") {
+      if (!(await confirm({ title: "Rendere contrattuale il computo?",
+        description: "Il computo contrattuale diventa la base della commessa e della contabilità dei lavori: voci, misure, ribasso e sicurezza restano bloccati nel database. Per cambiarli servirà una perizia di variante (o lo sblocco con il motivo, finché il libretto è vuoto).",
+        confirmLabel: "Rendi contrattuale" }))) return;
+      // La classificazione lavori / somme a disposizione si fissa con il contratto.
+      try {
+        for (const sezione of ["lavori", "somme_a_disposizione"] as const) {
+          const ids = voci.filter(v => !v.quadro_voce && sezioneVoce(v) === sezione).map(v => v.id);
+          if (ids.length) await classificaVoci.mutateAsync({ ids, sezione });
+        }
+      } catch (e) { toast.error(e instanceof Error ? e.message : "Classificazione non salvata."); return; }
+    }
     salva({ stato });
   };
   const apriVoce = (numero: string) => { setRicerca(""); setEvidenza(e => ({ numero, volta: (e?.volta ?? 0) + 1 })); };
@@ -218,7 +238,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         stazioneAppaltante: computo.lavoro_pubblico ? computo.stazione_appaltante : null,
         cig: computo.lavoro_pubblico ? computo.cig : null, cup: computo.lavoro_pubblico ? computo.cup : null,
         stato: `Stato: ${ETICHETTA_STATO[computo.stato]}`,
-        quadro: computo.lavoro_pubblico ? quadroEconomico(totale, oneri, computo.ribasso_percentuale) : null,
+        quadro: quadroCompleto?.quadro ?? null,
       };
       if (tipo === "xlsx") await esportaComputoXlsx(voci, intestazione); else await esportaComputoPdf(voci, intestazione);
     } catch (e) {
@@ -239,7 +259,29 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
     );
   }
 
-  return (
+  const finestraSblocco = (
+    <Dialog open={sblocco.aperto} onOpenChange={aperto => setSblocco(s => ({ ...s, aperto }))}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sbloccare il computo contrattuale?</DialogTitle>
+          <DialogDescription>Torna «verificato» e si può di nuovo modificare o sostituire. Serve il permesso «Ordini e Commesse»; il motivo resta registrato. Se il libretto delle misure ha già registrazioni non si può: si fa una perizia di variante.</DialogDescription>
+        </DialogHeader>
+        <Label htmlFor="computo-sblocco-motivo">Motivo</Label>
+        <Textarea id="computo-sblocco-motivo" value={sblocco.motivo} onChange={e => setSblocco(s => ({ ...s, motivo: e.target.value }))}
+          placeholder="Es. errore di trascrizione delle quantità della voce 12, segnalato dal DL il 20/10" />
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => setSblocco({ aperto: false, motivo: "" })}>Annulla</Button>
+          <Button type="button" variant="destructive" disabled={sblocco.motivo.trim().length < 10 || sblocca.isPending}
+            onClick={() => computo && sblocca.mutate({ id: computo.id, motivo: sblocco.motivo.trim() }, {
+              onSuccess: () => { setSblocco({ aperto: false, motivo: "" }); toast.success("Computo sbloccato"); },
+              onError: e => toast.error(e instanceof Error ? e.message : "Sblocco non riuscito."),
+            })}>Sblocca</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const vistaComputo = (
     <div className="space-y-4">
       <Card>
         <CardContent className="space-y-3 pt-4">
@@ -314,7 +356,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
       </Card>
 
       {letto && canViewAmounts && voci.length > 0 && (
-        <LavoroPubblico key={[computo.id, computo.stazione_appaltante, computo.cig, computo.cup, computo.ribasso_percentuale].join("|")} computo={computo} totale={totale} oneri={oneri} bloccato={bloccato} onSalva={salva} />
+        <LavoroPubblico key={[computo.id, computo.stazione_appaltante, computo.cig, computo.cup, computo.ribasso_percentuale].join("|")} computo={computo} voci={voci} bloccato={bloccato} onSalva={salva} />
       )}
 
       {letto && (vociLoading ? (
@@ -336,6 +378,30 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         </section>
       ))}
     </div>
+  );
+
+  if (!computo.lavoro_pubblico || !letto) return <>{vistaComputo}{finestraSblocco}</>;
+  return (
+    <Tabs value={scheda} onValueChange={v => setScheda(v as typeof scheda)} className="space-y-3">
+      <div className="-mx-1 overflow-x-auto px-1">
+        <TabsList className="h-auto w-max">
+          <TabsTrigger value="computo">Computo</TabsTrigger>
+          <TabsTrigger value="elenco">Elenco prezzi</TabsTrigger>
+          <TabsTrigger value="libretto">Libretto</TabsTrigger>
+          <TabsTrigger value="registro">Registro</TabsTrigger>
+          <TabsTrigger value="sal">SAL</TabsTrigger>
+          <TabsTrigger value="varianti">Varianti</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="computo" className="mt-0">{vistaComputo}</TabsContent>
+      {scheda !== "computo" && (
+        <TabsContent value={scheda} className="mt-0">
+          <ContabilitaLavoriPubblici scheda={scheda} computo={computo} computi={computi} voci={voci} orderId={orderId} companyId={companyId}
+            canEdit={canEdit} canViewAmounts={canViewAmounts} orderLabel={orderLabel} />
+        </TabsContent>
+      )}
+      {finestraSblocco}
+    </Tabs>
   );
 }
 

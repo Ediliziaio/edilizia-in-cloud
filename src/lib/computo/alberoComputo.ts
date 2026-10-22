@@ -35,6 +35,12 @@ export interface VoceComputo {
   a_corpo: boolean;
   warnings: string[] | null;
   misure: MisuraComputo[];
+  /** Lavori o somme a disposizione (null = proposta automatica). */
+  quadro_voce?: "lavori" | "somme_a_disposizione" | null;
+  /** Variante: la voce del contratto originario. */
+  voce_origine_id?: string | null;
+  /** Nuovo prezzo (NP) introdotto con una variante. */
+  nuovo_prezzo?: boolean | null;
 }
 
 export interface NodoComputo {

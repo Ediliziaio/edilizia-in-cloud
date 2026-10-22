@@ -35,10 +35,14 @@ export interface ComputoCommessa {
   ribasso_percentuale: number | null;
   oneri_sicurezza: number | null;
   created_at: string | null;
+  variante_di: string | null;
+  numero_variante: number | null;
+  motivo_variante: string | null;
+  contrattuale_dal: string | null;
 }
 
 // Stringa non letterale: il tipo della select resta quello dichiarato sotto (ComputoCommessa).
-const COLONNE: string = "id, titolo, file_name, file_type, stato, extraction_status, extraction_error, extraction_method, progresso:raw_extracted_json->>progress, oggetto_lavori, committente, totale_dichiarato, totale_calcolato, controllo_totali, lavoro_pubblico, stazione_appaltante, cig, cup, ribasso_percentuale, oneri_sicurezza, created_at";
+const COLONNE: string = "id, titolo, file_name, file_type, stato, extraction_status, extraction_error, extraction_method, progresso:raw_extracted_json->>progress, oggetto_lavori, committente, totale_dichiarato, totale_calcolato, controllo_totali, lavoro_pubblico, stazione_appaltante, cig, cup, ribasso_percentuale, oneri_sicurezza, created_at, variante_di, numero_variante, motivo_variante, contrattuale_dal";
 const IN_CORSO = ["uploading", "extracting_text", "analyzing_ai", "validating"];
 export const computoInLettura = (c: Pick<ComputoCommessa, "extraction_status"> | null | undefined) => !!c && IN_CORSO.includes(c.extraction_status);
 export const computoLetto = (c: Pick<ComputoCommessa, "extraction_status"> | null | undefined) => !!c && ["review", "completed"].includes(c.extraction_status);
@@ -66,7 +70,7 @@ export function useVociComputo(uploadId: string | undefined, abilitato: boolean)
       const tutte: VoceComputo[] = [];
       for (let da = 0; ; da += 1000) {
         const { data, error } = await supabase.from("computo_voci_estratte")
-          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula)")
+          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, quadro_voce, voce_origine_id, nuovo_prezzo, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula)")
           .eq("computo_upload_id", uploadId!).order("ordine").range(da, da + 999);
         if (error) throw error;
         tutte.push(...((data ?? []) as unknown as VoceComputo[]).map(v => ({ ...v, misure: [...(v.misure ?? [])].sort((a, b) => a.ordine - b.ordine) })));
@@ -118,6 +122,32 @@ export function useModificaComputo(orderId: string, companyId: string) {
   return useMutation({
     mutationFn: async ({ id, modifica }: { id: string; modifica: ModificaComputo }) => {
       const { error } = await supabase.from("computo_uploads").update(modifica).eq("id", id).eq("company_id", companyId);
+      if (error) throw new Error(error.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["computo-commessa", orderId] }),
+  });
+}
+
+/** Lavori o somme a disposizione, per una o più voci (un capitolo intero in una volta). */
+export function useClassificaVoci(uploadId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, sezione }: { ids: string[]; sezione: "lavori" | "somme_a_disposizione" | null }) => {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await supabase.from("computo_voci_estratte").update({ quadro_voce: sezione }).in("id", ids.slice(i, i + 200));
+        if (error) throw new Error(error.message);
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["computo-commessa-voci", uploadId] }),
+  });
+}
+
+/** Sblocco del contrattuale: solo con «Ordini e Commesse» e il motivo (lo controlla e lo registra il database). */
+export function useSbloccaComputo(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, motivo }: { id: string; motivo: string }) => {
+      const { error } = await supabase.rpc("computo_sblocca_contrattuale", { p_upload_id: id, p_motivo: motivo });
       if (error) throw new Error(error.message);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["computo-commessa", orderId] }),
