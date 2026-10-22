@@ -21,6 +21,7 @@ import {
   type ImpostazioniContabilita, type SalDb,
 } from "@/hooks/useContabilitaLavori";
 import { comeRegistrazioni, dataIt, euro, intestazioneDa, oggi, type PropsScheda } from "./comune";
+import FatturaCertificato from "./FatturaCertificato";
 
 function Impostazioni({ impostazioni, orderId, companyId, canEdit, onChiudi }: { impostazioni: ImpostazioniContabilita; orderId: string; companyId: string; canEdit: boolean; onChiudi: () => void }) {
   const salva = useSalvaImpostazioni(orderId, companyId);
@@ -216,7 +217,10 @@ export default function SchedaSal({ computo, voci, contratto, orderId, companyId
                         }}>Elimina</Button>}
                       </>}
                       {s.stato === "approvato" && (cert
-                        ? <Button type="button" size="sm" variant="outline" className="h-7" disabled={stampa === cert.id} onClick={() => stampaCertificato(s)}><FileDown className="mr-1 h-3.5 w-3.5" />Certificato n. {cert.numero}</Button>
+                        ? <>
+                          <Button type="button" size="sm" variant="outline" className="h-7" disabled={stampa === cert.id} onClick={() => stampaCertificato(s)}><FileDown className="mr-1 h-3.5 w-3.5" />Certificato n. {cert.numero}</Button>
+                          <FatturaCertificato certificato={cert} sal={s} computo={computo} orderId={orderId} companyId={companyId} canEdit={canEdit} />
+                        </>
                         : canEdit && <Button type="button" size="sm" variant="outline" className="h-7" disabled={certifica.isPending} onClick={() => emettiCertificato(s)}>Emetti certificato di pagamento</Button>)}
                     </div>
                   </li>

@@ -7,7 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import type { CalcoloSal, ModoSicurezza, RigaMisura, RigaRegistro } from "@/lib/computo/contabilitaLavori";
+import type { CalcoloSal, ModoSicurezza, RigaMisura, RigaRegistro, StatoRegistrazione } from "@/lib/computo/contabilitaLavori";
 
 export interface ImpostazioniContabilita {
   id?: string;
@@ -69,6 +69,8 @@ export interface SalVoceDb {
 export interface CertificatoDb {
   id: string; sal_id: string; numero: number; data: string; imponibile: number; aliquota_iva: number; iva: number; totale: number;
   split_payment: boolean; da_pagare_impresa: number; note: string | null;
+  /** La fattura emessa per il certificato, se collegata. */
+  documento_fiscale_id?: string | null;
 }
 
 const num = (v: unknown) => (v == null ? 0 : Number(v));
@@ -132,18 +134,28 @@ export interface NuovaRegistrazione {
   foto: File[];
 }
 
+async function caricaFotoLibretto(orderId: string, companyId: string, foto: File[]): Promise<AllegatoLibretto[]> {
+  const allegati: AllegatoLibretto[] = [];
+  try {
+    for (const f of foto) {
+      if (f.size > 15 * 1024 * 1024) throw new Error(`«${f.name}» supera 15 MB.`);
+      const path = `${companyId}/${orderId}/libretto/${crypto.randomUUID()}-${f.name.replace(/[^\w.-]+/g, "_")}`;
+      const { error } = await supabase.storage.from("foto-cantiere").upload(path, f);
+      if (error) throw new Error(`Foto non caricata: ${error.message}`);
+      allegati.push({ path, nome: f.name });
+    }
+  } catch (e) {
+    if (allegati.length) await supabase.storage.from("foto-cantiere").remove(allegati.map(a => a.path));
+    throw e;
+  }
+  return allegati;
+}
+
 export function useRegistraMisura(orderId: string, companyId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (r: NuovaRegistrazione) => {
-      const allegati: AllegatoLibretto[] = [];
-      for (const f of r.foto) {
-        if (f.size > 15 * 1024 * 1024) throw new Error(`«${f.name}» supera 15 MB.`);
-        const path = `${companyId}/${orderId}/libretto/${crypto.randomUUID()}-${f.name.replace(/[^\w.-]+/g, "_")}`;
-        const { error } = await supabase.storage.from("foto-cantiere").upload(path, f);
-        if (error) throw new Error(`Foto non caricata: ${error.message}`);
-        allegati.push({ path, nome: f.name });
-      }
+      const allegati = await caricaFotoLibretto(orderId, companyId, r.foto);
       const { error } = await supabase.from("lp_libretto").insert({
         company_id: companyId, order_id: orderId, voce_id: r.voce_id, data: r.data, righe: r.righe as unknown as Json,
         annotazioni: r.annotazioni, firmatario: r.firmatario, firmato_at: r.firma ? new Date().toISOString() : null,
@@ -155,6 +167,66 @@ export function useRegistraMisura(orderId: string, companyId: string) {
       }
     },
     onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+/**
+ * Modifica di una registrazione non ancora entrata in un SAL (il database
+ * rifiuta le altre). Le foto nuove si aggiungono a quelle che ci sono; il
+ * trigger scrive lo storico (lp_libretto_modifiche).
+ */
+export function useModificaRegistrazione(orderId: string, companyId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (r: NuovaRegistrazione & { id: string; allegati: AllegatoLibretto[]; giaFirmata: boolean }) => {
+      const nuove = await caricaFotoLibretto(orderId, companyId, r.foto);
+      const { data, error } = await supabase.from("lp_libretto").update({
+        voce_id: r.voce_id, data: r.data, righe: r.righe as unknown as Json, annotazioni: r.annotazioni, firmatario: r.firmatario,
+        allegati: [...r.allegati, ...nuove] as unknown as Json,
+        ...(r.firma && !r.giaFirmata ? { firmato_at: new Date().toISOString() } : {}),
+      }).eq("id", r.id).is("sal_id", null).select("id");
+      if (error || !data?.length) {
+        if (nuove.length) await supabase.storage.from("foto-cantiere").remove(nuove.map(a => a.path));
+        throw new Error(error?.message ?? "Registrazione non modificata: è già in un SAL o non hai il permesso.");
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+export interface ModificaLibrettoDb {
+  id: string;
+  libretto_id: string;
+  numero: number;
+  operazione: "modifica" | "eliminazione";
+  prima: StatoRegistrazione;
+  dopo: StatoRegistrazione | null;
+  modificato_at: string;
+  autore: string | null;
+}
+
+/** Storico delle modifiche del libretto, il più recente prima, con il nome di chi le ha fatte. */
+export function useStoricoLibretto(orderId: string | undefined) {
+  return useQuery({
+    queryKey: [...chiave(orderId), "storico"],
+    enabled: !!orderId,
+    queryFn: async (): Promise<ModificaLibrettoDb[]> => {
+      const { data, error } = await supabase.from("lp_libretto_modifiche")
+        .select("id, libretto_id, numero, operazione, prima, dopo, modificato_da, modificato_at")
+        .eq("order_id", orderId!).order("modificato_at", { ascending: false }).limit(1000);
+      if (error) throw error;
+      const ids = [...new Set((data ?? []).map(m => m.modificato_da).filter((x): x is string => !!x))];
+      const nomi = new Map<string, string>();
+      if (ids.length) {
+        const { data: persone } = await supabase.from("profiles").select("id, first_name, last_name").in("id", ids);
+        for (const p of persone ?? []) nomi.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" "));
+      }
+      return (data ?? []).map(m => ({
+        id: m.id, libretto_id: m.libretto_id, numero: m.numero, operazione: m.operazione as ModificaLibrettoDb["operazione"],
+        prima: (m.prima ?? {}) as unknown as StatoRegistrazione, dopo: (m.dopo ?? null) as unknown as StatoRegistrazione | null,
+        modificato_at: m.modificato_at, autore: m.modificato_da ? nomi.get(m.modificato_da) || null : null,
+      }));
+    },
   });
 }
 
@@ -274,6 +346,46 @@ export function useEmettiCertificato(orderId: string, companyId: string) {
       if (error) throw new Error(error.message);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+// ── Fattura del certificato ─────────────────────────────────────────────────
+
+/** Collega (o scollega, con null) la fattura al certificato: l'unica cosa che il database lascia cambiare. */
+export function useCollegaFatturaCertificato(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ certificatoId, documentoId }: { certificatoId: string; documentoId: string | null }) => {
+      const { data, error } = await supabase.from("lp_certificati_pagamento")
+        .update({ documento_fiscale_id: documentoId }).eq("id", certificatoId).select("id");
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error("Collega la fattura chi ha «Ordini e Commesse» sulla commessa.");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: chiave(orderId) }),
+  });
+}
+
+export interface FatturaCommessa { id: string; numero: string | null; data_emissione: string | null; stato: string; totale_documento: number | null; tipo: string }
+
+/** Le fatture della commessa (create dalla commessa o collegate a mano), per il collegamento al certificato. */
+export function useFattureCommessa(orderId: string | undefined, companyId: string, attivo: boolean) {
+  return useQuery({
+    queryKey: [...chiave(orderId), "fatture", companyId],
+    enabled: !!orderId && !!companyId && attivo,
+    queryFn: async (): Promise<FatturaCommessa[]> => {
+      // Tabelle della fatturazione non ancora nei tipi generati (come in useFatturaOrdineLink).
+      const { data: link } = await (supabase.from("fattura_ordine" as never).select("fattura_id")
+        .eq("ordine_id" as never, orderId as never) as unknown as PromiseLike<{ data: { fattura_id: string }[] | null }>);
+      const ids = (link ?? []).map(l => l.fattura_id);
+      const colonne = "id, numero, data_emissione, stato, totale_documento, tipo";
+      const filtro = ids.length ? `ordine_id.eq.${orderId},id.in.(${ids.join(",")})` : `ordine_id.eq.${orderId}`;
+      const { data, error } = await (supabase.from("documenti_fiscali" as never).select(colonne)
+        .eq("company_id" as never, companyId as never).is("deleted_at" as never, null)
+        .in("tipo" as never, ["fattura", "fattura_pa", "acconto_fattura"] as never).or(filtro)
+        .order("data_emissione" as never, { ascending: false }).limit(100) as unknown as PromiseLike<{ data: FatturaCommessa[] | null; error: { message: string } | null }>);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
   });
 }
 

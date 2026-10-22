@@ -40,10 +40,11 @@ import {
 } from "@/lib/distinta/statiFase";
 import { ETICHETTA_FONTE_PREZZO, prezzoAttuale, totaleStimato, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
 import {
-  conteggioStati, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
+  allegatoOda, conteggioStati, dettaglioAccontoSaldo, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
 } from "@/lib/distinta/elencoArticoli";
 import { OrderItemsList, STATUS_CONFIG, statusConfig, type OrderItem, type OrderItemStatus, type RichiestaArticolo } from "@/components/orders/OrderItemsList";
 import { OrderItemAttachments } from "@/components/orders/OrderItemAttachments";
+import { openAttachmentInTab } from "@/components/orders/filePreviewUtils";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -137,8 +138,10 @@ function Prezzo({ m, proposto }: { m: MaterialeFase; proposto: PrezzoProposto | 
 }
 
 function RigaMateriale({
-  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni,
+  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni, oda,
 }: {
+  /** L'ordine d'acquisto allegato alla riga, se c'è: si scarica con un clic. */
+  oda?: { file_name: string; file_url: string } | null;
   m: MaterialeFase;
   selezionato: boolean;
   onSeleziona: (v: boolean) => void;
@@ -160,6 +163,7 @@ function RigaMateriale({
     if (Number.isFinite(q) && q > 0 && q !== m.quantity) onQuantita(q);
   };
   const oltre = (m.ordinata ?? 0) > m.quantity && m.quantity > 0;
+  const rate = canViewCosts ? dettaglioAccontoSaldo(m) : null;
   return (
     <li className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[auto_minmax(0,1fr)_8rem_10rem_8rem_auto] sm:items-center">
       <Checkbox checked={selezionato} onCheckedChange={(v) => onSeleziona(!!v)} aria-label={`Seleziona ${m.name}`} className="mt-1 sm:mt-0" />
@@ -181,7 +185,22 @@ function RigaMateriale({
           )}
           {m.delivery_date && <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" aria-hidden />Arrivo {dataBreve(m.delivery_date)}</span>}
           {canViewCosts && m.is_paid && <span className="text-emerald-700">Pagato</span>}
-          {canViewCosts && !m.is_paid && m.deposit_paid && <span className="text-amber-700">Acconto pagato</span>}
+          {canViewCosts && !m.is_paid && m.deposit_paid && !rate && <span className="text-amber-700">Acconto pagato</span>}
+          {rate && (
+            <span className="tabular-nums" title="Pagamento al fornitore in due rate">
+              <span className={rate.accontoPagato ? "text-emerald-700" : undefined}>Acconto {formatCurrency(rate.acconto)} {rate.accontoPagato ? "✓" : "—"}</span>
+              {" · "}
+              <span className={rate.saldoPagato ? "text-emerald-700" : undefined}>
+                Saldo {formatCurrency(rate.saldo)} {rate.saldoPagato ? "✓" : rate.saldoPrevisto ? `prev. ${dataBreve(rate.saldoPrevisto)}` : "—"}
+              </span>
+            </span>
+          )}
+          {oda && (
+            <button type="button" className="inline-flex items-center gap-1 rounded border px-1.5 py-0 text-[11px] text-slate-700 hover:bg-slate-50"
+              title={`Scarica ${oda.file_name}`} onClick={() => openAttachmentInTab(oda.file_url)}>
+              <Paperclip className="h-3 w-3" aria-hidden />ODA allegato
+            </button>
+          )}
           {canViewCosts && materiale && <Prezzo m={m} proposto={proposto} />}
           {m.avviso && <span className="inline-flex items-center gap-1 text-amber-700" title={m.avviso}><AlertTriangle className="h-3 w-3" aria-hidden />{m.avviso}</span>}
         </div>
@@ -238,10 +257,11 @@ interface SezioneProps {
   proposte: Map<string, PrezzoProposto>;
   onAggiungi?: () => void;
   azioniRiga: (m: MaterialeFase) => React.ReactNode;
+  allegatoOdaDi: (m: MaterialeFase) => { file_name: string; file_url: string } | null;
 }
 
 function SezioneFase({
-  fase, righe, permessi, canViewCosts, selezione, setSelezione, nomeFornitore, onAzione, onQuantita, aperta, onApri, proposte, onAggiungi, azioniRiga,
+  fase, righe, permessi, canViewCosts, selezione, setSelezione, nomeFornitore, onAzione, onQuantita, aperta, onApri, proposte, onAggiungi, azioniRiga, allegatoOdaDi,
 }: SezioneProps) {
   const stato = fase.validazione?.stato ?? null;
   // Avanzamento, validazione e importi contano i materiali: lavorazioni e descrizioni no.
@@ -329,6 +349,7 @@ function SezioneFase({
                   canViewCosts={canViewCosts}
                   proposto={proposte.get(m.id)}
                   azioni={azioniRiga(m)}
+                  oda={allegatoOdaDi(m)}
                 />
               ))}
             </ul>
@@ -382,6 +403,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
   const puoScrivere = !!editor && permessi.canEditOrders;
   const nuovo = (phaseId: string | null) => setRichiesta({ tipo: "nuovo", phaseId, nonce: Date.now() });
   const inEditor = (m: MaterialeFase) => !!editor?.items.some((i) => i.id === m.id);
+
+  // Gli allegati arrivano con gli articoli dell'editor (dettaglio commessa).
+  const allegatoOdaDi = (m: MaterialeFase) => allegatoOda(editor?.items.find((i) => i.id === m.id)?.attachments);
 
   const azioniRiga = (m: MaterialeFase) => {
     if (!editor) return null;
@@ -575,6 +599,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
               proposte={proposte}
               onAggiungi={puoScrivere && puoModificareMateriali(f.validazione?.stato ?? null, permessi) ? () => nuovo(f.id) : undefined}
               azioniRiga={azioniRiga}
+              allegatoOdaDi={allegatoOdaDi}
             />
           );
         })

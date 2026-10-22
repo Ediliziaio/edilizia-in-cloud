@@ -197,8 +197,32 @@ export function punteggioScomposizione(
   // Ogni parola chiave deve comparire all'inizio di una parola del testo
   // («corrugat» trova «corrugato» e «corrugati»).
   if (!parole.every((p) => testo.includes(` ${p}`))) return 0;
-  // A parità, vince la più specifica (più parole, più lunghe).
-  return 100 + parole.length * 10 + parole.join("").length / 100;
+  // Vince la più specifica: ogni parola chiave pesa per quanto dice (vedi
+  // pesoParolaChiave); a parità, le parole più lunghe.
+  return 100 + parole.reduce((t, p) => t + pesoParolaChiave(p), 0) + parole.join("").length / 100;
+}
+
+/**
+ * Parole che cambiano i materiali (un deviatore in più, l'apparecchio di
+ * emergenza, un altro rivelatore): pesano più delle altre. «Punto luce
+ * deviato a parete» è un deviato, non un punto luce a parete.
+ */
+const PAROLE_SPECIFICHE = [
+  "deviat", "invertit", "interrott", "emergenz", "sicurezz", "comandat", "temporizzat", "dimmer",
+  "rele", "stagn", "antideflagr", "schuko", "rj45", "rj11", "telefon", "tv", "sat",
+  "ottic", "termovelocimetric", "multicriteri", "differenzial", "magnetotermic",
+];
+/** Dove sta il punto (parete, soffitto, incasso): pesa poco, i materiali cambiano appena. */
+const PAROLE_DI_POSIZIONE = [
+  "parete", "soffit", "controsoffit", "incasso", "vista", "esterno", "esterna", "interno", "interna", "pavimento", "muro",
+];
+
+/** Peso di una parola chiave normalizzata: 25 se specifica, 3 se dice solo dove sta, 10 le altre. */
+export function pesoParolaChiave(parola: string): number {
+  const p = parola.replace(/^(a|al|alla|ad|da|in|su|sotto)\s+/, "").trim();
+  if (PAROLE_SPECIFICHE.some((s) => p.startsWith(s))) return 25;
+  if (PAROLE_DI_POSIZIONE.some((s) => p.startsWith(s))) return 3;
+  return 10;
 }
 
 export function trovaScomposizione(

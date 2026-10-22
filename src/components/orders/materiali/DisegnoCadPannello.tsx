@@ -1,8 +1,9 @@
 /**
  * Conteggi da un disegno CAD (DXF; il DWG si salva come DXF dal CAD).
  *   1. Il file si legge nel browser, in un Web Worker: la pagina non si
- *      blocca anche con disegni da centinaia di MB. Il file non si carica tra
- *      i documenti: si legge e basta.
+ *      blocca anche con disegni da centinaia di MB. Tra i documenti della
+ *      commessa si salva solo se l'utente lo chiede (con un avviso per i file
+ *      grandi): i conteggi salvati dopo riferiscono quel documento.
  *   2. Ogni blocco (PRESA_10A, LUCE_LED…) è contato esattamente, per locale.
  *      Il simbolo di ogni blocco si sceglie una volta per l'azienda
  *      (dwg_mappa_blocchi): la volta dopo è già pronto.
@@ -14,8 +15,9 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileUp, X } from "lucide-react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -23,6 +25,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { DisegnoCad } from "@/lib/distinta/cad/leggiDxf";
 import { nomeVersione, riconosciFormato } from "@/lib/distinta/cad/leggiDxf";
+import { AVVISO_MB_DOCUMENTO, caricaDocumentoCommessa } from "@/lib/commesse/caricaDocumentoCommessa";
+import { MAX_BYTES_PER_FILE, MAX_MB_PER_FILE } from "@/lib/commesse/documentiCommessa";
 import { ISTRUZIONI_DWG, leggiDisegnoCad } from "@/lib/distinta/cad/leggiDisegnoCad";
 import {
   SENZA_LOCALE, UNITA_DISEGNO, contaSimboli, lunghezzePerLayer, metriPerUnita, misuraLunghezze, nomeUnita, trovaLocali,
@@ -30,9 +34,6 @@ import {
 import {
   type SceltaSimbolo, type VoceMappa, righeConteggio, scelteIniziali, vociDaSalvare,
 } from "@/lib/distinta/cad/mappaBlocchi";
-
-// Tabelle e colonne nuove (migrazione 20281023040000): ancora fuori dai tipi generati.
-const db = supabase as unknown as SupabaseClient;
 
 const NESSUNO = "_nessuno";
 const SENZA_FASE = "_senza";
@@ -65,19 +66,24 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
   const [maggiorazione, setMaggiorazione] = useState("10");
   const [fase, setFase] = useState(SENZA_FASE);
   const [salvo, setSalvo] = useState(false);
+  const { user } = useAuth();
+  // Il disegno salvato tra i documenti (solo se l'utente lo chiede).
+  const [documento, setDocumento] = useState<{ id: string; nome: string } | null>(null);
+  const [confermaGrande, setConfermaGrande] = useState(false);
+  const [caricoDocumento, setCaricoDocumento] = useState(false);
 
   const mappa = useQuery({
     queryKey: ["dwg-mappa-blocchi", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await db.from("dwg_mappa_blocchi").select("nome_blocco, simbolo, descrizione, scomposizione_id, ignora").eq("company_id", companyId);
+      const { data, error } = await supabase.from("dwg_mappa_blocchi").select("nome_blocco, simbolo, descrizione, scomposizione_id, ignora").eq("company_id", companyId);
       if (error) throw error;
       return (data ?? []) as VoceMappa[];
     },
   });
 
   const apri = async (f: File) => {
-    setFile(f); setDisegno(null); setErrore(null);
+    setFile(f); setDisegno(null); setErrore(null); setDocumento(null); setConfermaGrande(false);
     const testa = new Uint8Array(await f.slice(0, 64).arrayBuffer());
     if (riconosciFormato(testa) === "dwg") { setErrore(ISTRUZIONI_DWG); return; }
     setAvanzamento(0);
@@ -130,14 +136,14 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     try {
       const voci = vociDaSalvare(Object.values(scelteEffettive).filter((s) => s.origine !== "vuoto" || s.simbolo.trim()));
       if (voci.length) {
-        const { error } = await db.from("dwg_mappa_blocchi").upsert(voci.map((v) => ({ ...v, company_id: companyId })), { onConflict: "company_id,nome_blocco" });
+        const { error } = await supabase.from("dwg_mappa_blocchi").upsert(voci.map((v) => ({ ...v, company_id: companyId })), { onConflict: "company_id,nome_blocco" });
         if (error) throw error;
       }
-      const { error } = await db.from("planimetrie_conteggi").insert(righe.map((r) => ({
+      const { error } = await supabase.from("planimetrie_conteggi").insert(righe.map((r) => ({
         company_id: companyId, order_id: orderId, phase_id: fase === SENZA_FASE ? null : fase,
-        documento_id: null as string | null, documento_nome: file.name, simbolo: r.simbolo, descrizione_legenda: r.descrizione_legenda,
+        documento_id: documento?.id ?? null, documento_nome: file.name, simbolo: r.simbolo, descrizione_legenda: r.descrizione_legenda,
         locale: r.locale, quantita: r.quantita, unita: r.unita, metodo: "dwg", confidenza: 1,
-        scomposizione_id: r.scomposizione_id, dettaglio: r.dettaglio,
+        scomposizione_id: r.scomposizione_id, dettaglio: r.dettaglio as Json,
       })));
       if (error) throw error;
       toast.success(`${righe.length} conteggi salvati come bozza`, { description: "Controllali e confermali qui sotto: solo i confermati diventano materiali." });
@@ -149,6 +155,25 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       setSalvo(false);
     }
   };
+
+  const salvaDocumento = async () => {
+    if (!file || !user) return;
+    setCaricoDocumento(true);
+    try {
+      const d = await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/dxf" });
+      setDocumento({ id: d.id, nome: file.name });
+      setConfermaGrande(false);
+      toast.success("Disegno salvato tra i documenti della commessa");
+      onSalvati();
+    } catch (e) {
+      toast.error("Disegno non salvato tra i documenti", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCaricoDocumento(false);
+    }
+  };
+  const mbFile = file ? file.size / 1_048_576 : 0;
+  const troppoGrande = !!file && file.size > MAX_BYTES_PER_FILE;
+  const grande = mbFile > AVVISO_MB_DOCUMENTO;
 
   const layerContorni = useMemo(() => disegno ? [...new Set(disegno.contorni.map((c) => c.layer))].sort() : [], [disegno]);
   const daContare = simboli.filter((s) => !scelteEffettive[s.chiave]?.ignora);
@@ -163,7 +188,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
         {file && <span className="text-xs text-slate-600">{file.name} · {fmt(file.size / 1_048_576, 1)} MB</span>}
       </div>
       <p className="text-xs text-slate-500">
-        Il disegno si legge nel tuo browser, non viene caricato. I blocchi (prese, luci, rilevatori…) si contano esattamente, stanza per stanza.
+        Il disegno si legge nel tuo browser: tra i documenti si salva solo se lo scegli tu. I blocchi (prese, luci, rilevatori…) si contano esattamente, stanza per stanza.
         Per un DWG: nel CAD «Salva con nome» → DXF, poi apri il DXF.
       </p>
 
@@ -178,6 +203,30 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
 
       {disegno && locali && (
         <>
+          {puoScrivere && (
+            <div aria-label="Disegno tra i documenti" className="flex flex-wrap items-center gap-2 rounded bg-slate-50 p-2 text-xs">
+              {documento ? (
+                <span className="text-emerald-700">Salvato tra i documenti della commessa: i conteggi che salvi lo riferiscono.</span>
+              ) : troppoGrande ? (
+                <span className="text-amber-800">Il file supera {MAX_MB_PER_FILE} MB e non si può salvare tra i documenti: i conteggi restano senza documento.</span>
+              ) : confermaGrande ? (
+                <>
+                  <span className="text-amber-800">Il file è grande ({fmt(mbFile, 1)} MB): il caricamento può richiedere qualche minuto e occupa spazio dell'azienda. Lo salvo?</span>
+                  <Button size="sm" className="h-7" disabled={caricoDocumento} onClick={salvaDocumento}>{caricoDocumento ? "Salvo…" : "Sì, salvalo"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7" disabled={caricoDocumento} onClick={() => setConfermaGrande(false)}>No</Button>
+                </>
+              ) : (
+                <>
+                  <span className="text-slate-600">Vuoi tenere il disegno tra i documenti della commessa (cartella del progetto)?</span>
+                  <Button size="sm" variant="outline" className="h-7" disabled={caricoDocumento}
+                    onClick={() => (grande ? setConfermaGrande(true) : salvaDocumento())}>
+                    {caricoDocumento ? "Salvo…" : `Salva tra i documenti (${fmt(mbFile, 1)} MB)`}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-2 md:grid-cols-3">
             <div className="text-xs text-slate-600">
               <p><strong>{nomeVersione(disegno.versione) ?? "DXF"}</strong> · {fmt(disegno.blocchi.length, 0)} blocchi · {fmt(disegno.testi.length, 0)} scritte · {disegno.layer.length} layer</p>

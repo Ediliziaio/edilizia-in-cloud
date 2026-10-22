@@ -143,6 +143,40 @@ export function quantitaRiga(r: RigaMisura): number {
 
 export const quantitaRighe = (righe: RigaMisura[]) => r4(righe.reduce((s, r) => s + quantitaRiga(r), 0));
 
+/** Una registrazione com'era prima e com'è dopo (lp_libretto_modifiche). */
+export interface StatoRegistrazione {
+  data?: string | null;
+  voce_id?: string | null;
+  quantita?: number | string | null;
+  righe?: RigaMisura[] | null;
+  annotazioni?: string | null;
+  firmatario?: string | null;
+  firmato_at?: string | null;
+  allegati?: unknown[] | null;
+}
+
+/**
+ * Cosa è cambiato, in parole: «Quantità 300 → 250», «Data 10/02/2026 → 12/02/2026»…
+ * `voce` traduce l'id della voce nel suo numero; senza `dopo` è una cancellazione.
+ */
+export function riassuntoModificaLibretto(prima: StatoRegistrazione, dopo: StatoRegistrazione | null, voce: (id: string) => string = (id) => id): string[] {
+  const q = (n: unknown) => Number(n ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 3 });
+  const d = (s: string | null | undefined) => (s ? new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("it-IT") : "—");
+  if (!dopo) return [`Eliminata (era ${q(prima.quantita)}, voce ${voce(prima.voce_id ?? "")})`];
+  const out: string[] = [];
+  if (prima.voce_id !== dopo.voce_id) out.push(`Voce ${voce(prima.voce_id ?? "")} → ${voce(dopo.voce_id ?? "")}`);
+  if ((prima.data ?? "") !== (dopo.data ?? "")) out.push(`Data ${d(prima.data)} → ${d(dopo.data)}`);
+  if (Math.abs(Number(prima.quantita ?? 0) - Number(dopo.quantita ?? 0)) > 1e-9) out.push(`Quantità ${q(prima.quantita)} → ${q(dopo.quantita)}`);
+  else if (JSON.stringify(prima.righe ?? []) !== JSON.stringify(dopo.righe ?? [])) out.push("Righe di misura riscritte (stessa quantità)");
+  if ((prima.annotazioni ?? "") !== (dopo.annotazioni ?? "")) out.push(dopo.annotazioni ? `Annotazioni: «${dopo.annotazioni}»` : "Annotazioni tolte");
+  if ((prima.firmatario ?? "") !== (dopo.firmatario ?? "")) out.push(`Firmatario ${prima.firmatario || "—"} → ${dopo.firmatario || "—"}`);
+  if (!prima.firmato_at && dopo.firmato_at) out.push("Segnata firmata");
+  const fotoPrima = prima.allegati?.length ?? 0;
+  const fotoDopo = dopo.allegati?.length ?? 0;
+  if (fotoPrima !== fotoDopo) out.push(`Foto ${fotoPrima} → ${fotoDopo}`);
+  return out;
+}
+
 export interface RegistrazioneLibretto {
   id: string;
   numero: number;

@@ -23831,6 +23831,7 @@ export type Database = {
           created_by: string | null
           da_pagare_impresa: number
           data: string
+          documento_fiscale_id: string | null
           id: string
           imponibile: number
           iva: number
@@ -23848,6 +23849,7 @@ export type Database = {
           created_by?: string | null
           da_pagare_impresa: number
           data?: string
+          documento_fiscale_id?: string | null
           id?: string
           imponibile: number
           iva: number
@@ -23865,6 +23867,7 @@ export type Database = {
           created_by?: string | null
           da_pagare_impresa?: number
           data?: string
+          documento_fiscale_id?: string | null
           id?: string
           imponibile?: number
           iva?: number
@@ -23997,6 +24000,45 @@ export type Database = {
           updated_at?: string
           voce_id?: string
           voce_radice?: string
+        }
+        Relationships: []
+      }
+      lp_libretto_modifiche: {
+        Row: {
+          company_id: string
+          dopo: Json | null
+          id: string
+          libretto_id: string
+          modificato_at: string
+          modificato_da: string | null
+          numero: number
+          operazione: string
+          order_id: string
+          prima: Json
+        }
+        Insert: {
+          company_id: string
+          dopo?: Json | null
+          id?: string
+          libretto_id: string
+          modificato_at?: string
+          modificato_da?: string | null
+          numero: number
+          operazione: string
+          order_id: string
+          prima: Json
+        }
+        Update: {
+          company_id?: string
+          dopo?: Json | null
+          id?: string
+          libretto_id?: string
+          modificato_at?: string
+          modificato_da?: string | null
+          numero?: number
+          operazione?: string
+          order_id?: string
+          prima?: Json
         }
         Relationships: []
       }
@@ -30240,6 +30282,60 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dwg_mappa_blocchi: {
+        Row: {
+          company_id: string
+          created_at: string
+          creato_da: string | null
+          descrizione: string | null
+          id: string
+          ignora: boolean
+          nome_blocco: string
+          scomposizione_id: string | null
+          simbolo: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          creato_da?: string | null
+          descrizione?: string | null
+          id?: string
+          ignora?: boolean
+          nome_blocco: string
+          scomposizione_id?: string | null
+          simbolo: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          creato_da?: string | null
+          descrizione?: string | null
+          id?: string
+          ignora?: boolean
+          nome_blocco?: string
+          scomposizione_id?: string | null
+          simbolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dwg_mappa_blocchi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dwg_mappa_blocchi_scomposizione_id_fkey"
+            columns: ["scomposizione_id"]
+            isOneToOne: false
+            referencedRelation: "scomposizioni_voce"
             referencedColumns: ["id"]
           },
         ]
