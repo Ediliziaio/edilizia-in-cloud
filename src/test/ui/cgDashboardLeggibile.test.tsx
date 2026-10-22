@@ -25,8 +25,8 @@ vi.mock("@/hooks/controlloGestione/useMarginalitaCommesse", () => ({
 }));
 vi.mock("@/hooks/controlloGestione/useBudget", () => ({ useBudgetConfronto: () => q({ haBudget: false, righe: [] }) }));
 vi.mock("recharts", () => ({
-  ResponsiveContainer: () => null, LineChart: () => null, Line: () => null, XAxis: () => null,
-  YAxis: () => null, Tooltip: () => null, CartesianGrid: () => null, ReferenceLine: () => null,
+  ResponsiveContainer: (): null => null, LineChart: (): null => null, Line: (): null => null, XAxis: (): null => null,
+  YAxis: (): null => null, Tooltip: (): null => null, CartesianGrid: (): null => null, ReferenceLine: (): null => null,
 }));
 
 afterEach(cleanup);

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const state = vi.hoisted(() => ({ ranges: [] as number[] }));
 const vista = Array.from({ length: 1001 }, (_, i) => ({
-  order_item_id: `r${i}`, order_id: i === 0 ? "cancellata" : "job", article_template_id: null, categoria: "materiali",
+  order_item_id: `r${i}`, order_id: i === 0 ? "cancellata" : "job", article_template_id: null as unknown, categoria: "materiali",
   name: i === 1 ? "FINESTRA 1 ANTA" : "Mattoni", costo_standard: 0, costo_reale: i === 1 ? 1480 : 10, fonte_costo: "oda", ha_baseline_listino: false,
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "demo" }));
@@ -13,7 +13,7 @@ vi.mock("@/integrations/supabase/client", () => {
     let ids: string[] = [];
     const b = {
       select: () => b, eq: () => b, gte: () => b, lt: () => b, order: () => b,
-      range: async (from: number, to: number) => { state.ranges.push(from); return { data: vista.slice(from, to + 1), error: null }; },
+      range: async (from: number, to: number) => { state.ranges.push(from); return { data: vista.slice(from, to + 1), error: null as unknown }; },
       in: async (_c: string, v: string[]) => {
         ids = v;
         if (table !== "order_items") return { data: [], error: null };
@@ -21,14 +21,14 @@ vi.mock("@/integrations/supabase/client", () => {
           id, unit_price: id === "r1" ? 0 : 15, quantity: 1, discount_percent: 0,
           supplier: { name: "Edilmateriali" }, phase: { name: "Opere murarie" },
           order: { deleted_at: id === "r0" ? "2026-05-01" : null },
-        })), error: null };
+        })), error: null as unknown };
       },
     };
     return b;
   };
   return { supabase: { from: builder } };
 });
-vi.mock("@/components/controllo-gestione/ui/ExportButton", () => ({ ExportButton: () => null }));
+vi.mock("@/components/controllo-gestione/ui/ExportButton", () => ({ ExportButton: (): null => null }));
 import { TabProdotti } from "@/components/controllo-gestione/tabs/TabProdotti";
 
 afterEach(cleanup);

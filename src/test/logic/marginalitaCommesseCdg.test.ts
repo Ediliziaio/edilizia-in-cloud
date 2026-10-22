@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: (o: unknown) => o }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
-vi.mock("@/hooks/controlloGestione/cgRpc", () => ({ cgRpc: async () => ({ data: state.rpc, error: null }) }));
+vi.mock("@/hooks/controlloGestione/cgRpc", () => ({ cgRpc: async () => ({ data: state.rpc, error: null as unknown }) }));
 vi.mock("@/integrations/supabase/client", () => {
   const builder = (table: string) => {
     let ids: string[] = [];
@@ -18,11 +18,11 @@ vi.mock("@/integrations/supabase/client", () => {
     const b = {
       select: () => b, order: () => b, eq: () => b,
       in: (c: string, v: string[]) => { col = c; ids = v; return b; },
-      maybeSingle: async () => ({ data: { peso_media: state.peso }, error: null }),
+      maybeSingle: async () => ({ data: { peso_media: state.peso }, error: null as unknown }),
       range: async (from: number, to: number) => {
         state.ranges.push({ table, from });
         const rows = (state.tables[table] ?? []).filter((r) => ids.includes(r[col] as string));
-        return { data: rows.slice(from, to + 1), error: null };
+        return { data: rows.slice(from, to + 1), error: null as unknown };
       },
     };
     return b;
@@ -33,10 +33,10 @@ import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalita
 
 type Opts = { queryFn: () => Promise<{ righe: { id: string; pct_avanzamento: number; costo_manodopera: number; ore_manodopera: number; margine_atteso: number | null }[]; kpi: { n_in_perdita: number } }> };
 const riga = (over: Record<string, unknown> = {}) => ({
-  id: "job", order_code: "C1", description: "Bagno", cliente: null, status: null, work_state: "open", creation_year: 2026,
-  pct_avanzamento: 40, work_start: null, work_end: null, preventivo: 1000, consuntivo: 450, costo_acquisti: 0, costo_errori: 0,
-  variazioni: 0, costo_manodopera: 0, ore_manodopera: 0, margine: 550, margine_perc: 55, costo_atteso: null, margine_atteso: null,
-  margine_atteso_perc: null, semaforo: "grigio", dati_economici_completi: true, ...over,
+  id: "job", order_code: "C1", description: "Bagno", cliente: null as unknown, status: null as unknown, work_state: "open", creation_year: 2026,
+  pct_avanzamento: 40, work_start: null as unknown, work_end: null as unknown, preventivo: 1000, consuntivo: 450, costo_acquisti: 0, costo_errori: 0,
+  variazioni: 0, costo_manodopera: 0, ore_manodopera: 0, margine: 550, margine_perc: 55, costo_atteso: null as unknown, margine_atteso: null as unknown,
+  margine_atteso_perc: null as unknown, semaforo: "grigio", dati_economici_completi: true, ...over,
 });
 
 beforeEach(() => {

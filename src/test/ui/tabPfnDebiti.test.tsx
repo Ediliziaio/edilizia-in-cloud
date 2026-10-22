@@ -6,16 +6,16 @@ const state = vi.hoisted(() => ({ upsert: vi.fn(), toast: vi.fn() }));
 const loan = {
   id: "mutuo-a", company_id: "demo", banca: "Banca Alfa", descrizione: "Capannone", capitale_iniziale: 200000,
   capitale_residuo: 150000, tasso_pct: 3.9, rata_mensile: 1800, durata_mesi: 120, rate_pagate: 30,
-  data_inizio: "2024-01-01", data_fine: "2034-01-01", is_active: true, note: null, created_at: "", updated_at: "",
+  data_inizio: "2024-01-01", data_fine: "2034-01-01", is_active: true, note: null as unknown, created_at: "", updated_at: "",
 };
 vi.mock("@/hooks/controlloGestione/usePFN", () => ({
   usePFN: () => ({ data: { pfn: -6611.8, componenti: { cassa: 0, banche_positive: 746294.63, banche_negative: 496182.83, mutui_mlt: 243500 } } }),
   useContiPFN: () => ({ data: [
     { id: "a", nome: "Conto 2025", saldo: -496182.83, disponibile: null, aggiornato_al: null },
-    { id: "b", nome: "Conto principale", saldo: 532740.29, disponibile: 112767.6, aggiornato_al: null },
+    { id: "b", nome: "Conto principale", saldo: 532740.29, disponibile: 112767.6, aggiornato_al: null as unknown },
   ] }),
   useLoans: () => ({ data: [loan] }),
-  useAging: () => ({ data: { totale: 164337.84, totale_scaduto: 164337.84, n_aperte: 24, n_scadute: 24, fasce: { a_scadere: 0, sc_30: 0, sc_60: 0, sc_90: 0, sc_oltre: 164337.84 }, righe: [] } }),
+  useAging: () => ({ data: { totale: 164337.84, totale_scaduto: 164337.84, n_aperte: 24, n_scadute: 24, fasce: { a_scadere: 0, sc_30: 0, sc_60: 0, sc_90: 0, sc_oltre: 164337.84 }, righe: [] as unknown[] } }),
   useUpsertLoan: () => ({ mutateAsync: state.upsert, isPending: false }),
   useDeleteLoan: () => ({ mutateAsync: vi.fn() }),
 }));

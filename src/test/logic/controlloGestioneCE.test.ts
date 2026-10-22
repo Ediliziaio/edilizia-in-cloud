@@ -43,12 +43,12 @@ describe("Conto economico leggibile", () => {
 describe("Segnalazioni del CE", () => {
   const base = {
     ce_anno_corr: { meta: { anno: 2026 } as never, voci: VOCI },
-    ce_anno_prec: null,
+    ce_anno_prec: null as never,
     sp: { attivo: { attivo_circolante: 1, totale: 1 }, passivo: { pas_corrente: 0, mezzi_propri: 1, totale: 1 } } as never,
     rating: {} as never,
-    rating_storico: [],
+    rating_storico: [] as never[],
     bep: { gia_raggiunto: true, bep_giorno_anno: 300 } as never,
-    scadenzario: [],
+    scadenzario: [] as never[],
     saldo_banche: 0,
     cashflow_30gg: 0,
   } satisfies Omit<Snapshot, "cantieri_attivi">;

@@ -6,7 +6,7 @@ const mov = (over: Partial<ForecastMovement>): ForecastMovement => ({
   id: "m", description: "Voce", counterparty: "", category: "clienti", direction: "in",
   cents: 10000, date: "2026-11-10", source: "Rate", href: "/", estimated: false, ...over,
 });
-const base = { companyId: "demo", anno: 2026, today: "2026-10-22", openingCents: 100000, openingSource: "banca" as const, openingUpdatedAt: null, manuali: [] };
+const base = { companyId: "demo", anno: 2026, today: "2026-10-22", openingCents: 100000, openingSource: "banca" as const, openingUpdatedAt: null as string | null, manuali: [] as never[] };
 
 describe("cash flow mensile del CdG = Previsionale raggruppato per mese", () => {
   it("parte dal saldo di oggi e mostra solo i mesi da quello in corso a dicembre", () => {

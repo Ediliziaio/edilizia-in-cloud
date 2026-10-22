@@ -3,8 +3,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const riga = (over: Record<string, unknown>) => ({
-  id: "job", order_code: "C1", description: "Bagno", cliente: "Rossi", status: null, work_state: "open", creation_year: 2026,
-  pct_avanzamento: 0.5, work_start: null, work_end: null, preventivo: 7457005.84, consuntivo: 450, costo_acquisti: 0, costo_errori: 0,
+  id: "job", order_code: "C1", description: "Bagno", cliente: "Rossi", status: null as unknown, work_state: "open", creation_year: 2026,
+  pct_avanzamento: 0.5, work_start: null as unknown, work_end: null as unknown, preventivo: 7457005.84, consuntivo: 450, costo_acquisti: 0, costo_errori: 0,
   variazioni: 0, costo_manodopera: 100, ore_manodopera: 10, margine: 550, margine_perc: 18.6, costo_atteso: 900, margine_atteso: -100,
   margine_atteso_perc: -10, semaforo: "rosso", dati_economici_completi: true, ...over,
 });
@@ -22,11 +22,11 @@ vi.mock("@/hooks/controlloGestione/useMarginalitaCommesse", () => ({
     },
   }),
 }));
-vi.mock("@/hooks/controlloGestione/useCompanyStructure", () => ({ useCompanyStructure: () => ({ data: null }) }));
+vi.mock("@/hooks/controlloGestione/useCompanyStructure", () => ({ useCompanyStructure: () => ({ data: null as unknown }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
-vi.mock("@tanstack/react-query", async (orig) => ({ ...(await orig<object>()), useQuery: () => ({ data: undefined }) }));
+vi.mock("@tanstack/react-query", async (orig) => ({ ...(await orig<object>()), useQuery: () => ({ data: undefined as unknown }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
-vi.mock("@/components/controllo-gestione/ui/ExportButton", () => ({ ExportButton: () => null }));
+vi.mock("@/components/controllo-gestione/ui/ExportButton", () => ({ ExportButton: (): null => null }));
 import { TabCommesse } from "@/components/controllo-gestione/tabs/TabCommesse";
 
 afterEach(cleanup);
