@@ -20,7 +20,7 @@
  *  - permessi: canViewControlloGestione
  *  - feature flag: controllo_gestione_v1
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
@@ -95,7 +95,7 @@ const SCHEDE_DESKTOP: { tab: CGTab; label: string; vis: VisScheda }[] = [
   { tab: "prodotti", label: "Prodotti & Categorie", vis: "menu" },
   { tab: "budget", label: "Budget", vis: "xl" },
   { tab: "indici", label: "Indici avanzati", vis: "menu" },
-  { tab: "health", label: "Health-check", vis: "menu" },
+  { tab: "health", label: "Controllo dei dati", vis: "menu" },
   { tab: "piano", label: "Piano industriale", vis: "menu" },
   { tab: "rating", label: "Rating bancario", vis: "menu" },
   { tab: "pdf", label: "Pacchetto banca", vis: "menu" },
@@ -134,17 +134,11 @@ export default function ControlloGestione() {
     if (!seg || seg === "controllo-gestione") return "dash";
     return URL_TO_TAB[seg] ?? "dash";
   }, [location.pathname]);
-  const [activeTab, setActiveTab] = useState<CGTab>(tabFromUrl);
-  // Sincronizza tab attivo con URL (back/forward o deep-link da sidebar).
-  // P1.2 — era useMemo, anti-pattern: setState dentro useMemo causa loop e
-  // tab attivo "saltellante" nel DOM. useEffect è il posto giusto.
-  useEffect(() => {
-    if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabFromUrl]);
+  // La scheda attiva È l'indirizzo: niente copia nello stato da tenere in
+  // pari con un effetto (indietro/avanti e link dalla barra laterale vanno da soli).
+  const activeTab = tabFromUrl;
   const handleTabChange = (v: string) => {
     const tab = v as CGTab;
-    setActiveTab(tab);
     navigate(`/azienda/controllo-gestione/${TAB_TO_URL[tab]}`);
   };
 

@@ -27,7 +27,12 @@ export function usePFN(anno: number) {
     queryFn: async (): Promise<PFNResult> => {
       const { data, error } = await cgRpc<PFNResult>("cg_get_pfn_safe", { p_anno: anno });
       if (error) throw error;
-      return data as PFNResult;
+      // La RPC risponde per l'azienda della sessione sul server: se non è quella
+      // scelta qui (azienda appena cambiata), non salviamo numeri di un'altra azienda.
+      const pfn = data as PFNResult;
+      if (pfn?.meta?.company_id && pfn.meta.company_id !== companyId)
+        throw new Error("I dati sono arrivati per un'altra azienda: riprova tra un attimo.");
+      return pfn;
     },
     staleTime: 60_000,
   });
@@ -93,12 +98,17 @@ export interface LoanInput {
 }
 export function useUpsertLoan() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: LoanInput) => {
+      if (!companyId) throw new Error("Seleziona un'azienda prima di salvare il finanziamento.");
+      // company_id è obbligatorio (NOT NULL, senza valore iniziale): senza, ogni
+      // nuovo mutuo veniva rifiutato. Le colonne di servizio non si rimandano.
+      const { created_at: _c, updated_at: _u, ...campi } = input as LoanInput & { created_at?: string; updated_at?: string };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_loans")
-        .upsert(input)
+        .upsert({ ...campi, company_id: companyId })
         .select()
         .single();
       if (error) throw error;
@@ -175,6 +185,44 @@ export function useAging(direction: "in" | "out") {
       });
       if (error) throw error;
       return data as AgingResult;
+    },
+    staleTime: 60_000,
+  });
+}
+
+// ── Conti che compongono la PFN ─────────────────────────────────────────────
+
+export interface ContoPFN {
+  id: string;
+  nome: string;
+  /** Saldo contabile: è quello che entra nella PFN (positivo = liquidità, negativo = scoperto). */
+  saldo: number;
+  /** Saldo disponibile dichiarato dalla banca: è quello da cui parte il Previsionale. */
+  disponibile: number | null;
+  aggiornato_al: string | null;
+}
+
+/** I conti attivi uno per uno, per vedere da dove vengono «Banche positive» e «Banche scoperte». */
+export function useContiPFN() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["cg", "pfn-conti", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<ContoPFN[]> => {
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select("id,display_name,account_name,current_balance,available_balance,balance_updated_at")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("current_balance", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((c) => ({
+        id: c.id,
+        nome: c.display_name || c.account_name || "Conto senza nome",
+        saldo: Number(c.current_balance ?? 0),
+        disponibile: c.available_balance == null ? null : Number(c.available_balance),
+        aggiornato_al: c.balance_updated_at,
+      }));
     },
     staleTime: 60_000,
   });

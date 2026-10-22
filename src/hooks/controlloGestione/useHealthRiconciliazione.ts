@@ -1,4 +1,3 @@
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Health-check Dati + Riconciliazione Commercialista.
  */
@@ -6,6 +5,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export type HealthStatus = "ok" | "warn" | "critical";
 
@@ -17,6 +17,8 @@ export interface HealthCheck {
   status: HealthStatus;
   descrizione: string;
   azione_url?: string;
+  /** 'euro' per gli importi (patrimonio, quadratura): la pagina li formatta. */
+  unita?: "euro" | "numero";
 }
 
 export interface HealthResult {
@@ -34,7 +36,7 @@ export function useHealthCheck(anno: number) {
     queryKey: ["cg", "health-check", anno, "reconciled-v1", companyId],
     enabled: !!companyId,
     queryFn: async (): Promise<HealthResult> => {
-            const { data, error } = await cgRpc("cg_get_health_check_safe", { p_anno: anno });
+      const { data, error } = await cgRpc("cg_get_health_check_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as HealthResult;
     },
@@ -80,7 +82,7 @@ export function useRiconciliazione(anno: number) {
     queryKey: ["cg", "riconciliazione", anno, "reconciled-v1", companyId],
     enabled: !!companyId,
     queryFn: async (): Promise<RiconciliazioneResult> => {
-            const { data, error } = await cgRpc("cg_get_riconciliazione_safe", { p_anno: anno });
+      const { data, error } = await cgRpc("cg_get_riconciliazione_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as RiconciliazioneResult;
     },
@@ -90,6 +92,7 @@ export function useRiconciliazione(anno: number) {
 
 export function useUpsertRiconciliazione() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       anno: number;
@@ -100,10 +103,16 @@ export function useUpsertRiconciliazione() {
       imposte_dichiarate?: number | null;
       note?: string | null;
     }) => {
+      // company_id è obbligatorio e non ha default: senza, «Salva e riconcilia»
+      // falliva sempre (al 22/10/2026 la tabella era vuota per tutte le aziende).
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_riconciliazione_commercialista")
-        .upsert(input, { onConflict: "company_id,anno" })
+        .upsert(
+          { ...input, company_id: companyId, updated_at: new Date().toISOString() },
+          { onConflict: "company_id,anno" },
+        )
         .select()
         .single();
       if (error) throw error;

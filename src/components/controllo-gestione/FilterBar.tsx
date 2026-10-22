@@ -78,7 +78,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="annuale">Anno completo</SelectItem>
-              <SelectItem value="ytd">Year to date (gen → mese)</SelectItem>
+              <SelectItem value="ytd">Da gennaio al mese scelto</SelectItem>
               <SelectItem value="mese">Singolo mese</SelectItem>
             </SelectContent>
           </Select>

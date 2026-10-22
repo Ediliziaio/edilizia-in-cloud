@@ -44,6 +44,7 @@ export function useNoteVoci(anno: number, scope: NoteScope) {
 
 export function useUpsertNotaVoce() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       anno: number;
@@ -51,10 +52,13 @@ export function useUpsertNotaVoce() {
       codice_voce: string;
       contenuto: string;
     }) => {
+      // company_id esplicito: senza (colonna senza valore predefinito) ogni
+      // nota veniva rifiutata dalla regola di sicurezza.
+      if (!companyId) throw new Error("Azienda non riconosciuta: ricarica la pagina.");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_note_voci")
-        .upsert(input, { onConflict: "company_id,anno,scope,codice_voce" })
+        .upsert({ ...input, company_id: companyId }, { onConflict: "company_id,anno,scope,codice_voce" })
         .select()
         .single();
       if (error) throw error;

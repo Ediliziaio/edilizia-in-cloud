@@ -1,20 +1,11 @@
-import { cn } from "@/lib/utils";
-import type { RatingClasse } from "@/hooks/controlloGestione/useStatoPatrimoniale";
+import { angoloLancetta, FASCE_RATING, type ClasseRating } from "@/lib/controlloGestione/indiciBanca";
 
 interface RatingGaugeProps {
   score: number;
-  classe: RatingClasse;
+  classe: ClasseRating;
+  /** Valutazione non validata: colori spenti e scritta «provvisorio». */
+  provvisorio?: boolean;
 }
-
-const CLASSI: { code: RatingClasse; color: string; label: string }[] = [
-  { code: "AAA", color: "#15803d", label: "Eccellente" },
-  { code: "AA",  color: "#22c55e", label: "Molto buono" },
-  { code: "A",   color: "#84cc16", label: "Buono" },
-  { code: "BBB", color: "#eab308", label: "Adeguato" },
-  { code: "BB",  color: "#f97316", label: "Sotto media" },
-  { code: "B",   color: "#ef4444", label: "Critico" },
-  { code: "CCC", color: "#991b1b", label: "Default" },
-];
 
 const CX = 150;
 const CY = 150;
@@ -33,74 +24,63 @@ function arcPath(start: number, end: number) {
   return `M ${s.x} ${s.y} A ${R} ${R} 0 ${large} 1 ${e.x} ${e.y}`;
 }
 
-export function RatingGauge({ score, classe }: RatingGaugeProps) {
-  const segCount = CLASSI.length;
-  const segSize = 180 / segCount;
-  const clamped = Math.max(0, Math.min(100, score));
-  const needleAngle = 180 + (clamped / 100) * 180; // 180° = sinistra, 360° = destra
-  const needle = polar(CX, CY, R - STROKE / 2 - 6, needleAngle);
-
-  const meta = CLASSI.find((c) => c.code === classe);
+/**
+ * Semicerchio da CCC (sinistra, punteggio 0) ad AAA (destra, 100), con ogni
+ * fascia larga quanto il suo intervallo di punteggio. Prima le fasce erano
+ * uguali e in ordine inverso (AAA a sinistra) mentre la lancetta andava verso
+ * destra col punteggio: con 95/100 indicava la zona CCC.
+ */
+export function RatingGauge({ score, classe, provvisorio = false }: RatingGaugeProps) {
+  const clamped = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+  const needle = polar(CX, CY, R - STROKE / 2 - 6, angoloLancetta(clamped));
+  const meta = FASCE_RATING.find((c) => c.classe === classe);
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <svg viewBox="0 0 300 180" className="w-full max-w-[300px]">
-        {CLASSI.map((c, i) => {
-          const start = 180 + i * segSize;
-          const end = 180 + (i + 1) * segSize;
-          return (
-            <path
-              key={c.code}
-              d={arcPath(start, end)}
-              stroke={c.color}
-              strokeWidth={STROKE}
-              fill="none"
-              strokeLinecap="butt"
-            />
-          );
-        })}
-        {/* Lancetta */}
-        <line
-          x1={CX}
-          y1={CY}
-          x2={needle.x}
-          y2={needle.y}
-          stroke="hsl(var(--foreground))"
-          strokeWidth={3}
-          strokeLinecap="round"
-        />
+      <svg
+        viewBox="0 0 300 180"
+        className={provvisorio ? "w-full max-w-[300px] opacity-60 grayscale" : "w-full max-w-[300px]"}
+        role="img"
+        aria-label={`Classe ${classe}, punteggio ${Math.round(clamped)} su 100`}
+      >
+        {FASCE_RATING.map((f) => (
+          <path
+            key={f.classe}
+            d={arcPath(angoloLancetta(f.da), angoloLancetta(f.a))}
+            stroke={f.colore}
+            strokeWidth={STROKE}
+            fill="none"
+            strokeLinecap="butt"
+          />
+        ))}
+        <line x1={CX} y1={CY} x2={needle.x} y2={needle.y} stroke="hsl(var(--foreground))" strokeWidth={3} strokeLinecap="round" />
         <circle cx={CX} cy={CY} r={6} fill="hsl(var(--foreground))" />
-        {/* Etichette classi */}
-        {CLASSI.map((c, i) => {
-          const mid = 180 + i * segSize + segSize / 2;
-          const p = polar(CX, CY, R + 14, mid);
+        {FASCE_RATING.map((f) => {
+          const p = polar(CX, CY, R + 16, angoloLancetta((f.da + f.a) / 2));
           return (
             <text
-              key={c.code}
+              key={f.classe}
               x={p.x}
               y={p.y}
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize="10"
-              fontWeight={c.code === classe ? 700 : 500}
-              fill={c.code === classe ? c.color : "hsl(var(--muted-foreground))"}
+              fontWeight={f.classe === classe ? 700 : 500}
+              fill={f.classe === classe ? f.colore : "hsl(var(--muted-foreground))"}
             >
-              {c.code}
+              {f.classe}
             </text>
           );
         })}
       </svg>
       <div className="text-center">
-        <p
-          className={cn("text-3xl font-bold tabular-nums")}
-          style={{ color: meta?.color }}
-        >
+        <p className="text-3xl font-bold tabular-nums" style={{ color: provvisorio ? undefined : meta?.colore }}>
           {classe}
         </p>
         <p className="text-sm text-muted-foreground">
-          Punteggio <span className="font-semibold tabular-nums">{Math.round(clamped)}</span> / 100
+          Punteggio <span className="font-semibold tabular-nums">{Math.round(clamped)}</span> su 100
         </p>
-        {meta && <p className="text-xs text-muted-foreground">{meta.label}</p>}
+        {meta && <p className="text-xs text-muted-foreground">{provvisorio ? "Stima provvisoria" : meta.giudizio}</p>}
       </div>
     </div>
   );

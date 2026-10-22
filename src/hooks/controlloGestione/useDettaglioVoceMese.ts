@@ -11,6 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export interface DettaglioRiga {
   id: string;
@@ -91,6 +92,7 @@ function groupByCounterparty(righe: DettaglioRiga[]): DettaglioRaggruppamento[] 
 }
 
 async function getOrderRevenueFallback(
+  companyId: string,
   anno: number,
   mese: number,
 ): Promise<DettaglioVoceMeseResult | null> {
@@ -98,6 +100,9 @@ async function getOrderRevenueFallback(
   const { data, error } = await supabase
     .from("orders")
     .select("id, company_id, created_at, order_code, description, client_company, client_name, total_amount")
+    // Solo QUESTA azienda: senza filtro il super admin (e chi ha più aziende)
+    // vedeva e sommava le commesse di tutte.
+    .eq("company_id", companyId)
     .gte("created_at", start)
     .lt("created_at", end)
     .gt("total_amount", 0)
@@ -118,14 +123,12 @@ async function getOrderRevenueFallback(
         : `Commessa ${codiceOrdine}`,
       controparte,
       voce_chiave: "ricavo_commessa",
-      categoria: "order",
+      categoria: null as string | null,
       importo: Number(ordine.total_amount ?? 0),
     };
   });
 
   const totale = righe.reduce((acc, riga) => acc + riga.importo, 0);
-  const companyId = (data as OrderRevenueRow[])[0]?.company_id ?? "";
-
   return {
     meta: {
       company_id: companyId,
@@ -148,13 +151,15 @@ export function useDettaglioVoceMese(
   mese: number | null,
   codice: string | null,
 ) {
+  const companyId = useEffectiveCompanyId();
   const enabled =
+    !!companyId &&
     codice !== null &&
     mese !== null &&
     isDrillDownEnabled(codice);
 
   return useQuery({
-    queryKey: ["cg", "dettaglio-voce-mese", anno, mese, codice] as const,
+    queryKey: ["cg", "dettaglio-voce-mese", anno, mese, codice, companyId] as const,
     enabled,
     queryFn: async (): Promise<DettaglioVoceMeseResult> => {
       const { data, error } = await cgRpc("cg_get_dettaglio_voce_mese_safe", { p_anno: anno, p_mese: mese, p_codice: codice });
@@ -166,7 +171,7 @@ export function useDettaglioVoceMese(
         mese !== null &&
         (!result?.righe?.length || Math.abs(result.meta?.totale ?? 0) < 0.01)
       ) {
-        const fallback = await getOrderRevenueFallback(anno, mese);
+        const fallback = await getOrderRevenueFallback(companyId!, anno, mese);
         if (fallback?.righe.length) return fallback;
       }
 

@@ -83,7 +83,10 @@ export type RatingLivello =
 export interface RatingIndicatore {
   codice: "liquidita" | "indipendenza" | "oneri_finanziari" | "cashflow";
   label: string;
-  valore: number;
+  /** null = non calcolabile (o liquidità senza debiti a breve). */
+  valore: number | null;
+  /** Presente dalla migrazione 20281022104300. */
+  calcolabile?: boolean;
   punteggio: number;
   soglia_top: number;
 }
@@ -92,6 +95,7 @@ export interface RatingResult {
   attendibile?: boolean;
   motivi?: string[];
   anno: number;
+  giorni_periodo?: number | null;
   classe: RatingClasse;
   livello: RatingLivello;
   score: number;

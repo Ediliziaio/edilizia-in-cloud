@@ -1,9 +1,11 @@
 /**
- * Cash Flow Mensile Prospettico — hook React Query.
+ * Cash Flow previsionale del Controllo di gestione — hook React Query.
  *
- * Tenant-scoped paginated reads, residual payment commitments only.
- * Every future month has
- *   saldo iniziale, entrate breakdown, uscite breakdown, saldo finale.
+ * Usa lo stesso motore e la stessa lettura della pagina Previsionale
+ * (`loadForecastDataset`, chiave condivisa ["cashflow","ledger",azienda,oggi]):
+ * qui i movimenti si raggruppano per mese, più le voci manuali del CdG.
+ * Così saldo di partenza, scaduti esclusi e saldo dei prossimi mesi sono gli
+ * stessi della pagina /azienda/previsionale.
  *
  * Inoltre espone CRUD per cg_cash_flow_manuali (voci editabili dall'utente).
  */
@@ -11,107 +13,65 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { allPaymentRows } from '@/hooks/useSupplierPayments';
-import { projectedCashFlow, type ForecastManual, type ForecastRate } from '@/lib/controlloGestione/projectedCashFlow';
+import { allPaymentRows } from "@/hooks/useSupplierPayments";
+import { loadForecastDataset } from "@/hooks/useForecastLedger";
+import { dayKey } from "@/lib/finance/forecastLedger";
+import {
+  cashFlowMensile,
+  type VoceManualeCashFlow,
+  type CashFlowResult,
+} from "@/lib/controlloGestione/cashFlowMensile";
+
+export type { CashFlowResult, CashFlowMese, RigaCashFlow } from "@/lib/controlloGestione/cashFlowMensile";
 
 /**
- * Le rate da incassare con la regola della scheda commessa (cruscotto_rate_da_incassare): residuo per
- * rata, piani storici compresi, una riga senza data per la parte non pianificata. Le fatture collegate
- * vengono dal piano rate, per non contare due volte una rata che ha già la sua scadenza.
+ * La previsione parte sempre dal mese in corso e arriva a dicembre dell'anno
+ * scelto; gli argomenti sui mesi restano per compatibilità con i chiamanti.
  */
-async function leggiRateDaIncassare(companyId: string): Promise<ForecastRate[]> {
-  const [righe, piano] = await Promise.all([
-    // A pagine come le tabelle: PostgREST taglia anche le RPC a mille righe.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    allPaymentRows<{ id: string; order_id: string; amount: number | string; expected_date: string | null }>((from,to)=>(supabase as any).rpc('cruscotto_rate_da_incassare', { p_company_id: companyId }).order('id').range(from,to)),
-    allPaymentRows((from,to)=>supabase.from('order_installments').select('id,label,invoice_id,documento_fiscale_id,orders!inner(company_id)').eq('orders.company_id',companyId).order('id').range(from,to)),
-  ]);
-  const perId = new Map(piano.map(r => [r.id, r]));
-  return righe.map(r => {
-    const rata = perId.get(r.id);
-    return {
-      id: r.id, order_id: r.order_id, amount: Number(r.amount) || 0, expected_date: r.expected_date, is_paid: false,
-      label: rata?.label || (r.id.startsWith('non-pianificato-') ? 'Parte non pianificata della commessa' : 'Rata commessa'),
-      invoice_id: rata?.invoice_id ?? null, documento_fiscale_id: rata?.documento_fiscale_id ?? null, residuo: true,
-    };
-  });
-}
-
-export interface CashFlowEntrateBreakdown {
-  scadenze: number;
-  manuali: number;
-  fatture: number;
-  commesse?: number;
-}
-
-export interface CashFlowUsciteBreakdown {
-  scadenze: number;
-  personale: number;
-  mutui: number;
-  manuali: number;
-  costi: number;
-}
-
-export interface CashFlowDettaglio {
-  etichetta: string;
-  importo: number;
-}
-
-export interface CashFlowMese {
-  mese: number;
-  saldo_inizio: number;
-  entrate: CashFlowEntrateBreakdown;
-  entrate_totali: number;
-  uscite: CashFlowUsciteBreakdown;
-  uscite_totali: number;
-  saldo_fine: number;
-  flusso_netto: number;
-  sotto_zero: boolean;
-  dettaglio_entrate: CashFlowDettaglio[];
-  dettaglio_uscite: CashFlowDettaglio[];
-}
-
-export interface CashFlowResult {
-  verifiche?: { id: string; origine: 'scadenza' | 'costo' | 'rata' | 'manuale'; etichetta: string; motivo: string; order_id?: string | null }[];
-  meta: {
-    company_id: string;
-    anno: number;
-    mese_da: number;
-    mese_a: number;
-    saldo_apertura: number;
-    saldo_chiusura: number;
-    generato_il: string;
-    ancorato_al?: string;
-    scaduti?: number;
-    da_verificare?: number;
-    saldi_aggiornati_al?: string | null;
-  };
-  mesi: CashFlowMese[];
-}
-
-export function useCashFlow(anno: number, meseDa = 1, meseA = 12) {
+export function useCashFlow(anno: number, _meseDa = 1, _meseA = 12) {
   const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
   return useQuery({
-    queryKey: ["cg", "cash-flow", anno, meseDa, meseA, companyId] as const,
+    queryKey: ["cg", "cash-flow", anno, companyId] as const,
     enabled: !!companyId && anno >= new Date().getFullYear(),
     queryFn: async (): Promise<CashFlowResult> => {
-      const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const [accounts,dues,payments,costs,rates,manuals]=await Promise.all([
-        allPaymentRows((from,to)=>supabase.from('bank_accounts').select('id,current_balance,available_balance,balance_updated_at,currency').eq('company_id',companyId!).eq('is_active',true).order('id').range(from,to)),
-        allPaymentRows((from,to)=>supabase.from('scadenze').select('id,direction,description,amount,paid_amount,due_date,status,cost_id,invoice_id,order_id,notes,auto_source').eq('company_id',companyId!).order('id').range(from,to)),
-        allPaymentRows((from,to)=>supabase.from('prima_nota_entries').select('id,direction,amount,entry_date,scadenza_id,cost_id,installment_id,invoice_id,documento_fiscale_id').eq('company_id',companyId!).lte('entry_date',today).order('id').range(from,to)),
-        allPaymentRows((from,to)=>supabase.from('company_costs').select('id,name,amount,vat_rate,due_date,is_paid,payment_method').eq('company_id',companyId!).or('is_paid.eq.false,is_paid.is.null').order('id').range(from,to)),
-        // Chi vede la cassa ma non le commesse non vede le rate: la cassa si calcola senza, invece di fermarsi.
-        leggiRateDaIncassare(companyId!).catch((e: { code?: string }) => (e?.code === '42501' ? [] as ForecastRate[] : Promise.reject(e))),
-        // This table is not yet present in generated Supabase types.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        allPaymentRows((from,to)=>(supabase as any).from('cg_cash_flow_manuali').select('id,anno,mese,tipo,descrizione,importo,ricorrente').eq('company_id',companyId!).gte('anno',now.getFullYear()).lte('anno',anno).order('id').range(from,to)),
+      const today = dayKey(new Date());
+      const [dataset, manuali] = await Promise.all([
+        // Stessa query (e stessa cache) della pagina Previsionale.
+        qc.fetchQuery({
+          queryKey: ["cashflow", "ledger", companyId, today],
+          queryFn: () => loadForecastDataset(companyId!, today),
+          staleTime: 60_000,
+        }),
+        allPaymentRows<VoceManualeCashFlow>((from, to) =>
+          // Tabella non ancora nei tipi generati.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("cg_cash_flow_manuali")
+            .select("id,anno,mese,tipo,descrizione,importo,ricorrente")
+            .eq("company_id", companyId!)
+            .gte("anno", Number(today.slice(0, 4)))
+            .lte("anno", anno)
+            .order("id")
+            .range(from, to),
+        ),
       ]);
-      const eur=accounts.filter(a=>a.currency==='EUR'&&a.current_balance!=null&&Number.isFinite(Number(a.current_balance)));
-      if(!eur.length||eur.length!==accounts.filter(a=>a.currency==='EUR').length)throw new Error('Inserisci o aggiorna il saldo di tutti i conti EUR per usare il previsionale.');
-      const result=projectedCashFlow({companyId:companyId!,year:anno,from:meseDa,to:meseA,today,opening:eur.reduce((s,a)=>s+Number(a.current_balance),0),dues,payments,costs,rates,manuals:manuals as ForecastManual[]});
-      result.meta.saldi_aggiornati_al=eur.some(a=>!a.balance_updated_at)?null:eur.map(a=>a.balance_updated_at!).sort()[0];
-      return result;
+      if (dataset.opening.cents == null)
+        throw new Error(
+          dataset.opening.warning ||
+            "Inserisci il saldo dei conti in Tesoreria per vedere la previsione di cassa.",
+        );
+      return cashFlowMensile({
+        companyId: companyId!,
+        anno,
+        today,
+        openingCents: dataset.opening.cents,
+        openingSource: dataset.opening.source,
+        openingUpdatedAt: dataset.opening.updatedAt,
+        movements: dataset.movements,
+        manuali,
+        fontiNonLette: dataset.issues,
+      });
     },
     staleTime: 60_000,
   });
@@ -168,11 +128,13 @@ export interface CashFlowManualeInput {
 
 export function useUpsertCashFlowManuale() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (
       input: CashFlowManualeInput & { id?: string; company_id?: string },
     ): Promise<CashFlowManuale> => {
-      const payload = { ...input };
+      // L'azienda giusta anche per chi ne gestisce più d'una (o il super admin che la sta guardando).
+      const payload = { ...input, company_id: input.company_id ?? companyId ?? undefined };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_cash_flow_manuali")
@@ -182,9 +144,10 @@ export function useUpsertCashFlowManuale() {
       if (error) throw error;
       return data as CashFlowManuale;
     },
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["cg", "cash-flow-manuali", vars.anno] });
-      qc.invalidateQueries({ queryKey: ["cg", "cash-flow", vars.anno] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cg", "cash-flow-manuali"] });
+      // Una voce di un anno vale anche per la previsione degli anni dopo.
+      qc.invalidateQueries({ queryKey: ["cg", "cash-flow"] });
     },
   });
 }

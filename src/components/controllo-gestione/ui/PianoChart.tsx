@@ -2,7 +2,8 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import type { PianoPeriodo } from "@/hooks/controlloGestione/usePianoIndustriale";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
+import { formatEuroBreve } from "@/lib/controlloGestione/indiciBanca";
 
 interface PianoChartProps {
   periodi: PianoPeriodo[];
@@ -26,7 +27,8 @@ export function PianoChart({ periodi }: PianoChartProps) {
           <YAxis
             yAxisId="left"
             tick={{ fontSize: 11 }}
-            tickFormatter={(v: number) => formatCurrencyCompact(v)}
+            tickFormatter={(v: number) => formatEuroBreve(v)}
+            width={84}
           />
           <YAxis
             yAxisId="right"
@@ -36,18 +38,18 @@ export function PianoChart({ periodi }: PianoChartProps) {
           />
           <Tooltip
             formatter={(value: number, name: string) => {
-              if (name === "Rating") return [`${Math.round(value)} / 100`, name];
+              if (name === "Rating (punti su 100)") return [`${Math.round(value)} su 100`, "Rating"];
               return [formatCurrency(value), name];
             }}
             contentStyle={{ borderRadius: 8, fontSize: 12 }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar yAxisId="left" dataKey="ricavi" name="Ricavi" fill="hsl(210, 90%, 55%)" radius={[4, 4, 0, 0]} />
-          <Line yAxisId="left" type="monotone" dataKey="ebitda" name="EBITDA"
+          <Line yAxisId="left" type="monotone" dataKey="ebitda" name="Margine operativo lordo"
             stroke="hsl(25, 95%, 55%)" strokeWidth={2} dot={{ r: 3 }} />
-          <Line yAxisId="left" type="monotone" dataKey="utile" name="Utile"
+          <Line yAxisId="left" type="monotone" dataKey="utile" name="Utile netto"
             stroke="hsl(142, 70%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
-          <Line yAxisId="right" type="monotone" dataKey="rating" name="Rating"
+          <Line yAxisId="right" type="monotone" dataKey="rating" name="Rating (punti su 100)"
             stroke="hsl(280, 70%, 55%)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
         </ComposedChart>
       </ResponsiveContainer>

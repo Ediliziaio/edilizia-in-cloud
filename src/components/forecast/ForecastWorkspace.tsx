@@ -1,9 +1,11 @@
-import { lazy, Suspense, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  Area,
-  AreaChart,
+  Bar,
   CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,22 +15,18 @@ import {
 import {
   ArrowRight,
   ArrowUpRight,
-  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
   Download,
-  Info,
-  Landmark,
   RefreshCw,
+  RotateCcw,
   Search,
-  ShieldCheck,
-  Wallet,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
 import { exportToCSV } from "@/lib/csvExport";
 import { formatCurrency } from "@/lib/formatters";
 import {
@@ -36,18 +34,18 @@ import {
   calendarDate,
   forecastExportRows,
   forecastWeeks,
+  meanCollectionDelay,
   moveDay,
   projectForecast,
+  validDay,
+  type ForecastCategory,
   type ForecastMovement,
   type ForecastScenario,
 } from "@/lib/finance/forecastLedger";
 import type { ForecastDataset } from "@/hooks/useForecastLedger";
 import { cn } from "@/lib/utils";
-import "./forecastWorkspace.css";
 
-const MarginTab = lazy(() =>
-  import("./MarginTab").then((m) => ({ default: m.MarginTab })),
-);
+// ─── Formati ────────────────────────────────────────────────────────────────────────────────
 const money = (cents: number | null): string =>
   cents == null ? "Non disponibile" : formatCurrency(cents / 100);
 const shortDate = (date: string | null): string =>
@@ -63,105 +61,232 @@ const fullDate = (date: string): string =>
     month: "short",
     year: "numeric",
   });
-const panel =
-  "rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950";
-interface Preferences {
+const compact = (cents: number): string =>
+  new Intl.NumberFormat("it-IT", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(cents / 100);
+const sum = (rows: ForecastMovement[]) =>
+  rows.reduce((total, m) => total + m.cents, 0);
+/** Colori dai token del tema (index.css), così il grafico segue chiaro e scuro. */
+const tone = {
+  in: "hsl(var(--success))",
+  out: "hsl(var(--destructive))",
+  balance: "hsl(var(--primary))",
+  threshold: "hsl(var(--warning))",
+  axis: "hsl(var(--muted-foreground))",
+  grid: "hsl(var(--border))",
+};
+const section = "rounded-xl border bg-card text-card-foreground";
+const selectClass = "h-9 min-w-0 rounded-md border bg-background px-2 text-xs";
+const filtroEtichetta =
+  "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
+// ─── Filtri comuni, nell'URL ────────────────────────────────────────────────────────────────
+const TABS = [
+  ["panoramica", "Panoramica"],
+  ["settimane", "Settimane"],
+  ["movimenti", "Movimenti"],
+  ["da-sistemare", "Da sistemare"],
+  ["incassato", "Incassato"],
+  ["fonti", "Fonti e ipotesi"],
+] as const;
+type TabKey = (typeof TABS)[number][0];
+const HORIZONS = [30, 60, 90, 180] as const;
+type ScenarioKey = "puntuali" | "reale" | "15" | "30";
+const DEFAULT_THRESHOLD = 500000;
+interface Filters {
+  tab: TabKey;
   horizon: number;
   threshold: number;
-  delay: number;
+  scenario: ScenarioKey;
   estimates: boolean;
-  overdue: boolean;
+  overdueIn: boolean;
+  overdueOut: boolean;
+  order: string;
+  category: string;
+  source: string;
 }
-const defaults: Preferences = {
-  horizon: 90,
-  threshold: 500000,
-  delay: 0,
-  estimates: true,
-  overdue: false,
-};
-interface MovementControls {
-  search: string;
-  direction: string;
-  page: number;
-}
-const defaultControls: MovementControls = {
-  search: "",
-  direction: "all",
-  page: 1,
-};
-function readPreferences(companyId: string): Preferences {
+const thresholdKey = (companyId: string) =>
+  `forecast-threshold-v1:${companyId}`;
+function storedThreshold(companyId: string): number {
   try {
-    const p = JSON.parse(
+    const own = localStorage.getItem(thresholdKey(companyId));
+    if (own != null && Number(own) >= 0) return Number(own);
+    // Le preferenze della versione precedente della pagina tenevano anche la soglia.
+    const old = JSON.parse(
       localStorage.getItem(`forecast-preferences-v1:${companyId}`) || "null",
     );
-    if (!p) return defaults;
-    return {
-      horizon: [30, 60, 90].includes(p.horizon) ? p.horizon : 90,
-      threshold:
-        Number.isFinite(p.threshold) && p.threshold >= 0 ? p.threshold : 500000,
-      delay: [0, 15, 30].includes(p.delay) ? p.delay : 0,
-      estimates: p.estimates !== false,
-      overdue: p.overdue === true,
-    };
+    if (Number.isFinite(old?.threshold) && old.threshold >= 0)
+      return old.threshold;
   } catch {
-    return defaults;
+    /* preferenza facoltativa */
+  }
+  return DEFAULT_THRESHOLD;
+}
+function readFilters(params: URLSearchParams, companyId: string): Filters {
+  const tab = params.get("scheda");
+  const horizon = Number(params.get("giorni"));
+  const soglia = params.get("soglia");
+  const scenario = params.get("scenario");
+  return {
+    tab: TABS.some(([key]) => key === tab) ? (tab as TabKey) : "panoramica",
+    horizon: (HORIZONS as readonly number[]).includes(horizon) ? horizon : 90,
+    threshold:
+      soglia != null && soglia !== "" && Number(soglia) >= 0
+        ? Math.round(Number(soglia) * 100)
+        : storedThreshold(companyId),
+    scenario: ["reale", "15", "30"].includes(scenario ?? "")
+      ? (scenario as ScenarioKey)
+      : "puntuali",
+    estimates: params.get("stime") !== "0",
+    overdueIn: params.get("incassi-scaduti") === "1",
+    overdueOut: params.get("uscite-scadute") === "1",
+    order: params.get("commessa") ?? "",
+    category: params.get("categoria") ?? "",
+    source: params.get("fonte") ?? "",
+  };
+}
+
+// ─── Date spostate a mano per un incasso: solo simulazione, solo su questo dispositivo ────────
+const overridesKey = (companyId: string) =>
+  `forecast-spostamenti-v1:${companyId}`;
+function readOverrides(companyId: string): Record<string, string> {
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(overridesKey(companyId)) || "{}",
+    ) as Record<string, unknown> | null;
+    return Object.fromEntries(
+      Object.entries(raw ?? {}).filter(
+        (e): e is [string, string] =>
+          typeof e[1] === "string" && !!validDay(e[1]),
+      ),
+    );
+  } catch {
+    return {};
   }
 }
+
+// ─── Pezzi di interfaccia ───────────────────────────────────────────────────────────────────
 function Metric({
   label,
   value,
   detail,
   danger = false,
-  icon: Icon,
 }: {
   label: string;
   value: string;
   detail: string;
   danger?: boolean;
-  icon: typeof Wallet;
 }) {
   return (
-    <div className={cn(panel, "forecast-metric min-w-0 p-4 shadow-sm sm:p-5")}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <Icon aria-hidden className="h-4 w-4 shrink-0 text-slate-400" />
-      </div>
+    <div className="min-w-0 px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p
         className={cn(
-          "break-words text-xl font-semibold tracking-tight tabular-nums sm:text-2xl",
-          danger && "text-rose-600",
+          "mt-1 break-words text-lg font-semibold tabular-nums sm:text-xl",
+          danger && "text-destructive",
         )}
       >
         {value}
       </p>
-      <p className="mt-2 text-xs leading-relaxed text-slate-500">{detail}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
     </div>
   );
 }
-function ActionRow({
-  title,
-  detail,
-  onClick,
+function EmptyState({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex min-h-40 flex-col items-center justify-center gap-1 p-6 text-center">
+      <Check className="h-5 w-5 text-muted-foreground" aria-hidden />
+      <p className="text-sm font-medium">{title}</p>
+      <p className="max-w-md text-xs text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+function SourceIssues({
+  issues,
+  onRefresh,
+  refreshing,
 }: {
-  title: string;
-  detail: string;
-  onClick: () => void;
+  issues: string[];
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
+  if (!issues.length) return null;
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p>
+        <strong>Previsione incompleta.</strong> Non si sono caricate:{" "}
+        {issues.join(", ")}. I numeri riguardano solo i dati letti.
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="shrink-0"
+      >
+        Riprova il caricamento
+      </Button>
+    </div>
+  );
+}
+function Toggle({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  children: ReactNode;
+}) {
+  // Interruttore a pillola: acceso = pieno, spento = solo bordo.
   return (
     <button
-      onClick={onClick}
-      className="forecast-action flex min-h-16 w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800"
+      type="button"
+      aria-pressed={checked}
+      aria-label={typeof children === "string" ? `Includi ${children.toLowerCase()}` : undefined}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs transition-colors",
+        checked
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "bg-background text-muted-foreground hover:text-foreground",
+      )}
     >
-      <span>
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">
-          {detail}
-        </span>
-      </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+      <span
+        aria-hidden
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          checked ? "bg-primary" : "bg-muted-foreground/40",
+        )}
+      />
+      {children}
     </button>
   );
 }
+
+type MovementView =
+  | "piano"
+  | "tutti"
+  | "incassi-scaduti"
+  | "uscite-scadute"
+  | "senza-data"
+  | "stime"
+  | "doppioni";
+const VIEWS: [MovementView, string][] = [
+  ["piano", "Nel piano"],
+  ["tutti", "Tutti i movimenti aperti"],
+  ["incassi-scaduti", "Incassi scaduti"],
+  ["uscite-scadute", "Uscite scadute"],
+  ["senza-data", "Senza data"],
+  ["stime", "Stime"],
+  ["doppioni", "Possibili doppioni"],
+];
+
 export function ForecastWorkspace({
   data,
   onRefresh,
@@ -171,136 +296,201 @@ export function ForecastWorkspace({
   onRefresh: () => void;
   refreshing?: boolean;
 }) {
-  const [prefs, setPrefs] = useState(() => readPreferences(data.companyId));
-  const [tab, setTab] = useState("cassa");
-  const [chartView, setChartView] = useState("giorni");
-  const [movementFilter, setMovementFilter] = useState("piano");
-  const [detailControls, setDetailControls] = useState(defaultControls);
-  const [collectedControls, setCollectedControls] = useState(defaultControls);
-  const [weekRange, setWeekRange] = useState<{
+  const [params, setParams] = useSearchParams();
+  const f = useMemo(
+    () => readFilters(params, data.companyId),
+    [params, data.companyId],
+  );
+  const setFilter = useCallback(
+    (changes: Record<string, string | null>) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(changes))
+            if (value == null || value === "") next.delete(key);
+            else next.set(key, value);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+  const setThreshold = (cents: number) => {
+    setFilter({ soglia: String(cents / 100) });
+    try {
+      localStorage.setItem(thresholdKey(data.companyId), String(cents));
+    } catch {
+      /* preferenza facoltativa */
+    }
+  };
+  const resetFilters = () => {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams();
+        const tab = prev.get("scheda");
+        if (tab) next.set("scheda", tab);
+        return next;
+      },
+      { replace: true },
+    );
+    try {
+      localStorage.removeItem(thresholdKey(data.companyId));
+    } catch {
+      /* preferenza facoltativa */
+    }
+  };
+  const [overrides, setOverrides] = useState(() =>
+    readOverrides(data.companyId),
+  );
+  const saveOverrides = (next: Record<string, string>) => {
+    setOverrides(next);
+    try {
+      localStorage.setItem(overridesKey(data.companyId), JSON.stringify(next));
+    } catch {
+      /* simulazione facoltativa */
+    }
+  };
+  const [view, setView] = useState<MovementView>("piano");
+  const [period, setPeriod] = useState<{ start: string; end: string } | null>(
+    null,
+  );
+  const [chartPeriod, setChartPeriod] = useState<{
     start: string;
     end: string;
   } | null>(null);
-  const updatePrefs = (changes: Partial<Preferences>) => {
-    const next = { ...prefs, ...changes };
-    setPrefs(next);
-    setWeekRange(null);
-    try {
-      localStorage.setItem(
-        `forecast-preferences-v1:${data.companyId}`,
-        JSON.stringify(next),
-      );
-    } catch {
-      /* optional preferences */
-    }
-  };
+  const [granularity, setGranularity] = useState<"giorni" | "settimane">(
+    "giorni",
+  );
+
+  const delay = useMemo(
+    () => meanCollectionDelay(data.collected, data.today),
+    [data.collected, data.today],
+  );
+  const delayDays =
+    f.scenario === "reale"
+      ? (delay.days ?? 0)
+      : f.scenario === "puntuali"
+        ? 0
+        : Number(f.scenario);
   const scenario: ForecastScenario = useMemo(
     () => ({
-      delayDays: prefs.delay,
-      includeEstimates: prefs.estimates,
-      includeOverdueIncome: prefs.overdue,
+      delayDays,
+      includeEstimates: f.estimates,
+      includeOverdueIncome: f.overdueIn,
+      includeOverdueExpense: f.overdueOut,
+      dateOverrides: overrides,
     }),
-    [prefs.delay, prefs.estimates, prefs.overdue],
+    [delayDays, f.estimates, f.overdueIn, f.overdueOut, overrides],
+  );
+  const filtered = !!(f.order || f.category || f.source);
+  const movements = useMemo(
+    () =>
+      data.movements.filter(
+        (m) =>
+          (!f.order || m.orderId === f.order) &&
+          (!f.category || m.category === f.category) &&
+          (!f.source || m.source === f.source),
+      ),
+    [data.movements, f.order, f.category, f.source],
   );
   const projection = useMemo(
     () =>
       projectForecast(
-        data.movements,
+        movements,
         data.opening.cents,
         data.today,
-        prefs.horizon,
-        prefs.threshold,
+        f.horizon,
+        f.threshold,
         scenario,
       ),
-    [data, prefs.horizon, prefs.threshold, scenario],
+    [
+      movements,
+      data.opening.cents,
+      data.today,
+      f.horizon,
+      f.threshold,
+      scenario,
+    ],
   );
   const weeks = useMemo(() => forecastWeeks(projection.days), [projection]);
-  const scenarios = useMemo(
-    () =>
-      [0, 15, 30].map((delay) => ({
-        delay,
-        plan: projectForecast(
-          data.movements,
-          data.opening.cents,
-          data.today,
-          prefs.horizon,
-          prefs.threshold,
-          { ...scenario, delayDays: delay },
-        ),
-      })),
-    [data, prefs.horizon, prefs.threshold, scenario],
+  const orders = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of data.movements)
+      if (m.orderId && !map.has(m.orderId))
+        map.set(m.orderId, m.orderLabel || "Commessa senza codice");
+    return [...map].sort((a, b) => a[1].localeCompare(b[1], "it"));
+  }, [data.movements]);
+  const sources = useMemo(
+    () => [...new Set(data.movements.map((m) => m.source))].sort(),
+    [data.movements],
   );
-  const pendingIncome = data.movements.filter(
-    (m) => m.direction === "in" && (!m.date || m.date < data.today),
-  );
-  const overdueCount = data.movements.filter(
-    (m) => m.direction === "in" && m.date && m.date < data.today,
-  ).length;
-  const undatedExpense = projection.undated
-    .filter((m) => m.direction === "out")
-    .reduce((sum, m) => sum + m.cents, 0);
+  const categories = useMemo(() => {
+    const present = new Set(data.movements.map((m) => m.category));
+    return (Object.keys(FORECAST_CATEGORIES) as ForecastCategory[]).filter(
+      (c) => present.has(c),
+    );
+  }, [data.movements]);
+
+  // Scaduti: contati sui movimenti, a prescindere dagli interruttori (che decidono solo il piano).
+  const [overdueIncome, overdueExpense] = useMemo(() => {
+    const overdue = (direction: "in" | "out") =>
+      movements.filter(
+        (m) =>
+          m.direction === direction &&
+          !m.possibleDuplicate &&
+          !!m.date &&
+          m.date < data.today,
+      );
+    return [overdue("in"), overdue("out")];
+  }, [movements, data.today]);
+  const estimatesIncluded = projection.included.filter((m) => m.estimated);
+  // Vecchio = il conto aggiornato meno di recente, tra quelli che hanno una data, è fermo a
+  // prima di ieri. I conti senza data si segnalano a parte: non spengono e non accendono l'avviso.
   const bankOld =
     data.opening.source === "banca" &&
-    (!data.opening.updatedAt ||
-      data.opening.updatedAt.slice(0, 10) < moveDay(data.today, -1));
+    !!data.opening.updatedAt &&
+    data.opening.updatedAt.slice(0, 10) < moveDay(data.today, -1);
+  const undatedAccounts =
+    data.opening.source === "banca" ? (data.opening.undatedAccounts ?? 0) : 0;
+  const bankNote = bankOld
+    ? `Il saldo bancario è aggiornato al ${shortDate(data.opening.updatedAt)}: sincronizza i conti in Tesoreria.`
+    : undatedAccounts
+      ? `${undatedAccounts === 1 ? "Un conto non ha" : `${undatedAccounts} conti non hanno`} la data di aggiornamento del saldo: verificalo in Tesoreria.`
+      : null;
   const incomplete = data.issues.length > 0;
-  const openMovements = (filter: string) => {
-    setDetailControls(defaultControls);
-    setMovementFilter(filter);
-    setWeekRange(null);
-    setTab("movimenti");
-  };
-  const plannedMap = useMemo(
-    () => new Map(projection.included.map((m) => [m.id, m])),
-    [projection],
+  const issues = (
+    <SourceIssues
+      issues={data.issues}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+    />
   );
-  const detailMovements = useMemo(() => {
-    if (weekRange)
-      return projection.included.filter(
-        (m) => m.date && m.date >= weekRange.start && m.date <= weekRange.end,
-      );
-    if (movementFilter === "piano") return projection.included;
-    if (movementFilter === "scaduti")
-      return data.movements.filter(
-        (m) => m.direction === "in" && m.date && m.date < data.today,
-      );
-    if (movementFilter === "senza-data") return projection.undated;
-    if (movementFilter === "stime")
-      return data.movements.filter((m) => m.estimated);
-    return data.movements.map((m) => plannedMap.get(m.id) ?? m);
-  }, [data, projection, movementFilter, weekRange, plannedMap]);
-  const collected = data.collected.filter(
-    (m) =>
-      m.date && m.date >= moveDay(data.today, -366) && m.date <= data.today,
-  );
-  const comparable = collected.filter((m) => m.date && m.expectedDate);
-  const lateDays = (m: ForecastMovement) => {
-    if (!m.date || !m.expectedDate) return null;
-    const ordinal = (value: string) => {
-      const d = calendarDate(value);
-      return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-    };
-    return Math.max(
-      0,
-      Math.round((ordinal(m.date) - ordinal(m.expectedDate)) / 86400000),
-    );
+  const openMovements = (
+    next: MovementView,
+    range?: { start: string; end: string },
+  ) => {
+    setView(next);
+    setPeriod(range ?? null);
+    setFilter({ scheda: "movimenti" });
   };
-  const meanDelay = comparable.length
-    ? Math.round(
-        comparable.reduce((sum, m) => sum + lateDays(m)!, 0) /
-          comparable.length,
-      )
-    : null;
   const exportPlan = () => {
     const rows = forecastExportRows(
       projection,
       data.opening.cents,
-      prefs.threshold,
+      f.threshold,
       scenario,
     ).map((row) => ({
       ...row,
       dal: data.today,
-      al: moveDay(data.today, prefs.horizon - 1),
+      al: moveDay(data.today, f.horizon - 1),
+      filtri: [
+        f.order &&
+          `Commessa ${orders.find(([id]) => id === f.order)?.[1] ?? f.order}`,
+        f.category && FORECAST_CATEGORIES[f.category as ForecastCategory],
+        f.source && `Fonte ${f.source}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       qualita_dati: incomplete
         ? `Incompleto: ${data.issues.join(", ")}`
         : "Fonti caricate",
@@ -322,46 +512,146 @@ export function ForecastWorkspace({
       ritardo_giorni: "Ritardo incassi (giorni)",
       dal: "Dal",
       al: "Al",
+      filtri: "Filtri",
       qualita_dati: "Qualità dati",
       aggiornamento: "Aggiornato il",
     };
     exportToCSV(
       rows,
       Object.entries(labels).map(([key, label]) => ({ key, label })),
-      `previsionale-${data.today}-${prefs.horizon}gg.csv`,
+      `previsionale-${data.today}-${f.horizon}gg.csv`,
     );
   };
+
+  // Grafico: barre entrate/uscite del giorno o della settimana, linea del saldo.
+  const chartRows = useMemo(
+    () =>
+      granularity === "giorni"
+        ? projection.days.map((d) => ({
+            start: d.date,
+            end: d.date,
+            label: shortDate(d.date),
+            income: d.income,
+            expense: -d.expense,
+            balance: d.balance,
+          }))
+        : weeks.map((w) => ({
+            start: w.start,
+            end: w.end,
+            label: shortDate(w.start),
+            income: w.income,
+            expense: -w.expense,
+            balance: w.balance,
+          })),
+    [granularity, projection.days, weeks],
+  );
+  // Clic su un giorno o una settimana, da uno qualunque dei due grafici.
+  const apriPeriodoDelGrafico = (state: unknown) => {
+    const index = Number(
+      (state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex,
+    );
+    const row = Number.isInteger(index) ? chartRows[index] : undefined;
+    if (row) setChartPeriod({ start: row.start, end: row.end });
+  };
+  const minimumRow =
+    projection.minimumDate == null
+      ? undefined
+      : chartRows.find(
+          (r) =>
+            r.start <= projection.minimumDate! &&
+            projection.minimumDate! <= r.end,
+        );
+  const chartMovements = chartPeriod
+    ? projection.included.filter(
+        (m) =>
+          m.date && m.date >= chartPeriod.start && m.date <= chartPeriod.end,
+      )
+    : [];
+  const listRows = useMemo(() => {
+    if (period)
+      return projection.included.filter(
+        (m) => m.date && m.date >= period.start && m.date <= period.end,
+      );
+    switch (view) {
+      case "piano":
+        return projection.included;
+      case "incassi-scaduti":
+        return overdueIncome;
+      case "uscite-scadute":
+        return overdueExpense;
+      case "senza-data":
+        return projection.undated;
+      case "stime":
+        return movements.filter((m) => m.estimated);
+      case "doppioni":
+        return projection.possibleDuplicates;
+      default: {
+        const planned = new Map(projection.included.map((m) => [m.id, m]));
+        return movements.map((m) => planned.get(m.id) ?? m);
+      }
+    }
+  }, [period, view, projection, movements, overdueIncome, overdueExpense]);
+  const todo: {
+    key: MovementView;
+    title: string;
+    rows: ForecastMovement[];
+    hint: string;
+    fix: { to: string; label: string } | null;
+  }[] = [
+    {
+      key: "incassi-scaduti",
+      title: "Incassi scaduti",
+      rows: overdueIncome,
+      hint: f.overdueIn
+        ? "Inclusi nel piano da oggi (interruttore attivo)."
+        : "Fuori dal piano finché non li includi: sollecita il cliente o segna l’incasso.",
+      fix: { to: "/azienda/scadenzario", label: "Apri Scadenzario" },
+    },
+    {
+      key: "uscite-scadute",
+      title: "Uscite scadute non segnate pagate",
+      rows: overdueExpense,
+      hint: f.overdueOut
+        ? "Incluse nel piano da oggi (interruttore attivo)."
+        : "Fuori dal piano: se le hai già pagate segnale pagate, altrimenti includile.",
+      fix: { to: "/azienda/costi", label: "Apri Spese" },
+    },
+    {
+      key: "senza-data",
+      title: "Movimenti senza data",
+      rows: projection.undated,
+      hint: "Non entrano nel saldo: aggiungi la scadenza nel documento di origine.",
+      fix: null,
+    },
+    {
+      key: "stime",
+      title: "Stime incluse",
+      rows: estimatesIncluded,
+      hint: "Stipendi, ricorrenze, ODA, IVA: verifica importi e date.",
+      fix: null,
+    },
+    {
+      key: "doppioni",
+      title: "Possibili doppioni",
+      rows: projection.possibleDuplicates,
+      hint: "Fatture di commessa non collegate a una rata: collegale per contarle una volta sola.",
+      fix: { to: "/azienda/ordini", label: "Apri Commesse" },
+    },
+  ];
+
   return (
-    <div
-      className="forecast-workspace space-y-6 pb-8 text-slate-900 dark:text-slate-100"
-      data-testid="forecast-workspace"
-    >
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="space-y-4 pb-8" data-testid="forecast-workspace">
+      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[.18em] text-slate-500">
-            Finanza · Pianificazione
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Previsionale
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            La cassa che avrai. Le scadenze da gestire prima.
-          </p>
+          <h1 className="text-lg font-bold leading-6">Previsionale di cassa</h1>
           <p
-            className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500"
+            className="mt-0.5 text-xs text-muted-foreground"
             role="status"
             aria-live="polite"
           >
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                incomplete ? "bg-amber-500" : "bg-emerald-500",
-              )}
-              aria-hidden
-            />
             {refreshing
               ? "Caricamento dei dati in corso…"
-              : `Dati caricati alle ${new Date(data.updatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
+              : `La cassa che avrai, dal ${fullDate(data.today)}. Dati caricati alle ${new Date(data.updatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}.`}
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
@@ -370,721 +660,994 @@ export function ForecastWorkspace({
             size="sm"
             onClick={onRefresh}
             disabled={refreshing}
-            className="h-10 rounded-xl"
           >
             <RefreshCw
               className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")}
             />
             {refreshing ? "Aggiornamento" : "Aggiorna"}
           </Button>
-          <Button
-            size="sm"
-            onClick={exportPlan}
-            className="h-10 rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-          >
+          <Button size="sm" onClick={exportPlan}>
             <Download className="mr-2 h-4 w-4" />
             Esporta piano
           </Button>
         </div>
       </header>
-      {incomplete && (
-        <div
-          role="alert"
-          className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-        >
-          <strong>
-            Previsione incompleta: alcune fonti non sono disponibili.
-          </strong>
-          <p>
-            Da ricaricare: {data.issues.join(", ")}. I valori riguardano solo i
-            dati letti; verifica prima di prendere decisioni.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onRefresh}
-            disabled={refreshing}
-          >
-            Riprova il caricamento
-          </Button>
-        </div>
-      )}
-      {(bankOld || data.opening.warning) && (
-        <div
-          role="status"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-        >
-          {data.opening.warning ||
-            "Il saldo bancario non ha un aggiornamento recente. Sincronizza i conti in Tesoreria."}{" "}
-          <Link className="font-semibold underline" to="/azienda/tesoreria">
-            Apri Tesoreria
-          </Link>
-        </div>
-      )}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList
-          data-tab-index={[
-            "cassa",
-            "movimenti",
-            "incassato",
-            "marginalita",
-          ].indexOf(tab)}
-          className="forecast-tabs mb-6 grid h-auto w-full grid-cols-4 rounded-xl bg-slate-100 p-1 dark:bg-slate-900 sm:w-fit sm:min-w-[440px] print:hidden"
-        >
-          {[
-            ["cassa", "Cassa futura"],
-            ["movimenti", "Movimenti"],
-            ["incassato", "Incassato"],
-            ["marginalita", "Marginalità"],
-          ].map(([value, label]) => (
-            <TabsTrigger
-              key={value}
-              value={value}
-              className="min-h-10 rounded-lg px-1 text-[11px] sm:px-4 sm:text-sm"
+
+      {/* Barra filtri comune a tutte le schede: sopra le ipotesi del piano,
+          sotto cosa entra e quali movimenti guardare. */}
+      <div
+        role="group"
+        aria-label="Filtri del previsionale"
+        className={cn(section, "divide-y print:hidden")}
+      >
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3 p-3">
+          <div className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Orizzonte</span>
+            <div
+              className="flex rounded-md bg-muted p-0.5"
+              role="group"
+              aria-label="Orizzonte previsione"
             >
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value="cassa" className="mt-0 space-y-5">
-          <div
-            className={cn(
-              panel,
-              "flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between print:hidden",
-            )}
-          >
-            <div className="flex gap-1" aria-label="Orizzonte previsione">
-              {[30, 60, 90].map((days) => (
-                <Button
+              {HORIZONS.map((days) => (
+                <button
                   key={days}
-                  size="sm"
-                  variant={prefs.horizon === days ? "default" : "ghost"}
-                  aria-pressed={prefs.horizon === days}
+                  aria-pressed={f.horizon === days}
+                  onClick={() =>
+                    setFilter({ giorni: days === 90 ? null : String(days) })
+                  }
                   className={cn(
-                    "h-10 flex-1 rounded-lg sm:flex-none",
-                    prefs.horizon === days &&
-                      "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900",
+                    "min-h-8 rounded px-2.5 text-xs tabular-nums",
+                    f.horizon === days && "bg-background font-semibold shadow-sm",
                   )}
-                  onClick={() => updatePrefs({ horizon: days })}
                 >
                   {days} giorni
-                </Button>
+                </button>
               ))}
             </div>
-            <label className="flex items-center justify-between gap-3 text-xs text-slate-500 sm:justify-start">
-              Soglia di sicurezza €
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Incassi</span>
+            <select
+              aria-label="Scenario incassi"
+              className={cn(selectClass, "w-52")}
+              value={f.scenario}
+              onChange={(e) =>
+                setFilter({
+                  scenario: e.target.value === "puntuali" ? null : e.target.value,
+                })
+              }
+            >
+              <option value="puntuali">Incassi puntuali</option>
+              <option value="reale" disabled={delay.days == null}>
+                {delay.days == null
+                  ? "Ritardo medio reale (non disponibile)"
+                  : `Ritardo medio reale (${delay.days} giorni)`}
+              </option>
+              <option value="15">Incassi +15 giorni</option>
+              <option value="30">Incassi +30 giorni</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={filtroEtichetta}>Soglia di sicurezza</span>
+            <div className="relative">
               <Input
                 aria-label="Soglia di sicurezza in euro"
                 type="number"
                 min="0"
                 step="100"
-                value={prefs.threshold / 100}
+                value={f.threshold / 100}
                 onChange={(e) =>
-                  updatePrefs({
-                    threshold: Math.max(
-                      0,
-                      Math.round(Number(e.target.value) * 100),
-                    ),
-                  })
+                  setThreshold(
+                    Math.max(0, Math.round(Number(e.target.value) * 100)),
+                  )
                 }
-                className="h-10 w-28 rounded-lg text-right tabular-nums"
+                className="h-9 w-32 pr-7 text-right text-xs tabular-nums"
               />
-            </label>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                €
+              </span>
+            </div>
+          </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetFilters}
+            className="ml-auto h-9 text-muted-foreground"
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Azzera filtri
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Cosa includere">
+            <span className={cn(filtroEtichetta, "mr-1")}>Includi</span>
+            <Toggle
+              checked={f.estimates}
+              onChange={(v) => setFilter({ stime: v ? null : "0" })}
+            >
+              Stime
+            </Toggle>
+            <Toggle
+              checked={f.overdueIn}
+              onChange={(v) => setFilter({ "incassi-scaduti": v ? "1" : null })}
+            >
+              Incassi scaduti
+            </Toggle>
+            <Toggle
+              checked={f.overdueOut}
+              onChange={(v) => setFilter({ "uscite-scadute": v ? "1" : null })}
+            >
+              Uscite scadute
+            </Toggle>
           </div>
-          <div className="forecast-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtra i movimenti">
+            <span className={cn(filtroEtichetta, "mr-1")}>Filtra</span>
+            <select
+              aria-label="Commessa"
+              className={cn(selectClass, "w-44")}
+              value={f.order}
+              onChange={(e) => setFilter({ commessa: e.target.value })}
+            >
+              <option value="">Tutte le commesse</option>
+              {orders.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Categoria"
+              className={cn(selectClass, "w-40")}
+              value={f.category}
+              onChange={(e) => setFilter({ categoria: e.target.value })}
+            >
+              <option value="">Tutte le categorie</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {FORECAST_CATEGORIES[c]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Fonte"
+              className={cn(selectClass, "w-36")}
+              value={f.source}
+              onChange={(e) => setFilter({ fonte: e.target.value })}
+            >
+              <option value="">Tutte le fonti</option>
+              {sources.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+      {filtered && (
+        <p className="text-xs text-muted-foreground">
+          Vista filtrata: il saldo parte dalla disponibilità di tutta l’azienda
+          e somma solo i movimenti scelti.
+        </p>
+      )}
+      {(bankNote || data.opening.warning) && (
+        <p
+          role="status"
+          className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm"
+        >
+          {data.opening.warning || bankNote}{" "}
+          <Link className="font-semibold underline" to="/azienda/tesoreria">
+            Apri Tesoreria
+          </Link>
+        </p>
+      )}
+
+      <Tabs
+        value={f.tab}
+        onValueChange={(tab) =>
+          setFilter({ scheda: tab === "panoramica" ? null : tab })
+        }
+      >
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 print:hidden">
+          <TabsList className="h-auto w-max justify-start">
+            {TABS.map(([value, label]) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="min-h-9 px-3 text-xs sm:text-sm"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+
+        {/* ── Panoramica ── */}
+        <TabsContent value="panoramica" className="mt-4 space-y-4">
+          {issues}
+          <div
+            className={cn(
+              section,
+              "grid grid-cols-2 lg:grid-cols-4 lg:divide-x [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0",
+            )}
+          >
             <Metric
-              icon={Landmark}
-              label="Disponibilità di partenza"
+              label="Disponibilità oggi"
               value={money(data.opening.cents)}
               detail={
                 data.opening.source === "banca"
-                  ? `Banca · disponibile ove presente${data.opening.updatedAt ? ` · ${shortDate(data.opening.updatedAt)}` : ""}`
+                  ? `Banca${data.opening.updatedAt ? ` · al ${shortDate(data.opening.updatedAt)}` : ""}`
                   : data.opening.source === "prima-nota"
-                    ? "Prima Nota · saldo registrato fino a oggi"
+                    ? "Prima Nota · saldo fino a oggi"
                     : "Collega un conto o completa la Prima Nota"
               }
             />
             <Metric
-              icon={Wallet}
-              label={`Minimo nei ${prefs.horizon} giorni`}
+              label="Punto più basso"
               value={money(projection.minimum)}
               detail={
                 projection.minimumDate
-                  ? `Il ${shortDate(projection.minimumDate)} · saldo a fine giornata`
+                  ? `Il ${shortDate(projection.minimumDate)} · nei ${f.horizon} giorni`
                   : "Serve un saldo di partenza"
               }
               danger={!!projection.need}
             />
             <Metric
-              icon={ShieldCheck}
-              label="Fabbisogno sopra soglia"
+              label="Ti mancano"
               value={money(projection.need)}
-              detail={`Per mantenere almeno ${money(prefs.threshold)}`}
+              detail={`per restare sopra ${money(f.threshold)}`}
               danger={!!projection.need}
             />
             <Metric
-              icon={CalendarDays}
-              label="Incassi da confermare"
-              value={money(pendingIncome.reduce((s, m) => s + m.cents, 0))}
-              detail={`${pendingIncome.length} ${pendingIncome.length === 1 ? "movimento scaduto o senza data" : "movimenti scaduti o senza data"}`}
+              label="Incassi scaduti da sollecitare"
+              value={money(sum(overdueIncome))}
+              detail={`${overdueIncome.length} ${overdueIncome.length === 1 ? "incasso" : "incassi"} oltre la scadenza`}
             />
           </div>
           <div
             className={cn(
-              "flex flex-col justify-between gap-4 rounded-2xl p-5 sm:flex-row sm:items-center",
+              "flex flex-col justify-between gap-3 rounded-xl border p-4 sm:flex-row sm:items-center",
               projection.need
-                ? "bg-rose-50 text-rose-950 dark:bg-rose-950/40 dark:text-rose-100"
-                : "bg-slate-900 text-white dark:bg-slate-800",
+                ? "border-destructive/40 bg-destructive/5"
+                : "bg-muted/40",
             )}
           >
             <div>
-              <p className="text-xs font-medium opacity-70">
-                {incomplete
-                  ? "Piano parziale"
-                  : prefs.delay
-                    ? `Simulazione · incassi in ritardo di ${prefs.delay} giorni`
-                    : "Piano delle scadenze"}
+              <p className="text-xs text-muted-foreground">
+                {delayDays
+                  ? `Simulazione · incassi in ritardo di ${delayDays} giorni`
+                  : "Piano delle scadenze"}
               </p>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight">
+              <h2 className="mt-0.5 text-base font-semibold">
                 {data.opening.cents == null
                   ? "Completa il saldo per conoscere la cassa futura"
-                  : incomplete || bankOld
-                    ? "Verifica i dati prima di confermare il piano"
-                    : projection.firstBelow
-                      ? `Sotto la soglia dal ${shortDate(projection.firstBelow)}`
-                      : "La cassa prevista resta sopra la soglia"}
+                  : projection.firstBelow
+                    ? `Sotto la soglia dal ${shortDate(projection.firstBelow)}`
+                    : "La cassa prevista resta sopra la soglia"}
               </h2>
-              <p className="mt-1 text-sm opacity-80">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {data.opening.cents == null
                   ? "Entrate e uscite sono consultabili. Il saldo non viene sostituito con uno zero."
                   : `A fine periodo: ${money(projection.finalBalance)} · flusso del periodo: ${money(projection.net)}.`}
               </p>
+              {data.opening.cents != null && (incomplete || bankNote) && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {incomplete
+                    ? `Verifica prima di decidere: mancano ${data.issues.join(", ")}.`
+                    : bankNote}
+                </p>
+              )}
             </div>
             <Button
-              variant="secondary"
-              className="h-10 w-fit shrink-0 rounded-xl"
+              variant="outline"
+              size="sm"
               onClick={() => openMovements("piano")}
             >
               Esamina i movimenti
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
-          <section className={cn(panel, "overflow-hidden")}>
-            <div className="flex flex-wrap items-start justify-between gap-3 p-5">
+          <section className={cn(section, "overflow-hidden")}>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
               <div>
-                <h2 className="font-semibold">Andamento della cassa</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Dal {fullDate(data.today)} al{" "}
-                  {fullDate(moveDay(data.today, prefs.horizon - 1))}. Stesso
-                  piano per grafico, totali ed esportazione.
+                <h2 className="text-sm font-semibold">Andamento della cassa</h2>
+                <p className="text-xs text-muted-foreground">
+                  Entrate{" "}
+                  <strong className="tabular-nums text-success">
+                    {money(projection.income)}
+                  </strong>{" "}
+                  · Uscite{" "}
+                  <strong className="tabular-nums text-destructive">
+                    {money(projection.expense)}
+                  </strong>{" "}
+                  · Tocca una barra per vedere i movimenti.
                 </p>
               </div>
-              <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-900 print:hidden">
-                {["giorni", "settimane"].map((view) => (
+              <div className="flex rounded-md bg-muted p-0.5">
+                {(["giorni", "settimane"] as const).map((g) => (
                   <button
-                    key={view}
-                    onClick={() => setChartView(view)}
-                    aria-pressed={chartView === view}
+                    key={g}
+                    aria-pressed={granularity === g}
+                    onClick={() => {
+                      setGranularity(g);
+                      setChartPeriod(null);
+                    }}
                     className={cn(
-                      "min-h-9 rounded-md px-3 text-xs capitalize",
-                      chartView === view &&
-                        "bg-white font-semibold shadow-sm dark:bg-slate-800",
+                      "min-h-8 rounded px-2.5 text-xs",
+                      granularity === g &&
+                        "bg-background font-semibold shadow-sm",
                     )}
                   >
-                    {view}
+                    {g === "giorni" ? "Per giorno" : "Per settimana"}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 border-y border-slate-100 px-5 py-3 text-sm dark:border-slate-800">
-              <p className="text-slate-500">
-                Entrate nel piano{" "}
-                <strong className="ml-2 block text-emerald-600 sm:inline">
-                  {money(projection.income)}
-                </strong>
-              </p>
-              <p className="text-slate-500">
-                Uscite nel piano{" "}
-                <strong className="ml-2 block text-rose-600 sm:inline">
-                  {money(projection.expense)}
-                </strong>
-              </p>
-            </div>
-            {chartView === "settimane" ? (
-              <div className="forecast-view">
-                <div className="divide-y divide-slate-100 px-4 dark:divide-slate-800 sm:hidden">
-                  {weeks.map((w) => (
-                    <button
-                      key={w.start}
-                      className={cn(
-                        "forecast-week w-full rounded-lg py-4 text-left",
-                        w.minimum != null &&
-                          w.minimum < prefs.threshold &&
-                          "text-rose-700 dark:text-rose-300",
-                      )}
-                      aria-label={`Apri settimana ${shortDate(w.start)}`}
-                      onClick={() => {
-                        setDetailControls(defaultControls);
-                        setWeekRange({ start: w.start, end: w.end });
-                        setMovementFilter("piano");
-                        setTab("movimenti");
-                      }}
-                    >
-                      <span className="flex items-center justify-between text-sm font-semibold">
-                        {shortDate(w.start)} – {shortDate(w.end)}
-                        <ArrowRight className="h-4 w-4" aria-hidden />
-                      </span>
-                      <span className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                        <span className="text-slate-500">
-                          Entrate{" "}
-                          <strong className="mt-1 block font-medium tabular-nums text-emerald-600">
-                            {money(w.income)}
-                          </strong>
-                        </span>
-                        <span className="text-slate-500">
-                          Uscite{" "}
-                          <strong className="mt-1 block font-medium tabular-nums text-rose-600">
-                            {money(w.expense)}
-                          </strong>
-                        </span>
-                        <span>
-                          Minimo giornaliero{" "}
-                          <strong className="mt-1 block font-semibold tabular-nums">
-                            {money(w.minimum)}
-                          </strong>
-                        </span>
-                        <span className="text-slate-500">
-                          Saldo finale{" "}
-                          <strong className="mt-1 block font-medium tabular-nums text-slate-900 dark:text-slate-100">
-                            {money(w.balance)}
-                          </strong>
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="hidden overflow-x-auto p-5 sm:block">
-                  <table className="w-full min-w-[670px] text-sm">
-                    <caption className="sr-only">
-                      Piano settimanale con minimo giornaliero e saldo finale
-                    </caption>
-                    <thead>
-                      <tr className="border-b text-left text-xs text-slate-500">
-                        {[
-                          "Periodo",
-                          "Entrate",
-                          "Uscite",
-                          "Minimo giornaliero",
-                          "Saldo finale",
-                        ].map((label, i) => (
-                          <th
-                            key={label}
-                            className={cn(
-                              "pb-3 font-medium",
-                              i > 0 && "text-right",
-                            )}
-                          >
-                            {label}
-                          </th>
-                        ))}
-                        <th>
-                          <span className="sr-only">Dettaglio</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeks.map((w) => (
-                        <tr
-                          key={w.start}
-                          className={cn(
-                            "border-b border-slate-100 dark:border-slate-800",
-                            w.minimum != null &&
-                              w.minimum < prefs.threshold &&
-                              "bg-rose-50/70 dark:bg-rose-950/20",
-                          )}
-                        >
-                          <td className="py-3 pr-3 text-xs">
-                            {shortDate(w.start)} – {shortDate(w.end)}
-                          </td>
-                          {[w.income, w.expense, w.minimum, w.balance].map(
-                            (value, i) => (
-                              <td
-                                key={i}
-                                className={cn(
-                                  "py-3 text-right tabular-nums",
-                                  i === 0 && "text-emerald-600",
-                                  i === 1 && "text-rose-600",
-                                  i === 2 && "font-medium",
-                                )}
-                              >
-                                {money(value)}
-                              </td>
-                            ),
-                          )}
-                          <td className="pl-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Apri movimenti ${shortDate(w.start)}`}
-                              onClick={() => {
-                                setDetailControls(defaultControls);
-                                setWeekRange({ start: w.start, end: w.end });
-                                setMovementFilter("piano");
-                                setTab("movimenti");
-                              }}
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : data.opening.cents == null ? (
-              <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
-                <Landmark className="h-7 w-7 text-slate-400" />
-                <p className="text-sm text-slate-500">
+            {data.opening.cents == null ? (
+              <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 p-6 text-center">
+                <p className="text-sm text-muted-foreground">
                   Il grafico del saldo richiede una disponibilità iniziale.
                 </p>
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" size="sm">
                   <Link to="/azienda/tesoreria">Completa in Tesoreria</Link>
                 </Button>
               </div>
             ) : (
               <div
-                className="forecast-view h-[290px] w-full px-1 py-5 sm:px-4"
-                aria-label="Grafico saldo giornaliero"
+                className="w-full px-1 pt-3 sm:px-3"
+                aria-label="Grafico saldo con entrate e uscite"
               >
+                {/* Saldo e, sotto, entrate e uscite: due grafici con la stessa linea del
+                    tempo e ognuno la sua scala, invece di due scale sovrapposte. */}
+                <div className="h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={projection.days}
-                    margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+                  <ComposedChart
+                    data={chartRows}
+                    margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
+                    syncId="previsionale-cassa"
+                    onClick={apriPeriodoDelGrafico}
                   >
                     <CartesianGrid
                       strokeDasharray="3 6"
                       vertical={false}
-                      opacity={0.25}
+                      stroke={tone.grid}
                     />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={shortDate}
-                      minTickGap={45}
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                    />
+                    <XAxis dataKey="label" hide />
                     <YAxis
-                      width={67}
-                      tickFormatter={(value) =>
-                        new Intl.NumberFormat("it-IT", {
-                          notation: "compact",
-                          maximumFractionDigits: 1,
-                        }).format(value / 100)
-                      }
+                      yAxisId="saldo"
+                      width={60}
+                      tickFormatter={compact}
                       tickLine={false}
                       axisLine={false}
                       fontSize={11}
+                      stroke={tone.axis}
                     />
                     <Tooltip
-                      labelFormatter={(value) => shortDate(String(value))}
-                      formatter={(value: number) => [money(value), "Saldo"]}
-                      contentStyle={{ borderRadius: 12, fontSize: 12 }}
+                      formatter={(value: number, name: string) => [
+                        money(Math.abs(value)),
+                        name === "income"
+                          ? "Entrate"
+                          : name === "expense"
+                            ? "Uscite"
+                            : "Saldo",
+                      ]}
+                      contentStyle={{
+                        borderRadius: 8,
+                        fontSize: 12,
+                        background: "hsl(var(--popover))",
+                        borderColor: "hsl(var(--border))",
+                        color: "hsl(var(--popover-foreground))",
+                      }}
                     />
                     <ReferenceLine
-                      y={prefs.threshold}
-                      stroke="#d97706"
+                      yAxisId="saldo"
+                      y={f.threshold}
+                      stroke={tone.threshold}
                       strokeDasharray="5 5"
                       label={{
                         value: "Soglia",
                         position: "insideTopRight",
-                        fill: "#b45309",
+                        fill: tone.axis,
                         fontSize: 10,
                       }}
                     />
-                    <ReferenceLine y={0} stroke="#94a3b8" />
-                    <Area
+                    <ReferenceLine
+                      yAxisId="saldo"
+                      y={0}
+                      stroke={tone.axis}
+                      strokeOpacity={0.5}
+                    />
+                    <Line
+                      yAxisId="saldo"
                       type="stepAfter"
                       dataKey="balance"
-                      stroke="#2563eb"
-                      fill="#3b82f6"
-                      fillOpacity={0.08}
+                      stroke={tone.balance}
                       strokeWidth={2.5}
+                      dot={false}
                       isAnimationActive={false}
                     />
-                  </AreaChart>
+                    {minimumRow && projection.minimum != null && (
+                      <ReferenceDot
+                        yAxisId="saldo"
+                        x={minimumRow.label}
+                        y={projection.minimum}
+                        r={5}
+                        fill={tone.out}
+                        stroke="hsl(var(--background))"
+                        label={{
+                          value: `Minimo ${compact(projection.minimum)} · ${shortDate(projection.minimumDate)}`,
+                          position: "bottom",
+                          fill: tone.axis,
+                          fontSize: 10,
+                        }}
+                      />
+                    )}
+                  </ComposedChart>
                 </ResponsiveContainer>
+                </div>
+                <div className="h-[120px] border-t border-dashed pt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={chartRows}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                    stackOffset="sign"
+                    syncId="previsionale-cassa"
+                    onClick={apriPeriodoDelGrafico}
+                  >
+                    <XAxis
+                      dataKey="label"
+                      minTickGap={32}
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      stroke={tone.axis}
+                    />
+                    <YAxis
+                      width={60}
+                      tickFormatter={compact}
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      stroke={tone.axis}
+                      tickCount={3}
+                    />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        money(Math.abs(value)),
+                        name === "income" ? "Entrate" : "Uscite",
+                      ]}
+                      contentStyle={{
+                        borderRadius: 8,
+                        fontSize: 12,
+                        background: "hsl(var(--popover))",
+                        borderColor: "hsl(var(--border))",
+                        color: "hsl(var(--popover-foreground))",
+                      }}
+                    />
+                    <ReferenceLine y={0} stroke={tone.axis} strokeOpacity={0.5} />
+                    <Bar
+                      dataKey="income"
+                      stackId="flussi"
+                      fill={tone.in}
+                      fillOpacity={0.8}
+                      isAnimationActive={false}
+                      cursor="pointer"
+                    />
+                    <Bar
+                      dataKey="expense"
+                      stackId="flussi"
+                      fill={tone.out}
+                      fillOpacity={0.8}
+                      isAnimationActive={false}
+                      cursor="pointer"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+            {chartPeriod && (
+              <div className="border-t" aria-label="Movimenti del periodo scelto">
+                <div className="flex items-center justify-between gap-2 px-4 py-2">
+                  <p className="text-sm font-medium">
+                    {chartPeriod.start === chartPeriod.end
+                      ? fullDate(chartPeriod.start)
+                      : `${shortDate(chartPeriod.start)} – ${shortDate(chartPeriod.end)}`}{" "}
+                    · {chartMovements.length} movimenti
+                  </p>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openMovements("piano", chartPeriod)}
+                    >
+                      Apri in Movimenti
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Chiudi il periodo"
+                      onClick={() => setChartPeriod(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                {chartMovements.length ? (
+                  <ul className="divide-y border-t">
+                    {chartMovements.slice(0, 12).map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex items-center justify-between gap-3 px-4 py-2 text-sm"
+                      >
+                        <Link
+                          to={m.href}
+                          className="min-w-0 truncate hover:underline"
+                        >
+                          {m.description}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {m.counterparty || m.source}
+                          </span>
+                        </Link>
+                        <span
+                          className={cn(
+                            "shrink-0 tabular-nums",
+                            m.direction === "in"
+                              ? "text-success"
+                              : "text-destructive",
+                          )}
+                        >
+                          {m.direction === "in" ? "+" : "−"}
+                          {money(m.cents)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="px-4 pb-3 text-xs text-muted-foreground">
+                    Nessun movimento in questo periodo.
+                  </p>
+                )}
               </div>
             )}
           </section>
-          <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
-            <section className={cn(panel, "p-5")}>
-              <h2 className="font-semibold">Da gestire</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Completa queste informazioni per affinare il piano.
-              </p>
-              <div className="mt-4 space-y-2">
-                <ActionRow
-                  title="Incassi scaduti"
-                  detail={`${overdueCount} da verificare · esclusi finché non confermi l’ipotesi`}
-                  onClick={() => openMovements("scaduti")}
-                />
-                <ActionRow
-                  title="Movimenti senza data"
-                  detail={`${projection.undated.length} fuori piano · ${money(undatedExpense)} di uscite`}
-                  onClick={() => openMovements("senza-data")}
-                />
-                <ActionRow
-                  title="Stime incluse"
-                  detail={`${projection.included.filter((m) => m.estimated).length} movimenti · verifica importi e scadenze`}
-                  onClick={() => openMovements("stime")}
-                />
-              </div>
-            </section>
-            <section className={cn(panel, "p-5")}>
-              <h2 className="font-semibold">Se gli incassi ritardano</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Le uscite restano alle loro scadenze. Confronta il minimo di
-                cassa.
-              </p>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {scenarios.map(({ delay, plan }) => (
+        </TabsContent>
+
+        {/* ── Settimane ── */}
+        <TabsContent value="settimane" className="mt-4 space-y-3">
+          {issues}
+          <div className={cn(section, "overflow-hidden")}>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <caption className="sr-only">
+                  Piano settimanale con minimo giornaliero e saldo finale
+                </caption>
+                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                  <tr>
+                    {[
+                      "Settimana",
+                      "Entrate",
+                      "Uscite",
+                      "Minimo giornaliero",
+                      "Saldo finale",
+                    ].map((label, i) => (
+                      <th
+                        key={label}
+                        className={cn(
+                          "px-4 py-2 font-medium",
+                          i > 0 && "text-right",
+                        )}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                    <th>
+                      <span className="sr-only">Dettaglio</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeks.map((w) => {
+                    const below = w.minimum != null && w.minimum < f.threshold;
+                    return (
+                      <tr
+                        key={w.start}
+                        className={cn("border-t", below && "bg-destructive/5")}
+                      >
+                        <td className="px-4 py-2 text-xs">
+                          {shortDate(w.start)} – {shortDate(w.end)}
+                          {below && (
+                            <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive">
+                              sotto soglia
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-success">
+                          {money(w.income)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-destructive">
+                          {money(w.expense)}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-4 py-2 text-right font-medium tabular-nums",
+                            below && "text-destructive",
+                          )}
+                        >
+                          {money(w.minimum)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {money(w.balance)}
+                        </td>
+                        <td className="pr-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Apri movimenti ${shortDate(w.start)}`}
+                            onClick={() =>
+                              openMovements("piano", {
+                                start: w.start,
+                                end: w.end,
+                              })
+                            }
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="divide-y sm:hidden">
+              {weeks.map((w) => {
+                const below = w.minimum != null && w.minimum < f.threshold;
+                return (
                   <button
-                    key={delay}
-                    aria-label={
-                      delay
-                        ? `Simula ritardo di ${delay} giorni`
-                        : "Usa scadenze programmate"
-                    }
-                    aria-pressed={prefs.delay === delay}
-                    onClick={() => updatePrefs({ delay })}
+                    key={w.start}
                     className={cn(
-                      "forecast-scenario rounded-xl border p-3 text-left transition-colors",
-                      prefs.delay === delay
-                        ? "border-blue-400 bg-blue-50 dark:bg-blue-950/30"
-                        : "border-slate-200 hover:border-slate-400 dark:border-slate-800",
+                      "w-full px-4 py-3 text-left",
+                      below && "bg-destructive/5",
                     )}
+                    aria-label={`Apri settimana ${shortDate(w.start)}`}
+                    onClick={() =>
+                      openMovements("piano", { start: w.start, end: w.end })
+                    }
                   >
-                    <span className="text-[11px] text-slate-500">
-                      {delay ? `+${delay} giorni` : "Puntuali"}
+                    <span className="flex items-center justify-between text-sm font-medium">
+                      {shortDate(w.start)} – {shortDate(w.end)}
+                      <ArrowRight
+                        className="h-4 w-4 text-muted-foreground"
+                        aria-hidden
+                      />
                     </span>
-                    <p
-                      className={cn(
-                        "mt-2 break-words text-sm font-semibold tabular-nums sm:text-base",
-                        plan.need && "text-rose-600",
-                      )}
-                    >
-                      {money(plan.minimum)}
-                    </p>
-                    <span className="mt-1 block text-[10px] text-slate-500">
-                      {plan.minimumDate
-                        ? shortDate(plan.minimumDate)
-                        : "Saldo da completare"}
+                    <span className="mt-1 grid grid-cols-3 gap-2 text-xs tabular-nums">
+                      <span className="text-success">+{money(w.income)}</span>
+                      <span className="text-destructive">
+                        −{money(w.expense)}
+                      </span>
+                      <span
+                        className={cn("text-right", below && "text-destructive")}
+                      >
+                        {money(w.balance)}
+                      </span>
                     </span>
                   </button>
-                ))}
-              </div>
-              <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs dark:border-slate-800">
-                <label className="flex min-h-10 cursor-pointer items-center gap-3 leading-relaxed">
-                  <input
-                    type="checkbox"
-                    checked={prefs.estimates}
-                    onChange={(e) =>
-                      updatePrefs({ estimates: e.target.checked })
-                    }
-                    className="h-4 w-4 accent-blue-600"
-                  />
-                  Includi stime di stipendi, acquisti e costi ricorrenti
-                </label>
-                <label className="flex min-h-10 cursor-pointer items-center gap-3 leading-relaxed">
-                  <input
-                    type="checkbox"
-                    checked={prefs.overdue}
-                    onChange={(e) => updatePrefs({ overdue: e.target.checked })}
-                    className="h-4 w-4 accent-blue-600"
-                  />
-                  Ipotizza l’incasso degli scaduti da oggi
-                </label>
-              </div>
-            </section>
+                );
+              })}
+            </div>
           </div>
-          <details className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-            <summary className="cursor-pointer font-medium">
-              Fonti e ipotesi del piano
-            </summary>
-            <div className="mt-3 space-y-2 leading-relaxed">
-              <p>
-                Importi di cassa: IVA inclusa ove prevista, residui non saldati,
-                ritenuta applicata alle commesse bonus secondo la configurazione
-                del gestionale. Le uscite scadute sono collocate oggi; gli
-                incassi scaduti entrano solo con l’ipotesi esplicita. I
-                movimenti senza data restano esclusi e dichiarati.
-              </p>
-              <p>
-                La soglia e gli scenari sono preferenze su questo dispositivo.
-                Non modificano scadenze o pagamenti registrati.
-              </p>
-              {data.warnings.map((w) => (
-                <p key={w}>{w}</p>
-              ))}
-              <p>
-                Imposte future non registrate non vengono inventate. Il minimo è
-                a fine giornata: non rappresenta l’ordine dei bonifici nella
-                stessa giornata.
-              </p>
-              <p>
-                Ultimo caricamento:{" "}
-                {new Date(data.updatedAt).toLocaleString("it-IT")}.
-              </p>
-            </div>
-          </details>
         </TabsContent>
-        <TabsContent value="movimenti" className="mt-0 space-y-4">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-lg font-semibold">
-                Movimenti da pianificare
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                I filtri cambiano il dettaglio. Saldo e grafico rappresentano
-                l’intero piano.
-              </p>
-            </div>
+
+        {/* ── Movimenti ── */}
+        <TabsContent value="movimenti" className="mt-4 space-y-3">
+          {issues}
+          <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Movimenti da mostrare"
-              className="h-10 rounded-xl border bg-background px-3 text-sm"
-              value={movementFilter}
+              className={cn(selectClass, "h-10 text-sm")}
+              value={view}
               onChange={(e) => {
-                setDetailControls(defaultControls);
-                setMovementFilter(e.target.value);
-                setWeekRange(null);
+                setView(e.target.value as MovementView);
+                setPeriod(null);
               }}
             >
-              <option value="piano">Nel piano selezionato</option>
-              <option value="scaduti">Incassi scaduti</option>
-              <option value="senza-data">Senza data</option>
-              <option value="stime">Stime</option>
-              <option value="tutti">Tutti i movimenti aperti</option>
+              {VIEWS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
-          </div>
-          {weekRange && (
-            <p className="flex items-center gap-2 text-sm">
-              Periodo {shortDate(weekRange.start)} – {shortDate(weekRange.end)}
+            {period && (
+              <span className="flex items-center gap-1 text-sm">
+                Periodo {shortDate(period.start)} – {shortDate(period.end)}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPeriod(null)}
+                >
+                  Rimuovi filtro periodo
+                </Button>
+              </span>
+            )}
+            {Object.keys(overrides).length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setWeekRange(null)}
+                onClick={() => saveOverrides({})}
               >
-                Rimuovi filtro settimana
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Ripristina tutte le date ({Object.keys(overrides).length})
               </Button>
-            </p>
-          )}
-          <MovementList
-            rows={detailMovements}
-            today={data.today}
-            controls={detailControls}
-            onControlsChange={setDetailControls}
-          />
-        </TabsContent>
-        <TabsContent value="incassato" className="mt-0 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Entrate registrate</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Ultimi 12 mesi · Prima Nota e incassi collegati, senza ripetere lo
-              stesso pagamento.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Metric
-              icon={Wallet}
-              label="Incassato nel mese"
-              value={money(
-                collected
-                  .filter((m) => m.date?.slice(0, 7) === data.today.slice(0, 7))
-                  .reduce((sum, m) => sum + m.cents, 0),
-              )}
-              detail="Importi registrati dalle fonti collegate"
-            />
-            <Metric
-              icon={CalendarDays}
-              label="Ritardo medio osservato"
-              value={
-                meanDelay == null ? "Non disponibile" : `${meanDelay} giorni`
-              }
-              detail={`${comparable.length} incassi con scadenza collegata · ultimi 12 mesi`}
-            />
+            )}
           </div>
           <MovementList
-            rows={collected}
+            key={`${view}:${period?.start ?? ""}`}
+            rows={listRows}
             today={data.today}
-            controls={collectedControls}
-            onControlsChange={setCollectedControls}
-            collected
+            overrides={overrides}
+            onMove={(id, date) => {
+              const next = { ...overrides };
+              if (date) next[id] = date;
+              else delete next[id];
+              saveOverrides(next);
+            }}
+            emptyHint={
+              view === "piano"
+                ? "Nessun movimento nel periodo: allarga l’orizzonte o togli i filtri."
+                : "Niente in questa vista. Prova un’altra vista o togli i filtri comuni."
+            }
           />
         </TabsContent>
-        <TabsContent value="marginalita" className="mt-0">
-          <div className="mb-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900">
-            <Info className="h-4 w-4 shrink-0" />
-            <p>
-              La marginalità misura ricavi e costi delle commesse. La cassa
-              dipende anche da quando incassi e paghi.
+
+        {/* ── Da sistemare ── */}
+        <TabsContent value="da-sistemare" className="mt-4 space-y-3">
+          {issues}
+          <div className={cn(section, "divide-y")}>
+            {todo.every((t) => !t.rows.length) ? (
+              <EmptyState
+                title="Niente da sistemare"
+                hint="Scadenze, date e collegamenti sono a posto per il piano scelto."
+              />
+            ) : (
+              todo.map((t) => (
+                <div
+                  key={t.key}
+                  className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {t.title}{" "}
+                      <span className="tabular-nums text-muted-foreground">
+                        · {t.rows.length} · {money(sum(t.rows))}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t.hint}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {t.fix && (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={t.fix.to}>{t.fix.label}</Link>
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!t.rows.length}
+                      aria-label={`Vedi ${t.title}`}
+                      onClick={() => openMovements(t.key)}
+                    >
+                      Vedi
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ── Incassato ── */}
+        <TabsContent value="incassato" className="mt-4 space-y-3">
+          {issues}
+          <IncassatoTab data={data} delay={delay} />
+        </TabsContent>
+
+        {/* ── Fonti e ipotesi ── */}
+        <TabsContent value="fonti" className="mt-4 space-y-3">
+          {issues}
+          <div className={cn(section, "space-y-3 p-4 text-sm leading-relaxed")}>
+            <div>
+              <h2 className="font-semibold">Cosa entra nel piano</h2>
+              <p className="mt-1 text-muted-foreground">
+                Partenza:{" "}
+                {data.opening.source === "banca"
+                  ? "saldo disponibile dei conti attivi (se manca, il saldo contabile)"
+                  : data.opening.source === "prima-nota"
+                    ? "saldo della Prima Nota fino a oggi"
+                    : "nessun saldo: collega un conto in Tesoreria"}
+                . Entrate: rate delle commesse con la regola della scheda
+                commessa, fatture e scadenze attive non coperte da una rata,
+                Blocca prezzo. Uscite: spese, scadenzario, pagamenti ai
+                fornitori degli articoli, ODA aperti o ricevuti senza spesa,
+                squadre esterne, provvigioni, cedolini, F24 registrati, stima
+                IVA.
+              </p>
+            </div>
+            <div>
+              <h2 className="font-semibold">Come</h2>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>
+                  Importi di cassa: IVA inclusa ove prevista, solo i residui non
+                  saldati; ritenuta applicata alle commesse con bonus.
+                </li>
+                <li>
+                  Incassi e uscite scaduti restano fuori dal piano (spesso sono
+                  già pagati ma non segnati) ed entrano oggi solo con gli
+                  interruttori.
+                </li>
+                <li>
+                  Le fatture di una commessa non collegate a nessuna rata
+                  restano fuori come possibili doppioni.
+                </li>
+                <li>
+                  I movimenti senza data restano fuori e sono elencati in «Da
+                  sistemare».
+                </li>
+                <li>
+                  Ritardo medio reale:{" "}
+                  {delay.days == null
+                    ? "non disponibile"
+                    : `${delay.days} giorni`}
+                  , da {delay.samples} incassi degli ultimi 12 mesi con una
+                  data attesa.
+                </li>
+                <li>
+                  Soglia, scenario e date spostate a mano sono simulazioni: non
+                  cambiano scadenze o pagamenti registrati.
+                </li>
+                <li>
+                  Il minimo è a fine giornata: non rappresenta l’ordine dei
+                  bonifici nello stesso giorno.
+                </li>
+              </ul>
+            </div>
+            {data.warnings.length > 0 && (
+              <div>
+                <h2 className="font-semibold">Ipotesi sulle stime</h2>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                  {data.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Ultimo caricamento:{" "}
+              {new Date(data.updatedAt).toLocaleString("it-IT")}. I margini
+              delle commesse sono in{" "}
+              <Link className="underline" to="/azienda/ordini?tab=marginalita">
+                Commesse → Marginalità
+              </Link>
+              .
             </p>
           </div>
-          <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-            <MarginTab />
-          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
+
+function IncassatoTab({
+  data,
+  delay,
+}: {
+  data: ForecastDataset;
+  delay: { days: number | null; samples: number };
+}) {
+  const collected = data.collected.filter(
+    (m) =>
+      m.date && m.date >= moveDay(data.today, -366) && m.date <= data.today,
+  );
+  const month = sum(
+    collected.filter((m) => m.date?.slice(0, 7) === data.today.slice(0, 7)),
+  );
+  return (
+    <>
+      <div className={cn(section, "grid grid-cols-2 divide-x")}>
+        <Metric
+          label="Incassato nel mese"
+          value={money(month)}
+          detail="Importi registrati, senza ripetere lo stesso pagamento"
+        />
+        <Metric
+          label="Ritardo medio reale"
+          value={
+            delay.days == null ? "Non disponibile" : `${delay.days} giorni`
+          }
+          detail={`${delay.samples} incassi con scadenza collegata · ultimi 12 mesi`}
+        />
+      </div>
+      <MovementList
+        rows={collected}
+        today={data.today}
+        collected
+        emptyHint="Nessun incasso registrato negli ultimi 12 mesi: registra gli incassi in Prima Nota o sulle rate."
+      />
+    </>
+  );
+}
+
+type SortKey = "data-asc" | "data-desc" | "importo-desc" | "importo-asc";
 function MovementList({
   rows,
   today,
   collected = false,
-  controls,
-  onControlsChange,
+  overrides = {},
+  onMove,
+  emptyHint,
 }: {
   rows: ForecastMovement[];
   today: string;
   collected?: boolean;
-  controls: MovementControls;
-  onControlsChange: (controls: MovementControls) => void;
+  overrides?: Record<string, string>;
+  onMove?: (id: string, date: string | null) => void;
+  emptyHint: string;
 }) {
-  const { search, direction, page } = controls;
-  const filtered = rows.filter(
-    (m) =>
-      (direction === "all" || m.direction === direction) &&
-      `${m.description} ${m.counterparty} ${m.source} ${FORECAST_CATEGORIES[m.category]}`
-        .toLocaleLowerCase("it-IT")
-        .includes(search.toLocaleLowerCase("it-IT")),
+  const [search, setSearch] = useState("");
+  const [direction, setDirection] = useState("all");
+  const [sort, setSort] = useState<SortKey>(
+    collected ? "data-desc" : "data-asc",
   );
+  const [page, setPage] = useState(1);
+  const filtered = useMemo(() => {
+    const needle = search.toLocaleLowerCase("it-IT");
+    const list = rows.filter(
+      (m) =>
+        (direction === "all" || m.direction === direction) &&
+        `${m.description} ${m.counterparty} ${m.source} ${m.orderLabel ?? ""} ${FORECAST_CATEGORIES[m.category]}`
+          .toLocaleLowerCase("it-IT")
+          .includes(needle),
+    );
+    const byDate = (a: ForecastMovement, b: ForecastMovement) =>
+      (a.date ?? "9999").localeCompare(b.date ?? "9999");
+    return [...list].sort((a, b) =>
+      sort === "data-asc"
+        ? byDate(a, b)
+        : sort === "data-desc"
+          ? byDate(b, a)
+          : sort === "importo-desc"
+            ? b.cents - a.cents
+            : a.cents - b.cents,
+    );
+  }, [rows, search, direction, sort]);
   const pages = Math.max(1, Math.ceil(filtered.length / 25));
   const currentPage = Math.min(page, pages);
   const visible = filtered.slice((currentPage - 1) * 25, currentPage * 25);
-  const income = filtered
-    .filter((m) => m.direction === "in")
-    .reduce((s, m) => s + m.cents, 0);
-  const expenses = filtered
-    .filter((m) => m.direction === "out")
-    .reduce((s, m) => s + m.cents, 0);
+  const income = sum(filtered.filter((m) => m.direction === "in"));
+  const expenses = sum(filtered.filter((m) => m.direction === "out"));
   const status = (m: ForecastMovement) =>
     collected
       ? "Registrato"
-      : !m.date
-        ? "Senza data"
-        : m.date < today
-          ? "Scaduto"
-          : m.estimated
-            ? "Stima"
-            : "Programmato";
+      : m.possibleDuplicate
+        ? "Possibile doppione"
+        : !m.date
+          ? "Senza data"
+          : overrides[m.id]
+            ? "Data spostata"
+            : m.date < today
+              ? "Scaduto"
+              : m.estimated
+                ? "Stima"
+                : "Programmato";
   const exportView = () =>
     exportToCSV(
       filtered.map((m) => ({
         data: m.date ?? "",
         descrizione: m.description,
         controparte: m.counterparty ?? "",
+        commessa: m.orderLabel ?? "",
         categoria: FORECAST_CATEGORIES[m.category],
         fonte: m.source,
         stato: status(m),
@@ -1100,6 +1663,7 @@ function MovementList({
         },
         { key: "descrizione", label: "Descrizione" },
         { key: "controparte", label: "Controparte" },
+        { key: "commessa", label: "Commessa" },
         { key: "categoria", label: "Categoria" },
         { key: "fonte", label: "Fonte" },
         { key: "stato", label: "Stato" },
@@ -1110,87 +1674,115 @@ function MovementList({
       ],
       `previsionale-${collected ? "incassato" : "movimenti"}-vista-${today}.csv`,
     );
+  // Solo gli incassi si spostano a mano: è la domanda «e se questo cliente paga dopo?».
+  const moveControl = (m: ForecastMovement) =>
+    !collected && onMove && m.direction === "in" && !m.possibleDuplicate ? (
+      <span className="mt-1 flex items-center gap-1">
+        <input
+          type="date"
+          aria-label={`Sposta incasso: ${m.description}`}
+          title="Sposta la data di questo incasso solo nella simulazione"
+          value={overrides[m.id] ?? m.date ?? ""}
+          onChange={(e) => onMove(m.id, validDay(e.target.value))}
+          className="h-7 rounded border bg-background px-1 text-[11px] tabular-nums"
+        />
+        {overrides[m.id] && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            onClick={() => onMove(m.id, null)}
+          >
+            Ripristina
+          </Button>
+        )}
+      </span>
+    ) : null;
   return (
-    <div className={cn(panel, "overflow-hidden")}>
-      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800 sm:flex-row">
+    <div className={cn(section, "overflow-hidden")}>
+      <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             aria-label="Cerca nei movimenti"
-            placeholder="Cerca descrizione, cliente o fonte"
+            placeholder="Cerca descrizione, cliente, commessa o fonte"
             value={search}
             onChange={(e) => {
-              onControlsChange({
-                ...controls,
-                search: e.target.value,
-                page: 1,
-              });
+              setSearch(e.target.value);
+              setPage(1);
             }}
-            className="h-10 rounded-xl pl-9"
+            className="h-9 pl-9"
           />
         </div>
-        {!collected && (
+        <div className="flex flex-wrap gap-2">
+          {!collected && (
+            <select
+              aria-label="Direzione movimenti"
+              className={selectClass}
+              value={direction}
+              onChange={(e) => {
+                setDirection(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="all">Entrate e uscite</option>
+              <option value="in">Solo entrate</option>
+              <option value="out">Solo uscite</option>
+            </select>
+          )}
           <select
-            aria-label="Direzione movimenti"
-            className="h-10 rounded-xl border bg-background px-3 text-sm"
-            value={direction}
-            onChange={(e) => {
-              onControlsChange({
-                ...controls,
-                direction: e.target.value,
-                page: 1,
-              });
-            }}
+            aria-label="Ordina movimenti"
+            className={selectClass}
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
           >
-            <option value="all">Entrate e uscite</option>
-            <option value="in">Solo entrate</option>
-            <option value="out">Solo uscite</option>
+            <option value="data-asc">Data: prima le vicine</option>
+            <option value="data-desc">Data: prima le lontane</option>
+            <option value="importo-desc">Importo: dal più alto</option>
+            <option value="importo-asc">Importo: dal più basso</option>
           </select>
-        )}
-        <Button
-          variant="outline"
-          onClick={exportView}
-          disabled={!filtered.length}
-          className="h-10 rounded-xl"
-          title="Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine"
-        >
-          <Download className="mr-2 h-4 w-4" aria-hidden />
-          Esporta vista
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportView}
+            disabled={!filtered.length}
+            className="h-9"
+            title="Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine"
+          >
+            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+            Esporta vista
+          </Button>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-1 px-4 py-3 text-xs text-slate-500">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground">
         <span>{filtered.length} movimenti</span>
         <span>
-          Entrate: <strong className="text-emerald-600">{money(income)}</strong>
+          Entrate:{" "}
+          <strong className="tabular-nums text-success">{money(income)}</strong>
         </span>
         {!collected && (
           <span>
-            Uscite: <strong className="text-rose-600">{money(expenses)}</strong>
+            Uscite:{" "}
+            <strong className="tabular-nums text-destructive">
+              {money(expenses)}
+            </strong>
           </span>
         )}
       </div>
       {!visible.length ? (
-        <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-5 text-center">
-          <Check className="h-6 w-6 text-slate-400" />
-          <p className="text-sm font-medium">
-            Nessun movimento in questa vista
-          </p>
-          <p className="text-xs text-slate-500">
-            Prova un altro filtro o completa i documenti di origine.
-          </p>
-        </div>
+        <EmptyState title="Nessun movimento in questa vista" hint={emptyHint} />
       ) : (
         <>
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
-              <thead className="border-y border-slate-100 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+              <thead className="border-y bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
                   {["Data", "Movimento", "Fonte e stato", "Importo"].map(
                     (label, i) => (
                       <th
                         key={label}
                         className={cn(
-                          "p-3 font-medium",
+                          "px-3 py-2 font-medium",
                           i === 3 && "text-right",
                         )}
                       >
@@ -1199,53 +1791,56 @@ function MovementList({
                     ),
                   )}
                   <th>
-                    <span className="sr-only">Apri fonte</span>
+                    <span className="sr-only">Apri la voce</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {visible.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="forecast-movement border-b border-slate-100 dark:border-slate-800"
-                  >
-                    <td className="whitespace-nowrap p-3 text-xs">
+                  <tr key={m.id} className="border-b last:border-0">
+                    <td className="whitespace-nowrap px-3 py-2 align-top text-xs tabular-nums">
                       {shortDate(m.date)}
-                      {collected && m.expectedDate && (
-                        <p className="mt-1 text-[10px] text-slate-500">
+                      {m.expectedDate && m.expectedDate !== m.date && (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
                           Atteso {fullDate(m.expectedDate)}
                         </p>
                       )}
+                      {moveControl(m)}
                     </td>
-                    <td className="p-3">
+                    <td className="px-3 py-2 align-top">
                       <p className="font-medium">{m.description}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {m.counterparty || FORECAST_CATEGORIES[m.category]}
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          m.counterparty || FORECAST_CATEGORIES[m.category],
+                          m.orderLabel,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                       {m.note && (
-                        <p className="mt-1 max-w-sm text-[11px] text-slate-500">
+                        <p className="mt-0.5 max-w-md text-[11px] text-muted-foreground">
                           {m.note}
                         </p>
                       )}
                     </td>
-                    <td className="p-3 text-xs">
+                    <td className="px-3 py-2 align-top text-xs">
                       <p>{m.source}</p>
-                      <span className="mt-1 inline-block rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-500 dark:bg-slate-800">
+                      <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         {status(m)}
                       </span>
                     </td>
                     <td
                       className={cn(
-                        "whitespace-nowrap p-3 text-right font-medium tabular-nums",
+                        "whitespace-nowrap px-3 py-2 text-right align-top font-medium tabular-nums",
                         m.direction === "in"
-                          ? "text-emerald-600"
-                          : "text-rose-600",
+                          ? "text-success"
+                          : "text-destructive",
                       )}
                     >
                       {m.direction === "in" ? "+" : "−"}
                       {money(m.cents)}
                     </td>
-                    <td className="pr-3">
+                    <td className="pr-2 align-top">
                       <Button asChild size="icon" variant="ghost">
                         <Link
                           to={m.href}
@@ -1260,51 +1855,47 @@ function MovementList({
               </tbody>
             </table>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
+          <ul className="divide-y sm:hidden">
             {visible.map((m) => (
-              <Link
-                key={m.id}
-                to={m.href}
-                className="forecast-movement block p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-medium">
+              <li key={m.id} className="px-4 py-3">
+                <Link
+                  to={m.href}
+                  className="flex items-start justify-between gap-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block break-words text-sm font-medium">
                       {m.description}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
                       {m.counterparty || FORECAST_CATEGORIES[m.category]}
-                    </p>
-                  </div>
-                  <p
+                    </span>
+                  </span>
+                  <span
                     className={cn(
                       "shrink-0 text-sm font-semibold tabular-nums",
                       m.direction === "in"
-                        ? "text-emerald-600"
-                        : "text-rose-600",
+                        ? "text-success"
+                        : "text-destructive",
                     )}
                   >
                     {m.direction === "in" ? "+" : "−"}
                     {money(m.cents)}
-                  </p>
-                </div>
-                <p className="mt-3 text-[11px] text-slate-500">
+                  </span>
+                </Link>
+                <p className="mt-1 text-[11px] text-muted-foreground">
                   {shortDate(m.date)} · {m.source} · {status(m)}
                 </p>
-                {collected && m.expectedDate && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Atteso {fullDate(m.expectedDate)}
+                {m.note && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {m.note}
                   </p>
                 )}
-                {m.note && (
-                  <p className="mt-1 text-[11px] text-slate-500">{m.note}</p>
-                )}
-              </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </>
       )}
-      <div className="flex items-center justify-between border-t border-slate-100 p-3 text-xs text-slate-500 dark:border-slate-800">
+      <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
         <span>
           Pagina {currentPage} di {pages}
         </span>
@@ -1314,9 +1905,7 @@ function MovementList({
             size="icon"
             aria-label="Pagina precedente"
             disabled={currentPage <= 1}
-            onClick={() =>
-              onControlsChange({ ...controls, page: currentPage - 1 })
-            }
+            onClick={() => setPage(currentPage - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -1325,9 +1914,7 @@ function MovementList({
             size="icon"
             aria-label="Pagina successiva"
             disabled={currentPage >= pages}
-            onClick={() =>
-              onControlsChange({ ...controls, page: currentPage + 1 })
-            }
+            onClick={() => setPage(currentPage + 1)}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>

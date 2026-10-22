@@ -88,7 +88,7 @@ export function DettaglioVoceMeseSheet({
           {q.data && q.data.raggruppamento.length > 0 && (
             <section>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Sub-righe (per categoria)
+                Riepilogo
               </h3>
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full text-sm">
@@ -149,9 +149,11 @@ export function DettaglioVoceMeseSheet({
                           <Badge variant="outline" className="text-[10px]">
                             {SOURCE_LABELS[r.source_table] ?? r.source_table}
                           </Badge>
-                          {r.voce_chiave && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {r.voce_chiave}
+                          {/* La categoria come la scrive l'utente, non la chiave
+                              tecnica («salari_stipendi_cc»). */}
+                          {r.categoria && r.categoria !== r.source_table && (
+                            <Badge variant="secondary" className="text-[10px]" title={r.voce_chiave ?? undefined}>
+                              {r.categoria}
                             </Badge>
                           )}
                         </div>
