@@ -12,8 +12,10 @@
  *
  * Riconoscimento: tutte le parole chiave devono comparire all'inizio di una
  * parola della voce di computo o della legenda della tavola (vedi
- * punteggioScomposizione). A parità vince la voce con più parole chiave: per
- * questo «punto luce deviato» ha due parole e batte «punto luce» da solo.
+ * punteggioScomposizione). Vince la voce più specifica: le parole che cambiano
+ * i materiali (deviato, invertito, emergenza…) pesano più di quelle che dicono
+ * solo dove sta il punto (parete, soffitto, incasso), vedi pesoParolaChiave.
+ * Così «punto luce deviato a parete» è un deviato, non un punto a parete.
  * Le voci a punto non fissano l'unità (cad, n., pz vanno tutte bene); quelle
  * a metro sì.
  */
