@@ -33,6 +33,13 @@ interface Firmatario {
   created_at: string;
 }
 
+interface CatenaFirmatari {
+  select(colonne: string): CatenaFirmatari;
+  eq(colonna: string, valore: string): CatenaFirmatari;
+  is(colonna: string, valore: null): CatenaFirmatari;
+  order(colonna: string): Promise<{ data: unknown[] | null; error: Error | null }>;
+}
+
 const TIPI: Record<string, string> = { carta_identita: "Carta d'identità", passaporto: "Passaporto", patente: "Patente" };
 const dataIT = (d: string | null) => (d ? new Date(d).toLocaleDateString("it-IT") : "—");
 const oggi = () => new Date().toLocaleDateString("sv-SE");
@@ -59,7 +66,7 @@ export function FirmatariIdentificati() {
     enabled: !!companyId,
     queryFn: async (): Promise<Firmatario[]> => {
       // fea_firmatari è nuova (22/10/2026) e non è ancora nei tipi generati.
-      const { data, error } = await (supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> })
+      const { data, error } = await (supabase as unknown as { from: (t: string) => CatenaFirmatari })
         .from("fea_firmatari")
         .select("id, email, nome, cognome, documento_tipo, documento_scadenza, modalita, dichiarazione_accettata_at, created_at")
         .eq("company_id", companyId!).is("revocato_at", null).order("cognome");

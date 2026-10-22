@@ -8,7 +8,7 @@ const righe = [
   { id: "f2", email: "anna@example.it", nome: "Anna", cognome: "Bianchi", documento_tipo: "passaporto", documento_scadenza: "2099-01-01", modalita: "autonoma", dichiarazione_accettata_at: "2026-10-22T10:00:00Z", created_at: "2026-10-22" },
 ];
 vi.mock("@/integrations/supabase/client", () => {
-  const catena = { select: () => catena, eq: () => catena, is: () => catena, order: async () => ({ data: righe, error: null }) };
+  const catena = { select: () => catena, eq: () => catena, is: () => catena, order: async () => ({ data: righe, error: null as null }) };
   return { supabase: { from: () => catena, functions: { invoke: mock.invoke } } };
 });
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c-1" }));

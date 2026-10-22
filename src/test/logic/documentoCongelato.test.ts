@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { congelaDocumento, DocumentoNonPronto } from "../../../supabase/functions/_shared/documentoCongelato";
+// Import dinamico: il controllo dei tipi dell'app non deve seguire il modulo Deno (pdf-lib da esm.sh).
+type Fonte = { tipo: string; documentoId: string; companyId: string; aziendaNome: string; firmatario: string };
+type Modulo = {
+  congelaDocumento: (sb: unknown, f: Fonte, richiestaId: string) => Promise<{ path: string; hash: string }>;
+  DocumentoNonPronto: new (m?: string) => Error;
+};
+const percorso = "../../../supabase/functions/_shared/documentoCongelato";
+const { congelaDocumento, DocumentoNonPronto } = (await import(/* @vite-ignore */ percorso)) as Modulo;
 
 /** Storage e tabelle finti: quanto basta per congelare un documento. */
 function sbFinto(file: string, righe: Record<string, Record<string, unknown>>) {
@@ -7,8 +14,8 @@ function sbFinto(file: string, righe: Record<string, Record<string, unknown>>) {
   const sb = {
     from: (t: string) => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: righe[t] ?? null }) }) }) }),
     storage: { from: () => ({
-      download: async () => ({ data: new Blob([file]), error: null }),
-      upload: async (path: string, _b: unknown, o: { contentType: string }) => { caricati.push({ path, tipo: o.contentType }); return { error: null }; },
+      download: async () => ({ data: new Blob([file]), error: null as null }),
+      upload: async (path: string, _b: unknown, o: { contentType: string }) => { caricati.push({ path, tipo: o.contentType }); return { error: null as null }; },
     }) },
   };
   return { sb, caricati };
