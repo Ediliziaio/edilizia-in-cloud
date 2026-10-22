@@ -18,7 +18,7 @@ export const ECONOMIA_VIEWS = [
 ] as const;
 export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
-  { value: "articoli", label: "Articoli e misure", description: "Forniture della commessa, quantità e verifica delle misure." },
+  { value: "articoli", label: "Articoli e misure", description: "Materiali divisi per fase, validazione del tecnico, acquisti e verifica delle misure." },
   { value: "computo", label: "Computo metrico", description: "Il computo della commessa: voci, misure, controllo dei totali e lavori pubblici." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
   { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },

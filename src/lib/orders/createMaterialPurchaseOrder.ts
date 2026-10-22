@@ -30,7 +30,7 @@ export async function createMaterialPurchaseOrder(input: {
     const current: ProcurementItem[] = [];
     for (let start = 0; start < ids.length; start += 100) {
       const { data, error } = await supabase.from("order_items")
-        .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, orders!inner(company_id)")
+        .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
         .eq("order_id", orderId).eq("orders.company_id", companyId).in("id", ids.slice(start, start + 100));
       if (error) throw error;
       current.push(...(data ?? []) as unknown as ProcurementItem[]);

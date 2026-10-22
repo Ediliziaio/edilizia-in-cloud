@@ -378,6 +378,8 @@ const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaK
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
+const AcquistiDaFare = lazy(() => import("@/pages/azienda/AcquistiDaFare"));
+const ScomposizioniVoce = lazy(() => import("@/pages/azienda/ScomposizioniVoce"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const PosEditor = lazy(() => import("@/pages/azienda/sicurezza/PosEditor"));
@@ -777,6 +779,9 @@ export default function CompanyRoutesContainer() {
             chi puo' vedere gli ordini d'acquisto puo' vedere anche da dove nascono. */}
         <Route path="richieste-offerta" element={<Navigate to="/azienda/ordini?tab=offerte" replace />} />
         <Route path="richieste-offerta/:rfqId" element={withCompanyPermissionOrCommercialista("canViewOrders", <SupplierRfqDetail />)} />
+        {/* Materiali per fase (22/10/2026): l'ufficio acquisti e la libreria delle scomposizioni. */}
+        <Route path="acquisti-da-fare" element={withCompanyPermission("canManagePurchasing", <ErrorBoundary title="Errore negli acquisti da fare"><AcquistiDaFare /></ErrorBoundary>)} />
+        <Route path="scomposizioni" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nelle scomposizioni"><ScomposizioniVoce /></ErrorBoundary>)} />
         <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
         <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}

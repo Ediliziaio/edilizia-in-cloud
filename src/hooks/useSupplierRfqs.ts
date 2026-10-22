@@ -344,6 +344,17 @@ export function useSupplierRfqDetail(rfqId: string | null) {
         .single();
       if (poErr) throw poErr;
 
+      // Materiali della commessa chiesti in questa richiesta (da «Acquisti da
+      // fare» o dalla scheda materiali): la riga dell'ordine si collega al
+      // materiale, così la commessa lo vede ordinato e poi consegnato.
+      const { data: materiali } = await (supabase as any)
+        .from("order_items")
+        .select("id, supplier_rfq_item_id")
+        .in("supplier_rfq_item_id", dati.items.map((it) => it.id));
+      const materialeDi = new Map<string, string>(
+        ((materiali ?? []) as { id: string; supplier_rfq_item_id: string }[]).map((m) => [m.supplier_rfq_item_id, m.id]),
+      );
+
       // Le righe portano i prezzi offerti. Si saltano quelle che il fornitore
       // ha dichiarato non disponibili: metterle a zero le farebbe sembrare
       // regalate, e a fine ordine il totale sarebbe falso.
@@ -365,6 +376,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
             // il || la trasformava in un 22% inventato sull'ordine.
             vat_rate: Number(q.aliquota_iva ?? 22),
             sku: it.sku,
+            order_item_id: materialeDi.get(it.id) ?? null,
           };
         })
         .filter(Boolean);

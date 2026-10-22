@@ -17,6 +17,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_interventi: false, can_view_manutenzione: false,
   can_view_sicurezza_cantiere: false, can_view_subappaltatori: false,
   can_view_firma_elettronica: false,
+  can_validate_bom: false, can_manage_purchasing: false,
   // Finanza
   can_view_billing: false, can_view_scadenzario: false, can_view_tesoreria: false,
   can_view_prima_nota: false,
@@ -138,6 +139,7 @@ export const SOLA_LETTURA_BLOCKED_KEYS: readonly BooleanPermissionKey[] = [
   "can_edit_settings_integrations",
   "can_manage_payments", "can_manage_suppliers", "can_manage_warehouse_items", "can_manage_portal",
   "can_approve_orders", "can_approve_variations", "can_approve_discounts", "can_delete_orders",
+  "can_validate_bom", "can_manage_purchasing",
 ];
 
 export function isBlockedBySolaLettura(key: BooleanPermissionKey): boolean {
@@ -187,6 +189,8 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null, description: "Accesso al modulo sicurezza e PSC" },
   { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
   { label: "Firma Elettronica (FEA)", viewKey: "can_view_firma_elettronica",  editKey: null, description: "Modulo firma elettronica avanzata (cantieri e CRM)" },
+  { label: "Validare i materiali",   viewKey: "can_validate_bom",            editKey: null, description: "Il tecnico che controlla i materiali di ogni fase della commessa: corregge quantità e specifiche, li valida o li rimanda indietro con una nota. Approva le scomposizioni proposte dall'AI." },
+  { label: "Ufficio acquisti",       viewKey: "can_manage_purchasing",       editKey: null, description: "Vede «Acquisti da fare» con i materiali validati di tutte le commesse, sceglie i fornitori, chiede offerte e crea gli ordini." },
 ];
 
 export const FINANZA_SECTIONS: PermissionSectionDef[] = [

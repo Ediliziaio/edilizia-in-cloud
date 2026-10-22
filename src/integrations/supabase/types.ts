@@ -27382,6 +27382,332 @@ export type Database = {
           },
         ]
       }
+      materiali_fasi_validazione: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          inviata_da: string | null
+          inviata_il: string | null
+          note_validazione: string | null
+          order_id: string
+          phase_id: string
+          stato: string
+          updated_at: string
+          validata_da: string | null
+          validata_il: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          inviata_da?: string | null
+          inviata_il?: string | null
+          note_validazione?: string | null
+          order_id: string
+          phase_id: string
+          stato?: string
+          updated_at?: string
+          validata_da?: string | null
+          validata_il?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          inviata_da?: string | null
+          inviata_il?: string | null
+          note_validazione?: string | null
+          order_id?: string
+          phase_id?: string
+          stato?: string
+          updated_at?: string
+          validata_da?: string | null
+          validata_il?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materiali_fasi_validazione_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materiali_fasi_validazione_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      materiali_generazioni: {
+        Row: {
+          avvisi: Json
+          company_id: string
+          computo_upload_id: string | null
+          creata_da: string | null
+          created_at: string
+          escluse: Json
+          id: string
+          order_id: string
+          righe: number
+        }
+        Insert: {
+          avvisi?: Json
+          company_id: string
+          computo_upload_id?: string | null
+          creata_da?: string | null
+          created_at?: string
+          escluse?: Json
+          id?: string
+          order_id: string
+          righe?: number
+        }
+        Update: {
+          avvisi?: Json
+          company_id?: string
+          computo_upload_id?: string | null
+          creata_da?: string | null
+          created_at?: string
+          escluse?: Json
+          id?: string
+          order_id?: string
+          righe?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materiali_generazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planimetrie_conteggi: {
+        Row: {
+          company_id: string
+          confermato: boolean
+          confermato_da: string | null
+          confermato_il: string | null
+          confidenza: number | null
+          created_at: string
+          creato_da: string | null
+          descrizione_legenda: string | null
+          dettaglio: Json | null
+          documento_id: string | null
+          documento_nome: string | null
+          documento_path: string | null
+          id: string
+          locale: string | null
+          metodo: string
+          order_id: string
+          pagina: number
+          phase_id: string | null
+          quantita: number
+          scomposizione_id: string | null
+          simbolo: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          confermato?: boolean
+          confermato_da?: string | null
+          confermato_il?: string | null
+          confidenza?: number | null
+          created_at?: string
+          creato_da?: string | null
+          descrizione_legenda?: string | null
+          dettaglio?: Json | null
+          documento_id?: string | null
+          documento_nome?: string | null
+          documento_path?: string | null
+          id?: string
+          locale?: string | null
+          metodo: string
+          order_id: string
+          pagina?: number
+          phase_id?: string | null
+          quantita: number
+          scomposizione_id?: string | null
+          simbolo: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          confermato?: boolean
+          confermato_da?: string | null
+          confermato_il?: string | null
+          confidenza?: number | null
+          created_at?: string
+          creato_da?: string | null
+          descrizione_legenda?: string | null
+          dettaglio?: Json | null
+          documento_id?: string | null
+          documento_nome?: string | null
+          documento_path?: string | null
+          id?: string
+          locale?: string | null
+          metodo?: string
+          order_id?: string
+          pagina?: number
+          phase_id?: string | null
+          quantita?: number
+          scomposizione_id?: string | null
+          simbolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planimetrie_conteggi_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planimetrie_conteggi_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "order_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planimetrie_conteggi_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scomposizioni_voce: {
+        Row: {
+          approvata_da: string | null
+          approvata_il: string | null
+          attiva: boolean
+          categoria: string | null
+          codice_prezzario: string | null
+          company_id: string
+          creata_da: string | null
+          created_at: string
+          id: string
+          nome: string
+          note: string | null
+          origine: string
+          parole_chiave: string[]
+          unita_misura: string | null
+          updated_at: string
+        }
+        Insert: {
+          approvata_da?: string | null
+          approvata_il?: string | null
+          attiva?: boolean
+          categoria?: string | null
+          codice_prezzario?: string | null
+          company_id: string
+          creata_da?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          note?: string | null
+          origine?: string
+          parole_chiave?: string[]
+          unita_misura?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approvata_da?: string | null
+          approvata_il?: string | null
+          attiva?: boolean
+          categoria?: string | null
+          codice_prezzario?: string | null
+          company_id?: string
+          creata_da?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          note?: string | null
+          origine?: string
+          parole_chiave?: string[]
+          unita_misura?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+        ]
+      }
+      scomposizioni_voce_componenti: {
+        Row: {
+          article_template_id: string | null
+          categoria: string | null
+          company_id: string
+          created_at: string
+          descrizione: string
+          id: string
+          ordine: number
+          quantita_per_unita: number
+          scomposizione_id: string
+          sfrido_percentuale: number
+          specifiche: string | null
+          supplier_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          article_template_id?: string | null
+          categoria?: string | null
+          company_id: string
+          created_at?: string
+          descrizione: string
+          id?: string
+          ordine?: number
+          quantita_per_unita: number
+          scomposizione_id: string
+          sfrido_percentuale?: number
+          specifiche?: string | null
+          supplier_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          article_template_id?: string | null
+          categoria?: string | null
+          company_id?: string
+          created_at?: string
+          descrizione?: string
+          id?: string
+          ordine?: number
+          quantita_per_unita?: number
+          scomposizione_id?: string
+          sfrido_percentuale?: number
+          specifiche?: string | null
+          supplier_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scomposizioni_voce_componenti_scomposizione_id_fkey"
+            columns: ["scomposizione_id"]
+            isOneToOne: false
+            referencedRelation: "scomposizioni_voce"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scomposizioni_voce_componenti_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scomposizioni_voce_componenti_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discount_rules: {
         Row: {
           approva_oltre_pct: number | null
@@ -57215,6 +57541,20 @@ export type Database = {
           paid_date: string | null
           payment_method: string | null
           phase_id: string | null
+          chiave_materiale: string | null
+          computo_voce_id: string | null
+          locale: string | null
+          natura_riga: string
+          origine_materiale: string | null
+          origini: Json | null
+          planimetria_documento_id: string | null
+          quantita_calcolata: number | null
+          quantita_netta: number | null
+          scomposizione_id: string | null
+          sfrido: number | null
+          specifiche: string | null
+          supplier_rfq_item_id: string | null
+          unita_misura: string | null
           position: number | null
           posizioni: Json | null
           product_code: string | null
@@ -57271,6 +57611,20 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           phase_id?: string | null
+          chiave_materiale?: string | null
+          computo_voce_id?: string | null
+          locale?: string | null
+          natura_riga?: string
+          origine_materiale?: string | null
+          origini?: Json | null
+          planimetria_documento_id?: string | null
+          quantita_calcolata?: number | null
+          quantita_netta?: number | null
+          scomposizione_id?: string | null
+          sfrido?: number | null
+          specifiche?: string | null
+          supplier_rfq_item_id?: string | null
+          unita_misura?: string | null
           position?: number | null
           posizioni?: Json | null
           product_code?: string | null
@@ -57327,6 +57681,20 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           phase_id?: string | null
+          chiave_materiale?: string | null
+          computo_voce_id?: string | null
+          locale?: string | null
+          natura_riga?: string
+          origine_materiale?: string | null
+          origini?: Json | null
+          planimetria_documento_id?: string | null
+          quantita_calcolata?: number | null
+          quantita_netta?: number | null
+          scomposizione_id?: string | null
+          sfrido?: number | null
+          specifiche?: string | null
+          supplier_rfq_item_id?: string | null
+          unita_misura?: string | null
           position?: number | null
           posizioni?: Json | null
           product_code?: string | null
@@ -84083,6 +84451,8 @@ export type Database = {
           can_view_employees: boolean | null
           can_view_financial_reports: boolean
           can_view_firma_elettronica: boolean
+          can_validate_bom: boolean
+          can_manage_purchasing: boolean
           can_view_forecast: boolean | null
           can_view_formazione: boolean
           can_view_giornale_lavori: boolean | null
@@ -84189,6 +84559,8 @@ export type Database = {
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
           can_view_firma_elettronica?: boolean
+          can_validate_bom?: boolean
+          can_manage_purchasing?: boolean
           can_view_forecast?: boolean | null
           can_view_formazione?: boolean
           can_view_giornale_lavori?: boolean | null
@@ -84295,6 +84667,8 @@ export type Database = {
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
           can_view_firma_elettronica?: boolean
+          can_validate_bom?: boolean
+          can_manage_purchasing?: boolean
           can_view_forecast?: boolean | null
           can_view_formazione?: boolean
           can_view_giornale_lavori?: boolean | null
@@ -99933,6 +100307,37 @@ export type Database = {
       }
     }
     Functions: {
+      materiali_fase_cambia_stato: {
+        Args: { p_azione: string; p_nota?: string; p_phase: string }
+        Returns: Database["public"]["Tables"]["materiali_fasi_validazione"]["Row"]
+      }
+      materiali_salva_generazione: {
+        Args: {
+          p_avvisi?: Json
+          p_computo?: string
+          p_escluse?: Json
+          p_order: string
+          p_righe: Json
+        }
+        Returns: Json
+      }
+      materiali_tecnico_aggiorna: {
+        Args: { p_item: string; p_quantita: number; p_specifiche?: string }
+        Returns: undefined
+      }
+      acquisti_richiedi_offerta: {
+        Args: {
+          p_fornitori?: string[]
+          p_items: string[]
+          p_scadenza?: string
+          p_titolo: string
+        }
+        Returns: string
+      }
+      acquisti_assegna_fornitore: {
+        Args: { p_fornitore: string | null; p_items: string[] }
+        Returns: number
+      }
       _cg_assert_enabled: { Args: { p_company_id: string }; Returns: undefined }
       create_acceptance_tasks: { Args: { p_report_id: string }; Returns: number }
       _dashboard_parse_period: {

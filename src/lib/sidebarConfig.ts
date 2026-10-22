@@ -45,6 +45,7 @@ import {
   SquarePen,
   Star,
   Calculator,
+  ShoppingCart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -150,6 +151,8 @@ export const macroAreas: MacroArea[] = [
       // Gli ODA vivono in un tab «acquisto» dentro Commesse, non è più una voce
       // di menu (doppia porta = menu più lungo e basta).
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
+      // Ufficio acquisti (22/10/2026): i materiali validati dal tecnico di tutte le commesse.
+      { title: "Acquisti da fare", url: "/azienda/acquisti-da-fare", icon: ShoppingCart, permissionKey: "canManagePurchasing" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // Assistenza aggrega richieste (ticket + interventi), Manutenzione (impianti,
       // contratti, scadenze) e la vista in calendario: una porta sola, a schede

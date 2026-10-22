@@ -51,6 +51,8 @@ export interface StaffPermissions {
   can_view_sicurezza_cantiere: boolean;
   can_view_subappaltatori: boolean;
   can_view_firma_elettronica: boolean;
+  can_validate_bom: boolean;
+  can_manage_purchasing: boolean;
   // ── Finanza ────────────────────────────────────────────
   can_view_billing: boolean;
   can_view_scadenzario: boolean;

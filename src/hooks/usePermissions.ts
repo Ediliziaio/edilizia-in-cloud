@@ -133,6 +133,10 @@ export interface Permissions {
   canViewSmsMarketing: boolean;
   /** Modulo Firma Elettronica (FEA) — cantieri + CRM */
   canViewFirmaElettronica: boolean;
+  /** Valida i materiali di una fase (il tecnico) e approva le scomposizioni proposte dall'AI. */
+  canValidateBom: boolean;
+  /** Ufficio acquisti: «Acquisti da fare», richieste d'offerta e ordini dalle distinte validate. */
+  canManagePurchasing: boolean;
   /** Modulo Reputazione (gestione recensioni) */
   canViewReputazione: boolean;
   /** Modulo Controllo di Gestione (MP-CG): admin o canViewCruscotto/Billing. */
@@ -239,6 +243,8 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_sales_os",
   "can_view_sms_marketing",
   "can_view_firma_elettronica",
+  "can_validate_bom",
+  "can_manage_purchasing",
   "can_view_reputazione",
   "can_view_team_tasks",
   "can_view_all_team_calendar",
@@ -302,6 +308,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewFirmaElettronica: true, canViewReputazione: true,
+  canValidateBom: true, canManagePurchasing: true,
   canViewControlloGestione: true,
   canViewTeamTasks: true, canViewAllTeamCalendar: true,
   canApproveOrders: true, canDeleteOrders: true, canExportClients: true,
@@ -354,6 +361,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewFirmaElettronica: false, canViewReputazione: false,
+  canValidateBom: false, canManagePurchasing: false,
   canViewControlloGestione: false,
   canViewTeamTasks: false, canViewAllTeamCalendar: false,
   canApproveOrders: false, canDeleteOrders: false, canExportClients: false,
@@ -427,6 +435,8 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Firma elettronica / reputazione: non pertinenti al commercialista esterno
   canViewFirmaElettronica: false,
   canViewReputazione: false,
+  // Distinte e acquisti: il commercialista non valida e non ordina.
+  canValidateBom: false, canManagePurchasing: false,
   // Supervisione in sola lettura: vede il calendario del team ma non gestisce attività
   canViewTeamTasks: false,
   canViewAllTeamCalendar: true,
@@ -569,6 +579,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSalesOs:           g("can_view_sales_os"),
     canViewSmsMarketing:      g("can_view_sms_marketing"),
     canViewFirmaElettronica:  g("can_view_firma_elettronica"),
+    canValidateBom:           g("can_validate_bom"),
+    canManagePurchasing:      g("can_manage_purchasing"),
     canViewReputazione:       g("can_view_reputazione"),
     canViewTeamTasks:         g("can_view_team_tasks"),
     canViewAllTeamCalendar:   g("can_view_all_team_calendar"),

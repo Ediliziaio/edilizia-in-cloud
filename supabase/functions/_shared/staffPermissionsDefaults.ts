@@ -28,6 +28,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_interventi: false, can_view_manutenzione: false,
   can_view_sicurezza_cantiere: false, can_view_subappaltatori: false,
   can_view_firma_elettronica: false,
+  can_validate_bom: false, can_manage_purchasing: false,
   // Finanza
   can_view_billing: false, can_view_scadenzario: false, can_view_tesoreria: false,
   can_view_prima_nota: false,

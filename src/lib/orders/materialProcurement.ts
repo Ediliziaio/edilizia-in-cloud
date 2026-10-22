@@ -11,6 +11,8 @@ export interface ProcurementItem {
   vat_rate?: number | null;
   stock_item_id?: string | null;
   status?: string | null;
+  /** Unità di misura del materiale (vuota = pezzi). */
+  unita_misura?: string | null;
   posizioni?: Array<{ descrizione: string; misure?: string | null; quantita: number }> | null;
 }
 
@@ -21,6 +23,11 @@ export interface ProcurementCoverage {
   quantity_received: number;
   unit_of_measure?: string | null;
   purchase_orders: { id: string; oda_number: string; status: string };
+}
+
+/** Unità del materiale: quella scritta sulla riga, altrimenti pezzi come prima. */
+export function unitaMateriale(item: { unita_misura?: string | null }): string {
+  return (item.unita_misura ?? "").trim().toLowerCase() || "pz";
 }
 
 const roundQty = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
@@ -42,9 +49,9 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   const remaining = positive(required) ? roundQty(Math.max(0, required - covered)) : 0;
   let review: string | null = null;
   if (!positive(required)) review = "Quantità prevista non valida";
-  else if (active.some(r => r.unit_of_measure && r.unit_of_measure.trim().toLowerCase() !== "pz")) {
-    // order_items has no canonical unit column yet; cannot compare boxes/kg/m²
-    // to its legacy piece quantity, or generate a residual by guessing a ratio.
+  else if (active.some(r => r.unit_of_measure && r.unit_of_measure.trim().toLowerCase() !== unitaMateriale(item))) {
+    // Never compare boxes/kg/m² with a quantity in another unit, or generate
+    // a residual by guessing a ratio.
     review = "Unità di misura dell’OdA da verificare prima di calcolare il residuo";
   }
   else if (item.posizioni?.length && (item.posizioni.some(p => !positive(p.quantita)) || Math.abs(item.posizioni.reduce((n, p) => n + Number(p.quantita), 0) - required) > 0.000001)) {
@@ -78,7 +85,7 @@ export function procurementLines(items: ProcurementItem[]) {
       description: `${item.name} — ${p.descrizione}${p.misure ? ` ${p.misure}` : ""}`, quantity: p.quantita,
     })) : [{ description: item.name, quantity: item.quantity }]).map(row => ({
       ...row, order_item_id: item.id!, unit_price: price, vat_rate: vat,
-      discount_percent: 0, unit_of_measure: "pz",
+      discount_percent: 0, unit_of_measure: unitaMateriale(item),
     }));
   });
 }

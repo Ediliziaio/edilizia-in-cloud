@@ -55,6 +55,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
+const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
@@ -1570,6 +1571,12 @@ function OrderDetailInner() {
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             {activeMaterialiView === "articoli" && <>
+            {/* Materiali divisi per fase, con validazione del tecnico e acquisti (22/10/2026). */}
+            <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Materiali per fase non disponibili. Ricarica la pagina per riprovare.</p>}>
+              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico i materiali per fase…</p>}>
+                <MaterialiPerFase orderId={id!} orderCode={order.order_code} />
+              </Suspense>
+            </ErrorBoundary>
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Controllo misure non disponibile. Ricarica la pagina per riprovare.</p>}>
