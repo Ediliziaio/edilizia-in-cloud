@@ -194,8 +194,8 @@ describe("stampe PDF della contabilità", () => {
     try {
       await st.stampaElencoPrezzi(elencoPrezzi(contratto, 10), h);
       await st.stampaLibretto(libretto.map(r => ({ numero: r.numero, data: r.data, voce: r.voce_radice, tariffa: "", descrizione: "Voce", unita_misura: "m²",
-        righe: [{ descrizione: "Piano terra", lunghezza: 10, larghezza: 30 }], quantita: r.quantita, annotazioni: null, firmatario: "Ing. Prova", firmato: true,
-        progressivo: undefined, sal: 1 })), h);
+        righe: [{ descrizione: "Piano terra", lunghezza: 10, larghezza: 30 }], quantita: r.quantita, annotazioni: null as never, firmatario: "Ing. Prova", firmato: true,
+        progressivo: undefined as never, sal: 1 })), h);
       await st.stampaRegistro(registro, "2026-02-28", h);
       await st.stampaSal({ ...sal, numero: 1, data: "2026-03-01", lavori_a_tutto: "2026-02-28", sicurezza_modo: "a_misura", ribasso_percentuale: 10, stato: "approvato" },
         [{ numero: "1", tariffa: "T.1", descrizione: "Massetto", unita_misura: "m²", is_sicurezza: false, prezzo: 60, quantita_precedente: 0, quantita_a_oggi: 300, importo_a_oggi: 18000 }], h);
