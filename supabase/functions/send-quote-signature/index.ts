@@ -10,6 +10,7 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { dataItalianaLunga } from "../_shared/dataItaliana.ts";
 import { congelaDocumento, DocumentoNonPronto } from "../_shared/documentoCongelato.ts";
 import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
+import { brandingFirma, emailInvitoFirma, emailPreventivoPdf } from "../_shared/emailFirma.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -147,30 +148,20 @@ Deno.serve(async (req) => {
       }
       const pdfBase64 = btoa(binario);
 
-      const { data: companyPdf } = await supabaseAdmin
-        .from("companies")
-        .select("name")
-        .eq("id", quote.company_id)
-        .single();
-      const nomeAzienda = companyPdf?.name || "L'azienda";
-      const totaleFmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" })
-        .format(Number(quote.total || 0));
-
-      const htmlSemplice = `
-        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
-          <p>Gentile ${finalName},</p>
-          <p>in allegato trova il preventivo <strong>${quote.quote_number}</strong>${quote.title ? ` — ${quote.title}` : ""} per un totale di <strong>${totaleFmt}</strong>.</p>
-          ${custom_message ? `<p style="white-space: pre-line;">${String(custom_message)}</p>` : ""}
-          <p>Restiamo a disposizione per qualsiasi chiarimento.</p>
-          <p>Cordiali saluti,<br/>${nomeAzienda}</p>
-        </div>`;
+      // Testi ripuliti e grafica dell'azienda (_shared/emailFirma.ts).
+      const emailPdf = emailPreventivoPdf(await brandingFirma(supabaseAdmin, quote.company_id), {
+        nome: finalName, numero: quote.quote_number, oggetto: quote.title ?? null,
+        importo: Number(quote.total || 0), messaggio: typeof custom_message === "string" ? custom_message : null,
+      });
 
       const invio = await sendEmailUnified({
         companyId:    quote.company_id,
         stream:       "transactional",
         to:           [finalEmail],
-        subject:      `Preventivo ${quote.quote_number} — ${nomeAzienda}`,
-        html:         htmlSemplice,
+        subject:      emailPdf.subject,
+        html:         emailPdf.html,
+        text:         emailPdf.text,
+        replyTo:      emailPdf.replyTo,
         templateName: "quote_pdf_semplice",
         skipCredits:  false,
         adminClient:  supabaseAdmin,
@@ -311,116 +302,26 @@ Deno.serve(async (req) => {
       })
       .eq("id", quote_id);
 
-    // Load company info
-    const { data: company } = await supabaseAdmin
-      .from("companies")
-      .select("name, logo_url")
-      .eq("id", quote.company_id)
-      .single();
-
     const branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
     const appUrl = await getPlatformSetting("site_url", "SITE_URL")
       || Deno.env.get("SITE_URL")
       || branding.siteUrl
       || "";
     const signatureLink = `${appUrl}/firma-fea/${signatureToken}`;
-    const companyName = company?.name || "L'azienda";
 
-    // Format total
-    const formattedTotal = new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(Number(quote.total || 0));
-
-    // Il giorno italiano: il server è in UTC e dopo mezzanotte il giorno UTC è ancora quello prima.
-    const expiresFormatted = dataItalianaLunga(expiresAt);
-
-    // Build email HTML
-    const emailHtml = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f4f4f5;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    <!-- Header -->
-    <div style="background: #1e3a5f; border-radius: 12px 12px 0 0; padding: 32px 40px; text-align: center;">
-      ${company?.logo_url ? `<img src="${company.logo_url}" alt="${companyName}" style="height: 48px; margin-bottom: 12px;" />` : ""}
-      <h1 style="margin: 0; font-size: 22px; color: #ffffff; font-weight: 700;">${companyName}</h1>
-      <p style="margin: 8px 0 0; color: rgba(255,255,255,0.75); font-size: 14px;">Offerta n. ${quote.quote_number}</p>
-    </div>
-
-    <!-- Body -->
-    <div style="background: #ffffff; padding: 40px; border-left: 1px solid #e4e4e7; border-right: 1px solid #e4e4e7;">
-      <p style="color: #3f3f46; line-height: 1.6; margin: 0 0 15px;">
-        Gentile <strong>${finalName}</strong>,
-      </p>
-      <p style="color: #3f3f46; line-height: 1.6; margin: 0 0 15px;">
-        Le inviamo la nostra offerta${quote.title ? ` per <strong>${quote.title}</strong>` : ""}.
-        Potrà visualizzarla e firmarla online con codice OTP.
-      </p>
-
-      ${custom_message ? `
-        <div style="background: #f8fafc; border-left: 3px solid #2563eb; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-          <p style="color: #3f3f46; line-height: 1.6; margin: 0; font-size: 14px;">${custom_message}</p>
-        </div>
-      ` : ""}
-
-      <!-- Amount box -->
-      <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; text-align: center; margin: 25px 0;">
-        <p style="color: #71717a; font-size: 13px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.5px;">Importo Totale</p>
-        <p style="color: #1e3a5f; font-size: 28px; font-weight: 700; margin: 0;">${formattedTotal}</p>
-      </div>
-
-      <p style="color: #71717a; font-size: 13px; margin: 0 0 25px; text-align: center;">
-        Offerta valida fino al <strong>${expiresFormatted}</strong>
-      </p>
-
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${signatureLink}" 
-           style="display: inline-block; background: #2563eb; color: #ffffff; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
-          Visualizza e firma con OTP
-        </a>
-      </div>
-
-      <p style="color: #a1a1aa; font-size: 12px; text-align: center; margin: 20px 0 0;">
-        Oppure copia questo link nel browser:<br />
-        <a href="${signatureLink}" style="color: #2563eb; word-break: break-all;">${signatureLink}</a>
-      </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="background: #fafafa; border-radius: 0 0 12px 12px; padding: 20px 40px; border: 1px solid #e4e4e7; border-top: none; text-align: center;">
-      <p style="color: #a1a1aa; font-size: 11px; margin: 0;">
-        Questa email è stata inviata da ${companyName}${!branding.hidePoweredBy ? ` tramite ${branding.platformName}` : ""}.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
-
-    // Genera subito l'OTP iniziale: il cliente può comunque rigenerarlo dalla pagina pubblica.
-    let otpInviato = false;
-    try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const otpRes = await fetchWithTimeout(`${supabaseUrl}/functions/v1/fea-genera-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({ request_id: signatureRequest.id, token: signatureRequest.token, azienda_nome: companyName }),
-        timeoutMs: 15_000,
-      });
-
-      if (otpRes.ok) {
-        otpInviato = true;
-      } else {
-        console.error("Quote FEA OTP generation failed:", await otpRes.text());
-      }
-    } catch (otpErr) {
-      console.error("Quote FEA OTP call error:", otpErr);
-    }
+    // Un'email sola: l'invito a firmare. Il codice parte quando il cliente lo
+    // chiede dalla pagina di firma: mandato adesso, scadeva dopo 10 minuti e
+    // il cliente che apriva l'offerta il giorno dopo aveva due email e un
+    // codice inutile.
+    const invito = emailInvitoFirma(await brandingFirma(supabaseAdmin, quote.company_id), {
+      nome: finalName,
+      documento: `Preventivo ${quote.quote_number}`,
+      oggetto: quote.title ?? null,
+      importo: Number(quote.total || 0),
+      scadenza: expiresAt,
+      link: signatureLink,
+      messaggio: typeof custom_message === "string" ? custom_message : null,
+    });
 
     await supabaseAdmin.from("fea_audit_log").insert({
       request_id: signatureRequest.id,
@@ -434,8 +335,10 @@ Deno.serve(async (req) => {
       companyId:    quote.company_id,
       stream:       "transactional",
       to:           [finalEmail],
-      subject:      `Offerta ${quote.quote_number} — ${companyName}`,
-      html:         emailHtml,
+      subject:      invito.subject,
+      html:         invito.html,
+      text:         invito.text,
+      replyTo:      invito.replyTo,
       templateName: "quote_signature",
       skipCredits:  false,
       adminClient:  supabaseAdmin,
@@ -446,13 +349,18 @@ Deno.serve(async (req) => {
       console.error("Email send failed:", result);
       return errorResponse(`Errore invio email: ${JSON.stringify(result.body)}`, 500);
     }
+    await supabaseAdmin.from("fea_audit_log").insert({
+      request_id: signatureRequest.id, company_id: quote.company_id, evento: "link_inviato",
+      metadati: { signer_email: finalEmail },
+    });
 
     return jsonResponse({
       success: true,
       message: "Offerta inviata con successo",
       signature_link: signatureLink,
       signature_request_id: signatureRequest.id,
-      otp_inviato: otpInviato,
+      // Il codice parte quando il cliente lo chiede: qui l'invito è partito.
+      otp_inviato: true,
     });
   } catch (e) {
     if (e instanceof Response) return e;

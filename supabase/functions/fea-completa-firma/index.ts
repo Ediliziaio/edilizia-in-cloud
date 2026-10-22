@@ -3,7 +3,9 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { clausoleDellaFirma, informativaPrivacyDellaFirma } from "../_shared/clausoleFirma.ts";
-import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
+import { assicuraPdfFirmato, titoloDelDocumento } from "../_shared/pdfFirmato.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { brandingFirma, emailCopiaFirmata, emailFirmaAvvenutaAzienda } from "../_shared/emailFirma.ts";
 import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 import { controllaSessioneFirma, firmatarioIdentificato, ipDellaRichiesta } from "../_shared/firmaAvanzata.ts";
 import { rileggiDocumentoCongelato } from "../_shared/documentoCongelato.ts";
@@ -45,18 +47,6 @@ async function risolviOwner(admin: any, sigReq: {
     console.warn("risolviOwner lookup error:", e);
   }
   return sigReq.created_by ?? null;
-}
-
-const esc = (t: unknown) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-
-function buildEmailCopiaB2C(nome: string, data: string, codice: string | null, conPdf: boolean): string {
-  return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
-  <h2 style="color:#1E3A5F">Documento firmato</h2>
-  <p>Gentile ${esc(nome)},</p>
-  <p>Hai firmato elettronicamente un documento il ${esc(data)}.</p>
-  ${conPdf ? `<p>In allegato trovi la copia firmata: ogni pagina porta il timbro di firma e in fondo c'è il certificato${codice ? ` (codice di verifica <strong>${esc(codice)}</strong>)` : ""}.</p>` : ""}
-  <p>Conserva questa email come prova della firma.</p>
-</div>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -337,23 +327,45 @@ Deno.serve(async (req: Request) => {
         console.error("Prove della firma non conservate:", proveErr instanceof Error ? proveErr.message : proveErr);
       }
 
+      // Le email con il marchio dell'azienda (_shared/emailFirma.ts).
+      const marchio = await brandingFirma(supabaseAdmin, sigReq.company_id);
+      const sito = (await getBrandingForCompany(supabaseAdmin, sigReq.company_id)).siteUrl;
+      const documento = await titoloDelDocumento(supabaseAdmin, sigReq);
+      const linkVerifica = codice ? `${sito}/verifica-firma?codice=${encodeURIComponent(codice)}` : null;
+
+      // Avviso all'azienda, oltre alla notifica nell'app: all'email dell'azienda, se c'è.
+      if (marchio.email) {
+        try {
+          const avviso = emailFirmaAvvenutaAzienda(marchio, {
+            firmatario: sigReq.signer_name ?? "Il cliente", documento, firmatoIl: ora,
+            codiceVerifica: codice, linkApp: `${sito}/azienda/firma-elettronica`,
+          });
+          await sendEmailUnified({
+            companyId: sigReq.company_id, stream: "transactional", to: [marchio.email],
+            subject: avviso.subject, html: avviso.html, text: avviso.text,
+            templateName: "fea_firma_avvenuta_azienda", skipCredits: true, adminClient: supabaseAdmin,
+            metadata: { request_id: sigReq.id },
+          });
+        } catch (e) {
+          console.error("Avviso firma all'azienda non inviato:", e);
+        }
+      }
+
       // Copia al firmatario: ai privati come prima; alle aziende solo se c'è il PDF.
       if (sigReq.tipo_firmatario !== "b2c" && !allegato) return;
       try {
-        const dataFormattata = new Date(ora).toLocaleDateString("it-IT", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
+        const copia = emailCopiaFirmata(marchio, {
+          nome: sigReq.signer_name ?? "Gentile cliente", documento, firmatoIl: ora,
+          codiceVerifica: codice, linkVerifica, conPdf: !!allegato,
         });
-
         const invio = await sendEmailUnified({
           companyId:    sigReq.company_id,
           stream:       "transactional",
           to:           [sigReq.signer_email],
-          subject:      "Copia del documento firmato",
-          html:         buildEmailCopiaB2C(sigReq.signer_name, dataFormattata, codice, !!allegato),
+          subject:      copia.subject,
+          html:         copia.html,
+          text:         copia.text,
+          replyTo:      copia.replyTo,
           templateName: "fea_firma_completata",
           skipCredits:  true,
           adminClient:  supabaseAdmin,

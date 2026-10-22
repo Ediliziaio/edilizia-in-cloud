@@ -91,7 +91,7 @@ export function RichiediFirmaDialog({
         setResult({ link: res.firma_link, token: res.token, otpSent: res.otp_inviato });
         toast.success(
           res.otp_inviato
-            ? "Richiesta firma inviata + OTP spedito via email"
+            ? "Richiesta di firma inviata per email"
             : "Richiesta creata. Copia il link e invia al firmatario.",
         );
       },
@@ -174,8 +174,8 @@ export function RichiediFirmaDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              B2C: il firmatario dovrà accettare recesso + clausole vessatorie oltre all'OTP.
-              B2B: solo verifica OTP e firma.
+              Privato: oltre al codice accetta il diritto di recesso e le clausole da approvare a parte.
+              Azienda: inserisce il codice e firma.
             </p>
           </div>
         ) : (
@@ -184,12 +184,12 @@ export function RichiediFirmaDialog({
               <AlertDescription className="text-sm">
                 {result.otpSent ? (
                   <>✅ Richiesta inviata con successo.
-                    <br />OTP inviato a <strong>{email}</strong>.
+                    <br />Email con il link inviata a <strong>{email}</strong>.
                     <br />Il firmatario può cliccare il link e firmare.
                   </>
                 ) : (
                   <>
-                    ✅ Richiesta creata. L'OTP verrà richiesto quando il firmatario apre il link.
+                    ✅ Richiesta creata, ma l'email non è partita: copia il link e mandalo tu al firmatario.
                   </>
                 )}
               </AlertDescription>
@@ -209,7 +209,7 @@ export function RichiediFirmaDialog({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Scade tra {scadenzaGiorni} giorni. OTP: 6 cifre, 10 min per inserimento.
+                Scade tra {scadenzaGiorni} giorni. Il codice di 6 cifre arriva quando il firmatario lo chiede e vale 10 minuti.
               </p>
             </div>
           </div>
