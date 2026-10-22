@@ -128,9 +128,10 @@ export function valutaFormula(expr: string): number | null {
   return out !== null && i === src.length && Number.isFinite(out) ? out : null;
 }
 
-const CAMPI_FORMULA: Record<string, keyof Pick<ComputoMisura, "parti_uguali" | "lunghezza" | "larghezza" | "altezza_peso">> = {
+/** Le colonne che una formula può calcolare, col nome con cui PriMus le scrive. */
+export const CAMPI_FORMULA = {
   "par.ug.": "parti_uguali", "lung.": "lunghezza", "larg.": "larghezza", "h/peso": "altezza_peso",
-};
+} as const satisfies Record<string, keyof ComputoMisura>;
 
 /** Toglie dalla descrizione le formule «*(par.ug.=8*2407,80)» e le restituisce a parte. */
 export function estraiFormule(testo: string): { descrizione: string; formule: Array<{ campo: keyof typeof CAMPI_FORMULA; espressione: string; valore: number | null }> } {
@@ -205,7 +206,11 @@ function quantitaRiga(m: ComputoMisura): number | null {
   return fattori.reduce((a, b) => a * b, 1);
 }
 
-const formatEuro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** «1.100,00» sempre col punto delle migliaia (toLocaleString in italiano non lo mette sotto i 10.000). */
+export function formatEuro(n: number): string {
+  const [intera, decimali] = Math.abs(n).toFixed(2).split(".");
+  return `${n < 0 ? "-" : ""}${intera.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${decimali}`;
+}
 
 /**
  * Ricontrolla il computo come farebbe un tecnico con la calcolatrice:

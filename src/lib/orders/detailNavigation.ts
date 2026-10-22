@@ -19,6 +19,7 @@ export const ECONOMIA_VIEWS = [
 export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
   { value: "articoli", label: "Articoli e misure", description: "Forniture della commessa, quantità e verifica delle misure." },
+  { value: "computo", label: "Computo metrico", description: "Il computo della commessa: voci, misure, controllo dei totali e lavori pubblici." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
   { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },
   { value: "fatture", label: "Fatture fornitori", description: "Fatture arrivate per questa commessa, collegate o da collegare." },
@@ -38,6 +39,7 @@ export function resolveMaterialiView(search: string, section?: string): Material
   if (section === "section-fatture-fornitori") return "fatture";
   if (section === "section-magazzino") return "magazzino";
   if (section === "section-materiali") return "articoli";
+  if (section === "section-computo") return "computo";
   return MATERIALI_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_materiali"))?.value ?? "articoli";
 }
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
@@ -87,6 +89,7 @@ const SECTION_TABS = {
   "section-diario": "cantiere",
   "section-sal": "finanza",
   "section-materiali": "articoli",
+  "section-computo": "articoli",
   "section-bolle": "articoli",
   "section-fatture-fornitori": "articoli",
   "section-acquisti": "articoli",

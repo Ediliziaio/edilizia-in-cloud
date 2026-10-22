@@ -139,7 +139,7 @@ describe("computo PriMus vero (Genzano di Lucania, 39 pagine)", () => {
       numPages: pagine.length,
       getPage: async (n: number) => ({
         getTextContent: async () => ({ items: pagine[n - 1].items.map(i => ({ str: i.text, transform: [1, 0, 0, 1, i.x, i.y], width: (i.right ?? i.x) - i.x })) }),
-        getOperatorList: async () => ({ fnArray: [1], argsArray: [[]] }),
+        getOperatorList: async () => ({ fnArray: [1], argsArray: [[]] as unknown[][] }),
       }),
     };
     const letto = await readPdfPages(doc, { imageOps: [99], maxChars: 1_000_000, keepPositions: true });

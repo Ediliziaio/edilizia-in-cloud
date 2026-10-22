@@ -23,7 +23,7 @@ import {
 
 export interface XmlNodo { nome: string; attributi: Record<string, string>; figli: XmlNodo[]; testo: string }
 
-const ENTITA: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: "\"", apos: "'", nbsp: " " };
+const ENTITA: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: "\"", apos: "'", nbsp: "\u00a0" };
 function decodificaEntita(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
     if (e[0] === "#") {
@@ -123,10 +123,10 @@ export function decodificaXpwe(input: ArrayBuffer | Uint8Array | string): string
   if (typeof input === "string") return input;
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const testa = new TextDecoder("latin1").decode(bytes.slice(0, 300));
-  if (!/^\s*(?:﻿|ï»¿)?\s*</.test(testa)) throw new Error(MESSAGGIO_DCF);
+  if (!/^\s*(?:\uFEFF|ï»¿)?\s*</.test(testa)) throw new Error(MESSAGGIO_DCF);
   const enc = /encoding\s*=\s*["']([^"']+)["']/i.exec(testa)?.[1]?.toLowerCase() ?? "utf-8";
-  try { return new TextDecoder(enc).decode(bytes).replace(/^﻿/, ""); }
-  catch { return new TextDecoder("utf-8").decode(bytes).replace(/^﻿/, ""); }
+  try { return new TextDecoder(enc).decode(bytes).replace(/^\uFEFF/, ""); }
+  catch { return new TextDecoder("utf-8").decode(bytes).replace(/^\uFEFF/, ""); }
 }
 
 function elencoLivelli(gruppo: XmlNodo | undefined, contenitore: string): Map<string, ComputoLivello> {

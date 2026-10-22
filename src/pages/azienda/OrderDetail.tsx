@@ -5,7 +5,7 @@ import { ContractInterventions } from "@/components/orders/ContractInterventions
 import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -54,6 +54,7 @@ import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
+const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
@@ -1662,6 +1663,11 @@ function OrderDetailInner() {
               </Button>
             </div>
             </>}
+            {activeMaterialiView === "computo" && id && companyId && <div id="section-computo" className="scroll-mt-24">
+              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
+                <OrderComputoTab orderId={id} companyId={companyId} canEdit={permissions.canEditOrders} canViewAmounts={permissions.canViewOrderAmounts} orderLabel={order.order_code} />
+              </Suspense>
+            </div>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
               <OrderUsciteCard orderId={id!} canViewCosts={permissions.canViewCosts} />
