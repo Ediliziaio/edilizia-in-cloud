@@ -41,33 +41,9 @@ export function OrdineArticoli({
   showSupplierPayments = true,
   showProcurement = true,
 }: OrdineArticoliProps) {
-  const queryClient = useQueryClient();
   // Pagamenti fornitori = costi → visibili solo a chi ha canViewCosts.
   const { canViewCosts, canEditOrders } = usePermissions();
-
-  // Posa dal listino → voce Manodopera (order_external_teams). Materiale resta
-  // in order_items: il costo manodopera NON viene contato due volte.
-  const addLaborMutation = useMutation({
-    mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
-      if (!canEditOrders) throw new Error("Permessi insufficienti");
-      const { error } = await supabase.from("order_external_teams").insert({
-        order_id: orderId,
-        external_team_id: labor.external_team_id,
-        total_cost: labor.total_cost,
-        vat_rate: 22,
-        is_paid: false,
-        notes: labor.notes,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
-      toast.success("Posa aggiunta alla Manodopera");
-    },
-    onError: (e) => {
-      toast.error(e instanceof Error ? e.message : "Errore aggiunta posa alla Manodopera");
-    },
-  });
+  const addLaborMutation = useAggiungiPosaManodopera(orderId);
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
@@ -98,6 +74,37 @@ export function OrdineArticoli({
       )}
     </div>
   );
+}
+
+/**
+ * Posa dal listino → voce Manodopera (order_external_teams). Materiale resta
+ * in order_items: il costo manodopera NON viene contato due volte. Usata
+ * dall'elenco articoli e dalla vista per fase della commessa.
+ */
+export function useAggiungiPosaManodopera(orderId: string) {
+  const queryClient = useQueryClient();
+  const { canEditOrders } = usePermissions();
+  return useMutation({
+    mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
+      if (!canEditOrders) throw new Error("Permessi insufficienti");
+      const { error } = await supabase.from("order_external_teams").insert({
+        order_id: orderId,
+        external_team_id: labor.external_team_id,
+        total_cost: labor.total_cost,
+        vat_rate: 22,
+        is_paid: false,
+        notes: labor.notes,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
+      toast.success("Posa aggiunta alla Manodopera");
+    },
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : "Errore aggiunta posa alla Manodopera");
+    },
+  });
 }
 
 export function OrderProcurementTools({ orderId, orderCode, items }: { orderId: string; orderCode?: string | null; items: OrderItem[] }) {

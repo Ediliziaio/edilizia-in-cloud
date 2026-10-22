@@ -27893,6 +27893,7 @@ export type Database = {
           quantita: number
           scomposizione_id: string | null
           simbolo: string
+          unita: string | null
           updated_at: string
         }
         Insert: {
@@ -27917,6 +27918,7 @@ export type Database = {
           quantita: number
           scomposizione_id?: string | null
           simbolo: string
+          unita?: string | null
           updated_at?: string
         }
         Update: {
@@ -27941,6 +27943,7 @@ export type Database = {
           quantita?: number
           scomposizione_id?: string | null
           simbolo?: string
+          unita?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -27974,6 +27977,7 @@ export type Database = {
           attiva: boolean
           categoria: string | null
           codice_prezzario: string | null
+          codice_standard: string | null
           company_id: string
           creata_da: string | null
           created_at: string
@@ -27991,6 +27995,7 @@ export type Database = {
           attiva?: boolean
           categoria?: string | null
           codice_prezzario?: string | null
+          codice_standard?: string | null
           company_id: string
           creata_da?: string | null
           created_at?: string
@@ -28008,6 +28013,7 @@ export type Database = {
           attiva?: boolean
           categoria?: string | null
           codice_prezzario?: string | null
+          codice_standard?: string | null
           company_id?: string
           creata_da?: string | null
           created_at?: string
@@ -28031,6 +28037,7 @@ export type Database = {
           descrizione: string
           id: string
           ordine: number
+          prezzo_unitario: number | null
           quantita_per_unita: number
           scomposizione_id: string
           sfrido_percentuale: number
@@ -28046,6 +28053,7 @@ export type Database = {
           descrizione: string
           id?: string
           ordine?: number
+          prezzo_unitario?: number | null
           quantita_per_unita: number
           scomposizione_id: string
           sfrido_percentuale?: number
@@ -28061,6 +28069,7 @@ export type Database = {
           descrizione?: string
           id?: string
           ordine?: number
+          prezzo_unitario?: number | null
           quantita_per_unita?: number
           scomposizione_id?: string
           sfrido_percentuale?: number
@@ -57941,6 +57950,8 @@ export type Database = {
           unita_misura: string | null
           position: number | null
           posizioni: Json | null
+          prezzo_aggiornato_il: string | null
+          prezzo_fonte: string | null
           product_code: string | null
           purchase_price: number | null
           quantity: number | null
@@ -58011,6 +58022,8 @@ export type Database = {
           unita_misura?: string | null
           position?: number | null
           posizioni?: Json | null
+          prezzo_aggiornato_il?: string | null
+          prezzo_fonte?: string | null
           product_code?: string | null
           purchase_price?: number | null
           quantity?: number | null
@@ -58081,6 +58094,8 @@ export type Database = {
           unita_misura?: string | null
           position?: number | null
           posizioni?: Json | null
+          prezzo_aggiornato_il?: string | null
+          prezzo_fonte?: string | null
           product_code?: string | null
           purchase_price?: number | null
           quantity?: number | null
@@ -100760,6 +100775,14 @@ export type Database = {
           p_righe: Json
         }
         Returns: Json
+      }
+      materiali_ultimi_prezzi: {
+        Args: { p_company: string; p_descrizioni: string[] }
+        Returns: { chiave: string; data: string; oda: string; prezzo: number; unita: string }[]
+      }
+      scomposizioni_importa_standard: {
+        Args: { p_company: string; p_voci: Json }
+        Returns: number
       }
       materiali_tecnico_aggiorna: {
         Args: { p_item: string; p_quantita: number; p_specifiche?: string }
