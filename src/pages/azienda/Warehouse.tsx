@@ -90,6 +90,7 @@ import {
 import { SlidersHorizontal } from "lucide-react";
 
 import WarehouseStats, { type WarehouseOrderMetricKey } from "@/components/warehouse/WarehouseStats";
+import { useMagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
 import WarehouseInventoryStats, { type WarehouseInventoryMetricKey } from "@/components/warehouse/WarehouseInventoryStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
@@ -173,15 +174,15 @@ const DEFAULT_ORDER_METRICS: WarehouseOrderMetricKey[] = [
 const DEFAULT_INVENTORY_METRICS: WarehouseInventoryMetricKey[] = [
   "inventory_value",
   "stock_items",
-  "total_quantity",
   "low_stock",
+  "incoming_7d",
 ];
 
+// «Quantità totale», «Materiali critici» e «In esaurimento» tolti il 22/10:
+// la prima sommava pezzi, metri e chili; le altre due ripetevano «sotto
+// scorta» con altre soglie. Chi li aveva scelti torna ai riquadri di base.
 const ALL_INVENTORY_METRICS: WarehouseInventoryMetricKey[] = [
   ...DEFAULT_INVENTORY_METRICS,
-  "critical_materials",
-  "near_low_stock",
-  "incoming_7d",
   "missing_cost",
 ];
 
@@ -201,11 +202,8 @@ const ORDER_METRIC_LABELS: Record<WarehouseOrderMetricKey, string> = {
 const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
   inventory_value: "Valore inventario",
   stock_items: "Articoli a stock",
-  total_quantity: "Quantità totale",
-  low_stock: "Sottoscorta",
-  critical_materials: "Materiali critici",
-  near_low_stock: "In esaurimento",
-  incoming_7d: "In arrivo 7gg",
+  low_stock: "Sotto scorta",
+  incoming_7d: "In arrivo",
   missing_cost: "Senza costo",
 };
 
@@ -262,10 +260,11 @@ export default function Warehouse() {
     handleUpdateNotes,
     getSupplierName,
     clearFilters,
-    exportToCSV,
     refetch,
     effectiveCompany,
   } = useWarehouseData();
+  // i riquadri si contano nel database su tutti i dati, non sulla pagina mostrata
+  const { data: riepilogo } = useMagazzinoRiepilogo(warehouseFilter ?? null);
   // Mobile: tre viste su undici (commesse, acquisti, inventario). Pipeline,
   // calendario, lotti, DDT, uscite, valore, scadenze e movimenti sono da
   // scrivania; un indirizzo diretto a una di queste apre le commesse.
@@ -279,7 +278,17 @@ export default function Warehouse() {
     isLoading: warehousesLoading,
   } = useWarehouses(true);
   const { isScopriPlan } = useSubscriptionLimits();
-  const { data: lowStockAlerts = [] } = useLowStockAlerts(effectiveCompany?.id ?? null);
+  const { data: tuttiSottoScorta = [] } = useLowStockAlerts(effectiveCompany?.id ?? null);
+  // Con un magazzino scelto il riquadro «sotto scorta» conta solo i suoi
+  // articoli: banner e riordino lo stesso (prima dicevano 7 contro 2).
+  const articoliDelMagazzino = useMemo(
+    () => (warehouseFilter ? new Set(stockItems.filter((i) => i.warehouse_id === warehouseFilter).map((i) => i.id)) : null),
+    [stockItems, warehouseFilter],
+  );
+  const lowStockAlerts = useMemo(
+    () => (articoliDelMagazzino ? tuttiSottoScorta.filter((a) => articoliDelMagazzino.has(a.stock_item_id)) : tuttiSottoScorta),
+    [tuttiSottoScorta, articoliDelMagazzino],
+  );
   const [reorderOpen, setReorderOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -316,9 +325,13 @@ export default function Warehouse() {
         order: parsed.order?.filter((key): key is WarehouseOrderMetricKey =>
           DEFAULT_ORDER_METRICS.includes(key as WarehouseOrderMetricKey),
         ) ?? DEFAULT_ORDER_METRICS,
-        inventory: parsed.inventory?.filter((key): key is WarehouseInventoryMetricKey =>
-          ALL_INVENTORY_METRICS.includes(key as WarehouseInventoryMetricKey),
-        ) ?? DEFAULT_INVENTORY_METRICS,
+        inventory: (() => {
+          const scelti = parsed.inventory?.filter((key): key is WarehouseInventoryMetricKey =>
+            ALL_INVENTORY_METRICS.includes(key as WarehouseInventoryMetricKey),
+          );
+          // chi aveva scelto solo riquadri tolti non deve ritrovarsi senza numeri
+          return scelti && scelti.length > 0 ? scelti : DEFAULT_INVENTORY_METRICS;
+        })(),
         materialCards: Array.isArray(parsed.materialCards) ? parsed.materialCards : [],
       });
       setMetricPreferencesLoaded(true);
@@ -473,7 +486,7 @@ export default function Warehouse() {
   // KPI inventario cliccabili: le metriche di scorta aprono il riordino,
   // le altre portano alla vista Inventario (lista articoli a stock).
   const handleInventoryCardClick = (key: WarehouseInventoryMetricKey) => {
-    if (key === "low_stock" || key === "critical_materials" || key === "near_low_stock") {
+    if (key === "low_stock") {
       if (isCommercialistaMode) setViewMode("stock");
       else setReorderOpen(true);
     } else {
@@ -583,7 +596,8 @@ export default function Warehouse() {
         { key: "barcode", label: "Barcode" },
         { key: "codice_interno", label: "Codice interno" },
       ],
-      stockItems.map((item) => ({
+      // il magazzino scelto in testata, come i riquadri: prima uscivano tutti
+      stockItems.filter((item) => !warehouseFilter || item.warehouse_id === warehouseFilter).map((item) => ({
         articolo: item.name,
         quantita: String(item.quantity ?? 0),
         costo_unitario: String(item.unit_cost ?? 0),
@@ -812,10 +826,6 @@ export default function Warehouse() {
                       Esporta
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="w-64">
-                  <DropdownMenuItem onClick={exportToCSV}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Vista corrente CSV
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportWorkflowCsv}>
                     <List className="h-4 w-4 mr-2" />
                     Lista commesse CSV
@@ -894,7 +904,7 @@ export default function Warehouse() {
             riga intera sopra i numeri per un bottone. */}
         <div className="space-y-3">
           <WarehouseStats
-            items={items}
+            riepilogo={riepilogo?.righe}
             activeFilter={activeStatsFilter}
             onCardClick={handleStatsCardClick}
             visibleCards={metricPreferences.order}
@@ -903,8 +913,7 @@ export default function Warehouse() {
               occupa solo spazio, nascosto sotto md. Restano le card operative. */}
           <div className="hidden md:block">
             <WarehouseInventoryStats
-              stockItems={stockItems}
-              orderItems={items}
+              riepilogo={riepilogo}
               visibleCards={metricPreferences.inventory}
               onCardClick={handleInventoryCardClick}
             />
@@ -1217,20 +1226,20 @@ export default function Warehouse() {
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
                 className="tap-compact gap-1 shrink-0"
-                title="Articoli con lavori entro 7 giorni"
+                title="Articoli con la posa in questa settimana (lunedì–domenica)"
               >
                 <Clock className="h-4 w-4" />
-                Lavori 7gg
+                Questa settimana
               </Button>
               <Button
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
                 className="gap-1 shrink-0 max-sm:hidden"
-                title="Articoli con lavori entro 14 giorni"
+                title="Articoli con la posa nella prossima settimana"
               >
                 <Clock className="h-4 w-4" />
-                Lavori 14gg
+                Prossima settimana
               </Button>
             </div>
             )}
@@ -1459,7 +1468,8 @@ export default function Warehouse() {
         <WarehouseMovementsTab companyId={effectiveCompany.id} warehouseFilter={warehouseFilter} />
       ) : viewMode === "stock" ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          {/* telefono no: niente importazioni da file */}
+          <div className="flex justify-end max-sm:hidden">
             {!isCommercialistaMode && <ArticoliCSVImportDialog warehouseId={warehouseFilter ?? null} />}
           </div>
           <WarehouseStockTab
@@ -1658,6 +1668,8 @@ export default function Warehouse() {
         onOpenChange={setReorderOpen}
         companyId={effectiveCompany.id}
         readOnly={isCommercialistaMode}
+        warehouseId={warehouseFilter ?? null}
+        articoliVisibili={articoliDelMagazzino}
       />
     </div>
   );

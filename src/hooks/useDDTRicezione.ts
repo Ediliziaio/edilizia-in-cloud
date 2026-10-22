@@ -23,6 +23,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { riceviResiduoOda } from "@/lib/orders/riceviResiduoOda";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +96,7 @@ export interface DDTRicezioneWithJoins extends DDTRicezione {
   purchase_orders?: {
     id: string;
     oda_number: string;
+    supplier_id?: string | null;
     status: string;
     order_id: string | null;
     suppliers?: { name: string; email?: string | null } | null;
@@ -154,41 +157,37 @@ export function useDDTRicezioneList(filters?: {
   return useQuery<DDTRicezioneWithJoins[]>({
     queryKey: queryKeys.ddtRicezione.list(companyId, filters),
     queryFn: async () => {
-      let q = supabase
-        .from("ddt_ricezione")
-        .select(
-          "*, purchase_orders!inner(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name)"
-        )
-        .eq("company_id", companyId!)
-        .order("data_ricezione", { ascending: false });
+      // Tutte le pagine, a blocchi di 500. Prima c'era un tetto di 500 bolle:
+      // contatori, schede ed esportazione vedevano solo quelle senza dirlo.
+      // La query si ricostruisce a ogni pagina: un builder già eseguito non si riusa.
+      const pagina = (da: number, a: number) => {
+        let q = supabase
+          .from("ddt_ricezione")
+          .select(
+            "*, purchase_orders!inner(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name)"
+          )
+          .eq("company_id", companyId!)
+          .order("data_ricezione", { ascending: false })
+          .order("id");
 
-      if (filters?.stato && filters.stato !== "all") {
-        q = q.eq("stato", filters.stato);
-      }
-      if (filters?.purchaseOrderId) {
-        q = q.eq("purchase_order_id", filters.purchaseOrderId);
-      }
-      if (filters?.warehouseId) {
-        q = q.eq("warehouse_id", filters.warehouseId);
-      }
-      if (filters?.fromDate) {
-        q = q.gte("data_ricezione", filters.fromDate);
-      }
-      if (filters?.toDate) {
-        q = q.lte("data_ricezione", filters.toDate);
-      }
-
-      // Safety cap: prima NESSUN limit → su azienda con >1000 DDT caricava
-      // tutto con join 4-tabelle (PO + suppliers + orders + warehouses) →
-      // payload enorme + parsing/render slow + RAM spike.
-      // Ordine già DESC su data_ricezione → tieni i 500 più recenti.
-      // Per storici > 500 servirà infinite scroll dedicato (TODO future).
-      q = q.limit(500);
-
-      const { data, error } = await q;
-      if (error) throw error;
-
-      let rows = (data || []) as unknown as DDTRicezioneWithJoins[];
+        if (filters?.stato && filters.stato !== "all") {
+          q = q.eq("stato", filters.stato);
+        }
+        if (filters?.purchaseOrderId) {
+          q = q.eq("purchase_order_id", filters.purchaseOrderId);
+        }
+        if (filters?.warehouseId) {
+          q = q.eq("warehouse_id", filters.warehouseId);
+        }
+        if (filters?.fromDate) {
+          q = q.gte("data_ricezione", filters.fromDate);
+        }
+        if (filters?.toDate) {
+          q = q.lte("data_ricezione", filters.toDate);
+        }
+        return q.range(da, a) as unknown as PromiseLike<{ data: DDTRicezioneWithJoins[] | null; error: unknown }>;
+      };
+      let rows = await readAllOrderRows<DDTRicezioneWithJoins>(pagina);
 
       if (filters?.supplierId) {
         rows = rows.filter(
@@ -365,8 +364,13 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     // Ora: 1 prefix DDT + 2 prefix warehouse specifici + PO detail mirati.
     // staleTime dei consumer copre il resto senza forzare refetch immediato.
     queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.all });
-    queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-    queryClient.invalidateQueries({ queryKey: ["warehouse-movements"] });
+    // un arrivo cambia giacenze, movimenti e stato/«Arrivato» degli ordini:
+    // le chiavi vere (["warehouse-stock"] e ["warehouse-movements"] non
+    // corrispondevano a nessuna query)
+    queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+    queryClient.invalidateQueries({ queryKey: ["warehouse-movements-registry"] });
+    queryClient.invalidateQueries({ queryKey: ["magazzino-live"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     if (poId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
@@ -428,8 +432,13 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         warehouse_id: warehouseId,
         numero_ddt: params.numero_ddt.trim(),
         data_ricezione: params.data_ricezione,
-        quantita_ricevuta: params.quantita_ricevuta,
-        stato: params.stato,
+        // «ricevuto completo»: la quantità la scrive oda_registra_arrivo sommando
+        // le righe; partire dal numero digitato la conterebbe due volte
+        quantita_ricevuta: params.stato === "ricevuto" || params.stato === "verificato" ? 0 : params.quantita_ricevuta,
+        // «ricevuto completo» nasce «atteso»: lo stato vero lo scrive la
+        // funzione dell'arrivo, così se l'arrivo non va a buon fine la bolla
+        // non resta «ricevuta» senza merce
+        stato: params.stato === "ricevuto" || params.stato === "verificato" ? "atteso" : params.stato,
         note: params.note?.trim() || null,
         created_by: user?.id ?? null,
         corriere: params.corriere?.trim() || null,
@@ -450,23 +459,45 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         .single();
       if (error) throw error;
 
-      // Le due strade si parlano (fix 2026-09): un DDT "ricevuto completo"
-      // registrava il documento ma lasciava l'OdA in bozza — e il costo in
-      // commessa nasce dal trigger sul passaggio purchase_orders.status →
-      // 'ricevuto' (trg_po_costo_da_ricezione). Qui il passaggio avviene.
-      // Non bloccante: il DDT è già registrato, un errore qui non lo annulla.
+      // «Ricevuto completo» vuol dire che è arrivato tutto il residuo: si
+      // registrano le quantità riga per riga, agganciate a QUESTA bolla, con la
+      // stessa funzione del foglio «arrivo merce». È lei a portare l'ordine a
+      // ricevuto (e il costo sulla commessa), a caricare il magazzino e a
+      // scrivere lo stato della bolla. Prima qui si scriveva solo lo stato:
+      // ordine ricevuto, costo pieno in commessa, nessuna quantità, niente
+      // magazzino. Se l'arrivo non riesce la bolla resta «attesa» e lo si dice.
       if (params.stato === "ricevuto" || params.stato === "verificato") {
-        const { error: poErr } = await supabase
-          .from("purchase_orders")
-          .update({ status: "ricevuto" })
-          .eq("id", params.purchase_order_id)
-          .neq("status", "ricevuto")
-          .neq("status", "annullato");
-        if (poErr) {
-          toast.warning("DDT registrato, ma lo stato dell'OdA non si è aggiornato: mettilo su 'Ricevuto' a mano per generare il costo.");
+        const ddtId = (data as { id: string }).id;
+        try {
+          const esito = await riceviResiduoOda({
+            companyId,
+            odaId: params.purchase_order_id,
+            ddtId,
+            data: params.data_ricezione,
+            warehouseId,
+            note: params.note?.trim() || null,
+          });
+          if (esito.senzaRighe || (esito.righe === 0 && esito.completo)) {
+            // ordine senza righe (o già tutto arrivato): niente da contare, lo stato si mette qui
+            const { error: errOda } = await supabase.from("purchase_orders")
+              .update({ status: "ricevuto", actual_delivery_date: params.data_ricezione })
+              .eq("id", params.purchase_order_id)
+              .not("status", "in", "(ricevuto,annullato)");
+            if (errOda) throw errOda;
+            await supabase.from("ddt_ricezione").update({ stato: params.stato } as never).eq("id", ddtId);
+          } else if (params.stato === "verificato") {
+            await supabase.from("ddt_ricezione").update({ stato: "verificato" } as never).eq("id", ddtId);
+          }
+          if (!esito.senzaRighe && !esito.completo) {
+            toast.warning("DDT registrato, ma l'ordine non è completo: alcune righe non sono entrate.");
+          }
+        } catch (e) {
+          toast.warning("DDT registrato come «atteso»: l'arrivo non si è registrato", {
+            description: (e as { message?: string })?.message ?? "Registralo dalla scheda dell'ordine.",
+          });
         }
       }
-      return data as DDTRicezione;
+      return data as unknown as DDTRicezione;
     },
     onSuccess: () => {
       toast.success("DDT registrato");
@@ -477,11 +508,50 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const updateDDT = useMutation({
     mutationFn: async (params: { id: string; updates: Partial<DDTRicezione> }) => {
-      const { error } = await supabase
+      const { data: prima } = await supabase
         .from("ddt_ricezione")
-        .update(params.updates as never)
-        .eq("id", params.id);
-      if (error) throw error;
+        .select("stato, purchase_order_id, warehouse_id, data_ricezione")
+        .eq("id", params.id)
+        .maybeSingle();
+
+      // Una bolla che diventa «ricevuto completo» porta con sé il residuo
+      // dell'ordine, come alla creazione. «Verificato» no: dice che la merce
+      // arrivata è stata controllata, non che è arrivata tutta.
+      // Solo da «atteso»: da parziale, verificato o non conforme la merce arrivata
+      // è già registrata, e il residuo di tutto l'ordine entrerebbe senza esserci
+      // (5 pezzi arrivati su 10 → ne risultavano 10). Lì cambia solo l'etichetta.
+      const diventaRicevuta = !!companyId && !!prima && params.updates.stato === "ricevuto"
+        && (prima.stato === "atteso" || prima.stato === "attesa");
+      if (!diventaRicevuta) {
+        const { error } = await supabase.from("ddt_ricezione").update(params.updates as never).eq("id", params.id);
+        if (error) throw error;
+        return;
+      }
+
+      // Prima gli altri campi, senza stato e quantità: lo stato lo scrive la
+      // funzione dell'arrivo e la quantità è la somma delle righe (quella
+      // digitata si sarebbe sommata due volte). Se l'arrivo fallisce la bolla
+      // non risulta «ricevuta» e si può riprovare.
+      const { stato: _stato, quantita_ricevuta: _q, ...altri } = params.updates;
+      if (Object.keys(altri).length > 0) {
+        const { error } = await supabase.from("ddt_ricezione").update(altri as never).eq("id", params.id);
+        if (error) throw error;
+      }
+      const esito = await riceviResiduoOda({
+        companyId: companyId!,
+        odaId: prima!.purchase_order_id,
+        ddtId: params.id,
+        // i valori nuovi, se cambiati nella stessa modifica
+        data: (altri as { data_ricezione?: string }).data_ricezione ?? prima!.data_ricezione,
+        warehouseId: (altri as { warehouse_id?: string | null }).warehouse_id ?? prima!.warehouse_id,
+      });
+      if (esito.senzaRighe || (esito.righe === 0 && esito.completo)) {
+        const { error } = await supabase.from("ddt_ricezione").update({ stato: "ricevuto" } as never).eq("id", params.id);
+        if (error) throw error;
+      }
+      if (!esito.senzaRighe && !esito.completo) {
+        toast.warning("L'ordine non è completo: alcune righe non sono entrate.");
+      }
     },
     onSuccess: () => {
       toast.success("DDT aggiornato");
@@ -720,7 +790,7 @@ export function useDDTAttachments(ddtId?: string | null) {
       if (fetchErr) throw fetchErr;
 
       const existing =
-        ((row as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
+        ((row as unknown as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
       const merged = [...existing, ...uploaded];
 
       const { error } = await supabase
@@ -770,7 +840,7 @@ export function useDDTAttachments(ddtId?: string | null) {
       if (fetchErr) throw fetchErr;
 
       const existing =
-        ((row as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
+        ((row as unknown as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
       const filtered = existing.filter((a) => a.path !== params.path);
 
       const { error: upErr } = await supabase

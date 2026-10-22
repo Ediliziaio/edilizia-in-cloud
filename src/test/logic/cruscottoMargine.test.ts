@@ -27,7 +27,10 @@ describe("cruscotto: margine commesse nel periodo", () => {
     expect(src).toContain('.from("v_ordine_marginalita")');
     expect(src).toContain('.select("id, margine, preventivo_totale, variazioni_approvate")');
     expect(src).toContain("margineCommesseNelPeriodo(margini)");
-    // Servono tutte le rate (anche pagate) per il saldo finale; le pagate le scarta rateDaIncassare.
-    expect(src).toMatch(/order:orders!inner\(company_id, deleted_at, [^)]*\)[\s\S]{0,200}\.is\("order\.deleted_at", null\)/);
+    // Le rate da incassare le calcola il database (cruscotto_rate_da_incassare →
+    // rate_da_incassare → rate_importi, che lascia fuori le commesse nel cestino):
+    // la vecchia lettura con orders!inner(deleted_at) non c'è più.
+    expect(src).toContain('rpc("cruscotto_rate_da_incassare", { p_company_id: companyId })');
+    expect(src).not.toContain('.from("order_installments").select("id, order_id, amount');
   });
 });

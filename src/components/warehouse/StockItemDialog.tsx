@@ -236,13 +236,18 @@ export function StockItemDialog({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Quantità</Label>
+              <Label>{editingItem ? "Giacenza" : "Giacenza iniziale"}</Label>
               <Input
                 type="number"
                 min="0"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
+              {editingItem && Number(quantity) !== Number(editingItem.quantity) && (
+                <p className="text-[11px] text-amber-700">
+                  Da {editingItem.quantity} a {Number(quantity) || 0}: diventa una rettifica nei movimenti.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Costo Unitario (€)</Label>

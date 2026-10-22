@@ -185,7 +185,7 @@ export default function PurchaseOrderDetail() {
       // compariva mai: nessuno la scriveva, ne' qui ne' nella mutation.
       ...(ns === "ricevuto" ? { actual_delivery_date: format(new Date(), "yyyy-MM-dd") } : {}),
     }, {
-      onSuccess: () => {
+      onSuccess: (esito) => {
         // Il costo NON si crea piu' qui: lo genera il trigger sul database
         // (migration 20280117000000) al passaggio a "ricevuto", cosi' anche
         // scanner, DDT e percorsi futuri lo producono — prima solo questo
@@ -193,7 +193,8 @@ export default function PurchaseOrderDetail() {
         // la cassa. Qui resta solo il refresh della scheda Contabilita'.
         if (ns === "ricevuto") {
           queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
-          if (Number(order.subtotal) > 0) {
+          // il costo nasce solo con l'ordine completo: con righe mancanti non c'è
+          if (Number(order.subtotal) > 0 && (esito as { completo?: boolean } | undefined)?.completo !== false) {
             toast.success("Merce ricevuta", {
               description: "Costo registrato in Costi Aziendali con la scadenza dei termini di pagamento.",
             });

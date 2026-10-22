@@ -736,10 +736,9 @@ export default function WarehouseManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare definitivamente {deleteTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione rimuove il magazzino dall&apos;azienda. I dati collegati
-              che il database conserva per storico resteranno senza magazzino
-              associato; se esistono vincoli bloccanti, l&apos;eliminazione verrà
-              annullata automaticamente.
+              Si può eliminare solo un magazzino vuoto: se ha ancora articoli,
+              movimenti o ordini collegati l&apos;eliminazione si ferma e ti dice
+              cosa spostare prima.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

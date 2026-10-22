@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { formatCurrency } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,9 +75,22 @@ function Numero({
  * risposta alla prima domanda va in cima al cruscotto, non accanto.
  */
 export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione?: boolean }) {
+  const dati = useCruscottoData();
+  return <ComeStiamoAndandoVista comeSezione={comeSezione} dati={dati} />;
+}
+
+/**
+ * La vista con i dati già letti: il Cruscotto le passa i suoi, così in cima e
+ * sotto i numeri vengono dalla stessa lettura e dallo stesso periodo (prima
+ * useCruscottoData girava due volte, ognuna col suo filtro).
+ */
+export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
+  comeSezione?: boolean;
+  dati: ReturnType<typeof useCruscottoData>;
+}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { operations, finance, todayData, companyTargets, workOrders, isLoading, error } = useCruscottoData();
+  const { operations, finance, todayData, companyTargets, workOrders, isLoading, error } = dati;
 
   // Marginalità dei cantieri: la vista esiste già ed è quella che alimenta
   // Marginalità cantieri. Qui serve solo per i cantieri APERTI.
@@ -321,8 +335,9 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
           </div>
         ) : (
           <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-slate-100 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-slate-100"}>
-            {attenzioni.map((v) => (
-              <li key={v.id} className={comeSezione ? "lg:border-b lg:border-slate-100 lg:odd:border-r" : undefined}>
+            {/* telefono: le prime tre, quelle che costano di più non fare */}
+            {attenzioni.map((v, i) => (
+              <li key={v.id} className={cn(comeSezione && "lg:border-b lg:border-slate-100 lg:odd:border-r", i >= 3 && "max-sm:hidden")}>
                 <Link
                   to={v.url}
                   title={`${v.titolo} — ${v.dettaglio}`}

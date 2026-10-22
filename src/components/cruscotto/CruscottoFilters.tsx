@@ -21,8 +21,8 @@ const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
   { value: "last7", label: "7 giorni" },
   { value: "last30", label: "30 giorni" },
   { value: "month", label: "Mese" },
-  { value: "quarter", label: "Trimestre" },
-  { value: "custom", label: "Custom" },
+  { value: "quarter", label: "90 giorni" },
+  { value: "custom", label: "Personalizzato" },
 ];
 
 export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate, compact, className }: Props) {

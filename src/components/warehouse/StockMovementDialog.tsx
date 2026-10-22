@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import {
 import { format } from "date-fns";
 
 import { COST_CATEGORIES } from "@/types/warehouse";
+import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 
 interface StockMovementDialogProps {
   open: boolean;
@@ -32,6 +33,8 @@ interface StockMovementDialogProps {
     registerCost?: boolean;
     costPaidDate?: string;
     costCategory?: string;
+    /** commessa per cui esce la merce (solo scarico): il costo finisce sul suo margine */
+    orderId?: string | null;
   }) => void;
   type: "carico" | "scarico";
   itemName: string;
@@ -53,6 +56,20 @@ export function StockMovementDialog({
   const [registerCost, setRegisterCost] = useState(false);
   const [costPaidDate, setCostPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [costCategory, setCostCategory] = useState("Magazzino");
+  const [orderId, setOrderId] = useState<string | null>(null);
+
+  // Si riparte puliti a ogni apertura, non dopo il salvataggio: il dialog resta
+  // montato, e la commessa scelta per un articolo (anche annullando) restava
+  // per il successivo; se lo scarico falliva, invece, si perdeva quanto scritto.
+  useEffect(() => {
+    if (!open) return;
+    setQuantity("1");
+    setNotes("");
+    setRegisterCost(false);
+    setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
+    setCostCategory("Magazzino");
+    setOrderId(null);
+  }, [open, itemName, type]);
 
   const handleSave = () => {
     const qty = parseInt(quantity) || 0;
@@ -61,15 +78,11 @@ export function StockMovementDialog({
     onSave({
       quantity: qty,
       notes: notes.trim() || undefined,
+      ...(type === "scarico" ? { orderId } : {}),
       ...(registerCost && type === "carico"
         ? { registerCost: true, costPaidDate, costCategory }
         : {}),
     });
-    setQuantity("1");
-    setNotes("");
-    setRegisterCost(false);
-    setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
-    setCostCategory("Magazzino");
   };
 
   return (
@@ -97,6 +110,14 @@ export function StockMovementDialog({
               onChange={(e) => setQuantity(e.target.value)}
             />
           </div>
+          {/* Lo scarico rapido non chiedeva la commessa: la merce usciva e il suo
+              costo non finiva su nessun cantiere. Resta facoltativa (scarti, uso interno). */}
+          {type === "scarico" && (
+            <div className="space-y-2">
+              <Label>Per quale commessa? <span className="font-normal text-muted-foreground">(facoltativo)</span></Label>
+              <CommessaCombobox value={orderId} onChange={setOrderId} nessunaLabel="Nessuna commessa (scarto, uso interno)" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Note</Label>
             <Textarea

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { Fragment, useState, useMemo, useCallback } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
@@ -15,17 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Popover, PopoverTrigger, PopoverContent,
-} from "@/components/ui/popover";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingCart, Plus, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
-  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Warehouse, Link2, ArrowRight,
+  FileSpreadsheet, X, Calendar as CalendarIcon, Package, Wallet, Warehouse, Link2, ArrowRight,
   AlertTriangle, Send, Check,
 } from "lucide-react";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { usePurchaseOrders, type PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { formatCurrency } from "@/lib/formatters";
@@ -86,6 +83,93 @@ function giorniDiRitardo(o: { status: string; expected_delivery_date: string | n
   return gg > 0 ? gg : null;
 }
 
+/**
+ * Quanto è arrivato di un ordine, riga per riga: «2/3» vuol dire due righe
+ * complete su tre. Senza righe non c'è niente da contare.
+ */
+function avanzamento(o: PurchaseOrder): { righe: number; complete: number; iniziate: number } | null {
+  const righe = (o.purchase_order_items ?? []).filter((r) => Number(r.quantity ?? 0) > 0);
+  if (righe.length === 0) return null;
+  return {
+    righe: righe.length,
+    complete: righe.filter((r) => Number(r.quantity_received ?? 0) >= Number(r.quantity ?? 0)).length,
+    iniziate: righe.filter((r) => Number(r.quantity_received ?? 0) > 0).length,
+  };
+}
+
+/**
+ * Il valore arrivato di un ordine: tutto se è «ricevuto», altrimenti la quota
+ * delle righe già arrivate (quantità ricevuta × prezzo). Prima contava solo gli
+ * ordini «ricevuto»: una commessa con ordini parziali al 90% diceva 0%.
+ */
+function valoreArrivato(o: PurchaseOrder): number {
+  const totale = Number(o.total ?? 0);
+  if (o.status === "ricevuto") return totale;
+  const righe = o.purchase_order_items ?? [];
+  let ordinato = 0; let arrivato = 0;
+  for (const r of righe) {
+    const q = Number(r.quantity ?? 0); const p = Number(r.unit_price ?? 0);
+    ordinato += q * p;
+    arrivato += Math.min(Number(r.quantity_received ?? 0), q) * p;
+  }
+  return ordinato > 0 ? totale * (arrivato / ordinato) : 0;
+}
+
+const numeroDdt = (o: PurchaseOrder) => o.ddt_ricezione?.[0]?.count ?? 0;
+
+/** Gli stati che pesano come impegno di spesa: mandati al fornitore, non annullati. */
+const impegnato = (o: PurchaseOrder) => !["bozza", "annullato"].includes(o.status);
+
+function Arrivato({ o }: { o: PurchaseOrder }) {
+  const a = avanzamento(o);
+  const ddt = numeroDdt(o);
+  if (o.status === "bozza" || o.status === "annullato") return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="flex items-center gap-2">
+      {a ? (
+        <span className="inline-flex items-center gap-1.5" title={`${a.complete} righe arrivate su ${a.righe}`}>
+          <span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200">
+            <span
+              className={cn("block h-full rounded-full", a.complete === a.righe ? "bg-emerald-500" : "bg-amber-500")}
+              style={{ width: `${Math.round(((a.complete + (a.iniziate - a.complete) * 0.5) / a.righe) * 100)}%` }}
+            />
+          </span>
+          <span className="text-xs tabular-nums text-slate-600">{a.complete}/{a.righe}</span>
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground" title="Ordine senza righe: non c'è niente da contare">senza righe</span>
+      )}
+      {ddt > 0 && (
+        <span className="text-[11px] text-muted-foreground" title={`${ddt} ${ddt === 1 ? "bolla registrata" : "bolle registrate"}`}>
+          · {ddt} DDT
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CommessaCella({ o }: { o: PurchaseOrder }) {
+  if (!o.order_id || !o.orders?.order_code) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Link
+        to={`/azienda/ordini/${o.order_id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+      >
+        <Link2 className="h-3 w-3" />
+        {o.orders.order_code}
+      </Link>
+      {/* il costo di un ordine su una commessa cestinata non finisce in nessun margine visibile */}
+      {o.orders.deleted_at && (
+        <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700" title="La commessa è nel cestino">
+          nel cestino
+        </span>
+      )}
+    </span>
+  );
+}
+
 function VerificationBadge({ result }: { result: string | null | undefined }) {
   if (!result) return null;
   const cfg = VERIFICATION_BADGES[result];
@@ -117,34 +201,39 @@ export default function PurchaseOrdersList() {
   // hanno una commessa, e non devono fingerne una.
   const [newOrderId, setNewOrderId] = useState<string | null>(null);
 
-  // Filtri avanzati
+  // Filtri, tutti in vista: commessa, fornitore, periodo. Prima stavano in
+  // un menu a parte (con gli importi min/max, che nessuno usava) e la commessa
+  // non c'era: per vedere cosa si è ordinato per un cantiere la si cercava a mano.
+  const [filterOrder, setFilterOrder] = useState<string>("all"); // all | none | id commessa
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
-  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
-  const [filterDateTo, setFilterDateTo] = useState<string>("");
-  const [filterAmountMin, setFilterAmountMin] = useState<string>("");
-  const [filterAmountMax, setFilterAmountMax] = useState<string>("");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterPeriodo, setFilterPeriodo] = useState<"tutto" | "30" | "90" | "anno">("tutto");
+  const [vista, setVista] = useState<"elenco" | "commessa">("elenco");
   const [guidaChiusa, setGuidaChiusa] = useState(() => {
     try { return localStorage.getItem("oda-guida-chiusa") === "1"; } catch { return false; }
   });
 
-  const activeFiltersCount = useMemo(() => {
-    let n = 0;
-    if (filterSupplier !== "all") n++;
-    if (filterDateFrom) n++;
-    if (filterDateTo) n++;
-    if (filterAmountMin) n++;
-    if (filterAmountMax) n++;
-    return n;
-  }, [filterSupplier, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax]);
+  const activeFiltersCount =
+    (filterOrder !== "all" ? 1 : 0) + (filterSupplier !== "all" ? 1 : 0) + (filterPeriodo !== "tutto" ? 1 : 0);
 
   const clearFilters = () => {
+    setFilterOrder("all");
     setFilterSupplier("all");
-    setFilterDateFrom("");
-    setFilterDateTo("");
-    setFilterAmountMin("");
-    setFilterAmountMax("");
+    setFilterPeriodo("tutto");
   };
+
+  // le scelte dei filtri vengono dagli ordini che ci sono, non da tutta l'anagrafica
+  const commesseInElenco = useMemo(() => {
+    const m = new Map<string, { codice: string; cestino: boolean }>();
+    for (const o of orders) {
+      if (o.order_id && o.orders?.order_code) m.set(o.order_id, { codice: o.orders.order_code, cestino: !!o.orders.deleted_at });
+    }
+    return [...m.entries()].sort((a, b) => a[1].codice.localeCompare(b[1].codice, "it", { numeric: true }));
+  }, [orders]);
+  const fornitoriInElenco = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of orders) if (o.supplier_id) m.set(o.supplier_id, o.suppliers?.name ?? "Fornitore");
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "it"));
+  }, [orders]);
 
   const filtered = useMemo(() => {
     const oggi = new Date().toLocaleDateString("en-CA");
@@ -172,28 +261,50 @@ export default function PurchaseOrdersList() {
       );
     }
 
+    if (filterOrder === "none") list = list.filter((o) => !o.order_id);
+    else if (filterOrder !== "all") list = list.filter((o) => o.order_id === filterOrder);
     if (filterSupplier !== "all") {
       list = list.filter((o) => o.supplier_id === filterSupplier);
     }
-    if (filterDateFrom) {
-      const from = new Date(filterDateFrom + "T00:00:00").getTime();
-      list = list.filter((o) => new Date(o.issue_date).getTime() >= from);
-    }
-    if (filterDateTo) {
-      const to = new Date(filterDateTo + "T23:59:59").getTime();
-      list = list.filter((o) => new Date(o.issue_date).getTime() <= to);
-    }
-    if (filterAmountMin) {
-      const min = Number(filterAmountMin);
-      if (!isNaN(min)) list = list.filter((o) => Number(o.total) >= min);
-    }
-    if (filterAmountMax) {
-      const max = Number(filterAmountMax);
-      if (!isNaN(max)) list = list.filter((o) => Number(o.total) <= max);
+    if (filterPeriodo !== "tutto") {
+      const da = new Date();
+      if (filterPeriodo === "anno") da.setMonth(0, 1);
+      else da.setDate(da.getDate() - Number(filterPeriodo));
+      const daIso = da.toLocaleDateString("en-CA");
+      list = list.filter((o) => (o.issue_date ?? "").slice(0, 10) >= daIso);
     }
 
     return list;
-  }, [orders, tab, search, filterSupplier, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax]);
+  }, [orders, tab, search, filterOrder, filterSupplier, filterPeriodo]);
+
+  // Per commessa: quanto si è impegnato e quanto è arrivato per ogni cantiere.
+  // Gli ordini senza commessa (scorte, attrezzatura) stanno in un gruppo loro.
+  const perCommessa = useMemo(() => {
+    const gruppi = new Map<string, { id: string | null; codice: string; descrizione: string | null; cestino: boolean; ordini: PurchaseOrder[] }>();
+    for (const o of filtered) {
+      const chiave = o.order_id ?? "__nessuna";
+      const g = gruppi.get(chiave) ?? {
+        id: o.order_id,
+        codice: o.orders?.order_code ?? "Senza commessa",
+        descrizione: o.order_id ? o.orders?.description ?? null : "Scorte di magazzino, attrezzatura, spese generali",
+        cestino: !!o.orders?.deleted_at,
+        ordini: [],
+      };
+      g.ordini.push(o);
+      gruppi.set(chiave, g);
+    }
+    return [...gruppi.values()].map((g) => {
+      const imp = g.ordini.filter(impegnato);
+      return {
+        ...g,
+        impegnato: imp.reduce((t, o) => t + Number(o.total), 0),
+        arrivato: imp.reduce((t, o) => t + valoreArrivato(o), 0),
+        inRitardo: g.ordini.filter((o) => giorniDiRitardo(o) !== null).length,
+        daMandare: g.ordini.filter((o) => o.status === "bozza").length,
+      };
+    }).sort((a, b) => (a.id === null ? 1 : b.id === null ? -1 : b.impegnato - a.impegnato));
+  }, [filtered]);
+  const [gruppiAperti, setGruppiAperti] = useState<Set<string>>(new Set());
 
   // Export handlers
   const buildExportRows = useCallback(() => {
@@ -205,6 +316,7 @@ export default function PurchaseOrdersList() {
       issue_date: format(new Date(o.issue_date), "dd/MM/yyyy"),
       expected_delivery: o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy") : "",
       status: STATUS_LABELS[o.status] ?? o.status,
+      arrivato: (() => { const a = avanzamento(o); return a ? `${a.complete}/${a.righe} righe` : ""; })(),
       total: String(Number(o.total).toFixed(2)),
       verification: o.last_verification?.result ?? "",
     }));
@@ -218,6 +330,7 @@ export default function PurchaseOrdersList() {
     { key: "issue_date", label: "Data Emissione" },
     { key: "expected_delivery", label: "Consegna Prevista" },
     { key: "status", label: "Stato" },
+    { key: "arrivato", label: "Arrivato" },
     { key: "total", label: "Totale €" },
     { key: "verification", label: "Verifica" },
   ]), []);
@@ -402,6 +515,54 @@ export default function PurchaseOrdersList() {
     { key: "annullati", label: "Annullati", icon: <X className="h-4 w-4" />, count: counts.annullati },
   ];
 
+  const rigaOrdine = (o: PurchaseOrder) => (
+                <tr
+                  key={o.id}
+                  className={`border-b hover:bg-muted/30 cursor-pointer ${o.status === "annullato" ? "opacity-50" : ""}`}
+                  onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
+                >
+                  <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[180px]">{o.suppliers?.name || "—"}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-xs"><CommessaCella o={o} /></td>
+                  <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
+                        {STATUS_LABELS[o.status] || o.status}
+                      </QuoteChip>
+                      <VerificationBadge result={o.last_verification?.result} />
+                    </div>
+                  </td>
+                  <td className="p-3"><Arrivato o={o} /></td>
+                  <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
+                  <td className="p-3 text-sm">
+                    {o.expected_delivery_date ? (
+                      <>
+                        <span className="text-muted-foreground">
+                          {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}
+                        </span>
+                        {/* Il ritardo va detto, non lasciato calcolare a mente:
+                            su questa azienda 14 ordini su 41 erano scaduti e
+                            in pagina non si vedeva da nessuna parte. */}
+                        {giorniDiRitardo(o) !== null && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                            <AlertTriangle className="h-3 w-3" />
+                            {giorniDiRitardo(o)}gg
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+  );
+
   return (
     <div className="space-y-6 max-sm:space-y-3">
       <QuotePageHeader
@@ -434,62 +595,6 @@ export default function PurchaseOrdersList() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="relative">
-                  <Filter className="h-4 w-4 mr-1.5" />
-                  Filtri
-                  {activeFiltersCount > 0 && (
-                    <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-orange-500 hover:bg-orange-500">{activeFiltersCount}</Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[320px] p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Filtri avanzati</p>
-                    {activeFiltersCount > 0 && (
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
-                        <X className="h-3 w-3 mr-1" /> Azzera
-                      </Button>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Fornitore</Label>
-                    <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti i fornitori</SelectItem>
-                        {suppliers.filter((s) => s.is_active).map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />Data dal</Label>
-                      <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Data al</Label>
-                      <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Importo min €</Label>
-                      <Input type="number" value={filterAmountMin} onChange={(e) => setFilterAmountMin(e.target.value)} className="h-9 text-xs" placeholder="0" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Importo max €</Label>
-                      <Input type="number" value={filterAmountMax} onChange={(e) => setFilterAmountMax(e.target.value)} className="h-9 text-xs" placeholder="∞" />
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
 
             <QuotePrimaryButton onClick={() => setNewOpen(true)} size="sm" className="max-sm:flex-1 max-sm:justify-center">
               <Plus className="h-4 w-4" />
@@ -625,6 +730,64 @@ export default function PurchaseOrdersList() {
           <Input placeholder="Cerca OdA..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 border-slate-200 pl-8 shadow-none" />
         </div>
         </div>
+        {/* Telefono no: bastano le schede e la ricerca. */}
+        <div className="mt-2.5 hidden flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5 sm:flex">
+          <Select value={filterOrder} onValueChange={setFilterOrder}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterOrder !== "all" && "border-orange-300 bg-orange-50")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le commesse</SelectItem>
+              <SelectItem value="none">Senza commessa</SelectItem>
+              {commesseInElenco.map(([id, c]) => (
+                <SelectItem key={id} value={id}>{c.codice}{c.cestino ? " (nel cestino)" : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterSupplier !== "all" && "border-orange-300 bg-orange-50")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i fornitori</SelectItem>
+              {fornitoriInElenco.map(([id, nome]) => (
+                <SelectItem key={id} value={id}>{nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterPeriodo} onValueChange={(v) => setFilterPeriodo(v as typeof filterPeriodo)}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[130px] text-xs", filterPeriodo !== "tutto" && "border-orange-300 bg-orange-50")}>
+              <CalendarIcon className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutto">Sempre</SelectItem>
+              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
+              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+              <SelectItem value="anno">Quest'anno</SelectItem>
+            </SelectContent>
+          </Select>
+          {activeFiltersCount > 0 && (
+            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={clearFilters}>
+              <X className="mr-1 h-3 w-3" /> Azzera
+            </Button>
+          )}
+          <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5">
+            {([["elenco", "Elenco"], ["commessa", "Per commessa"]] as const).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVista(v)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium",
+                  vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -728,65 +891,57 @@ export default function PurchaseOrdersList() {
                   volte su 41. Il dato resta nel dettaglio, dove si imposta. */}
               <th className="text-left p-3 font-medium">Data</th>
               <th className="text-left p-3 font-medium">Stato</th>
+              <th className="text-left p-3 font-medium">Arrivato</th>
               <th className="text-right p-3 font-medium">Totale</th>
               <th className="text-left p-3 font-medium">Consegna</th>
             </tr></thead>
             <tbody>
-              {filtered.map((o) => (
-                <tr
-                  key={o.id}
-                  className={`border-b hover:bg-muted/30 cursor-pointer ${o.status === "annullato" ? "opacity-50" : ""}`}
-                  onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
-                >
-                  <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="truncate max-w-[180px]">{o.suppliers?.name || "—"}</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-xs">
-                    {o.orders?.order_code ? (
-                      <span className="inline-flex items-center gap-1 text-primary font-medium">
-                        <Link2 className="h-3 w-3" />
-                        {o.orders.order_code}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
-                        {STATUS_LABELS[o.status] || o.status}
-                      </QuoteChip>
-                      <VerificationBadge result={o.last_verification?.result} />
-                    </div>
-                  </td>
-                  <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
-                  <td className="p-3 text-sm">
-                    {o.expected_delivery_date ? (
-                      <>
-                        <span className="text-muted-foreground">
-                          {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}
-                        </span>
-                        {/* Il ritardo va detto, non lasciato calcolare a mente:
-                            su questa azienda 14 ordini su 41 erano scaduti e
-                            in pagina non si vedeva da nessuna parte. */}
-                        {giorniDiRitardo(o) !== null && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                            <AlertTriangle className="h-3 w-3" />
-                            {giorniDiRitardo(o)}gg
+              {vista === "elenco" ? filtered.map(rigaOrdine) : perCommessa.map((g) => {
+                const chiave = g.id ?? "__nessuna";
+                const aperto = gruppiAperti.has(chiave) || filterOrder !== "all";
+                return (
+                  <Fragment key={chiave}>
+                    <tr
+                      className="cursor-pointer border-b bg-slate-50/80 hover:bg-slate-100"
+                      onClick={() => setGruppiAperti((prima) => {
+                        const dopo = new Set(prima);
+                        if (dopo.has(chiave)) dopo.delete(chiave); else dopo.add(chiave);
+                        return dopo;
+                      })}
+                    >
+                      <td colSpan={5} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", !aperto && "-rotate-90")} />
+                          {g.id ? (
+                            <Link to={`/azienda/ordini/${g.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-slate-900 hover:underline">
+                              {g.codice}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-slate-700">{g.codice}</span>
+                          )}
+                          {g.cestino && (
+                            <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">commessa nel cestino</span>
+                          )}
+                          {g.descrizione && <span className="min-w-0 truncate text-xs text-muted-foreground">{g.descrizione}</span>}
+                          <span className="ml-auto shrink-0 pl-3 text-xs text-slate-600">
+                            {g.ordini.length} {g.ordini.length === 1 ? "ordine" : "ordini"}
+                            {g.daMandare > 0 && <span className="ml-2 text-amber-700">{g.daMandare} da mandare</span>}
+                            {g.inRitardo > 0 && <span className="ml-2 font-semibold text-destructive">{g.inRitardo} in ritardo</span>}
                           </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        </div>
+                      </td>
+                      <td className="p-3 text-xs text-slate-600" title="Valore degli ordini ricevuti sul totale impegnato">
+                        {g.impegnato > 0 ? `${Math.round((g.arrivato / g.impegnato) * 100)}% arrivato` : "—"}
+                      </td>
+                      <td className="p-3 text-right font-semibold tabular-nums" title="Impegnato: ordini mandati, senza bozze e annullati">
+                        {formatCurrency(g.impegnato)}
+                      </td>
+                      <td className="p-3" />
+                    </tr>
+                    {aperto && g.ordini.map(rigaOrdine)}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

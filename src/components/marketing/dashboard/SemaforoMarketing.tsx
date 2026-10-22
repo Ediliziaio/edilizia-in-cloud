@@ -85,7 +85,7 @@ export function SemaforoMarketing(props: Props) {
       label: "Lead",
       color: getLeadColor(props.leadsNew, props.staleLeads),
       value: `${props.leadsNew} nuovi`,
-      detail: props.staleLeads > 0 ? `${props.staleLeads} da contattare` : `${props.leadsTotal} totali nel periodo`,
+      detail: props.staleLeads > 0 ? `${props.staleLeads} da contattare` : `${props.leadsTotal} in tutto, finora`,
       icon: UserPlus,
     },
     {

@@ -67,8 +67,9 @@ describe("AnalisiPrezzoDialog — Salva e applica", () => {
     const patch = scritture.find((s) => s.tabella === "tariffe_aziendali" && s.op === "update")!.dati as Record<string, unknown>;
     expect(patch.prezzo_vendita).toBe(126.5);
     expect(patch.incidenza_manodopera_pct).toBe(0.3162);
-    // Costo pieno (diretto + spese generali) nelle tre colonne.
-    expect(patch).toMatchObject({ prezzo_costo: 115, costo_interno: 115, costo_default: 115 });
+    // il costo DIRETTO (100): le spese generali le aggiunge il listino da «Prezzo e margini»,
+    // scritte nel costo si contavano due volte
+    expect(patch).toMatchObject({ prezzo_costo: 100, costo_interno: 100, costo_default: 100 });
     client.clear();
   });
 });

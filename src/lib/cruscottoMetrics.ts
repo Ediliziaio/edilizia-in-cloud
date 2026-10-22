@@ -17,10 +17,15 @@ export interface WorkOrder {
 }
 export type WorkSnapshot = WorkOrder & { work_state: WorkState };
 
+/** La fase che chiude il lavoro: l'ultima del flusso, fasi di supporto escluse. */
+export function faseConclusiva<T extends WorkStatus>(statuses: T[]): T | null {
+  return statuses.filter(s => !s.is_support_phase)
+    .reduce<T | null>((last, s) => !last || s.position > last.position ? s : last, null);
+}
+
 /** Same terminal workflow phase as Commesse. Dates never imply completion. */
 export function classifyWorkOrders(orders: WorkOrder[], statuses: WorkStatus[]): WorkSnapshot[] {
-  const workflow = statuses.filter(s => !s.is_support_phase);
-  const completed = workflow.reduce<WorkStatus | null>((last, s) => !last || s.position > last.position ? s : last, null);
+  const completed = faseConclusiva(statuses);
   const byId = new Map(statuses.map(s => [s.id, s]));
   return orders.map(order => {
     const phase = order.current_status_id ? byId.get(order.current_status_id) : undefined;

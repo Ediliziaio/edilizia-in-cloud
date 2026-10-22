@@ -143,3 +143,25 @@ describe("Adeguamento tariffe: scritture confermate e ripresa parziale", () => {
     expect(api.applica.mock.calls[0][0]).toEqual({ prezzo_vendita: 105 });
   });
 });
+
+describe("Adeguamento tariffe: le voci con prezzo dal costo (22/10/2026)", () => {
+  const dalCosto = (id: string): Tariffa => ({ ...voce(id, 75), costo_interno: 60, prezzo_modo: "dal_costo", ricarico_pct: 25 });
+
+  it("se cambia solo il costo, il prezzo lo segue col suo ricarico, e l'anteprima mostra quello che si scrive", async () => {
+    apri([dalCosto("t1")]);
+    fireEvent.click(screen.getByText("Costo interno", { exact: true }));
+    // costo 60 → 63 (+5%), ricarico 25% → prezzo 78,75
+    expect(screen.getByText("78,75", { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Applica a 1 voce" }));
+    await waitFor(() => expect(api.success).toHaveBeenCalledOnce());
+    expect(api.applica.mock.calls[0][0]).toEqual({ prezzo_vendita: 78.75, costo_interno: 63, costo_default: 63, prezzo_costo: 63 });
+  });
+
+  it("se cambia il prezzo, la voce diventa a prezzo libero, e lo dice prima", async () => {
+    apri([dalCosto("t1")]);
+    expect(screen.getByText(/diventa a\s+prezzo libero/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Applica a 1 voce" }));
+    await waitFor(() => expect(api.success).toHaveBeenCalledOnce());
+    expect(api.applica.mock.calls[0][0]).toEqual({ prezzo_vendita: 78.75, prezzo_modo: "libero", ricarico_pct: null });
+  });
+});

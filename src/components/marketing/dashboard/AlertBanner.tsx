@@ -28,11 +28,11 @@ export const AlertBanner = memo(function AlertBanner({ alerts, isLoading }: Prop
 
   const items: AlertItem[] = [
     { key: "stale_leads", icon: Clock, label: "Lead non contattati 48h+", count: alerts.stale_leads, severity: "critical", path: "/azienda/marketing/contatti" },
-    { key: "stale_opp", icon: AlertTriangle, label: "Opportunità ferme 7+ gg", count: alerts.stale_opportunities, severity: "critical", path: "/azienda/marketing/opportunita" },
+    { key: "stale_opp", icon: AlertTriangle, label: "Opportunità ferme", count: alerts.stale_opportunities, severity: "critical", path: "/azienda/marketing/opportunita" },
     { key: "stale_2h", icon: Timer, label: "Lead non contattati entro 2h", count: alerts.stale_leads_2h, severity: "warning", path: "/azienda/marketing/contatti" },
     { key: "show_rate", icon: Target, label: "Show rate sotto soglia", count: alerts.show_rate_below_threshold, severity: "warning" },
     { key: "pipeline_dec", icon: TrendingDown, label: "Pipeline in calo", count: alerts.pipeline_declining, severity: "warning" },
-    { key: "pending_appt", icon: CalendarX, label: "Appuntamenti senza esito", count: alerts.pending_appointments, severity: "warning", path: "/azienda/marketing/calendario" },
+    { key: "pending_appt", icon: CalendarX, label: "Appuntamenti da esitare", count: alerts.pending_appointments, severity: "warning", path: "/azienda/marketing/calendario" },
   ];
 
   const active = items.filter(i => typeof i.count === "boolean" ? i.count : (i.count as number) > 0);

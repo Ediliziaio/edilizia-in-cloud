@@ -3,13 +3,16 @@
  *
  * Tre momenti, uno dopo l'altro:
  *   1. si scrive cosa serve (righe senza prezzo) e a chi chiederlo
- *   2. si manda a ciascun fornitore, uno per uno, dalla casella aziendale
- *   3. arrivano le risposte, si confrontano riga per riga e si aggiudica
+ *   2. si chiede a ciascun fornitore: dalla casella aziendale, oppure fuori
+ *      dall'app (telefono, WhatsApp, la propria email, al banco) e la si segna
+ *      come chiesta
+ *   3. arrivano le risposte — lette dall'AI o scritte a mano — si confrontano
+ *      riga per riga e si aggiudica
  *
  * L'aggiudicazione e' l'unico punto in cui nasce un impegno di spesa: da li'
  * in poi si lavora sull'ordine d'acquisto, non piu' qui.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,13 +28,18 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
-  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles,
+  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import {
   QuotePageHeader, QuoteCard, QuoteChip, QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
-import { useSupplierRfqDetail, totaleRigaOfferta, type RfqSupplier } from "@/hooks/useSupplierRfqs";
+import {
+  useSupplierRfqDetail, totaleRigaOfferta, CANALE_RICHIESTA_LABELS, type CanaleRichiesta, type RfqSupplier,
+} from "@/hooks/useSupplierRfqs";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
@@ -54,6 +62,7 @@ export default function SupplierRfqDetail() {
     rfq, items, fornitori, quotes, isLoading,
     updateRfq, addItem, updateItem, deleteItem,
     addFornitore, updateFornitore, removeFornitore, setQuote, aggiudica,
+    segnaChiesta, registraOfferta, allegaOfferta,
   } = useSupplierRfqDetail(rfqId ?? null);
   const { suppliers } = useOperationalSuppliers();
 
@@ -62,6 +71,9 @@ export default function SupplierRfqDetail() {
   const [aggiudicaA, setAggiudicaA] = useState<RfqSupplier | null>(null);
   const [estraiDa, setEstraiDa] = useState<RfqSupplier | null>(null);
   const [motivazione, setMotivazione] = useState("");
+  // un doppio clic parte prima che il bottone si disabiliti: il database rifiuta
+  // il secondo, ma l'errore arrivava dopo un'aggiudicazione riuscita
+  const aggiudicaInCorso = useRef(false);
 
   const totaliPerFornitore = useMemo(() => {
     const out: Record<string, { totale: number | null; righeCoperte: number }> = {};
@@ -81,7 +93,8 @@ export default function SupplierRfqDetail() {
       const daRighe = coperte > 0 ? somma : null;
       out[f.id] = {
         totale: daRighe ?? (f.totale_offerto == null ? null : Number(f.totale_offerto)),
-        righeCoperte: coperte,
+        // un'offerta a corpo copre tutto per definizione
+        righeCoperte: daRighe == null && f.totale_offerto != null ? items.length : coperte,
       };
     }
     return out;
@@ -106,11 +119,15 @@ export default function SupplierRfqDetail() {
     return out;
   }, [items, fornitori, quotes]);
 
+  // Il totale più basso vale solo fra offerte che coprono le stesse voci: chi
+  // quota una voce su due costa meno perché manca metà fornitura, non perché conviene.
   const miglioreTotale = useMemo(() => {
     let id: string | null = null;
     let minimo = Infinity;
+    const piuCompleta = Math.max(0, ...fornitori.map((f) => totaliPerFornitore[f.id]?.righeCoperte ?? 0));
     for (const f of fornitori) {
       const t = totaliPerFornitore[f.id]?.totale;
+      if ((totaliPerFornitore[f.id]?.righeCoperte ?? 0) < piuCompleta) continue;
       if (t != null && t < minimo) {
         minimo = t;
         id = f.id;
@@ -139,7 +156,12 @@ export default function SupplierRfqDetail() {
     );
   }
 
-  const modificabile = rfq.status === "bozza";
+  // le voci si cambiano finché non arriva la prima offerta: chi chiede per
+  // telefono spesso segna la richiesta prima di aver scritto tutto l'elenco
+  const modificabile = rfq.status === "bozza" ||
+    (rfq.status === "inviata" && !fornitori.some((f) => f.status === "risposta"));
+  // aggiudicata o annullata: si guarda, non si cambia più niente
+  const chiusa = rfq.status === "aggiudicata" || rfq.status === "annullata";
   const haRisposte = fornitori.some((f) => f.status === "risposta");
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
@@ -338,20 +360,27 @@ export default function SupplierRfqDetail() {
                           return (
                             <td key={f.id} className={`p-1 ${vince ? "bg-emerald-50" : ""}`}>
                               <Input
+                                // la chiave segue il valore salvato: un prezzo letto dall'AI
+                                // compare nella cella (con defaultValue restava «—», e uscendo
+                                // dalla cella vuota il prezzo si cancellava)
+                                key={`${q?.id ?? "nuova"}:${q?.prezzo_unitario ?? ""}`}
                                 type="number"
                                 step="0.01"
                                 defaultValue={q?.prezzo_unitario ?? ""}
                                 placeholder="—"
+                                disabled={chiusa}
                                 className={`h-8 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
                                 onBlur={(e) => {
                                   const raw = e.target.value.trim();
                                   const v = raw === "" ? null : Number(raw);
-                                  if (v === (q?.prezzo_unitario ?? null)) return;
+                                  if (v === (q?.prezzo_unitario == null ? null : Number(q.prezzo_unitario))) return;
                                   setQuote.mutate({
                                     rfq_supplier_id: f.id,
                                     rfq_item_id: it.id,
                                     updates: { prezzo_unitario: v, disponibile: v != null },
                                   });
+                                  // un prezzo scritto a mano è un'offerta arrivata: senza, «Aggiudica» non compariva mai
+                                  if (v != null && f.status !== "risposta") registraOfferta.mutate(f);
                                 }}
                               />
                               {tot != null && (
@@ -377,6 +406,11 @@ export default function SupplierRfqDetail() {
                             className={`p-2 text-right font-bold tabular-nums ${vince ? "text-emerald-700 bg-emerald-50" : ""}`}
                           >
                             {t != null ? formatCurrency(t) : "—"}
+                            {t != null && (totaliPerFornitore[f.id]?.righeCoperte ?? 0) < items.length && (
+                              <span className="block text-[10px] font-normal text-amber-700">
+                                {totaliPerFornitore[f.id]?.righeCoperte} di {items.length} {items.length === 1 ? "voce" : "voci"}
+                              </span>
+                            )}
                           </td>
                         );
                       })}
@@ -429,7 +463,9 @@ export default function SupplierRfqDetail() {
                         {f.suppliers?.name ?? "Fornitore"}
                       </p>
                       <p className="text-[11px] text-slate-500 truncate">
-                        {f.suppliers?.email ?? "nessuna email in anagrafica"}
+                        {f.inviata_at
+                          ? `Chiesta${f.inviata_via ? ` per ${CANALE_RICHIESTA_LABELS[f.inviata_via]}` : ""} il ${dataIt(f.inviata_at)}`
+                          : f.suppliers?.email ?? "nessuna email in anagrafica"}
                       </p>
                     </div>
                     <Badge className={`${RDO_FORNITORE_COLORS[f.status] ?? ""} text-[10px] shrink-0`}>
@@ -477,28 +513,113 @@ export default function SupplierRfqDetail() {
                           }}
                         />
                       </div>
+                      {/* Offerta a corpo (o con trasporto/imballo): il totale
+                          del documento, scritto a mano se non lo legge l'AI. */}
+                      <div>
+                        <Label className="text-[10px] text-slate-500">Totale offerto (€)</Label>
+                        <Input
+                          key={`${f.id}:${f.totale_offerto ?? ""}`}
+                          type="number"
+                          step="0.01"
+                          className="h-7 text-xs"
+                          disabled={chiusa}
+                          defaultValue={f.totale_offerto ?? ""}
+                          onBlur={(e) => {
+                            const v = e.target.value === "" ? null : Number(e.target.value);
+                            if (v !== (f.totale_offerto == null ? null : Number(f.totale_offerto))) {
+                              updateFornitore.mutate({ id: f.id, updates: { totale_offerto: v } });
+                            }
+                          }}
+                        />
+                      </div>
+                      {/* finisce nell'ordine fornitore all'aggiudicazione */}
+                      <div>
+                        <Label className="text-[10px] text-slate-500">Pagamento</Label>
+                        <Input
+                          className="h-7 text-xs"
+                          disabled={chiusa}
+                          placeholder="Es. 60 gg d.f."
+                          defaultValue={f.condizioni_pagamento ?? ""}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim() || null;
+                            if (v !== f.condizioni_pagamento) {
+                              updateFornitore.mutate({ id: f.id, updates: { condizioni_pagamento: v } });
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
 
                   <div className="flex items-center gap-1">
-                    {f.status !== "risposta" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex-1"
-                        onClick={() => {
-                          if (items.length === 0) {
-                            toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
-                            return;
-                          }
-                          setInviaA(f);
-                        }}
-                      >
-                        <Mail className="h-3 w-3 mr-1" />
-                        {f.status === "inviata" ? "Sollecita" : "Chiedi offerta"}
-                      </Button>
+                    {!chiusa && f.status !== "risposta" && (
+                      f.status === "da_inviare" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs flex-1"
+                          onClick={() => {
+                            if (items.length === 0) {
+                              toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
+                              return;
+                            }
+                            setInviaA(f);
+                          }}
+                        >
+                          <Mail className="h-3 w-3 mr-1" /> Chiedi offerta
+                        </Button>
+                      ) : (
+                        // chiesta: il passo dopo è registrare la risposta, comunque sia arrivata
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs flex-1"
+                          disabled={registraOfferta.isPending}
+                          onClick={() => registraOfferta.mutate(f)}
+                        >
+                          <Inbox className="h-3 w-3 mr-1" /> Ho l'offerta
+                        </Button>
+                      )
                     )}
-                    {f.status === "risposta" && (
+                    {!chiusa && f.status !== "risposta" && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500" aria-label="Altre azioni" title="Altre azioni">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          {f.status === "da_inviare" ? (
+                            <>
+                              <DropdownMenuLabel className="text-xs">L'ho già chiesta io</DropdownMenuLabel>
+                              {(["telefono", "whatsapp", "email", "di_persona"] as CanaleRichiesta[]).map((via) => (
+                                <DropdownMenuItem key={via} onClick={() => segnaChiesta.mutate({ id: f.id, via })}>
+                                  {via === "email" ? "Con la mia email" : `Per ${CANALE_RICHIESTA_LABELS[via]}`}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => registraOfferta.mutate(f)}>Ho già l'offerta</DropdownMenuItem>
+                            </>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (items.length === 0) {
+                                  toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
+                                  return;
+                                }
+                                setInviaA(f);
+                              }}
+                            >
+                              Sollecita per email
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => updateFornitore.mutate({ id: f.id, updates: { status: "rifiutata" } })}>
+                            Non fa l'offerta
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    {!chiusa && f.status === "risposta" && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -511,7 +632,7 @@ export default function SupplierRfqDetail() {
                     {/* La lettura AI del preventivo: propone i prezzi nella
                         griglia, l'umano conferma. Sempre disponibile: anche chi
                         non ha l'email agganciata ha un PDF da caricare. */}
-                    <Button
+                    {!chiusa && <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0 text-orange-500 hover:text-orange-600"
@@ -525,7 +646,27 @@ export default function SupplierRfqDetail() {
                       }}
                     >
                       <Sparkles className="h-3.5 w-3.5" />
-                    </Button>
+                    </Button>}
+                    {/* Il preventivo arrivato su WhatsApp o su carta: si allega
+                        anche senza farlo leggere all'AI, e i prezzi si scrivono a mano. */}
+                    {!chiusa && f.status === "risposta" && !f.allegato_url && (
+                      <label
+                        className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-500 hover:bg-accent hover:text-slate-700"
+                        title="Allega l'offerta (PDF o foto)"
+                      >
+                        {allegaOfferta.isPending ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" /> : <Paperclip className="h-3.5 w-3.5" />}
+                        <input
+                          type="file"
+                          accept="application/pdf,image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) allegaOfferta.mutate({ id: f.id, file });
+                          }}
+                        />
+                      </label>
+                    )}
                     {/* Offerta originale (PDF letto dall'AI o allegato email):
                         il confronto si controlla sul documento, non a memoria. */}
                     {f.allegato_url && (
@@ -565,7 +706,7 @@ export default function SupplierRfqDetail() {
                 </div>
               ))}
 
-              {rfq.status !== "aggiudicata" && (
+              {!chiusa && (
                 <div className="flex gap-2 pt-1">
                   <Select value={nuovoFornitore} onValueChange={setNuovoFornitore}>
                     <SelectTrigger className="h-8 text-xs">
@@ -598,11 +739,10 @@ export default function SupplierRfqDetail() {
             <QuoteCard title="Aggiudicata" icon={<CheckCircle2 className="h-4 w-4" />}>
               <div className="space-y-2 text-sm">
                 <p className="text-slate-600">
-                  Il {dataIt(rfq.aggiudicata_at)} a{" "}
+                  Il {dataIt(rfq.aggiudicata_at)}, fornitore scelto:{" "}
                   <strong>
                     {fornitori.find((f) => f.supplier_id === rfq.supplier_id_aggiudicato)?.suppliers?.name ?? "—"}
                   </strong>
-                  .
                 </p>
                 {rfq.motivazione_scelta && (
                   <p className="text-xs text-slate-500 italic">{rfq.motivazione_scelta}</p>
@@ -632,7 +772,10 @@ export default function SupplierRfqDetail() {
           onSent={() => {
             updateFornitore.mutate({
               id: inviaA.id,
-              updates: { status: "inviata", inviata_at: new Date().toISOString() },
+              // un sollecito non azzera l'attesa: conta dalla prima richiesta
+              updates: inviaA.inviata_at
+                ? { status: "inviata" }
+                : { status: "inviata", inviata_at: new Date().toISOString(), inviata_via: "app" },
             });
             if (rfq.status === "bozza") updateRfq.mutate({ status: "inviata" });
           }}
@@ -703,6 +846,39 @@ export default function SupplierRfqDetail() {
                 </span>
               </div>
             )}
+            {aggiudicaA && (totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) < items.length && (
+              <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>
+                  Ha quotato {totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0} {(totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) === 1 ? "voce" : "voci"} su {items.length}: nell'ordine
+                  entrano solo quelle, le altre vanno ordinate a parte.
+                </span>
+              </div>
+            )}
+            {aggiudicaA && !((totaliPerFornitore[aggiudicaA.id]?.totale ?? 0) > 0) && (
+              <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+                <span>
+                  Non c'è nessun prezzo: scrivi i prezzi delle voci o il totale offerto prima di
+                  scegliere. Un ordine da 0 € chiuderebbe la richiesta senza costo in commessa.
+                </span>
+              </div>
+            )}
+            {aggiudicaA && (() => {
+              const doc = aggiudicaA.totale_offerto == null ? null : Number(aggiudicaA.totale_offerto);
+              const righe = totaliPerFornitore[aggiudicaA.id];
+              const daRighe = righe && righe.righeCoperte > 0 && doc != null && righe.totale != null && righe.totale !== doc ? righe.totale : null;
+              if (doc == null || daRighe == null || doc - daRighe < 0.01) return null;
+              return (
+                <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>
+                    Il documento dice {formatCurrency(doc)}, le voci {formatCurrency(daRighe)}: la differenza
+                    ({formatCurrency(doc - daRighe)}, trasporto o imballo) non entra nell'ordine. Aggiungila lì come riga.
+                  </span>
+                </div>
+              );
+            })()}
             {aggiudicaA && miglioreTotale && aggiudicaA.id !== miglioreTotale && (
               <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
@@ -726,12 +902,14 @@ export default function SupplierRfqDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAggiudicaA(null)}>Annulla</Button>
             <Button
-              disabled={aggiudica.isPending}
+              disabled={aggiudica.isPending || !aggiudicaA || !((totaliPerFornitore[aggiudicaA.id]?.totale ?? 0) > 0)}
               onClick={() => {
-                if (!aggiudicaA) return;
+                if (!aggiudicaA || aggiudicaInCorso.current) return;
+                aggiudicaInCorso.current = true;
                 aggiudica.mutate(
                   { rfq_supplier_id: aggiudicaA.id, motivazione: motivazione.trim() || undefined },
                   {
+                    onSettled: () => { aggiudicaInCorso.current = false; },
                     onSuccess: (r) => {
                       setAggiudicaA(null);
                       setMotivazione("");

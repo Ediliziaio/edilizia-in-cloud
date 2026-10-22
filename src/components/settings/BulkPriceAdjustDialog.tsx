@@ -3,10 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { costoTariffaConosciuto, formatPrezzoUnitario as formatCurrency, semaforoMargineTariffa } from "@/lib/tariffe/economiaTariffa";
+import { costoPieno, marginePrezzo, prezzoDaRicarico } from "@/lib/tariffe/prezzoDalCosto";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { invalidateAllTariffe } from "@/lib/tariffeQueryKeys";
 import {
-  computeAdjustedPrices, marginePerc,
+  computeAdjustedPrices,
   type AdjustTarget, type AdjustMode, type RoundMode, type PriceAdjustOptions, type TariffaPriceResult,
 } from "@/lib/tariffe/priceAdjust";
 import type { Tariffa } from "@/pages/azienda/settings/SettingsTariffe/types";
@@ -33,12 +34,14 @@ interface BulkPriceAdjustDialogProps {
   isAdmin: boolean;
   companyId: string;
   sogliaMinima?: number;
+  /** spese generali % di «Prezzo e margini», per ricalcolare le voci «dal costo» */
+  speseGenerali?: number;
   /** Chiamata a fine applicazione (il parent azzera la selezione). */
   onApplied: () => void;
 }
 
 export function BulkPriceAdjustDialog({
-  open, onClose, items, isAdmin, companyId, onApplied, sogliaMinima = 15,
+  open, onClose, items, isAdmin, companyId, onApplied, sogliaMinima = 15, speseGenerali = 0,
 }: BulkPriceAdjustDialogProps) {
   const queryClient = useQueryClient();
   const [target, setTarget] = useState<AdjustTarget>("vendita");
@@ -46,7 +49,7 @@ export function BulkPriceAdjustDialog({
   const [direction, setDirection] = useState<"aumenta" | "diminuisci">("aumenta");
   const [amountStr, setAmountStr] = useState("5");
   const [round, setRound] = useState<RoundMode>("none");
-  const [piano, setPiano] = useState<{ righe: Array<{t: Tariffa; res: TariffaPriceResult}>; totale: number } | null>(null);
+  const [piano, setPiano] = useState<{ righe: Array<{t: Tariffa; res: TariffaPriceResult; segueCosto: boolean; diventaLibera: boolean}>; totale: number } | null>(null);
   const [salvate, setSalvate] = useState<Set<string>>(new Set());
   const [erroreApplicazione, setErroreApplicazione] = useState<string | null>(null);
 
@@ -66,13 +69,32 @@ export function BulkPriceAdjustDialog({
   // Il costo di partenza è quello che la pagina mostra (costoTariffa): con il
   // solo costo_interno, lo 0 di default delle voci col costo in prezzo_costo
   // restava 0 dopo ogni rincaro e l'anteprima diceva «Costo: 0» (05/10/2026).
+  //
+  // Le voci «dal costo» (22/10/2026): se cambia solo il costo il prezzo lo
+  // segue col suo ricarico, e l'anteprima mostra il prezzo che si scriverà
+  // davvero; se cambia il prezzo (o il costo va a zero) la voce diventa a
+  // prezzo libero, e lo si dice.
   const preview = useMemo(
-    () => piano?.righe ?? items.map((t) => ({
-      t,
-      res: computeAdjustedPrices({ prezzo_vendita: t.prezzo_vendita, costo_interno: costoTariffaConosciuto(t) }, opts),
-    })),
-    [items, opts, piano],
+    () => piano?.righe ?? items.map((t) => {
+      const res = computeAdjustedPrices({ prezzo_vendita: t.prezzo_vendita, costo_interno: costoTariffaConosciuto(t) }, opts);
+      if (t.prezzo_modo !== "dal_costo") return { t, res, segueCosto: false, diventaLibera: false };
+      if (res.changedVendita) return { t, res, segueCosto: false, diventaLibera: true };
+      if (res.changedCosto) {
+        const nuovo = (res.costo_interno ?? 0) > 0 && t.ricarico_pct != null
+          ? prezzoDaRicarico(costoPieno(res.costo_interno, speseGenerali), Number(t.ricarico_pct))
+          : null;
+        // senza un costo positivo il prezzo non può seguirlo: resta quello e la voce diventa libera
+        if (nuovo == null) return { t, res, segueCosto: false, diventaLibera: true };
+        return { t, res: { ...res, prezzo_vendita: nuovo, changedVendita: nuovo !== Number(t.prezzo_vendita ?? 0) }, segueCosto: true, diventaLibera: false };
+      }
+      return { t, res, segueCosto: false, diventaLibera: false };
+    }),
+    [items, opts, piano, speseGenerali],
   );
+  /** margine sul costo pieno, come la pagina: con le spese generali un +4,8% sul costo diretto può essere una perdita */
+  const margineVoce = (res: { prezzo_vendita?: number | null; costo_interno?: number | null }) =>
+    marginePrezzo(res.prezzo_vendita ?? null, costoPieno(res.costo_interno ?? null, speseGenerali));
+  const diventanoLibere = preview.filter((p) => p.diventaLibera && (p.res.changedVendita || p.res.changedCosto)).length;
 
   const changed = useMemo(
     () => preview.filter((p) => p.res.changedVendita || p.res.changedCosto),
@@ -82,10 +104,10 @@ export function BulkPriceAdjustDialog({
   const sottocostoCount = useMemo(
     () =>
       preview.filter((p) => {
-        const m = marginePerc(p.res.prezzo_vendita ?? null, p.res.costo_interno ?? null);
+        const m = margineVoce(p.res);
         return m != null && m < 0;
       }).length,
-    [preview],
+    [preview, speseGenerali],
   );
 
   // Un ribasso del 100% o più porta ogni prezzo a zero: non è un adeguamento.
@@ -102,7 +124,7 @@ export function BulkPriceAdjustDialog({
       const completate = new Set(salvate);
       // Valori assoluti congelati dalla prima anteprima: il retry non ricalcola
       // il rincaro sulle righe già aggiornate, nemmeno dopo il refetch parziale.
-      for (const {t, res} of righe) {
+      for (const {t, res, diventaLibera} of righe) {
           if (completate.has(t.id)) continue;
           const payload: Record<string, unknown> = {};
           if (res.changedVendita) payload.prezzo_vendita = res.prezzo_vendita;
@@ -110,6 +132,12 @@ export function BulkPriceAdjustDialog({
             payload.costo_interno = res.costo_interno;
             payload.costo_default = res.costo_interno;
             payload.prezzo_costo = res.costo_interno; // mirror legacy
+          }
+          // Le voci «dal costo»: il prezzo che segue il costo è già in res
+          // (calcolato nell'anteprima); quelle che non possono seguirlo diventano libere.
+          if (diventaLibera) {
+            payload.prezzo_modo = "libero";
+            payload.ricarico_pct = null;
           }
           const { data, error } = await supabase
             .from("tariffe_aziendali")
@@ -282,6 +310,13 @@ export function BulkPriceAdjustDialog({
             </Alert>
           )}
 
+          {diventanoLibere > 0 && (
+            <p className="text-xs text-amber-700">
+              {diventanoLibere} {diventanoLibere === 1 ? "voce con prezzo dal costo diventa" : "voci con prezzo dal costo diventano"} a
+              prezzo libero: il prezzo non seguirà più il costo.
+            </p>
+          )}
+
           {/* Anteprima */}
           {amountValid && changed.length > 0 && (
             <div className="space-y-1.5">
@@ -289,7 +324,7 @@ export function BulkPriceAdjustDialog({
               <ScrollArea className="h-44 rounded-md border">
                 <div className="divide-y">
                   {changed.map(({ t, res }) => {
-                    const m = marginePerc(res.prezzo_vendita ?? null, res.costo_interno ?? null);
+                    const m = margineVoce(res);
                     const sem = semaforoMargineTariffa(m, sogliaMinima);
                     return (
                       <div key={t.id} className="px-3 py-2 text-sm">

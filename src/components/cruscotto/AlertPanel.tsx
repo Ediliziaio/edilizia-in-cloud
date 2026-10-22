@@ -46,7 +46,7 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   if ((ma?.pending_appointments ?? 0) > 0)
     alerts.push({ id: "pending-appointments", level: "warning", title: `${ma!.pending_appointments} appuntamenti passati non completati`, body: "Aggiorna lo stato o riprogramma per non perdere traccia delle trattative.", cta: "Vedi calendario", link: "/azienda/marketing/calendario" });
   if ((ma?.stale_opportunities ?? 0) > 0)
-    alerts.push({ id: "stale-opps", level: "warning", title: `${ma!.stale_opportunities} opportunità ferme da 7+ giorni`, body: "Le trattative inattive si raffreddano. Riattiva o archivia.", cta: "Vedi opportunità", link: "/azienda/marketing/opportunita" });
+    alerts.push({ id: "stale-opps", level: "warning", title: `${ma!.stale_opportunities} opportunità ferme oltre la soglia della fase`, body: "Nessuna attività da più giorni di quanti la fase ne prevede. Riattiva o archivia.", cta: "Vedi opportunità", link: "/azienda/marketing/opportunita" });
   if (ma?.show_rate_below_threshold)
     alerts.push({ id: "show-rate", level: "warning", title: "Show rate sotto il 60%", body: "Troppi appuntamenti non si presentano. Verifica la qualità dei lead e la fase di conferma.", cta: "Analizza marketing", link: "/azienda/marketing" });
   if (ma?.pipeline_declining)

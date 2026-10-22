@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { riceviResiduoOda } from "@/lib/orders/riceviResiduoOda";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 
 export interface PurchaseOrder {
   id: string;
@@ -35,7 +37,10 @@ export interface PurchaseOrder {
   last_verification_id: string | null;
   // joined
   suppliers?: { name: string; email: string | null } | null;
-  orders?: { order_code: string } | null;
+  orders?: { order_code: string; description?: string | null; deleted_at?: string | null } | null;
+  /** solo nell'elenco: per «quanto è arrivato» senza aprire l'ordine */
+  purchase_order_items?: Array<{ quantity: number | null; quantity_received: number | null; unit_price?: number | null }>;
+  ddt_ricezione?: Array<{ count: number }>;
   warehouses?: { name: string } | null;
   last_verification?: { result: string | null } | null;
 }
@@ -70,13 +75,16 @@ export function usePurchaseOrders() {
   const listQuery = useQuery({
     queryKey: queryKeys.purchaseOrders.list(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      // tutte le pagine: con un .select() solo PostgREST si fermava a mille
+      // ordini, e contatori, impegnato ed esportazione con lui
+      const rows = await readAllOrderRows<PurchaseOrder>((da, a) => supabase
         .from("purchase_orders")
-        .select("*, suppliers(name, email), orders(order_code), warehouses(name), last_verification:purchase_order_verifications!last_verification_id(result)")
+        .select("*, suppliers(name, email), orders(order_code, description, deleted_at), warehouses(name), last_verification:purchase_order_verifications!last_verification_id(result), purchase_order_items(quantity, quantity_received, unit_price), ddt_ricezione(count)")
         .eq("company_id", companyId!)
-        .order("issue_date", { ascending: false });
-      if (error) throw error;
-      return data as unknown as PurchaseOrder[];
+        .order("issue_date", { ascending: false })
+        .order("id")
+        .range(da, a) as unknown as PromiseLike<{ data: PurchaseOrder[] | null; error: unknown }>);
+      return rows;
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -125,6 +133,37 @@ export function usePurchaseOrders() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async (params: { id: string; status: string; actual_delivery_date?: string }) => {
+      // «Ricevuto» non è uno stato da scrivere: è merce che entra. Si
+      // registrano le quantità (e il carico) con oda_registra_arrivo, ed è lei
+      // a portare l'ordine a ricevuto quando tutte le righe sono coperte — e
+      // solo allora nasce il costo sulla commessa. Prima qui si scriveva lo
+      // stato e poi si registravano le righe: se la seconda parte falliva,
+      // l'ordine restava ricevuto con il costo e senza merce.
+      if (params.status === "ricevuto") {
+        const esito = await riceviResiduoOda({
+          companyId: companyId!,
+          odaId: params.id,
+          data: params.actual_delivery_date ?? null,
+          note: "Ordine segnato come ricevuto dalla scheda",
+        });
+        // senza righe, o con le righe già tutte arrivate, non c'è niente da
+        // contare: lo stato si mette a mano (il costo nasce dal trigger)
+        if (esito.senzaRighe || (esito.righe === 0 && esito.completo)) {
+          const { error } = await supabase.from("purchase_orders")
+            .update({ status: "ricevuto", actual_delivery_date: params.actual_delivery_date ?? new Date().toLocaleDateString("en-CA") })
+            .eq("id", params.id);
+          if (error) throw error;
+        } else if (!esito.completo) {
+          // qualche riga non è entrata: l'ordine resta «parziale» e va detto,
+          // non lasciato credere ricevuto
+          toast.warning("Ordine non ancora completo", {
+            description: `${esito.errori.length || "Alcune"} ${esito.errori.length === 1 ? "riga non registrata" : "righe non registrate"}: controlla le righe dell'ordine.`,
+          });
+          return { completo: false };
+        }
+        return { completo: true };
+      }
+
       const updates: any = { status: params.status };
       if (params.actual_delivery_date) updates.actual_delivery_date = params.actual_delivery_date;
       // Timestamp di passaggio stato: prima non li scriveva nessuno, quindi i
@@ -133,111 +172,7 @@ export function usePurchaseOrders() {
       if (params.status === "confermato") updates.confirmed_at = new Date().toISOString();
       const { error } = await supabase.from("purchase_orders").update(updates).eq("id", params.id);
       if (error) throw error;
-
-      // Quando l'ODA viene marcato come ricevuto, il carico lo fa il database.
-      //
-      // Qui prima si leggeva la giacenza nel browser, ci si sommava la quantità
-      // e si riscriveva un valore ASSOLUTO, poi si inseriva il movimento a
-      // parte. Due ricezioni in parallelo e una delle due spariva; e se la
-      // seconda scrittura falliva, giacenza e movimenti restavano divergenti.
-      // È il meccanismo che ha prodotto gli otto articoli fuori quadratura per
-      // 388 pezzi che si vedono ancora oggi in produzione.
-      //
-      // `oda_registra_arrivo` fa tutto in una transazione — quantità ricevute,
-      // carico, movimenti, avanzamento dell'ordine e stato della merce sul
-      // ticket collegato — ed è la stessa funzione che usa il foglio «arrivo
-      // merce». Un solo percorso di carico, che era il punto.
-      //
-      // Qui resta solo l'abbinamento riga → articolo (per codice interno,
-      // barcode, poi nome; se non esiste lo si crea), perché la funzione vuole
-      // già gli `stock_item_id` risolti.
-      if (params.status === "ricevuto") {
-        const { data: odaData } = await supabase
-          .from("purchase_orders")
-          .select("delivery_warehouse_id, supplier_id")
-          .eq("id", params.id)
-          .single();
-
-        const { data: items } = await supabase
-          .from("purchase_order_items")
-          .select("id, description, sku, quantity, quantity_received, unit_price, vat_rate")
-          .eq("purchase_order_id", params.id);
-
-        const warehouseId = odaData?.delivery_warehouse_id ?? null;
-        const righe: Array<{ item_id: string; quantity: number; stock_item_id: string | null }> = [];
-
-        for (const item of items ?? []) {
-          // Solo il residuo: se una parte è già arrivata via scan, ricaricare
-          // la quantità piena raddoppierebbe la giacenza.
-          const qtyToLoad = Number(item.quantity) - (Number(item.quantity_received) || 0);
-          if (qtyToLoad <= 0) continue;
-
-          let stockItemId: string | null = null;
-
-          if (item.sku) {
-            // Lo SKU si confronta con codice interno o barcode, NON col nome:
-            // il vecchio ilike("name", sku) non trovava mai nulla e a ogni
-            // ricezione nasceva un articolo duplicato in inventario.
-            // Due eq separati invece di .or(): lo SKU è testo libero e dentro
-            // la sintassi di .or() virgole e parentesi la romperebbero.
-            const { data: byCode } = await supabase
-              .from("warehouse_stock").select("id")
-              .eq("company_id", companyId!).eq("internal_code", item.sku)
-              .limit(1).maybeSingle();
-            stockItemId = byCode?.id ?? null;
-            if (!stockItemId) {
-              const { data: byBarcode } = await supabase
-                .from("warehouse_stock").select("id")
-                .eq("company_id", companyId!).eq("barcode", item.sku)
-                .limit(1).maybeSingle();
-              stockItemId = byBarcode?.id ?? null;
-            }
-          }
-
-          if (!stockItemId && item.description) {
-            const { data: byName } = await supabase
-              .from("warehouse_stock").select("id")
-              .eq("company_id", companyId!).ilike("name", item.description)
-              .maybeSingle();
-            stockItemId = byName?.id ?? null;
-          }
-
-          if (!stockItemId && item.description) {
-            const { data: creato, error: errCreazione } = await supabase
-              .from("warehouse_stock")
-              .insert({
-                company_id: companyId!,
-                warehouse_id: warehouseId,
-                name: item.description,
-                description: item.sku ? `SKU ${item.sku}` : null,
-                quantity: 0, // la quantità la mette la funzione, con il movimento
-                unit_cost: Number(item.unit_price ?? 0),
-                vat_rate: Number(item.vat_rate ?? 22),
-                supplier_id: odaData?.supplier_id ?? null,
-                min_stock_level: 0,
-              } as never)
-              .select("id")
-              .single();
-            if (errCreazione) throw errCreazione;
-            stockItemId = creato?.id ?? null;
-          }
-
-          righe.push({ item_id: item.id, quantity: qtyToLoad, stock_item_id: stockItemId });
-        }
-
-        if (righe.length > 0) {
-          const { error: errArrivo } = await supabase.rpc("oda_registra_arrivo", {
-            p_oda_id: params.id,
-            p_righe: righe as never,
-            p_ddt_number: null,
-            p_ddt_data: params.actual_delivery_date ?? null,
-            p_warehouse_id: warehouseId,
-            p_note: "Ordine segnato come ricevuto dalla scheda",
-            p_ddt_file_url: null,
-          });
-          if (errArrivo) throw errArrivo;
-        }
-      }
+      return { completo: true };
     },
     onSuccess: (_data, variables) => {
       toast.success("Stato aggiornato");
@@ -250,6 +185,11 @@ export function usePurchaseOrders() {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(variables.id) });
       queryClient.invalidateQueries({ queryKey: ["warehouse"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      // un arrivo carica il magazzino: anche il registro movimenti e il pannello live
+      if (variables.status === "ricevuto") {
+        queryClient.invalidateQueries({ queryKey: ["warehouse-movements-registry"] });
+        queryClient.invalidateQueries({ queryKey: ["magazzino-live"] });
+      }
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

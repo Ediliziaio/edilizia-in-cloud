@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useId, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,7 +53,6 @@ import { useTableSort } from "@/hooks/useTableSort";
 import { TariffaProdottiCollegati } from "@/components/listino/TariffaProdottiCollegati";
 import { TariffaVariantiEditor } from "@/components/settings/TariffaVariantiEditor";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
 // MP-IMP-001 Fase 4 — sezioni estratte in cartella dedicata
 import type {
   TipoTariffa, UnitaFatturazione, Tariffa, TipoDef, PresetId, TariffaSeed,
@@ -66,6 +65,7 @@ import { ImportaPrezzarioRegionaleDialog } from "./SettingsTariffe/ImportaPrezza
 import { buildTariffeExportCsv } from "@/lib/tariffe/prezziarioImport";
 import { countTariffaUsage, totalTariffaUsage, countTariffaUsageBulk } from "@/lib/tariffe/tariffaUsage";
 import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDialog";
+import { PrezzoDalCostoDialog, type ModoPrezzoDalCosto } from "@/components/settings/PrezzoDalCostoDialog";
 import { TariffaUsageDialog } from "@/components/settings/TariffaUsageDialog";
 import { AnalisiPrezzoDialog } from "@/components/listino/AnalisiPrezzoDialog";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
@@ -81,6 +81,8 @@ import { categoriaPrezzarioTariffa } from "@/lib/prezzario/catalogo";
 import { costoTariffaConosciuto, formatPrezzoUnitario, prezzoMinimoPerMargine, semaforoMargineTariffa as margineSemaforo } from "@/lib/tariffe/economiaTariffa";
 import { dipendentePerCostoLavorazione } from "@/lib/tariffe/costoDipendente";
 import { leggiParametriCosto } from "@/hooks/useParametriCostoPersonale";
+import { useRegolePrezzo } from "@/hooks/useRegolePrezzo";
+import { arrotondaPercento, costoPieno, formatRicarico, margineDaRicarico, prezzoDaRiallineare, prezzoDaRicarico, RICARICO_MASSIMO, ricaricoDaMargine, ricaricoDaPrezzo } from "@/lib/tariffe/prezzoDalCosto";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -226,9 +228,33 @@ function tipoBadgeClass(tipo: string) {
 }
 
 /** Margine sul prezzo di vendita. */
-function calcMargine(pv: number, pa: number) {
+/**
+ * Margine % sul prezzo, sul COSTO PIENO: costo diretto più le spese generali di
+ * «Prezzo e margini». Prima il listino le ignorava e il margine mostrato era
+ * più alto di quello che resta davvero (con l'8% di spese generali, un 16,7%
+ * diventa circa il 10%).
+ */
+function calcMargine(pv: number, pa: number, speseGenerali = 0) {
   if (!pv) return 0;
-  return ((pv - pa) / pv) * 100;
+  return ((pv - (costoPieno(pa, speseGenerali) ?? pa)) / pv) * 100;
+}
+
+/** Le spese generali dell'azienda, per ogni calcolo di margine della pagina. */
+const SpeseGeneraliContext = createContext(0);
+const useSpeseGenerali = () => useContext(SpeseGeneraliContext);
+
+/** «dal costo +30%» sotto il prezzo, o il ricarico di fatto di un prezzo libero. */
+function RicaricoVoce({ t, pv, pc, sg }: { t: Tariffa; pv: number; pc: number | null; sg: number }) {
+  if (t.prezzo_modo === "dal_costo" && t.ricarico_pct != null) {
+    const daAggiornare = prezzoDaRiallineare(t, pc, sg);
+    return (
+      <span className={`block text-[10px] ${daAggiornare ? "font-semibold text-amber-700" : "text-blue-700"}`} title={daAggiornare ? "Il costo è cambiato: il prezzo non segue più il ricarico. Usa «Ricalcola dai costi»." : "Prezzo calcolato dal costo"}>
+        dal costo {formatRicarico(Number(t.ricarico_pct))}{daAggiornare ? " · da aggiornare" : ""}
+      </span>
+    );
+  }
+  const r = pc != null && pc > 0 && pv > 0 ? ricaricoDaPrezzo(pv, costoPieno(pc, sg)) : null;
+  return r != null ? <span className="block text-[10px] text-muted-foreground">ricarico {formatRicarico(r)}</span> : null;
 }
 
 /**
@@ -257,13 +283,16 @@ function TariffaVariantiSection({
  * blu a parte): la prima voce dell'elenco partiva più in basso per niente.
  */
 function RigaNumeri({
-  tariffe, isAdmin, soglia, onShowSottoSoglia, onCompletaBasi, onDaCompletare,
+  tariffe, isAdmin, soglia, onShowSottoSoglia, onCompletaBasi, onDaCompletare, onRicalcola,
 }: {
   tariffe: Tariffa[]; isAdmin: boolean; soglia: number;
   onShowSottoSoglia?: () => void; onCompletaBasi?: () => void;
   onDaCompletare?: (filtro: "senza-costo" | "senza-prezzo") => void;
+  /** apre «Ricalcola dai costi» sulle voci dal costo il cui costo è cambiato */
+  onRicalcola?: () => void;
 }) {
   const idSpiegazioneBasi = useId();
+  const sg = useSpeseGenerali();
   const kpi = useMemo(() => {
     const totali = tariffe.length;
     const attive = tariffe.filter((t) => t.attivo !== false).length;
@@ -273,24 +302,25 @@ function RigaNumeri({
     let sumMarg = 0;
     let countMarg = 0;
     let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia di Approvazioni
-    let senzaCosto = 0; let senzaPrezzo = 0;
+    let senzaCosto = 0; let senzaPrezzo = 0; let daAggiornare = 0;
     for (const t of tariffe) {
       if (t.attivo === false) continue;
+      if (prezzoDaRiallineare(t, costoTariffaConosciuto(t), sg)) daAggiornare++;
       const pv = t.prezzo_vendita ?? 0;
       const costoNoto = costoTariffaConosciuto(t);
       const pc = costoNoto ?? 0;
       if (costoNoto == null) senzaCosto++;
       if (pv <= 0) senzaPrezzo++;
       if (pv > 0 && costoNoto != null) {
-        const m = calcMargine(pv, pc);
+        const m = calcMargine(pv, pc, sg);
         sumMarg += m;
         countMarg += 1;
         if (m < soglia) sottoSoglia += 1;
       }
     }
     const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
-    return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia, senzaCosto, senzaPrezzo };
-  }, [tariffe, soglia]);
+    return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia, senzaCosto, senzaPrezzo, daAggiornare };
+  }, [tariffe, soglia, sg]);
 
   const spiegazioneBasi = "Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.";
 
@@ -331,6 +361,16 @@ function RigaNumeri({
           {kpi.sottoSoglia} sotto soglia ({soglia}%)
         </button>
       )}
+      {isAdmin && kpi.daAggiornare > 0 && (
+        <button
+          type="button"
+          onClick={onRicalcola}
+          title="Voci «dal costo» il cui costo è cambiato: il prezzo non segue più il ricarico"
+          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-200"
+        >
+          {kpi.daAggiornare} {kpi.daAggiornare === 1 ? "prezzo da ricalcolare" : "prezzi da ricalcolare"} dal costo
+        </button>
+      )}
       {isAdmin && kpi.senzaCosto > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-costo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaCosto} senza costo</button>}
       {kpi.senzaPrezzo > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-prezzo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaPrezzo} senza prezzo</button>}
       {kpi.basi > 0 && (
@@ -354,12 +394,13 @@ const CAMPO_DA_DITO = "max-md:h-11";
 
 /**
  * La finestra di una voce. L'ordine è quello in cui si ragiona: prima le due scelte che decidono (il tipo di lavoro e
- * l'unità), poi il nome, il prezzo di vendita e il costo, con il margine che ne viene. Tutto il resto (codice,
+ * l'unità), poi il nome, il COSTO e il prezzo che ne nasce (ricarico ⇄ margine), oppure un prezzo libero. Tutto il resto (codice,
  * descrizione, listino di, area, gruppo, stato, incidenza della manodopera, fonte) sta in «Altri dati», chiuso.
  * Tipo e unità partono come sempre da «Posa» e «pz».
  */
 export function TariffaDialog({
   open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [], dipendenti = [], erroreDipendenti = false, gruppoIniziale = "posa", sogliaMinima = 15,
+  speseGenerali = 0, ricaricoObiettivo = 33.33, regolePronte = true,
 }: {
   open: boolean; onClose: () => void; editing: Tariffa | null;
   companyId: string; isAdmin: boolean;
@@ -371,6 +412,12 @@ export function TariffaDialog({
   erroreDipendenti?: boolean;
   gruppoIniziale?: GruppoLavorazione;
   sogliaMinima?: number;
+  /** spese generali % di «Prezzo e margini»: costo pieno = costo × (1 + sg) */
+  speseGenerali?: number;
+  /** ricarico di partenza per una voce nuova «dal costo»: quello del margine obiettivo */
+  ricaricoObiettivo?: number;
+  /** false finché «Prezzo e margini» non è letto: un prezzo dal costo verrebbe senza spese generali */
+  regolePronte?: boolean;
 }) {
   // Un id per campo, perché l'etichetta lo nomini per chi usa il lettore di schermo.
   const idBase = useId();
@@ -389,6 +436,22 @@ export function TariffaDialog({
       : (UM_DEFAULT_BY_TIPO.posa ?? "pz"),
   );
   const [prezzoVendita, setPrezzoVendita] = useState(String(editing?.prezzo_vendita ?? ""));
+  // Come nasce il prezzo. Le voci esistenti restano come sono (libero, salvo
+  // chi le ha già portate «dal costo»); una voce nuova parte dal costo, con il
+  // ricarico del margine obiettivo. Chi non vede i costi non può farlo.
+  // Chi non vede i costi non sceglie il modo: una voce nuova sua nasce libera,
+  // una «dal costo» resta tale e il suo prezzo non si scrive a mano (lo
+  // riscriverebbe il prossimo «Ricalcola dai costi»).
+  const [prezzoModo, setPrezzoModo] = useState<"libero" | "dal_costo">(
+    editing ? (editing.prezzo_modo === "dal_costo" ? "dal_costo" : "libero") : isAdmin ? "dal_costo" : "libero",
+  );
+  const ricaricoIniziale = editing?.ricarico_pct != null ? Number(editing.ricarico_pct) : ricaricoObiettivo;
+  const [ricaricoTesto, setRicaricoTesto] = useState(String(arrotondaPercento(ricaricoIniziale)));
+  // Il ricarico ESATTO per il calcolo; il campo ne mostra due decimali. Da un
+  // margine del 40% il ricarico è 66,666…%: arrotondato a 66,67 il prezzo di
+  // 60 € di costo veniva 100,002 € invece di 100 €.
+  const [ricaricoEsatto, setRicaricoEsatto] = useState<number | null>(ricaricoIniziale);
+  const [margineTesto, setMargineTesto] = useState(String(arrotondaPercento(margineDaRicarico(ricaricoIniziale) ?? 0)));
   // costoTariffa, non costo_interno ?? prezzo_costo: costo_interno nasce a 0
   // (DEFAULT) e nascondeva il costo vero rimasto in prezzo_costo; salvando,
   // quello 0 finiva su tutte e tre le colonne e il costo andava perso (05/10/2026).
@@ -431,19 +494,57 @@ export function TariffaDialog({
     ...(attivo ? [] : ["archiviata"]),
   ].join(" · ");
 
-  // Semaforo margine live
-  const pvNum = numeroCosto(prezzoVendita) ?? 0;
+  // Costo → costo pieno (con le spese generali) → prezzo. Ricarico e margine
+  // sono calcolati sul costo pieno, come nel preventivo.
   const ciNum = calcoloCosto.applicato ?? 0;
-  const marginePerc = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
-  const guadagnoUnit = pvNum - ciNum;
   const costoNoto = configCosto.modalita === "manuale" ? costoInterno.trim() !== "" && numeroCosto(costoInterno) != null : calcoloCosto.applicato != null;
+  const cpNum = costoPieno(ciNum, speseGenerali) ?? ciNum;
+  const ricaricoNum = ricaricoEsatto;
+  const prezzoCalcolato = prezzoModo === "dal_costo" && costoNoto ? prezzoDaRicarico(cpNum, ricaricoNum) : null;
+  const pvNum = prezzoModo === "dal_costo"
+    ? (isAdmin ? (prezzoCalcolato ?? 0) : Number(editing?.prezzo_vendita ?? 0))
+    : (numeroCosto(prezzoVendita) ?? 0);
+  const marginePerc = pvNum > 0 ? ((pvNum - cpNum) / pvNum) * 100 : 0;
+  const guadagnoUnit = pvNum - cpNum;
+  const ricaricoDiFatto = costoNoto ? ricaricoDaPrezzo(pvNum, cpNum) : null;
   const semMargine = margineSemaforo(costoNoto && pvNum > 0 ? marginePerc : null, sogliaMinima);
-  const prezzoMinimo = costoNoto ? prezzoMinimoPerMargine(ciNum, sogliaMinima) : null;
-  const importiInvariati = !!editing && pvNum === (editing.prezzo_vendita ?? 0) && ciNum === (costoTariffa(editing) ?? 0);
+  const prezzoMinimo = costoNoto ? prezzoMinimoPerMargine(cpNum, sogliaMinima) : null;
+  const ricaricoMinimo = ricaricoDaMargine(sogliaMinima);
+  const importiInvariati = !!editing && pvNum === (editing.prezzo_vendita ?? 0) && ciNum === (costoTariffa(editing) ?? 0)
+    && prezzoModo === (editing.prezzo_modo === "dal_costo" ? "dal_costo" : "libero");
+  // ricarico e margine si scrivono tutti e due: cambiando uno si aggiorna l'altro
+  const cambiaRicarico = (v: string, esatto?: number) => {
+    setRicaricoTesto(v);
+    const r = esatto ?? numeroCosto(v);
+    setRicaricoEsatto(r);
+    const m = r != null ? margineDaRicarico(r) : null;
+    setMargineTesto(m != null ? String(arrotondaPercento(m)) : "");
+  };
+  const cambiaMargine = (v: string) => {
+    setMargineTesto(v);
+    const m = numeroCosto(v);
+    const r = m != null ? ricaricoDaMargine(m) : null;
+    setRicaricoEsatto(r);
+    setRicaricoTesto(r != null ? String(arrotondaPercento(r)) : "");
+  };
+  const passaAModo = (modo: "libero" | "dal_costo") => {
+    if (modo === prezzoModo) return;
+    if (modo === "libero") {
+      // il prezzo calcolato diventa il punto di partenza del prezzo libero
+      if (prezzoCalcolato != null) setPrezzoVendita(String(prezzoCalcolato));
+    } else if (ricaricoDiFatto != null && ricaricoDiFatto >= 0) {
+      // da un prezzo libero: si parte dal ricarico che ha già, il prezzo non salta
+      cambiaRicarico(String(arrotondaPercento(ricaricoDiFatto)), ricaricoDiFatto);
+    }
+    setPrezzoModo(modo);
+  };
 
-  // Validazioni soft (non bloccanti — warning in UI)
+  // Validazioni soft (non bloccanti — warning in UI). Sul costo PIENO, come il
+  // margine: con le spese generali un prezzo appena sopra il costo diretto è
+  // già in perdita (costo 100, spese 10%, prezzo 105: margine −4,8%).
+  const costoNelConfronto = speseGenerali > 0 ? "Il costo pieno, con le spese generali," : "Il costo";
   const warnings: string[] = [];
-  if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) warnings.push("Il costo è uguale o più alto del prezzo di vendita: il margine è zero o negativo.");
+  if (isAdmin && pvNum > 0 && cpNum > 0 && cpNum >= pvNum) warnings.push(`${costoNelConfronto} è uguale o più alto del prezzo di vendita: il margine è zero o negativo.`);
   if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la voce non genererà importo in preventivo.");
 
   // Validazioni HARD — bloccano il submit
@@ -454,10 +555,14 @@ export function TariffaDialog({
   //     le correzioni descrittive possono mantenere gli importi esistenti.
   const blockReason: string | null = (() => {
     if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return "Inserisci un costo diretto valido, maggiore o uguale a zero.";
+    if (isAdmin && prezzoModo === "dal_costo" && !(costoNoto && ciNum > 0)) return "Per un prezzo dal costo serve un costo maggiore di zero: scrivilo sopra, oppure scegli «Prezzo libero».";
+    if (isAdmin && prezzoModo === "dal_costo" && !regolePronte) return "Le spese generali di «Prezzo e margini» non sono ancora lette: senza, il prezzo verrebbe più basso. Riprova tra un attimo.";
+    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum == null) return "Scrivi il ricarico (o un margine sotto il 100%) per calcolare il prezzo.";
+    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum != null && ricaricoNum > RICARICO_MASSIMO) return "Il ricarico è troppo alto: al massimo 9.999% (un margine del 99%).";
     if (isAdmin && calcoloCosto.applicato == null) return "Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.";
     if (squadraConSquadraInterna) return "Una squadra interna non può usare un listino riservato al subappaltatore: in «Altri dati» scegli Listino aziendale (generico).";
-    if (isAdmin && !importiInvariati && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
-      return "Il costo è uguale o più alto del prezzo di vendita. Correggi prima di salvare.";
+    if (isAdmin && !importiInvariati && pvNum > 0 && cpNum > 0 && cpNum >= pvNum) {
+      return `${costoNelConfronto} è uguale o più alto del prezzo di vendita. Correggi prima di salvare.`;
     }
     if (!editing && pvNum <= 0) {
       return "Il prezzo di vendita deve essere maggiore di 0 per una nuova voce.";
@@ -490,7 +595,12 @@ export function TariffaDialog({
         return parsed;
       };
 
-      const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Il prezzo di vendita");
+      // «dal costo»: si salva il prezzo calcolato, nella colonna che leggono tutti
+      // (preventivatori, computi, Silvio): nessun lettore deve sapere come è nato
+      // chi non vede i costi non ricalcola: per lui una voce «dal costo» tiene il prezzo salvato
+      const prezzoVenditaValue = prezzoModo === "dal_costo"
+        ? (isAdmin ? prezzoCalcolato : (editing?.prezzo_vendita ?? null))
+        : parseNonNegative(prezzoVendita, "Il prezzo di vendita");
       const costoInternoValue = isAdmin ? calcoloCosto.applicato! : (costoTariffa(editing) ?? 0);
       const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Il prezzo del piano aggiuntivo");
       const pianoBaseValue = parseNonNegativeInt(pianoBase, "Il piano base", 1);
@@ -524,6 +634,9 @@ export function TariffaDialog({
       };
       // costo_interno only visible/writable by admins
       if (isAdmin) {
+        payload.prezzo_modo = prezzoModo;
+        // quattro decimali come la colonna: 66,6667 ridà 100,0000 € da 60 € di costo
+        payload.ricarico_pct = prezzoModo === "dal_costo" && ricaricoNum != null ? Math.round(ricaricoNum * 1e4) / 1e4 : null;
         payload.costo_interno = costoInternoValue;
         payload.costo_default = costoInternoValue;
         // Manteniamo il legacy prezzo_costo allineato finché esiste la colonna
@@ -562,7 +675,7 @@ export function TariffaDialog({
           <DialogDescription>
             {editing
               ? "Modifica i dati della voce. Le voci salvate mantengono l'unità di misura originale."
-              : "Scegli che lavoro è e come si misura, poi scrivi il nome, il prezzo e il costo."}
+              : "Scegli che lavoro è e come si misura, poi il nome, il costo e come ne nasce il prezzo."}
           </DialogDescription>
         </DialogHeader>
 
@@ -617,38 +730,102 @@ export function TariffaDialog({
             </div>
           </div>
 
-          {/* Nome e prezzo di vendita */}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <div>
-              <Label htmlFor={idDi("nome")}>Nome *</Label>
-              <Input
-                id={idDi("nome")}
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Es. Posa finestra media (100×120)"
-                aria-required="true"
-                autoFocus={focusSulNome}
-                className={`mt-1.5 ${CAMPO_DA_DITO}`}
-              />
-            </div>
-            <div>
-              <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
-              <Input
-                id={idDi("prezzo")}
-                type="number"
-                min="0"
-                step="0.0001"
-                value={prezzoVendita}
-                onChange={(e) => setPrezzoVendita(e.target.value)}
-                placeholder="0.00"
-                className={`mt-1.5 ${CAMPO_DA_DITO}`}
-              />
-            </div>
+          {/* Nome */}
+          <div>
+            <Label htmlFor={idDi("nome")}>Nome *</Label>
+            <Input
+              id={idDi("nome")}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Es. Posa finestra media (100×120)"
+              aria-required="true"
+              autoFocus={focusSulNome}
+              className={`mt-1.5 ${CAMPO_DA_DITO}`}
+            />
           </div>
 
+          {/* Prima il costo: il prezzo, di solito, nasce da lì */}
           {isAdmin && <CostoLavorazioneEditor value={configCosto} onChange={setConfigCosto} costoManuale={costoInterno} onCostoManuale={setCostoInterno} unita={umLabel} dipendenti={dipendenti} erroreDipendenti={erroreDipendenti} costoModificato={costoModificato} />}
 
-          {/* Live example + margine */}
+          {/* Poi il prezzo: dal costo (ricarico o margine) oppure libero */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Come nasce il prezzo</p>
+              {isAdmin && (
+                <div className="flex rounded-lg bg-muted p-0.5" role="radiogroup" aria-label="Come nasce il prezzo">
+                  {([["dal_costo", "Dal costo"], ["libero", "Prezzo libero"]] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={prezzoModo === v}
+                      onClick={() => passaAModo(v)}
+                      className={`rounded-md px-3 py-1 text-xs font-medium ${prezzoModo === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {isAdmin && speseGenerali > 0 && costoNoto && (
+              <p className="text-xs text-muted-foreground">
+                Costo pieno {formatPrezzoUnitario(cpNum)} / {umLabel}: costo {formatPrezzoUnitario(ciNum)} + spese generali {speseGenerali.toLocaleString("it-IT")}%.
+              </p>
+            )}
+            {prezzoModo === "dal_costo" && !isAdmin ? (
+              <div>
+                <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                <Input id={idDi("prezzo")} readOnly value={formatPrezzoUnitario(pvNum)} className={`mt-1.5 bg-muted/40 font-semibold ${CAMPO_DA_DITO}`} aria-describedby={idDi("prezzo-aiuto")} />
+                <p id={idDi("prezzo-aiuto")} className="mt-1 text-xs text-muted-foreground">Il prezzo nasce dal costo: lo cambia chi vede i costi.</p>
+              </div>
+            ) : prezzoModo === "dal_costo" ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor={idDi("ricarico")}>Ricarico sul costo %</Label>
+                  <Input id={idDi("ricarico")} type="number" min="0" step="0.01" value={ricaricoTesto} onChange={(e) => cambiaRicarico(e.target.value)} className={`mt-1.5 ${CAMPO_DA_DITO}`} />
+                </div>
+                <div>
+                  <Label htmlFor={idDi("margine")}>oppure margine %</Label>
+                  <Input id={idDi("margine")} type="number" min="0" max="99.99" step="0.01" value={margineTesto} onChange={(e) => cambiaMargine(e.target.value)} className={`mt-1.5 ${CAMPO_DA_DITO}`} />
+                </div>
+                <div>
+                  <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                  <Input id={idDi("prezzo")} readOnly value={prezzoCalcolato != null ? formatPrezzoUnitario(prezzoCalcolato) : "—"} className={`mt-1.5 bg-muted/40 font-semibold ${CAMPO_DA_DITO}`} aria-describedby={idDi("prezzo-aiuto")} />
+                </div>
+                <p id={idDi("prezzo-aiuto")} className="text-xs text-muted-foreground sm:col-span-3">
+                  {costoNoto
+                    ? `Costo pieno × (1 + ricarico). Un ricarico del ${(ricaricoNum ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 2 })}% è un margine del ${(margineDaRicarico(ricaricoNum ?? 0) ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%. Se il costo cambia, il prezzo si ricalcola.`
+                    : "Scrivi il costo sopra: il prezzo si calcola da lì."}
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-end">
+                <div>
+                  <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                  <Input
+                    id={idDi("prezzo")}
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={prezzoVendita}
+                    onChange={(e) => setPrezzoVendita(e.target.value)}
+                    placeholder="0.00"
+                    className={`mt-1.5 ${CAMPO_DA_DITO}`}
+                  />
+                </div>
+                {isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    {ricaricoDiFatto != null && pvNum > 0
+                      ? `Il prezzo scritto a mano dà un ricarico del ${formatRicarico(ricaricoDiFatto).replace("+", "")} sul costo pieno. Non segue il costo: se cambia, il prezzo resta questo.`
+                      : "Il prezzo scritto a mano (prezzo di mercato, prezzario) non segue il costo."}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Anteprima economica */}
           {(pvNum > 0 || (isAdmin && ciNum > 0)) && (
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -658,8 +835,8 @@ export function TariffaDialog({
               <div className="grid gap-2 text-sm sm:grid-cols-3">
                 {isAdmin && (
                   <div className="rounded-md bg-background p-2 border">
-                    <div className="text-xs text-muted-foreground">Costo</div>
-                    <div className="font-semibold text-rose-600">{costoNoto ? formatPrezzoUnitario(ciNum) : "Da impostare"}</div>
+                    <div className="text-xs text-muted-foreground">{speseGenerali > 0 ? "Costo pieno" : "Costo"}</div>
+                    <div className="font-semibold text-rose-600">{costoNoto ? formatPrezzoUnitario(cpNum) : "Da impostare"}</div>
                   </div>
                 )}
                 <div className="rounded-md bg-background p-2 border">
@@ -673,7 +850,7 @@ export function TariffaDialog({
                       {costoNoto ? formatPrezzoUnitario(guadagnoUnit) : "Da calcolare"}
                       {costoNoto && pvNum > 0 && (
                         <span className="ml-1 text-xs font-normal">
-                          ({marginePerc.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                          (margine {marginePerc.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%{ricaricoDiFatto != null ? ` · ricarico ${formatRicarico(ricaricoDiFatto)}` : ""})
                         </span>
                       )}
                     </div>
@@ -690,7 +867,18 @@ export function TariffaDialog({
                   </span>
                 </div>
               )}
-              {isAdmin && prezzoMinimo != null && pvNum < prezzoMinimo && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200"><span>Per raggiungere il margine minimo del {sogliaMinima}%: {formatPrezzoUnitario(prezzoMinimo)} / {umLabel}.</span><Button type="button" size="sm" variant="outline" onClick={() => setPrezzoVendita(String(prezzoMinimo))}>Usa questo prezzo</Button></div>}
+              {isAdmin && prezzoMinimo != null && pvNum < prezzoMinimo && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <span>
+                    Per il margine minimo del {sogliaMinima}%{ricaricoMinimo != null ? ` serve un ricarico di almeno ${formatRicarico(ricaricoMinimo)}` : ""}: {formatPrezzoUnitario(prezzoMinimo)} / {umLabel}.
+                  </span>
+                  {prezzoModo === "dal_costo" && ricaricoMinimo != null ? (
+                    <Button type="button" size="sm" variant="outline" onClick={() => cambiaRicarico(String(Math.ceil(ricaricoMinimo * 100) / 100))}>Usa il ricarico minimo</Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setPrezzoVendita(String(prezzoMinimo))}>Usa questo prezzo</Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1479,6 +1667,7 @@ function TariffeTable({
   onAnalisi: (t: Tariffa) => void;
 }) {
   const isMobile = useIsMobile();
+  const sg = useSpeseGenerali();
   // Accessori per il sort ("tipo" è ordinabile dai tab gruppo, non serve qui)
   const accessors = useMemo(() => ({
     nome: (t: Tariffa) => t.nome.toLowerCase(),
@@ -1488,10 +1677,10 @@ function TariffeTable({
     margine: (t: Tariffa) => {
       const pv = t.prezzo_vendita ?? 0;
       const pc = costoTariffaConosciuto(t);
-      return pv > 0 && pc != null ? calcMargine(pv, pc) : -Infinity;
+      return pv > 0 && pc != null ? calcMargine(pv, pc, sg) : -Infinity;
     },
     attivo: (t: Tariffa) => (t.attivo !== false ? 1 : 0),
-  }), []);
+  }), [sg]);
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(items, accessors);
 
@@ -1534,7 +1723,7 @@ function TariffeTable({
             const costoNoto = costoTariffaConosciuto(t);
             const pc = costoNoto ?? 0;
             const hasBoth = pv > 0 && costoNoto != null;
-            const margine = calcMargine(pv, pc);
+            const margine = calcMargine(pv, pc, sg);
             const sem = margineSemaforo(hasBoth ? margine : null, soglia);
             const isAttivo = t.attivo !== false;
             const isSelected = selectedIds.has(t.id);
@@ -1576,7 +1765,7 @@ function TariffeTable({
                     {isAdmin && (
                       <div className="flex items-baseline gap-1">
                         <dt className="text-xs text-muted-foreground">Margine</dt>
-                        <dd>{hasBoth ? <MargineConSemaforo margine={margine} sem={sem} /> : <span className="text-muted-foreground">—</span>}</dd>
+                        <dd>{hasBoth ? <MargineConSemaforo margine={margine} sem={sem} /> : <span className="text-muted-foreground">—</span>}<RicaricoVoce t={t} pv={pv} pc={costoNoto} sg={sg} /></dd>
                       </div>
                     )}
                   </dl>
@@ -1615,7 +1804,7 @@ function TariffeTable({
             <SortableTableHead column="unita" label="UM" sortConfig={sortConfig} onSort={toggleSort} className="w-[56px]" />
             <SortableTableHead column="prezzo_vendita" label="Vendita" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />
             {isAdmin && <SortableTableHead column="costo" label="Costo" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />}
-            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[92px]" />}
+            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[112px]" />}
             <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
           </TableRow>
         </TableHeader>
@@ -1631,7 +1820,7 @@ function TariffeTable({
             const costoNoto = costoTariffaConosciuto(t);
             const pc = costoNoto ?? 0;
             const hasBoth = pv > 0 && costoNoto != null;
-            const margine = calcMargine(pv, pc);
+            const margine = calcMargine(pv, pc, sg);
             const sem = margineSemaforo(hasBoth ? margine : null, soglia);
             const isAttivo = t.attivo !== false;
             const isSelected = selectedIds.has(t.id);
@@ -1679,6 +1868,7 @@ function TariffeTable({
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                    <RicaricoVoce t={t} pv={pv} pc={costoNoto} sg={sg} />
                   </TableCell>
                 )}
                 <TableCell className="text-right">
@@ -1697,7 +1887,7 @@ function TariffeTable({
 type StatoFilter = "all" | "attive" | "archiviate" | "standard";
 type VerticalFilter = FiltroAreaTariffe;
 /** Filtro per redditività (solo admin): tutte / sotto la soglia minima / in perdita. */
-type MargineFilter = "all" | "sotto-soglia" | "perdita" | "senza-costo" | "senza-prezzo";
+type MargineFilter = "all" | "sotto-soglia" | "perdita" | "senza-costo" | "senza-prezzo" | "dal-costo" | "prezzo-libero" | "da-aggiornare";
 
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
@@ -1713,8 +1903,14 @@ export default function SettingsTariffe() {
   // «Margine minimo delle commesse» di Approvazioni (#40): editor, riepilogo,
   // tabella e filtro redditività condividono la stessa soglia.
   // Fallback sicuro ai default anche se la tabella non è ancora applicata.
-  const { data: governance } = useGovernanceThresholds(companyId);
-  const soglia = governance?.marginalita?.sogliaMinimaPerc ?? 15;
+  // Margine minimo, obiettivo e spese generali da «Prezzo e margini», come il
+  // preventivo. Prima qui valeva la soglia di «Approvazioni» (un'altra
+  // impostazione con lo stesso nome), e le spese generali non c'erano.
+  const { data: regole } = useRegolePrezzo(companyId);
+  // senza le regole lette, ogni prezzo «dal costo» si farebbe con spese generali 0%:
+  // i conteggi «da aggiornare» e le scritture aspettano
+  const soglia = regole?.margineMinimoPct ?? 15;
+  const speseGenerali = regole?.speseGeneraliPct ?? 0;
 
   const [activeGroup, setActiveGroup] = useState<TipoDef["group"] | "all">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1737,6 +1933,8 @@ export default function SettingsTariffe() {
   const [selezioneTabella, setSelezioneTabella] = useState<{ ambito: string; dati: Tariffa[]; ids: Set<string> }>({ ambito: "", dati: EMPTY_TARIFFE, ids: EMPTY_SELECTED_IDS });
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [priceAdjustOpen, setPriceAdjustOpen] = useState(false);
+  // «Applica ricarico» sulle selezionate, o «Ricalcola dai costi» su tutte
+  const [prezzoDalCosto, setPrezzoDalCosto] = useState<{ modo: ModoPrezzoDalCosto; items: Tariffa[] } | null>(null);
   const daTelefono = useIsMobile();
 
   // Una sola fila di schede (Manodopera e servizi | Impianti | Interventi | Prezzi di manutenzione), sincronizzata su ?tab.
@@ -1761,7 +1959,7 @@ export default function SettingsTariffe() {
       return loadCatalogPages<Tariffa>(async (from, to) => {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, costo_default, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, costo_default, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values, prezzo_modo, ricarico_pct")
         .eq("company_id", companyId)
         .order("nome").order("id").range(from, to);
         return { data: data as unknown as Tariffa[], error };
@@ -1907,6 +2105,9 @@ export default function SettingsTariffe() {
         fonte: t.fonte ?? null,
         incidenza_manodopera_pct: t.incidenza_manodopera_pct ?? null,
         custom_field_values: t.custom_field_values ?? {},
+        // la copia di una voce «dal costo» segue il costo come l'originale
+        prezzo_modo: t.prezzo_modo === "dal_costo" ? "dal_costo" : "libero",
+        ricarico_pct: t.prezzo_modo === "dal_costo" ? t.ricarico_pct ?? null : null,
       };
       const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
       if (error) throw error;
@@ -1994,7 +2195,13 @@ export default function SettingsTariffe() {
         if (!haystack.includes(q)) return false;
       }
       // margine (redditività) — solo per voci con margine calcolabile
-      if (margineFilter === "senza-costo") {
+      if (margineFilter === "dal-costo") {
+        if (t.prezzo_modo !== "dal_costo") return false;
+      } else if (margineFilter === "prezzo-libero") {
+        if (t.prezzo_modo === "dal_costo") return false;
+      } else if (margineFilter === "da-aggiornare") {
+        if (!prezzoDaRiallineare(t, costoTariffaConosciuto(t), speseGenerali)) return false;
+      } else if (margineFilter === "senza-costo") {
         if (costoTariffaConosciuto(t) != null) return false;
       } else if (margineFilter === "senza-prezzo") {
         if ((t.prezzo_vendita ?? 0) > 0) return false;
@@ -2004,13 +2211,13 @@ export default function SettingsTariffe() {
         const pc = costoNoto ?? 0;
         const hasBoth = pv > 0 && costoNoto != null;
         if (!hasBoth) return false;
-        const m = calcMargine(pv, pc);
+        const m = calcMargine(pv, pc, speseGenerali);
         if (margineFilter === "perdita" && !(m < 0)) return false;
         if (margineFilter === "sotto-soglia" && !(m < soglia)) return false;
       }
       return true;
     });
-  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia, lavorazioneFilter, categoriaRegionaleFilter]);
+  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia, speseGenerali, lavorazioneFilter, categoriaRegionaleFilter]);
 
   // Raggruppamento per group (per i tab)
   const byGroup = useMemo(() => {
@@ -2106,7 +2313,7 @@ export default function SettingsTariffe() {
     if (margineFilter !== "all")
       chips.push({
         key: "margine",
-        label: margineFilter === "perdita" ? "Redditività: in perdita" : margineFilter === "senza-costo" ? "Prezzi e costi: costo da impostare" : margineFilter === "senza-prezzo" ? "Prezzi e costi: prezzo da impostare" : "Redditività: sotto soglia",
+        label: margineFilter === "perdita" ? "Redditività: in perdita" : margineFilter === "senza-costo" ? "Prezzi e costi: costo da impostare" : margineFilter === "senza-prezzo" ? "Prezzi e costi: prezzo da impostare" : margineFilter === "dal-costo" ? "Prezzo: dal costo" : margineFilter === "prezzo-libero" ? "Prezzo: libero" : margineFilter === "da-aggiornare" ? "Prezzo: dal costo, da aggiornare" : "Redditività: sotto soglia",
         onRemove: () => setMargineFilter("all"),
       });
     return chips;
@@ -2140,6 +2347,7 @@ export default function SettingsTariffe() {
   if (!companyId) return null;
 
   return (
+    <SpeseGeneraliContext.Provider value={speseGenerali}>
     <div className="space-y-4">
       {/* Una sola testata: il titolo «Listino» e le sue schede le mette già il layout. Qui una fila sola di schede
           (la manodopera e, accanto, le tre parti di Manutenzione) e, a destra, i pulsanti della manodopera. */}
@@ -2254,6 +2462,7 @@ export default function SettingsTariffe() {
         tariffe={tariffe}
         isAdmin={isAdmin}
         soglia={soglia}
+        onRicalcola={() => setPrezzoDalCosto({ modo: "ricalcola", items: tariffe.filter((t) => t.attivo !== false) })}
         onShowSottoSoglia={() => {
           resetFilters();
           setMargineFilter("sotto-soglia");
@@ -2343,6 +2552,9 @@ export default function SettingsTariffe() {
                 <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
                 <SelectItem value="senza-costo">Costo da impostare</SelectItem>
                 <SelectItem value="senza-prezzo">Prezzo da impostare</SelectItem>
+                <SelectItem value="dal-costo">Prezzo dal costo</SelectItem>
+                <SelectItem value="prezzo-libero">Prezzo libero</SelectItem>
+                <SelectItem value="da-aggiornare">Dal costo, da aggiornare</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -2477,11 +2689,21 @@ export default function SettingsTariffe() {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={bulkBusy}
+                    disabled={bulkBusy || !regole}
                     onClick={() => setPriceAdjustOpen(true)}
                   >
                     <Percent className="h-4 w-4 mr-1.5" />
                     Adegua prezzi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkBusy || !regole}
+                    onClick={() => setPrezzoDalCosto({ modo: "applica", items: selectedItems })}
+                    title="Le voci selezionate passano a «dal costo» con un ricarico"
+                  >
+                    <Calculator className="h-4 w-4 mr-1.5" />
+                    Prezzo dal costo
                   </Button>
                   {selectedArchiviateCount > 0 && (
                     <Button
@@ -2547,8 +2769,8 @@ export default function SettingsTariffe() {
 
       {/* Come si legge il margine — m2 (audit): visibile anche al first-run, non solo quando l'utente ha già
           creato voci. Serve a spiegare il margine PRIMA che popoli il listino. */}
-      {isAdmin && governance && (
-        <NotaMargine soglia={soglia} puoCambiare={permissions.isAdmin || permissions.canViewCosts} />
+      {isAdmin && regole && (
+        <NotaMargine regole={regole} puoCambiare={permissions.isAdmin || permissions.canViewCosts} />
       )}
 
         </TabsContent>
@@ -2573,6 +2795,9 @@ export default function SettingsTariffe() {
           currentVertical={verticalFilter.startsWith("area:") ? (AREE_STANDARD.find(a => a.chiave === verticalFilter.slice(5))?.verticale ?? verticalFilter.slice(5)) : verticalFilter === "global" ? null : currentVertical}
           gruppoIniziale={lavorazioneFilter === "all" ? "posa" : lavorazioneFilter}
           sogliaMinima={soglia}
+          speseGenerali={speseGenerali}
+          ricaricoObiettivo={regole?.ricaricoObiettivoPct ?? 100 / 3}
+          regolePronte={!!regole}
           dipendenti={permissions.canViewEmployees && permissions.canViewCosts ? dipendenti : []}
           erroreDipendenti={erroreDipendenti}
           onSaved={() => invalidateAllTariffe(queryClient)}
@@ -2666,7 +2891,21 @@ export default function SettingsTariffe() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {priceAdjustOpen && (
+      {prezzoDalCosto && regole && (
+        <PrezzoDalCostoDialog
+          open
+          onClose={() => setPrezzoDalCosto(null)}
+          modo={prezzoDalCosto.modo}
+          items={prezzoDalCosto.items}
+          companyId={companyId}
+          speseGenerali={speseGenerali}
+          sogliaMinima={soglia}
+          ricaricoObiettivo={regole?.ricaricoObiettivoPct ?? 100 / 3}
+          onApplied={clearSelection}
+        />
+      )}
+
+      {priceAdjustOpen && regole && (
         <BulkPriceAdjustDialog
           open={priceAdjustOpen}
           onClose={() => setPriceAdjustOpen(false)}
@@ -2674,6 +2913,7 @@ export default function SettingsTariffe() {
           isAdmin={isAdmin}
           companyId={companyId}
           sogliaMinima={soglia}
+          speseGenerali={speseGenerali}
           onApplied={clearSelection}
         />
       )}
@@ -2749,5 +2989,6 @@ export default function SettingsTariffe() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </SpeseGeneraliContext.Provider>
   );
 }

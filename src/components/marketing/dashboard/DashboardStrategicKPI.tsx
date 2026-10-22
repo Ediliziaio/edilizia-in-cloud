@@ -5,12 +5,12 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, TrendingDown, Minus, Euro, Trophy, Target, CalendarCheck, BarChart3, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { KpiData } from "@/hooks/useMarketingDashboard";
+import type { KpiData, KpiPrevData } from "@/hooks/useMarketingDashboard";
 import { formatValue, calcDelta } from "./utils";
 
 interface Props {
   kpi: KpiData | undefined;
-  kpiPrev: KpiData | undefined;
+  kpiPrev: KpiPrevData | undefined;
   isLoading: boolean;
 }
 
@@ -27,12 +27,12 @@ interface StrategicCard {
 }
 
 const STRATEGIC_CARDS: StrategicCard[] = [
-  { key: "revenue", label: "Fatturato", tooltip: "Somma valori opportunità vinte nel periodo", icon: Euro, format: "currency", target: 50000, accentClass: "text-emerald-600 dark:text-emerald-400", borderClass: "border-l-emerald-500", progressClass: "[&>div]:bg-emerald-500" },
-  { key: "contracts_won", label: "Contratti Vinti", tooltip: "Opportunità chiuse con successo", icon: Trophy, format: "number", target: 10, accentClass: "text-amber-600 dark:text-amber-400", borderClass: "border-l-amber-500", progressClass: "[&>div]:bg-amber-500" },
-  { key: "pipeline_active_value", label: "Pipeline Attiva", tooltip: "Valore totale opportunità aperte", icon: BarChart3, format: "currency", accentClass: "text-blue-600 dark:text-blue-400", borderClass: "border-l-blue-500", progressClass: "[&>div]:bg-blue-500" },
+  { key: "revenue", label: "Fatturato", tooltip: "Preventivi firmati nel periodo (imponibile) più le opportunità vinte senza preventivo", icon: Euro, format: "currency", target: 50000, accentClass: "text-emerald-600 dark:text-emerald-400", borderClass: "border-l-emerald-500", progressClass: "[&>div]:bg-emerald-500" },
+  { key: "contracts_won", label: "Vendite", tooltip: "Preventivi firmati più opportunità vinte senza preventivo", icon: Trophy, format: "number", target: 10, accentClass: "text-amber-600 dark:text-amber-400", borderClass: "border-l-amber-500", progressClass: "[&>div]:bg-amber-500" },
+  { key: "pipeline_active_value", label: "Pipeline Attiva", tooltip: "Valore delle opportunità aperte oggi", icon: BarChart3, format: "currency", accentClass: "text-blue-600 dark:text-blue-400", borderClass: "border-l-blue-500", progressClass: "[&>div]:bg-blue-500" },
   { key: "forecast_30d", label: "Forecast 30gg", tooltip: "Stima: tasso chiusura × ticket medio × opportunità in fasi avanzate", icon: Zap, format: "currency", accentClass: "text-violet-600 dark:text-violet-400", borderClass: "border-l-violet-500", progressClass: "[&>div]:bg-violet-500" },
-  { key: "close_rate", label: "Tasso Chiusura", tooltip: "Vinte ÷ (vinte + perse) × 100 — le scartate non contano", icon: Target, format: "percent", target: 30, accentClass: "text-rose-600 dark:text-rose-400", borderClass: "border-l-rose-500", progressClass: "[&>div]:bg-rose-500" },
-  { key: "show_rate", label: "Show Rate", tooltip: "Effettuati ÷ (effettuati + no-show) × 100", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400", borderClass: "border-l-cyan-500", progressClass: "[&>div]:bg-cyan-500" },
+  { key: "close_rate", label: "Tasso Chiusura", tooltip: "Vinte ÷ (vinte + perse) × 100, solo opportunità — le scartate non contano", icon: Target, format: "percent", target: 30, accentClass: "text-rose-600 dark:text-rose-400", borderClass: "border-l-rose-500", progressClass: "[&>div]:bg-rose-500" },
+  { key: "show_rate", label: "Show Rate", tooltip: "Effettuati ÷ (effettuati + no-show) × 100 — gli appuntamenti da esitare non contano", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400", borderClass: "border-l-cyan-500", progressClass: "[&>div]:bg-cyan-500" },
 ];
 
 export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
@@ -55,8 +55,11 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {STRATEGIC_CARDS.map(c => {
           const value = Number(kpi?.[c.key] ?? 0);
-          const prevValue = Number(kpiPrev?.[c.key] ?? 0);
-          const delta = calcDelta(value, prevValue);
+          // senza un valore del periodo precedente (forecast) niente confronto:
+          // contro zero dava sempre «100% vs prec.»
+          // la pipeline e il forecast sono una foto di oggi: niente confronto col periodo prima
+          const prevRaw = c.key === "pipeline_active_value" || c.key === "forecast_30d" ? null : kpiPrev?.[c.key];
+          const delta = prevRaw == null ? null : calcDelta(value, Number(prevRaw));
           const Icon = c.icon;
           const targetPct = c.target ? Math.min((value / c.target) * 100, 100) : null;
 
@@ -72,6 +75,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                     </span>
                   </div>
                   <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-slate-950 max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
+                  {delta ? (
                   <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold max-sm:mb-0 max-sm:text-[11px]",
                     delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",
                     delta.direction === "down" && "text-red-600 dark:text-red-400",
@@ -82,6 +86,9 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                     {delta.direction === "flat" && <Minus className="h-3.5 w-3.5 flex-shrink-0" />}
                     <span className="truncate">{delta.value}% vs prec.</span>
                   </div>
+                  ) : (
+                    <div className="mb-2 text-xs text-muted-foreground max-sm:mb-0 max-sm:text-[11px]">&nbsp;</div>
+                  )}
                   {targetPct !== null && (
                     <div className="space-y-1 max-sm:hidden">
                       <div className="flex justify-between gap-1 text-[10px] text-muted-foreground">

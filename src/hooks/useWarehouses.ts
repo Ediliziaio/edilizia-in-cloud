@@ -168,14 +168,17 @@ export function useWarehouses(onlyActive = true) {
   // dell'audit). Per questo si conta prima e si dice cosa c'è dentro.
   const deleteMutation = useMutation({
     mutationFn: async (warehouseId: string) => {
-      const [stock, movimenti, lotti, daQui, aQui] = await Promise.all([
+      const [stock, movimenti, lotti, daQui, aQui, ordini, bolle] = await Promise.all([
         supabase.from("warehouse_stock").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
         supabase.from("warehouse_movements").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
         supabase.from("stock_lotti").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
         supabase.from("warehouse_transfers").select("id", { count: "exact", head: true }).eq("from_warehouse_id", warehouseId),
         supabase.from("warehouse_transfers").select("id", { count: "exact", head: true }).eq("to_warehouse_id", warehouseId),
+        // ordini fornitore e bolle diretti qui: senza, restavano senza destinazione
+        supabase.from("purchase_orders").select("id", { count: "exact", head: true }).eq("delivery_warehouse_id", warehouseId),
+        supabase.from("ddt_ricezione").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
       ]);
-      const errore = [stock, movimenti, lotti, daQui, aQui].find((r) => r.error)?.error;
+      const errore = [stock, movimenti, lotti, daQui, aQui, ordini, bolle].find((r) => r.error)?.error;
       if (errore) throw errore;
       const n = (r: { count: number | null }) => r.count ?? 0;
       const parti: string[] = [];
@@ -184,6 +187,8 @@ export function useWarehouses(onlyActive = true) {
       if (n(lotti) > 0) parti.push(`${n(lotti)} lott${n(lotti) === 1 ? "o" : "i"}`);
       const trasferimenti = n(daQui) + n(aQui);
       if (trasferimenti > 0) parti.push(`${trasferimenti} trasferiment${trasferimenti === 1 ? "o" : "i"}`);
+      if (n(ordini) > 0) parti.push(`${n(ordini)} ordin${n(ordini) === 1 ? "e" : "i"} fornitore`);
+      if (n(bolle) > 0) parti.push(`${n(bolle)} boll${n(bolle) === 1 ? "a" : "e"}`);
       if (parti.length > 0) {
         throw new Error(`Il magazzino ha ${parti.join(", ")} collegati: spostali o svuotalo prima di eliminarlo.`);
       }

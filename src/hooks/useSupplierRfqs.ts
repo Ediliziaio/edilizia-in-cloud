@@ -49,12 +49,24 @@ export interface RfqItem {
   posizione: number;
 }
 
+/** Come si è chiesta l'offerta: «app» è l'email partita dal compositore. */
+export type CanaleRichiesta = "app" | "email" | "telefono" | "whatsapp" | "di_persona";
+
+export const CANALE_RICHIESTA_LABELS: Record<CanaleRichiesta, string> = {
+  app: "email dall'app",
+  email: "email",
+  telefono: "telefono",
+  whatsapp: "WhatsApp",
+  di_persona: "di persona",
+};
+
 export interface RfqSupplier {
   id: string;
   rfq_id: string;
   supplier_id: string;
   status: string;
   inviata_at: string | null;
+  inviata_via: CanaleRichiesta | null;
   risposta_at: string | null;
   totale_offerto: number | null;
   giorni_consegna: number | null;
@@ -87,6 +99,16 @@ export function totaleRigaOfferta(q: RfqQuote | undefined, quantita: number): nu
   return lordo * (1 - Number(q.sconto_percentuale || 0) / 100);
 }
 
+export interface ContatoriRichiesta {
+  invitati: number;
+  risposte: number;
+  /** fornitori a cui è stata chiesta e che non hanno ancora risposto */
+  inAttesa: number;
+  /** la richiesta più vecchia ancora senza risposta: da qui si contano i giorni */
+  attesaDal: string | null;
+  migliore: number | null;
+}
+
 export function useSupplierRfqs() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -112,20 +134,67 @@ export function useSupplierRfqs() {
   const contatoriQuery = useQuery({
     queryKey: [...rfqKeys.list(companyId), "contatori"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("supplier_rfq_suppliers")
-        .select("rfq_id, status, totale_offerto")
-        .eq("company_id", companyId!);
-      if (error) throw error;
-      const mappa: Record<string, { invitati: number; risposte: number; migliore: number | null }> = {};
-      for (const r of (data ?? []) as { rfq_id: string; status: string; totale_offerto: number | null }[]) {
-        const m = (mappa[r.rfq_id] ??= { invitati: 0, risposte: 0, migliore: null });
+      const PAGINA = 1000;
+      // tutte le pagine di una tabella dell'azienda, ordinate per id
+      const tutte = async <T,>(tabella: string, colonne: string): Promise<T[]> => {
+        const out: T[] = [];
+        for (let da = 0; ; da += PAGINA) {
+          const { data, error } = await (supabase as any).from(tabella).select(colonne)
+            .eq("company_id", companyId!).order("id").range(da, da + PAGINA - 1);
+          if (error) throw error;
+          out.push(...((data ?? []) as T[]));
+          if (!data || data.length < PAGINA) return out;
+        }
+      };
+
+      const [fornitori, voci, righe] = await Promise.all([
+        tutte<{ id: string; rfq_id: string; status: string; totale_offerto: number | null; inviata_at: string | null }>(
+          "supplier_rfq_suppliers", "id, rfq_id, status, totale_offerto, inviata_at"),
+        tutte<{ id: string; rfq_id: string }>("supplier_rfq_items", "id, rfq_id"),
+        tutte<RfqQuote & { supplier_rfq_items: { quantita: number } | null }>(
+          "supplier_rfq_quotes", "id, rfq_supplier_id, prezzo_unitario, sconto_percentuale, disponibile, supplier_rfq_items(quantita)"),
+      ]);
+
+      // Il totale di chi ha risposto si calcola come nel dettaglio: la somma
+      // delle righe offerte, oppure il totale del documento se l'offerta è a
+      // corpo. E la migliore si sceglie fra le offerte che coprono più voci:
+      // chi ne quota una su due costa meno perché manca metà fornitura.
+      const vociPerRichiesta = new Map<string, number>();
+      for (const v of voci) vociPerRichiesta.set(v.rfq_id, (vociPerRichiesta.get(v.rfq_id) ?? 0) + 1);
+      const sommaRighe = new Map<string, { totale: number; coperte: number }>();
+      for (const q of righe) {
+        const t = totaleRigaOfferta(q, Number(q.supplier_rfq_items?.quantita ?? 0));
+        if (t == null) continue;
+        const r = sommaRighe.get(q.rfq_supplier_id) ?? { totale: 0, coperte: 0 };
+        r.totale += t; r.coperte += 1;
+        sommaRighe.set(q.rfq_supplier_id, r);
+      }
+
+      const mappa: Record<string, ContatoriRichiesta> = {};
+      const offerte = new Map<string, Array<{ totale: number; coperte: number }>>();
+      for (const r of fornitori) {
+        const m = (mappa[r.rfq_id] ??= { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null, migliore: null });
         m.invitati += 1;
+        // in attesa = chiesta e senza risposta; chi non è ancora stato contattato non «tace»
+        if (r.status === "inviata") {
+          m.inAttesa += 1;
+          if (r.inviata_at && (!m.attesaDal || r.inviata_at < m.attesaDal)) m.attesaDal = r.inviata_at;
+        }
         if (r.status === "risposta") {
           m.risposte += 1;
-          const t = r.totale_offerto == null ? null : Number(r.totale_offerto);
-          if (t != null && (m.migliore == null || t < m.migliore)) m.migliore = t;
+          const daRighe = sommaRighe.get(r.id);
+          const offerta = daRighe
+            ? daRighe
+            : r.totale_offerto != null
+              ? { totale: Number(r.totale_offerto), coperte: vociPerRichiesta.get(r.rfq_id) ?? 0 }
+              : null;
+          if (offerta) offerte.set(r.rfq_id, [...(offerte.get(r.rfq_id) ?? []), offerta]);
         }
+      }
+      for (const [rfqId, elenco] of offerte) {
+        const piuCompleta = Math.max(...elenco.map((o) => o.coperte));
+        const valide = elenco.filter((o) => o.coperte === piuCompleta).map((o) => o.totale);
+        if (mappa[rfqId] && valide.length > 0) mappa[rfqId].migliore = Math.min(...valide);
       }
       return mappa;
     },
@@ -317,78 +386,20 @@ export function useSupplierRfqDetail(rfqId: string | null) {
 
   /**
    * Aggiudicazione: la richiesta finisce e nasce l'ordine d'acquisto al
-   * fornitore scelto, con dentro i prezzi che ha offerto. E' il punto in cui
-   * una trattativa diventa un impegno di spesa.
+   * fornitore scelto, con dentro i prezzi che ha offerto. Tutto in una sola
+   * operazione nel database (rdo_aggiudica): o nascono ordine e righe e la
+   * richiesta si chiude, o non resta niente. Un secondo clic trova la
+   * richiesta già aggiudicata e non crea un altro ordine.
    */
   const aggiudica = useMutation({
     mutationFn: async (params: { rfq_supplier_id: string; motivazione?: string }) => {
-      const dati = query.data;
-      if (!dati) throw new Error("Richiesta non caricata");
-      const vincitore = dati.fornitori.find((f) => f.id === params.rfq_supplier_id);
-      if (!vincitore) throw new Error("Fornitore non trovato nella richiesta");
-
-      const user = (await supabase.auth.getUser()).data.user;
-      const { data: po, error: poErr } = await (supabase as any)
-        .from("purchase_orders")
-        .insert({
-          company_id: companyId!,
-          supplier_id: vincitore.supplier_id,
-          order_id: dati.rfq.order_id,
-          expected_delivery_date: dati.rfq.data_fabbisogno,
-          payment_terms: vincitore.condizioni_pagamento,
-          origine: "email",
-          notes: `Da richiesta d'offerta ${dati.rfq.rfq_number} — ${dati.rfq.titolo}`,
-          created_by: user?.id,
-        })
-        .select("id, oda_number")
-        .single();
-      if (poErr) throw poErr;
-
-      // Le righe portano i prezzi offerti. Si saltano quelle che il fornitore
-      // ha dichiarato non disponibili: metterle a zero le farebbe sembrare
-      // regalate, e a fine ordine il totale sarebbe falso.
-      const righe = dati.items
-        .map((it) => {
-          const q = dati.quotes.find(
-            (x) => x.rfq_item_id === it.id && x.rfq_supplier_id === vincitore.id,
-          );
-          if (!q || !q.disponibile || q.prezzo_unitario == null) return null;
-          return {
-            purchase_order_id: po.id,
-            company_id: companyId!,
-            description: it.descrizione,
-            quantity: Number(it.quantita),
-            unit_of_measure: it.unita_misura ?? "pz",
-            unit_price: Number(q.prezzo_unitario),
-            discount_percent: Number(q.sconto_percentuale || 0),
-            // ?? e non ||: l'IVA 0 e' legittima (es. fornitore intra-UE) e
-            // il || la trasformava in un 22% inventato sull'ordine.
-            vat_rate: Number(q.aliquota_iva ?? 22),
-            sku: it.sku,
-          };
-        })
-        .filter(Boolean);
-
-      if (righe.length > 0) {
-        // line_total e vat_amount sono colonne generate dal database: scriverle
-        // qui farebbe fallire l'insert.
-        const { error: itemsErr } = await (supabase as any).from("purchase_order_items").insert(righe);
-        if (itemsErr) throw itemsErr;
-      }
-
-      const { error: rfqErr } = await (supabase as any)
-        .from("supplier_rfqs")
-        .update({
-          status: "aggiudicata",
-          supplier_id_aggiudicato: vincitore.supplier_id,
-          purchase_order_id: po.id,
-          aggiudicata_at: new Date().toISOString(),
-          motivazione_scelta: params.motivazione || null,
-        })
-        .eq("id", rfqId!);
-      if (rfqErr) throw rfqErr;
-
-      return { purchaseOrderId: po.id as string, odaNumber: po.oda_number as string, righe: righe.length };
+      const { data, error } = await (supabase as any).rpc("rdo_aggiudica", {
+        p_rfq_supplier_id: params.rfq_supplier_id,
+        p_motivazione: params.motivazione ?? null,
+      });
+      if (error) throw new Error(error.message);
+      const r = data as { purchase_order_id: string; oda_number: string; righe: number };
+      return { purchaseOrderId: r.purchase_order_id, odaNumber: r.oda_number, righe: r.righe };
     },
     onSuccess: (r) => {
       toast.success(`Ordine ${r.odaNumber} creato`, {
@@ -398,7 +409,71 @@ export function useSupplierRfqDetail(rfqId: string | null) {
       queryClient.invalidateQueries({ queryKey: rfqKeys.all });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
-    onError: (e) => toast.error("Aggiudicazione non riuscita", { description: String(e) }),
+    onError: (e) => {
+      invalida();
+      toast.error("Aggiudicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
+    },
+  });
+
+  /**
+   * Richiesta fatta fuori dall'app (telefono, WhatsApp, la propria email, al
+   * banco): si registra come chiesta, così l'attesa si conta da oggi.
+   */
+  const segnaChiesta = useMutation({
+    mutationFn: async ({ id, via }: { id: string; via: CanaleRichiesta }) => {
+      const { error } = await (supabase as any).from("supplier_rfq_suppliers")
+        .update({ status: "inviata", inviata_at: new Date().toISOString(), inviata_via: via })
+        .eq("id", id);
+      if (error) throw error;
+      if (query.data?.rfq.status === "bozza") {
+        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "inviata" }).eq("id", rfqId!);
+        if (e2) throw e2;
+      }
+    },
+    onSuccess: () => {
+      invalida();
+      queryClient.invalidateQueries({ queryKey: rfqKeys.all });
+    },
+    onError: (e) => toast.error("Errore", { description: String(e) }),
+  });
+
+  /** L'offerta è arrivata (a voce, su carta, in un PDF): si registra a mano. */
+  const registraOfferta = useMutation({
+    mutationFn: async (f: RfqSupplier) => {
+      const updates: Record<string, unknown> = { status: "risposta", risposta_at: new Date().toISOString() };
+      if (!f.aggancio_da) updates.aggancio_da = "manuale";
+      if (!f.inviata_at) updates.inviata_at = new Date().toISOString();
+      const { error } = await (supabase as any).from("supplier_rfq_suppliers").update(updates).eq("id", f.id);
+      if (error) throw error;
+      if (query.data?.rfq.status === "bozza") {
+        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "inviata" }).eq("id", rfqId!);
+        if (e2) throw e2;
+      }
+    },
+    onSuccess: () => {
+      invalida();
+      queryClient.invalidateQueries({ queryKey: rfqKeys.all });
+    },
+    onError: (e) => toast.error("Errore", { description: String(e) }),
+  });
+
+  /** Il PDF o la foto dell'offerta, per controllare il confronto sul documento. */
+  const allegaOfferta = useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      if (file.size > 10 * 1024 * 1024) throw new Error("File troppo grande (max 10 MB)");
+      const nome = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+      const path = `${companyId}/rdo/${rfqId}/${Date.now()}-${nome}`;
+      const { error: upErr } = await supabase.storage.from("order-attachments").upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { error } = await (supabase as any).from("supplier_rfq_suppliers")
+        .update({ allegato_url: `order-attachments/${path}` }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Offerta allegata");
+      invalida();
+    },
+    onError: (e) => toast.error("Allegato non caricato", { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return {
@@ -408,6 +483,9 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     quotes: query.data?.quotes ?? [],
     isLoading: query.isLoading,
     aggiudica,
+    segnaChiesta,
+    registraOfferta,
+    allegaOfferta,
     updateRfq,
     addItem,
     updateItem,

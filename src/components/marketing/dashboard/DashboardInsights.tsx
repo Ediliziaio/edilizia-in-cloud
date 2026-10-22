@@ -30,7 +30,9 @@ const EMPTY_ALERTS: AlertsData = {
   pipeline_declining: false,
 };
 
-function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformance[], sources: SourceAnalysis[], alerts: AlertsData): Insight[] {
+function generateInsights(kpi: KpiData, kpiPrev: KpiData, tutteLeVendite: SalesPerformance[], sources: SourceAnalysis[], alerts: AlertsData): Insight[] {
+  // la riga «Non assegnati o utenti rimossi» non è una persona del team
+  const sales = tutteLeVendite.filter((r) => r.user_id);
   const insights: Insight[] = [];
 
   // Close rate trend
@@ -85,7 +87,7 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
   // Bottleneck: appointment_to_contract low
   const apptToContract = Number(kpi.appointment_to_contract_rate ?? 0);
   const leadToAppt = Number(kpi.lead_to_appointment_rate ?? 0);
-  if (apptToContract > 0 && leadToAppt > 0 && apptToContract < leadToAppt * 0.5) {
+  if (apptToContract > 0 && apptToContract <= 100 && leadToAppt > 0 && leadToAppt <= 100 && apptToContract < leadToAppt * 0.5) {
     insights.push({
       text: `La fase Appuntamento → Contratto (${apptToContract}%) è il principale collo di bottiglia.`,
       type: "negative",

@@ -125,7 +125,9 @@ export default function AnalisiPreventivi() {
 
   // ─── Legge il target margine dalle impostazioni aziendali ──────────────────
   const { data: impostazioni } = useQuery({
-    queryKey: ["preventivo-impostazioni", companyId],
+    // chiave propria: legge due colonne sole, e sotto la chiave condivisa
+    // «Prezzo e margini» avrebbe trovato le altre vuote
+    queryKey: ["preventivo-impostazioni", companyId, "analisi-margini"],
     enabled: !!companyId,
     queryFn: async () => {
       // Colonne reali di preventivo_impostazioni (prima si chiedevano

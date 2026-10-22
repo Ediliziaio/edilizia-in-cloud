@@ -126,6 +126,18 @@ export function isItemOverdue(item: WarehouseItem): boolean {
   return daysUntil < 0;
 }
 
+/**
+ * Sotto scorta: il disponibile (giacenza meno impegnato) sotto il minimo.
+ * Una sola regola — la stessa del riordino e dei riquadri (magazzino_riepilogo,
+ * get_low_stock_alerts). Prima ce n'erano tre: «<» in un punto, «<=» in un
+ * altro, e la giacenza invece del disponibile in un terzo.
+ */
+export function isSottoScorta(item: { quantity: number; quantity_available?: number | null; min_stock_level: number | null }): boolean {
+  const minimo = Number(item.min_stock_level ?? 0);
+  if (minimo <= 0) return false;
+  return Number(item.quantity_available ?? item.quantity ?? 0) < minimo;
+}
+
 // Stock types
 export interface StockItem {
   id: string;
@@ -139,6 +151,10 @@ export interface StockItem {
   supplier_id: string | null;
   section_id: string | null;
   min_stock_level: number;
+  /** impegnato per le commesse */
+  quantity_reserved?: number | null;
+  /** giacenza meno impegnato (colonna calcolata dal database, mai negativa) */
+  quantity_available?: number | null;
   // ── QR system (MP1 P0) ──────────────────────────────
   /** Codice barcode/QR del fornitore (EAN-13, GTIN, codice produttore). */
   barcode?: string | null;

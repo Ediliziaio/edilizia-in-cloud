@@ -8,17 +8,23 @@ import type { TabConfig, DashboardTab } from "@/hooks/useDashboardLayout";
 interface Props {
   tabs: TabConfig[];
   onToggle: (tabId: DashboardTab) => void;
+  /** Aperto da fuori (voce del menu «Altro»): senza, ha il suo bottone. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const DashboardCustomizePanel = memo(function DashboardCustomizePanel({ tabs, onToggle }: Props) {
+export const DashboardCustomizePanel = memo(function DashboardCustomizePanel({ tabs, onToggle, open, onOpenChange }: Props) {
+  const controllato = open !== undefined;
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-          <Settings2 className="h-3.5 w-3.5" />
-          Personalizza
-        </Button>
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      {!controllato && (
+        <SheetTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+            <Settings2 className="h-3.5 w-3.5" />
+            Personalizza
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent side="right" className="w-80">
         <SheetHeader>
           <SheetTitle>Personalizza Dashboard</SheetTitle>

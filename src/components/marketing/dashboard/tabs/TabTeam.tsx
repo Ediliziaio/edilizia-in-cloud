@@ -1,144 +1,92 @@
-import { memo } from "react";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { memo, useMemo } from "react";
 import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
 import { fmt, fmtCur } from "@/components/marketing/dashboard/utils";
-import type { DashboardStats } from "@/hooks/useMarketingDashboard";
-import { Trophy, Users, Target, Phone, RefreshCw } from "lucide-react";
+import { usePercorsoLead, tempo } from "@/components/marketing/dashboard/PercorsoLead";
+import type { DashboardStats, DashboardFiltersState } from "@/hooks/useMarketingDashboard";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRecalculateAllLeadScores } from "@/hooks/useSalesOS";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+/*
+ * Tab «Team»: la classifica dei commerciali — vendite, fatturato, chiusura,
+ * appuntamenti — con il tempo al primo contatto e la conversione dei lead dal
+ * percorso dei lead. Le chiamate per operatore stanno in «Attività» (prima
+ * c'erano qui e lì, uguali).
+ */
+
 interface Props {
   data: DashboardStats | undefined;
   isLoading: boolean;
+  filters: DashboardFiltersState;
+  assignedUserIds: string[] | null;
 }
 
-export const TabTeam = memo(function TabTeam({ data, isLoading }: Props) {
+export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assignedUserIds }: Props) {
   const { effectiveCompany } = useAuth();
   // L'azienda che si sta guardando, non quella del proprio profilo: con «Stai
   // visualizzando» o con più aziende il ricalcolo finiva sull'azienda sbagliata.
   const companyId = effectiveCompany?.id ?? null;
   const recalcAll = useRecalculateAllLeadScores(companyId);
+  const { data: percorso } = usePercorsoLead(filters, assignedUserIds);
 
-  const sales = data?.sales_performance || [];
-  const totalRevenue = sales.reduce((s, r) => s + r.revenue, 0);
-  const totalWon = sales.reduce((s, r) => s + r.contracts_won, 0);
-  const avgCloseRate = sales.length > 0
-    ? Math.round(sales.reduce((s, r) => s + (r.appointments_done > 0 ? (r.contracts_won / r.appointments_done) * 100 : 0), 0) / sales.length)
-    : 0;
+  const perUtente = useMemo(() => {
+    const m = new Map<string, { arrivati: number; ore: number | null; vinti: number }>();
+    for (const c of percorso?.commerciali ?? []) {
+      if (c.user_id) m.set(c.user_id, { arrivati: c.arrivati, ore: c.ore_presa_mediana, vinti: c.vinti });
+    }
+    return m;
+  }, [percorso?.commerciali]);
 
-  const cc = data?.call_center || [];
+  const kpi = data?.kpi;
+  const nonAssegnati = percorso?.commerciali.find((c) => !c.user_id);
 
   const handleRecalculate = () => {
     recalcAll.mutate(undefined, {
-      onSuccess: (result) => {
-        toast.success(`Lead Score ricalcolato per ${result.updated} contatti`);
-      },
-      onError: () => {
-        toast.error("Errore durante il ricalcolo dei Lead Score");
-      },
+      onSuccess: (result) => toast.success(`Lead Score ricalcolato per ${result.updated} contatti`),
+      onError: () => toast.error("Errore durante il ricalcolo dei Lead Score"),
     });
   };
 
+  const sintesi = [
+    { label: "Vendite", valore: fmt(kpi?.contracts_won ?? 0), nota: kpi ? fmtCur(kpi.revenue) : undefined },
+    { label: "Ticket medio", valore: fmtCur(kpi?.avg_ticket ?? 0) },
+    { label: "Chiusura", valore: `${Math.round(kpi?.close_rate ?? 0)}%`, nota: "vinte ÷ (vinte + perse)" },
+    { label: "1° contatto", valore: tempo(percorso?.totale.ore_presa_mediana ?? null), nota: "tempo mediano" },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Recalculate button + Summary cards */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-muted-foreground">Riepilogo Team</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRecalculate}
-          disabled={recalcAll.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 ${recalcAll.isPending ? "animate-spin" : ""}`} />
-          {recalcAll.isPending ? "Ricalcolo..." : "Ricalcola Lead Score"}
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {sintesi.map((s) => (
+          <div key={s.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</div>
+            <div className="text-lg font-bold tabular-nums text-slate-900">{s.valore}</div>
+            {s.nota && <div className="truncate text-[11px] text-muted-foreground">{s.nota}</div>}
+          </div>
+        ))}
+      </div>
+
+      {nonAssegnati && nonAssegnati.arrivati > 0 && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {fmt(nonAssegnati.arrivati)} lead del periodo non hanno un commerciale: nessuno li ha in carico e nessuno li ha lavorati.
+        </p>
+      )}
+
+      <DashboardSalesTable
+        sales={data?.sales_performance}
+        isLoading={isLoading}
+        percorso={perUtente}
+        mostraObiettivo={filters.datePreset === "month"}
+      />
+
+      <div className="flex justify-end max-sm:hidden">
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={handleRecalculate} disabled={recalcAll.isPending}>
+          <RefreshCw className={`h-3.5 w-3.5 ${recalcAll.isPending ? "animate-spin" : ""}`} />
+          {recalcAll.isPending ? "Ricalcolo…" : "Ricalcola lead score"}
         </Button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="h-4 w-4 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground">Team</span>
-          </div>
-          <div className="text-2xl font-bold">{sales.length}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            <span className="text-xs text-muted-foreground">Contratti Vinti</span>
-          </div>
-          <div className="text-2xl font-bold">{totalWon}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-muted-foreground">Fatturato Totale</span>
-          </div>
-          <div className="text-2xl font-bold">{fmtCur(totalRevenue)}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="h-4 w-4 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground">Chiusura Media</span>
-          </div>
-          <div className="text-2xl font-bold">{avgCloseRate}%</div>
-        </Card>
-      </div>
-
-      {/* Full sales table */}
-      <DashboardSalesTable sales={data?.sales_performance} isLoading={isLoading} />
-
-      {/* Call center per operatore */}
-      {cc.length > 0 && (
-        <Card>
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">Attività Call Center per Operatore</span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              Totale: {fmt(cc.reduce((s, r) => s + r.calls_total, 0))} chiamate
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Operatore</TableHead>
-                  <TableHead className="text-xs text-right">Chiamate</TableHead>
-                  <TableHead className="text-xs text-right">Risposte</TableHead>
-                  <TableHead className="text-xs text-right">Tasso %</TableHead>
-                  <TableHead className="text-xs text-right">App. Fissati</TableHead>
-                  <TableHead className="text-xs text-right">Conv. Call→App</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cc.map(row => {
-                  const contactRate = row.calls_total > 0 ? (row.calls_answered / row.calls_total) * 100 : 0;
-                  const convRate = row.calls_total > 0 ? (row.appointments_set / row.calls_total) * 100 : 0;
-                  return (
-                    <TableRow key={row.user_id}>
-                      <TableCell className="text-sm font-medium">{row.name}</TableCell>
-                      <TableCell className="text-sm text-right">{fmt(row.calls_total)}</TableCell>
-                      <TableCell className="text-sm text-right">{fmt(row.calls_answered)}</TableCell>
-                      <TableCell className={`text-sm text-right font-medium ${
-                        contactRate >= 50 ? "text-green-600 dark:text-green-400" :
-                        contactRate >= 30 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
-                      }`}>
-                        {contactRate.toFixed(1)}%
-                      </TableCell>
-                      <TableCell className="text-sm text-right font-semibold">{fmt(row.appointments_set)}</TableCell>
-                      <TableCell className="text-sm text-right text-muted-foreground">{convRate.toFixed(1)}%</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      )}
     </div>
   );
 });
