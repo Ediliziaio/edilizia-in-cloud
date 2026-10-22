@@ -1,6 +1,13 @@
 // supabase/functions/_shared/billingAdapter.ts
 // Sistema di sola integrazione/monitoraggio — nessuna logica di creazione fatture
 
+import {
+  type FatelwCred,
+  connect as fatelwConnect,
+  disconnect as fatelwDisconnect,
+  getState as fatelwGetState,
+} from "./zucchettiSoap.ts";
+
 // ── TIPI COMUNI ────────────────────────────────────────────────
 
 export type BillingProvider =
@@ -10,6 +17,7 @@ export type BillingProvider =
   | "invoicetronic"
   | "itala"
   | "acube"
+  | "zucchetti"
   | "standalone";
 
 // Capacità per-provider. I provider "puri SDI" espongono SOLO lo stato di
@@ -23,6 +31,9 @@ export const PROVIDER_CAPABILITIES: Record<string, { supportsPaymentStatus: bool
   invoicetronic: { supportsPaymentStatus: false, label: "Invoicetronic" },
   itala: { supportsPaymentStatus: false, label: "ITALA (fattura-elettronica-api.it)" },
   acube: { supportsPaymentStatus: false, label: "A-Cube" },
+  // Zucchetti Digital Hub / FatelWeb: canale di fatturazione elettronica (SOAP),
+  // non un gestionale completo → nessuno stato di pagamento, solo trasmissione SDI.
+  zucchetti: { supportsPaymentStatus: false, label: "Zucchetti Digital Hub" },
   standalone: { supportsPaymentStatus: false, label: "Standalone" },
 };
 
@@ -530,11 +541,63 @@ export class StandaloneAdapter implements BillingProviderAdapter {
 
 // ── FACTORY ───────────────────────────────────────────────────
 
+// ── ADAPTER: ZUCCHETTI DIGITAL HUB / FatelWeb (SOAP) ───────────
+// A differenza degli altri provider (REST) qui si parla SOAP, isolato in
+// _shared/zucchettiSoap.ts. L'autenticazione è a sessione: connect() → token,
+// disconnect() alla fine. testConnection valida le 4 credenziali del pannello
+// Digital Hub (url, utente, password, company) con un connect reale.
+export class ZucchettiAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "zucchetti";
+  private cred: FatelwCred;
+
+  constructor(cred: FatelwCred) {
+    this.cred = cred;
+  }
+
+  async testConnection() {
+    try {
+      const token = await fatelwConnect(this.cred);
+      await fatelwDisconnect(this.cred, token);
+      return { success: true, companyName: "Zucchetti Digital Hub" };
+    } catch (e) {
+      return {
+        success: false,
+        error: `Collegamento a Zucchetti Digital Hub non riuscito. ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    // DA VERIFICARE SUL SANDBOX: il formato del campo `response` di getState non
+    // è ricavabile dal WSDL. Qui si recupera lo stato grezzo e lo si espone come
+    // externalStatus; la mappatura fine verso internalStatus si chiude quando
+    // avremo una risposta reale (come per openapi in sdiStatoOpenapi.ts). Intanto
+    // non si inventa un "pagato": questo canale non lo espone.
+    try {
+      const token = await fatelwConnect(this.cred);
+      try {
+        const r = await fatelwGetState(this.cred, token, [externalId]);
+        return {
+          success: true,
+          internalStatus: "sent",
+          externalStatus: r.response ?? r.message ?? undefined,
+        };
+      } finally {
+        await fatelwDisconnect(this.cred, token);
+      }
+    } catch (e) {
+      return { success: false, internalStatus: "sent", error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+}
+
 export function createAdapter(integration: {
   provider: string;
   access_token?: string | null;
   api_key?: string | null;
   company_external_id?: string | null;
+  provider_username?: string | null;
+  provider_base_url?: string | null;
 }): BillingProviderAdapter {
   switch (integration.provider as BillingProvider) {
     case "fattureincloud":
@@ -563,6 +626,17 @@ export function createAdapter(integration: {
         throw new Error("A-Cube: email e password richieste");
       return new AcubeAdapter(integration.company_external_id, integration.api_key, {
         accessToken: integration.access_token || undefined,
+      });
+    case "zucchetti":
+      // Zucchetti: provider_base_url = URL del servizio fatelwV2, provider_username = utente,
+      // api_key = password, company_external_id = company (es. "001").
+      if (!integration.provider_base_url || !integration.provider_username || !integration.api_key || !integration.company_external_id)
+        throw new Error("Zucchetti: URL servizio, utente, password e company richiesti");
+      return new ZucchettiAdapter({
+        url: integration.provider_base_url,
+        utente: integration.provider_username,
+        password: integration.api_key,
+        company: integration.company_external_id,
       });
     default:
       return new StandaloneAdapter();

@@ -27,11 +27,16 @@ const PROVIDERS = [
   { value: "invoicetronic", label: "Invoicetronic", authType: "api_key", icon: "⚡" },
   { value: "itala", label: "ITALA (SDI)", authType: "bearer", icon: "🧾" },
   { value: "acube", label: "A-Cube (SDI) · beta", authType: "userpass", icon: "🧊" },
+  { value: "zucchetti", label: "Zucchetti Digital Hub · beta", authType: "zucchetti", icon: "🟧" },
 ] as const;
 
 // Provider che importano anche le fatture RICEVUTE (il "cassetto fiscale" di fatto:
 // le fatture del cassetto AdE passano tutte dallo SDI, e questi provider le espongono).
-const IMPORTA_RICEVUTE = new Set(["fattureincloud", "aruba"]);
+const IMPORTA_RICEVUTE = new Set(["fattureincloud", "aruba", "zucchetti"]);
+
+// URL di default del web service FatelWeb (Digital Hub prod). L'azienda lo trova
+// nel pannello «Accesso Web Services Digital Hub»; può essere digitalhub2/3.
+const ZUCCHETTI_URL_DEFAULT = "https://digitalhub2.zucchetti.it/fatelw/services/fatelwV2";
 
 // Istruzioni per-provider: dove l'azienda trova la PROPRIA chiave/token (ognuna
 // usa le proprie credenziali, nessuna app a livello piattaforma serve qui).
@@ -62,6 +67,12 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     link: "https://docs.acubeapi.com/",
     linkLabel: "Doc A-Cube",
     warn: "Provider in validazione (beta): verifica i dati importati prima di farci affidamento.",
+  },
+  zucchetti: {
+    text: "Usa i dati del pannello «Accesso Web Services Digital Hub» di Zucchetti: URL del servizio, Utente, Password e Company (es. 001). EiC si collega in SOAP e legge le fatture EMESSE e RICEVUTE e lo stato SDI — non lo stato di pagamento.",
+    link: "https://www.zucchetti.it/website/cms/prodotto/7373-digital-hub.html",
+    linkLabel: "Digital Hub Zucchetti",
+    warn: "Provider in validazione (beta): il «Test collegamento» verifica subito le credenziali; l'import delle fatture è in collaudo su account di prova Zucchetti.",
   },
 };
 
@@ -113,6 +124,8 @@ export default function SettingsBilling() {
   const [newApiKey, setNewApiKey] = useState("");
   const [newUsername, setNewUsername] = useState(""); // Aruba (e futuri provider user/password)
   const [newPassword, setNewPassword] = useState("");
+  const [newZucUrl, setNewZucUrl] = useState(ZUCCHETTI_URL_DEFAULT); // Zucchetti: URL servizio
+  const [newCompany, setNewCompany] = useState(""); // Zucchetti: company (es. 001)
   const [testing, setTesting] = useState<string | null>(null);
 
   // ── OAuth2 Fatture in Cloud: apre il popup di autorizzazione ──────────────
@@ -162,15 +175,23 @@ export default function SettingsBilling() {
         await connectFic();
         return;
       }
-      // API key / bearer / user+password providers — validate server-side
+      // API key / bearer / user+password / zucchetti (url+utente+pwd+company) — validate server-side
       const cfg = PROVIDERS.find((p) => p.value === newProvider);
-      const isUserPass = cfg?.authType === "userpass";
-      const action = isUserPass ? `configure_${newProvider}` : "configure_apikey";
-      const bodyPayload = isUserPass
-        ? (newProvider === "acube"
-            ? { email: newUsername.trim(), password: newPassword }
-            : { username: newUsername.trim(), password: newPassword })
-        : { provider: newProvider, api_key: newApiKey.trim() };
+      const authType = cfg?.authType;
+      const isUserPass = authType === "userpass";
+      const isZucchetti = authType === "zucchetti";
+      const action = isUserPass
+        ? `configure_${newProvider}`
+        : isZucchetti
+          ? "configure_zucchetti"
+          : "configure_apikey";
+      const bodyPayload = isZucchetti
+        ? { url: newZucUrl.trim(), utente: newUsername.trim(), password: newPassword, company: newCompany.trim() }
+        : isUserPass
+          ? (newProvider === "acube"
+              ? { email: newUsername.trim(), password: newPassword }
+              : { username: newUsername.trim(), password: newPassword })
+          : { provider: newProvider, api_key: newApiKey.trim() };
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { action, company_id: companyId, ...bodyPayload },
       });
@@ -194,6 +215,8 @@ export default function SettingsBilling() {
       setNewApiKey("");
       setNewUsername("");
       setNewPassword("");
+      setNewZucUrl(ZUCCHETTI_URL_DEFAULT);
+      setNewCompany("");
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
     onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
@@ -480,7 +503,50 @@ export default function SettingsBilling() {
                         </a>
                       </div>
                     )}
-                    {providerConfig(newProvider)?.authType === "userpass" ? (
+                    {providerConfig(newProvider)?.authType === "zucchetti" ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="sm:col-span-2">
+                          <Label>URL servizio Digital Hub</Label>
+                          <Input
+                            type="text"
+                            autoComplete="off"
+                            value={newZucUrl}
+                            onChange={(e) => setNewZucUrl(e.target.value)}
+                            placeholder={ZUCCHETTI_URL_DEFAULT}
+                          />
+                        </div>
+                        <div>
+                          <Label>Utente</Label>
+                          <Input
+                            type="text"
+                            autoComplete="off"
+                            value={newUsername}
+                            onChange={(e) => setNewUsername(e.target.value)}
+                            placeholder="Utente del pannello Digital Hub"
+                          />
+                        </div>
+                        <div>
+                          <Label>Password</Label>
+                          <Input
+                            type="password"
+                            autoComplete="new-password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Password Digital Hub"
+                          />
+                        </div>
+                        <div>
+                          <Label>Company</Label>
+                          <Input
+                            type="text"
+                            autoComplete="off"
+                            value={newCompany}
+                            onChange={(e) => setNewCompany(e.target.value)}
+                            placeholder="es. 001"
+                          />
+                        </div>
+                      </div>
+                    ) : providerConfig(newProvider)?.authType === "userpass" ? (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <Label>{newProvider === "acube" ? "Email A-Cube" : "Username Aruba"}</Label>
@@ -537,9 +603,11 @@ export default function SettingsBilling() {
                     onClick={() => addMutation.mutate()}
                     disabled={
                       !newProvider ||
-                      (providerConfig(newProvider)?.authType === "userpass"
-                        ? (!newUsername || !newPassword)
-                        : newProvider !== "fattureincloud" && !newApiKey) ||
+                      (providerConfig(newProvider)?.authType === "zucchetti"
+                        ? (!newZucUrl || !newUsername || !newPassword || !newCompany)
+                        : providerConfig(newProvider)?.authType === "userpass"
+                          ? (!newUsername || !newPassword)
+                          : newProvider !== "fattureincloud" && !newApiKey) ||
                       addMutation.isPending
                     }
                   >
