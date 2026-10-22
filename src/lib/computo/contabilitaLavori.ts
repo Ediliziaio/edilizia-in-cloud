@@ -82,6 +82,15 @@ export function vociContratto(voci: VoceComputoContabile[]): VoceContratto[] {
     }));
 }
 
+/** Numero scritto all'italiana: «1.234,5», «4,50»; senza virgola il punto è il decimale («4.50»). Vuoto = null, illeggibile = NaN. */
+export function numeroDigitato(s: string): number | null {
+  let t = s.trim().replace(/\s/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 const r4 = (n: number) => Math.round((n + Math.sign(n) * Number.EPSILON) * 10000) / 10000;
 const perc = (p: number | null | undefined) => Math.min(100, Math.max(0, Number(p) || 0));
 

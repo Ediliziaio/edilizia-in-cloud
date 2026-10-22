@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { proponiSezioneQuadro, quadroEconomicoCompleto, sezioneVoce, type VoceQuadro } from "@/lib/computo/quadroEconomico";
 import {
-  calcolaSal, certificatoPagamento, confrontoVariante, elencoPrezzi, prezzoRibassato, progressiviLibretto, quantitaRiga, quantitaRighe,
+  calcolaSal, certificatoPagamento, confrontoVariante, elencoPrezzi, numeroDigitato, prezzoRibassato, progressiviLibretto, quantitaRiga, quantitaRighe,
   registroContabilita, vociContratto, type RegistrazioneLibretto, type VoceComputoContabile, type VoceContratto,
 } from "@/lib/computo/contabilitaLavori";
 
@@ -171,4 +171,40 @@ describe("perizia di variante", () => {
     expect(c.righe.filter(r => r.esito === "soppressa").map(r => r.numero)).toEqual(["1", "2"]);
     expect(c.oltre_quinto).toBe(true);
   });
+});
+
+describe("numeri scritti all'italiana", () => {
+  it("virgola decimale, punto delle migliaia; senza virgola il punto è decimale", () => {
+    expect([numeroDigitato("1.234,5"), numeroDigitato("4,50"), numeroDigitato("4.50"), numeroDigitato(""), numeroDigitato("abc")]).toEqual([1234.5, 4.5, 4.5, null, NaN]);
+  });
+});
+
+describe("stampe PDF della contabilità", () => {
+  it("elenco prezzi, libretto, registro, SAL, certificato e confronto si generano senza errori", async () => {
+    const st = await import("@/lib/computo/stampeContabilita");
+    const creati: Blob[] = [];
+    const origCreate = URL.createObjectURL; const origRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = ((b: Blob) => { creati.push(b); return "blob:x"; }) as typeof URL.createObjectURL;
+    URL.revokeObjectURL = () => {};
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const h = { lavori: "Lavori di prova", stazioneAppaltante: "Comune di Prova", cig: "A1", cup: "B2", impresa: "Impresa di prova", ribasso: 10 };
+    const libretto = [reg("1", 1, "2026-02-10", "1", 300), reg("2", 2, "2026-02-20", "3", 30)];
+    const registro = registroContabilita(contratto, libretto, { ribasso_percentuale: 10, sicurezza_modo: "a_misura" });
+    const sal = calcolaSal(registro, { importo_contrattuale: 91000, anticipazione_percentuale: 20, sal_precedenti: 0 });
+    try {
+      await st.stampaElencoPrezzi(elencoPrezzi(contratto, 10), h);
+      await st.stampaLibretto(libretto.map(r => ({ numero: r.numero, data: r.data, voce: r.voce_radice, tariffa: "", descrizione: "Voce", unita_misura: "m²",
+        righe: [{ descrizione: "Piano terra", lunghezza: 10, larghezza: 30 }], quantita: r.quantita, annotazioni: null, firmatario: "Ing. Prova", firmato: true,
+        progressivo: undefined, sal: 1 })), h);
+      await st.stampaRegistro(registro, "2026-02-28", h);
+      await st.stampaSal({ ...sal, numero: 1, data: "2026-03-01", lavori_a_tutto: "2026-02-28", sicurezza_modo: "a_misura", ribasso_percentuale: 10, stato: "approvato" },
+        [{ numero: "1", tariffa: "T.1", descrizione: "Massetto", unita_misura: "m²", is_sicurezza: false, prezzo: 60, quantita_precedente: 0, quantita_a_oggi: 300, importo_a_oggi: 18000 }], h);
+      await st.stampaCertificato({ ...certificatoPagamento(sal.importo_sal, 10, true), numero: 1, data: "2026-03-05", salNumero: 1, lavoriATutto: "2026-02-28" }, sal, h);
+      await st.stampaConfrontoVariante(confrontoVariante(contratto, contratto.slice(0, 2), 10), "Variante 1", h);
+    } finally {
+      URL.createObjectURL = origCreate; URL.revokeObjectURL = origRevoke; click.mockRestore();
+    }
+    expect(creati).toHaveLength(6);
+    expect(creati.every(b => b.type === "application/pdf" && b.size > 1000)).toBe(true);
+  }, 30_000);
 });
