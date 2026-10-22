@@ -11,22 +11,28 @@ vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausol
 vi.mock("../../../supabase/functions/_shared/pdfFirmato.ts", () => ({ assicuraPdfFirmato: async () => { stato.pdf(); return { path: "c-1/firmato.pdf", codiceVerifica: "ABCD-1234-5678" }; } }));
 
 const TOKEN = "12345678-1234-1234-1234-123456789abc";
+// La chiave che il server dà al browser dopo il codice giusto (sessione di firma, 22/10/2026).
+const SESSIONE = "a".repeat(64);
+let SESSIONE_HASH = "";
 const env = { SUPABASE_URL: "https://example.test", SUPABASE_SERVICE_ROLE_KEY: "test-service" };
 const handlers: Record<string, (r: Request) => Promise<Response> | Response> = {};
 const richiesta = (extra: Riga = {}): Riga => ({
   id: "r-1", token: TOKEN, company_id: "c-1", status: "otp_verified", tipo_documento: "quote", tipo_firmatario: "b2b",
   signer_name: "Mario Rossi", signer_email: "mario@example.test", signer_phone: null, quote_id: "q-1", created_by: "u-1", otp_canale: "email",
-  expires_at: "2099-12-31T10:00:00.000Z", otp_scadenza: "2099-12-31T10:00:00.000Z", otp_tentativi: 0, ...extra,
+  expires_at: "2099-12-31T10:00:00.000Z", otp_scadenza: "2099-12-31T10:00:00.000Z", otp_tentativi: 0,
+  otp_invii: 0, otp_errori_totali: 0, livello_firma: "semplice",
+  sessione_firma_hash: SESSIONE_HASH, sessione_firma_scadenza: "2099-12-31T10:00:00.000Z", ...extra,
 });
 async function hash(otp: string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(otp + "r-1")))).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 async function chiama(nome: string, body: Riga = {}) {
   vi.stubGlobal("Deno", denoFinto(env).finto);
-  const r = await handlers[nome](new Request("https://example.test/" + nome, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: TOKEN, ...body }) }));
+  const r = await handlers[nome](new Request("https://example.test/" + nome, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: TOKEN, sessione_firma: SESSIONE, ...body }) }));
   return { status: r.status, data: await r.json() as Riga };
 }
 beforeEach(async () => {
+  SESSIONE_HASH = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(SESSIONE)))).map(b => b.toString(16).padStart(2, "0")).join("");
   vi.stubGlobal("Blob", NodeBlob);
   stato.db = new DbMinimo(); stato.emailOk = true; stato.smsOk = false; stato.email.mockClear(); stato.pdf.mockClear();
   Object.assign(stato.db, { storage: { from: () => ({ download: async (): Promise<{ data: Blob; error: null }> => ({ data: new Blob(["%PDF-test"]), error: null }), createSignedUrl: async (path: string): Promise<{ data: { signedUrl: string }; error: null }> => ({ data: { signedUrl: `https://example.test/${path}` }, error: null }) }) } });
@@ -119,8 +125,47 @@ describe("FEA: gestori reali, nessun invio a persone reali", () => {
   });
   it("le varianti del token funzionano anche nelle fasi successive all'apertura", async () => {
     stato.db.tabelle.signature_requests[0].token = TOKEN.replace(/-/g, "");
-    expect((await chiama("fea-verifica-otp", { otp: "123456" })).data.success).toBe(true);
-    expect((await chiama("fea-completa-firma")).data.success).toBe(true);
+    const verifica = await chiama("fea-verifica-otp", { otp: "123456" });
+    expect(verifica.data.success).toBe(true);
+    // Si firma con la chiave appena data, non con quella vecchia.
+    expect((await chiama("fea-completa-firma")).status).toBe(401);
+    expect((await chiama("fea-completa-firma", { sessione_firma: verifica.data.sessione_firma })).data.success).toBe(true);
+  });
+  it("senza la chiave di sessione non si firma, e la chiave vale una volta sola", async () => {
+    expect((await chiama("fea-completa-firma", { sessione_firma: null })).data.code).toBe("sessione_scaduta");
+    stato.db.tabelle.signature_requests[0].sessione_firma_scadenza = "2020-01-01T00:00:00.000Z";
+    expect((await chiama("fea-completa-firma")).status).toBe(401);
+    expect(stato.db.tabelle.signature_requests[0].status).toBe("otp_verified");
+  });
+  it("firma avanzata: senza identificazione non si firma", async () => {
+    stato.db.tabelle.signature_requests[0].livello_firma = "avanzata";
+    stato.db.tabelle.fea_firmatari = [];
+    const r = await chiama("fea-completa-firma");
+    expect(r.status).toBe(409); expect(r.data.code).toBe("identificazione_richiesta");
+  });
+  it("firma semplice (predefinita): niente documento d'identità, si firma col codice sulla copia congelata", async () => {
+    const impronta = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("%PDF-test")))).map(b => b.toString(16).padStart(2, "0")).join("");
+    stato.db.tabelle.signature_requests[0] = richiesta({ status: "pending", documento_path: "c-1/richieste/r-1.pdf", documento_hash: impronta, otp_hash: await hash("123456") });
+    const pagina = await chiama("fea-documento-pubblico");
+    expect(pagina.data).toMatchObject({ livello_firma: "semplice", identificazione_richiesta: false, dichiarazione_richiesta: false, dichiarazione_fea: null });
+    expect(pagina.data.pdf_url).toBe("https://example.test/c-1/richieste/r-1.pdf");
+    const verifica = await chiama("fea-verifica-otp", { otp: "123456" });
+    const firma = await chiama("fea-completa-firma", { sessione_firma: verifica.data.sessione_firma });
+    expect(firma.data.success).toBe(true);
+    const r = stato.db.tabelle.signature_requests[0];
+    expect(r.status).toBe("signed"); expect(r.documento_hash_firma).toBe(impronta); expect(r.firmatario_id).toBeUndefined();
+    expect(r.sessione_firma_hash).toBeNull();
+  });
+  it("se la copia congelata è cambiata dopo l'invio non si firma", async () => {
+    stato.db.tabelle.signature_requests[0] = richiesta({ documento_path: "c-1/richieste/r-1.pdf", documento_hash: "0".repeat(64) });
+    expect((await chiama("fea-completa-firma")).status).toBe(409);
+    expect(stato.db.tabelle.signature_requests[0].status).toBe("otp_verified");
+  });
+  it("tetti per richiesta: dopo 15 errori in tutto niente più codici", async () => {
+    stato.db.tabelle.signature_requests[0] = richiesta({ status: "pending", otp_errori_totali: 15, otp_hash: null, otp_scadenza: null });
+    expect((await chiama("fea-genera-otp", { request_id: "r-1" })).status).toBe(429);
+    expect(stato.email).not.toHaveBeenCalled();
+    expect(stato.db.tabelle.fea_audit_log.some(r => r.evento === "tentativi_esauriti")).toBe(true);
   });
   it("una copia email fallita non viene segnata come consegnata", async () => {
     stato.emailOk = false;

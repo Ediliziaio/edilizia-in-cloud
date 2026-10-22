@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
+import { DURATA_SESSIONE_FIRMA_MS, MAX_ERRORI_TOTALI, impronta, ipDellaRichiesta, nuovaSessioneFirma } from "../_shared/firmaAvanzata.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -34,7 +35,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, otp_hash, otp_scadenza, otp_tentativi, status, expires_at, company_id")
+      .select("id, otp_hash, otp_scadenza, otp_tentativi, otp_errori_totali, status, expires_at, company_id")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 
@@ -47,6 +48,10 @@ Deno.serve(async (req: Request) => {
     // Check: otp_scadenza scaduta
     if (!sigReq.otp_hash || !sigReq.otp_scadenza || !Number.isFinite(Date.parse(sigReq.otp_scadenza)) || Date.parse(sigReq.otp_scadenza) <= Date.now()) {
       return errore(410, "Codice OTP scaduto. Richiedi un nuovo codice.");
+    }
+
+    if ((sigReq.otp_errori_totali ?? 0) >= MAX_ERRORI_TOTALI) {
+      return errore(429, "Troppi codici sbagliati per questo documento. Chiedi all'azienda di inviartelo di nuovo.");
     }
 
     // Check: troppi tentativi ≥5
@@ -68,7 +73,7 @@ Deno.serve(async (req: Request) => {
       // Incrementa tentativi
       const { data: tentativo, error: tentativoErr } = await supabaseAdmin
         .from("signature_requests")
-        .update({ otp_tentativi: sigReq.otp_tentativi + 1 })
+        .update({ otp_tentativi: sigReq.otp_tentativi + 1, otp_errori_totali: (sigReq.otp_errori_totali ?? 0) + 1 })
         .eq("id", sigReq.id).eq("status", sigReq.status).eq("otp_hash", sigReq.otp_hash)
         .eq("otp_tentativi", sigReq.otp_tentativi).gt("expires_at", new Date().toISOString())
         .select("id").maybeSingle();
@@ -80,9 +85,9 @@ Deno.serve(async (req: Request) => {
         request_id: sigReq.id,
         company_id: sigReq.company_id,
         evento: "otp_fallito",
-        ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
+        ip: ipDellaRichiesta(req),
         user_agent: req.headers.get("user-agent") ?? null,
-        metadati: { tentativo: sigReq.otp_tentativi + 1 },
+        metadati: { tentativo: sigReq.otp_tentativi + 1, errori_totali: (sigReq.otp_errori_totali ?? 0) + 1 },
       });
 
       const rimanenti = Math.max(0, 5 - (sigReq.otp_tentativi + 1));
@@ -92,10 +97,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Hash corrisponde: aggiorna status a otp_verified
+    // Hash corrisponde: aggiorna status a otp_verified e apre la sessione di
+    // firma. La chiave va solo a questo browser; nel database resta l'impronta.
+    // Il codice si consuma: non riapre una seconda sessione altrove.
+    const sessioneFirma = nuovaSessioneFirma();
+    const sessioneScadenza = new Date(Date.now() + DURATA_SESSIONE_FIRMA_MS).toISOString();
     const { data: verificata, error: verificaErr } = await supabaseAdmin
       .from("signature_requests")
-      .update({ status: "otp_verified" })
+      .update({
+        status: "otp_verified",
+        otp_hash: null,
+        sessione_firma_hash: await impronta(sessioneFirma),
+        sessione_firma_scadenza: sessioneScadenza,
+      })
       .eq("id", sigReq.id).eq("status", sigReq.status).eq("otp_hash", sigReq.otp_hash)
       .eq("otp_tentativi", sigReq.otp_tentativi).gt("expires_at", new Date().toISOString())
       .gt("otp_scadenza", new Date().toISOString()).select("id").maybeSingle();
@@ -107,12 +121,12 @@ Deno.serve(async (req: Request) => {
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "otp_verificato",
-      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
+      ip: ipDellaRichiesta(req),
       user_agent: req.headers.get("user-agent") ?? null,
     });
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, sessione_firma: sessioneFirma, sessione_scadenza: sessioneScadenza }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {

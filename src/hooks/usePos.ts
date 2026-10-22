@@ -169,7 +169,7 @@ export async function datiAppPos(companyId: string, posId: string) {
 }
 
 export async function lavorazioniAiPos(companyId: string, posId: string) {
-  return chiamaServer<{ lavorazioni: Lavorazione[] }>({ azione: "lavorazioni_ai", company_id: companyId, pos_id: posId });
+  return chiamaServer<{ lavorazioni: Lavorazione[]; modalita_organizzative?: string }>({ azione: "lavorazioni_ai", company_id: companyId, pos_id: posId });
 }
 
 export function useApprovaPos() {

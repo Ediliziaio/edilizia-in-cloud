@@ -6,6 +6,7 @@ export type TipoDocumentoSub =
   | 'visura_camerale'
   | 'attestazione_soa'
   | 'dvr'
+  | 'pos'
   | 'polizza_rc'
   | 'iso_certificazione'
   | 'altro';

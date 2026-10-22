@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export interface RichiediFirmaInput {
-  tipo_documento: "order" | "quote" | "sessione" | "odv" | "fv";
+  tipo_documento: "order" | "quote" | "sessione" | "odv" | "fv" | "subappalto";
   documento_id: string;
   tipo_firmatario: "b2b" | "b2c";
   signer_email: string;

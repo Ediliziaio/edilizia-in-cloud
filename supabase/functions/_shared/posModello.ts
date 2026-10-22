@@ -583,6 +583,8 @@ export interface ContestoPos {
   mezzi: Array<{ nome: string; tipo: string; targa: string | null }>;
   /** Subappaltatori della commessa (con scadenza DURC). */
   subappaltatori: Array<{ ragione_sociale: string; tipo_lavori: string; durc_scadenza: string | null }>;
+  /** Fasi di lavoro della commessa, nell'ordine (per l'AI delle lavorazioni). */
+  fasi?: string[];
   /** Cosa non si è trovato e va scritto a mano. */
   avvisi: string[];
 }

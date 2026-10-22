@@ -22,7 +22,7 @@ describe("Bug #1 — B2C recesso raggiungibile con fallback", () => {
   it("mostra sempre lo step recesso ai firmatari B2C (no salto)", () => {
     // Il routing post-OTP per B2C va allo step recesso senza il vecchio gate
     // "&& sessione?.b2c_testo_recesso" che lo faceva saltare.
-    expect(firmaDocumento).toMatch(/if\s*\(isB2c\)\s*\{\s*setStep\('b2c_recesso'\)/);
+    expect(firmaDocumento).toMatch(/if\s*\(sessione\?\.tipo_firmatario === 'b2c'\)\s*setStep\('b2c_recesso'\)/);
     expect(firmaDocumento).not.toContain("isB2c && sessione?.b2c_testo_recesso");
   });
 

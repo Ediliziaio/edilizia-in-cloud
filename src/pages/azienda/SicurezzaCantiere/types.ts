@@ -66,6 +66,7 @@ export type DuvriDocument = {
 
 export type VerbaleSicurezza = {
   id: string;
+  order_id?: string | null;
   orders?: RelatedOrder | null;
   tipo: string;
   esito: string;
@@ -76,15 +77,20 @@ export type VerbaleSicurezza = {
 
 export type SubappaltatoreSicurezza = {
   id: string;
+  order_id?: string | null;
   orders?: RelatedOrder | null;
   ragione_sociale: string;
   tipo_lavori?: string | null;
   responsabile?: string | null;
+  telefono?: string | null;
+  data_inizio?: string | null;
+  data_fine?: string | null;
   durc_scadenza?: string | null;
 };
 
 export type AdempimentoSicurezza = {
   id: string;
+  order_id?: string | null;
   titolo: string;
   tipo?: string | null;
   scadenza_data?: string | null;

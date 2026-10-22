@@ -48,6 +48,12 @@ export interface DatiCertificato {
   impronteDiverse: boolean;
   /** Il codice è arrivato anche via SMS a questo numero (già mascherato). */
   telefonoSms?: string | null;
+  /** Livello fissato all'invio: il certificato dice solo quello che è. */
+  livello?: "avanzata" | "semplice";
+  /** Identificazione con documento di riconoscimento (FEA), già mascherata. */
+  identita?: string | null;
+  /** Dichiarazione di accettazione delle condizioni del servizio (FEA). */
+  dichiarazione?: string | null;
 }
 
 /** pdf-lib con i font standard scrive solo WinAnsi: tutto il resto diventa un carattere sicuro. */
@@ -140,13 +146,17 @@ function aggiungiCertificato(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, 
   };
 
   page.drawRectangle({ x: 0, y: 841.89 - 74, width: 595.28, height: 74, color: rgb(0.12, 0.23, 0.37) });
-  page.drawText("Certificato di firma elettronica", { x: M, y: 841.89 - 40, size: 18, font: bold, color: rgb(1, 1, 1) });
+  const intestazione = d.livello === "avanzata" ? "Certificato di firma elettronica avanzata"
+    : d.livello === "semplice" ? "Certificato di firma elettronica semplice" : "Certificato di firma elettronica";
+  page.drawText(intestazione, { x: M, y: 841.89 - 40, size: 18, font: bold, color: rgb(1, 1, 1) });
   page.drawText(perPdf(d.azienda), { x: M, y: 841.89 - 58, size: 9.5, font: regular, color: rgb(0.85, 0.89, 0.95) });
   y = 841.89 - 74 - 22;
 
   campo("Documento firmato", d.documento);
   campo("Firmatario", `${d.firmatario} (${d.tipoFirmatario === "b2c" ? "privato" : "azienda"}) - ${d.email}`);
   campo("Data e ora della firma", `${d.firmatoIl} (ora italiana)`);
+  if (d.identita) campo("Identificazione del firmatario", d.identita);
+  if (d.dichiarazione) campo("Condizioni del servizio", d.dichiarazione);
   campo("Verifica dell'identità", d.telefonoSms ? `Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e via SMS al numero ${d.telefonoSms}, e inserito prima della firma.` : "Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e inserito prima della firma.");
   campo("Provenienza", `Indirizzo IP ${d.ip ?? "non rilevato"}${d.userAgent ? ` - ${d.userAgent.slice(0, 140)}` : ""}`);
   campo("Impronta SHA-256 del documento", d.hashDocumento ?? "non disponibile");
@@ -206,14 +216,23 @@ export async function costruisciPdfFirmato(originale: Uint8Array | null, d: Dati
 
 /** Il file del documento firmato, se è nello storage: i byte, oppure null. */
 // deno-lint-ignore no-explicit-any
-async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null }): Promise<{ bytes: Uint8Array | null; titolo: string }> {
+async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; categoria?: string | null; documento_path?: string | null }): Promise<{ bytes: Uint8Array | null; titolo: string }> {
   let bucket: string | null = null;
   let path: string | null = null;
   let titolo = "Documento";
-  if (r.tipo_documento === "quote" && r.quote_id) {
+  // Dal 22/10/2026 il documento firmato è la copia congelata all'invio: il
+  // titolo viene dalla fonte, i byte sempre dalla copia.
+  if (r.documento_path) {
+    titolo = await titoloDelDocumento(sb, r);
+    bucket = BUCKET; path = r.documento_path;
+  } else if (r.tipo_documento === "quote" && r.quote_id) {
     const { data } = await sb.from("quotes").select("quote_number, pdf_storage_path").eq("id", r.quote_id).maybeSingle();
     titolo = data?.quote_number ? `Preventivo ${data.quote_number}` : "Preventivo";
     bucket = BUCKET; path = data?.pdf_storage_path ?? null;
+  } else if (r.tipo_documento === "subappalto" && r.contratto_subappalto_id) {
+    const { data } = await sb.from("contratti_subappalto").select("numero_contratto, pdf_path").eq("id", r.contratto_subappalto_id).maybeSingle();
+    titolo = `Contratto di subappalto${data?.numero_contratto ? ` ${data.numero_contratto}` : ""}`;
+    bucket = BUCKET; path = data?.pdf_path ?? null;
   } else if (r.tipo_documento === "fv" && r.fv_progetto_id) {
     const { data } = await sb.from("fv_progetti").select("numero, pdf_vendita_url").eq("id", r.fv_progetto_id).maybeSingle();
     titolo = `Preventivo fotovoltaico ${data?.numero ?? ""}`.trim();
@@ -241,6 +260,32 @@ async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quo
   return { bytes, titolo };
 }
 
+// deno-lint-ignore no-explicit-any
+async function titoloDelDocumento(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; categoria?: string | null }): Promise<string> {
+  if (r.tipo_documento === "quote" && r.quote_id) {
+    const { data } = await sb.from("quotes").select("quote_number").eq("id", r.quote_id).maybeSingle();
+    return data?.quote_number ? `Preventivo ${data.quote_number}` : "Preventivo";
+  }
+  if (r.tipo_documento === "subappalto" && r.contratto_subappalto_id) {
+    const { data } = await sb.from("contratti_subappalto").select("numero_contratto").eq("id", r.contratto_subappalto_id).maybeSingle();
+    return `Contratto di subappalto${data?.numero_contratto ? ` ${data.numero_contratto}` : ""}`;
+  }
+  if (r.tipo_documento === "fv" && r.fv_progetto_id) {
+    const { data } = await sb.from("fv_progetti").select("numero").eq("id", r.fv_progetto_id).maybeSingle();
+    return `Preventivo fotovoltaico ${data?.numero ?? ""}`.trim();
+  }
+  if (r.tipo_documento === "sessione" && r.sessione_id) {
+    const { data } = await sb.from("documento_sessioni").select("nome").eq("id", r.sessione_id).maybeSingle();
+    return data?.nome ?? "Documento";
+  }
+  if (r.tipo_documento === "order" && r.order_id) {
+    const { data } = await sb.from("orders").select("order_code").eq("id", r.order_id).maybeSingle();
+    const tipi: Record<string, string> = { verbale_sopralluogo: "Verbale di sopralluogo", presa_misure: "Presa misure", verbale_consegna: "Verbale di consegna", collaudo_finale: "Collaudo fine lavori", accettazione_lavori: "Accettazione lavori" };
+    return `${tipi[String(r.categoria)] ?? "Documento"}${data?.order_code ? ` - commessa ${data.order_code}` : ""}`;
+  }
+  return "Documento";
+}
+
 const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46; // %PDF
 
 /**
@@ -251,7 +296,7 @@ const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50
 export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<PdfFirmatoEsito> {
   const { data: r, error } = await sb
     .from("signature_requests")
-    .select("id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica")
+    .select("id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica")
     .eq("id", richiestaId)
     .maybeSingle();
   if (error || !r) throw new Error("Richiesta di firma non trovata");
@@ -273,6 +318,23 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
   const approvate = new Set<string>(Array.isArray(r.clausole_approvate) ? r.clausole_approvate : []);
   const clausole = attese.filter((c) => approvate.has(c.id)).map((c) => c.testo);
 
+  // Identificazione e dichiarazione, solo per la firma avanzata.
+  let identita: string | null = null;
+  let dichiarazione: string | null = null;
+  if (r.livello_firma === "avanzata" && r.firmatario_id) {
+    const { data: f } = await sb.from("fea_firmatari")
+      .select("nome, cognome, codice_fiscale, documento_tipo, documento_numero, documento_scadenza, modalita, dichiarazione_versione, dichiarazione_hash, dichiarazione_accettata_at")
+      .eq("id", r.firmatario_id).maybeSingle();
+    if (f) {
+      const tipi: Record<string, string> = { carta_identita: "carta d'identità", passaporto: "passaporto", patente: "patente di guida" };
+      const num = String(f.documento_numero ?? "").replace(/\s+/g, "");
+      const numMasch = num.length <= 3 ? "***" : `${"*".repeat(Math.min(6, num.length - 3))}${num.slice(-3)}`;
+      const scad = String(f.documento_scadenza ?? "").split("-").reverse().join("/");
+      identita = `${f.nome} ${f.cognome}${f.codice_fiscale ? `, C.F. ${String(f.codice_fiscale).slice(0, 6)}**********` : ""} - identificato ${f.modalita === "azienda" ? "dall'azienda, che ha visto il documento," : "con il documento caricato dal firmatario,"} ${tipi[f.documento_tipo] ?? "documento"} n. ${numMasch}, valido fino al ${scad}, di cui è conservata copia.`;
+      if (f.dichiarazione_accettata_at) dichiarazione = `Dichiarazione di accettazione (versione ${f.dichiarazione_versione}) accettata il ${dataItaliana(f.dichiarazione_accettata_at)}; impronta SHA-256 ${f.dichiarazione_hash}.`;
+    }
+  }
+
   const out = await costruisciPdfFirmato(originale, {
     azienda: azienda?.name ?? "Edilizia in Cloud",
     documento: titolo,
@@ -290,6 +352,9 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
     conTimbro: !!originale,
     impronteDiverse,
     telefonoSms: r.otp_canale === "sms" ? mascheraTelefono(r.signer_phone) : null,
+    livello: r.livello_firma === "avanzata" && identita ? "avanzata" : "semplice",
+    identita,
+    dichiarazione,
   });
 
   const path = `${r.company_id}/firmati/${r.id}.pdf`;

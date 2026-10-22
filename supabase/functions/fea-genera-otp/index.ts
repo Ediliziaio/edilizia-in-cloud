@@ -4,6 +4,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { inviaSmsCodiceFirma } from "../_shared/inviaSmsFirma.ts";
 import { erroreStatoFirma, nuovoCodiceFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
+import { MAX_CODICI_INVIATI, MAX_ERRORI_TOTALI } from "../_shared/firmaAvanzata.ts";
 
 const esc = (v: string) => v.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
@@ -48,7 +49,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, token, signer_email, signer_name, signer_phone, status, expires_at, otp_hash, otp_scadenza, otp_tentativi, otp_canale, company_id")
+      .select("id, token, signer_email, signer_name, signer_phone, status, expires_at, otp_hash, otp_scadenza, otp_tentativi, otp_canale, company_id, otp_invii, otp_errori_totali")
       .eq("id", request_id).in("token", varianti)
       .single();
 
@@ -62,6 +63,19 @@ Deno.serve(async (req: Request) => {
     if (statoNonValido) return new Response(JSON.stringify({ error: statoNonValido.error }), {
       status: statoNonValido.status, headers: { ...corsH, "Content-Type": "application/json" },
     });
+
+    // Tetti per l'intera richiesta: prima ogni codice nuovo azzerava i
+    // tentativi, e si potevano provare codici all'infinito.
+    if ((sigReq.otp_invii ?? 0) >= MAX_CODICI_INVIATI || (sigReq.otp_errori_totali ?? 0) >= MAX_ERRORI_TOTALI) {
+      await supabaseAdmin.from("fea_audit_log").insert({
+        request_id: sigReq.id, company_id: sigReq.company_id, evento: "tentativi_esauriti",
+        metadati: { codici_inviati: sigReq.otp_invii, errori_totali: sigReq.otp_errori_totali },
+      });
+      return new Response(
+        JSON.stringify({ error: "Hai raggiunto il numero massimo di codici per questo documento. Chiedi all'azienda di inviartelo di nuovo." }),
+        { status: 429, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
 
     // Check: troppi tentativi (≥10)
     if (sigReq.otp_tentativi >= 10) {
@@ -113,9 +127,13 @@ Deno.serve(async (req: Request) => {
         otp_scadenza: otpScadenza,
         status: "pending",
         otp_tentativi: 0,
+        otp_invii: (sigReq.otp_invii ?? 0) + 1,
+        // Un codice nuovo chiude la sessione di firma aperta col precedente.
+        sessione_firma_hash: null,
+        sessione_firma_scadenza: null,
       })
       .eq("id", request_id).eq("status", sigReq.status)
-      .eq("otp_tentativi", sigReq.otp_tentativi).gt("expires_at", new Date().toISOString());
+      .eq("otp_tentativi", sigReq.otp_tentativi).eq("otp_invii", sigReq.otp_invii ?? 0).gt("expires_at", new Date().toISOString());
     salva = sigReq.otp_hash == null ? salva.is("otp_hash", null) : salva.eq("otp_hash", sigReq.otp_hash);
     const { data: salvata, error: salvaErr } = await salva.select("id").maybeSingle();
     if (salvaErr || !salvata) return new Response(JSON.stringify({ error: "Codice non generato: la richiesta è cambiata o il salvataggio non è riuscito. Riprova." }), {

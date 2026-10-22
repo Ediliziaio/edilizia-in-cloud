@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { parseDecimalIT } from '@/lib/parseDecimalIT';
 import { FiscalitaNavigation } from '@/components/fatturazione/FiscalitaNavigation';
 import { RitenutaBadge } from '@/components/ritenute/RitenutaBadge';
 import { NavyStatCard } from '@/components/costi/KpiCard';
@@ -286,6 +287,9 @@ function NuovaRitenutaDialog({
 }) {
   const [direzione, setDirezione] = useState<'attiva' | 'passiva'>('attiva');
   const [orderId, setOrderId] = useState<string>('');
+  // Una ritenuta passiva vive su un contratto di subappalto (lo richiede il
+  // database): prima il dialog non lo chiedeva e l'inserimento falliva sempre.
+  const [contrattoId, setContrattoId] = useState<string>('');
   const [controparte, setControparte] = useState('');
   const [importo, setImporto] = useState('');
   const [percentuale, setPercentuale] = useState('5');
@@ -308,10 +312,29 @@ function NuovaRitenutaDialog({
     },
   });
 
+  const { data: contratti = [] } = useQuery({
+    queryKey: ['ritenute-contratti-picker', companyId],
+    enabled: !!companyId && open,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('contratti_subappalto')
+        .select('id, numero_contratto, ritenuta_garanzia_pct, sub:subappaltatori_sicurezza!contratti_subappalto_subappaltatore_id_fkey(ragione_sociale), commessa:orders!contratti_subappalto_order_id_fkey(order_code)')
+        .eq('company_id', companyId!)
+        .order('created_at', { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; numero_contratto: string | null; ritenuta_garanzia_pct: number | null; sub: { ragione_sociale: string | null } | null; commessa: { order_code: string | null } | null }>;
+    },
+  });
+
   const salva = async () => {
-    const imp = Number(importo.replace(/\./g, '').replace(',', '.'));
+    const imp = parseDecimalIT(importo);
     if (!imp || imp <= 0) {
       toast({ title: 'Importo mancante', description: "Inserisci l'importo trattenuto.", variant: 'destructive' });
+      return;
+    }
+    if (direzione === 'passiva' && !contrattoId) {
+      toast({ title: 'Contratto mancante', description: 'Una ritenuta al subappaltatore si registra sul suo contratto: scegli quale.', variant: 'destructive' });
       return;
     }
     if (direzione === 'attiva' && !orderId) {
@@ -324,9 +347,11 @@ function NuovaRitenutaDialog({
         company_id: companyId,
         direzione,
         order_id: direzione === 'attiva' && orderId ? orderId : null,
+        // Passiva: commessa, percentuale, svincolo e subappaltatore li completa il database dal contratto.
+        contratto_id: direzione === 'passiva' ? contrattoId : null,
         controparte: controparte || null,
         importo: imp,
-        percentuale_applicata: Number(percentuale.replace(',', '.')) || null,
+        percentuale_applicata: percentuale.trim() ? parseDecimalIT(percentuale) : null,
         stato: 'trattenuta',
         data_svincolo_prevista: svincoloPrevisto || null,
         fideiussione,
@@ -335,7 +360,7 @@ function NuovaRitenutaDialog({
       toast({ title: 'Ritenuta registrata' });
       onCreated();
       onOpenChange(false);
-      setOrderId(''); setControparte(''); setImporto(''); setSvincoloPrevisto(''); setFideiussione(false);
+      setOrderId(''); setContrattoId(''); setControparte(''); setImporto(''); setSvincoloPrevisto(''); setFideiussione(false);
     } catch (e) {
       toast({ title: 'Errore', description: e instanceof Error ? e.message : 'Riprova.', variant: 'destructive' });
     } finally {
@@ -372,6 +397,26 @@ function NuovaRitenutaDialog({
                   {commesse.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.order_code ?? c.id.slice(0, 8)}{c.description ? ` · ${c.description.slice(0, 40)}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {direzione === 'passiva' && (
+            <div className="space-y-1.5">
+              <Label>Contratto di subappalto</Label>
+              <Select value={contrattoId} onValueChange={(v) => {
+                setContrattoId(v);
+                const c = contratti.find((x) => x.id === v);
+                if (c?.sub?.ragione_sociale && !controparte) setControparte(c.sub.ragione_sociale);
+                if (c?.ritenuta_garanzia_pct != null) setPercentuale(String(c.ritenuta_garanzia_pct).replace('.', ','));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Scegli il contratto" /></SelectTrigger>
+                <SelectContent>
+                  {contratti.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {[c.sub?.ragione_sociale, c.commessa?.order_code, c.numero_contratto].filter(Boolean).join(' · ') || 'Contratto'}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1619,7 +1619,8 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
     queryFn: async () => {
       const { data, error } = await supabase
         .from("signature_requests")
-        .select("*")
+        // Solo le colonne che servono: impronta del codice e simili non sono leggibili dall'app.
+        .select("id, status, tipo_documento, signer_name, signer_email, created_at, signed_at, certificato_url")
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
       if (error) throw error;

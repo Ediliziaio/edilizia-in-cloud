@@ -24,14 +24,15 @@ import { cn } from "@/lib/utils";
 import { TESTO_RECESSO_DI_LEGGE, eLaFraseSalvataPerSbaglio } from "@/lib/fea/testoRecessoDiLegge";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 
-type FeaConfig = Database["public"]["Tables"]["fea_configurazione"]["Row"];
+// livello_firma (22/10/2026) non è ancora nei tipi generati.
+type FeaConfig = Database["public"]["Tables"]["fea_configurazione"]["Row"] & { livello_firma?: "avanzata" | "semplice" };
 type PreventivoImpostazioni = Pick<
   Database["public"]["Tables"]["preventivo_impostazioni"]["Row"],
   "firma_digitale_abilitata"
 >;
 
 /** Quello che il titolare ha cambiato e non ha ancora salvato: un campo assente = non toccato. */
-type Bozza = { firma?: boolean; testo?: string };
+type Bozza = { firma?: boolean; testo?: string; avanzata?: boolean };
 
 type EsitoSalvataggio = { firmaScritta: boolean; testoScritto: boolean; errore: unknown };
 
@@ -80,7 +81,12 @@ export default function SettingsFirmaElettronica() {
   const testoRecessoB2c = bozza.testo ?? testoDalServer;
   const firmaCambiata = bozza.firma !== undefined && bozza.firma !== firmaDalServer;
   const testoCambiato = bozza.testo !== undefined && bozza.testo.trim() !== testoDalServer.trim();
-  const isDirty = firmaCambiata || testoCambiato;
+  // Spenta di partenza: si accende qui (scelta del 22/10/2026).
+  const avanzataDalServer = feaConfig?.livello_firma === "avanzata";
+  const firmaAvanzata = bozza.avanzata ?? avanzataDalServer;
+  const avanzataCambiata = bozza.avanzata !== undefined && bozza.avanzata !== avanzataDalServer;
+  const configCambiata = testoCambiato || avanzataCambiata;
+  const isDirty = firmaCambiata || configCambiata;
 
   // Ricaricamento e link interni chiedono conferma se ci sono modifiche non salvate.
   useSettingsDraftGuard(isDirty);
@@ -94,11 +100,16 @@ export default function SettingsFirmaElettronica() {
       if (!puoModificare) throw new Error("Le impostazioni della firma le cambia chi ha il permesso «Integrazioni» in modifica.");
       const testo = testoRecessoB2c.trim();
       const [esitoTesto, esitoFirma] = await Promise.all([
-        testoCambiato
+        configCambiata
           ? supabase
               .from("fea_configurazione")
               .upsert(
-                { company_id: companyId, testo_recesso_b2c: testo || null, updated_at: new Date().toISOString() },
+                {
+                  company_id: companyId,
+                  ...(testoCambiato ? { testo_recesso_b2c: testo || null } : {}),
+                  ...(avanzataCambiata ? { livello_firma: firmaAvanzata ? "avanzata" : "semplice" } : {}),
+                  updated_at: new Date().toISOString(),
+                } as Database["public"]["Tables"]["fea_configurazione"]["Insert"],
                 { onConflict: "company_id" },
               )
           : null,
@@ -134,7 +145,7 @@ export default function SettingsFirmaElettronica() {
       setBozza((prima) => {
         const resto = { ...prima };
         if (esito.firmaScritta) delete resto.firma;
-        if (esito.testoScritto) delete resto.testo;
+        if (esito.testoScritto) { delete resto.testo; delete resto.avanzata; }
         return resto;
       });
       if (esito.errore) {
@@ -203,6 +214,31 @@ export default function SettingsFirmaElettronica() {
               È il valore di partenza dei nuovi preventivi: nel singolo preventivo si può cambiare. Quando mandi un
               preventivo al cliente per la firma, la firma online c'è sempre. La stessa impostazione c'è anche in
               Modelli preventivi e contratti → Prezzo e margini.
+            </p>
+          </details>
+        </RigaInterruttore>
+      </SezioneImpostazione>
+
+      <SezioneImpostazione
+        id="firma-avanzata"
+        titolo="Valore della firma"
+        descrizione="Vale per tutti i documenti che mandi a firmare: preventivi, contratti, verbali."
+        evidenziata={evidenziata === "firma-avanzata"}
+      >
+        <RigaInterruttore
+          id="firma-avanzata-interruttore"
+          titolo="Firma elettronica avanzata"
+          descrizione="Al primo documento con la tua azienda chi firma carica la foto di un documento d'identità e accetta le condizioni del servizio. Poi firma solo con il codice. È la firma che la legge riconosce come una firma scritta."
+          checked={firmaAvanzata}
+          disabled={comandiSpenti}
+          onCheckedChange={(valore) => setBozza((prima) => ({ ...prima, avanzata: valore }))}
+        >
+          <details className="mt-1 text-xs text-muted-foreground">
+            <summary className="cursor-pointer py-1">Cosa cambia se la spengo</summary>
+            <p className="mt-1">
+              Si firma con il solo codice via email o SMS, senza documento d'identità: è più veloce, ma è una firma
+              elettronica semplice, che in caso di contestazione vale meno. Il certificato del documento firmato lo dice.
+              Vale per i documenti che mandi da quel momento: quelli già inviati restano come sono.
             </p>
           </details>
         </RigaInterruttore>

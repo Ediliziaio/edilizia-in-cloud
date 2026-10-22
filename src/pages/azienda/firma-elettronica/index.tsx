@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Plus, FileText, Loader2, Send, AlertTriangle,
   Search, Mail, CheckCircle2, Clock, XCircle, Copy,
-  FileStack, Target, ExternalLink, RefreshCw, Download,
+  FileStack, Target, ExternalLink, RefreshCw, Download, IdCard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
 
 import { supabase } from '@/integrations/supabase/client';
 import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
+import { FirmatariIdentificati } from '@/components/fea/FirmatariIdentificati';
 import { useDocumentoSessioni } from '@/hooks/useDocumentoSessioni';
 import { createTimeoutSignal, withClientTimeout } from '@/lib/query-timeout';
 import { DocumentiList } from '@/components/documenti/DocumentiList';
@@ -545,6 +546,9 @@ export default function FirmaElettronicaHub() {
           <TabsTrigger value="template" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <FileStack className="h-3.5 w-3.5" /> Template moduli
           </TabsTrigger>
+          <TabsTrigger value="firmatari" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <IdCard className="h-3.5 w-3.5" /> Firmatari
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Tab RICHIESTE FIRMA ─────────────────────────────────────────── */}
@@ -899,6 +903,11 @@ export default function FirmaElettronicaHub() {
         {/* ── Tab TEMPLATE ─────────────────────────────────────────────────── */}
         <TabsContent value="template" className="mt-4">
           <DocumentiList onSelect={handleSelectTemplate} />
+        </TabsContent>
+
+        {/* ── Tab FIRMATARI (firma avanzata) ──────────────────────────────── */}
+        <TabsContent value="firmatari" className="mt-4">
+          <FirmatariIdentificati />
         </TabsContent>
       </Tabs>
 

@@ -8,6 +8,8 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { dataItalianaLunga } from "../_shared/dataItaliana.ts";
+import { congelaDocumento, DocumentoNonPronto } from "../_shared/documentoCongelato.ts";
+import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -246,22 +248,29 @@ Deno.serve(async (req) => {
       pdfPathFirma = typeof pdfJson?.pdf_path === "string" ? pdfJson.pdf_path : null;
       if (!pdfPathFirma) return errorResponse("PDF del preventivo non disponibile", 500);
     }
-    let documentoHash: string | null = null;
+    // Copia congelata per la richiesta: il PDF del preventivo può essere
+    // rigenerato dopo, quella firmata resta questa.
+    const richiestaFirmaId = crypto.randomUUID();
+    let congelato: { path: string; hash: string };
     try {
-      const { data: pdfFile } = await supabaseAdmin.storage.from("quote-pdfs").download(pdfPathFirma);
-      if (pdfFile) {
-        const digest = await crypto.subtle.digest("SHA-256", await pdfFile.arrayBuffer());
-        documentoHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-      }
+      congelato = await congelaDocumento(supabaseAdmin, {
+        tipo: "quote", documentoId: quote_id, companyId: quote.company_id, aziendaNome: "",
+        firmatario: finalName, pathPdf: pdfPathFirma,
+      }, richiestaFirmaId);
     } catch (e) {
-      console.warn("Impronta PDF non calcolata:", e);
+      if (e instanceof DocumentoNonPronto) return errorResponse(e.message, 400);
+      throw e;
     }
+    const livelloFirma = await livelloFirmaAzienda(supabaseAdmin, quote.company_id);
 
     const { data: signatureRequest, error: sigReqErr } = await supabaseAdmin
       .from("signature_requests")
       .insert({
+        id: richiestaFirmaId,
         company_id: quote.company_id,
         quote_id,
+        documento_path: congelato.path,
+        livello_firma: livelloFirma,
         token: signatureToken,
         signer_email: finalEmail,
         signer_name: finalName,
@@ -272,15 +281,20 @@ Deno.serve(async (req) => {
         created_by: userId,
         tipo_documento: "quote",
         tipo_firmatario: tipoFirmatario,
-        documento_hash: documentoHash,
+        documento_hash: congelato.hash,
       })
       .select("id, token")
       .single();
 
     if (sigReqErr || !signatureRequest) {
       console.error("Quote signature request creation failed:", sigReqErr);
+      await supabaseAdmin.storage.from("quote-pdfs").remove([congelato.path]);
       return errorResponse("Errore nella creazione della richiesta di firma FEA", 500);
     }
+    await supabaseAdmin.from("fea_audit_log").insert({
+      request_id: signatureRequest.id, company_id: quote.company_id, evento: "documento_congelato",
+      metadati: { path: congelato.path, documento_hash: congelato.hash, livello_firma: livelloFirma },
+    });
 
     // Update quote
     await supabaseAdmin

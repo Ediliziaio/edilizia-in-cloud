@@ -212,4 +212,12 @@ export interface FEASessionePubblica {
   signer_telefono_mascherato?: string | null;
   /** Se c'è già un OTP valido (inviato con l'offerta), la pagina non ne manda un altro. */
   otp_valido_fino?: string | null;
+  /** Livello fissato all'invio: con «avanzata» chi firma si identifica al primo documento. */
+  livello_firma?: "avanzata" | "semplice";
+  /** Chi firma deve ancora identificarsi con un documento (firma avanzata). */
+  identificazione_richiesta?: boolean;
+  /** Condizioni del servizio ancora da accettare (anche se l'azienda l'ha già identificato). */
+  dichiarazione_richiesta?: boolean;
+  /** Condizioni del servizio da accettare con l'identificazione. */
+  dichiarazione_fea?: { versione: string; testo: string } | null;
 }

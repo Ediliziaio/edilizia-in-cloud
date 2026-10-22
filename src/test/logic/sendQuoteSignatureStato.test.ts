@@ -69,6 +69,12 @@ beforeEach(() => {
   condiviso.db = new DbMinimo();
   condiviso.db.tabelle.companies = [{ id: "c-1", name: "Rossi Serramenti", logo_url: null }];
   condiviso.db.tabelle.signature_requests = [];
+  // Il PDF del preventivo e la copia congelata per la richiesta (22/10/2026).
+  Object.assign(condiviso.db, { storage: { from: () => ({
+    download: async (): Promise<{ data: Blob; error: null }> => ({ data: new Blob(["%PDF-1.4 prova"]), error: null }),
+    upload: async (): Promise<{ data: object; error: null }> => ({ data: {}, error: null }),
+    remove: async (): Promise<{ data: unknown[]; error: null }> => ({ data: [], error: null }),
+  }) } });
   condiviso.email.length = 0;
   condiviso.gestore = null;
   vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([37, 80, 68, 70]), { status: 200 })));

@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
-  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
+  Check, Upload, Trash2, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
 } from 'lucide-react';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 import type {
@@ -39,6 +39,22 @@ import {
 } from '@/lib/sicurezza/bulkDocumenti';
 import { extractDurcExpiryFromPdf } from '@/lib/sicurezza/durcExpiry';
 import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialog';
+import { ContrattiSubappalto, LavoriSubappaltatore, chiaviContratti, useContrattiSubappaltatore, type ContrattoCompleto } from '@/components/subappaltatori/ContrattiSubappalto';
+import { parseDecimalIT } from '@/lib/parseDecimalIT';
+
+/** Con più contratti (una commessa ciascuno), su quale si guardano SAL e ritenute. */
+function SceltaContratto({ contratti, valore, onCambia }: { contratti: ContrattoCompleto[]; valore: string; onCambia: (id: string) => void }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">Contratto:</span>
+      <select className="h-9 rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
+        {contratti.map((c) => (
+          <option key={c.id} value={c.id}>{[c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || 'Contratto'}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 // ── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -106,22 +122,12 @@ export default function SubappaltatoreDetail() {
     enabled: !!id,
   });
 
-  // ── Fetch contratto ──────────────────────────────────────────────────────
-  const { data: contratto } = useQuery({
-    queryKey: ['contratto-sub', id],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('contratti_subappalto')
-        .select('*')
-        .eq('subappaltatore_id', id!)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data as ContrattoSubappalto | null;
-    },
-    enabled: !!id,
-  });
+  // ── Contratti: uno per ogni commessa; Contratto, SAL e Ritenute lavorano su
+  // quello scelto (prima si vedeva solo il più recente) ──────────────────────
+  const { data: contratti = [] } = useContrattiSubappaltatore(id);
+  const [contrattoSelId, setContrattoSelId] = useState<string | null>(null);
+  const [tabAttiva, setTabAttiva] = useState('anagrafica');
+  const contratto = (contratti.find((c) => c.id === contrattoSelId) ?? contratti[0] ?? null) as unknown as ContrattoSubappalto | null;
 
   // ── Fetch SAL ────────────────────────────────────────────────────────────
   const { data: salList = [] } = useQuery({
@@ -247,19 +253,6 @@ export default function SubappaltatoreDetail() {
   });
 
   // ── Fetch lavoro/commessa collegata ──────────────────────────────────────
-  const { data: lavoroCollegato } = useQuery({
-    queryKey: ['subappaltatore-lavoro', sub?.order_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, order_code, description, client_name, client_company, total_amount, status, work_start_date, work_end_date, created_at')
-        .eq('id', sub!.order_id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as any;
-    },
-    enabled: !!sub?.order_id,
-  });
 
   // ═══════════════════════════ MUTATIONS ═══════════════════════════════════
 
@@ -545,57 +538,6 @@ export default function SubappaltatoreDetail() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // ── Crea contratto ───────────────────────────────────────────────────────
-  const [contrattoDialog, setContrattoDialog] = useState(false);
-  const [contrattoForm, setContrattoForm] = useState({
-    descrizione_lavori: '',
-    importo_contrattuale: '',
-    ritenuta_garanzia_pct: '5',
-    data_inizio: '',
-    data_fine_prevista: '',
-    numero_contratto: '',
-    note: '',
-  });
-
-  const saveContrattoMutation = useMutation({
-    mutationFn: async () => {
-      if (!contrattoForm.descrizione_lavori.trim()) throw new Error('Descrizione lavori obbligatoria');
-      if (!sub?.order_id) throw new Error('Il subappaltatore deve essere associato a un ordine');
-      const payload = {
-        company_id: companyId,
-        subappaltatore_id: id!,
-        order_id: sub.order_id,
-        numero_contratto: contrattoForm.numero_contratto.trim() || null,
-        descrizione_lavori: contrattoForm.descrizione_lavori.trim(),
-        importo_contrattuale: parseFloat(contrattoForm.importo_contrattuale) || 0,
-        ritenuta_garanzia_pct: parseFloat(contrattoForm.ritenuta_garanzia_pct) || 5,
-        data_inizio: contrattoForm.data_inizio || null,
-        data_fine_prevista: contrattoForm.data_fine_prevista || null,
-        note: contrattoForm.note.trim() || null,
-      };
-      if (contratto?.id) {
-        const { error } = await (supabase as any)
-          .from('contratti_subappalto')
-          .update(payload)
-          .eq('id', contratto.id);
-        if (error) throw new Error(error.message || error.details || error.hint || "Errore");
-      } else {
-        const { error } = await (supabase as any)
-          .from('contratti_subappalto')
-          .insert(payload);
-        if (error) throw new Error(error.message || error.details || error.hint || "Errore");
-      }
-    },
-    onSuccess: () => {
-      toast.success(contratto ? 'Contratto aggiornato' : 'Contratto creato');
-      queryClient.invalidateQueries({ queryKey: ['contratto-sub', id] });
-      if (sub?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', sub.order_id, companyId] });
-      if (contratto?.order_id && contratto.order_id !== sub?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
-      setContrattoDialog(false);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   // ── Nuovo SAL ────────────────────────────────────────────────────────────
   const [salDialog, setSalDialog] = useState(false);
   const [salForm, setSalForm] = useState({
@@ -611,7 +553,12 @@ export default function SubappaltatoreDetail() {
   // pagamenti. Gli alert c'erano già ma erano solo grafica — e il sito
   // promette il "blocco automatico con DURC non valido".
   const durcBloccante = (): string | null => {
-    const scad = sub?.durc_scadenza ?? null;
+    const daDocumenti = [
+      ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
+      ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
+    ].sort();
+    // Lo stesso DURC «effettivo» del badge: prima il badge diceva OK e il blocco no.
+    const scad = sub?.durc_scadenza ?? (daDocumenti.length ? daDocumenti[daDocumenti.length - 1] : null);
     if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
@@ -625,8 +572,10 @@ export default function SubappaltatoreDetail() {
       if (!contratto?.id) throw new Error('Contratto non trovato');
       const bloccoDurc = durcBloccante();
       if (bloccoDurc) throw new Error(bloccoDurc);
-      const importoLordo = parseFloat(salForm.importo_lordo) || 0;
-      const ritenutaPct = parseFloat(salForm.ritenuta_pct) || 5;
+      const importoLordo = parseDecimalIT(salForm.importo_lordo);
+      if (!(importoLordo > 0)) throw new Error('Scrivi l\'importo del SAL');
+      // Lo 0% è una ritenuta valida: prima `|| 5` la trasformava in 5%.
+      const ritenutaPct = salForm.ritenuta_pct.trim() ? parseDecimalIT(salForm.ritenuta_pct) : Number(contratto.ritenuta_garanzia_pct ?? 0);
       const importoRitenuta = Math.round(importoLordo * ritenutaPct) / 100;
 
       const { data: salData, error: salError } = await (supabase as any)
@@ -635,7 +584,8 @@ export default function SubappaltatoreDetail() {
           company_id: companyId,
           contratto_id: contratto.id,
           subappaltatore_id: id!,
-          order_id: sub?.order_id,
+          // La commessa è quella del contratto (lo garantisce anche il database).
+          order_id: contratto.order_id,
           numero_sal: parseInt(salForm.numero_sal) || (salList.length + 1),
           data_emissione: salForm.data_emissione,
           importo_lordo: importoLordo,
@@ -665,7 +615,9 @@ export default function SubappaltatoreDetail() {
       toast.success('SAL aggiunto');
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub-tutte', id] });
       setSalDialog(false);
       setSalForm({ numero_sal: '', data_emissione: format(new Date(), 'yyyy-MM-dd'), importo_lordo: '', ritenuta_pct: contratto?.ritenuta_garanzia_pct?.toString() ?? '5', note: '', stato: 'ricevuto' });
     },
@@ -684,6 +636,7 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success('Ritenuta svincolata');
       queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub-tutte', id] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -704,6 +657,7 @@ export default function SubappaltatoreDetail() {
       toast.success("SAL approvato");
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore durante l'approvazione"),
@@ -713,7 +667,7 @@ export default function SubappaltatoreDetail() {
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
       const { error } = await supabase
         .from("sal_subappaltatori")
-        .update({ stato: "contestato", note: note })
+        .update({ stato: "contestato", note_contestazione: note } as never)
         .eq("id", id);
       if (error) throw error;
     },
@@ -723,6 +677,7 @@ export default function SubappaltatoreDetail() {
       setContestaId(null);
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore durante la contestazione"),
@@ -756,6 +711,7 @@ export default function SubappaltatoreDetail() {
       toast.success('Pagamento registrato');
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setPaymentSAL(null);
       setPaymentForm({ data_pagamento: format(new Date(), 'yyyy-MM-dd'), payment_method: 'bonifico', payment_reference: '' });
@@ -783,15 +739,12 @@ export default function SubappaltatoreDetail() {
     );
   }
 
-  const totaleLordo = salList.reduce((a, s) => a + s.importo_lordo, 0);
-  const totaleRitenute = salList.reduce((a, s) => a + s.ritenuta_importo, 0);
-  const totaleNetto = salList.reduce((a, s) => a + s.importo_netto, 0);
-  const totalePagato = salList.filter((s) => s.stato === 'pagato').reduce((a, s) => a + (Number(s.importo_netto) || 0), 0);
+  // I SAL contestati non contano: né nell'eseguito né nelle ritenute.
+  const salValidi = salList.filter((s) => s.stato !== 'contestato');
+  const totaleLordo = salValidi.reduce((a, s) => a + Number(s.importo_lordo), 0);
+  const totaleRitenute = salValidi.reduce((a, s) => a + Number(s.ritenuta_importo), 0);
   const totaleDaPagare = salList.filter((s) => s.stato !== 'pagato' && s.stato !== 'contestato').reduce((a, s) => a + (Number(s.importo_netto) || 0), 0);
   const ritenuteTrattenute = ritenute.filter(r => r.stato === 'trattenuta');
-  const pct = contratto && contratto.importo_contrattuale > 0
-    ? Math.min(100, Math.round((totaleLordo / contratto.importo_contrattuale) * 100))
-    : 0;
   const appCantiere = campoAccess ?? inferredCampoAccess ?? null;
   const hasAppCantiere = Boolean(sub.campo_subappaltatore_id || appCantiere?.id);
 
@@ -856,7 +809,7 @@ export default function SubappaltatoreDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="anagrafica">
+      <Tabs value={tabAttiva} onValueChange={setTabAttiva}>
         {/* Mobile: Dati, Contratto e SAL; commessa e ritenute restano al desktop. */}
         <TabsList className="w-full grid grid-cols-5 h-auto max-sm:grid-cols-3">
           <TabsTrigger value="anagrafica" className="text-xs py-2">
@@ -1091,163 +1044,20 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
         <TabsContent value="lavori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">SAL eseguiti</p>
-                <p className="text-xl font-bold">€{totaleLordo.toLocaleString('it-IT')}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Pagato</p>
-                <p className="text-xl font-bold text-green-600">€{totalePagato.toLocaleString('it-IT')}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Da pagare</p>
-                <p className="text-xl font-bold text-amber-600">€{totaleDaPagare.toLocaleString('it-IT')}</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BriefcaseBusiness className="h-4 w-4" />
-                Commessa collegata
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!lavoroCollegato ? (
-                <p className="text-sm text-muted-foreground">Nessuna commessa collegata. Associa il subappaltatore a una commessa per tracciare lavori e costi.</p>
-              ) : (
-                <div className="rounded-lg border p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold">
-                        {lavoroCollegato.order_code ? `${lavoroCollegato.order_code} · ` : ''}
-                        {lavoroCollegato.description}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {lavoroCollegato.client_company || lavoroCollegato.client_name || 'Cliente non indicato'}
-                      </p>
-                      {(lavoroCollegato.work_start_date || lavoroCollegato.work_end_date) && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {lavoroCollegato.work_start_date ? `Inizio ${format(parseISO(lavoroCollegato.work_start_date), 'dd/MM/yyyy')}` : 'Inizio non impostato'}
-                          {' · '}
-                          {lavoroCollegato.work_end_date ? `Fine ${format(parseISO(lavoroCollegato.work_end_date), 'dd/MM/yyyy')}` : 'Fine non impostata'}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <Badge variant="outline">{lavoroCollegato.status || 'stato non indicato'}</Badge>
-                      <p className="mt-2 text-sm font-semibold">€{Number(lavoroCollegato.total_amount ?? 0).toLocaleString('it-IT')}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <LavoriSubappaltatore subId={id!}
+            onApriCommessa={(oid) => navigate(`/azienda/ordini/${oid}`)}
+            onApriContratto={(cid) => { setContrattoSelId(cid); setTabAttiva('contratto'); }} />
         </TabsContent>
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          {!sub?.order_id && (
-            <Alert className="border-amber-300 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 text-sm max-sm:text-xs">
-                <span className="max-sm:hidden">Questo subappaltatore non è collegato a nessun cantiere/ordine. Per creare un contratto, associalo prima a un ordine dall'elenco subappaltatori.</span>
-                <span className="sm:hidden">Nessun cantiere collegato: collegalo per creare il contratto.</span>
-              </AlertDescription>
-            </Alert>
-          )}
-          {!contratto ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-4 max-sm:gap-2 max-sm:py-6">
-                <FileText className="h-12 w-12 text-muted-foreground/40 max-sm:hidden" />
-                <div>
-                  <p className="font-semibold max-sm:text-sm">Nessun contratto</p>
-                  <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">Crea il contratto di subappalto per iniziare a tracciare SAL e ritenute.</p>
-                </div>
-                <Button onClick={() => setContrattoDialog(true)} disabled={!sub?.order_id}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crea contratto
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {contratto.numero_contratto ?? 'Contratto di subappalto'}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setContrattoForm({
-                          descrizione_lavori: contratto.descrizione_lavori,
-                          importo_contrattuale: contratto.importo_contrattuale.toString(),
-                          ritenuta_garanzia_pct: contratto.ritenuta_garanzia_pct.toString(),
-                          data_inizio: contratto.data_inizio ?? '',
-                          data_fine_prevista: contratto.data_fine_prevista ?? '',
-                          numero_contratto: contratto.numero_contratto ?? '',
-                          note: contratto.note ?? '',
-                        });
-                        setContrattoDialog(true);
-                      }}
-                    >
-                      Modifica
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">{contratto.descrizione_lavori}</p>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Importo contratto</p>
-                      <p className="font-bold">€{contratto.importo_contrattuale.toLocaleString('it-IT')}</p>
-                    </div>
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Ritenuta garanzia</p>
-                      <p className="font-bold">{contratto.ritenuta_garanzia_pct}%</p>
-                    </div>
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Residuo</p>
-                      <p className="font-bold">€{(contratto.importo_contrattuale - totaleLordo).toLocaleString('it-IT')}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Eseguito</span>
-                      <span className="font-medium">{pct}%</span>
-                    </div>
-                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-orange-500 rounded-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>€{totaleLordo.toLocaleString('it-IT')} SAL emessi</span>
-                      <span>€{contratto.importo_contrattuale.toLocaleString('it-IT')} totale</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null}
+            onSeleziona={(cid) => setContrattoSelId(cid)} />
         </TabsContent>
 
         {/* ─── Tab 3: SAL Ricevuti ────────────────────────────────────────────── */}
         <TabsContent value="sal" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
+          {contratti.length > 1 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           <div className={`flex justify-end ${!contratto ? 'max-sm:hidden' : ''}`}>
             <Button
               size="sm"
@@ -1378,7 +1188,7 @@ export default function SubappaltatoreDetail() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Netto da pagare</p>
-                        <p className="font-bold text-green-600">€{totaleNetto.toLocaleString('it-IT')}</p>
+                        <p className="font-bold text-green-600">€{totaleDaPagare.toLocaleString('it-IT')}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -1390,6 +1200,7 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 4: Ritenute & Pagamenti ──────────────────────────────────── */}
         <TabsContent value="ritenute" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
+          {contratti.length > 1 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           {/* Riepilogo */}
           <div className="grid grid-cols-2 gap-3">
             <Card>
@@ -1660,76 +1471,6 @@ export default function SubappaltatoreDetail() {
             <Button onClick={() => registraPagamentoMutation.mutate()} disabled={registraPagamentoMutation.isPending}>
               {registraPagamentoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Segna pagato
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Dialog Contratto ──────────────────────────────────────────────── */}
-      <Dialog open={contrattoDialog} onOpenChange={setContrattoDialog}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{contratto ? 'Modifica contratto' : 'Nuovo contratto'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>N. Contratto</Label>
-              <Input
-                value={contrattoForm.numero_contratto}
-                onChange={(e) => setContrattoForm(f => ({ ...f, numero_contratto: e.target.value }))}
-                placeholder="Es. SUB-2026-001"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Descrizione lavori *</Label>
-              <Textarea
-                value={contrattoForm.descrizione_lavori}
-                onChange={(e) => setContrattoForm(f => ({ ...f, descrizione_lavori: e.target.value }))}
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Importo contrattuale (€)</Label>
-                <Input
-                  type="number"
-                  value={contrattoForm.importo_contrattuale}
-                  onChange={(e) => setContrattoForm(f => ({ ...f, importo_contrattuale: e.target.value }))}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Ritenuta garanzia %</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={contrattoForm.ritenuta_garanzia_pct}
-                  onChange={(e) => setContrattoForm(f => ({ ...f, ritenuta_garanzia_pct: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Data inizio</Label>
-                <Input type="date" value={contrattoForm.data_inizio} onChange={(e) => setContrattoForm(f => ({ ...f, data_inizio: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Fine prevista</Label>
-                <Input type="date" value={contrattoForm.data_fine_prevista} onChange={(e) => setContrattoForm(f => ({ ...f, data_fine_prevista: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Note</Label>
-              <Textarea value={contrattoForm.note} onChange={(e) => setContrattoForm(f => ({ ...f, note: e.target.value }))} rows={2} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setContrattoDialog(false)} disabled={saveContrattoMutation.isPending}>Annulla</Button>
-            <Button onClick={() => saveContrattoMutation.mutate()} disabled={saveContrattoMutation.isPending || !contrattoForm.descrizione_lavori.trim()}>
-              {saveContrattoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salva contratto
             </Button>
           </DialogFooter>
         </DialogContent>
