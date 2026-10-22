@@ -23831,6 +23831,7 @@ export type Database = {
           created_by: string | null
           da_pagare_impresa: number
           data: string
+          documento_fiscale_id: string | null
           id: string
           imponibile: number
           iva: number
@@ -23848,6 +23849,7 @@ export type Database = {
           created_by?: string | null
           da_pagare_impresa: number
           data?: string
+          documento_fiscale_id?: string | null
           id?: string
           imponibile: number
           iva: number
@@ -23865,6 +23867,7 @@ export type Database = {
           created_by?: string | null
           da_pagare_impresa?: number
           data?: string
+          documento_fiscale_id?: string | null
           id?: string
           imponibile?: number
           iva?: number
@@ -23997,6 +24000,45 @@ export type Database = {
           updated_at?: string
           voce_id?: string
           voce_radice?: string
+        }
+        Relationships: []
+      }
+      lp_libretto_modifiche: {
+        Row: {
+          company_id: string
+          dopo: Json | null
+          id: string
+          libretto_id: string
+          modificato_at: string
+          modificato_da: string | null
+          numero: number
+          operazione: string
+          order_id: string
+          prima: Json
+        }
+        Insert: {
+          company_id: string
+          dopo?: Json | null
+          id?: string
+          libretto_id: string
+          modificato_at?: string
+          modificato_da?: string | null
+          numero: number
+          operazione: string
+          order_id: string
+          prima: Json
+        }
+        Update: {
+          company_id?: string
+          dopo?: Json | null
+          id?: string
+          libretto_id?: string
+          modificato_at?: string
+          modificato_da?: string | null
+          numero?: number
+          operazione?: string
+          order_id?: string
+          prima?: Json
         }
         Relationships: []
       }

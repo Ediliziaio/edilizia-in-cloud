@@ -10,6 +10,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 const migrazioniSingole = [
   "supabase/migrations/20281023053000_computo_contrattuale_bloccato_e_varianti.sql",
   "supabase/migrations/20281023054000_contabilita_lavori_pubblici.sql",
+  "supabase/migrations/20281023070000_contabilita_lp_storico_libretto_e_fattura.sql",
 ].map((f) => readFileSync(f, "utf8"));
 
 const A = "a0000000-0000-0000-0000-000000000001";
@@ -63,6 +64,8 @@ create table computo_voci_estratte(id uuid primary key default gen_random_uuid()
 create table computo_voci_misure(id uuid primary key default gen_random_uuid(), company_id uuid not null references companies(id) on delete cascade,
   voce_id uuid not null references computo_voci_estratte(id) on delete cascade, ordine int not null default 0, descrizione text,
   parti_uguali numeric, lunghezza numeric, larghezza numeric, altezza_peso numeric, quantita numeric, formula text);
+create table documenti_fiscali(id uuid primary key default gen_random_uuid(), company_id uuid not null references companies(id) on delete cascade,
+  tipo text not null, deleted_at timestamptz);
 grant usage on schema auth to authenticated, anon, service_role;
 grant all on all tables in schema public to authenticated, service_role;
 `;
@@ -247,5 +250,74 @@ describe("libretto, SAL, certificato", () => {
     const r = await q<{ a: string; b: string; c: string }>(`select lp_quantita_riga('{"parti_uguali":2,"lunghezza":4.5,"larghezza":3}') a,
       lp_quantita_riga('{"quantita":12.5,"lunghezza":99}') b, lp_quantita_riga('{"descrizione":"vuota"}') c`);
     expect(r[0]).toEqual({ a: "27.0000", b: "12.5000", c: "0" });
+  });
+});
+
+describe("libretto: modifica con storico; certificato: fattura collegata", () => {
+  const salDati = JSON.stringify({
+    lavori_a_tutto: "2026-02-28", ritenuta_percentuale: 0.5, anticipazione_percentuale: 0, sicurezza_modo: "a_misura",
+    lavori_lordo: 18000, ribasso: 1800, lavori_netti: 16200, sicurezza: 3000, totale_a_oggi: 19200, ritenuta: 96,
+    anticipazione: 0, recupero_anticipazione: 0, netto_a_oggi: 19104, sal_precedenti: 0, importo_sal: 19104,
+  });
+
+  it("una registrazione libera si modifica e lo storico dice chi, quando, prima e dopo; in un SAL no", async () => {
+    await rendiContrattuale();
+    const [r] = await q<{ id: string }>(`insert into lp_libretto(company_id, order_id, voce_id, data, righe, annotazioni)
+      values ($1,$2,$3,'2026-02-10','[{"quantita":300}]','prima') returning id`, [A, COMMESSA, V1]);
+    const [m] = await q<{ quantita: string; numero: number }>(
+      `update lp_libretto set righe='[{"lunghezza":10,"larghezza":25}]', annotazioni='corretta' where id=$1 returning quantita, numero`, [r.id]);
+    expect([Number(m.quantita), m.numero]).toEqual([250, 1]);
+    await come(LETTORE);
+    const storia = await q<{ operazione: string; modificato_da: string; prima: { quantita: number; annotazioni: string }; dopo: { quantita: number } }>(
+      `select operazione, modificato_da, prima, dopo from lp_libretto_modifiche where libretto_id=$1`, [r.id]);
+    expect(storia).toHaveLength(1);
+    expect(storia[0].operazione).toBe("modifica");
+    expect(storia[0].modificato_da).toBe(UFFICIO);
+    expect([storia[0].prima.quantita, storia[0].prima.annotazioni, storia[0].dopo.quantita]).toEqual([300, "prima", 250]);
+    // Lo storico non si scrive a mano.
+    await fallisce(() => q(`insert into lp_libretto_modifiche(company_id, order_id, libretto_id, numero, operazione, prima) values ($1,$2,$3,1,'modifica','{}')`, [A, COMMESSA, r.id]), /permission denied|row-level security/);
+    await come(UFFICIO);
+    await fallisce(() => q(`delete from lp_libretto_modifiche`), /permission denied/);
+    await come(ESTRANEO);
+    expect(await q(`select 1 from lp_libretto_modifiche`)).toHaveLength(0);
+
+    // Entrata in un SAL: non si modifica, e il contabilizzarla non è una modifica.
+    await come(UFFICIO);
+    await q(`select lp_sal_emetti($1, $2::jsonb, '[]')`, [COMMESSA, salDati]);
+    await fallisce(() => q(`update lp_libretto set annotazioni='dopo il SAL' where id=$1`, [r.id]), /contabilizzata/);
+    expect(await q(`select 1 from lp_libretto_modifiche where libretto_id=$1`, [r.id])).toHaveLength(1);
+  });
+
+  it("anche la cancellazione resta nello storico", async () => {
+    await rendiContrattuale();
+    const [r] = await q<{ id: string }>(`insert into lp_libretto(company_id, order_id, voce_id, righe) values ($1,$2,$3,'[{"quantita":5}]') returning id`, [A, COMMESSA, V1]);
+    await q(`delete from lp_libretto where id=$1`, [r.id]);
+    const [s] = await q<{ operazione: string; dopo: unknown }>(`select operazione, dopo from lp_libretto_modifiche where libretto_id=$1`, [r.id]);
+    expect([s.operazione, s.dopo]).toEqual(["eliminazione", null]);
+  });
+
+  it("al certificato si collega solo una fattura dell'azienda; il resto non cambia", async () => {
+    await rendiContrattuale();
+    const [{ id: sal }] = await q<{ id: string }>(`select lp_sal_emetti($1, $2::jsonb, '[]') id`, [COMMESSA, salDati]);
+    await q(`update lp_sal set stato='approvato' where id=$1`, [sal]);
+    const [c] = await q<{ id: string }>(`insert into lp_certificati_pagamento(company_id, order_id, sal_id, imponibile, aliquota_iva, iva, totale, split_payment, da_pagare_impresa)
+      values ($1,$2,$3,19104,10,1910.4,21014.4,true,19104) returning id`, [A, COMMESSA, sal]);
+    await come(null);
+    const [f] = await q<{ id: string }>(`insert into documenti_fiscali(company_id, tipo) values ($1,'fattura_pa') returning id`, [A]);
+    const [altra] = await q<{ id: string }>(`insert into documenti_fiscali(company_id, tipo) values ($1,'fattura') returning id`, [B]);
+    const [ddt] = await q<{ id: string }>(`insert into documenti_fiscali(company_id, tipo) values ($1,'ddt') returning id`, [A]);
+    await come(UFFICIO);
+    await fallisce(() => q(`update lp_certificati_pagamento set documento_fiscale_id=$1 where id=$2`, [altra.id, c.id]), /fattura dell'azienda/);
+    await fallisce(() => q(`update lp_certificati_pagamento set documento_fiscale_id=$1 where id=$2`, [ddt.id, c.id]), /fattura dell'azienda/);
+    await fallisce(() => q(`update lp_certificati_pagamento set documento_fiscale_id=$1, note='x' where id=$2`, [f.id, c.id]), /non si modifica/);
+    await q(`update lp_certificati_pagamento set documento_fiscale_id=$1 where id=$2`, [f.id, c.id]);
+    expect((await q<{ documento_fiscale_id: string }>(`select documento_fiscale_id from lp_certificati_pagamento where id=$1`, [c.id]))[0].documento_fiscale_id).toBe(f.id);
+    await come(LETTORE);
+    expect(await q(`update lp_certificati_pagamento set documento_fiscale_id=null where id=$1 returning id`, [c.id])).toHaveLength(0);
+    // La fattura cancellata davvero (purga) sgancia il certificato senza errori.
+    await come(null);
+    await q(`delete from documenti_fiscali where id=$1`, [f.id]);
+    expect((await q<{ documento_fiscale_id: string | null }>(`select documento_fiscale_id from lp_certificati_pagamento where id=$1`, [c.id]))[0].documento_fiscale_id).toBeNull();
+    await fallisce(() => q(`delete from lp_certificati_pagamento`), /non si modifica/);
   });
 });

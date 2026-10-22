@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { proponiSezioneQuadro, quadroEconomicoCompleto, sezioneVoce, type VoceQuadro } from "@/lib/computo/quadroEconomico";
 import {
   calcolaSal, certificatoPagamento, confrontoVariante, elencoPrezzi, numeroDigitato, prezzoRibassato, progressiviLibretto, quantitaRiga, quantitaRighe,
-  registroContabilita, vociContratto, type RegistrazioneLibretto, type VoceComputoContabile, type VoceContratto,
+  registroContabilita, riassuntoModificaLibretto, vociContratto, type RegistrazioneLibretto, type StatoRegistrazione, type VoceComputoContabile, type VoceContratto,
 } from "@/lib/computo/contabilitaLavori";
 
 /** Dati inventati (repo pubblico): un piccolo computo con lavori, sicurezza e somme a disposizione. */
@@ -79,6 +79,18 @@ describe("elenco prezzi e libretto", () => {
     expect(p.get("a")).toMatchObject({ progressivo: 40, eccedenza: 0 });
     expect(p.get("b")).toMatchObject({ progressivo: 110, quantita_contratto: 100, eccedenza: 10 });
     expect(p.get("c")?.progressivo).toBe(200);
+  });
+
+  it("storico: cosa è cambiato in una registrazione, in parole", () => {
+    const prima: StatoRegistrazione = { data: "2026-02-10", voce_id: "v1", quantita: 300, righe: [{ quantita: 300 }], annotazioni: "prima", firmatario: null, firmato_at: null, allegati: [] };
+    const numero = (id: string) => ({ v1: "1", v2: "2" })[id] ?? "?";
+    expect(riassuntoModificaLibretto(prima, { ...prima, quantita: 250, righe: [{ lunghezza: 10, larghezza: 25 }], data: "2026-02-12" }, numero))
+      .toEqual(["Data 10/02/2026 → 12/02/2026", "Quantità 300 → 250"]);
+    expect(riassuntoModificaLibretto(prima, { ...prima, voce_id: "v2", righe: [{ lunghezza: 30, larghezza: 10 }], annotazioni: "", allegati: [{}] }, numero))
+      .toEqual(["Voce 1 → 2", "Righe di misura riscritte (stessa quantità)", "Annotazioni tolte", "Foto 0 → 1"]);
+    expect(riassuntoModificaLibretto(prima, { ...prima, firmatario: "Ing. Bianchi", firmato_at: "2026-02-11T10:00:00Z" }))
+      .toEqual(["Firmatario — → Ing. Bianchi", "Segnata firmata"]);
+    expect(riassuntoModificaLibretto(prima, null, numero)).toEqual(["Eliminata (era 300, voce 1)"]);
   });
 });
 
