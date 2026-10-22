@@ -208,7 +208,7 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-genera-otp', {
         body: { request_id: sessione!.request_id, token, azienda_nome: sessione!.azienda_nome },
       });
-      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore invio OTP'));
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non inviato. Riprova.'));
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Invio del codice non confermato. Riprova.');
       setOtpTimer(600);
@@ -217,7 +217,7 @@ export default function FirmaDocumento() {
       setStep('otp');
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Errore invio OTP');
+      toast.error(err instanceof Error ? err.message : 'Codice non inviato. Riprova.');
     } finally {
       setInvioOtpInCorso(false);
     }
@@ -235,8 +235,9 @@ export default function FirmaDocumento() {
   };
 
   const continuaVersoOtp = async () => {
-    // L'OTP parte già insieme all'offerta: se è ancora valido si va dritti ai 6
-    // campi (niente terza email). Altrimenti se ne genera uno nuovo.
+    // Il codice parte quando chi firma lo chiede (dal 22/10/2026 non più insieme
+    // all'invito): se ce n'è uno ancora valido si va dritti ai 6 campi, altrimenti
+    // se ne manda uno nuovo.
     const restanti = secondiRestanti(sessione?.otp_valido_fino);
     if (restanti > 30) {
       setOtpTimer(Math.min(600, restanti));
@@ -476,7 +477,7 @@ export default function FirmaDocumento() {
     <Wrapper>
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Inserisci il codice OTP</h2>
+          <h2 className="text-xl font-bold text-slate-800">Inserisci il codice</h2>
           <p className="text-slate-500 text-sm mt-1">Controlla la tua email{sessione.signer_telefono_mascherato ? ' e gli SMS' : ''} e inserisci il codice a 6 cifre</p>
         </div>
         {sessione.signer_email_mascherata && (

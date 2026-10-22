@@ -77,7 +77,7 @@ export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsV
         <Alert className="border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800 text-sm">
-            Per documenti con valore legale completo, utilizza la FEA con OTP via SMS.
+            Per contratti e preventivi accendi la firma elettronica avanzata: chi firma si identifica con un documento d'identità.
           </AlertDescription>
         </Alert>
       </CardContent>

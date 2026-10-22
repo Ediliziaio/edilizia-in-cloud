@@ -261,7 +261,7 @@ async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quo
 }
 
 // deno-lint-ignore no-explicit-any
-async function titoloDelDocumento(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; categoria?: string | null }): Promise<string> {
+export async function titoloDelDocumento(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; categoria?: string | null }): Promise<string> {
   if (r.tipo_documento === "quote" && r.quote_id) {
     const { data } = await sb.from("quotes").select("quote_number").eq("id", r.quote_id).maybeSingle();
     return data?.quote_number ? `Preventivo ${data.quote_number}` : "Preventivo";

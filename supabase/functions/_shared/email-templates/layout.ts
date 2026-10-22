@@ -19,8 +19,14 @@ export function renderLayout(params: {
   innerBodyHtml: string;
   preheaderText?: string;
   isMarketing?: boolean;
+  /**
+   * Senza logo, una fascia nel colore dell'azienda con iniziali e nome invece
+   * del solo nome in testo (email della firma, 22/10/2026). Senza questa
+   * opzione la testata resta com'era per tutte le altre email.
+   */
+  fasciaSenzaLogo?: boolean;
 }): string {
-  const { branding, innerBodyHtml, preheaderText, isMarketing } = params;
+  const { branding, innerBodyHtml, preheaderText, isMarketing, fasciaSenzaLogo } = params;
 
   const logoBlock = branding.logoUrl
     ? `<img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(
@@ -98,11 +104,11 @@ export function renderLayout(params: {
       <td align="center" valign="top">
         <table role="presentation" class="container" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
           <!-- HEADER con logo -->
-          <tr>
+          ${!branding.logoUrl && fasciaSenzaLogo ? fasciaNome(branding) : `<tr>
             <td class="px-24" style="padding:24px;border-bottom:3px solid ${branding.primaryColor};">
               ${logoBlock}
             </td>
-          </tr>
+          </tr>`}
 
           <!-- BODY -->
           <tr>
@@ -133,6 +139,30 @@ export function renderLayout(params: {
   </table>
 </body>
 </html>`;
+}
+
+/** Iniziali del nome dell'azienda, saltando le forme societarie: «Demo Azienda 2 S.r.l.» → «DA». */
+export function inizialiAzienda(nome: string): string {
+  const parole = nome.replace(/\b(s\.?r\.?l\.?s?|s\.?p\.?a\.?|s\.?n\.?c\.?|s\.?a\.?s\.?|srl|spa|snc|sas)\b\.?/gi, " ")
+    .split(/[\s&,.-]+/).filter((p) => /^[\p{L}]/u.test(p));
+  return (parole.slice(0, 2).map((p) => p[0]).join("") || nome.trim()[0] || "?").toUpperCase();
+}
+
+/** Testata senza logo: fascia colorata, quadratino con le iniziali e nome in bianco. */
+function fasciaNome(branding: Branding): string {
+  return `<tr>
+            <td class="px-24" bgcolor="${branding.primaryColor}" style="background:${branding.primaryColor};padding:22px 24px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr>
+                <td width="44" height="44" align="center" valign="middle" bgcolor="#FFFFFF"
+                  style="width:44px;height:44px;background:#FFFFFF;border-radius:10px;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;color:${branding.primaryColor};">
+                  ${escapeHtml(inizialiAzienda(branding.companyName))}
+                </td>
+                <td style="padding-left:14px;font-family:Arial,Helvetica,sans-serif;font-size:19px;font-weight:700;color:#FFFFFF;line-height:24px;">
+                  ${escapeHtml(branding.companyName)}
+                </td>
+              </tr></table>
+            </td>
+          </tr>`;
 }
 
 /**

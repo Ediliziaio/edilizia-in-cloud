@@ -104,7 +104,7 @@ export function SendSignatureDialog({
   const generateWhatsAppText = () =>
     encodeURIComponent(
       `Salve${name ? ` ${name}` : ""},\n\n` +
-      `Le inviamo il preventivo ${quoteNumber} per la sua approvazione con firma elettronica OTP.\n\n` +
+      `Le inviamo il preventivo ${quoteNumber} per la sua approvazione con firma elettronica.\n\n` +
       `Può visualizzare e firmare il preventivo direttamente da questo link:\n` +
       `${resultLink || "[link non disponibile]"}\n\n` +
       `Il link è valido per ${days} giorni.\n\n` +
@@ -117,7 +117,7 @@ export function SendSignatureDialog({
         <DialogHeader>
           <DialogTitle>Invia per Firma Elettronica</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            Invia l'offerta {quoteNumber} al cliente: riceverà il link sicuro e il codice OTP per firmare.
+            Invia l'offerta {quoteNumber} al cliente: riceve un'email con il link per leggerla e firmarla.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +195,7 @@ export function SendSignatureDialog({
                 ) : (
                   <Send className="h-4 w-4 mr-2" />
                 )}
-                {isSending ? "Invio in corso..." : "Invia email e OTP"}
+                {isSending ? "Invio in corso..." : "Invia per la firma"}
               </Button>
             </DialogFooter>
           </>
@@ -205,7 +205,7 @@ export function SendSignatureDialog({
               <CheckCircle className="h-12 w-12 text-primary" />
               <p className="font-medium">Offerta inviata con successo!</p>
               <p className="text-sm text-muted-foreground">
-                Il cliente riceverà il link sicuro e il codice OTP per visualizzare e firmare l'offerta.
+                Il cliente riceve un'email con il link: quando apre l'offerta e decide di firmare, gli arriva il codice.
               </p>
             </div>
 
