@@ -18,9 +18,10 @@ import { computoLetto, useComputiCommessa, useVociComputo } from "@/hooks/useCom
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { generaDistinta, type ConteggioConfermato, type Scomposizione } from "@/lib/distinta/generaDistinta";
 import { capitoloVoce, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
+import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
 
-const NUOVA = "nuova:";
-const SENZA = "senza";
+const NUOVA = VALORE_NUOVA;
+const SENZA = VALORE_SENZA;
 
 async function caricaScomposizioni(companyId: string): Promise<Scomposizione[]> {
   const { data, error } = await supabase
@@ -72,8 +73,28 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
     }
     return iniziale;
   }, [dati.data, vociComputo]);
+  // I capitoli che le parole non sanno mettere in una fase: li propone l'AI
+  // (fase esistente o nuova, col motivo). Resta un suggerimento modificabile;
+  // se l'AI non risponde vale la proposta per parole.
+  const perParole = useMemo(() => (dati.data ? propostaFasi(vociComputo, dati.data.fasi) : new Map<string, string | null>()), [dati.data, vociComputo]);
+  const sicuri = useMemo(() => new Set([...perParole].filter(([, f]) => !!f).map(([c]) => c)), [perParole]);
+  const incerti = useMemo(() => capitoliIncerti(vociComputo, perParole), [vociComputo, perParole]);
+  const suggerimentiAI = useQuery({
+    queryKey: ["genera-materiali-fasi-ai", orderId, incerti.map((c) => c.nome).join("|"), (dati.data?.fasi ?? []).map((f) => f.id).join("|")],
+    enabled: open && !!dati.data && incerti.length > 0 && !!companyId,
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async (): Promise<SuggerimentoFase[]> => {
+      const { data, error } = await supabase.functions.invoke("distinta-proponi-fasi", {
+        body: { company_id: companyId, order_id: orderId, capitoli: incerti.slice(0, 40) },
+      });
+      if (error) throw error;
+      return leggiSuggerimentiFase(data, incerti.map((c) => c.nome), dati.data?.fasi ?? []);
+    },
+  });
+  const suggerimenti = useMemo(() => suggerimentiAI.data ?? [], [suggerimentiAI.data]);
   const [scelte, setScelte] = useState<Record<string, string>>({});
-  const mappa = useMemo(() => ({ ...proposta, ...scelte }), [proposta, scelte]);
+  const mappa = useMemo(() => fondiProposte(proposta, suggerimenti, sicuri, scelte), [proposta, suggerimenti, sicuri, scelte]);
   const setMappa = (m: Record<string, string>) => setScelte(m);
 
   const faseDiCapitolo = (capitolo: string) => {
@@ -216,20 +237,35 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
                 {fasiNuove.length > 0 && !(dati.data?.fasi.length) && (
                   <p className="mb-2 text-xs text-slate-600">La commessa non ha fasi: le creo dai capitoli del computo (puoi cambiarle).</p>
                 )}
+                {suggerimentiAI.isFetching && <p className="mb-2 text-xs text-slate-600">L'AI sta proponendo la fase per {incerti.length} capitoli senza abbinamento sicuro…</p>}
+                {suggerimentiAI.isError && <p className="mb-2 text-xs text-amber-800">Proposta dell'AI non disponibile: resta il confronto per parole, scegli tu la fase.</p>}
                 <ul className="divide-y rounded border">
-                  {capitoli.map((c) => (
-                    <li key={c} className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
-                      <span className="min-w-0 truncate">{c}</span>
-                      <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
-                        <SelectTrigger className="h-8 w-64" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                          {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Crea la fase «{c}»</SelectItem>}
-                          <SelectItem value={SENZA}>Senza fase</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </li>
-                  ))}
+                  {capitoli.map((c) => {
+                    const s = suggerimenti.find((x) => x.capitolo === c);
+                    const nuovaAI = s?.nuova_fase && s.nuova_fase !== c ? s.nuova_fase : null;
+                    return (
+                      <li key={c} className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate">{c}</span>
+                          {s && !sicuri.has(c) && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-violet-800" title="Suggerimento dell'AI: puoi cambiarlo">
+                              <Sparkles className="h-3 w-3" aria-hidden />
+                              AI: {s.motivo} · {Math.round(s.confidenza * 100)}%
+                            </span>
+                          )}
+                        </div>
+                        <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
+                          <SelectTrigger className="h-8 w-64" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                            {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Crea la fase «{nuovaAI}» (AI)</SelectItem>}
+                            {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Crea la fase «{c}»</SelectItem>}
+                            <SelectItem value={SENZA}>Senza fase</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             )}
