@@ -310,12 +310,20 @@ Deno.serve(async (req) => {
           .eq("selected", true);
         const prevSelectedPages = new Set((prevSelPages ?? []).map((r: any) => r.asset_id));
 
-        // Clear old page assets for this integration
+        // Le pagine si AGGIORNANO, non si cancellano e reinseriscono (22/10/2026).
+        // meta_lead_forms.page_asset_id è ON DELETE CASCADE: cancellare la pagina
+        // cancellava anche i moduli attivati dall'azienda, e da quel momento i suoi
+        // lead finivano scartati come «modulo non attivato». Il 21-22/10 ogni
+        // riconnessione ha spento i moduli di BeMade, Renova, Best Infissi,
+        // Green Energy, Suntech, Ser Style… Si tolgono solo le pagine che l'account
+        // non vede più.
+        const pagineViste = allPages.map((page: any) => String(page.id));
         await adminClient
           .from("meta_assets")
           .delete()
           .eq("integration_id", integration.id)
-          .eq("asset_type", "page");
+          .eq("asset_type", "page")
+          .not("asset_id", "in", `(${pagineViste.join(",")})`);
 
         // Store page access tokens separately in integration_credentials-like storage
         // NOT in meta_assets.metadata (which is client-readable via RLS)
@@ -334,7 +342,10 @@ Deno.serve(async (req) => {
           },
         }));
 
-        await adminClient.from("meta_assets").insert(pageAssets);
+        const { error: errPagine } = await adminClient
+          .from("meta_assets")
+          .upsert(pageAssets, { onConflict: "integration_id,asset_type,asset_id" });
+        if (errPagine) console.error("[meta-oauth-callback] salvataggio pagine:", errPagine.message);
 
         // Store page tokens in a secure way: save them in integration_credentials metadata
         // keyed by page_id for retrieval by the proxy
