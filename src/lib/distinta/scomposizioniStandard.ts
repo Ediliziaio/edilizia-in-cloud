@@ -486,7 +486,7 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
 
 /** La libreria come scomposizioni attive (per provare il riconoscimento). */
 export function catalogoComeScomposizioni(): Scomposizione[] {
-  return SCOMPOSIZIONI_STANDARD.map((s) => ({
+  return SCOMPOSIZIONI_STANDARD.map((s): Scomposizione => ({
     id: s.codice_standard,
     nome: s.nome,
     codice_prezzario: null,
