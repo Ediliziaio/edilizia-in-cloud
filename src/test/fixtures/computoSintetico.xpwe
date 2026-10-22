@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Computo di prova scritto a mano sul modello degli XPWE esportati da PriMus. -->
+<PweDocumento>
+  <CopyRight>Copyright ACCA software S.p.A.</CopyRight>
+  <TipoDocumento>1</TipoDocumento>
+  <TipoFormato>XMLPwe</TipoFormato>
+  <Versione>5.0</Versione>
+  <SourceNome>PriMus</SourceNome>
+  <PweDatiGenerali>
+    <PweDGProgetto>
+      <PweDGDatiGenerali>
+        <Comune>Comune di Prova</Comune>
+        <Oggetto>Manutenzione straordinaria della scuola &quot;G. Verdi&quot;</Oggetto>
+        <Committente>Comune di Prova - Ufficio Tecnico</Committente>
+        <Impresa>Impresa di prova</Impresa>
+      </PweDGDatiGenerali>
+    </PweDGProgetto>
+    <PweDGCapitoliCategorie>
+      <PweDGSuperCapitoli/>
+      <PweDGCapitoli/>
+      <PweDGSubCapitoli/>
+      <PweDGSuperCategorie>
+        <DGSuperCategorieItem ID="1"><DesSintetica>LAVORI EDILI</DesSintetica><DesEstesa/></DGSuperCategorieItem>
+      </PweDGSuperCategorie>
+      <PweDGCategorie>
+        <DGCategorieItem ID="1"><DesSintetica>ONERI DELLA SICUREZZA</DesSintetica></DGCategorieItem>
+        <DGCategorieItem ID="2"><DesSintetica>DEMOLIZIONI</DesSintetica></DGCategorieItem>
+        <DGCategorieItem ID="3"><DesSintetica>INTONACI E TINTEGGIATURE</DesSintetica></DGCategorieItem>
+      </PweDGCategorie>
+      <PweDGSubCategorie>
+        <DGSubCategorieItem ID="1"><DesSintetica>Piano terra</DesSintetica></DGSubCategorieItem>
+        <DGSubCategorieItem ID="2"><DesSintetica>Piano primo</DesSintetica></DGSubCategorieItem>
+      </PweDGSubCategorie>
+    </PweDGCapitoliCategorie>
+  </PweDatiGenerali>
+  <PweMisurazioni>
+    <PweElencoPrezzi>
+      <EPItem ID="1">
+        <TipoEP>0</TipoEP>
+        <Tariffa>S.01.010</Tariffa>
+        <Articolo>SR5014</Articolo>
+        <DesRidotta>Recinzione di cantiere</DesRidotta>
+        <DesEstesa>Recinzione provvisionale di cantiere con pannelli metallici zincati su basi in calcestruzzo,
+compreso montaggio, smontaggio e nolo per tutta la durata dei lavori.</DesEstesa>
+        <UnMisura>m</UnMisura>
+        <Prezzo1>12.50</Prezzo1>
+        <IDSpCap>0</IDSpCap><IDCap>0</IDCap><IDSbCap>0</IDSbCap>
+      </EPItem>
+      <EPItem ID="2">
+        <Tariffa>S.02.001</Tariffa>
+        <DesEstesa>Riunione di coordinamento della sicurezza, costo ad personam per ogni ora.</DesEstesa>
+        <UnMisura>h</UnMisura>
+        <Prezzo1>38.05</Prezzo1>
+      </EPItem>
+      <EPItem ID="3">
+        <Tariffa>E.01.020.a</Tariffa>
+        <DesEstesa>Demolizione di intonaco interno a qualsiasi altezza, compreso il carico e il trasporto a discarica autorizzata dei materiali di risulta &amp; gli oneri di smaltimento.</DesEstesa>
+        <UnMisura>mq</UnMisura>
+        <Prezzo1>9.80</Prezzo1>
+      </EPItem>
+      <EPItem ID="4">
+        <Tariffa>E.08.010</Tariffa>
+        <DesEstesa><![CDATA[Intonaco civile per interni con malta di calce, spessore 2 cm, tirato a frattazzo <fino> a regola d'arte.]]></DesEstesa>
+        <UnMisura>mq</UnMisura>
+        <Prezzo1>24.30</Prezzo1>
+      </EPItem>
+      <EPItem ID="5">
+        <Tariffa>E.09.005</Tariffa>
+        <DesEstesa>Tinteggiatura con idropittura traspirante, due mani.</DesEstesa>
+        <UnMisura>mq</UnMisura>
+        <Prezzo1>6.15</Prezzo1>
+      </EPItem>
+      <EPItem ID="6">
+        <Tariffa>NP.01</Tariffa>
+        <DesEstesa>Trasporto e conferimento a discarica, a corpo.</DesEstesa>
+        <UnMisura>a corpo</UnMisura>
+        <Prezzo1>850</Prezzo1>
+      </EPItem>
+    </PweElencoPrezzi>
+    <PweVociComputo>
+      <VCItem ID="1">
+        <IDEP>1</IDEP><Quantita>84.00</Quantita><IDSpCat>1</IDSpCat><IDCat>1</IDCat><IDSbCat>0</IDSbCat>
+        <PweVCMisure>
+          <RGItem ID="1"><IDVV>-2</IDVV><Descrizione>Lato strada</Descrizione><PartiUguali></PartiUguali><Lunghezza>42.00</Lunghezza><Larghezza></Larghezza><HPeso></HPeso><Quantita>42.00</Quantita></RGItem>
+          <RGItem ID="2"><IDVV>-2</IDVV><Descrizione>Lato cortile</Descrizione><PartiUguali>2</PartiUguali><Lunghezza>21.00</Lunghezza><Larghezza/><HPeso/><Quantita>42.00</Quantita></RGItem>
+        </PweVCMisure>
+      </VCItem>
+      <VCItem ID="2">
+        <IDEP>2</IDEP><Quantita>75.00</Quantita><IDSpCat>1</IDSpCat><IDCat>1</IDCat><IDSbCat>0</IDSbCat>
+        <PweVCMisure>
+          <RGItem ID="1"><Descrizione>5 riunioni con 5 preposti, 3 ore</Descrizione><PartiUguali>5*5</PartiUguali><Lunghezza/><Larghezza/><HPeso>3</HPeso><Quantita>75</Quantita></RGItem>
+        </PweVCMisure>
+      </VCItem>
+      <VCItem ID="3">
+        <IDEP>3</IDEP><Quantita>130.20</Quantita><IDSpCat>1</IDSpCat><IDCat>2</IDCat><IDSbCat>1</IDSbCat>
+        <PweVCMisure>
+          <RGItem ID="1"><Descrizione>Aule 1-4</Descrizione><PartiUguali>4</PartiUguali><Lunghezza>7.50</Lunghezza><Larghezza></Larghezza><HPeso>3.20</HPeso><Quantita>96.00</Quantita></RGItem>
+          <RGItem ID="2"><Descrizione>Corridoio</Descrizione><PartiUguali>2</PartiUguali><Lunghezza>18.00</Lunghezza><Larghezza/><HPeso>3.20</HPeso><Quantita>115.20</Quantita></RGItem>
+          <RGItem ID="3"><Descrizione>a detrarre porte</Descrizione><PartiUguali>-6</PartiUguali><Lunghezza>2.50</Lunghezza><Larghezza/><HPeso>5.40</HPeso><Quantita>-81.00</Quantita></RGItem>
+        </PweVCMisure>
+      </VCItem>
+      <VCItem ID="4">
+        <IDEP>4</IDEP><Quantita>130.20</Quantita><IDSpCat>1</IDSpCat><IDCat>3</IDCat><IDSbCat>1</IDSbCat>
+        <PweVCMisure>
+          <RGItem ID="1"><Descrizione>Come demolizione</Descrizione><PartiUguali/><Lunghezza/><Larghezza/><HPeso/><Quantita>130.20</Quantita></RGItem>
+        </PweVCMisure>
+      </VCItem>
+      <VCItem ID="5">
+        <IDEP>5</IDEP><IDSpCat>1</IDSpCat><IDCat>3</IDCat><IDSbCat>2</IDSbCat>
+        <PweVCMisure>
+          <RGItem ID="1"><Descrizione>Pareti piano primo</Descrizione><PartiUguali>(2+3)*2</PartiUguali><Lunghezza>12.00</Lunghezza><Larghezza/><HPeso>3.00</HPeso></RGItem>
+          <RGItem ID="2"><Descrizione>Soffitti</Descrizione><PartiUguali/><Lunghezza>12.00</Lunghezza><Larghezza>8.50</Larghezza><HPeso/></RGItem>
+        </PweVCMisure>
+      </VCItem>
+      <VCItem ID="6">
+        <IDEP>6</IDEP><Quantita>1</Quantita><IDSpCat>1</IDSpCat><IDCat>2</IDCat><IDSbCat>0</IDSbCat>
+        <PweVCMisure/>
+      </VCItem>
+    </PweVociComputo>
+  </PweMisurazioni>
+</PweDocumento>
