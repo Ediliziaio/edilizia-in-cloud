@@ -67050,6 +67050,7 @@ export type Database = {
           received_date: string | null
           sku: string | null
           sort_order: number
+          stock_item_id: string | null
           unit_of_measure: string | null
           unit_price: number
           updated_at: string
@@ -67073,6 +67074,7 @@ export type Database = {
           received_date?: string | null
           sku?: string | null
           sort_order?: number
+          stock_item_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number
           updated_at?: string
@@ -67096,6 +67098,7 @@ export type Database = {
           received_date?: string | null
           sku?: string | null
           sort_order?: number
+          stock_item_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number
           updated_at?: string
@@ -88167,7 +88170,9 @@ export type Database = {
           piano_base: number | null
           prezzo_costo: number | null
           prezzo_piano_aggiuntivo: number | null
+          prezzo_modo: string
           prezzo_vendita: number | null
+          ricarico_pct: number | null
           sort_order: number | null
           tipo: string
           unita: string
@@ -88195,7 +88200,9 @@ export type Database = {
           piano_base?: number | null
           prezzo_costo?: number | null
           prezzo_piano_aggiuntivo?: number | null
+          prezzo_modo?: string
           prezzo_vendita?: number | null
+          ricarico_pct?: number | null
           sort_order?: number | null
           tipo: string
           unita?: string
@@ -88223,7 +88230,9 @@ export type Database = {
           piano_base?: number | null
           prezzo_costo?: number | null
           prezzo_piano_aggiuntivo?: number | null
+          prezzo_modo?: string
           prezzo_vendita?: number | null
+          ricarico_pct?: number | null
           sort_order?: number | null
           tipo?: string
           unita?: string

@@ -42,6 +42,10 @@ export interface Tariffa {
   external_team_id?: string | null;
   /** Configurazione del costo e gruppo di lavorazione, senza nuove colonne DB. */
   custom_field_values?: unknown;
+  /** libero = prezzo scritto a mano; dal_costo = costo pieno × (1 + ricarico_pct). */
+  prezzo_modo?: "libero" | "dal_costo" | null;
+  /** Ricarico % sul costo pieno, per le voci «dal costo». */
+  ricarico_pct?: number | null;
 }
 
 export interface TipoDef {

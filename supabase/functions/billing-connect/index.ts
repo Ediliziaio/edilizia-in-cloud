@@ -263,6 +263,42 @@ serveConMetriche("billing-connect", async (req) => {
     return json({ success: true, company_name: test.companyName });
   }
 
+  // ── Configura Zucchetti Digital Hub / FatelWeb (URL servizio + utente + password + company)
+  // SOAP a sessione: il testConnection fa un connect reale (e poi disconnect). Salviamo
+  // utente/URL nelle colonne dedicate, password in api_key, company in company_external_id.
+  if (action === "configure_zucchetti" && req.method === "POST") {
+    const { url, utente, password, company } = body as {
+      url: string; utente: string; password: string; company: string;
+    };
+    if (!url || !utente || !password || !company)
+      return json({ error: "URL servizio, utente, password e company Zucchetti richiesti" }, 400);
+
+    const adapter = createAdapter({
+      provider: "zucchetti",
+      provider_base_url: url,
+      provider_username: utente,
+      api_key: password,
+      company_external_id: company,
+    });
+    const test = await adapter.testConnection();
+    if (!test.success) return json({ error: test.error || "Credenziali Zucchetti non valide" }, 400);
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider: "zucchetti",
+      is_active: true,
+      provider_base_url: url,
+      provider_username: utente,
+      api_key: password,
+      company_external_id: company,
+      provider_company_name: test.companyName,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return json({ success: true, company_name: test.companyName });
+  }
+
   // ── Testa connessione provider esistente
   if (action === "test_connection" && req.method === "POST") {
     const { provider } = body as { provider: string };

@@ -14,16 +14,11 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover, PopoverTrigger, PopoverContent,
-} from "@/components/ui/popover";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,14 +26,13 @@ import {
   FileCheck, Plus, Search, Truck, Warehouse as WarehouseIcon,
   FileText, ShoppingCart, ArrowRight, AlertTriangle, Paperclip,
   ShieldCheck, Image as ImageIcon, ChevronRight, Clock,
-  Download, ChevronDown, FileSpreadsheet, Filter, X, Calendar as CalendarIcon,
+  Download, ChevronDown, FileSpreadsheet, X, Calendar as CalendarIcon,
   ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useDDTRicezioneList, type DDTStato } from "@/hooks/useDDTRicezione";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
-import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
@@ -122,13 +116,13 @@ export default function DDTRicezioneList() {
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
 
-  // Advanced filters
+  // Filtri in vista: commessa, fornitore, periodo. Prima stavano in un menu,
+  // senza la commessa, e quello per data non funzionava (cercava `data_ddt`,
+  // un campo che non esiste: la data è `data_ricezione`, e la lista si svuotava).
+  // Danni e non conformi hanno la loro scheda («Non conformi»).
+  const [filterOrder, setFilterOrder] = useState<string>("all"); // all | none | id commessa
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
-  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
-  const [filterDateTo, setFilterDateTo] = useState<string>("");
-  const [filterHasDamages, setFilterHasDamages] = useState<"all" | "yes" | "no">("all");
-  const [filterHasAttachments, setFilterHasAttachments] = useState<"all" | "yes" | "no">("all");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterPeriodo, setFilterPeriodo] = useState<"tutto" | "30" | "90" | "anno">("tutto");
   const [sort, setSort] = useState<{ key: DDTSortKey; direction: SortDirection }>({
     key: "data",
     direction: "desc",
@@ -136,30 +130,38 @@ export default function DDTRicezioneList() {
 
   const { data: ddtList = [], isLoading } = useDDTRicezioneList();
   const { orders } = usePurchaseOrders();
-  const { suppliers } = useOperationalSuppliers();
 
   const availablePOs = useMemo(
     () => orders.filter((o) => o.status !== "annullato"),
     [orders]
   );
 
-  const activeFiltersCount = useMemo(() => {
-    let n = 0;
-    if (filterSupplier !== "all") n++;
-    if (filterDateFrom) n++;
-    if (filterDateTo) n++;
-    if (filterHasDamages !== "all") n++;
-    if (filterHasAttachments !== "all") n++;
-    return n;
-  }, [filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments]);
+  const activeFiltersCount =
+    (filterOrder !== "all" ? 1 : 0) + (filterSupplier !== "all" ? 1 : 0) + (filterPeriodo !== "tutto" ? 1 : 0);
 
   const clearFilters = () => {
+    setFilterOrder("all");
     setFilterSupplier("all");
-    setFilterDateFrom("");
-    setFilterDateTo("");
-    setFilterHasDamages("all");
-    setFilterHasAttachments("all");
+    setFilterPeriodo("tutto");
   };
+
+  // le scelte vengono dalle bolle che ci sono, non da tutta l'anagrafica
+  const commesseInElenco = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of ddtList) {
+      const o = d.purchase_orders?.orders;
+      if (d.purchase_orders?.order_id && o?.order_code) m.set(d.purchase_orders.order_id, o.order_code);
+    }
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "it", { numeric: true }));
+  }, [ddtList]);
+  const fornitoriInElenco = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of ddtList) {
+      const id = d.purchase_orders?.supplier_id;
+      if (id) m.set(id, d.purchase_orders?.suppliers?.name ?? "Fornitore");
+    }
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "it"));
+  }, [ddtList]);
 
   const handleSort = (key: DDTSortKey) => {
     setSort((current) => ({
@@ -192,25 +194,17 @@ export default function DDTRicezioneList() {
       });
     }
 
+    if (filterOrder === "none") list = list.filter((d) => !d.purchase_orders?.order_id);
+    else if (filterOrder !== "all") list = list.filter((d) => d.purchase_orders?.order_id === filterOrder);
     if (filterSupplier !== "all") {
-      list = list.filter((d) => d.purchase_orders?.suppliers?.id === filterSupplier || d.purchase_orders?.supplier_id === filterSupplier);
+      list = list.filter((d) => d.purchase_orders?.supplier_id === filterSupplier);
     }
-    if (filterDateFrom) {
-      const from = new Date(filterDateFrom + "T00:00:00").getTime();
-      list = list.filter((d) => d.data_ddt && new Date(d.data_ddt).getTime() >= from);
-    }
-    if (filterDateTo) {
-      const to = new Date(filterDateTo + "T23:59:59").getTime();
-      list = list.filter((d) => d.data_ddt && new Date(d.data_ddt).getTime() <= to);
-    }
-    if (filterHasDamages !== "all") {
-      list = list.filter((d) => filterHasDamages === "yes" ? (d.has_damages || d.stato === "non_conforme") : !(d.has_damages || d.stato === "non_conforme"));
-    }
-    if (filterHasAttachments !== "all") {
-      list = list.filter((d) => {
-        const has = (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0) > 0;
-        return filterHasAttachments === "yes" ? has : !has;
-      });
+    if (filterPeriodo !== "tutto") {
+      const da = new Date();
+      if (filterPeriodo === "anno") da.setMonth(0, 1);
+      else da.setDate(da.getDate() - Number(filterPeriodo));
+      const daIso = da.toLocaleDateString("en-CA");
+      list = list.filter((d) => (d.data_ricezione ?? "").slice(0, 10) >= daIso);
     }
 
     const getSortValue = (d: (typeof ddtList)[number], key: DDTSortKey) => {
@@ -219,7 +213,7 @@ export default function DDTRicezioneList() {
         case "numero":
           return d.numero_ddt;
         case "data":
-          return new Date(d.data_ricezione ?? d.data_ddt ?? 0).getTime();
+          return new Date(d.data_ricezione ?? 0).getTime();
         case "fornitore":
           return po?.suppliers?.name ?? po?.oda_number ?? "";
         case "corriere":
@@ -241,7 +235,7 @@ export default function DDTRicezioneList() {
       const result = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
       return sort.direction === "asc" ? result : -result;
     });
-  }, [ddtList, tab, search, filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments, sort]);
+  }, [ddtList, tab, search, filterOrder, filterSupplier, filterPeriodo, sort]);
 
   // Export
   const buildExportRows = useCallback(() => {
@@ -249,7 +243,7 @@ export default function DDTRicezioneList() {
       const po = d.purchase_orders;
       return {
         numero_ddt: d.numero_ddt,
-        data: d.data_ddt ? format(new Date(d.data_ddt), "dd/MM/yyyy") : "",
+        data: d.data_ricezione ? format(new Date(d.data_ricezione), "dd/MM/yyyy") : "",
         oda: po?.oda_number ?? "",
         supplier: po?.suppliers?.name ?? "",
         order_code: po?.orders?.order_code ?? "",
@@ -424,74 +418,6 @@ export default function DDTRicezioneList() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Filtri avanzati */}
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="relative" aria-label="Filtri avanzati">
-                <Filter className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Filtri</span>
-                {activeFiltersCount > 0 && (
-                  <Badge className="ml-1 sm:ml-2 h-4 w-4 sm:h-5 sm:w-auto sm:px-1.5 p-0 text-[10px] bg-primary flex items-center justify-center">{activeFiltersCount}</Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-[320px] p-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">Filtri avanzati</p>
-                  {activeFiltersCount > 0 && (
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
-                      <X className="h-3 w-3 mr-1" /> Azzera
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Fornitore</Label>
-                  <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tutti i fornitori</SelectItem>
-                      {suppliers.filter((s) => s.is_active).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />DDT dal</Label>
-                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 md:h-9 text-sm md:text-xs" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">DDT al</Label>
-                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 md:h-9 text-sm md:text-xs" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Non conformità</Label>
-                  <Select value={filterHasDamages} onValueChange={(v) => setFilterHasDamages(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tutti</SelectItem>
-                      <SelectItem value="yes">Con danni / non conformi</SelectItem>
-                      <SelectItem value="no">Solo conformi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Allegati</Label>
-                  <Select value={filterHasAttachments} onValueChange={(v) => setFilterHasAttachments(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tutti</SelectItem>
-                      <SelectItem value="yes">Con allegati</SelectItem>
-                      <SelectItem value="no">Senza allegati</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
 
           <Button
             onClick={() => setNewOpen(true)}
@@ -581,6 +507,49 @@ export default function DDTRicezioneList() {
           />
         </div>
         </div>
+        {/* Telefono no: bastano gli stati e la ricerca. */}
+        <div className="mt-2.5 hidden flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5 sm:flex">
+          <Select value={filterOrder} onValueChange={setFilterOrder}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterOrder !== "all" && "border-orange-300 bg-orange-50")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le commesse</SelectItem>
+              <SelectItem value="none">Senza commessa</SelectItem>
+              {commesseInElenco.map(([id, codice]) => (
+                <SelectItem key={id} value={id}>{codice}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterSupplier !== "all" && "border-orange-300 bg-orange-50")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i fornitori</SelectItem>
+              {fornitoriInElenco.map(([id, nome]) => (
+                <SelectItem key={id} value={id}>{nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterPeriodo} onValueChange={(v) => setFilterPeriodo(v as typeof filterPeriodo)}>
+            <SelectTrigger className={cn("h-8 w-auto min-w-[130px] text-xs", filterPeriodo !== "tutto" && "border-orange-300 bg-orange-50")}>
+              <CalendarIcon className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutto">Sempre</SelectItem>
+              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
+              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+              <SelectItem value="anno">Quest'anno</SelectItem>
+            </SelectContent>
+          </Select>
+          {activeFiltersCount > 0 && (
+            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={clearFilters}>
+              <X className="mr-1 h-3 w-3" /> Azzera
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ─── List ─────────────────────────────────────────────── */}
@@ -657,7 +626,7 @@ export default function DDTRicezioneList() {
                           </div>
                         </td>
                         <td className="p-3 text-muted-foreground text-xs">
-                          {(ddt.data_ricezione ?? ddt.data_ddt) ? format(new Date(ddt.data_ricezione ?? ddt.data_ddt), "dd/MM/yyyy", { locale: it }) : "—"}
+                          {ddt.data_ricezione ? format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it }) : "—"}
                         </td>
                         <td className="p-3">
                           <div className="flex flex-col gap-0.5">
@@ -839,7 +808,7 @@ function MobileDDTCard({
 
           {/* Line 3: meta (data · ODA · corriere) */}
           <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground flex-wrap">
-            <span>{(ddt.data_ricezione ?? ddt.data_ddt) ? format(new Date(ddt.data_ricezione ?? ddt.data_ddt), "dd/MM/yyyy", { locale: it }) : "—"}</span>
+            <span>{ddt.data_ricezione ? format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it }) : "—"}</span>
             {po?.oda_number && (
               <span className="inline-flex items-center gap-0.5 text-primary">
                 <ShoppingCart className="h-2.5 w-2.5" />

@@ -5,20 +5,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { inviaSmsCodiceFirma } from "../_shared/inviaSmsFirma.ts";
 import { erroreStatoFirma, nuovoCodiceFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 import { MAX_CODICI_INVIATI, MAX_ERRORI_TOTALI } from "../_shared/firmaAvanzata.ts";
-
-const esc = (v: string) => v.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
-
-function buildOTPEmail(otp: string, nome: string, azienda: string, link: string): string {
-  return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
-  <h2 style="color:#1E3A5F">Codice di verifica per la firma</h2>
-  <p>Gentile ${esc(nome)},</p>
-  <p>${esc(azienda)} ti ha inviato un documento da firmare.</p>
-  <p>Il tuo codice OTP (valido 10 minuti):</p>
-  <div style="font-size:40px;font-weight:bold;letter-spacing:12px;color:#1E3A5F;padding:20px;background:#F1F5F9;border-radius:8px;text-align:center">${otp}</div>
-  <p><a href="${esc(link)}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#F97316;color:white;border-radius:6px;text-decoration:none;font-weight:bold">Apri il documento</a></p>
-  <p style="color:#64748B;font-size:12px">Se non hai richiesto questa firma, ignora questa email.</p>
-</div>`;
-}
+import { brandingFirma, emailCodiceFirma } from "../_shared/emailFirma.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -143,18 +130,21 @@ Deno.serve(async (req: Request) => {
     // Link firma — usa la nuova route /firma-fea/:token
     const branding = await getBrandingForCompany(supabaseAdmin, sigReq.company_id);
     const firmaLink = `${branding.siteUrl}/firma-fea/${sigReq.token}`;
-    const { data: azienda } = await supabaseAdmin.from("companies").select("name").eq("id", sigReq.company_id).maybeSingle();
-    const brandName = azienda?.name ?? branding.platformName;
+    const marchio = await brandingFirma(supabaseAdmin, sigReq.company_id);
+    const brandName = marchio.branding.companyName || branding.platformName;
 
     // Invia email OTP
     let emailInviata = false;
     try {
+      const email = emailCodiceFirma(marchio, { nome: sigReq.signer_name ?? "Gentile cliente", codice: otp, link: firmaLink });
       const invio = await sendEmailUnified({
         companyId:    sigReq.company_id,
         stream:       "transactional",
         to:           [sigReq.signer_email],
-        subject:      `Codice OTP per la firma — ${brandName}`,
-        html:         buildOTPEmail(otp, sigReq.signer_name, brandName, firmaLink),
+        subject:      email.subject,
+        html:         email.html,
+        text:         email.text,
+        replyTo:      email.replyTo,
         templateName: "fea_otp",
         skipCredits:  true,
         adminClient:  supabaseAdmin,

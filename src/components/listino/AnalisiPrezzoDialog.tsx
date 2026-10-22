@@ -254,18 +254,22 @@ function AnalisiEditor({
       if (eDel) throw eDel;
 
       // 3. Applica alla voce: prezzo di vendita, incidenza e — se richiesto —
-      //    il costo pieno (diretto + spese generali, senza utile).
+      //    il costo DIRETTO: le spese generali il listino e il preventivo le
+      //    aggiungono da «Prezzo e margini»; scritte anche qui si contavano due volte.
       if (applica) {
         const patch: Record<string, unknown> = {
           prezzo_vendita: risultato.prezzoTotale,
           // La colonna è una frazione 0..1, il risultato è in percento (05/10/2026).
           incidenza_manodopera_pct: incidenzaFrazione(risultato.incidenzaManodoperaPct),
           fonte: "analisi_prezzo",
+          // il prezzo lo decide l'analisi: la voce non segue più il ricarico sul costo
+          prezzo_modo: "libero",
+          ricarico_pct: null,
         };
         if (aggiornaCosto) {
-          patch.prezzo_costo = risultato.costoAziendale;
-          patch.costo_interno = risultato.costoAziendale;
-          patch.costo_default = risultato.costoAziendale;
+          patch.prezzo_costo = risultato.costoDiretto;
+          patch.costo_interno = risultato.costoDiretto;
+          patch.costo_default = risultato.costoDiretto;
         }
         const { error } = await (supabase as any)
           .from("tariffe_aziendali")
@@ -452,9 +456,9 @@ function AnalisiEditor({
           checked={aggiornaCosto}
           onCheckedChange={(v) => setAggiornaCosto(v === true)}
         />
-        Aggiorna anche il costo della voce (costo diretto + spese generali:{" "}
-        {formatCurrency(risultato.costoAziendale)}) — così il semaforo margine
-        mostra l&apos;utile reale
+        Aggiorna anche il costo della voce (costo diretto:{" "}
+        {formatCurrency(risultato.costoDiretto)}; le spese generali le aggiunge
+        il listino) — così il semaforo margine mostra l&apos;utile reale
       </label>
 
       <div className="flex items-center gap-2 pt-1">

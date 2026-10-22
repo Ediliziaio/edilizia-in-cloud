@@ -17,7 +17,7 @@ export type DateRangePreset =
 
 /**
  * Resolves a date-range preset to concrete Date boundaries.
- * Supports all presets used in CompanyDashboard, MarketingDashboard,
+ * Supports all presets used in MarketingDashboard,
  * CruscottoData and Scadenzario.
  */
 export function getDateRange(
@@ -33,14 +33,15 @@ export function getDateRange(
       const y = subDays(now, 1);
       return { from: startOfDay(y), to: endOfDay(y) };
     }
+    // «N giorni» con oggi compreso: da N-1 giorni fa (con subDays(N) erano N+1)
     case "last7":
-      return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
+      return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
     case "last30":
-      return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
+      return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
     case "month":
       return { from: startOfMonth(now), to: endOfDay(now) };
     case "quarter":
-      return { from: startOfDay(subDays(now, 90)), to: endOfDay(now) };
+      return { from: startOfDay(subDays(now, 89)), to: endOfDay(now) };
     case "year":
       return { from: startOfYear(now), to: endOfDay(now) };
     case "all":
@@ -51,6 +52,11 @@ export function getDateRange(
       return { from: new Date("2000-01-01T00:00:00Z"), to: endOfDay(now) };
     case "custom":
     default:
-      return { from: customFrom || subDays(now, 30), to: customTo || now };
+      // Il calendario dà le date a mezzanotte: senza endOfDay l'ultimo giorno
+      // scelto restava fuori (1–15 ottobre contava fino al 14).
+      return {
+        from: customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30)),
+        to: customTo ? endOfDay(customTo) : endOfDay(now),
+      };
   }
 }

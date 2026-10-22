@@ -183,8 +183,11 @@ export function useMarginData(): MarginData {
   // Sort by margin % ascending (worst first)
   orders.sort((a, b) => a.marginPercent - b.marginPercent);
 
-  // KPIs
-  const ordersWithRevenue = orders.filter(o => o.totalAmount > 0);
+  // KPIs — solo le commesse con un ricavo E almeno un costo registrato: una
+  // commessa senza costi non ha un margine del 100%, ha un consuntivo non
+  // ancora iniziato (stessa regola di margineCantieriAperti). Contandole, la
+  // Demo dava 70% di margine e un pareggio sottostimato di un terzo.
+  const ordersWithRevenue = orders.filter(o => o.totalAmount > 0 && o.totalVariableCosts > 0);
   const totalRevenueAll = ordersWithRevenue.reduce((s, o) => s + o.totalAmount, 0);
   const totalMarginAll = ordersWithRevenue.reduce((s, o) => s + o.grossMargin, 0);
   const avgMarginPercent = totalRevenueAll > 0

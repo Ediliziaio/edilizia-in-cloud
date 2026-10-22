@@ -1,11 +1,11 @@
 /**
  * DashboardQuickActions — FAB mobile + shortcut tastiera desktop.
  * Mobile: bottone flottante in basso a destra con menu radiale (Nuovo ordine / cliente / preventivo).
- * Desktop: azioni inline, Cmd+K apre il command palette globale.
+ * Desktop: azioni inline.
  */
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, ClipboardList, Users, FileText, X, Keyboard } from "lucide-react";
+import { Plus, ClipboardList, Users, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -87,33 +87,5 @@ export function DashboardQuickActions() {
         </div>
       </div>
     </>
-  );
-}
-
-/**
- * DashboardKeyboardHint — chip con suggerimento Cmd+K, mostrato solo desktop.
- */
-export function DashboardKeyboardHint() {
-  const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
-  const modifier = isMac ? "⌘" : "Ctrl";
-
-  const openCommand = () => {
-    // Il CompanyLayout ha un CommandPalette aperto via Cmd+K — dispatch evento sintetico
-    const event = new KeyboardEvent("keydown", { key: "k", metaKey: isMac, ctrlKey: !isMac, bubbles: true });
-    window.dispatchEvent(event);
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={openCommand}
-      className="hidden md:inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-[11px] text-muted-foreground transition-colors"
-      title="Apri comandi rapidi"
-    >
-      <Keyboard className="h-3 w-3" />
-      <span>Cerca</span>
-      <kbd className="rounded border border-border bg-background px-1 font-mono text-[10px]">{modifier}</kbd>
-      <kbd className="rounded border border-border bg-background px-1 font-mono text-[10px]">K</kbd>
-    </button>
   );
 }

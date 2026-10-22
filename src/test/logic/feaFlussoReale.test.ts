@@ -8,7 +8,7 @@ vi.mock("../../../supabase/functions/_shared/sendEmailUnified.ts", () => ({ send
 vi.mock("../../../supabase/functions/_shared/inviaSmsFirma.ts", () => ({ inviaSmsCodiceFirma: async () => ({ inviato: stato.smsOk }) }));
 vi.mock("../../../supabase/functions/_shared/getBranding.ts", () => ({ getBrandingForCompany: async () => ({ siteUrl: "https://example.test", platformName: "Demo & Figli" }) }));
 vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async (): Promise<unknown[]> => [], informativaPrivacyDellaFirma: async (): Promise<string | null> => null }));
-vi.mock("../../../supabase/functions/_shared/pdfFirmato.ts", () => ({ assicuraPdfFirmato: async () => { stato.pdf(); return { path: "c-1/firmato.pdf", codiceVerifica: "ABCD-1234-5678" }; } }));
+vi.mock("../../../supabase/functions/_shared/pdfFirmato.ts", () => ({ assicuraPdfFirmato: async () => { stato.pdf(); return { path: "c-1/firmato.pdf", codiceVerifica: "ABCD-1234-5678" }; }, titoloDelDocumento: async () => "Preventivo PREV-1" }));
 
 const TOKEN = "12345678-1234-1234-1234-123456789abc";
 // La chiave che il server dà al browser dopo il codice giusto (sessione di firma, 22/10/2026).
@@ -216,8 +216,11 @@ describe("FEA: gestori reali, nessun invio a persone reali", () => {
     expect((await chiama("fea-verifica-otp", { otp: "123456" })).status).toBe(429);
     stato.db.tabelle.signature_requests[0].otp_scadenza = "2020-01-01T00:00:00.000Z";
     expect((await chiama("fea-genera-otp", { request_id: "r-1" })).data.success).toBe(true);
-    const email = stato.email.mock.calls[0][0] as { html: string };
-    const nuovo = email.html.match(/>(\d{6})<\/div>/)?.[1]; expect(nuovo).toMatch(/^\d{6}$/);
+    const email = stato.email.mock.calls[0][0] as { html: string; text: string; subject: string };
+    const nuovo = email.text.match(/è: (\d{6})/)?.[1]; expect(nuovo).toMatch(/^\d{6}$/);
+    // Niente parole tecniche nell'email del codice.
+    expect(email.subject).toContain(`${nuovo} è il suo codice per firmare`);
+    expect(`${email.subject} ${email.html}`).not.toMatch(/OTP/);
     expect((await chiama("fea-verifica-otp", { otp: nuovo })).data.success).toBe(true);
   });
 });

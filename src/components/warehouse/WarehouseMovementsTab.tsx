@@ -9,6 +9,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readAllOrderRows } from "@/lib/orders/listScope";
+import { Link } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,6 +68,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   const [period, setPeriod] = useState<PeriodKey>("30");
   const [typeFilter, setTypeFilter] = useState<"all" | "carico" | "scarico">("all");
   const [query, setQuery] = useState("");
+  // a schermo a blocchi: diciottomila righe in una tabella bloccano il browser
+  const [mostrate, setMostrate] = useState(300);
 
   const sinceISO = useMemo(() => {
     if (period === "all") return null;
@@ -77,34 +81,40 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
     enabled: !!companyId,
     staleTime: 1000 * 60 * 2,
     queryFn: async (): Promise<MovementRow[]> => {
-      let q = supabase
-        .from("warehouse_movements")
-        .select("id, stock_item_id, movement_type, quantity, notes, created_at, performed_by, order_id, lot_number, unit_cost, warehouse_id")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
-        .limit(1000);
-      if (warehouseFilter) q = q.eq("warehouse_id", warehouseFilter);
-      if (sinceISO) q = q.gte("created_at", sinceISO);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      const movements = (data ?? []) as RawMovement[];
+      // Tutte le pagine: con .limit(1000) lo storico si fermava a mille righe
+      // senza dirlo (Demo 2 ne ha più di diciottomila), ed esportazione e
+      // ricerca vedevano solo quelle.
+      const movements = await readAllOrderRows<RawMovement>((da, a) => {
+        let q = supabase
+          .from("warehouse_movements")
+          .select("id, stock_item_id, movement_type, quantity, notes, created_at, performed_by, order_id, lot_number, unit_cost, warehouse_id")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .order("id");
+        if (warehouseFilter) q = q.eq("warehouse_id", warehouseFilter);
+        if (sinceISO) q = q.gte("created_at", sinceISO);
+        return q.range(da, a) as unknown as PromiseLike<{ data: RawMovement[] | null; error: unknown }>;
+      }, 1000);
       if (movements.length === 0) return [];
 
       const stockIds = [...new Set(movements.map((m) => m.stock_item_id).filter(Boolean))];
       const orderIds = [...new Set(movements.map((m) => m.order_id).filter(Boolean))] as string[];
       const userIds = [...new Set(movements.map((m) => m.performed_by).filter(Boolean))] as string[];
 
+      // a blocchi: mille id in un .in() fanno un indirizzo troppo lungo
+      const aBlocchi = async <T,>(tabella: string, colonne: string, ids: string[]): Promise<{ data: T[] }> => {
+        const out: T[] = [];
+        for (let i = 0; i < ids.length; i += 150) {
+          const { data, error } = await (supabase as any).from(tabella).select(colonne).in("id", ids.slice(i, i + 150));
+          if (error) throw error;
+          out.push(...((data ?? []) as T[]));
+        }
+        return { data: out };
+      };
       const [stockRes, orderRes, userRes] = await Promise.all([
-        stockIds.length
-          ? supabase.from("warehouse_stock").select("id, name").in("id", stockIds)
-          : Promise.resolve({ data: [], error: null }),
-        orderIds.length
-          ? supabase.from("orders").select("id, order_code").in("id", orderIds)
-          : Promise.resolve({ data: [], error: null }),
-        userIds.length
-          ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
-          : Promise.resolve({ data: [], error: null }),
+        aBlocchi<{ id: string; name: string }>("warehouse_stock", "id, name", stockIds as string[]),
+        aBlocchi<{ id: string; order_code: string | null }>("orders", "id, order_code", orderIds),
+        aBlocchi<{ id: string; first_name: string | null; last_name: string | null }>("profiles", "id, first_name, last_name", userIds),
       ]);
 
       const nameById = new Map((stockRes.data ?? []).map((s: { id: string; name: string }) => [s.id, s.name]));
@@ -276,7 +286,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((m) => (
+                  {filtered.slice(0, mostrate).map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                         {format(new Date(m.created_at), "dd/MM/yy HH:mm", { locale: it })}
@@ -299,7 +309,11 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                         {m.movement_type === "carico" ? "+" : "−"}{m.quantity}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{m.lot_number || "—"}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm">{m.orderCode || "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm">
+                        {m.order_id && m.orderCode ? (
+                          <Link to={`/azienda/ordini/${m.order_id}`} className="font-medium text-primary hover:underline">{m.orderCode}</Link>
+                        ) : "—"}
+                      </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{m.performerName || "—"}</TableCell>
                       <TableCell className="hidden sm:table-cell max-w-[200px] truncate text-sm text-muted-foreground">{m.notes || "—"}</TableCell>
                     </TableRow>
@@ -307,10 +321,12 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                 </TableBody>
               </Table>
             </div>
-            {rows.length >= 1000 && (
-              <p className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
-                Mostrati i 1000 movimenti più recenti del periodo. Restringi il periodo per vedere il resto.
-              </p>
+            {filtered.length > mostrate && (
+              <div className="border-t px-3 py-2 text-center">
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setMostrate((n) => n + 300)}>
+                  Mostra altri {Math.min(300, filtered.length - mostrate)} di {filtered.length - mostrate}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

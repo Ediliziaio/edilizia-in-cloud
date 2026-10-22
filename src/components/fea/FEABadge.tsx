@@ -10,9 +10,9 @@ export function FEABadge({ stato }: FEABadgeProps) {
 
   switch (stato) {
     case 'pending':
-      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">In attesa OTP</Badge>;
+      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">In attesa di firma</Badge>;
     case 'otp_verified':
-      return <Badge className="bg-blue-100 text-blue-800 border-blue-200">OTP verificato</Badge>;
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Codice confermato</Badge>;
     case 'signed':
       return <Badge className="bg-green-100 text-green-800 border-green-200">Firmato ✓</Badge>;
     case 'refused':

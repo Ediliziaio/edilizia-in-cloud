@@ -35,6 +35,10 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
   const leadToAppt = Number(kpi?.lead_to_appointment_rate ?? 0);
   const apptToContract = Number(kpi?.appointment_to_contract_rate ?? 0);
   const leadToContract = Number(kpi?.lead_to_contract_rate ?? 0);
+  // Oltre il 100% non è una conversione: i contratti non passano tutti da un
+  // appuntamento (41 contratti su 1 appuntamento diceva «4100%»).
+  const tasso = (v: number) => (v > 100 ? "—" : `${v}%`);
+  const oltre = (v: number) => (v > 100 ? "Più arrivi che partenze: non tutti passano da questa fase" : undefined);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -117,17 +121,17 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
-              <div className="text-lg font-bold">{leadToAppt}%</div>
+              <div className="text-lg font-bold" title={oltre(leadToAppt)}>{tasso(leadToAppt)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → App.</div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
-              <div className="text-lg font-bold">{apptToContract}%</div>
+              <div className="text-lg font-bold" title={oltre(apptToContract)}>{tasso(apptToContract)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">App. → Contratto</div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
-              <div className="text-lg font-bold">{leadToContract}%</div>
+              <div className="text-lg font-bold" title={oltre(leadToContract)}>{tasso(leadToContract)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → Contratto</div>
             </div>
           </div>

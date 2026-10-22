@@ -26,8 +26,16 @@ export interface KpiData {
   contacts_worked: number;
   appointments_set: number;
   appointments_done: number;
+  /** appuntamenti del periodo confermati con la data passata: senza esito */
+  appointments_pending?: number | null;
+  appointments_no_show?: number | null;
   show_rate: number;
+  /** vendite = preventivi firmati + opportunità vinte senza preventivo */
   contracts_won: number;
+  quotes_signed?: number | null;
+  revenue_quotes?: number | null;
+  /** opportunità vinte: la base del tasso di chiusura */
+  opps_won?: number | null;
   contracts_lost: number;
   revenue: number;
   revenue_lost: number;
@@ -41,6 +49,7 @@ export interface KpiData {
   contact_rate: number;
   // Enterprise fields
   pipeline_active_value: number;
+  open_opps_count?: number | null;
   avg_time_to_first_contact: number;
   avg_time_to_close: number;
   avg_lead_to_won_days: number;
@@ -66,13 +75,17 @@ export interface FunnelStage {
 }
 
 export interface SalesPerformance {
-  user_id: string;
+  /** null = la riga «Non assegnati o utenti rimossi» */
+  user_id: string | null;
   name: string;
   appointments_set: number;
   appointments_done: number;
   contracts_won: number;
+  contracts_lost?: number;
   revenue: number;
   show_rate: number;
+  /** vinte ÷ (vinte + perse), calcolato nel database come il KPI */
+  close_rate?: number;
 }
 
 export interface SourceAnalysis {
@@ -109,9 +122,13 @@ export interface TrendPoint {
   won: number;
 }
 
+/** Del periodo precedente: i campi senza un valore storico (pipeline pesata,
+ * forecast, mediana…) arrivano null, e la pagina non mostra il confronto. */
+export type KpiPrevData = { [K in keyof KpiData]: KpiData[K] | null };
+
 export interface DashboardStats {
   kpi: KpiData;
-  kpi_prev: KpiData;
+  kpi_prev: KpiPrevData;
   funnel: FunnelStage[];
   sales_performance: SalesPerformance[];
   sources: SourceAnalysis[];
@@ -123,7 +140,7 @@ export interface DashboardStats {
 // getDateRange is now imported from @/lib/dateRangeUtils
 
 export function useMarketingDashboard() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role, isImpersonating, viewAsRole, viewAsUserId } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const initialMonthRange = useMemo(() => getDateRange("month"), []);
@@ -139,12 +156,18 @@ export function useMarketingDashboard() {
 
   const dateRange = useMemo(() => getDateRange(filters.datePreset, filters.dateFrom, filters.dateTo), [filters.datePreset, filters.dateFrom, filters.dateTo]);
 
+  // «Vista come»: i permessi sono quelli della persona simulata, quindi anche
+  // «solo i propri» va ristretto a lei e non al super admin che guarda (prima
+  // la dashboard filtrava sull'id del super admin e restava vuota).
+  const viewAsActive = role === "super_admin" && isImpersonating && !!viewAsRole;
+  const proprioId = viewAsActive && viewAsUserId ? viewAsUserId : user?.id;
+
   const effectiveAssignedIds = useMemo(() => {
-    if (permissions.onlyAssigned && user?.id) {
-      return [user.id];
+    if (permissions.onlyAssigned && proprioId) {
+      return [proprioId];
     }
     return filters.assignedUserIds.length > 0 ? filters.assignedUserIds : null;
-  }, [permissions.onlyAssigned, user?.id, filters.assignedUserIds]);
+  }, [permissions.onlyAssigned, proprioId, filters.assignedUserIds]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.marketing.dashboard(companyId, dateRange.from.toISOString().slice(0, 10), dateRange.to.toISOString().slice(0, 10), effectiveAssignedIds, filters.sources, filters.pipelineId),
@@ -185,5 +208,5 @@ export function useMarketingDashboard() {
     });
   }, []);
 
-  return { data, isLoading, error, refetch, filters, updateFilters, permissions };
+  return { data, isLoading, error, refetch, filters, updateFilters, permissions, effectiveAssignedIds };
 }

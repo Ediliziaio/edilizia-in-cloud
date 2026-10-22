@@ -1,3 +1,4 @@
+// Adattatori dei provider in _shared/billingAdapter.ts (anche Zucchetti Digital Hub, 23/10/2026).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";

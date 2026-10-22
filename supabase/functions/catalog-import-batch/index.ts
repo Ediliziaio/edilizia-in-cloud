@@ -475,6 +475,12 @@ async function importTariffe(
     if (existingId) {
       // Cella vuota = non toccare: prima costo e prezzo tornavano a 0.
       const payload = soloValorizzati(dalFile);
+      // Un prezzo dal file è un prezzo deciso a mano: la voce smette di seguire
+      // il ricarico sul costo, altrimenti «Ricalcola dai costi» lo cancellerebbe.
+      if (payload.prezzo_vendita != null) {
+        payload.prezzo_modo = "libero";
+        payload.ricarico_pct = null;
+      }
       const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), r.custom_field_values);
       if (campi) payload.custom_field_values = campi;
       accodaAggiornamento(updates, res, i + 1, payload,

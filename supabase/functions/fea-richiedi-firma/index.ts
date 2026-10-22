@@ -2,11 +2,13 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { normalizzaTelefonoE164 } from "../_shared/telefonoE164.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { congelaDocumento, DocumentoNonPronto } from "../_shared/documentoCongelato.ts";
 import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
+import { brandingFirma, emailInvitoFirma } from "../_shared/emailFirma.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { titoloDelDocumento } from "../_shared/pdfFirmato.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -265,40 +267,53 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Chiama internamente fea-genera-otp
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    let otpInviato = false;
-
+    // Un'email sola: l'invito a firmare. Il codice parte quando chi firma lo
+    // chiede dalla pagina (prima partiva subito e dopo 10 minuti era scaduto).
+    let emailInviata = false;
     try {
-      // P2-5: fn interna → timeout 15s (cold start + generazione OTP).
-      const otpRes = await fetchWithTimeout(`${supabaseUrl}/functions/v1/fea-genera-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({ request_id, token: inserted.token, azienda_nome }),
-        timeoutMs: 15_000,
+      const documento = await titoloDelDocumento(supabaseAdmin, {
+        tipo_documento, quote_id: null, fv_progetto_id: tipo_documento === "fv" ? documento_id : null,
+        sessione_id: tipo_documento === "sessione" ? documento_id : null,
+        contratto_subappalto_id: tipo_documento === "subappalto" ? documento_id : null,
+        order_id: tipo_documento === "order" ? documento_id : null, categoria,
       });
-
-      if (!otpRes.ok) {
-        const otpErr = await otpRes.text();
-        console.error("OTP generation failed:", otpErr);
-        // Non blocchiamo: la richiesta è creata, l'OTP può essere rigenerato
-      } else {
-        otpInviato = true;
-        // Audit: link + OTP inviati via email al firmatario
-        await supabaseAdmin.from("fea_audit_log").insert({
-          request_id,
-          company_id,
-          evento: "link_inviato",
-          metadati: { signer_email },
-        });
+      let importo: number | null = null;
+      if (tipo_documento === "subappalto") {
+        const { data: c } = await supabaseAdmin.from("contratti_subappalto")
+          .select("importo_contrattuale, oneri_sicurezza").eq("id", documento_id).maybeSingle();
+        importo = c ? (Number(c.importo_contrattuale) || 0) + (Number(c.oneri_sicurezza) || 0) : null;
       }
-    } catch (otpErr) {
-      console.error("OTP call error:", otpErr);
+      const invito = emailInvitoFirma(await brandingFirma(supabaseAdmin, company_id), {
+        nome: String(signer_name),
+        documento,
+        importo,
+        scadenza: expiresAt,
+        link: `${branding.siteUrl}/firma-fea/${inserted.token}`,
+        messaggio: noteRichiesta,
+      });
+      const invio = await sendEmailUnified({
+        companyId: company_id,
+        stream: "transactional",
+        to: [signer_email],
+        subject: invito.subject,
+        html: invito.html,
+        text: invito.text,
+        replyTo: invito.replyTo,
+        templateName: "fea_invito_firma",
+        skipCredits: true,
+        adminClient: supabaseAdmin,
+        metadata: { request_id, tipo_documento },
+      });
+      emailInviata = invio.ok;
+      if (emailInviata) {
+        await supabaseAdmin.from("fea_audit_log").insert({
+          request_id, company_id, evento: "link_inviato", metadati: { signer_email },
+        });
+      } else {
+        console.error("Invito alla firma non inviato:", invio);
+      }
+    } catch (invitoErr) {
+      console.error("Invito alla firma non inviato:", invitoErr);
     }
 
     // Audit log
@@ -310,7 +325,8 @@ Deno.serve(async (req: Request) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, request_id, token: inserted.token, otp_inviato: otpInviato }),
+      // otp_inviato resta per le pagine che lo leggono: vuol dire «l'email a chi firma è partita».
+      JSON.stringify({ success: true, request_id, token: inserted.token, email_inviata: emailInviata, otp_inviato: emailInviata }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {

@@ -2,20 +2,17 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
-import ComeStiamoAndando from "@/pages/azienda/ComeStiamoAndando";
+import { ComeStiamoAndandoVista } from "@/pages/azienda/ComeStiamoAndando";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
 import { AlertPanel } from "@/components/cruscotto/AlertPanel";
 import { TodayFocus } from "@/components/cruscotto/TodayFocus";
+import { ScadutoPerEtaWidget } from "@/components/cruscotto/ScadutoPerEtaWidget";
+import { VenditeInBreve } from "@/components/cruscotto/VenditeInBreve";
 import { CashFlowForecast } from "@/components/cruscotto/CashFlowForecast";
 import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
-import { MarketingControl } from "@/components/cruscotto/MarketingControl";
-import { SalesControl } from "@/components/cruscotto/SalesControl";
-import { PipelineForecast } from "@/components/cruscotto/PipelineForecast";
 import { OperationsDelivery } from "@/components/cruscotto/OperationsDelivery";
-import { HRPerformance } from "@/components/cruscotto/HRPerformance";
-import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundary";
 import { SilvioCustomerLTVPanel } from "@/components/silvio/SilvioCustomerLTVPanel";
@@ -69,6 +66,9 @@ type ExecutiveTone = "green" | "orange" | "red" | "blue";
  * amministrativi) e altrove non compaiono.
  */
 const AVVISI_GIA_IN_CIMA = [
+  // le opportunità ferme sono un numero della Dashboard marketing (e della sua
+  // scheda Commerciale): qui ripetevano un avviso di vendita in un cruscotto aziendale
+  "stale-opps",
   "overdue-payments",
   "overdue-receivables",
   "late-orders",
@@ -80,6 +80,17 @@ function eur(value: number) {
   return formatCurrencyCompact(safeNumber(value));
 }
 
+/** Il periodo del filtro in parole, per le sezioni che lo seguono. */
+function periodoInParole(f: { datePreset: string; dateFrom: Date; dateTo: Date }): string {
+  const parole: Record<string, string> = {
+    today: "oggi", yesterday: "ieri", last7: "ultimi 7 giorni", last30: "ultimi 30 giorni",
+    month: "questo mese", quarter: "ultimi 90 giorni",
+  };
+  if (parole[f.datePreset]) return parole[f.datePreset];
+  const g = (d: Date) => d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  return `${g(f.dateFrom)} – ${g(f.dateTo)}`;
+}
+
 function pct(value: number) {
   return `${safeNumber(value).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
 }
@@ -88,12 +99,12 @@ export default function CruscottoAziendale() {
   const perms = usePermissions();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const cruscotto = useCruscottoData();
   const {
-    marketing, operations, finance, workOrders, weeklyAgenda, companyTargets,
+    marketing, operations, scaduto, finance, workOrders, weeklyAgenda, companyTargets,
     todayData, cashFlowForecast,
-    todayDateFrom, todayDateTo, updateTodayDateRange,
     isLoading, error, financeError, operationsError, todayError, filters, updateFilters,
-  } = useCruscottoData();
+  } = cruscotto;
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
   // P3.3 — persistenza tab attiva tra navigazioni (sessione corrente).
   const [cruscottoTab, setCruscottoTab] = useState<string>(() => {
@@ -104,6 +115,10 @@ export default function CruscottoAziendale() {
     setCruscottoTab(value);
     if (typeof window !== "undefined") window.sessionStorage.setItem("cruscotto-aziendale-tab", value);
   }, []);
+  const schedaVisibile =
+    !["sintesi", "finanza", "operations", "vendite"].includes(cruscottoTab) || (isMobile && !["sintesi", "finanza"].includes(cruscottoTab))
+      ? "sintesi"
+      : cruscottoTab;
   const { isNative } = useBillingMode();
   const effectiveCompanyId = useEffectiveCompanyId();
   const { data: billingKPI } = useDashboardBillingKPI(effectiveCompanyId, isNative);
@@ -227,14 +242,14 @@ export default function CruscottoAziendale() {
       drilldown: "revenue" as DrilldownType,
     },
     {
-      // P2.5 — il valore è previsionale (entrate attese del mese - costi
-      // pianificati). Il vecchio nome "Cassa netta mese" suggeriva un dato
-      // consuntivo a rendiconto.
-      label: "Saldo scadenze mese",
-      value: `${finance.cashFlowNet >= 0 ? "+" : ""}${eur(finance.cashFlowNet)}`,
-      hint: `Rate aperte ${eur(finance.thisMonthIncome)} − costi aperti ${eur(finance.thisMonthOutflow)} · esclusi arretrati precedenti`,
+      // Qui stava «Saldo scadenze mese»: fisso sul mese in un riquadro che si
+      // chiama «Numeri del periodo», e già per intero in Finanza. Al suo posto
+      // l'incassato del periodo scelto, accanto al venduto dello stesso periodo.
+      label: "Incassato periodo (IVA incl.)",
+      value: eur(finance.collectedInPeriod ?? 0),
+      hint: `vs precedente ${eur(finance.collectedPrevPeriod ?? 0)}`,
       icon: Wallet,
-      tone: finance.cashFlowNet >= 0 ? "green" as ExecutiveTone : "red" as ExecutiveTone,
+      tone: (finance.collectedInPeriod ?? 0) >= (finance.collectedPrevPeriod ?? 0) ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
       drilldown: null as DrilldownType,
     },
     // "Da incassare" e "Margine del mese" stavano qui e ripetevano, con parole
@@ -256,7 +271,6 @@ export default function CruscottoAziendale() {
   const showFinanza     = perms.isAdmin || perms.canViewPrimaNota || perms.canViewBilling || perms.canViewCosts || perms.canViewTesoreria;
   const showOperazioni  = perms.isAdmin || perms.canViewDashboard || perms.canViewOrders;
   const showCommerciale = perms.isAdmin || perms.canViewMarketingDashboard || perms.canViewMarketing;
-  const showHR          = perms.isAdmin || perms.canViewPersone || perms.canViewEmployees;
 
   const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
@@ -297,7 +311,7 @@ export default function CruscottoAziendale() {
           erano gli stessi che si leggono piu' sotto, e due schermate che dicono
           la stessa cosa insegnano a non fidarsi di nessuna delle due. Qui sopra
           cosa guardare oggi, sotto l'approfondimento per periodo. */}
-      <ComeStiamoAndando comeSezione />
+      <ComeStiamoAndandoVista comeSezione dati={cruscotto} />
 
       {/* Error banner */}
       {error && (
@@ -328,7 +342,9 @@ export default function CruscottoAziendale() {
 
       {!isDataEmpty && (
         <SectionErrorBoundary sectionName="Executive Summary">
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200">
+          {/* Telefono: bastano i quattro numeri in cima e «Da guardare oggi»; il
+              periodo e l'andamento sono lettura da scrivania. */}
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200 max-sm:hidden">
             {/* Da 1280px la colonna blu è di 240px e i due numeri se la dividono
                 in altezza: a 1440 era larga 330px con i riquadri in mezzo e due
                 fasce blu vuote sopra e sotto. */}
@@ -565,15 +581,16 @@ export default function CruscottoAziendale() {
               linguette subito sotto («Approfondisci solo quello che ti serve
               ora», «La sintesi resta sopra…»): le linguette bastano. */}
 
-          <Tabs value={cruscottoTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="w-full">
             {/* Mobile: riga unica scorrevole (niente griglia a 3 file con l'ultima
                 voce spaiata). Da sm: griglia a 5 colonne come prima. */}
-            <TabsList className="sticky top-0 z-10 flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:static sm:grid sm:grid-cols-5">
-              <TabsTrigger value="sintesi" className="shrink-0 rounded-lg">Sintesi</TabsTrigger>
-              <TabsTrigger value="finanza" className="shrink-0 rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
-              <TabsTrigger value="operations" className="shrink-0 rounded-lg" disabled={!showOperazioni}>Operations</TabsTrigger>
-              <TabsTrigger value="vendite" className="shrink-0 rounded-lg" disabled={!showCommerciale}>Vendite</TabsTrigger>
-              <TabsTrigger value="team" className="shrink-0 rounded-lg" disabled={!showHR && sediVisibili.length === 0}>Team / sedi</TabsTrigger>
+            {/* Telefono: due schede, Sintesi e Finanza. Operations e Vendite sono
+                approfondimenti da scrivania (le vendite hanno la loro dashboard). */}
+            <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:static sm:grid-cols-4">
+              <TabsTrigger value="sintesi" className="rounded-lg">Sintesi</TabsTrigger>
+              <TabsTrigger value="finanza" className="rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
+              <TabsTrigger value="operations" className="rounded-lg max-sm:hidden" disabled={!showOperazioni}>Operazioni</TabsTrigger>
+              <TabsTrigger value="vendite" className="rounded-lg max-sm:hidden" disabled={!showCommerciale}>Vendite</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sintesi" className="mt-0 space-y-4 sm:mt-4">
@@ -592,7 +609,7 @@ export default function CruscottoAziendale() {
                 <IndicatoriGuida />
               </SectionErrorBoundary>
 
-              {companyTargets?.monthly_revenue_target && (
+              {companyTargets?.monthly_revenue_target && !isMobile && (
                 <SectionErrorBoundary sectionName="Target Mensile">
                   <TargetProgressBar
                     current={cashFlowForecast?.monthRevenue ?? 0}
@@ -602,6 +619,8 @@ export default function CruscottoAziendale() {
                 </SectionErrorBoundary>
               )}
 
+              {/* telefono: le cose da fare stanno già in «Da guardare oggi» */}
+              <div className="max-sm:hidden">
               <SectionErrorBoundary sectionName="Alert Panel">
                 {/* Restano solo gli avvisi che "Da guardare oggi" non da': lead
                     fermi, appuntamenti mancati, opportunita' ferme, fatture da
@@ -618,30 +637,62 @@ export default function CruscottoAziendale() {
                   isLoading={isLoading}
                 />
               </SectionErrorBoundary>
+              </div>
             </TabsContent>
 
             <TabsContent value="finanza" className="mt-3 space-y-3">
               {showFinanza && (
                 <>
-                  <SectionErrorBoundary sectionName="Fatturazione KPI">
-                    <BillingKPIWidget />
-                  </SectionErrorBoundary>
+                  {/* Telefono: incassi attesi e scaduto per età; il resto è lettura da scrivania */}
+                  <div className="max-sm:hidden">
+                    <SectionErrorBoundary sectionName="Fatturazione KPI">
+                      <BillingKPIWidget />
+                    </SectionErrorBoundary>
+                  </div>
                   <SectionErrorBoundary sectionName="Finanza">
                     {/* Incassi su una fascia compatta; bilancio e grafico affiancati sotto. */}
                     <div className="space-y-3">
                       <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
-                      <FinanzaCashFlow finance={finance} isLoading={isLoading} dataError={financeError} />
+                      <ScadutoPerEtaWidget scaduto={scaduto} isLoading={isLoading} />
+                      <div className="max-sm:hidden">
+                        <FinanzaCashFlow finance={finance} isLoading={isLoading} dataError={financeError} />
+                      </div>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-3 max-sm:hidden">
                       <PrimaNotaScadenzarioWidget />
                     </div>
                   </SectionErrorBoundary>
-                  <SectionErrorBoundary sectionName="Top Clienti">
-                    <ClienteSituazioneWidget />
-                  </SectionErrorBoundary>
-                  <SectionErrorBoundary sectionName="Punto di Pareggio">
-                    <PuntoDiPareggio />
-                  </SectionErrorBoundary>
+                  <div className="space-y-3 max-sm:hidden">
+                    <SectionErrorBoundary sectionName="Top Clienti">
+                      <ClienteSituazioneWidget />
+                    </SectionErrorBoundary>
+                    <SectionErrorBoundary sectionName="Punto di Pareggio">
+                      <PuntoDiPareggio />
+                    </SectionErrorBoundary>
+                  </div>
+                  {/* Il conto per sede è un numero di finanza: stava in «Team / sedi». */}
+                  {sediVisibili.length > 0 && (
+                    <SectionErrorBoundary sectionName="Analytics per Sede">
+                      <div className="space-y-3 rounded-lg border bg-white p-3 max-sm:hidden">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
+                          <SedeFilterBar />
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                          <div className="lg:col-span-1">
+                            <SedeIncidenceChart
+                              sedi={sediVisibili}
+                              metric="ricavi"
+                              title="Incidenza Ricavi per Sede"
+                            />
+                          </div>
+                          <div className="lg:col-span-2">
+                            <SedeIncidenzaTable />
+                          </div>
+                        </div>
+                      </div>
+                    </SectionErrorBoundary>
+                  )}
                 </>
               )}
             </TabsContent>
@@ -650,7 +701,7 @@ export default function CruscottoAziendale() {
               {showOperazioni && (
                 <>
                   <SectionErrorBoundary sectionName="Focus Oggi">
-                    {todayError ? <p role="alert" className="p-3 text-sm text-destructive">Focus non disponibile. Riprova dal messaggio in alto.</p> : <TodayFocus compactOperations todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />}
+                    {todayError ? <p role="alert" className="p-3 text-sm text-destructive">Focus non disponibile. Riprova dal messaggio in alto.</p> : <TodayFocus compactOperations todayData={todayData} isLoading={isLoading} periodo={periodoInParole(filters)} />}
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Operazioni">
                     <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} dataError={operationsError} />
@@ -666,54 +717,15 @@ export default function CruscottoAziendale() {
               {showCommerciale && (
                 <>
                   <SectionErrorBoundary sectionName="Vendite">
-                    <div className="space-y-3">
-                      <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
-                      <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
-                    </div>
+                    <VenditeInBreve kpi={marketing?.kpi} isLoading={isLoading} periodo={periodoInParole(filters)} />
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Customer LTV AI">
                     <SilvioCustomerLTVPanel />
-                  </SectionErrorBoundary>
-                  <SectionErrorBoundary sectionName="Marketing">
-                    <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />
                   </SectionErrorBoundary>
                 </>
               )}
             </TabsContent>
 
-            <TabsContent value="team" className="mt-3 space-y-3">
-              {showHR && (
-                <SectionErrorBoundary sectionName="HR & Trend">
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                    <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
-                    <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
-                  </div>
-                </SectionErrorBoundary>
-              )}
-
-              {showFinanza && sediVisibili.length > 0 && (
-                <SectionErrorBoundary sectionName="Analytics per Sede">
-                  <div className="space-y-3 rounded-lg border bg-white p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
-                      <SedeFilterBar />
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                      <div className="lg:col-span-1">
-                        <SedeIncidenceChart
-                          sedi={sediVisibili}
-                          metric="ricavi"
-                          title="Incidenza Ricavi per Sede"
-                        />
-                      </div>
-                      <div className="lg:col-span-2">
-                        <SedeIncidenzaTable />
-                      </div>
-                    </div>
-                  </div>
-                </SectionErrorBoundary>
-              )}
-            </TabsContent>
           </Tabs>
         </section>
       )}

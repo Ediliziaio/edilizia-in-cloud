@@ -155,7 +155,7 @@ function BreakdownCostiFissi({
       <p className="text-xs text-muted-foreground pt-1">
         Margine lordo usato per il calcolo:{" "}
         <strong>{avgMarginPercent.toFixed(1)}%</strong>
-        {" "}(media degli ordini · al netto di merce e squadre esterne)
+        {" "}(commesse con costi registrati · al netto di merce e squadre esterne)
       </p>
     </div>
   );

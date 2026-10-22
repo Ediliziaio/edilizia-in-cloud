@@ -1,9 +1,11 @@
-import { useEffect, useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 import { queryKeys } from "@/lib/queryKeys";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
@@ -40,7 +42,8 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
-import type { StockItem } from "@/types/warehouse";
+import { isSottoScorta, type StockItem } from "@/types/warehouse";
+import { useMagazzinoInArrivo, type InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
 import { valutaEliminazione } from "@/lib/magazzino/eliminazioneArticolo";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -85,6 +88,11 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  // la giacenza già rettificata da un salvataggio andato a metà: riprovando si
+  // confronta con lei, non con quella mostrata all'apertura (altrimenti «è
+  // cambiata nel frattempo» — l'aveva cambiata lo stesso utente)
+  const rettificata = useRef<{ id: string; quantita: number } | null>(null);
+  useEffect(() => { rettificata.current = null; }, [editingItem?.id]);
   const [movementDialog, setMovementDialog] = useState<{
     open: boolean;
     type: "carico" | "scarico";
@@ -128,20 +136,25 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     queryKey: [...queryKeys.warehouse.stock(companyId), warehouseFilter],
     queryFn: async () => {
       if (!companyId) return [];
-      let q = supabase
-        .from("warehouse_stock")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("name");
-      if (warehouseFilter) {
-        q = q.eq("warehouse_id", warehouseFilter);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return data as StockItem[];
+      // tutte le pagine: con un .select() solo l'elenco si fermava a mille articoli
+      return readAllOrderRows<StockItem>((da, a) => {
+        let q = supabase
+          .from("warehouse_stock")
+          .select("*")
+          .eq("company_id", companyId)
+          .order("name")
+          .order("id");
+        if (warehouseFilter) {
+          q = q.eq("warehouse_id", warehouseFilter);
+        }
+        return q.range(da, a) as unknown as PromiseLike<{ data: StockItem[] | null; error: unknown }>;
+      });
     },
     enabled: !!companyId,
   });
+
+  // per ogni articolo, quanto è negli ordini fornitore aperti
+  const { data: inArrivo } = useMagazzinoInArrivo();
 
   // ── Eliminazione articolo ──────────────────────────────────────────────
   // Non esisteva: un articolo censito per sbaglio restava in elenco per sempre.
@@ -347,12 +360,36 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
       if (data.id) {
         const currentItem = stockItems.find((i) => i.id === data.id);
+        // La giacenza NON si scrive qui: prima il modulo riscriveva la quantità
+        // digitata (senza movimento), e un carico o uno scarico fatto mentre era
+        // aperto spariva. Se è cambiata diventa una rettifica registrata.
+        //
+        // Il confronto è con la giacenza che il modulo MOSTRAVA all'apertura
+        // (editingItem), non con l'elenco: l'elenco si aggiorna mentre il
+        // modulo è aperto, e confrontando con lui lo scarico di un collega
+        // sarebbe stato annullato in silenzio. E la rettifica va per prima: se
+        // si ferma perché la giacenza è cambiata, non si salva niente a metà.
+        const vista = rettificata.current?.id === data.id
+          ? rettificata.current.quantita
+          : Number(editingItem?.id === data.id ? editingItem.quantity : currentItem?.quantity ?? 0);
+        let giacenzaRettificata = false;
+        if (Number(data.quantity) !== vista) {
+          const { error: errRettifica } = await supabase.rpc("warehouse_rettifica_giacenza" as never, {
+            p_stock_item_id: data.id,
+            p_quantita_contata: Number(data.quantity),
+            p_quantita_vista: vista,
+            p_note: "dalla scheda articolo",
+          } as never);
+          if (errRettifica) throw errRettifica;
+          rettificata.current = { id: data.id, quantita: Number(data.quantity) };
+          giacenzaRettificata = true;
+        }
+
         const { error } = await supabase
           .from("warehouse_stock")
           .update({
             name: data.name,
             description: data.description || null,
-            quantity: data.quantity,
             warehouse_id: resolveWarehouseId(currentItem),
             unit_cost: data.unit_cost,
             vat_rate: data.vat_rate,
@@ -363,22 +400,43 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           })
           .eq("id", data.id)
           .eq("company_id", companyId!);
-        if (error) throw error;
+        if (error) {
+          // la rettifica è già scritta (col suo movimento): dirlo, non «non salvato»
+          if (giacenzaRettificata) throw new Error(`La giacenza è salvata (${Number(data.quantity)}), il resto no: ${error.message}`);
+          throw error;
+        }
       } else {
-        const { error } = await supabase.from("warehouse_stock").insert({
+        // l'articolo nasce a zero e la giacenza iniziale entra come movimento:
+        // una giacenza senza movimenti non torna mai con lo storico
+        const { data: creato, error } = await supabase.from("warehouse_stock").insert({
           company_id: companyId!,
           warehouse_id: resolveWarehouseId(),
           name: data.name,
           description: data.description || null,
-          quantity: data.quantity,
+          quantity: 0,
           unit_cost: data.unit_cost,
           vat_rate: data.vat_rate,
           supplier_id: data.supplier_id || null,
           section_id: data.section_id || null,
           min_stock_level: data.min_stock_level,
           ...qrUpdate,
-        });
+        }).select("id").single();
         if (error) throw error;
+
+        if (Number(data.quantity) > 0) {
+          const { error: errIniziale } = await supabase.rpc("warehouse_rettifica_giacenza" as never, {
+            p_stock_item_id: (creato as { id: string }).id,
+            p_quantita_contata: Number(data.quantity),
+            p_quantita_vista: 0,
+            p_note: "giacenza iniziale",
+          } as never);
+          if (errIniziale) {
+            // un articolo a zero con la giacenza persa sarebbe peggio di nessun
+            // articolo: si toglie, e riprovando non nasce un doppione
+            await supabase.from("warehouse_stock").delete().eq("id", (creato as { id: string }).id).eq("company_id", companyId!);
+            throw errIniziale;
+          }
+        }
 
         if (data.registerCost) {
           await insertCostRecord(data.name, data.unit_cost, data.quantity, data.vat_rate, data.supplier_id, data.costPaidDate, data.costCategory);
@@ -386,21 +444,24 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(companyId) });
       setDialogOpen(false);
       setEditingItem(null);
       toast.success("Salvato", { description: "Articolo di magazzino salvato." });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile salvare l'articolo." });
+    onError: (e: unknown) => {
+      // il motivo conta: «la giacenza è cambiata nel frattempo» va letto, non nascosto
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      const motivo = (e as { message?: string })?.message;
+      toast.error("Articolo non salvato", { description: motivo || "Riprova." });
     },
   });
 
   // Movement mutation
   const movementMutation = useMutation({
     mutationFn: async ({
-      stockItemId, type, quantity, notes, registerCost, costPaidDate, costCategory,
+      stockItemId, type, quantity, notes, registerCost, costPaidDate, costCategory, orderId,
     }: {
       stockItemId: string;
       type: "carico" | "scarico";
@@ -409,6 +470,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       registerCost?: boolean;
       costPaidDate?: string;
       costCategory?: string;
+      orderId?: string | null;
     }) => {
       // Prima qui si leggeva la giacenza dalla cache di React Query, si faceva
       // la sottrazione in JavaScript e si riscriveva il valore assoluto. Due
@@ -425,7 +487,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         p_tipo: type,
         p_quantita: quantity,
         p_note: notes || null,
-      });
+        p_order_id: orderId ?? null,
+      } as never);
       if (movError) throw movError;
 
       // Serve solo il nome, per la guardia sul doppio costo qui sotto: la
@@ -465,8 +528,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       setMovementDialog({ open: false, type: "carico", item: null });
       toast.success("Movimento registrato");
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile registrare il movimento." });
+    onError: (e: unknown) => {
+      // «Giacenza insufficiente…: disponibili N» va letto, non coperto da un messaggio generico
+      const motivo = (e as { message?: string })?.message;
+      toast.error("Movimento non registrato", { description: motivo || "Riprova." });
     },
   });
 
@@ -531,7 +596,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setStockPage(0); }, []);
 
   const lowStockItems = useMemo(
-    () => stockItems.filter((i) => i.min_stock_level > 0 && i.quantity <= i.min_stock_level),
+    () => stockItems.filter(isSottoScorta),
     [stockItems]
   );
 
@@ -603,20 +668,23 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-4">
         {/* Low stock alert */}
+        {/* telefono no: l'avviso con «Riordina» sta già in testata alla pagina */}
         {lowStockItems.length > 0 && (
-          <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+          <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 max-sm:hidden">
             <CardContent className="py-3 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {/* i primi tre, non l'elenco intero in una riga: con trenta articoli era un paragrafo */}
               <span className="text-sm font-medium">
-                {lowStockItems.length} articol{lowStockItems.length === 1 ? "o" : "i"} sotto la soglia minima:{" "}
-                {lowStockItems.map((i) => `${i.name} (${i.quantity}/${i.min_stock_level})`).join(", ")}
+                {lowStockItems.length} {lowStockItems.length === 1 ? "articolo sotto scorta" : "articoli sotto scorta"}:{" "}
+                {lowStockItems.slice(0, 3).map((i) => `${i.name} (${i.quantity_available ?? i.quantity}/${i.min_stock_level})`).join(", ")}
+                {lowStockItems.length > 3 && ` e altri ${lowStockItems.length - 3}`}
               </span>
             </CardContent>
           </Card>
         )}
 
-        {/* Compact zones entry point */}
-        <Card>
+        {/* Compact zones entry point — da scrivania: da telefono le zone non si disegnano */}
+        <Card className="max-sm:hidden">
           <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -727,63 +795,27 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             </Button>
           )}
           <div className="w-full sm:w-auto">
-            {!readOnly && <div className="sm:hidden space-y-2">
+            {/* Telefono: Arrivo e Uscita stanno già in testata. Qui erano una
+                seconda volta, più «Ricevi da ODA» e un menu per un'azione sola. */}
+            {!readOnly && <div className="flex gap-2 sm:hidden">
               <Button
                 onClick={() => setQuickScanOpen(true)}
                 aria-label="Cerca articolo via scansione QR/barcode"
-                size="lg"
-                className="w-full h-12 text-base font-semibold"
+                className="h-11 flex-1 text-sm font-semibold"
               >
                 <ScanLine className="h-5 w-5 mr-2" />
                 Cerca articolo
               </Button>
-
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setCaricoOpen(true)}
-                  aria-label="Registra arrivo merce — carico libero"
-                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
-                >
-                  <ArrowDownCircle className="h-5 w-5" />
-                  <span className="leading-tight">Registra<br />arrivo</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setOdaReceiveOpen(true)}
-                  aria-label="Ricevi merce contro ordine fornitore (ODA)"
-                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
-                >
-                  <Package className="h-5 w-5" />
-                  <span className="leading-tight">Ricevi<br />da ODA</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setUscitaOpen(true)}
-                  aria-label="Registra uscita merce (cliente, cantiere o destinazione libera)"
-                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
-                >
-                  <Truck className="h-5 w-5" />
-                  <span className="leading-tight">Uscita<br />merce</span>
-                </Button>
-              </div>
-
-              <div className="flex justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" aria-label="Altre azioni">
-                      <MoreVertical className="h-4 w-4 mr-1" />
-                      <span className="text-xs">Altre azioni</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Aggiungi articolo
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 shrink-0"
+                onClick={() => { setEditingItem(null); setDialogOpen(true); }}
+                aria-label="Aggiungi articolo"
+                title="Aggiungi articolo"
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
             </div>}
 
             {!readOnly && <div className="hidden sm:flex items-center gap-2 flex-wrap">
@@ -944,7 +976,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                       <DraggableStockRow
                         key={item.id}
                         item={item}
-                        isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
+                        isLow={isSottoScorta(item)}
+                        inArrivo={inArrivo?.get(item.id)}
                         section={getSectionName(item.section_id)}
                         isSelected={selectedIds.has(item.id)}
                         hasSections={sections.length > 0}
@@ -972,7 +1005,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 <StockItemMobileCard
                   key={item.id}
                   item={item}
-                  isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
+                  isLow={isSottoScorta(item)}
+                        inArrivo={inArrivo?.get(item.id)}
                   section={getSectionName(item.section_id)}
                   isSelected={selectedIds.has(item.id)}
                   supplierName={getSupplierName(item.supplier_id)}
@@ -1217,6 +1251,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 interface DraggableStockRowProps {
   item: StockItem;
   isLow: boolean;
+  inArrivo?: InArrivoArticolo;
   section: { name: string; color: string } | null;
   isSelected: boolean;
   hasSections: boolean;
@@ -1233,8 +1268,25 @@ interface DraggableStockRowProps {
   readOnly?: boolean;
 }
 
+/** «+12 in arrivo» con il link all'ordine fornitore: chi riordina vede che è già ordinato. */
+function InArrivoNota({ inArrivo }: { inArrivo?: InArrivoArticolo }) {
+  if (!inArrivo || inArrivo.quantita <= 0) return null;
+  const primo = inArrivo.ordini[0];
+  const elenco = inArrivo.ordini.map((o) => o.numero).join(", ");
+  return (
+    <Link
+      to={primo ? `/azienda/ordini-acquisto/${primo.id}` : "/azienda/ordini?tab=acquisto"}
+      onClick={(e) => e.stopPropagation()}
+      title={`In arrivo da ${elenco}`}
+      className="mt-0.5 block text-[10px] font-medium text-blue-700 hover:underline"
+    >
+      +{Number(inArrivo.quantita.toFixed(2))} in arrivo{inArrivo.ordini.length > 1 ? ` (${inArrivo.ordini.length} ordini)` : ""}
+    </Link>
+  );
+}
+
 const DraggableStockRow = memo(function DraggableStockRow({
-  item, isLow, section, isSelected, hasSections, supplierName,
+  item, isLow, inArrivo, section, isSelected, hasSections, supplierName,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
   readOnly = false,
 }: DraggableStockRowProps) {
@@ -1297,6 +1349,7 @@ const DraggableStockRow = memo(function DraggableStockRow({
             <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
           )}
         </div>
+        <InArrivoNota inArrivo={inArrivo} />
       </TableCell>
       <TableCell className="text-right">{formatCurrency(item.unit_cost)}</TableCell>
       <TableCell className="text-right">{formatCurrency(item.unit_cost * item.quantity)}</TableCell>
@@ -1312,9 +1365,12 @@ const DraggableStockRow = memo(function DraggableStockRow({
           <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
             <History className="h-4 w-4 text-muted-foreground" />
           </Button>
-          <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
-            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-          </Button>
+          {/* contare scrive la giacenza: in sola lettura no */}
+          {!readOnly && (
+            <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
+              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          )}
           {!readOnly && (
             <>
               <Button variant="ghost" size="icon" title="Task" onClick={onTask}>
@@ -1349,6 +1405,7 @@ const DraggableStockRow = memo(function DraggableStockRow({
 interface StockItemMobileCardProps {
   item: StockItem;
   isLow: boolean;
+  inArrivo?: InArrivoArticolo;
   section: { name: string; color: string } | null;
   isSelected: boolean;
   supplierName: string;
@@ -1365,7 +1422,7 @@ interface StockItemMobileCardProps {
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
-  item, isLow, section, isSelected, supplierName,
+  item, isLow, inArrivo, section, isSelected, supplierName,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
   readOnly = false,
 }: StockItemMobileCardProps) {
@@ -1399,6 +1456,7 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
               <Badge variant={isLow ? "destructive" : "secondary"} className="text-[10px]">
                 {item.quantity} pz
               </Badge>
+              <InArrivoNota inArrivo={inArrivo} />
               {item.tracking_mode === "serialized" && (
                 <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
               )}
@@ -1443,10 +1501,12 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
                 <History className="h-4 w-4 mr-2 text-muted-foreground" />
                 Storico
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onAudit}>
-                <ClipboardCheck className="h-4 w-4 mr-2 text-muted-foreground" />
-                Inventario
-              </DropdownMenuItem>
+              {!readOnly && (
+                <DropdownMenuItem onClick={onAudit}>
+                  <ClipboardCheck className="h-4 w-4 mr-2 text-muted-foreground" />
+                  Inventario
+                </DropdownMenuItem>
+              )}
               {item.tracking_mode === "serialized" && (
                 <DropdownMenuItem onClick={onSerials}>
                   <Barcode className="h-4 w-4 mr-2 text-orange-600" />

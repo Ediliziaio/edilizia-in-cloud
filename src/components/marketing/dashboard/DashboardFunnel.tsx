@@ -27,23 +27,12 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
 
   const stages = funnel || [];
 
-  // Collo di bottiglia: stage con la conversione più bassa (escluso il primo)
-  const bottleneckIdx = useMemo(() => {
-    let idx = -1;
-    let lowestConv = Infinity;
-    stages.forEach((stage, i) => {
-      if (i === 0) return;
-      const prevCount = stages[i - 1].count;
-      if (prevCount > 0) {
-        const conv = stage.count / prevCount;
-        if (conv < lowestConv && prevCount >= 2) {
-          lowestConv = conv;
-          idx = i;
-        }
-      }
-    });
-    return idx;
-  }, [stages]);
+  // Sono le opportunità aperte OGGI, ferme in ciascuna fase: non un imbuto in
+  // cui si passa da una fase all'altra. Per questo niente «conversione» né
+  // «collo di bottiglia» (davano 333%): si mostra la quota sul totale. Il
+  // percorso vero, fase per fase, è in «Percorso dei lead».
+  const bottleneckIdx = -1;
+  const totale = stages.reduce((s, st) => s + st.count, 0);
 
   const chartData: FunnelChartStage[] = useMemo(
     () =>
@@ -58,7 +47,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Pipeline</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Pipeline aperta per fase</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </CardContent>
@@ -73,7 +62,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
     <Wrapper {...wrapperProps}>
       {!compact && (
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Pipeline</CardTitle>
+          <CardTitle className="text-base">Pipeline aperta per fase</CardTitle>
         </CardHeader>
       )}
       <CardContent className={compact ? "p-0" : ""}>
@@ -89,7 +78,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
               gap={compact ? 2 : 4}
               showLabels={!compact}
               showValues
-              showPercentage={!compact}
+              showPercentage={false}
               labelLayout={compact ? "grouped" : "spread"}
               style={{ aspectRatio: compact ? "2.6 / 1" : "2.2 / 1" }}
             />
@@ -98,8 +87,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                 Le righe si illuminano in sync con l'hover del funnel. */}
             <div className={cn("space-y-1", compact && "hidden")}>
               {stages.map((stage, idx) => {
-                const prevCount = idx > 0 ? stages[idx - 1].count : null;
-                const convRate = prevCount && prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : null;
+                const convRate = totale > 0 ? Math.round((stage.count / totale) * 100) : null;
                 const isBottleneck = idx === bottleneckIdx;
                 const dotColor = isBottleneck ? "hsl(var(--destructive))" : STAGE_COLORS[idx % STAGE_COLORS.length];
 
@@ -140,10 +128,9 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
               })}
             </div>
 
-            {bottleneckIdx >= 0 && (
-              <p className="flex items-center gap-1.5 text-[11px] text-red-600 dark:text-red-400">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                Possibile collo di bottiglia in "{stages[bottleneckIdx].name}" — conversione più bassa del funnel.
+            {!compact && (
+              <p className="text-[11px] text-muted-foreground">
+                Opportunità aperte oggi per fase; la % è la quota sul totale ({totale}).
               </p>
             )}
           </div>

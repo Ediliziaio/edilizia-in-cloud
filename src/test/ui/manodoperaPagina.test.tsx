@@ -6,6 +6,8 @@
  * filtri e sette schede di gruppo. Ora: una fila di schede con i pulsanti a destra, i numeri e l'avviso delle basi in una
  * riga, i filtri col menu dell'area (una volta sola) e le schede dei gruppi. Il testo sul semaforo del margine dice
  * quale soglia legge la tabella; da telefono ogni voce è una scheda invece di una tabella da 820 px.
+ * Dal 22/10/2026 la soglia (e le spese generali) vengono da «Prezzo e margini» (preventivo_impostazioni), come nel
+ * preventivo, non più da Approvazioni.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -35,16 +37,22 @@ vi.mock("@/hooks/useGovernanceThresholds", () => ({
 }));
 vi.mock("@/components/listino/TariffaProdottiCollegati", () => ({ TariffaProdottiCollegati: (): null => null }));
 vi.mock("sonner", () => ({ toast: { error: state.errore, success: state.successo, info: vi.fn() } }));
+/** «Prezzo e margini» dice la soglia del listino: la riga si costruisce dallo stato del test. */
+const righeDi = (tabella: string): unknown[] =>
+  tabella === "preventivo_impostazioni"
+    ? state.governanceCaricata ? [{ margine_minimo_percentuale: state.soglia, overhead_percentuale: null, margine_target_default: 25 }] : []
+    : (state.tabelle[tabella] ?? []) as unknown[];
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: string) => {
   let scrittura = false;
   const risposta = () => {
     if (scrittura) return { data: null as unknown, error: state.erroreScrittura };
     if (tabella === "tariffe_aziendali" && state.erroreCaricamento) return { data: null as unknown, error: state.erroreCaricamento };
-    return { data: (state.tabelle[tabella] ?? []) as unknown[], error: null as unknown };
+    return { data: righeDi(tabella), error: null as unknown };
   };
   const b: Record<string, unknown> = {};
   for (const metodo of ["select", "eq", "order", "range", "in"]) b[metodo] = () => b;
   for (const metodo of ["update", "delete", "insert"]) b[metodo] = () => { scrittura = true; return b; };
+  b.maybeSingle = () => ({ then: (resolve: (valore: { data: unknown; error: null }) => unknown) => Promise.resolve({ data: righeDi(tabella)[0] ?? null, error: null }).then(resolve) });
   b.then = (resolve: (valore: ReturnType<typeof risposta>) => unknown) => Promise.resolve(risposta()).then(resolve);
   return b;
 } } }));
@@ -286,26 +294,38 @@ describe("Manodopera e servizi: l'area di lavoro si sceglie una volta sola", () 
 });
 
 describe("Manodopera e servizi: il testo sul semaforo del margine dice la verità di oggi", () => {
-  it("dice quale soglia legge la tabella, con il link per cambiarla", async () => {
+  it("dice da dove vengono i numeri, con il link per cambiarli", async () => {
     apri(); await caricata();
-    expect(testoPagina()).toContain("Il margine è (vendita − costo) / vendita. Editor, riepilogo e tabella usano il «Margine minimo delle commesse» di Approvazioni: ora 18%.");
-    expect(screen.getByRole("link", { name: "Cambia" })).toHaveAttribute("href", "/azienda/impostazioni/approvazioni");
+    expect(testoPagina()).toContain("Questi numeri sono quelli di «Prezzo e margini».");
+    expect(testoPagina()).toContain("Sotto il 18% di margine");
+    expect(screen.getByRole("link", { name: "Cambia" })).toHaveAttribute("href", "/azienda/impostazioni/margini");
   });
 
-  it("la soglia è quella di Approvazioni, non una fissa", async () => {
+  it("la soglia è quella di «Prezzo e margini», non una fissa", async () => {
     state.soglia = 25;
     apri(); await caricata();
-    expect(testoPagina()).toContain("ora 25%");
-    expect(testoPagina()).toContain("verde, 25% o più");
-    expect(testoPagina()).toContain("giallo, tra 0% e 25%");
+    expect(testoPagina()).toContain("Sotto il 25% di margine");
+    expect(screen.getByRole("button", { name: /sotto soglia \(25%\)/ })).toBeInTheDocument();
   });
 
-  it("con la soglia a zero non c'è il giallo: il margine è verde da 0% in su e rosso sotto", async () => {
+  it("spiega ricarico e margine con un esempio: un ricarico non è un margine", async () => {
+    apri(); await caricata();
+    expect(testoPagina()).toContain("un ricarico del 20% è un margine del 16,7%");
+    // obiettivo 25% → ricarico 33,33% → 100 € di costo diventano 133,33 €
+    expect(testoPagina()).toMatch(/ricarico \+33,33% → prezzo 133,33/);
+  });
+
+  it("senza impostazioni lo dice, e il link è per impostarle", async () => {
+    state.governanceCaricata = false;
+    apri(); await caricata();
+    expect(testoPagina()).toContain("Sono i valori predefiniti");
+    expect(screen.getByRole("link", { name: "Imposta" })).toHaveAttribute("href", "/azienda/impostazioni/margini");
+  });
+
+  it("con la soglia a zero non c'è il giallo: una voce al 5% è sana", async () => {
     state.soglia = 0;
     apri(); await caricata();
-    expect(testoPagina()).toContain("verde, 0% o più");
-    expect(testoPagina()).not.toContain("giallo, tra 0% e");
-    expect(testoPagina()).toContain("rosso, sotto lo 0%");
+    expect(within(screen.getByText("Trasporto cantiere").closest("tr") as HTMLElement).getByText("Margine sano")).toBeInTheDocument();
   });
 
   it("niente «governance», «standard CFO» né «salvataggio bloccato a <0%»", async () => {
@@ -321,7 +341,7 @@ describe("Manodopera e servizi: il testo sul semaforo del margine dice la verit�
     apri(); await caricata();
     expect(testoPagina()).toContain("le modifiche agli importi richiedono un margine maggiore di zero");
     expect(testoPagina()).toContain("Puoi correggere i dati descrittivi di una voce già presente mantenendo gli importi");
-    expect(testoPagina()).toContain("rosso, sotto lo 0%");
+    expect(testoPagina()).toContain("sotto lo 0% rossa");
   });
 
   it("il semaforo della tabella segue davvero quella soglia", async () => {
@@ -340,24 +360,18 @@ describe("Manodopera e servizi: il testo sul semaforo del margine dice la verit�
     expect(within(screen.getByText("Smaltimento serramento").closest("tr") as HTMLElement).getByText("In perdita (sottocosto)")).toBeInTheDocument();
   });
 
-  it("chi non può aprire Approvazioni legge la frase ma non trova il link", async () => {
+  it("chi non può aprire «Prezzo e margini» legge la frase ma non trova il link", async () => {
     state.permissions = { ...AMMINISTRATORE, isAdmin: false, canViewCosts: false };
     apri(); await caricata();
-    expect(testoPagina()).toContain("ora 18%");
+    expect(testoPagina()).toContain("Sotto il 18% di margine");
     expect(screen.queryByRole("link", { name: "Cambia" })).toBeNull();
-  });
-
-  it("finché la soglia non è caricata la frase non mostra un numero sbagliato", async () => {
-    state.governanceCaricata = false;
-    apri(); await caricata();
-    expect(testoPagina()).not.toContain("Il semaforo della tabella usa");
   });
 
   it("chi non vede i costi non ha la nota sul margine", async () => {
     state.role = "staff";
     state.permissions = { ...SOLO_LETTURA };
     apri(); await caricata();
-    expect(testoPagina()).not.toContain("Il margine è (vendita − costo)");
+    expect(testoPagina()).not.toContain("Costo pieno");
   });
 });
 

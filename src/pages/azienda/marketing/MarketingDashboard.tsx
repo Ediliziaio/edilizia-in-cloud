@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle, AlertTriangle, ArrowUpRight, BarChart3, Download, LayoutDashboard,
   Loader2, Phone, Radio, RefreshCw, ShieldCheck, Target, TrendingUp, Users,
-  CalendarCheck, Trophy, UserPlus,
+  CalendarCheck, Trophy, UserPlus, MoreHorizontal, Settings2,
 } from "lucide-react";
 import {
   Area, Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer,
@@ -13,6 +13,7 @@ import {
 import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
@@ -86,7 +87,7 @@ function SedeFilterBarMarketing() {
 }
 
 export default function MarketingDashboard() {
-  const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
+  const { data, isLoading, error, refetch, filters, updateFilters, permissions, effectiveAssignedIds } = useMarketingDashboard();
   const { activeTab, switchTab, tabs, visibleTabs, toggleTabVisibility } = useDashboardLayout();
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
@@ -96,14 +97,18 @@ export default function MarketingDashboard() {
 
   // ── 12-month marketing trend (lead / appuntamenti / contratti) ───────────
   const { data: marketingTrend = [] } = useQuery({
-    queryKey: ["marketing-dashboard-trend-12m", companyId],
+    queryKey: ["marketing-dashboard-trend-12m", companyId, effectiveAssignedIds, filters.sources, filters.pipelineId],
     queryFn: async () => {
       if (!companyId) return [];
       // Aggregazione SERVER-SIDE (RPC marketing_trend_12m): vedi nota nella
       // funzione gemella del Cruscotto — numeri esatti (niente cap righe
-      // PostgREST) e 12 righe di payload invece di migliaia.
+      // PostgREST) e 12 righe di payload invece di migliaia. Gli stessi filtri
+      // dei KPI: prima il grafico mostrava sempre l'azienda intera.
       const { data, error } = await supabase.rpc("marketing_trend_12m" as never, {
         p_company_id: companyId,
+        p_assigned_user_ids: effectiveAssignedIds,
+        p_sources: filters.sources.length > 0 ? filters.sources : null,
+        p_pipeline_id: filters.pipelineId,
       } as never);
       if (error) throw error;
       const rows = (data ?? []) as unknown as Array<{
@@ -111,10 +116,10 @@ export default function MarketingDashboard() {
       }>;
       const byKey = new Map(rows.map((r) => [r.mese_key, r]));
       return Array.from({ length: 12 }, (_, index) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - (11 - index));
-        date.setDate(1);
-        date.setHours(0, 0, 0, 0);
+        // dal primo del mese: il 31 ottobre, «31 settembre» diventava 1 ottobre
+        // e settembre spariva dal grafico
+        const oggi = new Date();
+        const date = new Date(oggi.getFullYear(), oggi.getMonth() - (11 - index), 1);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
         const row = byKey.get(key);
@@ -133,12 +138,23 @@ export default function MarketingDashboard() {
   });
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // «Aggiorna» ricarica tutto ciò che la pagina mostra: prima solo i KPI, e
+  // percorso dei lead e grafico dei 12 mesi restavano quelli di prima
+  const aggiornaTutto = useCallback(() => {
+    void refetch();
+    void queryClient.invalidateQueries({ queryKey: ["marketing-percorso-lead"] });
+    void queryClient.invalidateQueries({ queryKey: ["marketing-dashboard-trend-12m"] });
+    void queryClient.invalidateQueries({ queryKey: ["marketing-attivita-team"] });
+    void queryClient.invalidateQueries({ queryKey: ["marketing-da-fare"] });
+  }, [refetch, queryClient]);
 
   // Legenda interattiva: click su una voce per nascondere/mostrare la serie
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   // Obiettivi: uno per venditore e per MESE (prima era una riga per persona
   // senza mese, cioè un obiettivo solo per sempre).
   const [obiettiviAperti, setObiettiviAperti] = useState(false);
+  const [personalizzaAperto, setPersonalizzaAperto] = useState(false);
   const toggleSeries = useCallback((key: string) => {
     setHiddenSeries((prev) => {
       const next = new Set(prev);
@@ -251,11 +267,15 @@ export default function MarketingDashboard() {
   const executiveKpis = useMemo(() => {
     const kpi = data?.kpi;
     const prev = data?.kpi_prev;
-    const leadsTotal = safeNumber(kpi?.leads_total);
-    const leadsPrev = safeNumber(prev?.leads_total);
+    // «Lead periodo» = i lead NUOVI del periodo: leads_total è il totale fino a
+    // oggi, e contro il periodo precedente dava «+2200%»
+    const leadsNew = safeNumber(kpi?.leads_new);
+    const leadsPrev = safeNumber(prev?.leads_new);
     const pipelineValue = safeNumber(kpi?.pipeline_active_value);
+    const openOpps = safeNumber(kpi?.open_opps_count);
     const showRate = safeNumber(kpi?.show_rate);
     const showRatePrev = safeNumber(prev?.show_rate);
+    const appointmentsPending = safeNumber(kpi?.appointments_pending);
     const revenue = safeNumber(kpi?.revenue);
     const revenuePrev = safeNumber(prev?.revenue);
     const contractsWon = safeNumber(kpi?.contracts_won);
@@ -264,24 +284,28 @@ export default function MarketingDashboard() {
     return [
       {
         label: "Lead periodo",
-        value: leadsTotal.toLocaleString("it-IT"),
-        hint: `vs precedente ${leadsPrev.toLocaleString("it-IT")}`,
+        value: leadsNew.toLocaleString("it-IT"),
+        hint: `periodo precedente ${leadsPrev.toLocaleString("it-IT")}`,
         icon: UserPlus,
-        tone: leadsTotal >= leadsPrev ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
+        tone: leadsNew >= leadsPrev ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
       },
       {
         label: "Pipeline attiva",
         value: eur(pipelineValue),
-        hint: pipelineValue > 0 ? "valore opportunità in corso" : "nessuna opportunità attiva",
+        hint: pipelineValue > 0 ? `${openOpps.toLocaleString("it-IT")} opportunità aperte oggi` : "nessuna opportunità attiva",
         icon: TrendingUp,
         tone: pipelineValue > 0 ? "blue" as ExecutiveTone : "orange" as ExecutiveTone,
       },
       {
+        // lo show rate conta solo gli appuntamenti con l'esito: con 27 da esitare
+        // su 31 un «100%» non vuol dire niente, quindi lo si dice
         label: "Show rate",
         value: pct(showRate),
-        hint: `mese precedente ${pct(showRatePrev)}`,
+        hint: appointmentsPending > 0
+          ? `${appointmentsPending.toLocaleString("it-IT")} appuntamenti da esitare`
+          : `periodo precedente ${pct(showRatePrev)}`,
         icon: CalendarCheck,
-        tone: showRate >= 60 ? "green" as ExecutiveTone : showRate >= 40 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
+        tone: appointmentsPending > 0 ? "orange" as ExecutiveTone : showRate >= 60 ? "green" as ExecutiveTone : showRate >= 40 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
       },
       {
         label: "Contratti / fatturato",
@@ -315,7 +339,9 @@ export default function MarketingDashboard() {
       { metrica: "App. Fissati", valore: String(kpi.appointments_set) },
       { metrica: "App. Svolti", valore: String(kpi.appointments_done) },
       { metrica: "Show Rate", valore: `${kpi.show_rate}%` },
-      { metrica: "Contratti Vinti", valore: String(kpi.contracts_won) },
+      { metrica: "App. da esitare", valore: String(kpi.appointments_pending ?? 0) },
+      { metrica: "Vendite", valore: String(kpi.contracts_won) },
+      { metrica: "Preventivi firmati", valore: String(kpi.quotes_signed ?? 0) },
       { metrica: "Fatturato", valore: String(kpi.revenue) },
       { metrica: "Ticket Medio", valore: String(kpi.avg_ticket) },
       { metrica: "Tasso Chiusura", valore: `${kpi.close_rate}%` },
@@ -344,21 +370,34 @@ export default function MarketingDashboard() {
         toolbar={<DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />}
         actions={
           <>
-            {permissions.isAdmin && (
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setObiettiviAperti(true)}>
-                <Target className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Obiettivi</span>
-              </Button>
-            )}
-            <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Aggiorna</span>
+            {/* Aggiorna come icona; obiettivi, sezioni ed esportazione in «Altro»:
+                prima erano quattro bottoni uguali accanto ai filtri */}
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-slate-200 shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label="Aggiorna" title="Aggiorna">
+              <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
             </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleExportKPI} disabled={!data?.kpi}>
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Esporta</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-slate-200 shadow-none" aria-label="Altro" title="Altro">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                {permissions.isAdmin && (
+                  <DropdownMenuItem onSelect={() => setObiettiviAperti(true)}>
+                    <Target className="mr-2 h-4 w-4" /> Obiettivi dei venditori
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setPersonalizzaAperto(true)}>
+                  <Settings2 className="mr-2 h-4 w-4" /> Sezioni da mostrare
+                </DropdownMenuItem>
+                {!isMobile && (
+                  <DropdownMenuItem onSelect={handleExportKPI} disabled={!data?.kpi}>
+                    <Download className="mr-2 h-4 w-4" /> Esporta KPI (CSV)
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} open={personalizzaAperto} onOpenChange={setPersonalizzaAperto} />
           </>
         }
       />
@@ -673,25 +712,25 @@ export default function MarketingDashboard() {
             </TabsList>
 
             <TabsContent value="panoramica" className="mt-4">
-              <TabPanoramica data={data} isLoading={isLoading} />
+              <TabPanoramica data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
             <TabsContent value="pipeline" className="mt-4">
-              <TabPipeline data={data} isLoading={isLoading} filters={filters} onUpdateFilters={updateFilters} />
+              <TabPipeline data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
             <TabsContent value="attivita" className="mt-4">
-              <TabAttivita data={data} isLoading={isLoading} />
+              <TabAttivita data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
             <TabsContent value="team" className="mt-4">
-              <TabTeam data={data} isLoading={isLoading} />
+              <TabTeam data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
             <TabsContent value="fonti" className="mt-4">
-              <TabFonti data={data} isLoading={isLoading} />
+              <TabFonti data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
             <TabsContent value="trend" className="mt-4">
               <TabTrend data={data} isLoading={isLoading} />
             </TabsContent>
             <TabsContent value="commerciale" className="mt-4">
-              <TabCommerciale />
+              <TabCommerciale filters={filters} assignedUserIds={effectiveAssignedIds} />
             </TabsContent>
           </Tabs>
         </section>

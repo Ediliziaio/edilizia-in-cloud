@@ -14,6 +14,10 @@ interface Props {
   sales: SalesPerformance[] | undefined;
   isLoading: boolean;
   compact?: boolean;
+  /** dal percorso dei lead: lead arrivati, tempo al primo contatto (ore) e vendite di quei lead */
+  percorso?: Map<string, { arrivati: number; ore: number | null; vinti: number }>;
+  /** l'obiettivo è del MESE: con un altro periodo il confronto non vale e non si mostra */
+  mostraObiettivo?: boolean;
 }
 
 interface SalesTarget {
@@ -42,7 +46,7 @@ function TargetProgress({ value, target }: { value: number; target: number }) {
   );
 }
 
-export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading, compact }: Props) {
+export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading, compact, percorso, mostraObiettivo = true }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -82,7 +86,9 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
   const hasTargets = (targets || []).length > 0;
 
   const avgRevenue = rows.length > 0 ? rows.reduce((s, r) => s + r.revenue, 0) / rows.length : 0;
-  const avgCloseRate = rows.length > 0 ? rows.reduce((s, r) => s + (r.appointments_done > 0 ? (r.contracts_won / r.appointments_done) * 100 : 0), 0) / rows.length : 0;
+  // tasso di chiusura = vinte ÷ (vinte + perse), dal database come il KPI: prima
+  // qui era vinte ÷ appuntamenti svolti, un terzo numero diverso dagli altri due
+  const avgCloseRate = rows.length > 0 ? rows.reduce((s, r) => s + (r.close_rate ?? 0), 0) / rows.length : 0;
   const avgShowRate = rows.length > 0 ? rows.reduce((s, r) => s + r.show_rate, 0) / rows.length : 0;
 
   if (compact) {
@@ -103,9 +109,9 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
             </TableHeader>
             <TableBody>
               {rows.map((r) => {
-                const closeRate = r.appointments_done > 0 ? Math.round((r.contracts_won / r.appointments_done) * 100) : 0;
+                const closeRate = Math.round(r.close_rate ?? 0);
                 return (
-                  <TableRow key={r.user_id}>
+                  <TableRow key={r.user_id ?? "non-assegnati"}>
                     <TableCell className="text-[10px] sm:text-xs font-medium py-1.5 max-w-[100px] truncate max-md:text-[11px]">{r.name}</TableCell>
                     <TableCell className="text-[10px] sm:text-xs text-right py-1.5 max-md:text-[11px]">{fmt(r.appointments_done)}</TableCell>
                     <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5 max-md:text-[11px]">{fmt(r.contracts_won)}</TableCell>
@@ -153,26 +159,28 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                   <TableHead className="text-xs text-right">Fatturato</TableHead>
                   <TableHead className="text-xs text-right">Chiusura %</TableHead>
                   <TableHead className="text-xs text-right">vs Media</TableHead>
-                  {hasTargets && <TableHead className="text-xs text-center">Obiettivo mese</TableHead>}
+                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">1° contatto</TableHead>}
+                  {percorso && <TableHead className="text-xs text-right whitespace-nowrap">Lead → vendita</TableHead>}
+                  {hasTargets && mostraObiettivo && <TableHead className="text-xs text-center">Obiettivo mese</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r, i) => {
-                  const closeRate = r.appointments_done > 0 ? Math.round((r.contracts_won / r.appointments_done) * 100) : 0;
+                  const closeRate = Math.round(r.close_rate ?? 0);
                   const vsAvg = avgRevenue > 0 ? Math.round(((r.revenue - avgRevenue) / avgRevenue) * 100) : 0;
                   const isAboveAvg = vsAvg > 10;
                   const isBelowAvg = vsAvg < -10;
-                  const target = targetMap.get(r.user_id);
+                  const target = r.user_id ? targetMap.get(r.user_id) : undefined;
 
                   return (
-                    <TableRow key={r.user_id} className={cn(
+                    <TableRow key={r.user_id ?? "non-assegnati"} className={cn(
                       i === 0 && rows.length > 1 && "bg-amber-50/50 dark:bg-amber-950/20",
                       isBelowAvg && "bg-red-50/30 dark:bg-red-950/10"
                     )}>
                       <TableCell className="text-xs font-medium text-muted-foreground">
                         {i === 0 && rows.length > 1 ? <Trophy className="h-3.5 w-3.5 text-amber-500" /> : i + 1}
                       </TableCell>
-                      <TableCell className="text-sm font-medium">{r.name}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm font-medium">{r.name}</TableCell>
                       <TableCell className="text-sm text-right">{fmt(r.appointments_set)}</TableCell>
                       <TableCell className="text-sm text-right">{fmt(r.appointments_done)}</TableCell>
                       <TableCell className={cn("text-sm text-right", r.show_rate < avgShowRate * 0.8 && "text-red-600 dark:text-red-400")}>
@@ -192,7 +200,22 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                           {vsAvg > 0 ? "+" : ""}{vsAvg}%
                         </span>
                       </TableCell>
-                      {hasTargets && (
+                      {percorso && (() => {
+                        const p = r.user_id ? percorso.get(r.user_id) : undefined;
+                        const ore = p?.ore ?? null;
+                        return (
+                          <>
+                            <TableCell className="whitespace-nowrap text-sm text-right tabular-nums">
+                              {ore === null ? "—" : ore < 1 ? `${Math.max(1, Math.round(ore * 60))} min` : ore < 48 ? `${Math.round(ore)} h` : `${(ore / 24).toLocaleString("it-IT", { maximumFractionDigits: 1 })} gg`}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-sm text-right tabular-nums">
+                              {p && p.arrivati > 0 ? `${Math.round((p.vinti / p.arrivati) * 100)}%` : "—"}
+                              {p && p.arrivati > 0 && <span className="ml-1 text-xs text-muted-foreground">di {fmt(p.arrivati)}</span>}
+                            </TableCell>
+                          </>
+                        );
+                      })()}
+                      {hasTargets && mostraObiettivo && (
                         <TableCell>
                           <TargetProgress value={r.revenue} target={target?.target_revenue || 0} />
                         </TableCell>

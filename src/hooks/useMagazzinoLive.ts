@@ -95,19 +95,6 @@ export interface LowStockAlert {
   section_name: string | null;
 }
 
-export interface OrderMaterialMovement {
-  movement_id: string;
-  stock_item_name: string | null;
-  order_item_name: string | null;
-  movement_type: string;
-  quantity: number;
-  unit_cost: number | null;
-  lot_number: string | null;
-  notes: string | null;
-  performed_by_name: string | null;
-  created_at: string;
-}
-
 export interface LotBatch {
   id: string;
   company_id: string;
@@ -203,26 +190,6 @@ export function useLowStockAlerts(companyId: string | null) {
       }));
     },
     staleTime: 1000 * 60 * 5,
-  });
-}
-
-export function useOrderMaterialsHistory(companyId: string | null, orderId: string | null) {
-  return useQuery({
-    queryKey: magazzinoKeys.orderHistory(companyId ?? "", orderId ?? ""),
-    enabled: !!companyId && !!orderId,
-    queryFn: async (): Promise<OrderMaterialMovement[]> => {
-      const { data, error } = await supabase.rpc("get_order_materials_history", {
-        p_company_id: companyId!,
-        p_order_id: orderId!,
-      });
-      if (error) throw error;
-      return (data ?? []).map((row: any) => ({
-        ...row,
-        quantity: Number(row.quantity),
-        unit_cost: row.unit_cost ? Number(row.unit_cost) : null,
-      }));
-    },
-    staleTime: 1000 * 60 * 2,
   });
 }
 

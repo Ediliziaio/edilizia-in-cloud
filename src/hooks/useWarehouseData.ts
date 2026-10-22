@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -112,13 +113,20 @@ export function useWarehouseData() {
     queryKey: queryKeys.warehouse.stockNames(companyId),
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      type Riga = {
+        id: string; name: string; quantity: number; unit_cost: number; min_stock_level: number;
+        supplier_id: string | null; warehouse_id: string | null;
+        vat_rate: number | null; section_id: string | null; barcode: string | null; internal_code: string | null;
+      };
+      // tutte le pagine: oltre mille articoli il resto spariva da abbinamenti, lista acquisti ed esportazione
+      return readAllOrderRows<Riga>((da, a) => supabase
         .from("warehouse_stock")
-        .select("id, name, quantity, unit_cost, min_stock_level, supplier_id, warehouse_id")
+        // IVA, zona e codici servono all'esportazione dell'inventario: senza, quelle colonne uscivano vuote
+        .select("id, name, quantity, unit_cost, min_stock_level, supplier_id, warehouse_id, vat_rate, section_id, barcode, internal_code")
         .eq("company_id", companyId)
-        .order("name");
-      if (error) throw error;
-      return data || [];
+        .order("name")
+        .order("id")
+        .range(da, a) as unknown as PromiseLike<{ data: Riga[] | null; error: unknown }>);
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -148,13 +156,16 @@ export function useWarehouseData() {
 
   // Build date filter helpers
   const dateFilters = useMemo(() => {
+    // date in ora locale: toISOString() le porta in UTC, e il lunedì a mezzanotte
+    // italiana diventava domenica (la settimana partiva un giorno prima)
+    const giorno = (d: Date) => format(d, "yyyy-MM-dd");
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
-    const sevenDaysStr = new Date(today.getTime() + 7 * 86400000).toISOString().split("T")[0];
-    const weekStart = startOfWeek(today, { weekStartsOn: 1 }).toISOString().split("T")[0];
-    const weekEnd = endOfWeek(today, { weekStartsOn: 1 }).toISOString().split("T")[0];
-    const nextWeekStart = startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }).toISOString().split("T")[0];
-    const nextWeekEnd = endOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }).toISOString().split("T")[0];
+    const todayStr = giorno(today);
+    const sevenDaysStr = giorno(new Date(today.getTime() + 7 * 86400000));
+    const weekStart = giorno(startOfWeek(today, { weekStartsOn: 1 }));
+    const weekEnd = giorno(endOfWeek(today, { weekStartsOn: 1 }));
+    const nextWeekStart = giorno(startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }));
+    const nextWeekEnd = giorno(endOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }));
     return { todayStr, sevenDaysStr, weekStart, weekEnd, nextWeekStart, nextWeekEnd };
   }, []);
 
@@ -193,10 +204,13 @@ export function useWarehouseData() {
             warehouse_arrival_date,
             company_id,
             current_status_id,
+            deleted_at,
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
         `, { count: "estimated" }) // "exact" su tabella grande rallenta il primo render (mobile): la stima basta per la paginazione
-        .eq("order.company_id", companyId);
+        .eq("order.company_id", companyId)
+        // le commesse nel cestino non hanno merce da gestire (stessa regola dei riquadri)
+        .is("order.deleted_at", null);
 
       // Server-side filters
       if (statusFilter !== "all") {
@@ -272,7 +286,12 @@ export function useWarehouseData() {
         query = query.gte("order.expected_date", dateFilters.todayStr).lte("order.expected_date", dateFilters.sevenDaysStr);
       } else if (quickFilter === "overdue") {
         query = query.not("status", "in", '("in_magazzino","installato")');
-        query = query.lt("order.expected_date", dateFilters.todayStr);
+        // stessa regola del riquadro e del segno sulle righe: la posa, o
+        // l'inizio lavori se la posa non c'è (prima qui contava solo la posa)
+        query = query.or(
+          `expected_date.lt.${dateFilters.todayStr},and(expected_date.is.null,work_start_date.lt.${dateFilters.todayStr})`,
+          { referencedTable: "order" },
+        );
       } else if (quickFilter === "thisWeek") {
         query = query.gte("order.expected_date", dateFilters.weekStart).lte("order.expected_date", dateFilters.weekEnd);
       } else if (quickFilter === "nextWeek") {
@@ -366,25 +385,31 @@ export function useWarehouseData() {
           // Note: can't filter on joined table in head query easily, so we use a simpler approach
           return supabase
             .from("order_items")
-            .select(`id, order:orders!inner(company_id, current_status_id)`, { count: "exact", head: true })
+            .select(`id, order:orders!inner(company_id, current_status_id, deleted_at)`, { count: "exact", head: true })
             .eq("order.company_id", companyId)
+            .is("order.deleted_at", null)
             .neq("status", "installato");
         })(),
         // Urgent: not ready, expected_date within 7 days
         supabase
           .from("order_items")
-          .select(`id, order:orders!inner(company_id, expected_date)`, { count: "exact", head: true })
+          .select(`id, order:orders!inner(company_id, expected_date, deleted_at)`, { count: "exact", head: true })
           .eq("order.company_id", companyId)
+            .is("order.deleted_at", null)
           .not("status", "in", '("in_magazzino","installato")')
-          .gte("order.expected_date", new Date().toISOString().split("T")[0])
-          .lte("order.expected_date", new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]),
+          .gte("order.expected_date", dateFilters.todayStr)
+          .lte("order.expected_date", dateFilters.sevenDaysStr),
         // Overdue: not ready, expected_date in past
         supabase
           .from("order_items")
-          .select(`id, order:orders!inner(company_id, expected_date)`, { count: "exact", head: true })
+          .select(`id, order:orders!inner(company_id, expected_date, work_start_date, deleted_at)`, { count: "exact", head: true })
           .eq("order.company_id", companyId)
+            .is("order.deleted_at", null)
           .not("status", "in", '("in_magazzino","installato")')
-          .lt("order.expected_date", new Date().toISOString().split("T")[0]),
+          .or(
+            `expected_date.lt.${dateFilters.todayStr},and(expected_date.is.null,work_start_date.lt.${dateFilters.todayStr})`,
+            { referencedTable: "order" },
+          ),
       ]);
 
       return {

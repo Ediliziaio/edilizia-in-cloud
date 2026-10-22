@@ -53,7 +53,7 @@ describe("Cruscotto: Finanza e Operations",()=>{
   expect(screen.getByText("Commesse in ritardo").parentElement?.parentElement).toHaveTextContent("16");
  });
  it("il Focus compatto conserva tutte le scadenze fornitore e i cinque indicatori giornalieri",()=>{
-  renderUI(<TodayFocus compactOperations todayData={{leadsToday:2,appointmentsToday:3,overdueAmount:100,overdueCount:1,suppliersDueAmount:70,suppliersDue:Array.from({length:7},(_,i)=>({id:String(i),name:`Fornitore ${i+1}`,amount:10,due_date:"2026-10-17"})),revenueInRange:100,collectedInRange:50,costsPaidInRange:20}} dateFrom="2026-10-16" dateTo="2026-10-16" onDateRangeChange={()=>{}} isLoading={false}/>);
+  renderUI(<TodayFocus compactOperations todayData={{leadsToday:2,appointmentsToday:3,overdueAmount:100,overdueCount:1,suppliersDueAmount:70,suppliersDue:Array.from({length:7},(_,i)=>({id:String(i),name:`Fornitore ${i+1}`,amount:10,due_date:"2026-10-17"})),revenueInRange:100,collectedInRange:50,costsPaidInRange:20}} periodo="oggi" isLoading={false}/>);
   expect(screen.getByText("Fornitore 7")).toBeInTheDocument();
   expect(screen.getByText("Incassato commesse")).toBeInTheDocument();
   expect(screen.queryByText("Crediti scaduti")).not.toBeInTheDocument();

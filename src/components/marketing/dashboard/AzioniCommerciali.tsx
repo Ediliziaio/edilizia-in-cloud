@@ -93,7 +93,7 @@ function buildActions(p: Props, base: string): UrgentAction[] {
     actions.push({
       id: "opportunita-ferme",
       icon: Target,
-      label: `${p.staleOpportunities} opportunità ferme da 7+ giorni`,
+      label: `${p.staleOpportunities} opportunità ferme oltre la soglia della fase`,
       detail: "Nessuna attività — rischio stallo nella pipeline",
       severity: "warning",
       route: `${base}/opportunita`,

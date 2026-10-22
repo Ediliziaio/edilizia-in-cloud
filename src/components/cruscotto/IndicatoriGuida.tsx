@@ -1,11 +1,12 @@
 // ============================================================================
 // IndicatoriGuida — "I numeri che comandano" (tab Sintesi del Cruscotto)
 // ============================================================================
-// Sette indicatori-guida con soglie di allarme, tutti calcolati da dati REALI
+// Otto indicatori-guida con soglie di allarme, tutti calcolati da dati REALI
 // già inseriti in piattaforma (vedi src/lib/indicatoriGuida.ts). Quando un
 // dato manca la card non mostra un numero finto: dice cosa inserire e porta
-// nel punto giusto dell'app con un link. DSCR e ciclo di cassa non vengono
-// ricalcolati qui: vivono già nel Controllo di Gestione (una fonte sola).
+// nel punto giusto dell'app con un link. DSCR e ciclo di cassa vivono nel
+// Controllo di Gestione (una fonte sola): la scheda che ci portava era solo un
+// link, e il suo posto l'ha preso «Lavoro in portafoglio».
 //
 // UX: ogni card calcolata è cliccabile e porta nell'area che spiega il numero;
 // l'icona ⓘ racconta come si calcola; la barra laterale colorata permette di
@@ -19,9 +20,10 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Gauge, Scale, UserRound, CalendarCheck2, HardHat, ShieldCheck,
-  Timer, ArrowRight, CircleGauge, Info,
+  Timer, ArrowRight, CircleGauge, Info, Briefcase,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useIndicatoriGuida, type IndicatoriGuidaData } from "@/hooks/useIndicatoriGuida";
@@ -62,7 +64,7 @@ const STATO_UI: Record<StatoIndicatore, {
 
 // Definizione di ogni card: dove porta il click e come si spiega il calcolo.
 interface DefIndicatore {
-  chiave: keyof Omit<IndicatoriGuidaData, "isLoading">;
+  chiave: keyof Omit<IndicatoriGuidaData, "isLoading" | "errore">;
   titolo: string;
   icona: LucideIcon;
   unita: string;
@@ -85,6 +87,17 @@ const DEFINIZIONI: DefIndicatore[] = [
       "Saldo di Prima Nota ÷ (costi fissi mensili ÷ 30). Risponde a: se da domani non incasso più, per quanti giorni pago comunque tutto?",
   },
   {
+    chiave: "portafoglio",
+    titolo: "Lavoro in portafoglio",
+    icona: Briefcase,
+    unita: " mesi",
+    decimali: 1,
+    soglia: `allarme < ${s.portafoglioMesiAllarme} mesi`,
+    href: "/azienda/ordini",
+    comeSiCalcola:
+      "Venduto ancora da fare sulle commesse aperte (preventivo con le variazioni approvate, per la parte non ancora avanzata, IVA esclusa) ÷ venduto medio mensile degli ultimi 12 mesi. Dice per quanti mesi la squadra ha lavoro senza vendere altro.",
+  },
+  {
     chiave: "accontiSuSaldi",
     titolo: "Acconti ÷ saldi (90 gg)",
     icona: Scale,
@@ -103,7 +116,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme > ${s.quotaPrimoClienteAllarme}%`,
     href: "/azienda/fatturazione",
     comeSiCalcola:
-      "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi. Sopra il 25% non è più un cliente: è un socio senza capitale che può andarsene quando vuole.",
+      "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Sopra il 25% non è più un cliente: è un socio senza capitale che può andarsene quando vuole.",
   },
   {
     chiave: "neiTempi",
@@ -113,7 +126,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme < ${s.neiTempiAllarme}%`,
     href: "/azienda/ordini",
     comeSiCalcola:
-      "Commesse chiuse entro la consegna promessa ÷ commesse chiuse (12 mesi, solo quelle con entrambe le date). Sotto il 70% il problema non è il singolo cantiere: è il sistema.",
+      "Commesse arrivate all'ultima fase entro la fine lavori prevista ÷ commesse arrivate all'ultima fase negli ultimi 12 mesi (la data è quella del passaggio di fase, non una data scritta a mano). Sotto il 70% il problema non è il singolo cantiere: è il sistema.",
   },
   {
     chiave: "saturazione",
@@ -123,7 +136,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme < ${s.saturazioneAllarme}%`,
     href: "/azienda/costi",
     comeSiCalcola:
-      "Ore registrate su commessa ÷ ore contrattuali dei dipendenti attivi, nel mese corrente. Sotto il 65% stai pagando gente per aspettare.",
+      "Ore registrate su commessa ÷ ore contrattuali dei dipendenti attivi nei giorni lavorativi del mese già passati. Sotto il 65% stai pagando gente per aspettare.",
   },
   {
     chiave: "margineSicurezza",
@@ -242,7 +255,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
         </div>
       ) : (
         indicatore.dettaglio && (
-          <p className="hidden text-xs text-muted-foreground leading-snug sm:block">{indicatore.dettaglio}</p>
+          <p className="hidden text-xs text-muted-foreground leading-snug line-clamp-2 sm:block" title={indicatore.dettaglio}>{indicatore.dettaglio}</p>
         )
       )}
     </div>
@@ -251,6 +264,25 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
 
 export function IndicatoriGuida() {
   const dati = useIndicatoriGuida();
+  const isMobile = useIsMobile();
+
+  // Una lettura fallita (un timeout) non è un'azienda senza dati: prima ogni
+  // indicatore finiva «da attivare», con consigli come «emetti le fatture».
+  if (dati.errore) {
+    return (
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CircleGauge className="h-4 w-4 text-primary" />
+            I numeri che comandano
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0 text-sm text-muted-foreground">
+          Numeri non disponibili in questo momento: ricarica la pagina tra poco.
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Riepilogo stati per la testata: quanti allarmi, quante card da accendere.
   const conteggi: Record<StatoIndicatore, number> = { ok: 0, attenzione: 0, allarme: 0, nd: 0 };
@@ -258,6 +290,19 @@ export function IndicatoriGuida() {
     for (const def of DEFINIZIONI) conteggi[dati[def.chiave].stato] += 1;
   }
   const ORDINE_RIEPILOGO: StatoIndicatore[] = ["allarme", "attenzione", "ok", "nd"];
+
+  // Telefono: solo i numeri che chiedono di fare qualcosa — in allarme, poi in
+  // attenzione, al massimo quattro. Quelli in regola e quelli da attivare
+  // restano da computer.
+  const visibili = isMobile
+    ? DEFINIZIONI
+        .filter((d) => ["allarme", "attenzione"].includes(dati[d.chiave].stato))
+        .sort((a, b) => (dati[a.chiave].stato === "allarme" ? 0 : 1) - (dati[b.chiave].stato === "allarme" ? 0 : 1))
+        .slice(0, 4)
+    // da computer: le «da attivare» non prendono una scheda intera per dire che
+    // manca un dato, stanno in una riga sotto la griglia
+    : DEFINIZIONI.filter((d) => dati[d.chiave].stato !== "nd");
+  const daAttivare = isMobile ? [] : DEFINIZIONI.filter((d) => dati[d.chiave].stato === "nd");
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -271,7 +316,7 @@ export function IndicatoriGuida() {
             {dati.isLoading ? (
               <Skeleton className="h-5 w-40" />
             ) : (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 max-sm:hidden">
                 {ORDINE_RIEPILOGO.map(
                   (stato) =>
                     conteggi[stato] > 0 && (
@@ -298,31 +343,33 @@ export function IndicatoriGuida() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
-              {DEFINIZIONI.map((def) => (
-                <CardIndicatore key={def.chiave} def={def} indicatore={dati[def.chiave]} />
-              ))}
-
-              {/* DSCR e ciclo di cassa vivono nel CdG: una fonte sola, qui solo il ponte. */}
-              <Link
-                to="/azienda/controllo-gestione"
-                className="hidden rounded-xl border border-dashed bg-muted/30 p-3 sm:flex flex-col justify-between gap-2 transition-all hover:-translate-y-0.5 hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="flex items-center gap-2">
-                  <CircleGauge className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    DSCR · Ciclo di cassa
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground leading-snug">
-                  DSCR, DSO/DPO e ciclo di cassa completo sono già calcolati negli
-                  Indici del Controllo di Gestione.
-                </p>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                  Apri gli indici <ArrowRight className="h-3 w-3" />
-                </span>
-              </Link>
-            </div>
+            // da computer «vuoto» può voler dire che è tutto da attivare (azienda
+            // nuova): allora va detto cosa attivare, non «nessun allarme»
+            visibili.length === 0 && daAttivare.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">Nessun indicatore in allarme.</p>
+            ) : (
+              <>
+                {visibili.length > 0 && <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
+                  {visibili.map((def) => (
+                    <CardIndicatore key={def.chiave} def={def} indicatore={dati[def.chiave]} />
+                  ))}
+                </div>}
+                {daAttivare.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
+                    <span className="font-semibold text-muted-foreground">Da attivare:</span>
+                    {daAttivare.map((def) => {
+                      const m = dati[def.chiave].mancanti?.[0];
+                      return (
+                        <span key={def.chiave} className="text-muted-foreground">
+                          {def.titolo}
+                          {m && <> — <Link to={m.link} className="font-medium text-primary hover:underline">{m.azione}</Link></>}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )
           )}
         </CardContent>
       </Card>

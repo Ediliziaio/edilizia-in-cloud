@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { brandingFirma, emailCondizioniFirma } from "../_shared/emailFirma.ts";
 import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 import {
   DICHIARAZIONE_VERSIONE, TIPI_DOCUMENTO_IDENTITA, controllaSessioneFirma, impronta, ipDellaRichiesta, statoIdentificazione, testoDichiarazione,
@@ -80,17 +81,18 @@ Deno.serve(async (req: Request) => {
     const emailPulita = String(r.signer_email ?? "").trim();
     const copiaDichiarazione = async (firmatarioId: string, nome: string, cognome: string) => {
       try {
+        const email = emailCondizioniFirma(await brandingFirma(supabaseAdmin, r.company_id), {
+          nome: `${nome} ${cognome}`.trim(), accettataIl: ora, testo: dichiarazione,
+          versione: DICHIARAZIONE_VERSIONE, hash: dichiarazioneHash,
+        });
         await sendEmailUnified({
           companyId: r.company_id,
           stream: "transactional",
           to: [emailPulita],
-          subject: `Copia delle condizioni di firma elettronica - ${aziendaNome}`,
-          html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto">
-  <p>Gentile ${esc(nome)} ${esc(cognome)},</p>
-  <p>ecco la copia della dichiarazione che hai accettato il ${esc(new Date(ora).toLocaleString("it-IT", { timeZone: "Europe/Rome" }))} per firmare elettronicamente i documenti di ${esc(aziendaNome)}. Conservala.</p>
-  <div style="white-space:pre-wrap;font-size:13px;line-height:1.5;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px">${esc(dichiarazione)}</div>
-  <p style="color:#64748B;font-size:12px">Versione ${esc(DICHIARAZIONE_VERSIONE)} · impronta ${esc(dichiarazioneHash)}</p>
-</div>`,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+          replyTo: email.replyTo,
           templateName: "fea_dichiarazione",
           skipCredits: true,
           adminClient: supabaseAdmin,

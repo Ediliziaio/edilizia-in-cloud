@@ -57,6 +57,10 @@ export const SOGLIE_INDICATORI = {
   /** (Venduto − break-even) ÷ venduto: sotto il 20% un cantiere perso chiude l'anno in rosso. */
   margineSicurezzaAllarme: 20,
   margineSicurezzaAttenzione: 30,
+  /** Mesi di lavoro venduto ancora da fare, al ritmo di vendita degli ultimi 12
+   *  mesi: sotto 2 la squadra resta ferma a breve, sotto 4 serve vendere ora. */
+  portafoglioMesiAllarme: 2,
+  portafoglioMesiAttenzione: 4,
   /** Giorni dall'apertura commessa al primo ordine fornitore: sano entro 5. */
   firmaOrdineGiorniOk: 5,
   firmaOrdineGiorniAllarme: 10,
@@ -87,8 +91,10 @@ export function valutaCopertura(
 ): Indicatore {
   const mancanti: DatoMancante[] = [];
   if (!haMovimenti) {
+    // Un saldo di cassa con due movimenti in tutto non è la cassa: senza una
+    // Prima Nota tenuta il numero sarebbe un falso allarme (la Demo dava «1 gg»).
     mancanti.push({
-      cosa: "movimenti in Prima Nota (il saldo di cassa)",
+      cosa: "movimenti di Prima Nota degli ultimi 60 giorni: senza, il saldo non è la cassa vera",
       link: "/azienda/prima-nota",
       azione: "Registra gli incassi e i pagamenti",
     });
@@ -122,7 +128,7 @@ export function valutaCopertura(
   return {
     valore: Math.round(giorni),
     stato,
-    dettaglio: saldo < 0 ? `Il saldo registrato è negativo (${eur(saldo)}): non copre ulteriori giorni di costi fissi.` : `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} giorni senza incassare.${lettura}`,
+    dettaglio: saldo < 0 ? `Il saldo registrato è negativo (${eur(saldo)}): non copre ulteriori giorni di costi fissi.` : `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} ${Math.round(giorni) === 1 ? "giorno" : "giorni"} senza incassare.${lettura}`,
   };
 }
 
@@ -178,7 +184,7 @@ export function valutaQuotaPrimoCliente(
     valore: Math.round(quotaPerc),
     stato,
     dettaglio: nomeCliente
-      ? `${nomeCliente} pesa il ${Math.round(quotaPerc)}% di ${eur(fatturato12m)} fatturati in 12 mesi.`
+      ? `${nomeCliente} pesa il ${Math.round(quotaPerc)}% di ${eur(fatturato12m)} fatturati in 12 mesi (IVA esclusa, note di credito tolte).`
       : undefined,
   };
 }
@@ -205,7 +211,7 @@ export function valutaNeiTempi(
   return {
     valore: Math.round(perc),
     stato,
-    dettaglio: `${chiusiNeiTempi} su ${chiusiTotali} chiuse in tempo (12 mesi)${inRitardoOra > 0 ? ` · ${inRitardoOra} oltre la data adesso` : ""}.`,
+    dettaglio: `${chiusiNeiTempi} su ${chiusiTotali} finite entro la data prevista (12 mesi)${inRitardoOra > 0 ? ` · ${inRitardoOra} oltre la data adesso` : ""}.`,
   };
 }
 
@@ -221,6 +227,15 @@ export function valutaSaturazione(
       azione: "Completa l'anagrafica del personale",
     }]);
   }
+  if (oreSuCommessa <= 0) {
+    // Nessuna ora registrata nel mese vuol dire rapportini non usati, non squadra
+    // ferma: lo 0% era un falso allarme.
+    return nd([{
+      cosa: "ore registrate su commessa questo mese (rapportini dal cantiere)",
+      link: "/azienda/rapportini-cantiere",
+      azione: "Fai mandare i rapportini dal cantiere",
+    }]);
+  }
   const perc = (oreSuCommessa / oreContrattuali) * 100;
   const s = SOGLIE_INDICATORI;
   const stato: StatoIndicatore =
@@ -230,7 +245,7 @@ export function valutaSaturazione(
   return {
     valore: Math.round(perc),
     stato,
-    dettaglio: `${fmtOre(oreSuCommessa)} ore su commessa contro ${fmtOre(oreContrattuali)} contrattuali questo mese.`,
+    dettaglio: `${fmtOre(oreSuCommessa)} ore su commessa contro ${fmtOre(oreContrattuali)} contrattuali dall'inizio del mese.`,
   };
 }
 
@@ -266,6 +281,32 @@ export function valutaMargineSicurezza(
     valore: Math.round(perc),
     stato,
     dettaglio: `Venduto ${eur(venduto12m)} in 12 mesi contro un pareggio di ${eur(breakEvenAnnuo)} l'anno.`,
+  };
+}
+
+/** Lavoro in portafoglio = venduto ancora da fare ÷ venduto medio mensile (12 mesi). */
+export function valutaPortafoglio(
+  portafoglio: number,
+  commesseAperte: number,
+  venduto12m: number,
+): Indicatore {
+  if (venduto12m <= 0) {
+    return nd([{
+      cosa: "commesse vendute negli ultimi 12 mesi",
+      link: "/azienda/ordini",
+      azione: "Registra le commesse vendute",
+    }]);
+  }
+  const mesi = portafoglio / (venduto12m / 12);
+  const s = SOGLIE_INDICATORI;
+  const stato: StatoIndicatore =
+    mesi < s.portafoglioMesiAllarme ? "allarme"
+    : mesi < s.portafoglioMesiAttenzione ? "attenzione"
+    : "ok";
+  return {
+    valore: Math.round(mesi * 10) / 10,
+    stato,
+    dettaglio: `${eur(portafoglio)} di lavoro venduto ancora da fare su ${commesseAperte} ${commesseAperte === 1 ? "commessa aperta" : "commesse aperte"}, al ritmo di vendita degli ultimi 12 mesi.`,
   };
 }
 

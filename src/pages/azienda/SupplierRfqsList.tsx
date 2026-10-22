@@ -56,7 +56,7 @@ export default function SupplierRfqsList() {
     for (const r of aperte) {
       const c = contatori[r.id];
       if (!c) continue;
-      if (c.risposte < c.invitati) inAttesa += c.invitati - c.risposte;
+      inAttesa += c.inAttesa;
       if (c.risposte > 0 && r.status !== "aggiudicata") daValutare += 1;
     }
     return {
@@ -218,8 +218,11 @@ export default function SupplierRfqsList() {
                 </thead>
                 <tbody>
                   {filtrate.map((r) => {
-                    const c = contatori[r.id] ?? { invitati: 0, risposte: 0, migliore: null };
-                    const attesa = r.status === "inviata" ? giorniDaAttesa(r.created_at) : null;
+                    const c = contatori[r.id] ?? { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null, migliore: null };
+                    // dal giorno in cui è stata chiesta (anche a voce), non da quando è stata creata
+                    // solo per le richieste aperte: su un'aggiudicata i fornitori perdenti restano «inviata»
+                    const aperta = r.status === "bozza" || r.status === "inviata" || r.status === "in_valutazione";
+                    const attesa = aperta && c.inAttesa > 0 ? giorniDaAttesa(c.attesaDal) : null;
                     return (
                       <tr
                         key={r.id}
@@ -234,7 +237,7 @@ export default function SupplierRfqsList() {
                           <span className="tabular-nums">
                             {c.risposte}/{c.invitati}
                           </span>
-                          {c.invitati > 0 && c.risposte < c.invitati && attesa && attesa > 3 && (
+                          {attesa && attesa > 3 && (
                             <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                               da {attesa}gg
                             </span>
@@ -292,7 +295,8 @@ export default function SupplierRfqsList() {
               </div>
             </div>
             <p className="text-xs text-slate-500">
-              Prossimo passo: elenchi cosa serve e scegli a quali fornitori chiederlo.
+              Prossimo passo: elenchi cosa serve e a quali fornitori. Se l'hai già chiesta per
+              telefono o WhatsApp, la segni come chiesta e scrivi i prezzi quando arrivano.
             </p>
           </div>
           <DialogFooter>

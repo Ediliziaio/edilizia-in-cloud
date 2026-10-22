@@ -11,7 +11,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useLowStockAlerts, magazzinoKeys } from "@/hooks/useMagazzinoLive";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -29,6 +28,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   companyId: string;
   readOnly?: boolean;
+  /**
+   * destinazione forzata dell'ordine; senza, il database usa il magazzino
+   * degli articoli (se è uno solo): l'elenco copre tutti i magazzini
+   */
+  warehouseId?: string | null;
+  /** solo questi articoli (quelli del magazzino scelto); senza, tutti */
+  articoliVisibili?: Set<string> | null;
 }
 
 interface StockMeta {
@@ -54,11 +60,15 @@ interface SupplierGroup {
   rows: ReorderRow[];
 }
 
-export function LowStockReorderDialog({ open, onOpenChange, companyId, readOnly = false }: Props) {
+export function LowStockReorderDialog({ open, onOpenChange, companyId, readOnly = false, warehouseId = null, articoliVisibili = null }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const { data: alerts = [], isLoading: alertsLoading } = useLowStockAlerts(companyId);
+  const { data: tuttiGliAvvisi = [], isLoading: alertsLoading } = useLowStockAlerts(companyId);
+  // con un magazzino scelto, gli stessi articoli che conta il riquadro «sotto scorta»
+  const alerts = useMemo(
+    () => (articoliVisibili ? tuttiGliAvvisi.filter((a) => articoliVisibili.has(a.stock_item_id)) : tuttiGliAvvisi),
+    [tuttiGliAvvisi, articoliVisibili],
+  );
 
   const alertIds = useMemo(() => alerts.map((a) => a.stock_item_id), [alerts]);
 
@@ -145,40 +155,40 @@ export function LowStockReorderDialog({ open, onOpenChange, companyId, readOnly 
     }
     setCreatingSupplier(group.supplierId);
     try {
-      const { data: po, error: poErr } = await supabase
-        .from("purchase_orders")
-        .insert({
-          company_id: companyId,
-          supplier_id: group.supplierId,
-          order_id: null,
-          created_by: user?.id,
-          notes: "Riordino automatico da sottoscorta magazzino",
-        } as never)
-        .select("id")
-        .single();
-      if (poErr) throw poErr;
-      const poId = (po as { id: string }).id;
+      // Una sola operazione nel database (magazzino_riordina): testata e righe
+      // insieme, con l'articolo agganciato alla riga. Prima erano due scritture
+      // dal browser — se la seconda falliva restava un ordine vuoto — e due
+      // clic facevano due ordini. Gli articoli già in un ordine aperto non si
+      // riordinano: la funzione dice in quale ordine sono.
+      const { data, error } = await supabase.rpc("magazzino_riordina" as never, {
+        p_company_id: companyId,
+        p_supplier_id: group.supplierId,
+        p_righe: rows.map((r) => ({ stock_item_id: r.stockItemId, quantity: r.qty })),
+        p_warehouse_id: warehouseId ?? null,
+      } as never);
+      if (error) throw error;
+      const esito = data as unknown as {
+        purchase_order_id: string | null;
+        oda_number: string | null;
+        righe: number;
+        gia_in_ordine: Array<{ nome: string; oda_number: string }>;
+      };
 
-      const poItems = rows.map((r, idx) => ({
-        company_id: companyId,
-        purchase_order_id: poId,
-        order_item_id: null,
-        description: r.name,
-        quantity: r.qty,
-        unit_price: r.unitCost,
-        vat_rate: r.vatRate || 22,
-        discount_percent: 0,
-        unit_of_measure: "pz",
-        sort_order: idx,
-      }));
-      const { error: itemsErr } = await supabase.from("purchase_order_items").insert(poItems as never);
-      if (itemsErr) throw itemsErr;
-
-      toast.success(`Ordine d'acquisto creato per ${group.supplierName}`);
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+
+      const gia = esito.gia_in_ordine ?? [];
+      const giaTesto = gia.length > 0
+        ? `Già in ordine: ${gia.slice(0, 3).map((g) => `${g.nome} (${g.oda_number})`).join(", ")}${gia.length > 3 ? ` e altri ${gia.length - 3}` : ""}`
+        : undefined;
+      if (!esito.purchase_order_id) {
+        toast.info("Nessun ordine nuovo", { description: giaTesto ?? "Non c'era niente da ordinare." });
+        return;
+      }
+      toast.success(`Ordine ${esito.oda_number} creato per ${group.supplierName}`, { description: giaTesto });
       onOpenChange(false);
-      navigate(`/azienda/ordini-acquisto/${poId}`);
+      navigate(`/azienda/ordini-acquisto/${esito.purchase_order_id}`);
     } catch (e) {
       toast.error("Errore nella creazione dell'ODA", {
         description: e instanceof Error ? e.message : String(e),

@@ -7,12 +7,11 @@
  * Cards: In Ritardo · In Magazzino · In Transito · Da Ordinare.
  */
 
-import { useMemo } from "react";
 import { Package, ShoppingCart, Truck, AlertOctagon } from "lucide-react";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { formatCurrency } from "@/lib/formatters";
-import { isItemOverdue } from "@/types/warehouse";
-import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+import type { OrderItemStatus } from "@/types/warehouse";
+import type { MagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
 
 export type WarehouseStatsFilter =
   | { kind: "all" }
@@ -22,7 +21,12 @@ export type WarehouseStatsFilter =
 export type WarehouseOrderMetricKey = "overdue" | "in_magazzino" | "ordinato" | "da_ordinare";
 
 interface WarehouseStatsProps {
-  items: WarehouseItem[];
+  /**
+   * I conteggi su tutte le righe di commessa dell'azienda (e del magazzino
+   * scelto), dal database. Prima si contavano le 50 righe della pagina
+   * mostrata, già filtrate: cliccando un riquadro gli altri andavano a zero.
+   */
+  riepilogo?: MagazzinoRiepilogo["righe"];
   /** Stato corrente del filter (da Warehouse.tsx: status o quick filter). */
   activeFilter: WarehouseStatsFilter;
   /** Click su una KPI card → applica filtro (o lo rimuove se già attivo). */
@@ -38,24 +42,18 @@ function isFilterActive(active: WarehouseStatsFilter, candidate: WarehouseStatsF
   return false;
 }
 
-export default function WarehouseStats({ items, activeFilter, onCardClick, visibleCards }: WarehouseStatsProps) {
-  const stats = useMemo(() => {
-    const inMagazzino = items.filter((i) => i.status === "in_magazzino");
-    const ordinati = items.filter((i) => i.status === "ordinato");
-    const daOrdinare = items.filter((i) => i.status === "da_ordinare");
-    const overdue = items.filter(isItemOverdue);
+const vuoto = { count: 0, orders: 0, value: 0 };
+const commesse = (n: number) => `${n} ${n === 1 ? "commessa" : "commesse"}`;
+const da = (c?: { n: number; commesse: number; valore?: number }) =>
+  c ? { count: c.n, orders: c.commesse, value: Number(c.valore ?? 0) } : vuoto;
 
-    const uniqueOrders = (arr: WarehouseItem[]) => new Set(arr.map((i) => i.order.id)).size;
-    const calculateValue = (arr: WarehouseItem[]) =>
-      arr.reduce((sum, item) => sum + (item.purchase_price || 0) * (item.quantity ?? 0), 0);
-
-    return {
-      overdue: { count: overdue.length, orders: uniqueOrders(overdue) },
-      inMagazzino: { count: inMagazzino.length, orders: uniqueOrders(inMagazzino), value: calculateValue(inMagazzino) },
-      ordinati: { count: ordinati.length, orders: uniqueOrders(ordinati), value: calculateValue(ordinati) },
-      daOrdinare: { count: daOrdinare.length, orders: uniqueOrders(daOrdinare), value: calculateValue(daOrdinare) },
-    };
-  }, [items]);
+export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, visibleCards }: WarehouseStatsProps) {
+  const stats = {
+    overdue: da(riepilogo?.in_ritardo),
+    inMagazzino: da(riepilogo?.in_magazzino),
+    ordinati: da(riepilogo?.ordinato),
+    daOrdinare: da(riepilogo?.da_ordinare),
+  };
 
   /** Toggle: se la card è già il filtro attivo → reset a "all", altrimenti applica. */
   const handleClick = (candidate: WarehouseStatsFilter) => {
@@ -79,7 +77,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           title="In Ritardo"
           icon={AlertOctagon}
           value={stats.overdue.count}
-          primaryHint={stats.overdue.count > 0 ? `${stats.overdue.orders} ord · scaduti` : "nessun ritardo"}
+          primaryHint={stats.overdue.count > 0 ? `${commesse(stats.overdue.orders)} · scaduti` : "nessun ritardo"}
           secondaryHint={null}
         />
       )}
@@ -95,7 +93,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           value={stats.inMagazzino.count}
           primaryHint={
             stats.inMagazzino.count > 0
-              ? `${stats.inMagazzino.orders} ord · ${formatCurrency(stats.inMagazzino.value)}`
+              ? `${commesse(stats.inMagazzino.orders)} · ${formatCurrency(stats.inMagazzino.value)}`
               : "nulla in stock"
           }
           secondaryHint={null}
@@ -113,7 +111,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           value={stats.ordinati.count}
           primaryHint={
             stats.ordinati.count > 0
-              ? `${stats.ordinati.orders} ord · ${formatCurrency(stats.ordinati.value)}`
+              ? `${commesse(stats.ordinati.orders)} · ${formatCurrency(stats.ordinati.value)}`
               : "nessun arrivo"
           }
           secondaryHint={null}
@@ -131,7 +129,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           value={stats.daOrdinare.count}
           primaryHint={
             stats.daOrdinare.count > 0
-              ? `${stats.daOrdinare.orders} ord · ${formatCurrency(stats.daOrdinare.value)}`
+              ? `${commesse(stats.daOrdinare.orders)} · ${formatCurrency(stats.daOrdinare.value)}`
               : "lista vuota"
           }
           secondaryHint={null}
