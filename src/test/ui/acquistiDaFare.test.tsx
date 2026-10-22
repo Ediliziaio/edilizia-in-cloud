@@ -35,9 +35,9 @@ vi.mock("@/integrations/supabase/client", () => {
 import AcquistiDaFare from "@/pages/azienda/AcquistiDaFare";
 
 const riga = (id: string, extra: Record<string, unknown> = {}) => ({
-  id, order_id: "c1", name: `Materiale ${id}`, description: null, quantity: 10, status: "da_ordinare", supplier_id: "f1",
+  id, order_id: "c1", name: `Materiale ${id}`, description: null as never, quantity: 10, status: "da_ordinare", supplier_id: "f1",
   purchase_price: 1, vat_rate: 22, phase_id: "fase-el", unita_misura: "m", specifiche: "450/750 V", origine_materiale: "computo",
-  quantita_calcolata: 10, origini: [], locale: null, supplier_rfq_item_id: null, stock_item_id: null, posizioni: null, ...extra,
+  quantita_calcolata: 10, origini: [] as never[], locale: null as never, supplier_rfq_item_id: null as never, stock_item_id: null as never, posizioni: null as never, ...extra,
 });
 
 function disegna(percorso = "/azienda/acquisti-da-fare") {

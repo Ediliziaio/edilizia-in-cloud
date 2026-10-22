@@ -30,10 +30,10 @@ vi.mock("@/hooks/useMaterialiPerFase", () => {
 import { MaterialiPerFase } from "@/components/orders/materiali/MaterialiPerFase";
 
 const materiale = (id: string, extra: Record<string, unknown> = {}) => ({
-  id, order_id: "c1", name: `Materiale ${id}`, description: null, quantity: 37, status: "da_ordinare", supplier_id: null,
-  purchase_price: 2, vat_rate: 22, phase_id: "fase-el", unita_misura: "pz", specifiche: null, origine_materiale: "computo",
+  id, order_id: "c1", name: `Materiale ${id}`, description: null as never, quantity: 37, status: "da_ordinare", supplier_id: null as never,
+  purchase_price: 2, vat_rate: 22, phase_id: "fase-el", unita_misura: "pz", specifiche: null as never, origine_materiale: "computo",
   quantita_calcolata: 36.4, origini: [{ tipo: "computo", voce_id: "v", codice: "EL.05", descrizione: "Punto presa", quantita_voce: 37, unita_voce: "cad", quantita: 37 }],
-  locale: null, supplier_rfq_item_id: null, stock_item_id: null, posizioni: null, stato: "da_ordinare", ordinabile: true, avviso: null, ...extra,
+  locale: null as never, supplier_rfq_item_id: null as never, stock_item_id: null as never, posizioni: null as never, stato: "da_ordinare", ordinabile: true, avviso: null as never, ...extra,
 });
 
 describe("Materiali per fase nella commessa", () => {
