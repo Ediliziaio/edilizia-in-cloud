@@ -89,3 +89,15 @@ export function formatImportiNelTesto(testo: string): string {
     return `${EURO_PIENO.format(n)} ${valuta}`;
   });
 }
+
+/** «amm_immobili» → «Ammortamento immobili»: la categoria come la legge il titolare. */
+export function categoriaLeggibile(valore: string): string {
+  const abbreviazioni: Record<string, string> = { amm: "ammortamento", p: "passive", a: "attive", cc: "", bt: "", furg: "furgoni" };
+  const parole = valore
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => (w.toLowerCase() in abbreviazioni ? abbreviazioni[w.toLowerCase()] : w.toLowerCase()))
+    .filter(Boolean);
+  const testo = parole.join(" ");
+  return testo ? testo.charAt(0).toUpperCase() + testo.slice(1) : valore;
+}

@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
+// Nei testi il mese per intero: «la cassa di ottobre», non «di Ott».
+const MESI_INTERI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
 interface Props {
   anno: number;
@@ -170,7 +172,7 @@ export function TabDashboard({ anno }: Props) {
         const primo = sottoZeroMonths[0];
         out.push({
           severity: "rosso",
-          testo: `Cassa sotto zero a ${MESI_LABELS[primo.mese - 1]} (${formatCurrency(primo.saldo_fine)}). Verifica scadenze ed entrate previste.`,
+          testo: `Cassa sotto zero a ${MESI_INTERI[primo.mese - 1]} (${formatCurrency(primo.saldo_fine)}). Verifica scadenze ed entrate previste.`,
           href: "/azienda/controllo-gestione/cash-flow",
         });
       }
@@ -270,7 +272,7 @@ export function TabDashboard({ anno }: Props) {
       out.push({
         id: "cassa-negativa",
         priority: "alta",
-        title: `Metti in sicurezza la cassa di ${MESI_LABELS[worstCashMonth.mese - 1]}`,
+        title: `Metti in sicurezza la cassa di ${MESI_INTERI[worstCashMonth.mese - 1]}`,
         reason: `Il saldo previsto scende a ${formatCurrency(worstCashMonth.saldo_fine)}.`,
         impact: "Priorità a incassi, scadenze fornitori e uscite rinviabili.",
         owner: "Titolare + amministrazione",

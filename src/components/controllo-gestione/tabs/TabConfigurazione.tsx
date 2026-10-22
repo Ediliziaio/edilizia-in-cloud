@@ -42,6 +42,7 @@ import { NotePanel } from "@/components/controllo-gestione/ui/NotePanel";
 import { AliquoteEditor } from "@/components/controllo-gestione/ui/AliquoteEditor";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { cn } from "@/lib/utils";
+import { categoriaLeggibile } from "@/lib/controlloGestione/formatCG";
 
 interface TabConfigurazioneProps {
   anno?: number;
@@ -222,8 +223,11 @@ function ClassificazioneRow({ voce, onPatch }: RowProps) {
           />
         </div>
         {/* Il nome tecnico (es. «salari_stipendi_cc») solo nel tooltip. */}
-        <p className="mt-1 text-[11px] text-muted-foreground" title={`Codice: ${voce.voce_chiave}`}>
-          {voce.source_value ? <>Categoria «{voce.source_value}»</> : "Senza categoria"}
+        <p
+          className="mt-1 text-[11px] text-muted-foreground"
+          title={`Codice: ${voce.voce_chiave}${voce.source_value ? ` · categoria salvata: ${voce.source_value}` : ""}`}
+        >
+          {voce.source_value ? <>Categoria «{categoriaLeggibile(voce.source_value)}»</> : "Senza categoria"}
         </p>
       </TableCell>
       <TableCell>
