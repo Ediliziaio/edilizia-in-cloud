@@ -23792,9 +23792,12 @@ export type Database = {
       }
       computo_uploads: {
         Row: {
+          cig: string | null
           committente: string | null
           company_id: string
+          controllo_totali: Json | null
           created_at: string | null
+          cup: string | null
           data_computo: string | null
           extraction_completed_at: string | null
           extraction_confidence: number | null
@@ -23805,18 +23808,31 @@ export type Database = {
           file_size: number
           file_type: string
           id: string
+          lavoro_pubblico: boolean
           oggetto_lavori: string | null
+          oneri_sicurezza: number | null
+          order_id: string | null
+          prezzari: string[] | null
           progettista: string | null
           quote_id: string | null
           raw_extracted_json: Json | null
+          ribasso_percentuale: number | null
+          stato: string
+          stazione_appaltante: string | null
           storage_path: string
+          titolo: string | null
+          totale_calcolato: number | null
+          totale_dichiarato: number | null
           updated_at: string | null
           uploaded_by: string | null
         }
         Insert: {
+          cig?: string | null
           committente?: string | null
           company_id: string
+          controllo_totali?: Json | null
           created_at?: string | null
+          cup?: string | null
           data_computo?: string | null
           extraction_completed_at?: string | null
           extraction_confidence?: number | null
@@ -23827,18 +23843,31 @@ export type Database = {
           file_size: number
           file_type: string
           id?: string
+          lavoro_pubblico?: boolean
           oggetto_lavori?: string | null
+          oneri_sicurezza?: number | null
+          order_id?: string | null
+          prezzari?: string[] | null
           progettista?: string | null
           quote_id?: string | null
           raw_extracted_json?: Json | null
+          ribasso_percentuale?: number | null
+          stato?: string
+          stazione_appaltante?: string | null
           storage_path: string
+          titolo?: string | null
+          totale_calcolato?: number | null
+          totale_dichiarato?: number | null
           updated_at?: string | null
           uploaded_by?: string | null
         }
         Update: {
+          cig?: string | null
           committente?: string | null
           company_id?: string
+          controllo_totali?: Json | null
           created_at?: string | null
+          cup?: string | null
           data_computo?: string | null
           extraction_completed_at?: string | null
           extraction_confidence?: number | null
@@ -23849,11 +23878,21 @@ export type Database = {
           file_size?: number
           file_type?: string
           id?: string
+          lavoro_pubblico?: boolean
           oggetto_lavori?: string | null
+          oneri_sicurezza?: number | null
+          order_id?: string | null
+          prezzari?: string[] | null
           progettista?: string | null
           quote_id?: string | null
           raw_extracted_json?: Json | null
+          ribasso_percentuale?: number | null
+          stato?: string
+          stazione_appaltante?: string | null
           storage_path?: string
+          titolo?: string | null
+          totale_calcolato?: number | null
+          totale_dichiarato?: number | null
           updated_at?: string | null
           uploaded_by?: string | null
         }
@@ -23909,12 +23948,68 @@ export type Database = {
           },
         ]
       }
+      computo_voci_misure: {
+        Row: {
+          altezza_peso: number | null
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          formula: string | null
+          id: string
+          larghezza: number | null
+          lunghezza: number | null
+          ordine: number
+          parti_uguali: number | null
+          quantita: number | null
+          voce_id: string
+        }
+        Insert: {
+          altezza_peso?: number | null
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          formula?: string | null
+          id?: string
+          larghezza?: number | null
+          lunghezza?: number | null
+          ordine?: number
+          parti_uguali?: number | null
+          quantita?: number | null
+          voce_id: string
+        }
+        Update: {
+          altezza_peso?: number | null
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          formula?: string | null
+          id?: string
+          larghezza?: number | null
+          lunghezza?: number | null
+          ordine?: number
+          parti_uguali?: number | null
+          quantita?: number | null
+          voce_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computo_voci_misure_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "computo_voci_estratte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       computo_voci_estratte: {
         Row: {
+          a_corpo: boolean
           ai_notes: string | null
           capitolo_nome: string | null
           capitolo_numero: number | null
+          categoria: string | null
           codice_prezzario: string | null
+          codice_tariffa: string | null
           codice_voce: string | null
           company_id: string
           computo_upload_id: string
@@ -23925,28 +24020,36 @@ export type Database = {
           id: string
           importo_computo: number | null
           importo_impresa: number | null
+          is_detrazione: boolean
           is_included: boolean | null
           is_modified: boolean | null
+          is_sicurezza: boolean
           match_confidence: number | null
           match_type: string | null
           matched_family_id: string | null
           matched_name: string | null
           matched_tariffa_id: string | null
           matched_template_id: string | null
+          numero_ordine: string | null
           ordine: number | null
           prezzo_unitario_computo: number | null
           prezzo_unitario_impresa: number | null
           quantita: number | null
           ricarico_percentuale: number | null
           sconto_percentuale: number | null
+          sotto_categoria: string | null
+          super_categoria: string | null
           unita_misura: string | null
           warnings: string[] | null
         }
         Insert: {
+          a_corpo?: boolean
           ai_notes?: string | null
           capitolo_nome?: string | null
           capitolo_numero?: number | null
+          categoria?: string | null
           codice_prezzario?: string | null
+          codice_tariffa?: string | null
           codice_voce?: string | null
           company_id: string
           computo_upload_id: string
@@ -23957,28 +24060,36 @@ export type Database = {
           id?: string
           importo_computo?: number | null
           importo_impresa?: number | null
+          is_detrazione?: boolean
           is_included?: boolean | null
           is_modified?: boolean | null
+          is_sicurezza?: boolean
           match_confidence?: number | null
           match_type?: string | null
           matched_family_id?: string | null
           matched_name?: string | null
           matched_tariffa_id?: string | null
           matched_template_id?: string | null
+          numero_ordine?: string | null
           ordine?: number | null
           prezzo_unitario_computo?: number | null
           prezzo_unitario_impresa?: number | null
           quantita?: number | null
           ricarico_percentuale?: number | null
           sconto_percentuale?: number | null
+          sotto_categoria?: string | null
+          super_categoria?: string | null
           unita_misura?: string | null
           warnings?: string[] | null
         }
         Update: {
+          a_corpo?: boolean
           ai_notes?: string | null
           capitolo_nome?: string | null
           capitolo_numero?: number | null
+          categoria?: string | null
           codice_prezzario?: string | null
+          codice_tariffa?: string | null
           codice_voce?: string | null
           company_id?: string
           computo_upload_id?: string
@@ -23989,20 +24100,25 @@ export type Database = {
           id?: string
           importo_computo?: number | null
           importo_impresa?: number | null
+          is_detrazione?: boolean
           is_included?: boolean | null
           is_modified?: boolean | null
+          is_sicurezza?: boolean
           match_confidence?: number | null
           match_type?: string | null
           matched_family_id?: string | null
           matched_name?: string | null
           matched_tariffa_id?: string | null
           matched_template_id?: string | null
+          numero_ordine?: string | null
           ordine?: number | null
           prezzo_unitario_computo?: number | null
           prezzo_unitario_impresa?: number | null
           quantita?: number | null
           ricarico_percentuale?: number | null
           sconto_percentuale?: number | null
+          sotto_categoria?: string | null
+          super_categoria?: string | null
           unita_misura?: string | null
           warnings?: string[] | null
         }
