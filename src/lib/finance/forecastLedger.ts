@@ -40,6 +40,12 @@ export interface ForecastMovement {
    * non collegata a una rata): resta fuori dal piano finché qualcuno non lo collega.
    */
   possibleDuplicate?: boolean;
+  /**
+   * Categoria della fonte, quando c'è: la categoria della spesa (company_costs.category) o il tipo
+   * della rata («deposit» = acconto). Serve al rendiconto di cassa per mettere il movimento nella
+   * voce giusta; il Previsionale non la usa.
+   */
+  sourceCategory?: string | null;
 }
 export interface BankRow {
   id: string;
@@ -419,6 +425,7 @@ export function buildForecastLedger(
   const collected: ForecastMovement[] = [];
   const warnings = new Set<string>();
   const orderMap = new Map(s.orders.map((o) => [o.id, o]));
+  const costById = new Map(s.costs.map((c) => [c.id, c]));
   const invoices = new Map(s.invoices.map((i) => [i.id, i]));
   const invoiceDeadlines = new Set(
     s.deadlines
@@ -527,6 +534,7 @@ export function buildForecastLedger(
       date: d.due_date,
       source: "Scadenzario",
       href: "/azienda/scadenzario",
+      sourceCategory: d.cost_id ? costById.get(d.cost_id)?.category ?? null : null,
       orderId: d.order_id ?? invoice?.order_id,
       estimated: !!d.is_previsionale,
       ...(duplicate ? { possibleDuplicate: true, note: duplicateNote } : {}),
@@ -601,6 +609,7 @@ export function buildForecastLedger(
       href: orderHref(d.order_id),
       orderId: d.order_id,
       estimated: false,
+      sourceCategory: rate.get(d.id)?.type ?? null,
     });
   }
   s.incassiRate.forEach((i, n) => {
@@ -655,6 +664,7 @@ export function buildForecastLedger(
         date: c.due_date,
         source: "Spesa registrata",
         href: "/azienda/costi",
+        sourceCategory: c.category ?? null,
         orderId: c.order_id,
         estimated: vat == null,
         note:
@@ -763,6 +773,7 @@ export function buildForecastLedger(
         date,
         source: "Stima ricorrenza",
         href: "/azienda/costi",
+        sourceCategory: c.category ?? null,
         estimated: true,
         note: "Occorrenza futura prevista dalla ricorrenza, non ancora registrata.",
       });
