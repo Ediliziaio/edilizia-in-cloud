@@ -1,4 +1,3 @@
-/// <reference lib="webworker" />
 /**
  * Lettura del disegno CAD fuori dalla pagina: il file si legge a pezzi dal
  * disco (File.stream), si decodifica e passa a LettoreDxf senza mai tenere
@@ -12,7 +11,11 @@ export type MessaggioWorker =
   | { tipo: "fatto"; disegno: ReturnType<LettoreDxf["fine"]> }
   | { tipo: "errore"; codice: "dwg" | "dxf_binario" | "sconosciuto" | "memoria" | "lettura"; messaggio: string };
 
-const ctx = self as unknown as DedicatedWorkerGlobalScope;
+// Tipo minimo del worker: niente lib «webworker» che si mescolerebbe al DOM dell'app.
+const ctx = self as unknown as {
+  postMessage: (m: MessaggioWorker) => void;
+  onmessage: ((ev: MessageEvent<{ file: File }>) => void) | null;
+};
 
 ctx.onmessage = async (ev: MessageEvent<{ file: File }>) => {
   const file = ev.data.file;
