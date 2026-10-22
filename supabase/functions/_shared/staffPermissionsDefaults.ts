@@ -69,6 +69,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
   can_approve_discounts: false,
+  can_approve_variations: false,
   only_assigned: false,
   only_my_warehouse: false,
   // Vede ma non scrive. Le can_edit_* operative le ricalcola comunque il

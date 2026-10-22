@@ -157,7 +157,10 @@ describe("nell'app le fasi le scrivono tre file, e il cantiere solo le sue colon
     // «Ordini e Commesse», altrimenti l'utente vede il bottone e poi un errore.
     // L'approvazione dei rapportini non scrive più le fasi dal browser: lo fa il database
     // nella stessa operazione (trigger campo_rapportino_avanzamento_approvato).
+    // GeneraMaterialiDialog: ufficio, crea solo le fasi nuove proposte dai
+    // capitoli del computo; il pulsante compare solo con «Ordini e Commesse».
     expect(scrivono).toEqual([
+      "src/components/orders/materiali/GeneraMaterialiDialog.tsx",
       "src/hooks/useOrderWorkPhases.ts",
       "src/pages/campo/CampoAvanzamento.tsx",
     ]);
