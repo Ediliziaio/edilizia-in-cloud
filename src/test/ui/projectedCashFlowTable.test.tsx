@@ -1,66 +1,130 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { CashFlowManuale } from '@/hooks/controlloGestione/useCashFlow';
-const state = vi.hoisted(() => ({ forecast: vi.fn(), exported: vi.fn() }));
-vi.mock('@/hooks/controlloGestione/useCashFlow', () => ({
-  useCashFlow: () => state.forecast(),
-  useCashFlowManuali: (): { data: CashFlowManuale[] } => ({ data: [] }),
-  useUpsertCashFlowManuale: () => ({}),
-  useDeleteCashFlowManuale: () => ({}),
-}));
-vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
-vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
-vi.mock('@/components/controllo-gestione/tabs/RecordedCashFlow', () => ({ RecordedCashFlow: () => <p>Registrato</p> }));
+import type { DatiRendicontoCassa } from '@/hooks/controlloGestione/useRendicontoCassa';
+
+const state = vi.hoisted(() => ({ query: vi.fn(), exported: vi.fn(), mobile: false }));
+vi.mock('@/hooks/controlloGestione/useRendicontoCassa', () => ({ useRendicontoCassa: () => state.query() }));
+vi.mock('@/hooks/useEffectiveCompanyId', () => ({ useEffectiveCompanyId: () => 'azienda-1' }));
+vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => state.mobile }));
+vi.mock('@/components/controllo-gestione/CashFlowManualiEditor', () => ({ CashFlowManualiEditor: (): null => null }));
 vi.mock('@/components/controllo-gestione/ui/ExportButton', () => ({ ExportButton: ({ onExport }: { onExport: () => void }) => <button onClick={onExport}>Esporta</button> }));
 vi.mock('@/lib/controlloGestione/exportXlsx', () => ({ exportXlsx: state.exported }));
 import { TabCashFlow } from '@/components/controllo-gestione/tabs/TabCashFlow';
-const vuoto = { importo: 0, numero: 0 };
+
+const dati = (): DatiRendicontoCassa => ({
+  today: '2026-10-22',
+  saldoOggiCents: 123456700,
+  saldoFonte: 'banca',
+  saldoAggiornatoAl: '2026-10-22T04:00:00Z',
+  registrati: [
+    { id: 'a', direction: 'entrata', amount: 60625.5, entry_date: '2026-01-15', category: 'Incassi fatture', description: 'Fattura 1/2026', invoiceId: 'f1' },
+    { id: 'b', direction: 'uscita', amount: 1000, entry_date: '2026-01-20', category: 'altro', costCategory: 'INPS', description: 'Contributi gennaio' },
+  ],
+  flussoDopoAnnoCents: null,
+  previsti: [
+    { id: 'rata', description: 'Rata SAL 2', counterparty: 'Rossi', category: 'clienti', direction: 'in', cents: 500000, date: '2026-11-10', source: 'Rata commessa', href: '/azienda/ordini/o1', estimated: false },
+    { id: 'scaduto', description: 'Fattura scaduta', counterparty: '', category: 'clienti', direction: 'in', cents: 100000, date: '2026-09-01', source: 'Fattura', href: '/x', estimated: false },
+  ],
+  manuali: [],
+  mutui: [],
+  fontiNonLette: [],
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  state.forecast.mockReturnValue({ data: {
-    meta: { saldo_apertura: 100, saldo_chiusura: 1234567, saldo_oggi: 100, saldo_fonte: 'banca', saldi_aggiornati_al: null, manuali_netto: 0, fonti_non_lette: [] },
-    esclusi: { incassi_scaduti: { importo: 1200000, numero: 3 }, uscite_scadute: vuoto, senza_data: vuoto, forse_doppi: vuoto },
-    mesi: [10, 11, 12].map(mese => ({ mese, saldo_inizio: 100, saldo_fine: 1234567, sotto_zero: false,
-      entrate: { clienti: 10 }, entrate_totali: 10,
-      uscite: { fornitori: 3 }, uscite_totali: 3, flusso_netto: 7 })),
-  } });
+  state.mobile = false;
+  state.query.mockReturnValue({ data: dati(), isLoading: false, isError: false });
 });
 afterEach(cleanup);
-const apri = (anno = new Date().getFullYear()) => {
-  render(<MemoryRouter><TabCashFlow anno={anno} /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button', { name: 'Previsionale' }));
-};
-describe('projected cash-flow presentation', () => {
-  it('aligns headers and spans to the actual remaining months, not January', () => {
+const apri = (anno = 2026) => render(<MemoryRouter><TabCashFlow anno={anno} /></MemoryRouter>);
+
+describe('rendiconto di cassa', () => {
+  it('una sola tabella: 12 mesi con Consuntivo / In corso / Previsione e il totale anno', () => {
     apri();
     const table = screen.getByRole('table');
-    expect(within(table).getAllByRole('columnheader').map(th => th.textContent)).toEqual(['Voce', 'Ott', 'Nov', 'Dic', 'Totale']);
-    expect(within(table).getByText('Entrate')).toHaveAttribute('colspan', '5');
-    expect(within(table).getByText('Uscite')).toHaveAttribute('colspan', '5');
+    const intestazioni = within(table).getAllByRole('columnheader').map((th) => th.textContent);
+    expect(intestazioni).toHaveLength(14);
+    expect(intestazioni[1]).toBe('GenConsuntivo');
+    expect(intestazioni[10]).toBe('OttIn corso');
+    expect(intestazioni[11]).toBe('NovPrevisione');
+    expect(intestazioni[13]).toBe('Totale 2026');
+    // Niente più doppia vista Registrato/Previsionale.
+    expect(screen.queryByRole('button', { name: 'Registrato' })).toBeNull();
   });
-  it('shows whole euros with Italian grouping, never «1.2M €»', () => {
+
+  it('mostra tutti i gruppi e le voci, con saldi e flussi', () => {
     apri();
     const table = screen.getByRole('table');
-    expect(within(table).getAllByText('1.234.567 €').length).toBeGreaterThan(0);
+    for (const testo of ['Saldo di cassa a inizio mese', 'Incassi', 'Uscite della gestione', 'Flusso della gestione operativa', 'Investimenti', 'Finanziamenti', 'Flusso netto del mese', 'Saldo di cassa a fine mese', 'Contributi, ritenute e F24', 'Rate mutui · quota capitale'])
+      expect(within(table).getAllByText(testo).length).toBeGreaterThan(0);
+  });
+
+  it('importi interi all\'italiana, uscite in negativo', () => {
+    apri();
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('60.626 €').length).toBeGreaterThan(0);
+    expect(within(table).getAllByText('-1.000 €').length).toBeGreaterThan(0);
     expect(table.textContent).not.toMatch(/M €|k €/);
+    expect(screen.getAllByText('1.234.567 €').length).toBeGreaterThan(0);
   });
-  it('exports the same rows included in totals', () => {
+
+  it('i gruppi si chiudono e si riaprono', () => {
+    apri();
+    const bottone = screen.getByRole('button', { name: 'Incassi' });
+    expect(bottone).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Acconti dai clienti')).toBeInTheDocument();
+    fireEvent.click(bottone);
+    expect(bottone).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Acconti dai clienti')).toBeNull();
+    expect(screen.getAllByText('Totale incassi').length).toBeGreaterThan(0);
+  });
+
+  it('un clic su un importo apre i movimenti che lo compongono', () => {
+    apri();
+    const riga = screen.getByText('Da clienti (fatture e rate delle commesse)').closest('tr')!;
+    fireEvent.click(within(riga).getAllByRole('button', { name: '5.000 €' })[0]);
+    const pannello = screen.getByRole('dialog');
+    expect(within(pannello).getByText('Rata SAL 2')).toBeInTheDocument();
+    expect(within(pannello).getByText('Previsto')).toBeInTheDocument();
+    expect(within(pannello).getByRole('link', { name: 'Apri' })).toHaveAttribute('href', '/azienda/ordini/o1');
+  });
+
+  it('l\'interruttore degli incassi scaduti cambia la previsione e il link al Previsionale', () => {
+    apri();
+    const link = screen.getByRole('link', { name: /Apri il previsionale completo/ });
+    expect(link).toHaveAttribute('href', '/azienda/previsionale');
+    fireEvent.click(screen.getByRole('switch', { name: 'Includi incassi scaduti' }));
+    expect(link).toHaveAttribute('href', '/azienda/previsionale?incassi-scaduti=1');
+    const riga = screen.getByText('Da clienti (fatture e rate delle commesse)').closest('tr')!;
+    // L'incasso scaduto cade oggi (ottobre).
+    expect(within(riga).getAllByRole('button', { name: '1.000 €' }).length).toBeGreaterThan(0);
+  });
+
+  it('esporta la tabella completa', () => {
     apri();
     fireEvent.click(screen.getByRole('button', { name: 'Esporta' }));
     const sheet = state.exported.mock.calls[0][0].sheets[0];
-    expect(sheet.columns.map((c: { key: string }) => c.key)).toEqual(expect.arrayContaining(['e_clienti', 'u_fornitori']));
-    expect(sheet.rows[0]).toMatchObject({ mese: 'Ott', e_clienti: 10, u_fornitori: 3, flusso_netto: 7 });
+    expect(sheet.columns).toHaveLength(14);
+    const voci = sheet.rows.map((r: { voce: string }) => r.voce.trim());
+    expect(voci).toContain('FLUSSO NETTO DEL MESE');
+    expect(sheet.rows.find((r: { voce: string }) => r.voce === 'Totale incassi')).toMatchObject({ m1: 60626, m11: 5000 });
   });
-  it('explains overdue receipts left out of the balance and links to the Previsionale', () => {
+
+  it('un anno passato è tutto consuntivo, senza interruttori', () => {
+    state.query.mockReturnValue({ data: { ...dati(), previsti: null, flussoDopoAnnoCents: 0 }, isLoading: false, isError: false });
+    apri(2025);
+    expect(screen.getByText(/tutti i mesi sono a consuntivo/)).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
+  });
+
+  it('sul telefono una vista per mese con selettore', () => {
+    state.mobile = true;
     apri();
-    expect(screen.getByText(/3 incassi già scaduti/)).toBeInTheDocument();
-    expect(screen.getAllByText('Apri nel Previsionale')[0]).toHaveAttribute('href', '/azienda/previsionale?incassi-scaduti=1');
-    expect(screen.getByRole('link', { name: /Apri il previsionale completo/ })).toHaveAttribute('href', '/azienda/previsionale');
-  });
-  it('does not query the forecast when a historical year is selected', () => {
-    apri(new Date().getFullYear() - 1);
-    expect(screen.getByRole('note')).toHaveTextContent('è uno storico');
-    expect(state.forecast).not.toHaveBeenCalled();
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Mese' })).toHaveTextContent('ottobre · In corso');
+    fireEvent.click(screen.getByRole('button', { name: 'Mese successivo' }));
+    expect(screen.getByRole('combobox', { name: 'Mese' })).toHaveTextContent('novembre · Previsione');
+    expect(screen.getAllByText('5.000 €').length).toBeGreaterThan(0);
   });
 });

@@ -148,6 +148,7 @@ export function useUpsertCashFlowManuale() {
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow-manuali"] });
       // Una voce di un anno vale anche per la previsione degli anni dopo.
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow"] });
+      qc.invalidateQueries({ queryKey: ["cg", "rendiconto-cassa"] });
     },
   });
 }
@@ -167,6 +168,7 @@ export function useDeleteCashFlowManuale() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow-manuali"] });
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow"] });
+      qc.invalidateQueries({ queryKey: ["cg", "rendiconto-cassa"] });
     },
   });
 }

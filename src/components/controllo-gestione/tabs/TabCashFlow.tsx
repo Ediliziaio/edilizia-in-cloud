@@ -1,683 +1,598 @@
 /**
- * Tab Cash Flow del Controllo di gestione.
+ * Scheda Cash Flow del Controllo di gestione: il RENDICONTO DI CASSA in una sola tabella.
  *
- * Due viste:
- *  - Registrato: i movimenti di prima nota dell'anno (consuntivo di cassa).
- *  - Previsionale: gli stessi movimenti attesi della pagina Previsionale,
- *    raggruppati per mese, più le voci manuali del CdG (riga a parte).
- *
- * Alert visuali: saldo di fine mese sotto zero → colonna rossa.
+ * Colonne: i 12 mesi dell'anno + totale. Mesi passati = consuntivo (prima nota), mese in corso =
+ * registrato fino a oggi + previsto, mesi futuri = previsione (stesso motore e stesse ipotesi
+ * della pagina Previsionale). Righe a gruppi: saldo iniziale, incassi, uscite della gestione,
+ * flusso operativo, investimenti, finanziamenti, flusso netto, saldo finale.
+ * Un clic su un importo apre i movimenti che lo compongono.
  */
-
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
-import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
-import {
-  useCashFlow,
-  useCashFlowManuali,
-  useUpsertCashFlowManuale,
-  useDeleteCashFlowManuale,
-  type CashFlowManuale,
-  type RigaCashFlow,
-} from "@/hooks/controlloGestione/useCashFlow";
-import { formatCurrency } from "@/lib/formatters";
-import { euroIntero } from "@/lib/controlloGestione/formatoCG";
-import { cn } from "@/lib/utils";
-import { AlertTriangle, ExternalLink, Plus, Trash2 } from "lucide-react";
-import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
-import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
+import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
+import { CashFlowManualiEditor } from "@/components/controllo-gestione/CashFlowManualiEditor";
+import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { euroIntero } from "@/lib/controlloGestione/formatoCG";
+import { useRendicontoCassa } from "@/hooks/controlloGestione/useRendicontoCassa";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { RecordedCashFlow } from "./RecordedCashFlow";
+import { cn } from "@/lib/utils";
+import {
+  costruisciRendiconto,
+  dettagliCella,
+  etichettaVoce,
+  righeEsportazione,
+  vociDelGruppo,
+  type DettaglioCella,
+  type IpotesiRendiconto,
+  type RendicontoCassa,
+  type TipoColonna,
+} from "@/lib/controlloGestione/rendicontoCassa";
+import { GRUPPI_CASSA, VOCE_PER_CHIAVE, type GruppoCassa, type VoceCassa } from "@/lib/controlloGestione/vociCassa";
 
 interface Props {
   anno: number;
 }
 
-const MESI_LABELS = [
-  "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-  "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
-];
+const MESI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+const MESI_LUNGHI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+const ETICHETTA_COLONNA: Record<TipoColonna, string> = {
+  consuntivo: "Consuntivo",
+  "in-corso": "In corso",
+  previsione: "Previsione",
+};
+const SFONDO_COLONNA: Record<TipoColonna, string> = {
+  consuntivo: "",
+  "in-corso": "bg-amber-50/70",
+  previsione: "bg-sky-50/70",
+};
 
-/** Righe della matrice, con i nomi delle categorie del Previsionale. */
-const RIGHE_ENTRATE: { key: RigaCashFlow; label: string }[] = [
-  { key: "clienti", label: "Incassi da clienti" },
-  { key: "blocca-prezzo", label: "Blocca prezzo" },
-  { key: "altri", label: "Altre entrate" },
-  { key: "manuali", label: "Voci manuali (solo CdG)" },
-];
+/** Stessa soglia di attenzione della pagina Previsionale (salvata su questo dispositivo). */
+const SOGLIA_PREDEFINITA = 500000;
+function sogliaSalvata(companyId: string | null | undefined): number {
+  if (!companyId) return SOGLIA_PREDEFINITA;
+  try {
+    const v = localStorage.getItem(`forecast-threshold-v1:${companyId}`);
+    if (v != null && Number(v) >= 0) return Number(v);
+  } catch {
+    /* preferenza facoltativa */
+  }
+  return SOGLIA_PREDEFINITA;
+}
 
-const RIGHE_USCITE: { key: RigaCashFlow; label: string }[] = [
-  { key: "fornitori", label: "Fornitori" },
-  { key: "personale", label: "Personale" },
-  { key: "fisco", label: "Fisco (F24, IVA)" },
-  { key: "squadre", label: "Squadre esterne" },
-  { key: "provvigioni", label: "Provvigioni" },
-  { key: "altri", label: "Altri costi" },
-  { key: "blocca-prezzo", label: "Blocca prezzo da restituire" },
-  { key: "manuali", label: "Voci manuali (solo CdG)" },
-];
+const euro = (cents: number | null | undefined) => (cents == null ? "—" : euroIntero(cents / 100));
+const data = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("it-IT");
 
-/** Errore di lettura in parole semplici (mai «[object Object]»). */
-function messaggioErrore(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
-  return "Riprova tra poco.";
+/** Cosa mostra il pannello laterale. */
+interface Selezione {
+  titolo: string;
+  voci: VoceCassa[];
+  mese: number | null;
 }
 
 export function TabCashFlow({ anno }: Props) {
-  const [mode, setMode] = useState<'registrato' | 'previsionale'>('registrato');
-  const historical = anno < new Date().getFullYear();
-  return <div className="space-y-4">
-    <div className="inline-flex rounded-lg border bg-white p-1" role="group" aria-label="Tipo di flusso di cassa">
-      <Button size="sm" variant={mode === 'registrato' ? 'default' : 'ghost'} aria-pressed={mode === 'registrato'} onClick={() => setMode('registrato')}>Registrato</Button>
-      <Button size="sm" variant={mode === 'previsionale' ? 'default' : 'ghost'} aria-pressed={mode === 'previsionale'} onClick={() => setMode('previsionale')}>Previsionale</Button>
-    </div>
-    {mode === 'registrato' ? <RecordedCashFlow anno={anno} /> : historical ? <p role="note" className="rounded-lg border p-3 text-sm">Il {anno} è uno storico: usa «Registrato». Il previsionale parte dal mese in corso, mai dal saldo di oggi applicato al passato.</p> : <>
-      <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-        Stessi numeri della pagina <Link to="/azienda/previsionale" className="font-medium underline">Previsionale</Link>, mese per mese:
-        parte dalla disponibilità dei conti di oggi e somma solo incassi e pagamenti ancora attesi.
-        Incassi e pagamenti già scaduti restano fuori dal saldo finché non li confermi (vedi sotto).
-      </p>
-      <ProjectedCashFlow anno={anno} />
-    </>}
-  </div>;
-}
-
-function ProjectedCashFlow({ anno }: Props) {
-  const cf = useCashFlow(anno, 1, 12);
-  const [editorOpen, setEditorOpen] = useState(false);
+  const q = useRendicontoCassa(anno);
+  const companyId = useEffectiveCompanyId();
   const isMobile = useIsMobile();
+  const [ipotesi, setIpotesi] = useState<IpotesiRendiconto>({
+    includeOverdueIncome: false,
+    includeOverdueExpense: false,
+    includeEstimates: true,
+  });
+  const [chiusi, setChiusi] = useState<Set<GruppoCassa>>(() => new Set());
+  const [selezione, setSelezione] = useState<Selezione | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const soglia = useMemo(() => sogliaSalvata(companyId), [companyId]);
 
-  if (cf.isLoading) {
+  const r = useMemo<RendicontoCassa | null>(() => {
+    if (!q.data) return null;
+    return costruisciRendiconto({
+      anno,
+      today: q.data.today,
+      saldoOggiCents: q.data.saldoOggiCents,
+      saldoFonte: q.data.saldoFonte,
+      saldoAggiornatoAl: q.data.saldoAggiornatoAl,
+      registrati: q.data.registrati,
+      flussoDopoAnnoCents: q.data.flussoDopoAnnoCents,
+      previsti: q.data.previsti,
+      manuali: q.data.manuali,
+      mutui: q.data.mutui,
+      ipotesi,
+      sogliaCents: soglia,
+    });
+  }, [q.data, anno, ipotesi, soglia]);
+
+  if (q.isLoading)
     return (
-      <div className="space-y-2">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton key={i} className="h-9 w-full" />
-        ))}
+      <div className="space-y-3" aria-label="Caricamento del rendiconto di cassa">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        </div>
+        <Skeleton className="h-96 w-full rounded-xl" />
       </div>
     );
-  }
-  if (cf.isError) return <div className="space-y-2">
-    <ErrorBlock onRetry={() => cf.refetch()} />
-    <p className="text-sm text-muted-foreground">{messaggioErrore(cf.error)}</p>
-  </div>;
-  if (!cf.data) return null;
+  if (q.isError)
+    return (
+      <div className="space-y-2">
+        <ErrorBlock onRetry={() => q.refetch()} />
+        <p className="text-sm text-muted-foreground">
+          {q.error instanceof Error ? q.error.message : "Riprova tra poco."}
+        </p>
+      </div>
+    );
+  if (!r || !q.data) return null;
 
-  const { mesi, meta, esclusi } = cf.data;
-  const isAllZero = mesi.every((m) =>
-    m.entrate_totali === 0 && m.uscite_totali === 0,
-  );
-  const righeEntrate = RIGHE_ENTRATE.filter((r) => mesi.some((m) => (m.entrate[r.key] ?? 0) !== 0));
-  const righeUscite = RIGHE_USCITE.filter((r) => mesi.some((m) => (m.uscite[r.key] ?? 0) !== 0));
-  const totEntrate = mesi.reduce((s, m) => s + m.entrate_totali, 0);
-  const totUscite = mesi.reduce((s, m) => s + m.uscite_totali, 0);
-  const primoSotto = mesi.find((m) => m.sotto_zero);
+  const haPrevisione = r.colonne.some((c) => c.tipo !== "consuntivo");
+  const linkPrevisionale = (() => {
+    const p = new URLSearchParams();
+    if (ipotesi.includeOverdueIncome) p.set("incassi-scaduti", "1");
+    if (ipotesi.includeOverdueExpense) p.set("uscite-scadute", "1");
+    if (!ipotesi.includeEstimates) p.set("stime", "0");
+    const s = p.toString();
+    return `/azienda/previsionale${s ? `?${s}` : ""}`;
+  })();
+  const apri = (titolo: string, voci: VoceCassa[], mese: number | null) => setSelezione({ titolo, voci, mese });
+  const toggleGruppo = (g: GruppoCassa) =>
+    setChiusi((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+
+  const esporta = async () => {
+    const righe = righeEsportazione(r);
+    await exportXlsx({
+      filename: `rendiconto_cassa_${anno}.xlsx`,
+      brand: { title: "Rendiconto di cassa", subtitle: `Anno ${anno} · importi in euro` },
+      sheets: [
+        {
+          name: `Cassa ${anno}`,
+          columns: [
+            { header: "Voce", key: "voce", width: 46 },
+            ...r.colonne.map((c) => ({
+              header: `${MESI[c.mese - 1]} (${ETICHETTA_COLONNA[c.tipo]})`,
+              key: `m${c.mese}`,
+              width: 16,
+              type: "number" as const,
+            })),
+            { header: `Totale ${anno}`, key: "totale", width: 16, type: "number" as const },
+          ],
+          rows: righe.map((riga) => ({
+            voce: riga.voce,
+            ...Object.fromEntries(riga.valori.map((v, i) => [`m${i + 1}`, v])),
+            totale: riga.totale,
+          })),
+        },
+      ],
+    });
+  };
 
   return (
     <div className="space-y-4">
-      {meta.fonti_non_lette.length > 0 && (
+      {q.data.fontiNonLette.length > 0 && (
         <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-          Non è stato possibile leggere: {meta.fonti_non_lette.join(", ")}. I numeri riguardano solo il resto.
+          Non è stato possibile leggere: {q.data.fontiNonLette.join(", ")}. I numeri riguardano solo il resto.
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
-        <KPIBoxCF
-          label={anno === new Date().getFullYear() ? "Disponibile oggi" : "Saldo a inizio anno"}
-          value={formatCurrency(meta.saldo_apertura)}
-          sub={meta.saldo_fonte === "banca"
-            ? `Conti in Tesoreria${meta.saldi_aggiornati_al ? ` · al ${new Date(meta.saldi_aggiornati_al).toLocaleDateString("it-IT")}` : ""}`
-            : meta.saldo_fonte === "prima-nota" ? "Dalla prima nota (nessun conto)" : undefined}
-          tone="neutral"
-        />
-        <KPIBoxCF
-          label={`Saldo previsto a fine ${anno}`}
-          value={formatCurrency(meta.saldo_chiusura)}
-          sub={primoSotto ? `Sotto zero da ${MESI_LABELS[primoSotto.mese - 1]}` : undefined}
-          tone={meta.saldo_chiusura >= 0 ? "green" : "red"}
-        />
-        <KPIBoxCF label="Entrate attese" value={formatCurrency(totEntrate)} tone="blue" />
-        <KPIBoxCF label="Uscite attese" value={formatCurrency(totUscite)} tone="amber" />
-      </div>
+      <Riquadri r={r} haPrevisione={haPrevisione} />
 
-      <EsclusiDalSaldo esclusi={esclusi} manualiNetto={meta.manuali_netto} />
-
-      {/* Mobile: spiegazione tecnica, esportazione e voci manuali sono da
-          scrivania. Restano i quattro numeri e i mesi. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
-        <p className="text-sm text-muted-foreground">
-          Previsione mese per mese · {anno}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {haPrevisione ? (
+          <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <legend className="sr-only">Ipotesi della previsione</legend>
+            <Interruttore
+              id="cf-incassi-scaduti"
+              label="Includi incassi scaduti"
+              checked={ipotesi.includeOverdueIncome}
+              onChange={(v) => setIpotesi((i) => ({ ...i, includeOverdueIncome: v }))}
+            />
+            <Interruttore
+              id="cf-uscite-scadute"
+              label="Includi uscite scadute"
+              checked={ipotesi.includeOverdueExpense}
+              onChange={(v) => setIpotesi((i) => ({ ...i, includeOverdueExpense: v }))}
+            />
+            <Interruttore
+              id="cf-stime"
+              label="Includi stime"
+              checked={ipotesi.includeEstimates}
+              onChange={(v) => setIpotesi((i) => ({ ...i, includeEstimates: v }))}
+            />
+          </fieldset>
+        ) : (
+          <p className="text-sm text-muted-foreground">Il {anno} è chiuso: tutti i mesi sono a consuntivo.</p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link to="/azienda/previsionale"><ExternalLink className="mr-2 h-4 w-4" />Apri il previsionale completo</Link>
+            <Link to={linkPrevisionale}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Apri il previsionale completo
+            </Link>
           </Button>
-          <ExportButton
-            onExport={async () => {
-              const colonne = [
-                ...righeEntrate.map((r) => ({ key: `e_${r.key}`, header: `Entrate · ${r.label}` })),
-                ...righeUscite.map((r) => ({ key: `u_${r.key}`, header: `Uscite · ${r.label}` })),
-              ];
-              await exportXlsx({
-                filename: `cash_flow_${anno}.xlsx`,
-                brand: { title: "Cash flow previsionale", subtitle: `Esercizio ${anno}` },
-                sheets: [
-                  {
-                    name: `CashFlow ${anno}`,
-                    columns: [
-                      { header: "Mese", key: "mese", width: 8 },
-                      { header: "Saldo inizio mese", key: "saldo_inizio", width: 16, type: "number" },
-                      ...colonne.map((c) => ({ header: c.header, key: c.key, width: 18, type: "number" as const })),
-                      { header: "Totale entrate", key: "entrate_totali", width: 16, type: "number" },
-                      { header: "Totale uscite", key: "uscite_totali", width: 16, type: "number" },
-                      { header: "Flusso netto", key: "flusso_netto", width: 16, type: "number" },
-                      { header: "Saldo fine mese", key: "saldo_fine", width: 16, type: "number" },
-                    ],
-                    rows: mesi.map((m) => ({
-                      mese: MESI_LABELS[m.mese - 1],
-                      saldo_inizio: m.saldo_inizio,
-                      ...Object.fromEntries(righeEntrate.map((r) => [`e_${r.key}`, m.entrate[r.key] ?? 0])),
-                      ...Object.fromEntries(righeUscite.map((r) => [`u_${r.key}`, m.uscite[r.key] ?? 0])),
-                      entrate_totali: m.entrate_totali,
-                      uscite_totali: m.uscite_totali,
-                      flusso_netto: m.flusso_netto,
-                      saldo_fine: m.saldo_fine,
-                    })),
-                  },
-                ],
-              });
-            }}
-          />
-          <Button onClick={() => setEditorOpen(true)} size="sm">
-            <Plus className="mr-2 h-4 w-4" /> Voci manuali
-          </Button>
+          <span className="max-sm:hidden">
+            <ExportButton onExport={esporta} />
+          </span>
+          {haPrevisione && (
+            <Button size="sm" variant="outline" onClick={() => setEditorOpen(true)} className="max-sm:hidden">
+              <Plus className="mr-2 h-4 w-4" />
+              Voci manuali
+            </Button>
+          )}
         </div>
       </div>
 
-      {isAllZero && (
-        <EmptyState
-          title="Nessun movimento atteso"
-          description="Non risultano incassi o pagamenti con una data nei prossimi mesi. Controlla scadenze e rate delle commesse, oppure aggiungi una voce manuale."
-        />
+      <Avvisi r={r} />
+
+      {isMobile ? (
+        <VistaMese r={r} onApri={apri} />
+      ) : (
+        <TabellaRendiconto r={r} chiusi={chiusi} onToggle={toggleGruppo} onApri={apri} />
       )}
 
-      {/* Mobile: una riga per mese (entrate, uscite, saldo a fine mese). */}
-      {isMobile && (
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr] gap-2 border-b bg-muted/40 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            <span>Mese</span>
-            <span className="text-right">Entrate</span>
-            <span className="text-right">Uscite</span>
-            <span className="text-right">Saldo</span>
-          </div>
-          <ul className="divide-y text-[12px] tabular-nums">
-            {mesi.map((m) => (
-              <li
-                key={m.mese}
-                className={cn("grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center gap-2 px-3 py-2", m.saldo_fine < 0 && "bg-rose-50/60")}
-              >
-                <span className="font-medium">{MESI_LABELS[m.mese - 1]}</span>
-                <span className="text-right text-emerald-700">{euroIntero(m.entrate_totali)}</span>
-                <span className="text-right text-amber-700">{euroIntero(m.uscite_totali)}</span>
-                <span className={cn("text-right font-semibold", m.saldo_fine < 0 ? "text-rose-700" : "text-foreground")}>
-                  {euroIntero(m.saldo_fine)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <DettaglioSheet r={r} selezione={selezione} onClose={() => setSelezione(null)} />
+      {haPrevisione && <CashFlowManualiEditor open={editorOpen} onOpenChange={setEditorOpen} anno={anno} />}
+    </div>
+  );
+}
 
-      {/* Tabella matrice */}
-      <Card className="rounded-2xl max-sm:hidden">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Mese per mese (importi in euro, IVA compresa)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full border-collapse text-sm">
-              <caption className="sr-only">Entrate, uscite e saldo previsti per mese, anno {anno}</caption>
-              <thead className="bg-muted/40">
-                <tr>
-                  <th scope="col" className="sticky left-0 z-10 min-w-[200px] bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Voce
-                  </th>
-                  {mesi.map((mese) => (
-                    <th
-                      scope="col"
-                      key={mese.mese}
-                      className={cn(
-                        "min-w-[104px] px-2 py-2 text-right text-xs font-medium text-muted-foreground",
-                        mese.sotto_zero && "bg-rose-50 text-rose-700",
-                      )}
-                    >
-                      {MESI_LABELS[mese.mese - 1]}
-                      {mese.sotto_zero && (
-                        <AlertTriangle className="ml-auto h-3 w-3 text-rose-600" aria-label="saldo sotto zero" />
-                      )}
-                    </th>
-                  ))}
-                  <th scope="col" className="min-w-[112px] bg-primary/5 px-2 py-2 text-right text-xs font-semibold">
-                    Totale
-                  </th>
-                </tr>
-              </thead>
+function Interruttore({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-center gap-2">
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <span>{label}</span>
+    </label>
+  );
+}
 
-              <tbody>
-                <RigaSaldo label="Saldo inizio mese" valori={mesi.map((m) => m.saldo_inizio)} />
+// ── Riquadri ────────────────────────────────────────────────────────────────
 
-                <tr className="border-t bg-emerald-50/50">
-                  <td
-                    colSpan={mesi.length + 2}
-                    className="sticky left-0 z-10 bg-emerald-50/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700"
-                  >
-                    Entrate
-                  </td>
-                </tr>
-                {righeEntrate.map((r) => (
-                  <RigaImporti key={`e-${r.key}`} label={r.label} valori={mesi.map((m) => m.entrate[r.key] ?? 0)} />
-                ))}
-                <RigaImporti label="Totale entrate" valori={mesi.map((m) => m.entrate_totali)} totale className="bg-emerald-100/50 font-semibold" />
-
-                <tr className="border-t bg-rose-50/50">
-                  <td
-                    colSpan={mesi.length + 2}
-                    className="sticky left-0 z-10 bg-rose-50/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-rose-700"
-                  >
-                    Uscite
-                  </td>
-                </tr>
-                {righeUscite.map((r) => (
-                  <RigaImporti key={`u-${r.key}`} label={r.label} valori={mesi.map((m) => m.uscite[r.key] ?? 0)} uscita />
-                ))}
-                <RigaImporti label="Totale uscite" valori={mesi.map((m) => m.uscite_totali)} uscita totale className="bg-rose-100/50 font-semibold" />
-
-                <tr className="border-t bg-muted/30 font-medium">
-                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Flusso netto del mese</td>
-                  {mesi.map((m, i) => (
-                    <td
-                      key={i}
-                      className={cn(
-                        "whitespace-nowrap px-2 py-2 text-right tabular-nums text-xs",
-                        m.flusso_netto < 0 ? "text-rose-700" : "text-emerald-700",
-                      )}
-                    >
-                      {m.flusso_netto !== 0 ? euroIntero(m.flusso_netto) : "—"}
-                    </td>
-                  ))}
-                  <td className="whitespace-nowrap bg-primary/5 px-2 py-2 text-right text-xs font-bold tabular-nums">
-                    {euroIntero(totEntrate - totUscite)}
-                  </td>
-                </tr>
-
-                <RigaSaldo label="Saldo fine mese" valori={mesi.map((m) => m.saldo_fine)} forte />
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <CashFlowManualiEditor
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        anno={anno}
+function Riquadri({ r, haPrevisione }: { r: RendicontoCassa; haPrevisione: boolean }) {
+  const { kpi, saldo } = r;
+  const fonte =
+    saldo.fonte === "banca"
+      ? `Conti in Tesoreria${saldo.aggiornatoAl ? ` · al ${data(saldo.aggiornatoAl.slice(0, 10))}` : ""}`
+      : saldo.fonte === "prima-nota"
+        ? "Dalla prima nota (nessun conto)"
+        : "Manca il saldo dei conti";
+  const sottoSoglia = kpi.minimo != null && kpi.minimo.cents < r.sogliaCents;
+  return (
+    <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
+      <Riquadro label="Saldo di cassa oggi" value={euro(kpi.saldoOggi)} sub={fonte} />
+      <Riquadro
+        label={`Flusso operativo ${r.anno}`}
+        value={euro(kpi.flussoOperativoAnno)}
+        sub="Incassi meno uscite della gestione"
+        tone={kpi.flussoOperativoAnno < 0 ? "red" : "neutral"}
+      />
+      <Riquadro
+        label={haPrevisione ? "Punto più basso previsto" : "Saldo più basso a fine mese"}
+        value={kpi.minimo ? euro(kpi.minimo.cents) : "—"}
+        sub={kpi.minimo ? `${kpi.minimo.giornaliero ? "il" : "a fine"} ${kpi.minimo.giornaliero ? data(kpi.minimo.data) : MESI_LUNGHI[Number(kpi.minimo.data.slice(5, 7)) - 1]}${sottoSoglia ? ` · sotto la soglia di ${euro(r.sogliaCents)}` : ""}` : "Saldo non disponibile"}
+        tone={kpi.minimo && kpi.minimo.cents < 0 ? "red" : sottoSoglia ? "amber" : "neutral"}
+      />
+      <Riquadro
+        label={haPrevisione ? `Saldo previsto a fine ${r.anno}` : `Saldo a fine ${r.anno}`}
+        value={euro(kpi.saldoFineAnno)}
+        sub={saldo.ricostruito && !haPrevisione ? "Ricostruito dal saldo di oggi" : undefined}
+        tone={kpi.saldoFineAnno != null && kpi.saldoFineAnno < 0 ? "red" : "neutral"}
       />
     </div>
   );
 }
 
-function RigaImporti({ label, valori, uscita = false, totale = false, className }: {
-  label: string; valori: number[]; uscita?: boolean; totale?: boolean; className?: string;
-}) {
-  const somma = valori.reduce((a, b) => a + b, 0);
-  const fmt = (v: number) => (v !== 0 ? euroIntero(uscita ? -v : v) : "—");
+function Riquadro({ label, value, sub, tone = "neutral" }: { label: string; value: string; sub?: string; tone?: "neutral" | "red" | "amber" }) {
   return (
-    <tr className={cn("border-t", className)}>
-      <td className={cn("sticky left-0 z-10 px-3 py-2 text-sm", totale ? "bg-inherit" : "bg-background pl-6")}>{label}</td>
-      {valori.map((v, i) => (
-        <td key={i} className={cn("whitespace-nowrap px-2 py-2 text-right tabular-nums text-xs", uscita && "text-rose-700")}>
-          {fmt(v)}
-        </td>
-      ))}
-      <td className={cn("whitespace-nowrap bg-primary/5 px-2 py-2 text-right text-xs tabular-nums", totale ? "font-bold" : "font-semibold", uscita && "text-rose-700")}>
-        {euroIntero(uscita ? -somma : somma)}
-      </td>
-    </tr>
+    <div
+      className={cn(
+        "min-w-0 rounded-xl border p-3 sm:p-4",
+        tone === "red" ? "border-rose-200 bg-rose-50" : tone === "amber" ? "border-amber-200 bg-amber-50" : "bg-card",
+      )}
+    >
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 break-words text-lg font-bold tabular-nums sm:text-xl", tone === "red" && "text-rose-700")}>{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
+    </div>
   );
 }
 
-function RigaSaldo({ label, valori, forte = false }: { label: string; valori: number[]; forte?: boolean }) {
-  return (
-    <tr className={cn(forte ? "border-t-2 border-foreground/20 bg-primary/10 font-bold" : "border-t bg-muted/30")}>
-      <td className={cn("sticky left-0 z-10 px-3 py-2 font-semibold", forte ? "bg-primary/10" : "bg-muted/30")}>{label}</td>
-      {valori.map((v, i) => (
-        <td
-          key={i}
-          className={cn(
-            "whitespace-nowrap px-2 py-2 text-right tabular-nums",
-            forte ? "text-sm" : "text-xs",
-            v < 0 && (forte ? "bg-rose-100 text-rose-800" : "font-semibold text-destructive"),
-          )}
-        >
-          {euroIntero(v)}
-        </td>
-      ))}
-      <td className="bg-primary/5 px-2 py-2 text-right text-xs">—</td>
-    </tr>
-  );
-}
+// ── Avvisi ──────────────────────────────────────────────────────────────────
 
-/** Cosa resta fuori dal saldo e perché, con il link per confermarlo nel Previsionale. */
-function EsclusiDalSaldo({ esclusi, manualiNetto }: {
-  esclusi: NonNullable<ReturnType<typeof useCashFlow>["data"]>["esclusi"];
-  manualiNetto: number;
-}) {
-  const righe = [
-    { n: esclusi.incassi_scaduti.numero, testo: `${esclusi.incassi_scaduti.numero} incassi già scaduti per ${formatCurrency(esclusi.incassi_scaduti.importo)}: non sono soldi sicuri, li conti solo quando li confermi.`, href: "/azienda/previsionale?incassi-scaduti=1" },
-    { n: esclusi.uscite_scadute.numero, testo: `${esclusi.uscite_scadute.numero} pagamenti scaduti e non segnati pagati per ${formatCurrency(-esclusi.uscite_scadute.importo)}: spesso sono già pagati, controllali.`, href: "/azienda/previsionale?uscite-scadute=1" },
-    { n: esclusi.senza_data.numero, testo: `${esclusi.senza_data.numero} movimenti senza data (netto ${formatCurrency(esclusi.senza_data.importo)}): mettigli una data per vederli nel mese giusto.`, href: "/azienda/previsionale" },
-    { n: esclusi.forse_doppi.numero, testo: `${esclusi.forse_doppi.numero} incassi forse già compresi nelle rate (netto ${formatCurrency(esclusi.forse_doppi.importo)}): collegali alla rata giusta.`, href: "/azienda/previsionale" },
-  ].filter((r) => r.n > 0);
-  if (!righe.length && manualiNetto === 0) return null;
+function Avvisi({ r }: { r: RendicontoCassa }) {
+  const righe: { chiave: string; testo: ReactNode }[] = [];
+  if (r.saldo.avviso) righe.push({ chiave: "saldo", testo: r.saldo.avviso });
+  else if (r.saldo.ricostruito)
+    righe.push({
+      chiave: "ricostruito",
+      testo:
+        "Il saldo dei mesi passati è ricostruito all'indietro: saldo dei conti di oggi meno i movimenti registrati in prima nota dopo quella data. Se in prima nota manca qualche movimento di banca, è un valore indicativo.",
+    });
+  const e = r.esclusi;
+  if (e.incassiScaduti.numero)
+    righe.push({ chiave: "inc", testo: <>{e.incassiScaduti.numero} incassi già scaduti per {euro(e.incassiScaduti.cents)} sono fuori dalla previsione: li conti solo se accendi «Includi incassi scaduti».</> });
+  if (e.usciteScadute.numero)
+    righe.push({ chiave: "usc", testo: <>{e.usciteScadute.numero} pagamenti scaduti e non segnati pagati per {euro(-e.usciteScadute.cents)}: spesso sono già pagati, controllali nel <Link className="font-medium underline" to="/azienda/previsionale?uscite-scadute=1">Previsionale</Link>.</> });
+  if (e.stime.numero)
+    righe.push({ chiave: "stime", testo: <>{e.stime.numero} stime (netto {euro(e.stime.cents)}) sono fuori perché hai spento «Includi stime».</> });
+  if (e.senzaData.numero)
+    righe.push({ chiave: "data", testo: <>{e.senzaData.numero} movimenti senza data (netto {euro(e.senzaData.cents)}): mettigli una data per vederli nel mese giusto.</> });
+  if (e.forseDoppi.numero)
+    righe.push({ chiave: "doppi", testo: <>{e.forseDoppi.numero} incassi forse già compresi nelle rate (netto {euro(e.forseDoppi.cents)}) restano fuori: collegali alla rata giusta.</> });
+  if (r.nonClassificati.numero)
+    righe.push({
+      chiave: "nc",
+      testo: (
+        <>
+          {r.nonClassificati.numero} movimenti non classificati ({euro(r.nonClassificati.cents)}) sono in «Altri incassi» o «Altre uscite».{" "}
+          <Link className="font-medium underline" to="/azienda/prima-nota">Dagli una categoria in Prima nota</Link>.
+        </>
+      ),
+    });
+  if (r.registratiScartati)
+    righe.push({ chiave: "scartati", testo: `${r.registratiScartati} movimenti di prima nota con importo o data da verificare non sono contati.` });
+  if (r.registratiFuturi)
+    righe.push({ chiave: "futuri", testo: `${r.registratiFuturi} movimenti di prima nota con data futura non sono contati come registrati.` });
+  if (r.mutuiGiaPrevisti)
+    righe.push({ chiave: "mutui", testo: "Le rate dei mutui sembrano già tra le spese previste: non le aggiungo una seconda volta." });
+  if (!righe.length) return null;
   return (
-    <details className="rounded-lg border bg-white p-3 text-sm" open={righe.length > 0}>
-      <summary className="cursor-pointer font-medium">Cosa resta fuori dal saldo</summary>
-      <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
-        {righe.map((r) => (
-          <li key={r.testo}>
-            {r.testo} <Link className="font-medium text-blue-700 underline" to={r.href}>Apri nel Previsionale</Link>
-          </li>
-        ))}
-        {manualiNetto !== 0 && (
-          <li>
-            Le voci manuali del Controllo di gestione ({formatCurrency(manualiNetto)} nel periodo) ci sono solo qui:
-            è l'unica differenza col saldo della pagina Previsionale.
-          </li>
-        )}
+    <details className="rounded-lg border bg-card p-3 text-sm">
+      <summary className="cursor-pointer font-medium">Come leggere i numeri ({righe.length})</summary>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-muted-foreground">
+        {righe.map((x) => <li key={x.chiave}>{x.testo}</li>)}
       </ul>
     </details>
   );
 }
 
-// ── KPI mini-box ────────────────────────────────────────────────────────────
+// ── Tabella (da scrivania) ──────────────────────────────────────────────────
 
-function KPIBoxCF({
-  label, value, sub, tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone: "neutral" | "blue" | "green" | "amber" | "red";
+function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
+  r: RendicontoCassa;
+  chiusi: Set<GruppoCassa>;
+  onToggle: (g: GruppoCassa) => void;
+  onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void;
 }) {
-  const palette: Record<typeof tone, string> = {
-    neutral: "bg-muted/40",
-    blue: "bg-blue-50",
-    green: "bg-emerald-50",
-    amber: "bg-amber-50",
-    red: "bg-rose-50",
-  };
+  const totale = (a: number[]) => a.reduce((s, c) => s + c, 0);
+  const cellaImporto = (cents: number, onClick?: () => void, extra?: string) => (
+    <span className={cn("tabular-nums", cents < 0 && "text-rose-700", extra)}>
+      {cents === 0 ? <span className="text-muted-foreground">—</span> : onClick ? (
+        <button type="button" onClick={onClick} className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+          {euro(cents)}
+        </button>
+      ) : euro(cents)}
+    </span>
+  );
+  const td = (tipo: TipoColonna, extra?: string) => cn("whitespace-nowrap px-2 py-1.5 text-right text-xs", SFONDO_COLONNA[tipo], extra);
+  const prima = "sticky left-0 z-10 min-w-[220px] max-w-[280px] px-3 py-1.5 text-left";
+
+  const rigaImporti = (label: string, valori: number[], voci: VoceCassa[], classe: string, primaClasse: string, forte = false) => (
+    <tr className={cn("border-t", classe)}>
+      <th scope="row" className={cn(prima, "font-normal", primaClasse)}>{label}</th>
+      {r.colonne.map((c, i) => (
+        <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
+          {cellaImporto(valori[i], voci.length ? () => onApri(`${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci, c.mese) : undefined)}
+        </td>
+      ))}
+      <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
+        {cellaImporto(totale(valori), voci.length ? () => onApri(`${label} · ${r.anno}`, voci, null) : undefined)}
+      </td>
+    </tr>
+  );
+  const rigaSaldo = (label: string, valori: (number | null)[], totaleAnno: number | null, fine = false) => (
+    <tr className={cn(fine ? "border-t-2 border-foreground/30 font-bold" : "border-t font-semibold", "bg-muted/40")}>
+      <th scope="row" className={cn(prima, "bg-muted")}>{label}</th>
+      {r.colonne.map((c, i) => {
+        const v = valori[i];
+        return (
+          <td
+            key={c.mese}
+            className={cn(
+              td(c.tipo),
+              v != null && v < 0 ? "bg-rose-100 text-rose-800" : v != null && fine && v < r.sogliaCents ? "bg-amber-100 text-amber-900" : "",
+            )}
+            title={v == null ? r.saldo.avviso ?? undefined : undefined}
+          >
+            <span className="tabular-nums">{euro(v)}</span>
+          </td>
+        );
+      })}
+      <td className={cn("whitespace-nowrap bg-muted px-2 py-1.5 text-right text-xs tabular-nums", totaleAnno != null && totaleAnno < 0 && "text-rose-700")}>
+        {euro(totaleAnno)}
+      </td>
+    </tr>
+  );
+
   return (
-    <Card className={cn("min-w-0 rounded-2xl border-0", palette[tone])}>
-      <CardContent className="p-4 max-sm:px-3 max-sm:py-2.5">
-        <p className="text-xs text-muted-foreground max-sm:text-[11px]">{label}</p>
-        <p className="mt-1 break-words text-xl font-bold tabular-nums max-sm:mt-0.5 max-sm:text-[15px]">{value}</p>
-        {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
-      </CardContent>
-    </Card>
+    <div className="max-w-full overflow-x-auto rounded-xl border bg-card">
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Rendiconto di cassa {r.anno}: saldo, incassi, uscite, investimenti e finanziamenti per mese</caption>
+        <thead>
+          <tr className="border-b">
+            <th scope="col" className={cn(prima, "z-20 bg-card py-2 text-xs font-medium text-muted-foreground")}>
+              Importi in euro, IVA compresa
+            </th>
+            {r.colonne.map((c) => (
+              <th key={c.mese} scope="col" className={cn("min-w-[96px] px-2 py-2 text-right text-xs font-semibold", SFONDO_COLONNA[c.tipo])}>
+                <span className="block">{MESI[c.mese - 1]}</span>
+                <span className={cn("block text-[10px] font-normal", c.tipo === "consuntivo" ? "text-muted-foreground" : c.tipo === "in-corso" ? "text-amber-800" : "text-sky-800")}>
+                  {ETICHETTA_COLONNA[c.tipo]}
+                </span>
+              </th>
+            ))}
+            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">Totale {r.anno}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rigaSaldo("Saldo di cassa a inizio mese", r.saldoInizio, r.saldoInizio[0])}
+          {GRUPPI_CASSA.map((g) => {
+            const aperto = !chiusi.has(g.key);
+            const voci = r.vociVisibili.filter((v) => VOCE_PER_CHIAVE.get(v)?.gruppo === g.key);
+            return (
+              <Fragment key={g.key}>
+                <tr className="border-t bg-muted/20">
+                  <th scope="rowgroup" colSpan={r.colonne.length + 2} className="p-0 text-left">
+                    <button
+                      type="button"
+                      onClick={() => onToggle(g.key)}
+                      aria-expanded={aperto}
+                      className="sticky left-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-foreground/80 hover:text-foreground"
+                    >
+                      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !aperto && "-rotate-90")} aria-hidden />
+                      {g.label}
+                    </button>
+                  </th>
+                </tr>
+                {aperto &&
+                  voci.map((v) => (
+                    <Fragment key={v}>
+                      {rigaImporti(etichettaVoce(v), r.righe[v], [v], "", "bg-card pl-7")}
+                    </Fragment>
+                  ))}
+                {rigaImporti(g.totale, r.gruppi[g.key], vociDelGruppo(g.key), "bg-muted/30", "bg-muted font-semibold", true)}
+                {g.key === "uscite" &&
+                  rigaImporti(
+                    "Flusso della gestione operativa",
+                    r.flussoOperativo,
+                    [...vociDelGruppo("incassi"), ...vociDelGruppo("uscite")],
+                    "border-t-2 bg-primary/5",
+                    "bg-muted font-bold",
+                    true,
+                  )}
+              </Fragment>
+            );
+          })}
+          {rigaImporti(
+            "Flusso netto del mese",
+            r.flussoNetto,
+            GRUPPI_CASSA.flatMap((g) => vociDelGruppo(g.key)),
+            "border-t-2 bg-primary/5",
+            "bg-muted font-bold",
+            true,
+          )}
+          {rigaSaldo("Saldo di cassa a fine mese", r.saldoFine, r.saldoFine[11], true)}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-// ── Editor voci manuali ─────────────────────────────────────────────────────
+// ── Vista per mese (telefono) ───────────────────────────────────────────────
 
-const CATEGORIE_DEFAULT = [
-  "F24", "IVA", "IRPEF", "IRES", "IRAP", "INPS", "INAIL",
-  "TFR", "13a/14a", "Tredicesima", "Quattordicesima",
-  "Anticipo cliente", "SAL", "Caparra", "Acconto",
-  "Anticipo socio", "Immissione capitale", "Dividendo",
-  "Mutuo", "Leasing", "Altro",
-];
-
-function CashFlowManualiEditor({
-  open, onOpenChange, anno,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  anno: number;
-}) {
-  const q = useCashFlowManuali(anno);
-  const upsert = useUpsertCashFlowManuale();
-  const del = useDeleteCashFlowManuale();
-  const { toast } = useToast();
-  const [form, setForm] = useState<{
-    mese: number;
-    tipo: "entrata" | "uscita";
-    categoria: string;
-    descrizione: string;
-    importo: string;
-    note: string;
-  }>(() => ({
-    mese: new Date().getMonth() + 1,
-    tipo: "uscita",
-    categoria: "Anticipo socio",
-    descrizione: "",
-    importo: "",
-    note: "",
-  }));
-
-  const totals = useMemo(() => {
-    const e = (q.data ?? []).filter((r) => r.tipo === "entrata")
-      .reduce((s, r) => s + Number(r.importo), 0);
-    const u = (q.data ?? []).filter((r) => r.tipo === "uscita")
-      .reduce((s, r) => s + Number(r.importo), 0);
-    return { e, u };
-  }, [q.data]);
-
-  const handleAdd = async () => {
-    const importo = Number(form.importo);
-    if (!form.descrizione.trim() || !Number.isFinite(importo) || importo <= 0) {
-      toast({
-        title: "Dati incompleti",
-        description: "Descrizione e importo positivo sono obbligatori.",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      await upsert.mutateAsync({
-        anno,
-        mese: form.mese,
-        tipo: form.tipo,
-        categoria: form.categoria,
-        descrizione: form.descrizione.trim(),
-        importo,
-        note: form.note.trim() || null,
-      });
-      setForm((f) => ({ ...f, descrizione: "", importo: "", note: "" }));
-      toast({ title: "Voce aggiunta" });
-    } catch (e) {
-      toast({ title: "Voce non salvata", description: messaggioErrore(e), variant: "destructive" });
-    }
-  };
-
-  const handleDelete = async (r: CashFlowManuale) => {
-    try {
-      await del.mutateAsync(r.id);
-      toast({ title: "Voce eliminata" });
-    } catch (e) {
-      toast({ title: "Voce non eliminata", description: messaggioErrore(e), variant: "destructive" });
-    }
-  };
-
+function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void }) {
+  const meseIniziale = r.anno === Number(r.today.slice(0, 4)) ? Number(r.today.slice(5, 7)) : 1;
+  const [mese, setMese] = useState(meseIniziale);
+  const i = mese - 1;
+  const col = r.colonne[i];
+  const riga = (label: string, cents: number | null, voci: VoceCassa[], forte = false, rientro = false) => (
+    <li key={label} className={cn("flex items-center justify-between gap-3 px-3 py-2", forte && "bg-muted/40 font-semibold", rientro && "pl-6")}>
+      <span className="min-w-0 text-[13px]">{label}</span>
+      {cents == null || cents === 0 || !voci.length ? (
+        <span className={cn("shrink-0 text-[13px] tabular-nums", cents != null && cents < 0 && "text-rose-700")}>{cents === 0 ? "—" : euro(cents)}</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onApri(`${label} · ${MESI_LUNGHI[i]} ${r.anno}`, voci, mese)}
+          className={cn("shrink-0 text-[13px] tabular-nums underline-offset-2 hover:underline", cents < 0 && "text-rose-700")}
+        >
+          {euro(cents)}
+        </button>
+      )}
+    </li>
+  );
+  const fine = r.saldoFine[i];
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <div className={cn("flex items-center gap-2 border-b px-2 py-2", SFONDO_COLONNA[col.tipo])}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 1} onClick={() => setMese(mese - 1)} aria-label="Mese precedente">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Select value={String(mese)} onValueChange={(v) => setMese(Number(v))}>
+          <SelectTrigger className="h-8 flex-1" aria-label="Mese"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {r.colonne.map((c) => (
+              <SelectItem key={c.mese} value={String(c.mese)}>
+                {MESI_LUNGHI[c.mese - 1]} · {ETICHETTA_COLONNA[c.tipo]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={mese === 12} onClick={() => setMese(mese + 1)} aria-label="Mese successivo">
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <ul className="divide-y">
+        {riga("Saldo a inizio mese", r.saldoInizio[i], [], true)}
+        {GRUPPI_CASSA.map((g) => (
+          <Fragment key={g.key}>
+            {r.vociVisibili
+              .filter((v) => VOCE_PER_CHIAVE.get(v)?.gruppo === g.key)
+              .map((v) => riga(etichettaVoce(v), r.righe[v][i], [v], false, true))}
+            {riga(g.totale, r.gruppi[g.key][i], vociDelGruppo(g.key), true)}
+            {g.key === "uscite" && riga("Flusso della gestione operativa", r.flussoOperativo[i], [...vociDelGruppo("incassi"), ...vociDelGruppo("uscite")], true)}
+          </Fragment>
+        ))}
+        {riga("Flusso netto del mese", r.flussoNetto[i], GRUPPI_CASSA.flatMap((g) => vociDelGruppo(g.key)), true)}
+        <li className={cn("flex items-center justify-between gap-3 px-3 py-2.5 font-bold", fine != null && fine < 0 ? "bg-rose-100 text-rose-800" : "bg-muted/60")}>
+          <span>Saldo a fine mese</span>
+          <span className="tabular-nums">{euro(fine)}</span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+// ── Pannello dei movimenti ──────────────────────────────────────────────────
+
+function DettaglioSheet({ r, selezione, onClose }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void }) {
+  const righe: DettaglioCella[] = selezione ? dettagliCella(r, selezione.voci, selezione.mese) : [];
+  const totale = righe.reduce((s, d) => s + d.cents, 0);
+  return (
+    <Sheet open={!!selezione} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>Voci manuali Cash Flow · {anno}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            Solo ciò che il gestionale non vede già: versamenti dei soci, dividendi,
-            finanziamenti, spese fuori dallo scadenzario. Scadenze, rate delle commesse,
-            stipendi, F24 registrati e IVA stimata sono già nel conto: inserirli qui
-            li conterebbe due volte.
-          </p>
+          <SheetTitle className="pr-6 text-base">{selezione?.titolo}</SheetTitle>
+          <SheetDescription>
+            {righe.length} movimenti · totale <span className={cn("font-semibold tabular-nums", totale < 0 && "text-rose-700")}>{euro(totale)}</span>
+          </SheetDescription>
         </SheetHeader>
-
-        {/* Form di inserimento rapido */}
-        <div className="mt-4 space-y-3 rounded-xl border bg-muted/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Aggiungi voce
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Mese</Label>
-              <Select
-                value={String(form.mese)}
-                onValueChange={(v) => setForm((f) => ({ ...f, mese: Number(v) }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MESI_LABELS.map((m, i) => (
-                    <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Tipo</Label>
-              <Select
-                value={form.tipo}
-                onValueChange={(v) => setForm((f) => ({ ...f, tipo: v as "entrata" | "uscita" }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrata">Entrata</SelectItem>
-                  <SelectItem value="uscita">Uscita</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Categoria</Label>
-              <Select
-                value={form.categoria}
-                onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIE_DEFAULT.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Importo (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.importo}
-                onChange={(e) => setForm((f) => ({ ...f, importo: e.target.value }))}
-                placeholder="es. 8500"
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs">Descrizione *</Label>
-            <Input
-              value={form.descrizione}
-              onChange={(e) => setForm((f) => ({ ...f, descrizione: e.target.value }))}
-              placeholder="es. F24 IVA mensile maggio"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Note</Label>
-            <Textarea
-              rows={2}
-              value={form.note}
-              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="opzionale"
-            />
-          </div>
-          <Button
-            className="w-full"
-            disabled={upsert.isPending}
-            onClick={handleAdd}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Aggiungi voce
-          </Button>
-        </div>
-
-        {/* Tabella esistenti */}
-        <div className="mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Voci esistenti ({q.data?.length ?? 0})
-            </p>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-emerald-700">+{formatCurrency(totals.e)}</span>
-              {" · "}
-              <span className="text-rose-700">-{formatCurrency(totals.u)}</span>
-            </p>
-          </div>
-          {q.isLoading && <Skeleton className="h-20 w-full" />}
-          {q.data && q.data.length === 0 && (
-            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nessuna voce manuale per il {anno}.
-            </p>
-          )}
-          {q.data && q.data.length > 0 && (
-            <ul className="divide-y rounded-xl border">
-              {q.data.map((r) => (
-                <li key={r.id} className="flex items-start gap-3 p-3">
-                  <Badge
-                    variant={r.tipo === "entrata" ? "default" : "destructive"}
-                    className="mt-0.5 shrink-0"
-                  >
-                    {MESI_LABELS[r.mese - 1]}
+        {righe.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">Nessun movimento.</p>
+        ) : (
+          <ul className="mt-4 divide-y rounded-lg border">
+            {righe.map((d) => (
+              <li key={`${d.id}:${d.data}`} className="space-y-1 p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 font-medium">{d.descrizione}</p>
+                  <p className={cn("shrink-0 font-semibold tabular-nums", d.cents < 0 && "text-rose-700")}>{euro(d.cents)}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span className="tabular-nums">{data(d.data)}</span>
+                  {d.controparte && <span>· {d.controparte}</span>}
+                  <span>· {d.fonte}</span>
+                  <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", d.tipo === "previsto" ? "border-sky-300 text-sky-800" : "")}>
+                    {d.tipo === "registrato" ? "Registrato" : d.stimato ? "Stima" : "Previsto"}
                   </Badge>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{r.descrizione}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.categoria}
-                      {r.note ? ` · ${r.note}` : ""}
-                    </p>
-                  </div>
-                  <p
-                    className={cn(
-                      "shrink-0 text-right tabular-nums text-sm font-semibold",
-                      r.tipo === "entrata" ? "text-emerald-700" : "text-rose-700",
-                    )}
-                  >
-                    {r.tipo === "entrata" ? "+" : "-"}
-                    {formatCurrency(Number(r.importo))}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(r)}
-                    aria-label="Elimina riga cash flow"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                  {d.href && (
+                    <Link to={d.href} className="font-medium text-blue-700 underline">
+                      Apri
+                    </Link>
+                  )}
+                </div>
+                {d.nota && <p className="text-[11px] text-muted-foreground">{d.nota}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
       </SheetContent>
     </Sheet>
   );
