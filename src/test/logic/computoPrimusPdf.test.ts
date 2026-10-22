@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { eComputoPrimus, leggiComputoPrimus, type PdfPaginaPosizionata } from "@/lib/computo/primusPdf";
+import { readPdfPages } from "../../../supabase/functions/_shared/pdfExtraction";
 import { controllaTotali, estraiFormule, numeroComputo, valutaFormula, computoComeEstrazione } from "@/lib/computo/computoStrutturato";
 
 /** Il fixture è il testo del PDF vero (39 pagine, PriMus) come lo legge pdfjs: x, destra, y, testo. */
@@ -131,6 +132,20 @@ describe("computo PriMus vero (Genzano di Lucania, 39 pagine)", () => {
   it("sicurezza: 153.873,55 € di oneri non soggetti a ribasso", () => {
     expect(controllo.oneri_sicurezza).toBe(153873.55);
     expect(computo.voci.filter(v => v.is_sicurezza).every(v => v.categoria?.nome === "ONERI DELLA SICUREZZA")).toBe(true);
+  });
+
+  it("lo stesso risultato passando dal lettore PDF della edge function (pdfjs → posizioni)", async () => {
+    const doc = {
+      numPages: pagine.length,
+      getPage: async (n: number) => ({
+        getTextContent: async () => ({ items: pagine[n - 1].items.map(i => ({ str: i.text, transform: [1, 0, 0, 1, i.x, i.y], width: (i.right ?? i.x) - i.x })) }),
+        getOperatorList: async () => ({ fnArray: [1], argsArray: [[]] }),
+      }),
+    };
+    const letto = await readPdfPages(doc, { imageOps: [99], maxChars: 1_000_000, keepPositions: true });
+    const daEdge = leggiComputoPrimus(letto.pages.map(p => ({ page: p.page, items: p.positioned ?? [] })));
+    expect(daEdge.voci).toHaveLength(226);
+    expect(controllaTotali(daEdge).totale_calcolato).toBe(2642936.35);
   });
 
   it("si trasforma nelle voci che il preventivo sa già usare", () => {

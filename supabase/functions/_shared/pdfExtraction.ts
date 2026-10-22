@@ -1,5 +1,5 @@
 /** Shared PDF reader: preserve rows/columns, inspect every page, report real coverage. */
-export interface PdfTextItem { str?: string; transform?: number[]; hasEOL?: boolean }
+export interface PdfTextItem { str?: string; transform?: number[]; hasEOL?: boolean; width?: number }
 export interface PdfPageLike {
   getTextContent(): Promise<{ items: PdfTextItem[] }>;
   getOperatorList?(): Promise<{ fnArray: number[]; argsArray?: unknown[][] }>;
@@ -11,7 +11,24 @@ export interface PdfDocumentLike {
   getPage(page: number): Promise<PdfPageLike>;
   destroy?(): Promise<void>;
 }
-export interface PdfReadPage { page: number; text: string; method: "native" | "ocr" | "blank" | "unreadable"; warning?: string }
+export interface PdfReadPage {
+  page: number; text: string; method: "native" | "ocr" | "blank" | "unreadable"; warning?: string;
+  /** Pezzi di testo con la posizione (solo pagine native): servono a chi legge le colonne, come il computo PriMus. */
+  positioned?: PdfPositionedItem[];
+}
+export interface PdfPositionedItem { x: number; right?: number; y: number; text: string }
+
+/** Pezzi di testo con x, y e bordo destro: le colonne di una tabella si riconoscono dalla posizione. */
+export function pdfPositionedItems(items: PdfTextItem[]): PdfPositionedItem[] {
+  const out: PdfPositionedItem[] = [];
+  for (const item of items) {
+    const text = typeof item.str === "string" ? item.str.replace(/[\t\r\n]+/g, " ") : "";
+    const x = item.transform?.[4]; const y = item.transform?.[5];
+    if (!text.trim() || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    out.push({ x: x!, y: y!, text, right: Number.isFinite(item.width) ? x! + item.width! : undefined });
+  }
+  return out;
+}
 
 /** Ignore small logos, but detect a scanned table even with a long native header. */
 export function hasLargePdfImage(operators: { fnArray: number[]; argsArray?: unknown[][] }, options: {
@@ -79,6 +96,7 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
   restoreOp?: number;
   maxOcrPages?: number;
   maxPages?: number;
+  keepPositions?: boolean;
   deadlineMs?: number;
   ocrPage?: (page: number) => Promise<{ text: string; finishReason?: string }>;
 }) {
@@ -96,7 +114,7 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
       // A short header on top of a scanned table must not bypass OCR.
       const operators = page.getOperatorList ? await page.getOperatorList() : null;
       const image = operators ? hasLargePdfImage(operators, options, page.getViewport?.({ scale: 1 })) : false;
-      if (text && !image) pages.push({ page: number, text, method: "native" });
+      if (text && !image) pages.push({ page: number, text, method: "native", positioned: options.keepPositions ? pdfPositionedItems(content.items) : undefined });
       else if (!text && operators?.fnArray.length === 0) pages.push({ page: number, text: "", method: "blank" });
       else if (options.ocrPage && ocrCalls < (options.maxOcrPages ?? 8)) {
         ocrCalls++;
@@ -140,6 +158,7 @@ async function pdfModules() {
 /** OCR gets just its page, never the entire scanned document with one output budget. */
 export async function extractPdfWithCoverage(bytes: ArrayBuffer, options: {
   maxChars: number;
+  keepPositions?: boolean;
   maxOcrPages?: number;
   deadlineMs?: number;
   ocrPage: (page: number, bytes: Uint8Array) => Promise<{ text: string; finishReason?: string }>;

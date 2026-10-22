@@ -1,6 +1,8 @@
 /**
  * Edge Function: computo-ai-extract
- * Estrae voci da computi metrici (PDF/XLSX/XPWE) usando AI
+ * Estrae voci da computi metrici (PDF/XLSX/XPWE).
+ * Prima i lettori deterministici (PDF di PriMus, XPWE), poi l'AI come ripiego
+ * per PDF di altri programmi, Excel e foto.
  * Multi-strategy: pdf_text, pdf_vision, xlsx_parse, xpwe_parse
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,6 +16,9 @@ import { extractPdfWithCoverage, splitPdfTextAtRows } from "../_shared/pdfExtrac
 // 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { checkComputoExtraction, commitComputoExtraction, computoNumber, computoSummaryRow } from "../_shared/computoExtractionQuality.ts";
+import { eComputoPrimus, leggiComputoPrimus } from "../_shared/computoPrimusPdf.ts";
+import { leggiComputoXpwe } from "../_shared/computoXpwe.ts";
+import { computoComeEstrazione } from "../_shared/computoStrutturato.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -36,6 +41,11 @@ interface VoceEstratta {
 }
 
 interface ExtractionResult {
+  /** Presente solo per i lettori deterministici (primus_pdf, xpwe). */
+  formato?: string;
+  controllo_totali?: unknown;
+  riepiloghi?: unknown;
+  prezzari?: string[];
   document_coverage?: Record<string, unknown>;
   document_checks?: unknown;
   metadata: {
@@ -52,6 +62,12 @@ interface ExtractionResult {
     voci: VoceEstratta[];
   }>;
 }
+
+/** Campi in più delle voci lette in modo deterministico (gerarchia, misure…). */
+type VoceStrutturataExtra = VoceEstratta & {
+  numero_ordine?: string; codice_tariffa?: string; super_categoria?: string | null; categoria?: string | null;
+  sotto_categoria?: string | null; is_sicurezza?: boolean; is_detrazione?: boolean; a_corpo?: boolean; misure?: unknown[];
+};
 
 // ── Prompt AI ────────────────────────────────────────────────────────────────
 const COMPUTO_TEXT_EXTRACTION_PROMPT = `Sei un esperto di computi metrici estimativi italiani per l'edilizia, in particolare:
@@ -337,6 +353,7 @@ async function extractFromImageVision(
 
 async function extractTextFromPDF(buffer: ArrayBuffer, computoId: string, companyId: string, userId: string) {
   const read = await extractPdfWithCoverage(buffer, {
+    keepPositions: true,
     maxChars: 800_000, maxOcrPages: 12, deadlineMs: 100_000,
     ocrPage: async (page, bytes) => {
       await updateStatus(computoId, "extracting_text", { raw_extracted_json: { progress: `Lettura OCR pagina ${page}…` } });
@@ -656,101 +673,14 @@ async function extractFromExcel(
   };
 }
 
-const parseItalianNumber = computoNumber;
 
 // ── Strategy 4: XPWE ────────────────────────────────────────────────────────
+// Formato vero di PriMus (PweDocumento › PweMisurazioni › PweElencoPrezzi /
+// PweVociComputo): lettore in _shared/computoXpwe.ts. Il .dcf è binario e
+// riceve l'indicazione di esportare in XPWE.
 
-async function extractFromXPWE(buffer: ArrayBuffer): Promise<ExtractionResult> {
-  const xml = new TextDecoder().decode(buffer);
-
-  const getTag = (str: string, tag: string): string => {
-    const match = str.match(new RegExp(`<${tag}[^>]*>([^<]*)<\\/${tag}>`, "i"));
-    return match ? match[1].trim() : "";
-  };
-
-  const getAllBlocks = (str: string, tag: string): string[] => {
-    const matches = [...str.matchAll(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi"))];
-    return matches.map((m) => m[0]);
-  };
-
-  // Extract metadata
-  const datiGenerali = getAllBlocks(xml, "PweDatiGenerali")[0] || "";
-  const metadata: ExtractionResult["metadata"] = {
-    oggetto_lavori: getTag(datiGenerali, "Oggetto") || getTag(datiGenerali, "DenLavoro"),
-    committente: getTag(datiGenerali, "Committente"),
-    progettista: getTag(datiGenerali, "Progettista"),
-  };
-
-  // Try capitoli structure first
-  const capitoliBlocks = getAllBlocks(xml, "PweCapitolo");
-  if (capitoliBlocks.length > 0) {
-    const capitoli = capitoliBlocks.map((capBlock, i) => {
-      const misBlocks = getAllBlocks(capBlock, "PweMisurazione");
-      const capVoci = misBlocks.map((misBlock, idx) => {
-        const qta = parseItalianNumber(getTag(misBlock, "Quantita") || getTag(misBlock, "Quantità"));
-        const prezzo = parseItalianNumber(getTag(misBlock, "Prezzo") || getTag(misBlock, "PrezzoUnitario"));
-        const imp = parseItalianNumber(getTag(misBlock, "Importo"));
-        return {
-          capitolo_numero: i + 1,
-          capitolo_nome: getTag(capBlock, "Descrizione") || `Capitolo ${i + 1}`,
-          codice_voce: getTag(misBlock, "Codice") || String(idx + 1),
-          codice_prezzario: getTag(misBlock, "CodicePrezzario") || getTag(misBlock, "Codice") || "",
-          descrizione_breve: (getTag(misBlock, "Descrizione") || getTag(misBlock, "DesBreve")).substring(0, 100),
-          descrizione_estesa: getTag(misBlock, "Descrizione") || getTag(misBlock, "DesEstesa") || "",
-          unita_misura: getTag(misBlock, "UnitaMisura") || getTag(misBlock, "UnitaDiMisura") || "",
-          quantita: qta,
-          prezzo_unitario: prezzo,
-          importo: imp,
-          confidence: 0.98,
-          warnings: [] as string[],
-        };
-      });
-      return {
-        numero: i + 1,
-        nome: getTag(capBlock, "Descrizione") || `Capitolo ${i + 1}`,
-        totale: capVoci.reduce((s, v) => s + (v.importo ?? 0), 0),
-        voci: capVoci,
-      };
-    });
-    return { metadata, capitoli };
-  }
-
-  // Flat structure: all misurazioni at root level
-  const misBlocks = getAllBlocks(xml, "PweMisurazione");
-  const voci: VoceEstratta[] = misBlocks.map((misBlock, idx) => {
-    const qta = parseItalianNumber(getTag(misBlock, "Quantita") || getTag(misBlock, "Quantità"));
-    const prezzo = parseItalianNumber(getTag(misBlock, "Prezzo") || getTag(misBlock, "PrezzoUnitario"));
-    const imp = parseItalianNumber(getTag(misBlock, "Importo"));
-    return {
-      capitolo_numero: 1,
-      capitolo_nome: getTag(misBlock, "Categoria") || "Generale",
-      codice_voce: getTag(misBlock, "Codice") || String(idx + 1),
-      codice_prezzario: getTag(misBlock, "CodicePrezzario") || "",
-      descrizione_breve: (getTag(misBlock, "Descrizione") || getTag(misBlock, "DesBreve")).substring(0, 100),
-      descrizione_estesa: getTag(misBlock, "Descrizione") || "",
-      unita_misura: getTag(misBlock, "UnitaMisura") || "",
-      quantita: qta,
-      prezzo_unitario: prezzo,
-      importo: imp,
-      confidence: 0.98,
-      warnings: [],
-    };
-  });
-
-  // Group by capitolo_nome
-  const capMap = new Map<string, VoceEstratta[]>();
-  for (const v of voci) {
-    if (!capMap.has(v.capitolo_nome)) capMap.set(v.capitolo_nome, []);
-    capMap.get(v.capitolo_nome)!.push(v);
-  }
-  const capitoli = [...capMap.entries()].map(([nome, capVoci], i) => ({
-    numero: i + 1,
-    nome,
-    totale: capVoci.reduce((s, v) => s + (v.importo ?? 0), 0),
-    voci: capVoci,
-  }));
-
-  return { metadata, capitoli };
+function extractFromXPWE(buffer: ArrayBuffer): ExtractionResult {
+  return computoComeEstrazione(leggiComputoXpwe(buffer)) as unknown as ExtractionResult;
 }
 
 // ── Validazione ──────────────────────────────────────────────────────────────
@@ -797,7 +727,8 @@ function validateExtraction(result: ExtractionResult): {
     return { warnings, errors };
   }
 
-  for (const cap of result.capitoli) {
+  // Le unità dei lettori deterministici sono quelle del documento (ora, cadauno, %…): niente avvisi.
+  if (!result.formato) for (const cap of result.capitoli) {
     for (const voce of cap.voci) {
       if (typeof voce.unita_misura === "string" && voce.unita_misura && !VALID_UM.includes(voce.unita_misura.toLowerCase())) {
         voce.warnings = voce.warnings || [];
@@ -827,7 +758,7 @@ async function saveExtractedVoci(
   let ordine = 0;
 
   for (const cap of result.capitoli) {
-    for (const voce of cap.voci) {
+    for (const voce of cap.voci as VoceStrutturataExtra[]) {
       ordine++;
       rows.push({
         computo_upload_id: computoId,
@@ -848,6 +779,16 @@ async function saveExtractedVoci(
         warnings: voce.warnings || [],
         ordine,
         is_included: true,
+        // Computo strutturato (PriMus PDF / XPWE): gerarchia, tipo di voce e libretto delle misure.
+        numero_ordine: voce.numero_ordine ?? null,
+        codice_tariffa: voce.codice_tariffa ?? null,
+        super_categoria: voce.super_categoria ?? null,
+        categoria: voce.categoria ?? null,
+        sotto_categoria: voce.sotto_categoria ?? null,
+        is_sicurezza: voce.is_sicurezza === true,
+        is_detrazione: voce.is_detrazione === true,
+        a_corpo: voce.a_corpo === true,
+        misure: Array.isArray(voce.misure) ? voce.misure : [],
       });
     }
   }
@@ -1131,14 +1072,25 @@ serve(async (req) => {
         result = await extractFromExcel(buffer, sb, upload.company_id, userId, computoUploadId);
         method = "xlsx_parse";
       } else if (fileType === "xpwe" || fileType === "dcf") {
-        result = await extractFromXPWE(buffer);
+        result = extractFromXPWE(buffer);
         method = "xpwe_parse";
       } else {
         const read = await extractTextFromPDF(buffer, computoUploadId, upload.company_id, userId);
-        await updateStatus(computoUploadId, "analyzing_ai", { raw_extracted_json: {
-          progress: `${read.coverage.pages_inspected}/${read.coverage.pages_total} pagine lette; analisi delle voci…`,
-        } });
-        result = await analyzeWithAI(read.text, computoUploadId, sb, upload.company_id, userId);
+        // Prima il lettore deterministico di PriMus: stesse voci, stessi centesimi, niente AI.
+        const pagine = read.pages.filter(p => p.method === "native" && p.positioned)
+          .map(p => ({ page: p.page, items: p.positioned! }));
+        const tutteNative = read.pages.every(p => p.method === "native" || p.method === "blank");
+        if (tutteNative && eComputoPrimus(pagine)) {
+          await updateStatus(computoUploadId, "validating", { raw_extracted_json: {
+            progress: `${read.coverage.pages_inspected}/${read.coverage.pages_total} pagine lette; computo PriMus: controllo dei totali…`,
+          } });
+          result = computoComeEstrazione(leggiComputoPrimus(pagine)) as unknown as ExtractionResult;
+        } else {
+          await updateStatus(computoUploadId, "analyzing_ai", { raw_extracted_json: {
+            progress: `${read.coverage.pages_inspected}/${read.coverage.pages_total} pagine lette; analisi delle voci…`,
+          } });
+          result = await analyzeWithAI(read.text, computoUploadId, sb, upload.company_id, userId);
+        }
         result.document_coverage = read.coverage;
         method = read.coverage.pages_ocr.length ? "pdf_vision" : "pdf_text";
       }
