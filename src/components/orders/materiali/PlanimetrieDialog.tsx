@@ -21,8 +21,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ATTACHMENTS_BUCKET, attachmentStorage } from "@/components/orders/filePreviewUtils";
-import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
+import { attachmentStorage } from "@/components/orders/filePreviewUtils";
+import { caricaDocumentoCommessa } from "@/lib/commesse/caricaDocumentoCommessa";
 import { contaSigleDaTesto, type RisultatoConteggioTesto } from "@/lib/distinta/conteggioTesto";
 import { disegnaRiquadri, estraiTestoTavola, sommaRiquadri } from "@/lib/distinta/tavolePdf";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
@@ -79,14 +79,7 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
   const carica = useMutation({
     mutationFn: async (file: File) => {
       if (!user) throw new Error("Accesso richiesto");
-      const percorso = percorsoDocumento(orderId, file.name);
-      const { error: e1 } = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(percorso, file, { contentType: file.type || "application/pdf" });
-      if (e1) throw e1;
-      const { error: e2 } = await supabase.from("order_attachments").insert({
-        order_id: orderId, file_name: file.name, file_url: percorso, file_type: file.type || "application/pdf",
-        file_size: file.size, uploaded_by: user.id, visible_to_customer: false,
-      } as never);
-      if (e2) { await supabase.storage.from(ATTACHMENTS_BUCKET).remove([percorso]); throw e2; }
+      await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/pdf" });
     },
     onSuccess: () => { toast.success("Tavola caricata tra i documenti della commessa"); aggiorna(); },
     onError: (e) => toast.error("Tavola non caricata", { description: e instanceof Error ? e.message : String(e) }),
@@ -198,9 +191,9 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
   });
 
   const conteggiTavola = useMemo(() => (dati.data?.conteggi ?? []).filter((c) => vista === "cad"
-    // I disegni CAD si leggono nel browser senza caricarli: niente documento.
-    ? !c.documento_id
-    : !tavola || c.documento_id === tavola.id), [dati.data, tavola, vista]);
+    // I disegni CAD: col documento se l'utente ha scelto di salvarlo, altrimenti senza.
+    ? c.metodo === "dwg"
+    : c.metodo !== "dwg" && (!tavola || c.documento_id === tavola.id)), [dati.data, tavola, vista]);
   const daConfermare = conteggiTavola.filter((c) => !c.confermato).map((c) => c.id);
   const fasi = dati.data?.fasi ?? [];
 

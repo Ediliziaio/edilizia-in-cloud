@@ -30244,6 +30244,60 @@ export type Database = {
           },
         ]
       }
+      dwg_mappa_blocchi: {
+        Row: {
+          company_id: string
+          created_at: string
+          creato_da: string | null
+          descrizione: string | null
+          id: string
+          ignora: boolean
+          nome_blocco: string
+          scomposizione_id: string | null
+          simbolo: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          creato_da?: string | null
+          descrizione?: string | null
+          id?: string
+          ignora?: boolean
+          nome_blocco: string
+          scomposizione_id?: string | null
+          simbolo: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          creato_da?: string | null
+          descrizione?: string | null
+          id?: string
+          ignora?: boolean
+          nome_blocco?: string
+          scomposizione_id?: string | null
+          simbolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dwg_mappa_blocchi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dwg_mappa_blocchi_scomposizione_id_fkey"
+            columns: ["scomposizione_id"]
+            isOneToOne: false
+            referencedRelation: "scomposizioni_voce"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_function_rate_limits: {
         Row: {
           called_at: string
