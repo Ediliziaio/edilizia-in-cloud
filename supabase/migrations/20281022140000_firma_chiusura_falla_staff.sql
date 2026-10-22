@@ -24,10 +24,8 @@ drop policy if exists public_update_by_token on public.signature_requests;
 drop policy if exists public_read_by_token on public.signature_requests;
 
 create policy company_staff_signature_requests_lettura on public.signature_requests for select to authenticated
-  using (exists (
-    select 1 from public.profiles p join public.user_roles ur on ur.user_id = p.id
-     where p.id = (select auth.uid()) and p.company_id = signature_requests.company_id
-       and ur.role = any (array['company_admin'::public.app_role, 'company_staff'::public.app_role]))
+  using (public.e_amministratore_di(company_id)
+    or (company_id = (select public.get_my_company_id()) and (select public.has_role(auth.uid(), 'company_staff'::public.app_role)))
     or (select public.has_role(auth.uid(), 'super_admin'::public.app_role)));
 
 revoke all on public.signature_requests from anon, authenticated;

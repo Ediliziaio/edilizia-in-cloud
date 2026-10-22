@@ -16,6 +16,7 @@
  */
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { TIPI_DOCUMENTO_IDENTITA } from "../_shared/firmaAvanzata.ts";
 
 const MAX_FILE = 10 * 1024 * 1024;
@@ -38,7 +39,12 @@ Deno.serve(async (req: Request) => {
     let fd: FormData;
     try { fd = await req.formData(); } catch { return risposta(400, { error: "Dati non validi" }); }
     const companyId = testoCampo(fd, "company_id", 40);
-    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH, { allowedRoles: ["company_admin", "company_staff"] });
+    const accesso = await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
+    // Titolare o ufficio DI QUESTA azienda (non il ruolo globale).
+    const ruoli = await ruoliNellAzienda(supabaseAdmin, userId, companyId);
+    if (!accesso.isSuperAdmin && !ruoli.some((r) => r === "company_admin" || r === "company_staff")) {
+      return risposta(403, { error: "Solo il titolare e l'ufficio possono identificare chi firma." });
+    }
     const azione = testoCampo(fd, "azione", 20);
 
     // ── Revoca e consultazione ────────────────────────────────────────────

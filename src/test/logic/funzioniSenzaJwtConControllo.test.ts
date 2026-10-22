@@ -95,6 +95,7 @@ const PUBBLICHE_DI_PROPOSITO: Record<string, string> = {
   "quote-sign": "firma del preventivo dal link inviato al cliente: il token del preventivo è la chiave",
   "firma-odv-webhook": "firma variante: UUID della proposta, consenso esplicito, hash del documento congelato e PNG valido; RPC di scrittura solo service_role con scadenza e stato pendente",
   "sr-firma-cliente": "firma del cliente dal microsito: il token del progetto è la chiave",
+  "fea-verifica-codice": "verifica pubblica di un documento firmato col codice del certificato: mostra solo nome di chi firma, data, azienda e impronte",
   "fea-documento-pubblico": "documento da firmare aperto dal link col token; l'email del firmatario esce mascherata",
   "email-sequenze-optout": "disiscrizione dal piede delle email: il token di uscita è il segreto",
   "email-inbound-reply": "posta in arrivo da Elastic Email: l'id della route è un uuid, più ?key= se INBOUND_EMAIL_SECRET è impostato",

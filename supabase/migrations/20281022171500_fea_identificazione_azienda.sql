@@ -30,8 +30,6 @@ alter table public.fea_firmatari add constraint fea_firmatari_dichiarazione_comp
 -- Chi manda i documenti in firma (titolare e ufficio) vede chi è già identificato.
 drop policy if exists fea_firmatari_lettura on public.fea_firmatari;
 create policy fea_firmatari_lettura on public.fea_firmatari for select to authenticated
-  using (exists (
-    select 1 from public.profiles p join public.user_roles ur on ur.user_id = p.id
-     where p.id = (select auth.uid()) and p.company_id = fea_firmatari.company_id
-       and ur.role = any (array['company_admin'::public.app_role, 'company_staff'::public.app_role]))
+  using (public.e_amministratore_di(company_id)
+    or (company_id = (select public.get_my_company_id()) and (select public.has_role(auth.uid(), 'company_staff'::public.app_role)))
     or (select public.has_role(auth.uid(), 'super_admin'::public.app_role)));
