@@ -22,7 +22,7 @@ export interface ProcurementCoverage {
   quantity: number;
   quantity_received: number;
   unit_of_measure?: string | null;
-  purchase_orders: { id: string; oda_number: string; status: string };
+  purchase_orders: { id: string; oda_number: string; status: string; issue_date?: string | null; expected_delivery_date?: string | null; actual_delivery_date?: string | null };
 }
 
 /** Unità del materiale: quella scritta sulla riga, altrimenti pezzi come prima. */

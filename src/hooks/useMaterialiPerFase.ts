@@ -13,6 +13,7 @@ import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 import { planMaterial } from "@/lib/orders/materialProcurement";
 import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchaseOrder";
 import { statoAcquistoMateriale, type StatoAcquistoMateriale } from "@/lib/distinta/fasiMateriali";
+import { statoMateriale, type InfoStatoMateriale } from "@/lib/distinta/statoMateriale";
 import { eliminabile, eMateriale } from "@/lib/distinta/elencoArticoli";
 import type { AzioneFase, StatoMaterialiFase } from "@/lib/distinta/statiFase";
 import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
@@ -61,6 +62,11 @@ export interface MaterialeFase {
   oda?: string[];
   /** Quantità negli ordini emessi. */
   ordinata?: number;
+  /**
+   * Lo stato sulla scala unica (statoMateriale), con gli ordini e le unità da
+   * verificare: è quello che mostrano testata, fasi, filtri e righe.
+   */
+  scala?: InfoStatoMateriale;
 }
 
 export interface FaseMateriali {
@@ -116,12 +122,15 @@ export function useMaterialiPerFase(orderId: string | undefined) {
         .filter((c) => c.order_item_id === r.id && c.purchase_orders?.status !== "annullato")
         .map((c) => c.purchase_orders?.oda_number)
         .filter((n): n is string => !!n))];
+      const scala = statoMateriale({ ...r, quantity: Number(r.quantity) }, d.copertura);
       return {
         ...r,
         quantity: Number(r.quantity),
         stato: statoAcquistoMateriale({ ...r, drafted: piano.drafted, issued: piano.issued, received: piano.received }),
+        scala,
         ordinabile: piano.canOrder && eMateriale(r),
-        avviso: eMateriale(r) ? piano.review : null,
+        // Le unità diverse le riassume la testata, una volta sola.
+        avviso: eMateriale(r) && !scala.unitaDaVerificare ? piano.review : null,
         oda,
         ordinata: piano.issued,
       };
@@ -273,5 +282,23 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
-  return { cambiaStato, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina };
+  /**
+   * Scrive sulla riga della commessa l'unità dell'ordine, solo dove è sicuro
+   * (statoMateriale.allineaA: 1 pezzo contro 1 «a corpo»). L'ordine non si tocca.
+   */
+  const allineaUnita = useMutation({
+    mutationFn: async (righe: { id: string; unita: string }[]) => {
+      const perUnita = new Map<string, string[]>();
+      for (const r of righe) perUnita.set(r.unita, [...(perUnita.get(r.unita) ?? []), r.id]);
+      for (const [unita, ids] of perUnita) {
+        const { error } = await supabase.from("order_items").update({ unita_misura: unita }).in("id", ids);
+        if (error) throw error;
+      }
+      return righe.length;
+    },
+    onSuccess: (n) => { toast.success(n === 1 ? "Unità allineata" : `${n} unità allineate`); aggiorna(); },
+    onError: (e) => toast.error(messaggio(e)),
+  });
+
+  return { cambiaStato, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina, allineaUnita };
 }

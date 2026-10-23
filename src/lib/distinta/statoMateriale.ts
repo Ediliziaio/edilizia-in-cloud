@@ -164,6 +164,17 @@ export function scalaDaStatoAcquisto(stato: string, status?: string | null): Sta
   return (SCALA_STATI as string[]).includes(stato) ? (stato as StatoMateriale) : "da_ordinare";
 }
 
+/** Lo stato sulla scala unica di una riga; quelle senza copertura calcolata passano dallo stato d'acquisto. */
+export function infoStato(m: { scala?: InfoStatoMateriale; stato: string; status?: string | null; oda?: string[] }): InfoStatoMateriale {
+  return m.scala ?? {
+    stato: scalaDaStatoAcquisto(m.stato, m.status),
+    dettaglio: null,
+    ordini: (m.oda ?? []).map((n): OrdineDellaRiga => ({ numero: n, stato: "", data: null, arrivo: null, arrivato: false })),
+    unitaDaVerificare: null,
+    allineaA: null,
+  };
+}
+
 export type ConteggioStati = Record<StatoMateriale, number> & { totale: number };
 
 /** Quanti materiali per stato: lo stesso conto per testata, fasi e filtri. */
