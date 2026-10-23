@@ -148,7 +148,7 @@ function Importo({ m, proposto }: { m: MaterialeFase; proposto: PrezzoProposto |
   const p = attuale ?? proposto;
   const rate = dettaglioAccontoSaldo(m);
   if (!p) {
-    return <span className="text-xs text-muted-foreground">Prezzo da trovare</span>;
+    return <span className="text-xs text-muted-foreground">Senza prezzo</span>;
   }
   const Icona = ICONA_FONTE[p.fonte] ?? PenLine;
   const delta = attuale && m.standard_cost && m.standard_cost > 0 ? (attuale.prezzo - m.standard_cost) * m.quantity : 0;
@@ -174,9 +174,8 @@ function Importo({ m, proposto }: { m: MaterialeFase; proposto: PrezzoProposto |
       {m.is_paid ? (
         <span className="text-[11px] text-emerald-700 dark:text-emerald-400">Pagato</span>
       ) : rate ? (
-        <span className="text-[11px] tabular-nums text-muted-foreground" title={`Acconto ${formatCurrency(rate.acconto)} · Saldo ${formatCurrency(rate.saldo)}`}>
+        <span className="flex flex-col items-end whitespace-nowrap text-[11px] tabular-nums text-muted-foreground" title={`Acconto ${formatCurrency(rate.acconto)} · Saldo ${formatCurrency(rate.saldo)}`}>
           <span className={rate.accontoPagato ? "text-emerald-700 dark:text-emerald-400" : undefined}>Acconto {rate.accontoPagato ? "✓" : "—"}</span>
-          {" · "}
           <span className={rate.saldoPagato ? "text-emerald-700 dark:text-emerald-400" : undefined}>
             Saldo {rate.saldoPagato ? "✓" : rate.saldoPrevisto ? dataBreve(rate.saldoPrevisto) : "—"}
           </span>
@@ -258,11 +257,11 @@ function RigaMateriale({
   return (
     // Sul telefono la riga è un blocco che va a capo (nome e ⋯ in alto, poi quantità, ordine, stato,
     // importo); da lg in su è una riga di tabella con le colonne dell'intestazione.
-    <tr className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-3 py-2 hover:bg-muted/40 max-lg:[&>td]:order-4 lg:table-row lg:p-0 lg:[&>td]:px-2 lg:[&>td]:py-1.5 lg:[&>td]:align-middle">
-      <td className="w-5 shrink-0 max-lg:!order-1 lg:w-auto lg:!pl-3">
+    <tr className="relative flex flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 pl-11 pr-3 hover:bg-muted/40 max-lg:[&>td]:order-4 lg:table-row lg:p-0 lg:[&>td]:px-2 lg:[&>td]:py-1.5 lg:[&>td]:align-middle">
+      <td className="max-lg:absolute max-lg:left-3 max-lg:top-2.5 lg:!pl-3">
         <Checkbox checked={selezionato} onCheckedChange={(v) => onSeleziona(!!v)} aria-label={`Seleziona ${m.name}`} />
       </td>
-      <td className="min-w-0 flex-1 basis-[60%] max-lg:!order-2 lg:basis-auto">
+      <td className="min-w-0 flex-1 max-lg:!order-2 max-lg:basis-[calc(100%-3.75rem)]">
         <p className="line-clamp-2 break-words text-sm font-medium text-foreground">
           {m.name}
           {!materiale && <span className="ml-2 rounded bg-muted px-1.5 text-[11px] font-normal text-muted-foreground">{ETICHETTA_NATURA[m.natura_riga ?? ""] ?? m.natura_riga}</span>}
@@ -291,27 +290,27 @@ function RigaMateriale({
           )}
         </div>
       </td>
-      <td className="ml-8 whitespace-nowrap text-sm tabular-nums lg:ml-0 lg:text-right">
+      <td className="whitespace-nowrap text-sm tabular-nums lg:text-right">
         {modificabile ? (
           <label className="inline-flex items-center gap-1">
             <span className="sr-only">Quantità di {m.name}</span>
             <Input
               inputMode="numeric"
-              className="h-7 w-16 px-2 text-right tabular-nums"
+              className="h-7 w-14 px-1.5 text-right tabular-nums"
               value={bozza ?? String(m.quantity)}
               onChange={(e) => setBozza(e.target.value)}
               onBlur={salva}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               title={tecnico ? "Correzione del tecnico" : undefined}
             />
-            <span className="text-xs text-muted-foreground">{qta.unita}</span>
+            <span className="max-w-[3.25rem] truncate text-xs text-muted-foreground">{qta.unita}</span>
           </label>
         ) : (
           <span>{qta.numero}{qta.numero ? " " : ""}<span className="text-xs text-muted-foreground">{qta.unita}</span></span>
         )}
         {calcolata != null && <span className="block text-[11px] text-muted-foreground">calcolata {numero(calcolata)}</span>}
       </td>
-      <td className="hidden truncate text-sm xl:table-cell">{fornitore}</td>
+      <td className="hidden truncate text-sm xl:table-cell" title={nomeFornitore ?? undefined}>{fornitore}</td>
       <td className="min-w-0">{materiale ? <OrdineArrivo m={m} info={info} oda={oda} /> : null}</td>
       <td>
         {materiale ? (
@@ -416,7 +415,7 @@ function SezioneFase({
               <span className="truncate text-sm font-semibold text-foreground">{fase.nome}</span>
             </button>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {conteggio.totale} materiali{altre > 0 ? ` · ${altre} ${altre === 1 ? "altra riga" : "altre righe"}` : ""}
+              {conteggio.totale} {conteggio.totale === 1 ? "materiale" : "materiali"}{altre > 0 ? ` · ${altre} ${altre === 1 ? "altra riga" : "altre righe"}` : ""}
               {riassunto ? <span className="max-sm:hidden"> · {riassunto}</span> : null}
             </span>
             {canViewCosts && stima.totale > 0 && (
@@ -427,20 +426,20 @@ function SezioneFase({
             )}
             <div className="ml-auto flex items-center gap-1">
               {principale && (
-                <Button size="sm" className="h-7 px-2.5 text-xs" variant={principale === "rimanda" ? "outline" : "default"} onClick={() => esegui(principale)}>
+                <Button size="sm" className="tap-compact h-8 px-2.5 text-xs sm:h-7" variant={principale === "rimanda" ? "outline" : "default"} onClick={() => esegui(principale)}>
                   {(() => { const I = ICONA_AZIONE[principale]; return <I className="mr-1 h-3.5 w-3.5" aria-hidden />; })()}
                   {ETICHETTA_AZIONE_PRINCIPALE[principale]}
                 </Button>
               )}
               {principale === "valida" && secondarie.includes("rimanda") && (
-                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => onAzione("rimanda")}>
+                <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs sm:h-7" onClick={() => onAzione("rimanda")}>
                   <Undo2 className="mr-1 h-3.5 w-3.5" aria-hidden />{ETICHETTA_AZIONE_PRINCIPALE.rimanda}
                 </Button>
               )}
               {principale !== "valida" && secondarie.length > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Altre azioni sulla fase ${fase.nome}`}>
+                    <Button size="icon" variant="ghost" className="tap-compact h-8 w-8 sm:h-7 sm:w-7" aria-label={`Altre azioni sulla fase ${fase.nome}`}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -452,7 +451,7 @@ function SezioneFase({
                 </DropdownMenu>
               )}
               {onAggiungi && (
-                <Button size="icon" variant="outline" className="h-7 w-7" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}>
+                <Button size="icon" variant="outline" className="tap-compact h-8 w-8 sm:h-7 sm:w-7" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}>
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -625,7 +624,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
   };
 
   const chip = (attivo: boolean) => cn(
-    "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "tap-compact inline-flex h-7 items-center gap-1 rounded-full sm:h-6 border px-2 text-[11px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     attivo ? "border-foreground bg-foreground text-background" : "bg-card hover:bg-muted",
   );
 
@@ -637,7 +636,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
           {tuttiMateriali.length > 0 && (
             <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filtra per stato">
               <button type="button" className={chip(filtroStato === null)} aria-pressed={filtroStato === null} onClick={() => setFiltroStato(null)}>
-                {conteggio.totale} materiali
+                {conteggio.totale} {conteggio.totale === 1 ? "materiale" : "materiali"}
               </button>
               {SCALA_STATI.filter((s) => conteggio[s] > 0).map((s) => (
                 <button key={s} type="button" className={chip(filtroStato === s)} aria-pressed={filtroStato === s}
@@ -645,31 +644,27 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                   {conteggio[s]} {ETICHETTA_STATO_MATERIALE[s]}
                 </button>
               ))}
-              {canViewCosts && stima.totale > 0 && (
-                <span className="ml-1 text-xs text-muted-foreground tabular-nums">
-                  {stima.proposto > 0 ? "stima " : ""}{formatCurrency(stima.totale)}
-                  {stima.senzaPrezzo > 0 ? ` · ${stima.senzaPrezzo} senza prezzo` : ""}
-                </span>
-              )}
             </div>
           )}
           <div className="flex flex-wrap gap-1.5 sm:ml-auto">
             {puoScrivere && (
-              <Button size="sm" className="h-8" onClick={() => nuovo(null)}>
+              <Button size="sm" className="tap-compact h-8 px-2.5 text-xs" onClick={() => nuovo(null)}>
                 <Plus className="mr-1 h-3.5 w-3.5" aria-hidden /> Aggiungi articolo
               </Button>
             )}
             {permessi.canEditOrders && (
-              <Button size="sm" variant={puoScrivere ? "outline" : "default"} className="h-8" onClick={() => setGenera(true)}>
-                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden /> Genera dal computo e dalle tavole
+              <Button size="sm" variant={puoScrivere ? "outline" : "default"} className="tap-compact h-8 px-2.5 text-xs" onClick={() => setGenera(true)}>
+                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden /> Genera dal computo
               </Button>
             )}
-            <Button size="sm" variant="outline" className="h-8" onClick={() => setTavole(true)}>
-              <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole e conteggi
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs" onClick={() => setTavole(true)}>
+              <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole
             </Button>
-            <Button size="sm" variant="ghost" className="h-8" asChild>
-              <Link to="/azienda/scomposizioni"><Library className="mr-1 h-3.5 w-3.5" aria-hidden /> Scomposizioni</Link>
-            </Button>
+            <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">
+              <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" asChild>
+                <Link to="/azienda/scomposizioni" aria-label="Scomposizioni"><Library className="h-4 w-4" aria-hidden /></Link>
+              </Button>
+            </Suggerimento>
           </div>
         </div>
 
@@ -677,7 +672,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <div className="inline-flex rounded-md border bg-card p-0.5" role="group" aria-label="Provenienza">
               {([["tutti", "Tutti"], ["giacenza", "Da giacenza"], ["fornitore", "Da fornitore"]] as [FiltroFonte, string][]).map(([v, l]) => (
-                <button key={v} type="button" aria-pressed={filtro === v} className={cn("rounded px-2.5 py-1", filtro === v && "bg-foreground text-background")} onClick={() => setFiltro(v)}>{l}</button>
+                <button key={v} type="button" aria-pressed={filtro === v} className={cn("tap-compact rounded px-2.5 py-1", filtro === v && "bg-foreground text-background")} onClick={() => setFiltro(v)}>{l}</button>
               ))}
             </div>
             <label className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -689,18 +684,24 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                 </SelectContent>
               </Select>
             </label>
-            <Button size="sm" variant="ghost" className="h-8 px-2 text-xs"
+            <Button size="sm" variant="ghost" className="tap-compact h-8 px-2 text-xs"
               onClick={() => setAperte(new Map(sezioni.map((s) => [s.chiave, !tutteAperte])))}>
               {tutteAperte ? <ChevronsDownUp className="mr-1 h-3.5 w-3.5" aria-hidden /> : <ChevronsUpDown className="mr-1 h-3.5 w-3.5" aria-hidden />}
               {tutteAperte ? "Chiudi tutte" : "Apri tutte"}
             </Button>
             {vuote > 0 && (
-              <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" aria-pressed={mostraVuote} onClick={() => setMostraVuote(!mostraVuote)}>
+              <Button size="sm" variant="ghost" className="tap-compact h-8 px-2 text-xs" aria-pressed={mostraVuote} onClick={() => setMostraVuote(!mostraVuote)}>
                 {mostraVuote ? "Nascondi le fasi senza materiali" : `Mostra fasi senza materiali (${vuote})`}
               </Button>
             )}
+            {canViewCosts && stima.totale > 0 && (
+              <span className="text-muted-foreground tabular-nums sm:ml-auto">
+                {stima.proposto > 0 ? "Stima " : "Totale "}<strong className="font-semibold text-foreground">{formatCurrency(stima.totale)}</strong>
+                {stima.senzaPrezzo > 0 ? ` · ${stima.senzaPrezzo} senza prezzo` : ""}
+              </span>
+            )}
             {canViewCosts && permessi.canEditOrders && proposteDaScrivere.length > 0 && (
-              <Button size="sm" variant="outline" className="h-8 bg-card sm:ml-auto" disabled={applicaPrezzi.isPending}
+              <Button size="sm" variant="outline" className="tap-compact h-8 bg-card" disabled={applicaPrezzi.isPending}
                 title="Scrive sui materiali senza prezzo il prezzo proposto (listino, ultimo acquisto o scomposizione)"
                 onClick={() => applicaPrezzi.mutate(proposteDaScrivere.map((m) => ({ id: m.id, prezzo: proposte.get(m.id)! })))}>
                 Usa i prezzi proposti ({proposteDaScrivere.length})
@@ -717,11 +718,11 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                 <strong>{unitaDaVerificare.length} {unitaDaVerificare.length === 1 ? "riga" : "righe"} con l'unità dell'ordine da verificare</strong>
                 {" "}— finché non coincide, il residuo da ordinare non si calcola.
               </span>
-              <button type="button" className="underline underline-offset-2" aria-expanded={dettaglioUnita} onClick={() => setDettaglioUnita(!dettaglioUnita)}>
+              <button type="button" className="tap-compact underline underline-offset-2" aria-expanded={dettaglioUnita} onClick={() => setDettaglioUnita(!dettaglioUnita)}>
                 {dettaglioUnita ? "Nascondi" : "Quali sono"}
               </button>
               {allineabili.length > 0 && (
-                <Button size="sm" variant="outline" className="h-7 bg-card text-xs sm:ml-auto" disabled={azioni.allineaUnita.isPending}
+                <Button size="sm" variant="outline" className="tap-compact h-7 bg-card text-xs sm:ml-auto" disabled={azioni.allineaUnita.isPending}
                   title="Le righe da 1 pezzo ordinate come 1 «a corpo» diventano «a corpo»: l'ordine non cambia"
                   onClick={() => azioni.allineaUnita.mutate(allineabili.map((m) => ({ id: m.id, unita: infoStato(m).allineaA! })))}>
                   Allinea le unità ({allineabili.length})
@@ -807,7 +808,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                 <tr>
                   <th scope="col" className="w-9 py-1.5 pl-3"><span className="sr-only">Selezione</span></th>
                   <th scope="col" className="px-2 py-1.5 text-left font-medium">Materiale</th>
-                  <th scope="col" className="w-24 px-2 py-1.5 text-right font-medium">Q.tà</th>
+                  <th scope="col" className="w-28 px-2 py-1.5 text-right font-medium">Q.tà</th>
                   <th scope="col" className="hidden w-36 px-2 py-1.5 text-left font-medium xl:table-cell">Fornitore</th>
                   <th scope="col" className="w-36 px-2 py-1.5 text-left font-medium">Ordine / arrivo</th>
                   <th scope="col" className="w-32 px-2 py-1.5 text-left font-medium">Stato</th>

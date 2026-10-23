@@ -222,7 +222,7 @@ describe("Materiali per fase nella commessa", () => {
     stato.fasi = [];
     await disegna();
     expect(screen.getByText("Nessun articolo ancora")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Genera dal computo e dalle tavole/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Genera dal computo/ })).toBeInTheDocument();
   });
 });
 
@@ -258,7 +258,7 @@ describe("Un solo elenco: tutti gli articoli per fase", () => {
     const fase = screen.getByRole("rowgroup", { name: "Fase Impianto elettrico" });
     expect(within(fase).getByText("Posa canaline")).toBeInTheDocument();
     expect(within(fase).getByText("Lavorazione")).toBeInTheDocument();
-    expect(within(fase).getByText(/1 materiali · 1 altra riga/)).toBeInTheDocument();
+    expect(within(fase).getByText(/1 materiale · 1 altra riga/)).toBeInTheDocument();
     const senza = screen.getByRole("rowgroup", { name: "Fase Senza fase" });
     expect(within(senza).getByText("Materiale s")).toBeInTheDocument();
     expect(within(senza).getByText("Da giacenza")).toBeInTheDocument();
