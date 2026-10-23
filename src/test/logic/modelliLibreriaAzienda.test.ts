@@ -61,6 +61,7 @@ import {
   MODELLO_NON_ONLINE,
   archivioModelliAzienda,
   aziendaDelModello,
+  dimenticaCopieInMemoria,
   modelliDaMandareOnline,
   sincronizzaModelliAzienda,
 } from "@/lib/moduli-vendita/archivioModelli";
@@ -77,6 +78,7 @@ const ARCHIVI = resolve(process.cwd(), "src/lib/moduli-vendita");
 
 beforeEach(() => {
   localStorage.clear();
+  dimenticaCopieInMemoria();
   db.righe = [];
   db.scritture = [];
   db.letture = [];
@@ -144,6 +146,39 @@ describe("salvare un modello", () => {
     expect(loadLocalSerramentiTemplate(AZIENDA, "finestre")).not.toBeNull();
     expect(modelliDaMandareOnline(AZIENDA)).toHaveLength(1);
     expect(modelliDaMandareOnline(ALTRA)).toEqual([]);
+  });
+});
+
+describe("un modello più grande dello spazio del browser", () => {
+  const pesante = `eic:full-rst-module:v1:${AZIENDA}:completa`;
+  function browserPieno() {
+    const scrivi = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((chiave: string, valore: string) => {
+      if (chiave === pesante) throw new DOMException("quota", "QuotaExceededError");
+      scrivi(chiave, valore);
+    });
+  }
+
+  it("si salva lo stesso: va online e si rilegge aggiornato", async () => {
+    localStorage.setItem(pesante, record(PRIMA, "vecchio"));
+    browserPieno();
+    expect(() => archivioModelliAzienda.setItem(pesante, record(DOPO, "con le foto nuove"))).not.toThrow();
+    expect(JSON.parse(archivioModelliAzienda.getItem(pesante)!).template.titolo).toBe("con le foto nuove");
+    await vi.waitFor(() => expect(db.righe.map((r) => r.salvato_il)).toEqual([DOPO]));
+    await vi.waitFor(() => expect(modelliDaMandareOnline(AZIENDA)).toEqual([]));
+  });
+
+  it("se nemmeno online arriva, resta da mandare e la sincronizzazione lo rimanda", async () => {
+    browserPieno();
+    db.erroreScrittura = "rete assente";
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    archivioModelliAzienda.setItem(pesante, record(DOPO, "con le foto nuove"));
+    await vi.waitFor(() => expect(db.scritture).toHaveLength(1));
+    expect(modelliDaMandareOnline(AZIENDA)).toEqual([pesante]);
+    db.erroreScrittura = null;
+    const esito = await sincronizzaModelliAzienda(AZIENDA);
+    expect(esito).toMatchObject({ caricati: 1, daMandareOnline: [] });
+    expect(db.righe[0]).toMatchObject({ chiave: pesante, salvato_il: DOPO });
   });
 });
 
