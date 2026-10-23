@@ -165,6 +165,14 @@ describe("la colonna del modello nel database", () => {
     expect(sql).toContain("before update of modello_snapshot");
     expect(sql).toContain("revoke all on function public.preventivo_modello_immutabile() from public, anon, authenticated");
   });
+
+  it("finché il preventivo è in bozza si rinnova col modello di adesso, stesso intervento e stessa azienda", () => {
+    const aggiornabile = readFileSync(resolve(cartella, "20281023150000_modello_preventivo_aggiornabile_in_bozza.sql"), "utf8");
+    expect(aggiornabile).toContain("if old.stato = 'bozza' and new.stato = 'bozza'");
+    expect(aggiornabile).toContain("new.modello_snapshot->>'modelId' = old.modello_snapshot->>'modelId'");
+    expect(aggiornabile).toContain("new.modello_snapshot->>'companyId' = new.company_id::text");
+    expect(aggiornabile).toContain("raise exception 'Il modello di un preventivo già inviato non può essere sostituito.");
+  });
 });
 
 describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {
