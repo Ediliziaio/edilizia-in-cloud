@@ -958,7 +958,7 @@ if (field === "eyebrow") { set("pdf_cover_eyebrow", (value ?? "") || null); } }}
                   />
 <ImageUploadField localOnly={!!localModule}
                       label="Immagine di sfondo cover (opzionale)"
-                      hint={localModule ? "Foto locale PNG/JPG/WEBP, massimo 1 MB, oppure immagine illustrativa dedicata." : "Carica una foto (PNG/JPG max 8 MB) o scegli dalla galleria stock."}
+                      hint={localModule ? "Foto PNG/JPG/WEBP (le foto pesanti si riducono da sole), oppure immagine illustrativa dedicata." : "Carica una foto (PNG/JPG max 8 MB) o scegli dalla galleria stock."}
                       value={form.pdf_cover_image_url}
                       companyId={companyId}
                       onChange={(url) => {

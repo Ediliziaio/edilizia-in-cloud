@@ -102,7 +102,8 @@ describe("modelli PDF Tetti indipendenti", () => {
   it("legge immagini locali senza storage remoto e rifiuta file inadatti", async () => {
     expect(await readLocalTemplateImage(new File(["fake"], "test.png", { type: "image/png" }))).toMatch(/^data:image\/png;base64,/);
     await expect(readLocalTemplateImage(new File(["x"], "file.svg", { type: "image/svg+xml" }))).rejects.toThrow("PNG");
-    await expect(readLocalTemplateImage(new File([new Uint8Array(1024 * 1024 + 1)], "large.png", { type: "image/png" }))).rejects.toThrow("1 MB");
+    // Le foto pesanti si riducono; oltre i 15 MB si chiede un'altra immagine.
+    await expect(readLocalTemplateImage(new File([new Uint8Array(15 * 1024 * 1024 + 1)], "large.png", { type: "image/png" }))).rejects.toThrow("15 MB");
   });
 });
 

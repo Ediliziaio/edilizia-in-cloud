@@ -49,6 +49,8 @@ async function tabellaModelli(): Promise<TabellaModelli> {
  * Così un modello aggiornato da un collega non si legge mai nella versione vecchia.
  */
 const inMemoria = new Map<string, string>();
+/** Svuota le copie in memoria (come una pagina riaperta): serve alle prove. */
+export const dimenticaCopieInMemoria = () => inMemoria.clear();
 const leggiCopia = (chiave: string) => inMemoria.get(chiave) ?? localStorage.getItem(chiave);
 function tieniCopia(chiave: string, valore: string) {
   try {
@@ -141,14 +143,19 @@ async function provaAMandareOnline(chiave: string, valore: string): Promise<bool
 
 /**
  * La porta degli archivi dei moduli: legge e scrive la copia nel browser come
- * prima (sincrona, con gli stessi errori di spazio) e manda online ogni modello salvato.
+ * prima (sincrona) e manda online ogni modello salvato. Un modello che non entra
+ * nello spazio del browser (le foto pesano: circa 5 MB per tutto il sito) resta in
+ * memoria per questa sessione e va online lo stesso: la copia che conta è quella
+ * dell'azienda, nel database.
  */
 export const archivioModelliAzienda: StoragePort = {
   getItem: (chiave) => (aziendaDelModello(chiave) ? leggiCopia(chiave) : localStorage.getItem(chiave)),
   setItem: (chiave, valore) => {
-    localStorage.setItem(chiave, valore);
-    if (!aziendaDelModello(chiave)) return;
-    inMemoria.delete(chiave);
+    if (!aziendaDelModello(chiave)) {
+      localStorage.setItem(chiave, valore);
+      return;
+    }
+    tieniCopia(chiave, valore);
     segnaInSospeso(chiave, true);
     void provaAMandareOnline(chiave, valore).then((online) => {
       if (!online) window.dispatchEvent(new CustomEvent(MODELLO_NON_ONLINE, { detail: { chiave } }));
@@ -200,8 +207,11 @@ export async function sincronizzaModelliAzienda(companyId: string): Promise<Esit
   const daMandare = new Set(modelliDaMandareOnline(companyId));
   // Le chiavi si raccolgono prima: mandare online riscrive l'elenco in sospeso,
   // e con localStorage.key(i) durante le scritture si salterebbero delle copie.
-  const chiaviLocali = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-    .filter((chiave): chiave is string => !!chiave && aziendaDelModello(chiave) === companyId);
+  // Anche quelle rimaste in memoria perché il browser non aveva spazio.
+  const chiaviLocali = [...new Set([
+    ...Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)),
+    ...inMemoria.keys(),
+  ])].filter((chiave): chiave is string => !!chiave && aziendaDelModello(chiave) === companyId);
   for (const chiave of chiaviLocali) {
     const valore = leggiCopia(chiave);
     const localeIl = salvatoIl(valore);
