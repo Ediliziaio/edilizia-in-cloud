@@ -9,7 +9,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 const stato = vi.hoisted(() => ({
   permessi: { canManagePurchasing: true, canViewCosts: true, isAdmin: false, canEditOrders: false, canViewOrders: true } as Record<string, boolean>,
-  tabelle: {} as Record<string, unknown[]>,
+  materiali: [] as unknown[],
+  rpc: vi.fn(),
   copertura: [] as unknown[],
   ordini: [] as unknown[],
   rfqs: [] as unknown[],
@@ -37,10 +38,19 @@ vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string) => {
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "in", "order", "limit"]) q[m] = () => q;
-    q.then = (ok: (r: unknown) => unknown) => Promise.resolve({ data: stato.tabelle[tabella] ?? [], error: null }).then(ok);
+    // Le tabelle delle commesse non si leggono più: i materiali arrivano dalla RPC.
+    q.then = (ok: (r: unknown) => unknown) => Promise.resolve({ data: [], error: new Error(`lettura diretta di ${tabella}`) }).then(ok);
     return q;
   };
-  return { supabase: { from: (t: string) => catena(t) } };
+  return {
+    supabase: {
+      from: (t: string) => catena(t),
+      rpc: (nome: string, args: unknown) => {
+        stato.rpc(nome, args);
+        return Promise.resolve({ data: nome === "acquisti_materiali_da_ordinare" ? stato.materiali : null, error: null });
+      },
+    },
+  };
 });
 
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
@@ -50,7 +60,7 @@ const riga = (id: string, extra: Record<string, unknown> = {}) => ({
   id, order_id: "c1", name: `Materiale ${id}`, description: null as never, quantity: 10, status: "da_ordinare", supplier_id: "f1",
   purchase_price: 1, vat_rate: 22, phase_id: "fase-el", unita_misura: "m", specifiche: "450/750 V", origine_materiale: "computo",
   quantita_calcolata: 10, origini: [] as never[], locale: null as never, supplier_rfq_item_id: null as never, stock_item_id: null as never,
-  posizioni: null as never, rfq_item: null, ...extra,
+  posizioni: null as never, rfq_id: null as never, commessa: "C-2028-001", fase: "Impianto elettrico", posizione_fase: 1, ...extra,
 });
 
 const ordine = (id: string, status: string, extra: Record<string, unknown> = {}) => ({
@@ -83,10 +93,8 @@ describe("Commesse › Acquisti: la pipeline", () => {
     stato.ordini = [ordine("1", "inviato", { expected_delivery_date: "2020-01-10" }), ordine("2", "parziale"), ordine("3", "ricevuto"), ordine("4", "bozza")];
     stato.rfqs = [{ id: "r1", rfq_number: "RDO-1", titolo: "Cavi elettrici", status: "inviata", order_id: "c1", scadenza_offerte: null, data_fabbisogno: null, supplier_id_aggiudicato: null, created_at: "2026-10-01", orders: { order_code: "C-2028-001" } }];
     stato.contatori = { r1: { invitati: 3, risposte: 1, migliore: 900, fornitori: ["f1"] } };
-    stato.tabelle = {
-      materiali_fasi_validazione: [{ phase_id: "fase-el", order_id: "c1", validata_il: "2026-10-22", fase: { name: "Impianto elettrico", position: 1 }, commessa: { order_code: "C-2028-001" } }],
-      order_items: [riga("a"), riga("b", { supplier_id: null })],
-    };
+    stato.materiali = [riga("a"), riga("b", { supplier_id: null })];
+    stato.rpc.mockReset();
   });
 
   it("la pipeline è la vista di partenza: cinque colonne con conteggi", async () => {
@@ -104,6 +112,12 @@ describe("Commesse › Acquisti: la pipeline", () => {
     const ordinato = screen.getByRole("region", { name: "Colonna Ordinato" });
     expect(within(ordinato).getByRole("link", { name: "Ordine ODA-1" })).toHaveAttribute("href", "/azienda/ordini-acquisto/1");
     expect(within(ordinato).getByText("1 in ritardo")).toBeInTheDocument();
+  });
+
+  it("i materiali arrivano dalla funzione dell'ufficio acquisti, per l'azienda in cui si lavora", async () => {
+    disegna();
+    await screen.findByRole("region", { name: "Commessa C-2028-001" });
+    expect(stato.rpc).toHaveBeenCalledWith("acquisti_materiali_da_ordinare", { p_company: "azienda" });
   });
 
   it("nella colonna «Da ordinare» i materiali per commessa › fase, con specifiche e fornitore", async () => {
