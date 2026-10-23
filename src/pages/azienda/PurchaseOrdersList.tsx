@@ -3,7 +3,7 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,7 @@ import {
 import {
   ShoppingCart, Plus, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
   FileSpreadsheet, X, Calendar as CalendarIcon, Package, Wallet, Warehouse, Link2, ArrowRight,
-  AlertTriangle, Send, Check,
+  AlertTriangle, Send, Check, Columns3, List,
 } from "lucide-react";
 import { usePurchaseOrders, type PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -33,6 +33,14 @@ import { cn } from "@/lib/utils";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { ODA_ORIGINI, ODA_ORIGINE_INFO, type OdaOrigine } from "@/lib/odaOrigine";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSupplierRfqs } from "@/hooks/useSupplierRfqs";
+import { useAcquistiDaOrdinare } from "@/hooks/useAcquistiDaOrdinare";
+import {
+  costruisciPipeline, filtraOda, giorniRitardoOda, leggiFiltriAcquisti, scriviFiltroAcquisti,
+} from "@/lib/acquisti/pipelineAcquisti";
+import { PipelineAcquisti } from "@/components/acquisti/PipelineAcquisti";
 import {
   QuotePageHeader,
   QuoteChip,
@@ -66,21 +74,9 @@ function euroCompatto(n: number): string {
   }).format(v);
 }
 
-/**
- * Giorni di ritardo di un ordine, o null se non e' in ritardo.
- * In ritardo = mandato al fornitore, data di consegna passata, merce non
- * ancora arrivata. Bozze e annullati non possono essere in ritardo: le prime
- * non le ha viste nessuno, i secondi non arriveranno mai per definizione.
- */
+/** Giorni di ritardo di un ordine ad oggi (regola in lib/acquisti/pipelineAcquisti). */
 function giorniDiRitardo(o: { status: string; expected_delivery_date: string | null }): number | null {
-  if (!o.expected_delivery_date) return null;
-  if (!["inviato", "confermato", "parziale"].includes(o.status)) return null;
-  const oggi = new Date().toLocaleDateString("en-CA");
-  if (o.expected_delivery_date >= oggi) return null;
-  const gg = Math.floor(
-    (new Date(oggi).getTime() - new Date(o.expected_delivery_date).getTime()) / 86400000,
-  );
-  return gg > 0 ? gg : null;
+  return giorniRitardoOda(o, new Date().toLocaleDateString("en-CA"));
 }
 
 /**
@@ -187,8 +183,25 @@ export default function PurchaseOrdersList() {
   const { toast } = useToast();
   const { orders, isLoading, isError, create } = usePurchaseOrders();
   const { suppliers } = useOperationalSuppliers();
-  const [tab, setTab] = useState("tutti");
-  const [search, setSearch] = useState("");
+  const { effectiveCompany } = useAuth();
+  const perm = usePermissions();
+  const { rfqs, contatori, isLoading: rfqInCaricamento } = useSupplierRfqs();
+  const materialiQuery = useAcquistiDaOrdinare(effectiveCompany?.id);
+  const materiali = useMemo(() => materialiQuery.data ?? [], [materialiQuery.data]);
+  const puoAgire = perm.canManagePurchasing || perm.canEditOrders || perm.isAdmin;
+
+  // Vista, filtri e scheda nell'URL: un link copiato riapre la stessa schermata,
+  // e le notifiche portano direttamente alla commessa giusta.
+  const [params, setParams] = useSearchParams();
+  const filtri = useMemo(() => leggiFiltriAcquisti(params), [params]);
+  const imposta = useCallback((chiave: string, valore: string | null | boolean) => {
+    setParams((prima) => scriviFiltroAcquisti(prima, chiave, valore), { replace: true });
+  }, [setParams]);
+  const vistaPrincipale = filtri.vista;
+  const tab = params.get("stato") ?? "tutti";
+  const setTab = (v: string) => imposta("stato", v === "tutti" ? null : v);
+  const search = filtri.cerca;
+  const setSearch = (v: string) => imposta("cerca", v);
   const [newOpen, setNewOpen] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState("");
   const [newDelivery, setNewDelivery] = useState("");
@@ -204,68 +217,70 @@ export default function PurchaseOrdersList() {
   // Filtri, tutti in vista: commessa, fornitore, periodo. Prima stavano in
   // un menu a parte (con gli importi min/max, che nessuno usava) e la commessa
   // non c'era: per vedere cosa si è ordinato per un cantiere la si cercava a mano.
-  const [filterOrder, setFilterOrder] = useState<string>("all"); // all | none | id commessa
-  const [filterSupplier, setFilterSupplier] = useState<string>("all");
-  const [filterPeriodo, setFilterPeriodo] = useState<"tutto" | "30" | "90" | "anno">("tutto");
-  const [vista, setVista] = useState<"elenco" | "commessa">("elenco");
+  const filterOrder = filtri.commessa ?? "all"; // all | _nessuna | id commessa
+  const filterPeriodo = (["30", "90", "anno"].includes(params.get("periodo") ?? "") ? params.get("periodo") : "tutto") as "tutto" | "30" | "90" | "anno";
+  const vista: "elenco" | "commessa" = params.get("raggruppa") === "commessa" ? "commessa" : "elenco";
   const [guidaChiusa, setGuidaChiusa] = useState(() => {
     try { return localStorage.getItem("oda-guida-chiusa") === "1"; } catch { return false; }
   });
 
   const activeFiltersCount =
-    (filterOrder !== "all" ? 1 : 0) + (filterSupplier !== "all" ? 1 : 0) + (filterPeriodo !== "tutto" ? 1 : 0);
+    (filtri.commessa ? 1 : 0) + (filtri.fornitore ? 1 : 0) + (filtri.fase ? 1 : 0) + (filtri.soloRitardo ? 1 : 0)
+    + (filtri.cerca ? 1 : 0) + (vistaPrincipale === "elenco" && filterPeriodo !== "tutto" ? 1 : 0);
 
   const clearFilters = () => {
-    setFilterOrder("all");
-    setFilterSupplier("all");
-    setFilterPeriodo("tutto");
+    setParams((prima) => {
+      const p = new URLSearchParams(prima);
+      for (const k of ["commessa", "forn", "fase", "ritardo", "cerca", "periodo"]) p.delete(k);
+      return p;
+    }, { replace: true });
   };
 
-  // le scelte dei filtri vengono dagli ordini che ci sono, non da tutta l'anagrafica
+  // Le scelte dei filtri vengono da ciò che c'è (ordini, richieste, materiali),
+  // non da tutta l'anagrafica.
   const commesseInElenco = useMemo(() => {
     const m = new Map<string, { codice: string; cestino: boolean }>();
     for (const o of orders) {
       if (o.order_id && o.orders?.order_code) m.set(o.order_id, { codice: o.orders.order_code, cestino: !!o.orders.deleted_at });
     }
+    for (const x of materiali) if (!m.has(x.order_id)) m.set(x.order_id, { codice: x.commessa, cestino: false });
+    for (const r of rfqs) if (r.order_id && r.orders?.order_code && !m.has(r.order_id)) m.set(r.order_id, { codice: r.orders.order_code, cestino: false });
     return [...m.entries()].sort((a, b) => a[1].codice.localeCompare(b[1].codice, "it", { numeric: true }));
-  }, [orders]);
+  }, [orders, materiali, rfqs]);
   const fornitoriInElenco = useMemo(() => {
     const m = new Map<string, string>();
     for (const o of orders) if (o.supplier_id) m.set(o.supplier_id, o.suppliers?.name ?? "Fornitore");
+    for (const x of materiali) {
+      if (x.supplier_id && !m.has(x.supplier_id)) m.set(x.supplier_id, suppliers.find((s) => s.id === x.supplier_id)?.name ?? "Fornitore");
+    }
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "it"));
-  }, [orders]);
+  }, [orders, materiali, suppliers]);
+  // Le fasi: solo quelle con materiali validati, della commessa scelta se c'è.
+  const fasiInElenco = useMemo(() => {
+    const m = new Map<string, { etichetta: string; codice: string; posizione: number }>();
+    for (const x of materiali) {
+      if (!x.phase_id || (filtri.commessa && x.order_id !== filtri.commessa)) continue;
+      m.set(x.phase_id, { etichetta: filtri.commessa ? x.fase : `${x.commessa} › ${x.fase}`, codice: x.commessa, posizione: x.posizioneFase });
+    }
+    return [...m.entries()].sort((a, b) => a[1].codice.localeCompare(b[1].codice, "it", { numeric: true }) || a[1].posizione - b[1].posizione);
+  }, [materiali, filtri.commessa]);
+
+  const oggi = new Date().toLocaleDateString("en-CA");
+  const colonne = useMemo(
+    () => costruisciPipeline({ materiali, rfqs, contatori, oda: orders, filtri, oggi }),
+    [materiali, rfqs, contatori, orders, filtri, oggi],
+  );
 
   const filtered = useMemo(() => {
-    const oggi = new Date().toLocaleDateString("en-CA");
-    let list = orders;
+    // Filtri comuni (commessa, fornitore, fase, ritardo, ricerca): stessa regola della pipeline.
+    let list = filtraOda(orders, materiali, filtri, oggi);
     // "attivi" = mandati al fornitore e non ancora arrivati. Le bozze hanno
     // un tab loro: sono ordini che non esistono ancora per nessuno tranne noi.
     if (tab === "attivi") list = list.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
     else if (tab === "bozze") list = list.filter((o) => o.status === "bozza");
-    else if (tab === "ritardo")
-      list = list.filter(
-        (o) =>
-          ["inviato", "confermato", "parziale"].includes(o.status) &&
-          o.expected_delivery_date &&
-          o.expected_delivery_date < oggi,
-      );
     else if (tab === "ricevuti") list = list.filter((o) => o.status === "ricevuto");
     else if (tab === "annullati") list = list.filter((o) => o.status === "annullato");
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((o) =>
-        o.oda_number.toLowerCase().includes(q) ||
-        o.suppliers?.name?.toLowerCase().includes(q) ||
-        o.orders?.order_code?.toLowerCase().includes(q)
-      );
-    }
-
-    if (filterOrder === "none") list = list.filter((o) => !o.order_id);
-    else if (filterOrder !== "all") list = list.filter((o) => o.order_id === filterOrder);
-    if (filterSupplier !== "all") {
-      list = list.filter((o) => o.supplier_id === filterSupplier);
-    }
     if (filterPeriodo !== "tutto") {
       const da = new Date();
       if (filterPeriodo === "anno") da.setMonth(0, 1);
@@ -275,7 +290,7 @@ export default function PurchaseOrdersList() {
     }
 
     return list;
-  }, [orders, tab, search, filterOrder, filterSupplier, filterPeriodo]);
+  }, [orders, materiali, filtri, oggi, tab, filterPeriodo]);
 
   // Per commessa: quanto si è impegnato e quanto è arrivato per ogni cantiere.
   // Gli ordini senza commessa (scorte, attrezzatura) stanno in un gruppo loro.
@@ -426,18 +441,18 @@ export default function PurchaseOrdersList() {
     }
   }, [buildExportRows, toast]);
 
+  // I numeri sulle schede seguono i filtri comuni: «Da mandare 3» per la commessa scelta.
   const counts = useMemo(() => {
-    const oggi = new Date().toLocaleDateString("en-CA");
-    const inCorso = orders.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
+    const base = filtraOda(orders, materiali, filtri, oggi);
+    const inCorso = base.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
     return {
-      tutti: orders.length,
-      ritardo: inCorso.filter((o) => o.expected_delivery_date && o.expected_delivery_date < oggi).length,
-      bozze: orders.filter((o) => o.status === "bozza").length,
+      tutti: base.length,
+      bozze: base.filter((o) => o.status === "bozza").length,
       attivi: inCorso.length,
-      ricevuti: orders.filter((o) => o.status === "ricevuto").length,
-      annullati: orders.filter((o) => o.status === "annullato").length,
+      ricevuti: base.filter((o) => o.status === "ricevuto").length,
+      annullati: base.filter((o) => o.status === "annullato").length,
     };
-  }, [orders]);
+  }, [orders, materiali, filtri, oggi]);
 
   /**
    * KPI rifatti il 2026-08-06. I precedenti raccontavano poco:
@@ -506,9 +521,8 @@ export default function PurchaseOrdersList() {
 
   const hubTabs: HubTab[] = [
     { key: "tutti", label: "Tutti", icon: <ShoppingCart className="h-4 w-4" />, count: counts.tutti },
-    // Il ritardo per primo dopo "Tutti": e' l'unica voce su cui c'e' qualcosa
-    // da fare oggi — telefonare al fornitore.
-    { key: "ritardo", label: "In ritardo", icon: <AlertTriangle className="h-4 w-4" />, count: counts.ritardo },
+    // «In ritardo» non è più una scheda: è il filtro comune «Solo in ritardo»,
+    // che vale anche per la pipeline.
     { key: "bozze", label: "Da mandare", icon: <Send className="h-4 w-4" />, count: counts.bozze },
     { key: "attivi", label: "In arrivo", icon: <Truck className="h-4 w-4" />, count: counts.attivi },
     { key: "ricevuti", label: "Ricevuti", icon: <Package className="h-4 w-4" />, count: counts.ricevuti },
@@ -566,8 +580,8 @@ export default function PurchaseOrdersList() {
   return (
     <div className="space-y-6 max-sm:space-y-3">
       <QuotePageHeader
-        title="Ordini d'Acquisto"
-        subtitle="Documenti fornitore collegati a commesse, DDT, magazzino di arrivo e inventario."
+        title="Acquisti"
+        subtitle="Dai materiali validati all'arrivo in cantiere: offerte, ordini e consegne, commessa per commessa."
         icon={<ShoppingCart className="h-5 w-5" />}
         className="testata-pagina bg-gradient-to-br from-white via-white to-orange-50/40"
         titoloSoloDaComputer
@@ -576,7 +590,7 @@ export default function PurchaseOrdersList() {
             {/* Telefono no: niente esportazioni. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="max-sm:hidden">
+                <Button variant="outline" size="sm" className={cn("max-sm:hidden", vistaPrincipale === "pipeline" && "hidden")}>
                   <Download className="h-4 w-4 mr-1.5" />
                   <span className="hidden sm:inline">Esporta</span>
                   <ChevronDown className="h-3.5 w-3.5 ml-1" />
@@ -609,6 +623,7 @@ export default function PurchaseOrdersList() {
           porta direttamente agli ordini che lo compongono. */}
       {/* Telefono no: gli stessi numeri e gli stessi filtri sono nelle schede sotto
           («In ritardo 10», «Da mandare 8»…). */}
+      {vistaPrincipale === "elenco" && (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-sm:hidden">
         <OperationalKpiCard
           label="In ritardo"
@@ -616,8 +631,8 @@ export default function PurchaseOrdersList() {
           icon={AlertTriangle}
           hint={kpis.lateCount > 0 ? euroCompatto(kpis.lateTotal) : "nessuno"}
           tone={kpis.lateCount > 0 ? "red" : "green"}
-          onClick={() => setTab("ritardo")}
-          active={tab === "ritardo"}
+          onClick={() => imposta("ritardo", !filtri.soloRitardo)}
+          active={filtri.soloRitardo}
         />
         <OperationalKpiCard
           label="Da mandare"
@@ -625,7 +640,7 @@ export default function PurchaseOrdersList() {
           icon={Send}
           hint={kpis.draftCount > 0 ? euroCompatto(kpis.draftTotal) : "nessuna bozza"}
           tone="amber"
-          onClick={() => setTab("bozze")}
+          onClick={() => setTab(tab === "bozze" ? "tutti" : "bozze")}
           active={tab === "bozze"}
         />
         <OperationalKpiCard
@@ -634,7 +649,7 @@ export default function PurchaseOrdersList() {
           icon={Truck}
           hint={euroCompatto(kpis.inCorsoTotal)}
           tone="blue"
-          onClick={() => setTab("attivi")}
+          onClick={() => setTab(tab === "attivi" ? "tutti" : "attivi")}
           active={tab === "attivi"}
         />
         <OperationalKpiCard
@@ -646,10 +661,12 @@ export default function PurchaseOrdersList() {
         />
       </div>
 
+      )}
+
       {/* "Come funziona" — si legge una volta, poi e' ingombro. Chiudibile,
           con memoria: chi lo ha gia' letto non se lo ritrova ogni giorno in
           testa alla pagina. */}
-      {!guidaChiusa && (
+      {vistaPrincipale === "elenco" && !guidaChiusa && (
       <div className="relative hidden md:grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 pr-10 text-sm shadow-sm lg:grid-cols-3">
         <button
           type="button"
@@ -691,107 +708,173 @@ export default function PurchaseOrdersList() {
       </div>
       )}
 
-      {/* Tabs + Search */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-        <div className="flex-1 min-w-0">
-          <div className="flex overflow-x-auto gap-1 rounded-lg bg-slate-50 p-0.5">
-            {hubTabs.map((item) => {
-              const isActive = item.key === tab;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setTab(item.key)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
-                      : "text-slate-500 hover:bg-white hover:text-slate-900"
-                  )}
-                >
-                  <span className={isActive ? "text-orange-500" : "text-slate-400"}>{item.icon}</span>
-                  {item.label}
-                  {typeof item.count === "number" && (
-                    <span className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                      isActive ? "bg-orange-100 text-orange-700" : "bg-slate-200 text-slate-500"
-                    )}>
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+      {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
+      <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg bg-slate-100 p-0.5" role="group" aria-label="Vista">
+            {([["pipeline", "Pipeline", Columns3], ["elenco", "Elenco", List]] as const).map(([v, label, Icona]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={vistaPrincipale === v}
+                onClick={() => imposta("vista", v === "pipeline" ? null : v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
+                  vistaPrincipale === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                )}
+              >
+                <Icona className="h-3.5 w-3.5" />{label}
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Cerca OdA..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 border-slate-200 pl-8 shadow-none" />
-        </div>
-        </div>
-        {/* Telefono no: bastano le schede e la ricerca. */}
-        <div className="mt-2.5 hidden flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5 sm:flex">
-          <Select value={filterOrder} onValueChange={setFilterOrder}>
-            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterOrder !== "all" && "border-orange-300 bg-orange-50")}>
+          <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca ordine, richiesta, materiale…"
+              aria-label="Cerca negli acquisti"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 border-slate-200 pl-8 text-xs shadow-none"
+            />
+          </div>
+          <Select value={filterOrder} onValueChange={(v) => imposta("commessa", v === "all" ? null : v)}>
+            <SelectTrigger aria-label="Commessa" className={cn("h-8 w-auto min-w-[140px] text-xs", filtri.commessa && "border-orange-300 bg-orange-50")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte le commesse</SelectItem>
-              <SelectItem value="none">Senza commessa</SelectItem>
+              <SelectItem value="_nessuna">Senza commessa</SelectItem>
               {commesseInElenco.map(([id, c]) => (
                 <SelectItem key={id} value={id}>{c.codice}{c.cestino ? " (nel cestino)" : ""}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-            <SelectTrigger className={cn("h-8 w-auto min-w-[150px] text-xs", filterSupplier !== "all" && "border-orange-300 bg-orange-50")}>
+          <Select value={filtri.fornitore ?? "all"} onValueChange={(v) => imposta("forn", v === "all" ? null : v)}>
+            <SelectTrigger aria-label="Fornitore" className={cn("h-8 w-auto min-w-[140px] text-xs", filtri.fornitore && "border-orange-300 bg-orange-50")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti i fornitori</SelectItem>
+              <SelectItem value="_nessuno">Materiali senza fornitore</SelectItem>
               {fornitoriInElenco.map(([id, nome]) => (
                 <SelectItem key={id} value={id}>{nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterPeriodo} onValueChange={(v) => setFilterPeriodo(v as typeof filterPeriodo)}>
-            <SelectTrigger className={cn("h-8 w-auto min-w-[130px] text-xs", filterPeriodo !== "tutto" && "border-orange-300 bg-orange-50")}>
-              <CalendarIcon className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutto">Sempre</SelectItem>
-              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
-              <SelectItem value="anno">Quest'anno</SelectItem>
-            </SelectContent>
-          </Select>
+          {fasiInElenco.length > 0 && (
+            <Select value={filtri.fase ?? "all"} onValueChange={(v) => imposta("fase", v === "all" ? null : v)}>
+              <SelectTrigger aria-label="Fase" className={cn("h-8 w-auto min-w-[120px] text-xs", filtri.fase && "border-orange-300 bg-orange-50")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le fasi</SelectItem>
+                {fasiInElenco.map(([id, f]) => (
+                  <SelectItem key={id} value={id}>{f.etichetta}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <button
+            type="button"
+            aria-pressed={filtri.soloRitardo}
+            onClick={() => imposta("ritardo", !filtri.soloRitardo)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium",
+              filtri.soloRitardo ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 text-slate-600 hover:bg-slate-50",
+            )}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" /> Solo in ritardo
+          </button>
           {activeFiltersCount > 0 && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={clearFilters}>
               <X className="mr-1 h-3 w-3" /> Azzera
             </Button>
           )}
-          <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5">
-            {([["elenco", "Elenco"], ["commessa", "Per commessa"]] as const).map(([v, label]) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setVista(v)}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium",
-                  vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
+
+        {vistaPrincipale === "elenco" && (
+          <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg bg-slate-50 p-0.5">
+              {hubTabs.map((item) => {
+                const isActive = item.key === tab;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
+                        : "text-slate-500 hover:bg-white hover:text-slate-900"
+                    )}
+                  >
+                    <span className={isActive ? "text-orange-500" : "text-slate-400"}>{item.icon}</span>
+                    {item.label}
+                    {typeof item.count === "number" && (
+                      <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                        isActive ? "bg-orange-100 text-orange-700" : "bg-slate-200 text-slate-500"
+                      )}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={filterPeriodo} onValueChange={(v) => imposta("periodo", v === "tutto" ? null : v)}>
+                <SelectTrigger aria-label="Periodo" className={cn("h-8 w-auto min-w-[130px] text-xs", filterPeriodo !== "tutto" && "border-orange-300 bg-orange-50")}>
+                  <CalendarIcon className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutto">Sempre</SelectItem>
+                  <SelectItem value="30">Ultimi 30 giorni</SelectItem>
+                  <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+                  <SelectItem value="anno">Quest'anno</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex rounded-lg bg-slate-100 p-0.5 max-sm:hidden" role="group" aria-label="Raggruppa">
+                {([["elenco", "Elenco"], ["commessa", "Per commessa"]] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={vista === v}
+                    onClick={() => imposta("raggruppa", v === "commessa" ? "commessa" : null)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-medium",
+                      vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
-      {isLoading ? (
+      {/* Pipeline o tabella */}
+      {vistaPrincipale === "pipeline" ? (
+        isError || materialiQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Acquisti non caricati del tutto.{" "}
+              <button type="button" className="underline" onClick={() => materialiQuery.refetch()}>Riprova</button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <PipelineAcquisti
+            colonne={colonne}
+            vedeCosti={perm.canViewCosts || perm.isAdmin}
+            puoAgire={puoAgire}
+            caricamento={isLoading || rfqInCaricamento || materialiQuery.isLoading}
+          />
+        )
+      ) : isLoading ? (
         <>
           {/* Mobile card skeleton */}
           <div className="divide-y border rounded-lg sm:hidden">
