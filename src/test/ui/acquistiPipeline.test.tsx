@@ -65,8 +65,8 @@ const riga = (id: string, extra: Record<string, unknown> = {}) => ({
 
 const ordine = (id: string, status: string, extra: Record<string, unknown> = {}) => ({
   id, oda_number: `ODA-${id}`, status, supplier_id: "f1", order_id: "c1", total: 500, issue_date: "2026-10-01",
-  expected_delivery_date: null, suppliers: { name: "Elettroforniture Srl", email: null }, orders: { order_code: "C-2028-001" },
-  purchase_order_items: [], ddt_ricezione: [], ...extra,
+  expected_delivery_date: null as string | null, suppliers: { name: "Elettroforniture Srl", email: null as string | null }, orders: { order_code: "C-2028-001" },
+  purchase_order_items: [] as unknown[], ddt_ricezione: [] as unknown[], ...extra,
 });
 
 function Dove() {

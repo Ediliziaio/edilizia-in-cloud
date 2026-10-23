@@ -4,7 +4,7 @@ import {
 } from "@/lib/distinta/statoMateriale";
 import { azionePrincipaleFase, pillolaValidazione, type PermessiMateriali } from "@/lib/distinta/statiFase";
 
-const riga = { id: "r", quantity: 10, status: "da_ordinare", supplier_rfq_item_id: null, unita_misura: "m" };
+const riga = { id: "r", quantity: 10, status: "da_ordinare", supplier_rfq_item_id: null as string | null, unita_misura: "m" };
 const oda = (status: string, quantity = 10, quantity_received = 0, unit_of_measure: string | null = "m", numero = "ODA-1"): RigaOrdineCollegata => ({
   order_item_id: "r", quantity, quantity_received, unit_of_measure,
   purchase_orders: { oda_number: numero, status, issue_date: "2026-10-12", expected_delivery_date: "2026-10-20" },
@@ -62,7 +62,7 @@ describe("scala unica dello stato di un materiale", () => {
   });
 
   it("riga da 1 pezzo e ordine 1 «a corpo»: si allinea scrivendo l'unità dell'ordine", () => {
-    const voce = { id: "r", quantity: 1, status: "da_ordinare", unita_misura: null };
+    const voce = { id: "r", quantity: 1, status: "da_ordinare", unita_misura: null as string | null };
     expect(statoMateriale(voce, [oda("ricevuto", 1, 1, "corpo")])).toMatchObject({ stato: "consegnato", allineaA: "corpo" });
     // Due a corpo su una riga da 1: non si indovina.
     expect(statoMateriale(voce, [oda("ricevuto", 2, 2, "corpo")]).allineaA).toBeNull();

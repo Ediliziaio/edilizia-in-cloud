@@ -218,7 +218,7 @@ export default function SupplierRfqsList() {
                 </thead>
                 <tbody>
                   {filtrate.map((r) => {
-                    const c = contatori[r.id] ?? { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null, migliore: null };
+                    const c = contatori[r.id] ?? { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null as string | null, migliore: null as number | null };
                     // dal giorno in cui è stata chiesta (anche a voce), non da quando è stata creata
                     // solo per le richieste aperte: su un'aggiudicata i fornitori perdenti restano «inviata»
                     const aperta = r.status === "bozza" || r.status === "inviata" || r.status === "in_valutazione";

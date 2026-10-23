@@ -14,10 +14,10 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi 
 vi.mock("@/hooks/useFeatureFlags", () => ({ useFeatureFlags: () => ({ isFeatureEnabled: () => false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/pages/azienda/PurchaseOrdersList", () => ({ default: () => <p>pagina acquisti</p> }));
-vi.mock("@/pages/azienda/SupplierRfqsList", () => ({ default: () => null }));
-vi.mock("@/pages/azienda/DDTRicezioneList", () => ({ default: () => null }));
-vi.mock("@/pages/azienda/GlobalErrors", () => ({ default: () => null }));
-vi.mock("@/pages/azienda/MarginalitaCantieri", () => ({ default: () => null }));
+vi.mock("@/pages/azienda/SupplierRfqsList", () => ({ default: (): null => null }));
+vi.mock("@/pages/azienda/DDTRicezioneList", () => ({ default: (): null => null }));
+vi.mock("@/pages/azienda/GlobalErrors", () => ({ default: (): null => null }));
+vi.mock("@/pages/azienda/MarginalitaCantieri", () => ({ default: (): null => null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" }, user: { id: "u" } }) }));
 

@@ -184,7 +184,7 @@ describe("Materiali per fase nella commessa", () => {
 
   it("unità dell'ordine da verificare: un solo riepilogo in alto, dettaglio a richiesta, «Allinea le unità» dove è sicuro", async () => {
     const scala = (allineaA: string | null, unitaRiga = "pz") => ({
-      stato: "consegnato", dettaglio: null, ordini: [{ numero: "ODA-7", stato: "ricevuto", data: "2026-10-01", arrivo: null, arrivato: true }],
+      stato: "consegnato", dettaglio: null as string | null, ordini: [{ numero: "ODA-7", stato: "ricevuto", data: "2026-10-01", arrivo: null as string | null, arrivato: true }],
       unitaDaVerificare: { unitaRiga, unitaOrdine: ["corpo"] }, allineaA,
     });
     stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: null,

@@ -299,7 +299,7 @@ export function costruisciPipeline(input: {
 }): ColonnaAcquisti[] {
   const { materiali, rfqs, contatori, oda, filtri, oggi } = input;
   const colonne = new Map<ColonnaId, ColonnaAcquisti>(
-    COLONNE.map((c) => [c.id, { ...c, carte: [], materiali: [], conteggio: 0, importo: 0, nascoste: 0 }]),
+    COLONNE.map((c) => [c.id, { ...c, carte: [] as CartaAcquisto[], materiali: [] as MaterialeAcquisti[], conteggio: 0, importo: 0, nascoste: 0 }]),
   );
   const fase = indiciFase(materiali, filtri.fase);
 
