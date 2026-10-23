@@ -72,3 +72,65 @@ export function spiegazioneFase(stato: StatoMaterialiFase | null, p: PermessiMat
   if (stato === "validata") return "Validati dal tecnico: l'ufficio acquisti li vede in «Acquisti da fare».";
   return null;
 }
+
+// ─── Pillola della validazione e pulsante principale della fase ────────────
+
+export type PillolaValidazione = "bozza" | "da_validare" | "validata" | "rimandata";
+
+export const ETICHETTA_PILLOLA: Record<PillolaValidazione, string> = {
+  bozza: "Bozza",
+  da_validare: "Da validare",
+  validata: "Validata",
+  rimandata: "Rimandata",
+};
+
+/** null = la fase non usa la validazione: nessuna pillola. */
+export function pillolaValidazione(v: { stato: StatoMaterialiFase; note_validazione?: string | null } | null): PillolaValidazione | null {
+  if (!v) return null;
+  if (v.stato === "bozza" && v.note_validazione?.trim()) return "rimandata";
+  return v.stato;
+}
+
+/** «ordina» seleziona i materiali da ordinare della fase: poi si crea l'ordine o si chiede l'offerta. */
+export type AzionePrincipale = AzioneFase | "ordina";
+
+export const ETICHETTA_AZIONE_PRINCIPALE: Record<AzionePrincipale, string> = {
+  invia_validazione: "Invia al tecnico",
+  valida: "Valida",
+  rimanda: "Rimanda indietro",
+  ordina: "Ordina",
+};
+
+/**
+ * UN solo pulsante principale per fase, secondo dove si trova:
+ *   - dal tecnico: chi valida ha «Valida» (con «Rimanda indietro» accanto);
+ *   - in bozza con materiali da ordinare: «Invia al tecnico»;
+ *   - validata (o senza validazione) con materiali da ordinare: «Ordina»
+ *     per chi compra;
+ *   - tutto ordinato o arrivato: niente.
+ * Le azioni secondarie stanno nel menu della fase.
+ */
+export function azionePrincipaleFase(
+  stato: StatoMaterialiFase | null,
+  p: PermessiMateriali,
+  m: { haFase: boolean; daOrdinare: number; senzaQuantita: number; inAcquisto: number },
+): { principale: AzionePrincipale | null; secondarie: AzioneFase[] } {
+  const puoComprare = p.canEditOrders || p.canManagePurchasing;
+  const prepara = p.canEditOrders || p.canValidateBom;
+  if (stato === "da_validare") {
+    if (!p.canValidateBom) return { principale: null, secondarie: [] };
+    return m.senzaQuantita === 0 ? { principale: "valida", secondarie: ["rimanda"] } : { principale: "rimanda", secondarie: [] };
+  }
+  if (stato === "bozza") {
+    return { principale: m.daOrdinare > 0 && prepara ? "invia_validazione" : null, secondarie: [] };
+  }
+  const secondarie: AzioneFase[] = [];
+  if (stato === "validata" && p.canValidateBom && m.inAcquisto === 0) secondarie.push("rimanda");
+  // Fase che non usa la validazione: chi prepara può sempre passarla al tecnico.
+  if (stato === null && m.haFase && m.daOrdinare > 0 && m.inAcquisto === 0 && prepara) secondarie.push("invia_validazione");
+  if (m.daOrdinare > 0 && puoComprare) return { principale: "ordina", secondarie };
+  if (stato === null && secondarie.includes("invia_validazione")) {
+    return { principale: "invia_validazione", secondarie: secondarie.filter((a) => a !== "invia_validazione") };
+  }
+  return { principale: null, secondarie };
+}
