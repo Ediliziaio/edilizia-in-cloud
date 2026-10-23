@@ -352,7 +352,7 @@ function Editor({
               <label className="block space-y-2 text-sm">
                 <span className="flex items-center gap-2">
                   <ImagePlus className="h-4 w-4" />
-                  Sostituisci con una tua foto · massimo 1 MB
+                  Sostituisci con una tua foto · le foto pesanti si riducono da sole
                 </span>
                 <Input
                   type="file"
