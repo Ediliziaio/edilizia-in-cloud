@@ -107,6 +107,8 @@ export interface ContatoriRichiesta {
   /** la richiesta più vecchia ancora senza risposta: da qui si contano i giorni */
   attesaDal: string | null;
   migliore: number | null;
+  /** Fornitori invitati: servono al filtro per fornitore della pipeline acquisti. */
+  fornitori: string[];
 }
 
 export function useSupplierRfqs() {
@@ -148,8 +150,8 @@ export function useSupplierRfqs() {
       };
 
       const [fornitori, voci, righe] = await Promise.all([
-        tutte<{ id: string; rfq_id: string; status: string; totale_offerto: number | null; inviata_at: string | null }>(
-          "supplier_rfq_suppliers", "id, rfq_id, status, totale_offerto, inviata_at"),
+        tutte<{ id: string; rfq_id: string; supplier_id: string; status: string; totale_offerto: number | null; inviata_at: string | null }>(
+          "supplier_rfq_suppliers", "id, rfq_id, supplier_id, status, totale_offerto, inviata_at"),
         tutte<{ id: string; rfq_id: string }>("supplier_rfq_items", "id, rfq_id"),
         tutte<RfqQuote & { supplier_rfq_items: { quantita: number } | null }>(
           "supplier_rfq_quotes", "id, rfq_supplier_id, prezzo_unitario, sconto_percentuale, disponibile, supplier_rfq_items(quantita)"),
@@ -173,8 +175,9 @@ export function useSupplierRfqs() {
       const mappa: Record<string, ContatoriRichiesta> = {};
       const offerte = new Map<string, Array<{ totale: number; coperte: number }>>();
       for (const r of fornitori) {
-        const m = (mappa[r.rfq_id] ??= { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null, migliore: null });
+        const m = (mappa[r.rfq_id] ??= { invitati: 0, risposte: 0, inAttesa: 0, attesaDal: null, migliore: null, fornitori: [] });
         m.invitati += 1;
+        m.fornitori.push(r.supplier_id);
         // in attesa = chiesta e senza risposta; chi non è ancora stato contattato non «tace»
         if (r.status === "inviata") {
           m.inAttesa += 1;
