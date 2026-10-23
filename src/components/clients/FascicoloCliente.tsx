@@ -98,7 +98,10 @@ export function FascicoloCliente({
           Facoltativi, anche più file per tipo. Compaiono anche nei documenti delle commesse del cliente.
         </p>
       </div>
-      <div className="grid gap-2 md:grid-cols-3">
+      {/* Colonne secondo lo spazio che c'è, non secondo lo schermo: nel pannello
+          laterale (340 px) le tre schede stavano in colonne da 100 px e il nome
+          finiva sotto il tasto «Aggiungi». */}
+      <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(13rem,1fr))]">
         {tipi.map(({ tipo, etichetta }) => {
           const lista = documenti.filter((d) => d.document_type === tipo);
           const storico = tipo === "contract";
@@ -106,7 +109,7 @@ export function FascicoloCliente({
           return (
             <div key={tipo} className="rounded-md border p-2 space-y-1.5 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium">
+                <p className="text-xs font-medium min-w-0">
                   {etichetta} <span className="text-muted-foreground tabular-nums">({lista.length})</span>
                 </p>
                 {!storico && (
@@ -119,7 +122,7 @@ export function FascicoloCliente({
                       className="hidden"
                       onChange={(e) => { void carica(tipo as TipoDocumentoCliente, Array.from(e.target.files ?? [])); e.target.value = ""; }}
                     />
-                    <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={inCaricamento !== null}>
+                    <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0 whitespace-nowrap" disabled={inCaricamento !== null}>
                       <label htmlFor={id} className="cursor-pointer">
                         {inCaricamento === tipo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
                         {inCaricamento === tipo ? "" : "Aggiungi"}

@@ -61,10 +61,12 @@ describe("2.1 · la funzione cerca dove la scheda non guardava", () => {
     expect(sql).toMatch(/Cliente non trovato/);
   });
 
-  it("la scheda cliente oggi guarda ancora solo quotes: la funzione va adottata", () => {
-    // se un giorno questa asserzione fallisce, vuol dire che la traccia
-    // interfaccia ha adottato la RPC — allora si aggiorna il test, non il codice
-    expect(scheda).toMatch(/\.from\("quotes"\)/);
-    expect(scheda).not.toMatch(/cliente_preventivi_e_progetti/);
+  it("la scheda cliente legge i preventivi dalla lettura unica: tutti i verticali, poi quotes per email", () => {
+    // Dal 23/10/2026 la pagina legge tutto con scheda_cliente: i preventivi
+    // dalla vista dei verticali (col contatto), e da quotes solo per email.
+    expect(scheda).toMatch(/rpc\("scheda_cliente"/);
+    const lettura = readFileSync(resolve(RADICE, "supabase/migrations/20281023214500_scheda_cliente_in_una_lettura.sql"), "utf8");
+    expect(lettura).toMatch(/from public\.v_preventivi_unificati p/);
+    expect(lettura).toMatch(/from public\.quotes q/);
   });
 });

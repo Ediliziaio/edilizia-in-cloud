@@ -1,4 +1,4 @@
-import { useMemo, lazy, Suspense } from "react";
+import { useEffect, useMemo, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -53,13 +53,6 @@ const AppointmentDialog = lazy(() =>
 import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
-  type OrderRow,
-  type PreventivoRow,
-  type TicketRow,
-  type RapportinoRow,
-  type FatturaRow,
-  type AppuntamentoRow,
-  type RataRow,
 } from "@/components/clients/CustomerBusinessTabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -69,6 +62,9 @@ import {
   CreditCard as CreditCardIcon, Mail as MailIcon, X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { euro, oggiRoma, rateConResiduo, totaleDaIncassare, type SchedaCliente } from "@/lib/clienti/schedaCliente";
+import { azioniSuggerite } from "@/lib/clienti/cosaFareAdesso";
+import { CosaFareAdesso } from "@/components/clients/CosaFareAdesso";
 
 interface CustomerProfile {
   id: string;
@@ -105,7 +101,7 @@ const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
 // CustomerBusinessTabs forzato su quella tab.
 // ───────────────────────────────────────────────────────────────
 const RIGHT_TABS: { key: string; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
-  { key: "ordini",       icon: ClipboardListIcon,  label: "Ordini" },
+  { key: "ordini",       icon: ClipboardListIcon,  label: "Commesse" },
   { key: "preventivi",   icon: FileSignatureIcon,  label: "Preventivi" },
   { key: "assistenza",   icon: TicketIcon,         label: "Assistenza" },
   { key: "interventi",   icon: WrenchIcon,         label: "Interventi" },
@@ -137,11 +133,25 @@ export default function CompanyCustomerDetail() {
   // null = chiuso, "ordini" | "preventivi" | "assistenza" | "interventi" |
   // "documenti" | "email" | "appuntamenti" | "rate" = aperto su quella sezione.
   // Click sulla stessa icona = toggle chiude.
-  const [rightTab, setRightTab] = useState<string | null>(null);
+  // Sugli schermi larghi il pannello parte aperto sulle commesse: c'è posto, e
+  // le icone da sole non dicevano che lì dentro ci sono commesse e documenti.
+  const [rightTab, setRightTab] = useState<string | null>(() =>
+    typeof window !== "undefined" && window.matchMedia?.("(min-width: 1536px)").matches ? "ordini" : null);
   // 2026-05-27 (richiesta utente "popup appuntamento"): apre AppointmentDialog
   // come modale invece di navigate /calendario. Pre-popolato con dati cliente
   // (address/city/province) e order_id del primo ordine (se esiste).
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  // La vista a schede per il telefono si monta solo sugli schermi stretti:
+  // nascosta col CSS sul computer, rifaceva comunque le sue letture.
+  const [schermoStretto, setSchermoStretto] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024);
+  useEffect(() => {
+    const mql = window.matchMedia?.("(max-width: 1023px)");
+    if (!mql) return;
+    const aggiorna = () => setSchermoStretto(mql.matches);
+    aggiorna();
+    mql.addEventListener?.("change", aggiorna);
+    return () => mql.removeEventListener?.("change", aggiorna);
+  }, []);
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
@@ -162,222 +172,37 @@ export default function CompanyCustomerDetail() {
     enabled: !!id && !!effectiveCompany?.id,
   });
 
-  // ── Orders ──────────────────────────────────────────────────────────────────
-  const { data: orders = [] } = useQuery({
-    queryKey: ["customer-orders-history", id, effectiveCompany?.id],
+  // ── Tutto quello che serve alla scheda, in una lettura (23/10/2026) ───────
+  // Prima erano nove richieste separate (commesse, anagrafica fiscale, fatture,
+  // preventivi, ticket, interventi, appuntamenti, rate, da incassare): ognuna
+  // ripreparava le regole di accesso, oltre 200 ms a tabella. La funzione
+  // scheda_cliente le legge con i permessi di chi guarda e prepara una volta.
+  const { data: scheda, error: schedaError } = useQuery({
+    queryKey: ["scheda-cliente", id, effectiveCompany?.id],
+    enabled: !!id && !!effectiveCompany?.id && !!customer,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)")
-        .eq("customer_id", id!)
-        .eq("company_id", effectiveCompany?.id ?? "")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as OrderRow[];
-    },
-    enabled: !!id && !!effectiveCompany?.id,
-  });
-
-  // ── Anagrafica fiscale collegata ────────────────────────────────────────────
-  const { data: anagraficaCollegata, error: anagraficaError } = useQuery({
-    queryKey: ["anagrafica-by-cliente", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("anagrafiche_native" as never)
-        .select("id, ragione_sociale, partita_iva")
-        .eq("cliente_id", id!)
-        .maybeSingle();
-      if (error) throw new Error("Impossibile verificare l'anagrafica fiscale collegata.");
-      return data as { id: string; ragione_sociale: string | null; partita_iva: string | null } | null;
-    },
-    enabled: !!id,
-  });
-
-  // ── Fatture ─────────────────────────────────────────────────────────────────
-  const { data: fattureCliente = [], error: fattureError } = useQuery({
-    queryKey: ["fatture-cliente", id, anagraficaCollegata?.id],
-    enabled: !!anagraficaCollegata?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("id, tipo, numero, data_emissione, stato, totale_documento")
-        .eq("anagrafica_id", anagraficaCollegata?.id ?? "")
-        .is("deleted_at", null)
-        .order("data_emissione", { ascending: false })
-        .limit(20);
-      if (error) throw new Error("Impossibile caricare i documenti fiscali del cliente.");
-      return (data ?? []) as unknown as FatturaRow[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("scheda_cliente", { p_customer_id: id, p_company_id: effectiveCompany!.id });
+      if (error) throw new Error("Non riesco a leggere commesse, fatture e preventivi del cliente: riprova tra poco.");
+      return (data ?? null) as SchedaCliente | null;
     },
   });
+  const orders = scheda?.ordini ?? [];
+  const anagraficaCollegata = scheda?.anagrafica ?? null;
+  const fattureCliente = scheda?.fatture ?? [];
+  const preventivi = scheda?.preventivi ?? [];
+  const tickets = scheda?.ticket ?? [];
+  const rapportini = scheda?.interventi ?? [];
+  const appuntamenti = scheda?.appuntamenti ?? [];
+  const rate = useMemo(() => rateConResiduo(scheda), [scheda]);
+  const daIncassare = useMemo(() => totaleDaIncassare(scheda), [scheda]);
+  const erroreScheda = schedaError instanceof Error ? schedaError.message : null;
+  const azioni = useMemo(() => azioniSuggerite({ rate, preventivi, tickets }, oggiRoma()), [rate, preventivi, tickets]);
 
-  // ── Preventivi ──────────────────────────────────────────────────────────────
-  // quotes.contact_id punta a marketing_contacts.id; quando manca quel link
-  // usiamo l'email reale del cliente come fallback operativo.
-  const customerEmailForLinks = formatCustomerEmail(customer?.email);
-  const { data: preventivi = [], error: preventiviError } = useQuery({
-    queryKey: ["customer-preventivi", id, effectiveCompany?.id, customer?.marketing_contact_id, customerEmailForLinks],
-    queryFn: async () => {
-      try {
-        // Prima si leggeva solo `quotes`, e i preventivi fatti con i verticali
-        // (fotovoltaico, serramenti, ristrutturazione…) vivono in tabelle loro:
-        // la scheda diceva "nessun preventivo" mentre ce n'erano. La vista
-        // v_preventivi_unificati li mette tutti in fila con lo stesso contatto.
-        if (customer?.marketing_contact_id) {
-          const { data, error } = await supabase
-            .from("v_preventivi_unificati")
-            .select("id, tipo, numero, totale, stato_unificato, data, created_at")
-            .eq("company_id", effectiveCompany!.id)
-            .eq("contact_id", customer.marketing_contact_id)
-            .order("created_at", { ascending: false });
-          if (error) throw error;
-          return (data ?? []).map((r): PreventivoRow => ({
-            id: r.id as string,
-            quote_number: (r.numero as string | null) ?? null,
-            // Il tipo diventa il sottotitolo: senza, due preventivi di verticali
-            // diversi si leggono uguali.
-            title: (r.tipo as string | null) ?? null,
-            total: r.totale == null ? null : Number(r.totale),
-            status: (r.stato_unificato as string | null) ?? null,
-            created_at: (r.data as string | null) ?? (r.created_at as string),
-          }));
-        }
-
-        // Cliente senza contatto CRM: resta il ripiego sull'email, che la vista
-        // non espone. Copre i preventivi classici, gli unici che possano avere
-        // un'email senza un contatto collegato.
-        if (customerEmailForLinks) {
-          const { data, error } = await supabase
-            .from("quotes")
-            .select("id, quote_number, title, total, status, created_at")
-            .eq("company_id", effectiveCompany!.id)
-            .eq("client_email", customerEmailForLinks)
-            .order("created_at", { ascending: false });
-          if (error) throw error;
-          return (data ?? []) as PreventivoRow[];
-        }
-
-        return [];
-      } catch {
-        throw new Error("Impossibile caricare i preventivi collegati al cliente.");
-      }
-    },
-    enabled: !!id && !!effectiveCompany?.id && (!!customer?.marketing_contact_id || !!customerEmailForLinks),
-  });
-
-  // ── Tickets ─────────────────────────────────────────────────────────────────
-  // 2026-05-27 (audit dettaglio cliente): soft-fail su errori di permessi/schema.
-  // Definito qui per evitare hoisting issues con useQuery sopra.
   const isSoftTableError = (e: unknown): boolean => {
     const code = (e as { code?: string })?.code;
     return code === "42P01" || code === "42501" || code === "PGRST116" || code === "PGRST301";
   };
-
-  const { data: tickets = [], error: ticketsError } = useQuery({
-    queryKey: ["customer-tickets", id, effectiveCompany?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tickets")
-        // La colonna "title" non esiste: il titolo del ticket sta in "subject"
-        // (valorizzato su tutti i ticket, a differenza di "titolo"). Alias per
-        // non toccare TicketRow e i componenti che lo consumano.
-        .select("id, title:subject, status, created_at, priority")
-        .eq("customer_id", id!)
-        .eq("company_id", effectiveCompany!.id)
-        .order("created_at", { ascending: false });
-      if (error) {
-        if (isSoftTableError(error)) {
-          logger.warn("[customer] tickets soft-error:", error);
-          return [] as TicketRow[];
-        }
-        throw new Error("Impossibile caricare le richieste di assistenza del cliente.");
-      }
-      return (data ?? []) as TicketRow[];
-    },
-    enabled: !!id && !!effectiveCompany?.id,
-  });
-
-  // ── Rapportini Intervento ────────────────────────────────────────────────────
-  // FIX 2026-05-09: rapportini_intervento NON ha customer_id (vedi migration
-  // 20260809000001_interventi.sql) — la relazione passa via tickets.customer_id.
-  // La vecchia query `.eq("customer_id", id)` ritornava SEMPRE vuoto (colonna
-  // inesistente, nessun errore lato Supabase REST). Bug silente da audit.
-  const { data: rapportini = [], error: rapportiniError } = useQuery({
-    queryKey: ["customer-rapportini", id, effectiveCompany?.id],
-    queryFn: async () => {
-      try {
-        const { data, error } = await supabase
-          .from("rapportini_intervento" as never)
-          .select("id, created_at, descrizione, note, tickets!inner(customer_id)")
-          .eq("tickets.customer_id", id!)
-          .eq("company_id", effectiveCompany!.id)
-          .order("created_at", { ascending: false })
-          .limit(20);
-        if (error) throw error;
-        // Stripping del nested ticket per matchare RapportinoRow shape
-        return ((data ?? []) as unknown as Array<RapportinoRow & { tickets?: unknown }>)
-          .map(({ tickets: _t, ...rest }) => rest);
-      } catch {
-        throw new Error("Impossibile caricare i rapportini/interventi collegati al cliente.");
-      }
-    },
-    enabled: !!id && !!effectiveCompany?.id,
-  });
-
-  // ── Appuntamenti ─────────────────────────────────────────────────────────────
-  // 2026-05-27 v2 (FIX SCHEMA REALE): prima la query era SBAGLIATA — usava
-  //   `.eq("customer_id", id)` ma `appointments` NON HA customer_id, ha
-  //   `order_id`. E selezionava `start_at, end_at` ma lo schema ha
-  //   `appointment_date, appointment_time, appointment_end_time`.
-  // CAUSA: query soft-fail permanente "Impossibile caricare gli appuntamenti".
-  //
-  // ORA: join via orderIds — appointments del cliente = appointments degli
-  // ordini del cliente. Schema corretto. Se non ci sono ordini, return [].
-  const { data: appuntamenti = [], error: appuntamentiError } = useQuery({
-    queryKey: ["customer-appuntamenti", id, effectiveCompany?.id, orders.length],
-    queryFn: async () => {
-      const orderIdsLocal = orders.map((o) => o.id);
-      if (orderIdsLocal.length === 0) return [] as AppuntamentoRow[];
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, title, appointment_date, appointment_time, appointment_end_time, status, appointment_type, order_id")
-        .in("order_id", orderIdsLocal)
-        .eq("company_id", effectiveCompany!.id)
-        .order("appointment_date", { ascending: false })
-        .limit(50);
-      if (error) {
-        if (isSoftTableError(error)) {
-          logger.warn("[customer] appointments soft-error:", error);
-          return [] as AppuntamentoRow[];
-        }
-        throw new Error("Impossibile caricare gli appuntamenti collegati al cliente.");
-      }
-      return (data ?? []) as unknown as AppuntamentoRow[];
-    },
-    enabled: !!id && !!effectiveCompany?.id,
-  });
-
-  // ── Rate / Scadenzario ───────────────────────────────────────────────────────
-  const orderIds = orders.map((o) => o.id);
-  const { data: rate = [], error: rateError } = useQuery({
-    queryKey: ["customer-rate", id, orderIds],
-    queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("order_installments" as never)
-        .select("id, amount, due_date, paid_at, order_id")
-        .in("order_id", orderIds)
-        .order("due_date", { ascending: true });
-      if (error) {
-        if (isSoftTableError(error)) {
-          logger.warn("[customer] order_installments soft-error:", error);
-          return [] as RataRow[];
-        }
-        throw new Error("Impossibile caricare rate e scadenze collegate al cliente.");
-      }
-      return (data ?? []) as unknown as RataRow[];
-    },
-    enabled: orderIds.length > 0,
-  });
 
   // ── Email conversations collegate al cliente ────────────────────────────────
   // 2026-05-27 (layout 3-col): fetch qui (oltre che in CustomerBusinessTabs)
@@ -679,6 +504,13 @@ export default function CompanyCustomerDetail() {
     ? `https://wa.me/${cleanPhoneForWa.startsWith("39") || cleanPhoneForWa.length > 10 ? cleanPhoneForWa : `39${cleanPhoneForWa}`}`
     : null;
 
+  // Il sollecito già scritto, da leggere e cambiare prima di mandarlo.
+  const apriSollecito = (oggetto: string, testo: string) => {
+    const html = testo.split("\n\n").map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>`).join("");
+    setComposeContext({ mode: "new", initialTo: customerEmailClean ? [customerEmailClean] : undefined, initialSubject: oggetto, initialBodyHtml: html });
+    setComposeOpen(true);
+  };
+
   const openCompose = () => {
     setComposeContext({
       mode: "new",
@@ -697,7 +529,13 @@ export default function CompanyCustomerDetail() {
   //    ticket/appuntamento + Elimina) invece di pannello "CREA PER..."
   //  - KPI cards rounded-lg border bg-card (non più pastello pieno)
   //    con header label + icon corner + value + subtext muted
-  const openTickets = tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length;
+  // Gli stati veri dei ticket (aperto, in_lavorazione, risolto, chiuso…): prima
+  // si escludevano «closed» e «resolved», che non esistono, e contavano tutti.
+  const TICKET_CHIUSI = new Set(["risolto", "chiuso", "annullato", "preventivo_rifiutato", "closed", "resolved"]);
+  const openTickets = tickets.filter((t) => !TICKET_CHIUSI.has(String(t.status ?? ""))).length;
+  const PREVENTIVI_IN_ATTESA = new Set(["in_corso", "inviata", "inviato", "visualizzata", "visualizzato", "sent"]);
+  const preventiviInAttesa = preventivi.filter((p) => PREVENTIVI_IN_ATTESA.has(String(p.status ?? ""))).length;
+  const apri = (tab: string) => setRightTab(tab);
 
   return (
     <div className="space-y-4">
@@ -817,7 +655,7 @@ export default function CompanyCustomerDetail() {
               variant="outline" size="sm" className="gap-1.5 h-9"
               onClick={() => setAppointmentDialogOpen(true)}
             >
-              <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
+              <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
             </Button>
 
             {/* Dropdown "..." con crea entità + elimina (stile marketing) */}
@@ -906,7 +744,7 @@ export default function CompanyCustomerDetail() {
             variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5"
             onClick={() => setAppointmentDialogOpen(true)}
           >
-            <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
+            <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
           </Button>
         </div>
 
@@ -914,56 +752,83 @@ export default function CompanyCustomerDetail() {
         {/* MOBILE: 4 chips inline, scroll-x se serve, no subtext (compatto) */}
         <div className="mt-3 md:hidden grid grid-cols-4 gap-1.5">
           <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
-            <p className="text-[8px] text-blue-700 uppercase font-semibold leading-none">Ordini</p>
+            <p className="text-[9px] text-blue-700 uppercase font-semibold leading-none">Commesse</p>
             <p className="text-sm font-bold tabular-nums leading-tight text-blue-900 mt-0.5">{orderCount}</p>
           </div>
-          <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
-            <p className="text-[8px] text-emerald-700 uppercase font-semibold leading-none">€ Totale</p>
-            <p className="text-sm font-bold tabular-nums leading-tight text-emerald-900 mt-0.5">
-              {totalOrderValue >= 1000 ? `${(totalOrderValue / 1000).toFixed(0)}k` : totalOrderValue}
+          <div className={cn("rounded-lg border px-2 py-1.5 text-center", daIncassare?.scaduto ? "bg-red-50 border-red-100" : "bg-emerald-50 border-emerald-100")}>
+            <p className={cn("text-[9px] uppercase font-semibold leading-none", daIncassare?.scaduto ? "text-red-700" : "text-emerald-700")}>Da incassare</p>
+            <p className={cn("text-sm font-bold tabular-nums leading-tight mt-0.5", daIncassare?.scaduto ? "text-red-900" : "text-emerald-900")}>
+              {daIncassare ? (daIncassare.totale >= 1000 ? `${Math.round(daIncassare.totale / 1000)}k` : Math.round(daIncassare.totale)) : "—"}
             </p>
           </div>
-          <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
-            <p className="text-[8px] text-amber-700 uppercase font-semibold leading-none">Ticket</p>
-            <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{openTickets}</p>
-          </div>
           <div className="rounded-lg bg-violet-50 border border-violet-100 px-2 py-1.5 text-center">
-            <p className="text-[8px] text-violet-700 uppercase font-semibold leading-none">Prev.</p>
+            <p className="text-[9px] text-violet-700 uppercase font-semibold leading-none">Preventivi</p>
             <p className="text-sm font-bold tabular-nums leading-tight text-violet-900 mt-0.5">{preventivi.length}</p>
+          </div>
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
+            <p className="text-[9px] text-amber-700 uppercase font-semibold leading-none">Assistenza</p>
+            <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{openTickets}</p>
           </div>
         </div>
 
         {/* DESKTOP: KPI strip full (border bg-card + icon corner + subtext) */}
-        <div className="mt-2 hidden md:grid md:grid-cols-4 gap-2">
+        {/* Cinque numeri che dicono come sta il cliente; ognuno apre il suo pannello. */}
+        <div className="mt-2 hidden md:grid md:grid-cols-3 xl:grid-cols-5 gap-2">
           <KpiCard
             icon={ShoppingBag}
             iconColor="text-blue-500"
-            label="Ordini"
+            label="Commesse"
             value={orderCount}
-            subtext={orderCount === 0 ? "Nessuna commessa" : orderCount === 1 ? "1 commessa attiva" : `${orderCount} commesse totali`}
+            subtext={orderCount === 0 ? "Nessuna commessa" : `l'ultima del ${new Date(orders[0].created_at).toLocaleDateString("it-IT")}`}
+            onClick={() => apri("ordini")}
           />
           <KpiCard
             icon={Euro}
             iconColor="text-emerald-500"
-            label="Valore totale"
-            value={`€ ${totalOrderValue.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true })}`}
-            subtext="in ordini"
+            label="Valore lavori"
+            value={euro(totalOrderValue)}
+            subtext="IVA esclusa"
+            onClick={() => apri("ordini")}
           />
           <KpiCard
-            icon={LifeBuoy}
-            iconColor="text-amber-500"
-            label="Ticket aperti"
-            value={openTickets}
-            subtext={tickets.length > 0 ? `su ${tickets.length} totali` : "Nessuna richiesta"}
+            icon={CreditCardIcon}
+            iconColor={daIncassare?.scaduto ? "text-red-500" : "text-emerald-500"}
+            label="Da incassare"
+            value={daIncassare ? euro(daIncassare.totale) : orderCount === 0 ? "—" : "…"}
+            subtext={!daIncassare ? "IVA inclusa"
+              : daIncassare.totale === 0 ? "Tutto incassato"
+              : daIncassare.scaduto > 0 ? `di cui ${euro(daIncassare.scaduto)} scaduti`
+              : "IVA inclusa · niente di scaduto"}
+            tono={daIncassare?.scaduto ? "rosso" : undefined}
+            onClick={() => apri("rate")}
           />
           <KpiCard
             icon={FileText}
             iconColor="text-violet-500"
             label="Preventivi"
             value={preventivi.length}
-            subtext={preventivi.length === 0 ? "Nessun preventivo" : "totali"}
+            subtext={preventivi.length === 0 ? "Nessun preventivo" : preventiviInAttesa > 0 ? `${preventiviInAttesa} in attesa di risposta` : "nessuno in attesa"}
+            onClick={() => apri("preventivi")}
+          />
+          <KpiCard
+            icon={LifeBuoy}
+            iconColor="text-amber-500"
+            label="Assistenza aperta"
+            value={openTickets}
+            subtext={tickets.length > 0 ? `su ${tickets.length} richieste` : "Nessuna richiesta"}
+            onClick={() => apri("assistenza")}
           />
         </div>
+        <CosaFareAdesso
+          azioni={azioni}
+          cliente={fullName}
+          azienda={effectiveCompany?.name ?? ""}
+          email={customerEmailClean}
+          telefono={customer.phone ?? null}
+          waHref={waHref}
+          onEmail={apriSollecito}
+          onApri={apri}
+        />
       </div>
 
       {/* ───── Banner data hygiene ───── */}
@@ -1155,7 +1020,7 @@ export default function CompanyCustomerDetail() {
         Right panel desktop non disponibile su lg< → su mobile l'utente vede
         comunque tutte le sezioni nel TabsList scrollabile.
       */}
-      <div className="lg:hidden">
+      {schermoStretto && <div className="lg:hidden">
         <CustomerBusinessTabs
           customerId={customer.id}
           companyId={effectiveCompany?.id ?? ""}
@@ -1171,16 +1036,16 @@ export default function CompanyCustomerDetail() {
           anagraficaCollegata={anagraficaCollegata ?? null}
           onCreateAppointment={() => setAppointmentDialogOpen(true)}
           dataWarnings={{
-            anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
-            fatture: fattureError instanceof Error ? fattureError.message : null,
-            preventivi: preventiviError instanceof Error ? preventiviError.message : null,
-            tickets: ticketsError instanceof Error ? ticketsError.message : null,
-            rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
-            appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
-            rate: rateError instanceof Error ? rateError.message : null,
+            anagrafica: erroreScheda,
+            fatture: erroreScheda,
+            preventivi: erroreScheda,
+            tickets: erroreScheda,
+            rapportini: erroreScheda,
+            appuntamenti: erroreScheda,
+            rate: erroreScheda,
           }}
         />
-      </div>
+      </div>}
 
       {/* 2026-05-27 (perf): dialog lazy-loaded → Suspense wrapper.
           Renderizzato solo quando open=true grazie alla guard `composeOpen`
@@ -1210,7 +1075,7 @@ export default function CompanyCustomerDetail() {
             defaultProvince={customer.site_province || customer.province || null}
             onSaved={() => {
               setAppointmentDialogOpen(false);
-              queryClient.invalidateQueries({ queryKey: ["customer-appuntamenti", id, effectiveCompany?.id] });
+              queryClient.invalidateQueries({ queryKey: ["scheda-cliente", id, effectiveCompany?.id] });
               queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
             }}
           />
@@ -1231,15 +1096,26 @@ function KpiCard({
   label,
   value,
   subtext,
+  tono,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   iconColor?: string;
   label: string;
   value: number | string;
   subtext?: string;
+  tono?: "rosso";
+  onClick?: () => void;
 }) {
   return (
-    <div className="rounded-lg border bg-card px-3 py-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-lg border bg-card px-3 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        tono === "rosso" && "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20",
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
           {label}
@@ -1247,11 +1123,11 @@ function KpiCard({
         <Icon className={`h-3 w-3 ${iconColor ?? "text-muted-foreground"}`} />
       </div>
       <div className="flex items-baseline gap-1.5 mt-0.5">
-        <span className="text-lg font-bold tabular-nums truncate">{value}</span>
+        <span className={cn("text-lg font-bold tabular-nums truncate", tono === "rosso" && "text-red-700 dark:text-red-400")}>{value}</span>
       </div>
       {subtext && (
-        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtext}</p>
+        <p className={cn("text-[10px] mt-0.5 truncate", tono === "rosso" ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{subtext}</p>
       )}
-    </div>
+    </button>
   );
 }

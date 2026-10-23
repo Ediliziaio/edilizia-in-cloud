@@ -101,7 +101,9 @@ export function formatDurationText(seconds: number): string {
 /** Formato compatto per badge UI, es. "850 m" / "5.2 km" */
 export function formatDistanceText(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
+  // Alla maniera italiana: «58 km», «7,5 km» (non «58.5 km»).
+  const km = meters / 1000;
+  return `${km.toLocaleString("it-IT", { maximumFractionDigits: km >= 10 ? 0 : 1 })} km`;
 }
 
 // ── OSRM Route ────────────────────────────────────────────────────────────────

@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  ClipboardList, Ticket, FileText, ExternalLink,
+  ClipboardList, Ticket, ExternalLink,
   CalendarDays, CreditCard, FileSignature, Wrench, Plus,
   AlertTriangle, Mail, MessageSquare, Paperclip, Sparkles,
   PencilLine,
@@ -20,6 +21,7 @@ import { DocumentiCommesseCliente } from "@/components/clients/DocumentiCommesse
 import { useDocumentiCommesseCliente } from "@/hooks/useDocumentiCommesseCliente";
 import type { CommessaDelCliente } from "@/lib/clienti/documentiCommesseCliente";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { euro } from "@/lib/clienti/schedaCliente";
 
 // ── Row types ────────────────────────────────────────────────────────────────
 
@@ -82,12 +84,18 @@ export interface AppuntamentoRow {
   order_id?: string | null;
 }
 
+/** Una rata con quanto resta da incassare (regola della scheda commessa). */
 export interface RataRow {
   id: string;
-  amount: number | null;
-  due_date: string | null;
-  paid_at: string | null;
-  order_id: string | null;
+  order_id: string;
+  order_code: string | null;
+  label: string | null;
+  importo: number | null;
+  /** Quanto resta da incassare; null se chi guarda non può vedere gli incassi. */
+  residuo: number | null;
+  scadenza: string | null;
+  pagata: boolean;
+  scaduta: boolean;
 }
 
 interface CustomerDocumentRow {
@@ -336,30 +344,34 @@ function OrdiniTab({ orders, customerId, customerFullName }: { orders: OrderRow[
       {orders.map((order) => {
         const status = order.order_statuses;
         return (
-          <div
+          <button
+            type="button"
             key={order.id}
-            className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
+            className="w-full text-left p-2.5 rounded-md hover:bg-muted/50 transition-colors group"
             onClick={() => navigate(`/azienda/ordini/${order.id}`)}
           >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{order.order_code || "—"}</p>
-              <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
+            {/* Due righe: il codice intero e l'importo sopra, cosa e stato sotto
+                (su una riga sola il codice si tagliava a «DEMO-202…»). */}
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-sm font-medium break-all">{order.order_code || "—"}</p>
+              {order.total_amount != null && (
+                <span className="text-sm font-medium tabular-nums whitespace-nowrap">
+                  {euro(order.total_amount, true)}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            {order.description && <p className="text-xs text-muted-foreground line-clamp-1">{order.description}</p>}
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               {status && (
-                <Badge variant="outline" className="text-xs gap-1">
+                <Badge variant="outline" className="text-xs gap-1 font-normal">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: status.color }} />
                   {status.name}
                 </Badge>
               )}
-              {order.total_amount != null && (
-                <span className="text-sm font-medium whitespace-nowrap">
-                  € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                </span>
-              )}
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span>dal {formatDate(order.created_at)}</span>
+              <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -394,7 +406,7 @@ function PreventiviTab({ items, customerId, customerFullName }: { items: Prevent
             {item.status && <Badge variant="outline" className="text-xs">{item.status}</Badge>}
             {item.total != null && (
               <span className="text-sm font-medium whitespace-nowrap">
-                € {Number(item.total).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                {euro(item.total, true)}
               </span>
             )}
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -485,46 +497,46 @@ function DocumentiTab({
   const navigate = useNavigate();
   return (
     <div className="space-y-4">
-      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} />
-
-      <DocumentiCommesseCliente customerId={customerId} commesse={commesse} />
-
+      {/* Prima le fatture, che si cercano di più; poi i documenti personali e
+          quelli delle commesse. */}
       {fatture.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
-          {anagraficaCollegata && (
-            <p className="text-xs text-muted-foreground mb-1">
-              Collegata a: {anagraficaCollegata.ragione_sociale}
-            </p>
-          )}
-          <p className="text-sm font-medium text-muted-foreground">Nessun documento fiscale trovato</p>
-          <p className="text-xs text-muted-foreground mt-1">Fatture e note appariranno qui quando disponibili</p>
+        <div className="rounded-lg border border-dashed p-3 text-center">
+          <p className="text-sm font-medium text-muted-foreground">Nessuna fattura</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {anagraficaCollegata ? `Anagrafica fiscale: ${anagraficaCollegata.ragione_sociale}. ` : ""}Fatture e note di credito compaiono qui quando ci sono.
+          </p>
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="rounded-lg border p-1">
+          <p className="px-2 pt-1.5 pb-1 text-sm font-semibold">Fatture e note di credito</p>
           {fatture.map((f) => (
-            <div
+            <button
+              type="button"
               key={f.id}
-              className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
+              className="w-full text-left p-2 rounded-md hover:bg-muted/50 transition-colors group"
               onClick={() => navigate(`/azienda/documenti/${f.id}`)}
             >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{f.numero || "—"}</p>
-                <p className="text-xs text-muted-foreground">{f.data_emissione?.substring(0, 10) ?? "—"}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {f.stato && <Badge variant="outline" className="text-xs">{f.stato}</Badge>}
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-sm font-medium break-all">{f.numero || "—"}</p>
                 {f.totale_documento != null && (
-                  <span className="text-sm font-medium whitespace-nowrap">
-                    € {Number(f.totale_documento).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                  <span className="text-sm font-medium tabular-nums whitespace-nowrap">
+                    {euro(f.totale_documento, true)}
                   </span>
                 )}
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-            </div>
+              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <span><span className="capitalize">{f.tipo || "fattura"}</span> · {formatDate(f.data_emissione)}</span>
+                {f.stato && <Badge variant="outline" className="text-[10px] font-normal capitalize">{f.stato}</Badge>}
+                <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </button>
           ))}
         </div>
       )}
+
+      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} />
+
+      <DocumentiCommesseCliente customerId={customerId} commesse={commesse} />
     </div>
   );
 }
@@ -591,29 +603,44 @@ function AppuntamentiTab({
 
 function RateTab({ rate }: { rate: RataRow[] }) {
   if (rate.length === 0) return <EmptyState icon={CreditCard} label="rata" />;
+  // Per commessa, nell'ordine del piano: prima quelle con qualcosa di scaduto.
+  const perCommessa = new Map<string, RataRow[]>();
+  for (const r of rate) perCommessa.set(r.order_id, [...(perCommessa.get(r.order_id) ?? []), r]);
+  const gruppi = [...perCommessa.values()].sort((a, b) => Number(b.some((r) => r.scaduta)) - Number(a.some((r) => r.scaduta)));
   return (
-    <div className="space-y-1">
-      {rate.map((r) => (
-        <div
-          key={r.id}
-          className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 transition-colors"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Rata</p>
-            <p className="text-xs text-muted-foreground">Scadenza: {formatDate(r.due_date)}</p>
+    <div className="space-y-3">
+      {gruppi.map((righe) => {
+        const daIncassare = righe.reduce((s, r) => s + (r.residuo ?? 0), 0);
+        const scaduto = righe.filter((r) => r.scaduta).reduce((s, r) => s + (r.residuo ?? 0), 0);
+        return (
+          <div key={righe[0].order_id} className="rounded-lg border p-1">
+            <div className="flex items-baseline justify-between gap-2 px-2 pt-1.5 pb-1">
+              <p className="text-sm font-semibold break-all">{righe[0].order_code ?? "Commessa"}</p>
+              {righe.some((r) => r.residuo != null) && (
+                <span className={cn("text-xs tabular-nums whitespace-nowrap", scaduto > 0 ? "text-red-700 font-medium" : "text-muted-foreground")}>
+                  {daIncassare === 0 ? "Tutto incassato" : scaduto > 0 ? `${euro(scaduto, true)} scaduti` : `${euro(daIncassare, true)} da incassare`}
+                </span>
+              )}
+            </div>
+            {righe.map((r) => (
+              <div key={r.id} className={cn("flex items-center justify-between gap-2 rounded-md px-2 py-1.5", r.scaduta && "bg-red-50 dark:bg-red-950/20")}>
+                <div className="min-w-0">
+                  <p className="text-sm truncate">{r.label || "Rata"}</p>
+                  <p className={cn("text-xs", r.scaduta ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>
+                    {r.pagata ? "Incassata" : r.scaduta ? `Scaduta il ${formatDate(r.scadenza)}` : r.scadenza ? `Entro il ${formatDate(r.scadenza)}` : "Senza data"}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  {r.importo != null && <p className="text-sm font-medium tabular-nums">{euro(r.importo, true)}</p>}
+                  {!r.pagata && r.residuo != null && r.importo != null && r.residuo > 0 && r.residuo < r.importo && (
+                    <p className="text-[11px] text-muted-foreground tabular-nums">restano {euro(r.residuo, true)}</p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge variant={r.paid_at ? "secondary" : "outline"} className="text-xs">
-              {r.paid_at ? "Pagata" : "In attesa"}
-            </Badge>
-            {r.amount != null && (
-              <span className="text-sm font-medium whitespace-nowrap">
-                € {Number(r.amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-              </span>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

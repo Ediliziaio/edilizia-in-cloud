@@ -23,6 +23,7 @@ import {
 import type {
   OrderRow, TicketRow, AppuntamentoRow, FatturaRow,
 } from "@/components/clients/CustomerBusinessTabs";
+import { euro } from "@/lib/clienti/schedaCliente";
 
 // ── Types ──
 type FilterCategory = "all" | "email" | "messaggio" | "appointment" | "note" | "activity";
@@ -87,21 +88,39 @@ const FILTER_OPTIONS: { key: FilterCategory; label: string; icon: React.ReactNod
   { key: "activity",    label: "Attività",     icon: <ClipboardList className="h-3 w-3" /> },
 ];
 
+/** «2023-06-08» è un giorno, non un'ora: letto come istante UTC diventava le 02:00. */
+const SOLO_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+export function dataEvento(dateStr: string): Date {
+  if (SOLO_DATA.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(dateStr);
+}
+
 function getDateLabel(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = dataEvento(dateStr);
   if (Number.isNaN(d.getTime())) return "";
   if (isToday(d)) return "Oggi";
   if (isYesterday(d)) return "Ieri";
   return format(d, "d MMMM yyyy", { locale: it });
 }
 
-function getTimeLabel(dateStr: string): string {
-  try {
-    return format(new Date(dateStr), "HH:mm", { locale: it });
-  } catch {
-    return "";
-  }
+/** L'ora solo per gli eventi che ce l'hanno: una fattura ha il giorno, non l'ora. */
+export function getTimeLabel(dateStr: string): string {
+  if (SOLO_DATA.test(dateStr)) return "";
+  const d = new Date(dateStr);
+  return Number.isNaN(d.getTime()) ? "" : format(d, "HH:mm", { locale: it });
 }
+
+const maiuscola = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+
+const STATO_TICKET: Record<string, string> = {
+  aperto: "Aperto", in_lavorazione: "In lavorazione", in_attesa: "In attesa", in_attesa_cliente: "In attesa del cliente",
+  in_attesa_merce: "In attesa della merce", programmato: "Programmato", sopralluogo: "Sopralluogo", da_riprogrammare: "Da riprogrammare",
+  preventivo_da_approvare: "Preventivo da approvare", da_fatturare: "Da fatturare", risolto: "Risolto", chiuso: "Chiuso", annullato: "Annullato",
+};
 
 export function CustomerActivityTimeline({
   customerId,
@@ -141,8 +160,8 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <ClipboardList className="h-3.5 w-3.5" />,
         iconBg: "bg-blue-100 text-blue-600",
-        title: `Ordine ${o.order_code ?? "—"}`,
-        description: o.description || `${o.order_statuses?.name ?? "Nuovo"}${o.total_amount ? ` · € ${Number(o.total_amount).toLocaleString("it-IT")}` : ""}`,
+        title: `Commessa ${o.order_code ?? "—"}`,
+        description: o.description || `${o.order_statuses?.name ?? "Nuovo"}${o.total_amount ? ` · ${euro(o.total_amount, true)}` : ""}`,
         timestamp: o.created_at,
         href: `/azienda/ordini/${o.id}`,
       });
@@ -156,7 +175,7 @@ export function CustomerActivityTimeline({
         icon: <TicketIcon className="h-3.5 w-3.5" />,
         iconBg: "bg-amber-100 text-amber-600",
         title: `Ticket: ${t.title || "Senza titolo"}`,
-        description: `${t.status ?? ""}${t.priority ? ` · Priorità ${t.priority}` : ""}`,
+        description: [STATO_TICKET[String(t.status ?? "")] ?? maiuscola(String(t.status ?? "").replace(/_/g, " ")), t.priority ? `priorità ${t.priority}` : ""].filter(Boolean).join(" · "),
         timestamp: t.created_at,
         href: `/azienda/assistenza/${t.id}`,
       });
@@ -185,8 +204,8 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <FileText className="h-3.5 w-3.5" />,
         iconBg: "bg-emerald-100 text-emerald-600",
-        title: `${f.tipo || "Fattura"} ${f.numero || ""}`.trim(),
-        description: f.totale_documento != null ? `€ ${Number(f.totale_documento).toLocaleString("it-IT", { minimumFractionDigits: 2 })}${f.stato ? ` · ${f.stato}` : ""}` : (f.stato ?? undefined),
+        title: maiuscola(`${f.tipo || "Fattura"} ${f.numero || ""}`.trim()),
+        description: f.totale_documento != null ? `${euro(f.totale_documento, true)}${f.stato ? ` · ${f.stato}` : ""}` : (f.stato ?? undefined),
         timestamp: f.data_emissione,
         href: `/azienda/documenti/${f.id}`,
       });
@@ -251,7 +270,7 @@ export function CustomerActivityTimeline({
     });
 
     // Sort by timestamp desc
-    list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    list.sort((a, b) => dataEvento(b.timestamp).getTime() - dataEvento(a.timestamp).getTime());
     return list;
   }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi]);
 
@@ -327,14 +346,14 @@ export function CustomerActivityTimeline({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {groupedEvents.map(([dateLabel, evs]) => (
               <div key={dateLabel}>
                 {/* Separator data centrato (stile marketing) */}
-                <div className="text-center text-xs text-muted-foreground font-medium py-2">
+                <div className="text-center text-xs text-muted-foreground font-medium py-1">
                   {dateLabel}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-0.5">
                   {evs.map((ev) => (
                     <button
                       key={ev.id}
@@ -342,7 +361,7 @@ export function CustomerActivityTimeline({
                       disabled={!ev.href}
                       onClick={() => ev.href && navigate(ev.href)}
                       className={cn(
-                        "w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left transition-colors group",
+                        "w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors group",
                         ev.href ? "hover:bg-muted/50 cursor-pointer" : "cursor-default",
                       )}
                     >

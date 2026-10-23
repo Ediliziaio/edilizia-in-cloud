@@ -35,7 +35,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ChevronDown, Search, User, ExternalLink, Calendar, Lock,
+  ChevronDown, Search, User, ExternalLink, Calendar, Lock, Building2, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -43,6 +43,7 @@ import { InlineField } from "@/components/marketing/contacts/InlineField";
 import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
 import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
+import { campiDaCompletare, sembraAzienda } from "@/lib/clienti/anagraficaCliente";
 
 /** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
 const NESSUN_AGENTE = "__nessuno";
@@ -184,6 +185,31 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
     },
   });
 
+  // Un nome da condominio o da società salvato come «persona» (23/10/2026):
+  // la scheda mostrava Cognome vuoto e niente partita IVA.
+  const nomeIntero = [customer.first_name, customer.last_name]
+    .map((x) => (x ?? "").trim()).filter((x) => x && x !== "—" && x !== "-").join(" ");
+  const proponiAzienda = !customer.is_business && sembraAzienda(nomeIntero);
+  const segnaAzienda = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.from("profiles")
+        // Il nome passa nella ragione sociale; nome e cognome restano per il referente.
+        .update({ is_business: true, business_name: customer.business_name?.trim() || nomeIntero } as never)
+        .eq("id", customer.id).select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Modifica non salvata: non hai il permesso di modificare questo cliente.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
+      onSaved?.();
+      toast({ title: "Segnato come azienda", description: "Il nome è la ragione sociale. Aggiungi la partita IVA per fatturare." });
+    },
+    onError: (e) => toast({ title: "Errore salvataggio", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+  });
+  // Cosa manca per chiamare, scrivere e fatturare: un tocco filtra la scheda su quel campo.
+  const mancano = campiDaCompletare(customer);
+
   // Filtro sezioni per search box
   const matchesSearch = (label: string): boolean => {
     if (!fieldSearch.trim()) return true;
@@ -207,6 +233,38 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               <Lock className="mt-0.5 h-3 w-3 shrink-0" />
               Non hai il permesso di modificare i dati del cliente
             </p>
+          )}
+
+          {proponiAzienda && !solaLettura && (
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs dark:border-sky-900/50 dark:bg-sky-950/20">
+              <p className="flex items-start gap-1.5 text-sky-900 dark:text-sky-200">
+                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                «{nomeIntero}» sembra un condominio o un'azienda, ma è salvato come persona.
+              </p>
+              <Button size="sm" variant="outline" className="mt-1.5 h-7 w-full text-xs" disabled={segnaAzienda.isPending} onClick={() => segnaAzienda.mutate()}>
+                Segna come azienda
+              </Button>
+            </div>
+          )}
+
+          {mancano.length > 0 && !solaLettura && (
+            <div className="rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-xs dark:border-amber-900/50 dark:bg-amber-950/20">
+              <p className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
+                <ClipboardCheck className="h-3.5 w-3.5 shrink-0" /> Da completare
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {mancano.map((campo) => (
+                  <button
+                    key={campo}
+                    type="button"
+                    onClick={() => setFieldSearch(campo)}
+                    className="rounded-full border border-amber-300 bg-background px-2 py-0.5 text-[11px] text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                  >
+                    + {campo}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* ─── Block top: Titolare ─── */}
@@ -297,7 +355,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   {matchesSearch("Nome") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Nome"
+                      label={customer.is_business ? "Referente: nome" : "Nome"}
                       value={customer.first_name === "—" ? "" : customer.first_name || ""}
                       onSave={(v) => updateField.mutate({ field: "first_name", value: v || null })}
                     />
@@ -305,7 +363,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   {matchesSearch("Cognome") && (
                     <InlineField
                       disabled={solaLettura}
-                      label="Cognome"
+                      label={customer.is_business ? "Referente: cognome" : "Cognome"}
                       value={customer.last_name === "—" ? "" : customer.last_name || ""}
                       onSave={(v) => updateField.mutate({ field: "last_name", value: v || null })}
                     />
