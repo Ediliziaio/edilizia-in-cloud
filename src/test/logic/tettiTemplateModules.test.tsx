@@ -30,11 +30,12 @@ const seed = (id: typeof TETTI_TEMPLATE_MODULES[number]["id"] = "ripasso", compa
 const mount = (query = "") => render(<MemoryRouter initialEntries={["/?modulo=tetti" + query]}><TettiModuleTemplatesPanel /></MemoryRouter>);
 
 describe("modelli PDF Tetti indipendenti", () => {
-  it("crea sei modelli completi con testi, capitoli, esclusioni e FAQ diversi", () => {
-    expect(TETTI_TEMPLATE_MODULES).toHaveLength(6);
+  it("crea nove modelli completi con testi, capitoli, esclusioni e FAQ diversi", () => {
+    // Sei di partenza più amianto, linea vita e lucernari (Lotto 5).
+    expect(TETTI_TEMPLATE_MODULES).toHaveLength(9);
     const models = TETTI_TEMPLATE_MODULES.map(m => seed(m.id));
-    expect(new Set(models.map(m => m.cover_title)).size).toBe(6);
-    expect(new Set(models.map(m => JSON.stringify(m.soluzione))).size).toBe(6);
+    expect(new Set(models.map(m => m.cover_title)).size).toBe(9);
+    expect(new Set(models.map(m => JSON.stringify(m.soluzione))).size).toBe(9);
     for (const model of models) {
       expect(model.logo_url).toBe(base.logo_url);
       expect(model.soluzione).toHaveLength(4);
@@ -108,10 +109,10 @@ describe("modelli PDF Tetti indipendenti", () => {
 });
 
 describe("libreria moduli nelle impostazioni", () => {
-  it("mostra sei modelli configurabili e non crea record all'apertura", () => {
+  it("mostra nove modelli configurabili e non crea record all'apertura", () => {
     mount();
-    expect(screen.getAllByRole("article")).toHaveLength(6);
-    expect(screen.getAllByRole("button", { name: /^Configura/ })).toHaveLength(6);
+    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(screen.getAllByRole("button", { name: /^Configura/ })).toHaveLength(9);
     expect(localStorage.length).toBe(0);
     expect(screen.queryByText("In progettazione")).not.toBeInTheDocument();
   });

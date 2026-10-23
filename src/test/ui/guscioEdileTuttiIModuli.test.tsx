@@ -89,7 +89,12 @@ vi.mock("@/integrations/supabase/client", () => {
   const canale: Canale = { on: () => canale, subscribe: () => canale, unsubscribe: (): void => undefined };
   return {
     supabase: {
-      from: (t: string) => catena(t), rpc: nulla, functions: { invoke: nulla },
+      from: (t: string) => catena(t),
+      // Il numero del preventivo lo dà il database (genera_codice_progetto, dal 21/10/2026).
+      rpc: (nome: string) => nome === "genera_codice_progetto"
+        ? Promise.resolve({ data: "PRV-2026-001", error: null as null })
+        : nulla(),
+      functions: { invoke: nulla },
       storage: { from: () => ({ upload: nulla, download: nulla, remove: nulla, list: () => Promise.resolve({ data: [], error: null }), getPublicUrl: () => ({ data: { publicUrl: "" } }), createSignedUrl: () => Promise.resolve({ data: { signedUrl: "" }, error: null }), createSignedUrls: () => Promise.resolve({ data: [], error: null }) }) },
       auth: { getSession: () => Promise.resolve({ data: { session: null } }), getUser: () => Promise.resolve({ data: { user: { id: "u1" } } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: (): void => undefined } } }) },
       channel: () => canale, removeChannel: (): void => undefined,

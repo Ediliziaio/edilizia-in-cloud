@@ -40,6 +40,7 @@ import {
   getRstTemplatePdf,
 } from "@/hooks/useRistrutturazioneProgetto";
 import type { RstComputoVoce, RstProgetto } from "@/types/ristrutturazione";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
@@ -153,27 +154,6 @@ export default function RistrutturazioneWizard() {
     if (!requestedModel) return form;
     if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
     return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.ristrutturazione[model.id], modello_snapshot: await modelloAttuale(effectiveCompany.id, model) };
-  };
-  // Il preventivo tiene la copia del modello di quando è nato. Finché è in bozza la si può
-  // rinnovare con il modello di adesso (il database lo permette solo in bozza e per lo stesso intervento).
-  const [aggiornandoModello, setAggiornandoModello] = useState(false);
-  const aggiornaModello = async () => {
-    const progetto = detail?.progetto;
-    if (!progetto || !model || progetto.stato !== "bozza") return;
-    setAggiornandoModello(true);
-    try {
-      const snapshot = await modelloAttuale(progetto.company_id, model);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- modello_snapshot non è nei tipi generati
-      const { error } = await (supabase as any).from("rst_progetti").update({ modello_snapshot: snapshot })
-        .eq("id", progetto.id).eq("company_id", progetto.company_id).eq("stato", "bozza");
-      if (error) throw new Error(error.message);
-      await refetch();
-      toast.success("Modello aggiornato", { description: "Il PDF ora usa il modello di adesso." });
-    } catch (e) {
-      toast.error("Modello non aggiornato", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setAggiornandoModello(false);
-    }
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
@@ -552,24 +532,17 @@ export default function RistrutturazioneWizard() {
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
           nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
         }}
-        sopra={model && (
+        sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
           <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
             <div className="space-y-2 max-sm:hidden">
-              <h1 className="text-xl font-semibold">Preventivo · {model.title}</h1>
-              <p className="text-sm text-muted-foreground">{model.summary}</p>
+              <h1 className="text-xl font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
+              {model && <p className="text-sm text-muted-foreground">{model.summary}</p>}
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
-              {!isNew && detail?.progetto.stato === "bozza" && (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    Il PDF usa il modello{savedModel.snapshot?.capturedAt ? ` del ${new Date(savedModel.snapshot.capturedAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}` : ""}.
-                  </span>
-                  <Button size="sm" variant="outline" disabled={aggiornandoModello} onClick={() => void aggiornaModello()}>
-                    {aggiornandoModello ? "Aggiorno…" : "Aggiorna al modello attuale"}
-                  </Button>
-                </div>
-              )}
             </div>
+            {!isNew && detail && (
+              <ModelloDelPreventivo modulo="ristrutturazione" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+            )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
         )}

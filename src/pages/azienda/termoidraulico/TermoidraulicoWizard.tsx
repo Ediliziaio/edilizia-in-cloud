@@ -40,6 +40,7 @@ import {
   getIdrTemplatePdf,
 } from "@/hooks/useTermoidraulicoProgetto";
 import type { IdrComputoVoce, IdrProgetto } from "@/types/termoidraulico";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
@@ -140,10 +141,8 @@ export default function TermoidraulicoWizard() {
 
   // Local form state (campi del progetto).
   const [form, setForm] = useState<IdrFormPatch>(() => model ? { tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id] } : {});
-  const createInput = async (): Promise<IdrFormPatch> => {
-    if (!requestedModel) return form;
-    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
-    const companyId = effectiveCompany.id;
+  /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
+  const modelloAttuale = async (companyId: string, model: { id: string }) => {
     const [{ createFullIdrTemplate, isFullIdrModuleId }, { loadLocalIdrTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullIdrModules"), import("@/lib/moduli-vendita/localIdrTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
@@ -154,6 +153,11 @@ export default function TermoidraulicoWizard() {
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const base = await getIdrTemplatePdf(companyId);
     const source = loadLocalIdrTemplate(companyId, model.id)?.template ?? createFullIdrTemplate(base, model.id);
+    return creaModelloPreventivo("termoidraulico", companyId, model.id, source);
+  };
+  const createInput = async (): Promise<IdrFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
     // Conto Termico: il contributo non è una detrazione. Senza azzerarla, il
     // predefinito dell'azienda (spesso 50%) finiva nel documento.
     // Casa Full Electric: gli incentivi (detrazione sul fotovoltaico, Conto Termico
@@ -163,7 +167,7 @@ export default function TermoidraulicoWizard() {
       : model.id === "full-electric"
         ? { detrazione_pct: 0, massimale_detrazione: null, full_electric: form.full_electric ?? DATI_FULL_ELECTRIC_INIZIALI }
         : {};
-    return { ...form, ...contoTermico, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id], modello_snapshot: creaModelloPreventivo("termoidraulico", companyId, model.id, source) };
+    return { ...form, ...contoTermico, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id], modello_snapshot: await modelloAttuale(effectiveCompany.id, model) };
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
@@ -544,14 +548,17 @@ export default function TermoidraulicoWizard() {
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
           nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
         }}
-        sopra={model && (
+        sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
           <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
             <div className="space-y-2 max-sm:hidden">
-              <h1 className="text-xl font-semibold">Preventivo · {model.title}</h1>
-              <p className="text-sm text-muted-foreground">{model.summary}</p>
+              <h1 className="text-xl font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
+              {model && <p className="text-sm text-muted-foreground">{model.summary}</p>}
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
             </div>
+            {!isNew && detail && (
+              <ModelloDelPreventivo modulo="termoidraulico" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+            )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
         )}

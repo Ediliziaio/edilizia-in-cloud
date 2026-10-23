@@ -40,6 +40,7 @@ import {
   getClmTemplatePdf,
 } from "@/hooks/useClimatizzazioneProgetto";
 import type { ClmComputoVoce, ClmProgetto } from "@/types/climatizzazione";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
@@ -138,10 +139,8 @@ export default function ClimatizzazioneWizard() {
 
   // Local form state (campi del progetto).
   const [form, setForm] = useState<ClmFormPatch>(() => model ? { tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.climatizzazione[model.id] } : {});
-  const createInput = async (): Promise<ClmFormPatch> => {
-    if (!requestedModel) return form;
-    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
-    const companyId = effectiveCompany.id;
+  /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
+  const modelloAttuale = async (companyId: string, model: { id: string }) => {
     const [{ createFullClmTemplate, isFullClmModuleId }, { loadLocalClmTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullClmModules"), import("@/lib/moduli-vendita/localClmTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
@@ -152,7 +151,12 @@ export default function ClimatizzazioneWizard() {
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const base = await getClmTemplatePdf(companyId);
     const source = loadLocalClmTemplate(companyId, model.id)?.template ?? createFullClmTemplate(base, model.id);
-    return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.climatizzazione[model.id], modello_snapshot: creaModelloPreventivo("climatizzazione", companyId, model.id, source) };
+    return creaModelloPreventivo("climatizzazione", companyId, model.id, source);
+  };
+  const createInput = async (): Promise<ClmFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.climatizzazione[model.id], modello_snapshot: await modelloAttuale(effectiveCompany.id, model) };
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
@@ -531,14 +535,17 @@ export default function ClimatizzazioneWizard() {
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
           nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
         }}
-        sopra={model && (
+        sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
           <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
             <div className="space-y-2 max-sm:hidden">
-              <h1 className="text-xl font-semibold">Preventivo · {model.title}</h1>
-              <p className="text-sm text-muted-foreground">{model.summary}</p>
+              <h1 className="text-xl font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
+              {model && <p className="text-sm text-muted-foreground">{model.summary}</p>}
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
             </div>
+            {!isNew && detail && (
+              <ModelloDelPreventivo modulo="climatizzazione" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+            )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
         )}
