@@ -30,6 +30,8 @@ export interface PickedVoce {
   immagine_url?: string | null;
   /** Descrizione del prodotto, copiata dal listino alla scelta. Assente = niente descrizione. */
   descrizione_estesa?: string | null;
+  /** Quantità scritta nel selettore (la superficie di un prodotto al mq). Assente = 1. */
+  quantita?: number;
 }
 
 /** Sorgente di una voce nel picker (per badge + raggruppamento). */
@@ -37,7 +39,8 @@ export type VoceSource = "lavorazione" | "prodotto" | "manodopera" | "libera" | 
 
 /**
  * Materializza una `PickedVoce` in una riga di computo completa con un id draft.
- * `quantita` parte da 1 (UX: una voce appena aggiunta è subito "computabile").
+ * `quantita` parte da quella scritta nel selettore, altrimenti da 1 (UX: una voce
+ * appena aggiunta è subito "computabile").
  * NB: `crypto.randomUUID()` è chiamato SOLO da event handler, mai in render.
  */
 export function pickedToComputoVoce(
@@ -53,7 +56,7 @@ export function pickedToComputoVoce(
     capitolo_nome: opts.capitolo_nome,
     descrizione: picked.descrizione,
     unita_misura: picked.unita_misura,
-    quantita: 1,
+    quantita: picked.quantita ?? 1,
     prezzo_unitario: picked.prezzo_unitario,
     costo_materiali: picked.costo_materiali,
     costo_manodopera: picked.costo_manodopera,

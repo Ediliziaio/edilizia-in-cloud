@@ -9,9 +9,14 @@
  * Qui le regole che non dipendono da React: cosa si propone, a che prezzo, come si
  * legge la foto e la descrizione. Il prezzo lo calcola lo stesso motore dei
  * serramenti (`calcolaPrezzoFamiglia`), così sconti del fornitore e ricarico del
- * listino pesano uguale ovunque.
+ * listino pesano uguale ovunque. Il resto è da computo: un prodotto al metro quadro
+ * entra in «mq» col suo prezzo al metro quadro e la superficie la scrive chi
+ * compila; la posa scritta nel listino (manuale o con la tariffa collegata) entra
+ * nella stessa riga come manodopera, con la regola dei serramenti: prezzo della
+ * posa × quantità di posa per ogni unità del prodotto.
  */
 import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
+import { costoTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 import { testoDelListino } from "./testoProdotto";
 
@@ -39,6 +44,8 @@ export const VERTICALI_ESCLUSI: readonly string[] = ["serramenti", "serramentist
 export const COLONNE_FAMIGLIA_PICKER =
   "id, nome, codice, descrizione, immagine_url, vertical, unit_of_measure, modalita_prezzo_base, prezzo_base_mode, " +
   "prezzo_base_vendita, prezzo_base_acquisto, markup_tipo, markup_valore, sconto_fornitore_1, sconto_fornitore_2, " +
+  "manodopera_modalita, manodopera_costo_acquisto, manodopera_prezzo_vendita, posa_quantita_default, " +
+  "posa_tariffa:tariffe_aziendali!article_families_posa_tariffa_default_id_fkey(prezzo_vendita, costo_interno, prezzo_costo, costo_default), " +
   "axes:article_family_axes(id)";
 
 /** Una famiglia come arriva dalla query del picker. I numeri possono arrivare anche come testo. */
@@ -60,6 +67,14 @@ export interface RigaFamigliaPicker {
   sconto_fornitore_2?: number | string | null;
   /** Gli assi (varianti) del prodotto: basta sapere se ci sono. */
   axes?: Array<{ id: string }> | null;
+  /** La posa del prodotto: «manuale» (importi qui sotto), «tariffa» (la tariffa collegata) o «nessuna». */
+  manodopera_modalita?: string | null;
+  manodopera_costo_acquisto?: number | string | null;
+  manodopera_prezzo_vendita?: number | string | null;
+  /** Quanta posa per ogni unità del prodotto (ore, pezzi…): moltiplica il prezzo della posa. */
+  posa_quantita_default?: number | string | null;
+  /** La tariffa di posa collegata, quando la modalità è «tariffa». */
+  posa_tariffa?: (CostiTariffa & { prezzo_vendita?: number | string | null }) | null;
 }
 
 /** Un prodotto del listino pronto per essere scelto: tutto quello che il picker e la riga del computo usano. */
@@ -80,6 +95,10 @@ export interface ProdottoListino {
   prezzo_vendita: number;
   /** Costo d'acquisto unitario, già al netto degli sconti del fornitore. */
   prezzo_acquisto: number;
+  /** Prezzo di vendita della posa per unità del prodotto (0 = senza posa nel listino). */
+  posa_vendita?: number;
+  /** Costo della posa per unità del prodotto. */
+  posa_costo?: number;
   /** Il listino gli dà varianti (colore, misura…): il prezzo qui è quello di base. */
   con_varianti: boolean;
 }
@@ -133,7 +152,47 @@ export function famigliaInProdotto(riga: RigaFamigliaPicker): ProdottoListino {
     prezzo_vendita: arrotonda2(Math.max(0, numero(prezzo.unit_price_vendita))),
     prezzo_acquisto: arrotonda2(Math.max(0, numero(prezzo.unit_price_acquisto))),
     con_varianti: (riga.axes?.length ?? 0) > 0,
+    ...posaDelProdotto(riga),
   };
+}
+
+/** La posa per unità del prodotto, come la calcola il preventivatore serramenti. */
+export function posaDelProdotto(riga: RigaFamigliaPicker): { posa_vendita: number; posa_costo: number } {
+  const quanta = riga.posa_quantita_default == null || riga.posa_quantita_default === "" ? 1 : numero(riga.posa_quantita_default);
+  if (riga.manodopera_modalita === "manuale") {
+    return {
+      posa_vendita: arrotonda2(Math.max(0, numero(riga.manodopera_prezzo_vendita) * quanta)),
+      posa_costo: arrotonda2(Math.max(0, numero(riga.manodopera_costo_acquisto) * quanta)),
+    };
+  }
+  if (riga.manodopera_modalita === "tariffa" && riga.posa_tariffa) {
+    return {
+      posa_vendita: arrotonda2(Math.max(0, numero(riga.posa_tariffa.prezzo_vendita) * quanta)),
+      posa_costo: arrotonda2(Math.max(0, (costoTariffa(riga.posa_tariffa) ?? 0) * quanta)),
+    };
+  }
+  return { posa_vendita: 0, posa_costo: 0 };
+}
+
+/** Dal prodotto scelto alla riga del computo: prodotto e posa insieme, la posa come manodopera. */
+export function prodottoInRiga(p: ProdottoListino): {
+  prezzo_unitario: number;
+  costo_materiali: number;
+  costo_manodopera: number;
+} {
+  return {
+    prezzo_unitario: arrotonda2(p.prezzo_vendita + (p.posa_vendita ?? 0)),
+    costo_materiali: p.prezzo_acquisto,
+    costo_manodopera: p.posa_costo ?? 0,
+  };
+}
+
+/**
+ * Un prodotto al metro quadro chiede la superficie prima di entrare nel computo:
+ * la quantità giusta la sa solo chi compila. A pezzo entra subito, uno.
+ */
+export function chiedeQuantita(p: Pick<ProdottoListino, "modo">): boolean {
+  return p.modo === "mq";
 }
 
 const AREE: Record<string, string> = {
@@ -165,6 +224,7 @@ export function dettaglioNelPicker(p: ProdottoListino, verticaleDelModulo: strin
   return [
     p.vertical && p.vertical !== verticaleDelModulo ? areaDelProdotto(p.vertical) : null,
     p.codice,
+    (p.posa_vendita ?? 0) > 0 ? "posa compresa" : null,
     p.con_varianti ? "con varianti: prezzo di base" : null,
   ].filter(Boolean).join(" · ");
 }

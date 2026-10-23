@@ -159,13 +159,44 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     expect(fotoNellaPagina()).toEqual([FOTO]); // la seconda riga non ha aggiunto niente
   });
 
-  it("al metro quadro la riga è in «mq»", async () => {
+  it("al metro quadro chiede la superficie: la riga è in «mq», col prezzo al mq e i mq scritti", async () => {
     stato.prodotti = [prodotto({ vertical: verticale, nome: "Gres porcellanato 60x60", modo: "mq", unita: "mq", prezzo_vendita: 48, prezzo_acquisto: 26 })];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
     fireEvent.click(riga(dialogo, "Gres porcellanato 60x60"));
+    // Nessuna riga finché non si scrive la superficie.
+    const campo = await within(dialogo).findByLabelText("Superficie (mq)");
+    expect(m.cambi).toHaveLength(0);
+    const aggiungi = within(dialogo).getByRole("button", { name: "Aggiungi al computo" });
+    expect(aggiungi).toBeDisabled();
+    fireEvent.change(campo, { target: { value: "24.5" } });
+    expect(within(dialogo).getByText(/1\.176/)).toBeInTheDocument(); // 24,5 mq × 48 €
+    fireEvent.click(aggiungi);
     await waitFor(() => expect(m.voci()).toHaveLength(1));
-    expect(m.voci()[0]).toMatchObject({ unita_misura: "mq", prezzo_unitario: 48, costo_materiali: 26 });
+    expect(m.voci()[0]).toMatchObject({ unita_misura: "mq", quantita: 24.5, prezzo_unitario: 48, costo_materiali: 26, costo_manodopera: 0 });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("al metro quadro, «Indietro» torna all'elenco senza aggiungere niente", async () => {
+    stato.prodotti = [prodotto({ vertical: verticale, nome: "Gres porcellanato 60x60", modo: "mq", unita: "mq", prezzo_vendita: 48, prezzo_acquisto: 26 })];
+    const m = await monta(slug);
+    const dialogo = await apriSelettore();
+    fireEvent.click(riga(dialogo, "Gres porcellanato 60x60"));
+    fireEvent.click(await within(dialogo).findByRole("button", { name: /Indietro/ }));
+    expect(riga(dialogo, "Gres porcellanato 60x60")).toBeTruthy();
+    expect(m.cambi).toHaveLength(0);
+  });
+
+  it("la posa del listino entra nella stessa riga come manodopera, e il selettore lo dice", async () => {
+    stato.prodotti = [prodotto({ vertical: verticale, posa_vendita: 40, posa_costo: 25 })];
+    const m = await monta(slug);
+    const dialogo = await apriSelettore();
+    const voce = riga(dialogo, "Piatto doccia in resina 120x80");
+    expect(within(voce).getByText("PD-12080 · posa compresa")).toBeInTheDocument();
+    expect(within(voce).getByText(/275/)).toBeInTheDocument();
+    fireEvent.click(voce);
+    await waitFor(() => expect(m.voci()).toHaveLength(1));
+    expect(m.voci()[0]).toMatchObject({ quantita: 1, prezzo_unitario: 275, costo_materiali: 130, costo_manodopera: 25 });
   });
 
   it("duplicando la riga, la copia porta la stessa foto e la stessa descrizione", async () => {
@@ -214,13 +245,16 @@ describe("ogni modulo a computo, anche uno futuro, usa il listino prodotti", () 
   it.each(cartelle)("%s: il selettore ha il listino prodotti e porta foto e descrizione nella riga", (cartella) => {
     const picker = leggi(cartella, "AddVocePicker.tsx");
     const verticale = MODULI.find((m) => m.slug === cartella)!.verticale;
-    expect(picker).toContain("useProdottiListino(debounced, VERTICALE_LISTINO, azOn)");
+    expect(picker).toContain("useProdottiListino(debounced, VERTICALE_LISTINO, altreSorgenti)");
+    expect(picker).toContain("...prodottoInRiga(p),");
+    expect(picker).toContain("useListinoVociSearch(azOn ? debounced : \"\", capitolo?.id ?? null)");
     expect(picker).toContain(`const VERTICALE_LISTINO: VerticaleModulo = "${verticale}";`);
     expect(picker).toContain("famiglia_id: p.id,");
     expect(picker).toContain("immagine_url: p.immagine_url,");
     expect(picker).toContain("descrizione_estesa: p.descrizione,");
     const tipi = leggi(cartella, "types.ts");
     expect(tipi).toContain("descrizione_estesa: picked.descrizione_estesa ?? null,");
+    expect(tipi).toContain("quantita: picked.quantita ?? 1,");
     expect(leggi(cartella, "CapitoloSection.tsx")).toContain("immagine_url: voci[idx].immagine_url,");
     expect(leggi(cartella, "VoceRow.tsx")).toContain("<MiniaturaProdotto src={voce.immagine_url}");
   });

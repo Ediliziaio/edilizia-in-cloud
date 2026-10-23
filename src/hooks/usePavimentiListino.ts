@@ -42,8 +42,8 @@ const K = {
     ["pav-prefill-articoli", companyId, term] as const,
   tariffeSearch: (companyId: string | null, term: string) =>
     ["pav-prefill-tariffe", companyId, term] as const,
-  vociSearch: (companyId: string | null, term: string) =>
-    ["pav-listino-voci-search", companyId, term] as const,
+  vociSearch: (companyId: string | null, term: string, capitoloId?: string | null) =>
+    ["pav-listino-voci-search", companyId, term, capitoloId ?? "tutti"] as const,
 };
 
 // ─── Payloads ──────────────────────────────────────────────────────────────
@@ -418,10 +418,11 @@ export interface ListinoVoceSearchOption {
  * il picker del computo. Joina `pav_listino_capitoli` per esporre il nome del
  * capitolo (così la voce può essere pre-assegnata al capitolo giusto).
  */
-export function useListinoVociSearch(term: string) {
+/** `capitoloId`: solo le voci di quel capitolo, tutte (si sfoglia il listino per capitolo). */
+export function useListinoVociSearch(term: string, capitoloId?: string | null) {
   const companyId = useEffectiveCompanyId();
   return useQuery<ListinoVoceSearchOption[]>({
-    queryKey: K.vociSearch(companyId, term),
+    queryKey: K.vociSearch(companyId, term, capitoloId),
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -433,7 +434,8 @@ export function useListinoVociSearch(term: string) {
         .eq("company_id", companyId!);
       const t = termineDiRicerca(term);
       if (t) q = q.or(`descrizione.ilike.%${t}%,codice.ilike.%${t}%`);
-      const { data, error } = await q.order("ordine").limit(40);
+      if (capitoloId) q = q.eq("capitolo_id", capitoloId);
+      const { data, error } = await q.order("ordine").limit(capitoloId ? 300 : 40);
       if (error) throw new Error(error.message);
       return ((data ?? []) as Record<string, unknown>[]).map((d) => {
         const cap = d.capitolo as { nome?: string } | null;

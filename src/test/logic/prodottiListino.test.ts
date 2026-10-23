@@ -6,9 +6,11 @@
 import { describe, expect, it } from "vitest";
 import {
   areaDelProdotto,
+  chiedeQuantita,
   dettaglioNelPicker,
   eProdottoPrezzabile,
   famigliaInProdotto,
+  prodottoInRiga,
   type RigaFamigliaPicker,
 } from "@/lib/moduli/prodottiListino";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
@@ -26,7 +28,7 @@ describe("dalla famiglia del listino al prodotto da proporre", () => {
     expect(famigliaInProdotto(riga())).toEqual({
       id: "f1", nome: "Piatto doccia in resina 120x80 cm", codice: "PD-12080", descrizione: "Antiscivolo, finitura pietra.",
       immagine_url: "/templates/bagno/products/piatto-doccia.webp", vertical: "bagno", modo: "pz", unita: "pz",
-      prezzo_vendita: 235, prezzo_acquisto: 130, con_varianti: false,
+      prezzo_vendita: 235, prezzo_acquisto: 130, con_varianti: false, posa_vendita: 0, posa_costo: 0,
     });
   });
 
@@ -67,6 +69,35 @@ describe("dalla famiglia del listino al prodotto da proporre", () => {
   it("un prodotto senza nome si chiama «Prodotto»; con le varianti lo dice", () => {
     expect(famigliaInProdotto(riga({ nome: "   " })).nome).toBe("Prodotto");
     expect(famigliaInProdotto(riga({ axes: [{ id: "a1" }] })).con_varianti).toBe(true);
+  });
+});
+
+describe("la posa del prodotto, come nei serramenti", () => {
+  it("manuale: prezzo e costo della posa × la quantità di posa per unità", () => {
+    const p = famigliaInProdotto(riga({ manodopera_modalita: "manuale", manodopera_prezzo_vendita: 18, manodopera_costo_acquisto: "11.5", posa_quantita_default: 2 }));
+    expect(p).toMatchObject({ posa_vendita: 36, posa_costo: 23 });
+    expect(prodottoInRiga(p)).toEqual({ prezzo_unitario: 271, costo_materiali: 130, costo_manodopera: 23 });
+  });
+
+  it("con la tariffa collegata: il suo prezzo e il suo costo (la regola unica del costo delle tariffe)", () => {
+    const p = famigliaInProdotto(riga({
+      modalita_prezzo_base: "mq", manodopera_modalita: "tariffa", posa_quantita_default: null,
+      posa_tariffa: { prezzo_vendita: 22, costo_interno: 0, prezzo_costo: 14 },
+    }));
+    expect(p).toMatchObject({ modo: "mq", posa_vendita: 22, posa_costo: 14 });
+    expect(prodottoInRiga(p).prezzo_unitario).toBe(257);
+  });
+
+  it("senza posa, o con la tariffa che non c'è più, la riga è solo il prodotto", () => {
+    for (const extra of [{}, { manodopera_modalita: "nessuna", manodopera_prezzo_vendita: 50 }, { manodopera_modalita: "tariffa", posa_tariffa: null as null }]) {
+      const p = famigliaInProdotto(riga(extra));
+      expect(prodottoInRiga(p)).toEqual({ prezzo_unitario: 235, costo_materiali: 130, costo_manodopera: 0 });
+    }
+  });
+
+  it("solo il prodotto al metro quadro chiede la quantità", () => {
+    expect(chiedeQuantita({ modo: "mq" })).toBe(true);
+    expect(chiedeQuantita({ modo: "pz" })).toBe(false);
   });
 });
 

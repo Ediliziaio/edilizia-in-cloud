@@ -10,6 +10,10 @@
  *      prezzo scorporato in mat/mano via `incidenza_manodopera_pct`, dritto nel
  *      computo (NON passa da `clm_listino`).
  *
+ * Le lavorazioni si sfogliano per capitolo del listino (i bottoni sotto la ricerca):
+ * senza testo e senza capitolo escono le prime, divise per capitolo. Un prodotto al
+ * metro quadro chiede la superficie prima di entrare nel computo.
+ *
  * Keyboard-first: il Dialog di cmdk dà ↑/↓/invio/esc nativi; `shouldFilter={false}`
  * perché la ricerca è server-side (typeahead debounced). `onPick` ritorna una
  * `PickedVoce` neutra: la materializzazione in `ClmComputoVoce` la fa il padre.
@@ -17,7 +21,7 @@
  * Purezza React: nessun setState in effect/render; il termine digitato è stato
  * locale, il debounce è un hook dedicato, le query sono react-query.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -25,12 +29,15 @@ import {
   Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Hammer, Package, HardHat, PlusCircle, Loader2, Library } from "lucide-react";
+import { Hammer, Package, HardHat, PlusCircle, Loader2, Library, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
+  useListinoCapitoli,
   useListinoVociSearch,
   usePrefillFromArticolo,
   usePrefillFromTariffa,
@@ -38,7 +45,13 @@ import {
 } from "@/hooks/useClimatizzazioneListino";
 import { usePrezzarioVociGlobalSearch } from "@/lib/prezzario/queries";
 import { useProdottiListino } from "@/hooks/useProdottiListino";
-import { dettaglioNelPicker, type VerticaleModulo } from "@/lib/moduli/prodottiListino";
+import {
+  chiedeQuantita,
+  dettaglioNelPicker,
+  prodottoInRiga,
+  type ProdottoListino,
+  type VerticaleModulo,
+} from "@/lib/moduli/prodottiListino";
 import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import type { PickedVoce, VoceSource } from "./types";
 
@@ -116,14 +129,24 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
   const isMobile = useIsMobile();
   const [mode, setMode] = useState<SearchMode>("azienda");
   const debounced = useDebounce(term, 250);
+  // Capitolo del listino che si sta sfogliando (null = tutti).
+  const [capitoloId, setCapitoloId] = useState<string | null>(null);
+  // Prodotto al mq scelto: si aspetta la superficie prima di metterlo nel computo.
+  const [inAttesa, setInAttesa] = useState<ProdottoListino | null>(null);
+  const [superficie, setSuperficie] = useState("");
 
   // Le query partono solo a picker aperto + nella modalità attiva (enabled), così
   // non scaldiamo cache inutili. Le sorgenti aziendali condividono un hook ciascuna.
   const azOn = open && mode === "azienda";
-  const lavorazioni = useListinoVociSearch(azOn ? debounced : "");
-  const prodotti = usePrefillFromArticolo(azOn ? debounced : "");
+  const capitoli = useListinoCapitoli();
+  // Il capitolo scelto vale solo se c'è ancora fra i capitoli del listino.
+  const capitolo = capitoloId ? (capitoli.data ?? []).find((c) => c.id === capitoloId) ?? null : null;
+  const lavorazioni = useListinoVociSearch(azOn ? debounced : "", capitolo?.id ?? null);
+  // Dentro un capitolo si guardano solo le sue lavorazioni.
+  const altreSorgenti = azOn && !capitolo;
+  const prodotti = usePrefillFromArticolo(altreSorgenti ? debounced : "");
   // Il listino prodotti vero: foto, descrizione e prezzo vengono con la riga. Si interroga solo a selettore aperto.
-  const prodottiListino = useProdottiListino(debounced, VERTICALE_LISTINO, azOn);
+  const prodottiListino = useProdottiListino(debounced, VERTICALE_LISTINO, altreSorgenti);
   const manodopera = usePrefillFromTariffa(azOn ? debounced : "");
   // Prezzario regionale centrale (cross-fonte, solo pubblicate): hook gated a 2+ char.
   const prezzario = usePrezzarioVociGlobalSearch(
@@ -135,9 +158,16 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
       ? lavorazioni.isFetching || prodotti.isFetching || prodottiListino.isFetching || manodopera.isFetching
       : prezzario.isFetching;
 
-  const resetAndClose = () => {
+  const azzera = () => {
     setTerm("");
     setMode("azienda");
+    setCapitoloId(null);
+    setInAttesa(null);
+    setSuperficie("");
+  };
+
+  const resetAndClose = () => {
+    azzera();
     onOpenChange(false);
   };
 
@@ -152,10 +182,41 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
     [term],
   );
 
+  /** Il prodotto del listino nella riga del computo, con la posa come manodopera. */
+  const pickProdotto = (p: ProdottoListino, quantita?: number) =>
+    handlePick({
+      descrizione: p.nome,
+      unita_misura: mapUnitaMisura(p.unita),
+      ...prodottoInRiga(p),
+      capitolo_nome: targetCapitolo,
+      // La riga porta una copia di foto e descrizione del listino: il preventivo non cambia se poi si ritocca il listino.
+      famiglia_id: p.id,
+      immagine_url: p.immagine_url,
+      descrizione_estesa: p.descrizione,
+      ...(quantita != null ? { quantita } : {}),
+    });
+
+  const mqScritti = Number(superficie.replace(",", "."));
+  const superficieValida = Number.isFinite(mqScritti) && mqScritti > 0;
+  const confermaSuperficie = (e: FormEvent) => {
+    e.preventDefault();
+    if (inAttesa && superficieValida) pickProdotto(inAttesa, Math.round(mqScritti * 100) / 100);
+  };
+
+  // Le lavorazioni divise per capitolo, nell'ordine in cui arrivano.
+  const lavorazioniPerCapitolo = useMemo(() => {
+    const gruppi = new Map<string, NonNullable<typeof lavorazioni.data>>();
+    for (const v of lavorazioni.data ?? []) {
+      const nome = v.capitolo_nome?.trim() || "Senza capitolo";
+      gruppi.set(nome, [...(gruppi.get(nome) ?? []), v]);
+    }
+    return [...gruppi.entries()];
+  }, [lavorazioni.data]);
+
   const nLav = lavorazioni.data?.length ?? 0;
-  const nProd = prodotti.data?.length ?? 0;
-  const nProdListino = prodottiListino.data?.length ?? 0;
-  const nMano = manodopera.data?.length ?? 0;
+  const nProd = capitolo ? 0 : prodotti.data?.length ?? 0;
+  const nProdListino = capitolo ? 0 : prodottiListino.data?.length ?? 0;
+  const nMano = capitolo ? 0 : manodopera.data?.length ?? 0;
   const nPrez = prezzario.data?.length ?? 0;
   const nTot = mode === "azienda" ? nLav + nProd + nProdListino + nMano : nPrez;
   const nessunRisultato = !isFetching && nTot === 0 && debounced.trim().length > 0;
@@ -164,7 +225,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) { setTerm(""); setMode("azienda"); }
+        if (!v) azzera();
         onOpenChange(v);
       }}
     >
@@ -174,6 +235,49 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         onOpenAutoFocus={(e) => { if (isMobile) e.preventDefault(); }}
       >
         <VisuallyHidden><DialogTitle>Aggiungi voce al computo</DialogTitle></VisuallyHidden>
+        {inAttesa ? (
+          // Prodotto al metro quadro: prima la superficie, poi entra nel computo.
+          <form onSubmit={confermaSuperficie} className="space-y-4 p-4 max-sm:pr-12">
+            <div className="flex items-center gap-3">
+              <MiniaturaProdotto src={inAttesa.immagine_url} className="h-10 w-10" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900">{inAttesa.nome}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {formatCurrency(prodottoInRiga(inAttesa).prezzo_unitario)} / mq
+                  {(inAttesa.posa_vendita ?? 0) > 0 ? " · posa compresa" : ""}
+                </p>
+              </div>
+            </div>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-slate-700">Superficie (mq)</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                autoFocus
+                value={superficie}
+                onChange={(e) => setSuperficie(e.target.value)}
+                placeholder="es. 24,5"
+                className="h-9 text-right tabular-nums"
+              />
+            </label>
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={() => { setInAttesa(null); setSuperficie(""); }}>
+                <ArrowLeft className="h-3.5 w-3.5" /> Indietro
+              </Button>
+              <div className="flex items-center gap-3">
+                {superficieValida && (
+                  <span className="text-sm font-semibold tabular-nums text-slate-900">
+                    {formatCurrency(prodottoInRiga(inAttesa).prezzo_unitario * mqScritti)}
+                  </span>
+                )}
+                <Button type="submit" size="sm" disabled={!superficieValida}>Aggiungi al computo</Button>
+              </div>
+            </div>
+          </form>
+        ) : (
+        <>
         {/* shouldFilter=false: la ricerca è server-side (typeahead), cmdk gestisce
             solo navigazione tastiera e selezione, NON il filtro dei risultati. */}
         <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground">
@@ -210,6 +314,30 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         value={term}
         onValueChange={setTerm}
       />
+      {/* Il listino diviso per capitoli: un tocco e si vedono tutte le voci di quel capitolo. */}
+      {mode === "azienda" && (capitoli.data?.length ?? 0) > 0 && (
+        <div className="flex gap-1 overflow-x-auto border-b px-3 py-1.5" role="group" aria-label="Capitoli del listino">
+          {[{ id: null as string | null, nome: "Tutto" }, ...(capitoli.data ?? [])].map((c) => {
+            const attivo = (capitolo?.id ?? null) === c.id;
+            return (
+              <button
+                key={c.id ?? "tutto"}
+                type="button"
+                aria-pressed={attivo}
+                onClick={() => setCapitoloId(c.id)}
+                className={cn(
+                  "tap-compact h-6 shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[11px] transition-colors",
+                  attivo
+                    ? "border-orange-300 bg-orange-50 font-medium text-orange-700"
+                    : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {c.nome}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <CommandList className="max-h-[60vh]">
         {nessunRisultato ? (
           <CommandEmpty className="py-8 text-sm text-muted-foreground">
@@ -253,14 +381,14 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         )}
 
         {/* Lavorazioni */}
-        {mode === "azienda" && nLav > 0 && (
-          <CommandGroup heading={`Lavorazioni (${nLav})`}>
-            {lavorazioni.data!.map((v) => (
+        {mode === "azienda" && nLav > 0 && lavorazioniPerCapitolo.map(([nomeCapitolo, voci]) => (
+          <CommandGroup key={`cap-${nomeCapitolo}`} heading={`${nomeCapitolo} (${voci.length})`}>
+            {voci.map((v) => (
               <ResultRow
                 key={`lav-${v.id}`}
                 source="lavorazione"
                 descrizione={v.descrizione}
-                meta={[v.codice, v.capitolo_nome, `/${v.unita_misura}`].filter(Boolean).join(" · ")}
+                meta={[v.codice, `/${v.unita_misura}`].filter(Boolean).join(" · ")}
                 prezzo={v.prezzo_unitario}
                 prezzoLabel={`/ ${v.unita_misura}`}
                 onSelect={() =>
@@ -279,7 +407,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
               />
             ))}
           </CommandGroup>
-        )}
+        ))}
 
         {/* Prodotti: prima quelli del listino prodotti (con foto e descrizione), poi gli articoli del vecchio elenco */}
         {mode === "azienda" && nProd + nProdListino > 0 && (
@@ -291,22 +419,9 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                 immagine={p.immagine_url}
                 descrizione={p.nome}
                 meta={dettaglioNelPicker(p, VERTICALE_LISTINO) || undefined}
-                prezzo={p.prezzo_vendita}
+                prezzo={prodottoInRiga(p).prezzo_unitario}
                 prezzoLabel={p.modo === "mq" ? "/ mq" : p.unita ? `/ ${p.unita}` : "/ pz"}
-                onSelect={() =>
-                  handlePick({
-                    descrizione: p.nome,
-                    unita_misura: mapUnitaMisura(p.unita),
-                    prezzo_unitario: p.prezzo_vendita,
-                    costo_materiali: p.prezzo_acquisto,
-                    costo_manodopera: 0,
-                    capitolo_nome: targetCapitolo,
-                    // La riga porta una copia di foto e descrizione del listino: il preventivo non cambia se poi si ritocca il listino.
-                    famiglia_id: p.id,
-                    immagine_url: p.immagine_url,
-                    descrizione_estesa: p.descrizione,
-                  })
-                }
+                onSelect={() => (chiedeQuantita(p) ? setInAttesa(p) : pickProdotto(p))}
               />
             ))}
             {(prodotti.data ?? []).map((p) => (
@@ -406,6 +521,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         )}
       </CommandList>
         </Command>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );
