@@ -11,7 +11,7 @@ export type FiltroFonte = "tutti" | "giacenza" | "fornitore";
 export type Ordinamento = "posizione" | "nome" | "stato" | "fornitore";
 
 export const ETICHETTA_ORDINAMENTO: Record<Ordinamento, string> = {
-  posizione: "Ordine d'inserimento",
+  posizione: "Inserimento",
   nome: "Nome",
   stato: "Stato",
   fornitore: "Fornitore",
@@ -34,14 +34,20 @@ export function filtraPerFonte<T extends RigaElenco>(righe: T[], filtro: FiltroF
   return righe;
 }
 
-export function ordinaRighe<T extends RigaElenco>(righe: T[], ordine: Ordinamento, nomeFornitore: (id: string | null) => string | null = () => null): T[] {
+export function ordinaRighe<T extends RigaElenco>(
+  righe: T[],
+  ordine: Ordinamento,
+  nomeFornitore: (id: string | null) => string | null = () => null,
+  /** Il posto della riga sulla scala degli stati mostrata (se manca, lo stato scritto sulla riga). */
+  rangoStato?: (r: T) => number,
+): T[] {
   const copia = [...righe];
   const perPosizione = (a: T, b: T) => (a.position ?? 0) - (b.position ?? 0);
   if (ordine === "posizione") return copia.sort(perPosizione);
   if (ordine === "nome") return copia.sort((a, b) => a.name.localeCompare(b.name, "it") || perPosizione(a, b));
   if (ordine === "stato") {
-    const i = (s?: string | null) => { const k = ORDINE_STATI.indexOf(s ?? "da_ordinare"); return k < 0 ? ORDINE_STATI.length : k; };
-    return copia.sort((a, b) => i(a.status) - i(b.status) || perPosizione(a, b));
+    const i = rangoStato ?? ((r: T) => { const k = ORDINE_STATI.indexOf(r.status ?? "da_ordinare"); return k < 0 ? ORDINE_STATI.length : k; });
+    return copia.sort((a, b) => i(a) - i(b) || perPosizione(a, b));
   }
   // Fornitore: quelli senza fornitore in fondo.
   return copia.sort((a, b) => {

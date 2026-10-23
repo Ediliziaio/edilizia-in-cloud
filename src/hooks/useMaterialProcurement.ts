@@ -12,7 +12,7 @@ export async function loadMaterialCoverage(companyId: string, itemIds: string[])
   for (let offset = 0; offset < ids.length; offset += 100) {
     for (let page = 0; ; page++) {
       const { data, error } = await supabase.from("purchase_order_items")
-        .select("id, order_item_id, quantity, quantity_received, unit_of_measure, purchase_orders!inner(id, oda_number, status)")
+        .select("id, order_item_id, quantity, quantity_received, unit_of_measure, purchase_orders!inner(id, oda_number, status, issue_date, expected_delivery_date, actual_delivery_date)")
         .eq("company_id", companyId).eq("purchase_orders.company_id", companyId)
         .in("order_item_id", ids.slice(offset, offset + 100))
         .neq("purchase_orders.status", "annullato")
