@@ -136,7 +136,7 @@ async function evaluateTrigger(
           .select("id, invoice_number, total, paid_amount, client_company_name, due_date")
           .eq("company_id", t.company_id)
           .is("deleted_at", null)
-          .not("status", "in", '("paid","cancelled","draft")')
+          .not("status", "in", '("paid","cancelled","draft","credited")')
           .lt("due_date", soglia)
           .limit(10),
         supabase

@@ -133,6 +133,7 @@ export default function CustomerDocuments() {
     paid: { label: "Pagata", color: "text-emerald-700", bg: "bg-emerald-50" },
     overdue: { label: "Scaduta", color: "text-red-700", bg: "bg-red-50" },
     cancelled: { label: "Annullata", color: "text-gray-500", bg: "bg-gray-100" },
+    credited: { label: "Stornata", color: "text-slate-600", bg: "bg-slate-100" },
   };
 
   const hasContent = attachments.length > 0 || invoices.length > 0;

@@ -106,7 +106,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
                   <span className="text-[11px] font-medium">
                     {(inv.total || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                   </span>
-                  {remaining > 0 && inv.status !== "paid" && (
+                  {remaining > 0 && inv.status !== "paid" && inv.status !== "credited" && (
                     <span className="text-[9px] text-amber-600 ml-1 max-md:text-[11px]">
                       (res. €{remaining.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })})
                     </span>

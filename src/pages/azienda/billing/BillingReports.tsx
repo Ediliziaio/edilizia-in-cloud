@@ -71,7 +71,7 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
     const totByStatus: Record<string, number> = {};
     invoices.forEach((inv) => {
       if (inv.document_type === "proforma") return;
-      const label = inv.status === "paid" ? "Pagata" : inv.status === "overdue" ? "Scaduta" : "Da incassare";
+      const label = inv.status === "paid" ? "Pagata" : inv.status === "credited" ? "Stornata" : inv.status === "overdue" ? "Scaduta" : "Da incassare";
       totByStatus[label] = (totByStatus[label] || 0) + Number(inv.total);
     });
     return Object.entries(totByStatus).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
@@ -82,7 +82,7 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
     const now = new Date();
     const buckets = { "0-30 gg": 0, "31-60 gg": 0, "61-90 gg": 0, "90+ gg": 0 };
     invoices.forEach((inv) => {
-      if (inv.status === "paid" || !inv.due_date) return;
+      if (inv.status === "paid" || inv.status === "credited" || !inv.due_date) return;
       const remaining = Number(inv.total) - Number(inv.paid_amount || 0);
       if (remaining <= 0) return;
       const due = new Date(inv.due_date);

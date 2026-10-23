@@ -72,7 +72,7 @@ function syncFreshness(iso?: string | null): { label: string; stale: boolean } |
  * in Cloud — anche se il gestionale d'origine la riporta ancora come "Emessa".
  */
 function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null; document_type?: string | null }): string {
-  if (["paid", "cancelled", "draft"].includes(inv.status)) return inv.status;
+  if (["paid", "cancelled", "draft", "credited"].includes(inv.status)) return inv.status;
   // Una nota di credito è uno storno: non "scade" (prima risultava Scaduta da 150 giorni).
   if (inv.document_type === "credit_note") return inv.status;
   const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0);
@@ -141,6 +141,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: strin
   paid:      { label: "Pagata",      color: "bg-green-100 text-green-800",          emoji: "💰" },
   overdue:   { label: "Scaduta",     color: "bg-destructive/10 text-destructive",   emoji: "⏰" },
   cancelled: { label: "Annullata",   color: "bg-muted text-muted-foreground line-through", emoji: "❌" },
+  // Stornata da una nota di credito: chiusa senza incasso, resta emessa.
+  credited:  { label: "Stornata",    color: "bg-slate-100 text-slate-700",          emoji: "↩️" },
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -417,7 +419,7 @@ export default function InvoicesList() {
       list = list.filter((i) => {
         const residuo = Number(i.total ?? 0) - Number(i.paid_amount ?? 0);
         if (statusFilter === "unpaid") {
-          return !["paid", "cancelled"].includes(i.status) && residuo > 0.005;
+          return !["paid", "cancelled", "credited"].includes(i.status) && residuo > 0.005;
         }
         if (statusFilter === "overdue") return effectiveStatus(i) === "overdue";
         if (statusFilter === "paid") {
@@ -468,7 +470,7 @@ export default function InvoicesList() {
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
       .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
     const overdue = billable.filter((i) => {
-      if (["paid", "cancelled"].includes(i.status)) return false;
+      if (["paid", "cancelled", "credited"].includes(i.status)) return false;
       return i.due_date && new Date(i.due_date) < now;
     });
     const overdueAmount = overdue.reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
@@ -485,7 +487,7 @@ export default function InvoicesList() {
   const recupero = useMemo(() => {
     const now = Date.now();
     const base = (yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter)))
-      .filter((i) => i.document_type !== "credit_note" && !["paid", "cancelled", "draft"].includes(i.status));
+      .filter((i) => i.document_type !== "credit_note" && !["paid", "cancelled", "draft", "credited"].includes(i.status));
     const buckets = { b30: 0, b60: 0, b60p: 0 };
     const perCliente = new Map<string, { residuo: number; maxDays: number; n: number }>();
     for (const i of base) {
@@ -932,7 +934,7 @@ export default function InvoicesList() {
                       const eff = effectiveStatus(inv);
                       const cfg = STATUS_CONFIG[eff] || STATUS_CONFIG.draft;
                       const isCredit = inv.document_type === "credit_note";
-                      const gg = !isCredit && !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                      const gg = !isCredit && !["paid", "cancelled", "credited"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
                       const residuo = Number(inv.total || 0) - Number(inv.paid_amount || 0);
                       const saldata = !isCredit && (inv.status === "paid" || (Number(inv.paid_amount || 0) > 0 && residuo <= 0.005));
                       const parziale = !isCredit && !saldata && Number(inv.paid_amount || 0) > 0.005;
@@ -1010,7 +1012,7 @@ export default function InvoicesList() {
                             <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
                             <td className="p-3">
                               {(() => {
-                                const gg = inv.document_type !== "credit_note" && !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                const gg = inv.document_type !== "credit_note" && !["paid", "cancelled", "credited"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
                                 return gg
                                   ? <span className="text-xs font-medium text-rose-600">Scaduta da {gg} {gg === 1 ? "giorno" : "giorni"}</span>
                                   : <span className="text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</span>;
@@ -1074,7 +1076,7 @@ export default function InvoicesList() {
                                       <FileCode className="h-4 w-4 mr-2" /> XML (SDI)
                                     </DropdownMenuItem>
                                   )}
-                                  {!["paid", "cancelled"].includes(inv.status) && (
+                                  {!["paid", "cancelled", "credited"].includes(inv.status) && (
                                     <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total), externalProvider: inv.external_provider })}>
                                       <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
                                     </DropdownMenuItem>

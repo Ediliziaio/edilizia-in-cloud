@@ -29,6 +29,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: strin
   paid:      { label: "Pagata",      color: "bg-green-100 text-green-800",          emoji: "💰" },
   overdue:   { label: "Scaduta",     color: "bg-destructive/10 text-destructive",   emoji: "⏰" },
   cancelled: { label: "Annullata",   color: "bg-muted text-muted-foreground line-through", emoji: "❌" },
+  // Fattura stornata da una nota di credito (o nota che la compensa): chiusa
+  // senza incasso, resta emessa ai fini fiscali.
+  credited:  { label: "Stornata",    color: "bg-slate-100 text-slate-700",          emoji: "↩️" },
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -71,6 +74,19 @@ export default function InvoiceDetail() {
       return data || [];
     },
     enabled: !!id,
+  });
+
+  // Storno: la fattura che questa nota storna, o le note che stornano questa fattura.
+  const { data: storno } = useQuery({
+    queryKey: [...queryKeys.invoices.detail(id), "storno", invoice?.credited_invoice_id ?? null],
+    queryFn: async () => {
+      const q = supabase.from("invoices").select("id, invoice_number, issue_date, document_type").is("deleted_at", null);
+      const { data } = invoice!.document_type === "credit_note"
+        ? await q.eq("id", invoice!.credited_invoice_id!)
+        : await q.eq("credited_invoice_id", id!).eq("company_id", effectiveCompany!.id);
+      return data || [];
+    },
+    enabled: !!invoice && !!effectiveCompany?.id && (invoice.document_type !== "credit_note" || !!invoice.credited_invoice_id),
   });
 
   // Commesse dell'azienda — per collegare la fattura a una commessa (utile soprattutto
@@ -217,7 +233,10 @@ export default function InvoiceDetail() {
     return <div className="text-center py-12 text-muted-foreground">Fattura non trovata.</div>;
   }
 
-  const cfg = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
+  const cfg = invoice.status === "credited" && invoice.document_type === "credit_note"
+    ? { ...STATUS_CONFIG.credited, label: "Compensata" }
+    : STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
+  const stornata = invoice.status === "credited";
 
   return (
     <div className="space-y-6 max-w-5xl max-sm:space-y-3">
@@ -288,8 +307,8 @@ export default function InvoiceDetail() {
               ? { label: "Pagato", valore: fmtEur(Number(invoice.paid_amount || 0)) }
               : {
                 label: "Da incassare",
-                valore: fmtEur(Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0))),
-                tono: invoice.status !== "paid" && Number(invoice.total || 0) - Number(invoice.paid_amount || 0) > 0.005 ? "text-rose-600" : undefined,
+                valore: fmtEur(stornata ? 0 : Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0))),
+                tono: !stornata && invoice.status !== "paid" && Number(invoice.total || 0) - Number(invoice.paid_amount || 0) > 0.005 ? "text-rose-600" : undefined,
               },
           ]}
         />
@@ -580,6 +599,26 @@ export default function InvoiceDetail() {
                   <span className="text-muted-foreground">Importo pagato</span>
                   <span className="font-medium">{fmtEur(Number(invoice.paid_amount || 0))}</span>
                 </div>
+                {(storno?.length ?? 0) > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">
+                      {invoice.document_type === "credit_note" ? "Storna la fattura" : "Stornata da"}
+                    </span>
+                    <span className="text-right">
+                      {storno!.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className="block font-medium text-primary hover:underline"
+                          onClick={() => navigate(`/azienda/fatturazione/${d.id}`)}
+                        >
+                          {d.document_type === "credit_note" ? "NC" : "n."} {d.invoice_number}
+                          {d.issue_date ? ` del ${format(new Date(d.issue_date), "dd/MM/yyyy", { locale: it })}` : ""}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

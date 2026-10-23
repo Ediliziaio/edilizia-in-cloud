@@ -7,6 +7,7 @@ import {
   avanzamento, chiudiSeFinito, dopoErrore, dopoPagina, leggiStato, nuovoGiro, parametriPagina, prossimoFlusso,
   type StatoImport,
 } from "../_shared/importFicStato.ts";
+import { riferimentoFatturaStornata } from "../_shared/notaCreditoRiferimento.ts";
 
 // Import da Fatture in Cloud a blocchi (vedi _shared/importFicStato.ts): pagine
 // per invocazione e tempo massimo prima di fermarsi e salvare il cursore.
@@ -246,14 +247,14 @@ Deno.serve(async (req) => {
     const salvaFatture = async (lista: any[]) => {
     if (lista.length === 0) return;
     await precaricaClienti(lista);
-    const esistenti = new Map<string, { id: string; order_id: string | null }>();
+    const esistenti = new Map<string, { id: string; order_id: string | null; status: string | null }>();
     const idEsterni = [...new Set(lista.map((i) => String(i.externalId ?? "")).filter(Boolean))];
     for (let i = 0; i < idEsterni.length; i += 200) {
-      const { data, error } = await supabase.from("invoices").select("id, external_id, order_id")
+      const { data, error } = await supabase.from("invoices").select("id, external_id, order_id, status")
         .eq("company_id", companyId).eq("external_provider", provider!)
         .in("external_id", idEsterni.slice(i, i + 200));
       if (error) throw new Error(`Lettura delle fatture già importate: ${error.message}`);
-      (data || []).forEach((r: any) => esistenti.set(String(r.external_id), { id: r.id, order_id: r.order_id ?? null }));
+      (data || []).forEach((r: any) => esistenti.set(String(r.external_id), { id: r.id, order_id: r.order_id ?? null, status: r.status ?? null }));
     }
     const nuove: Array<{ inv: any; riga: Record<string, unknown> }> = [];
 
@@ -296,6 +297,20 @@ Deno.serve(async (req) => {
       // Il collegamento al contatto si scrive solo se c'è: un aggiornamento non
       // stacca la fattura dal contatto a cui era già legata.
       if (clientId) invoiceData.client_id = clientId;
+
+      // Nota di credito: la fattura che storna, come la riporta il gestionale.
+      // Il collegamento vero lo fa applica_note_di_credito a fine blocco.
+      if (inv.rifFatturaNumero) {
+        invoiceData.rif_fattura_numero = inv.rifFatturaNumero;
+        invoiceData.rif_fattura_data = inv.rifFatturaData || null;
+      }
+
+      // Fattura stornata o nota che la compensa: lo stato «credited» lo decide
+      // lo storno, non il gestionale, che continua a darla emessa. Vince solo
+      // un incasso vero arrivato dopo.
+      if (existing?.status === "credited" && !(invoiceData.document_type === "invoice" && invoiceData.status === "paid")) {
+        delete invoiceData.status;
+      }
 
       if (existing) {
         // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
@@ -357,6 +372,12 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // Note di credito → fattura stornata: collega per numero e data e chiude
+    // le coppie in cui la nota copre tutto. Idempotente, gira a ogni blocco
+    // perché nota e fattura possono arrivare in pagine diverse.
+    const { error: ncErr } = await supabase.rpc("applica_note_di_credito", { p_company_id: companyId });
+    if (ncErr && importErrors.length < 5) importErrors.push(`note di credito: ${ncErr.message}`);
     };
 
     // ── Fatture in Cloud: un pezzo del giro per invocazione ──────────────
@@ -798,6 +819,7 @@ function mappaEmessaFic(doc: any): any {
     total: doc.amount_gross,
     paymentMethod: doc.payment_method?.name,
     iban: doc.payment_account?.iban || null,
+    ...riferimentoFatturaStornata(doc),
     lines: (doc.items_list || []).map((item: any) => {
       // BUG FISCALE: `item.vat?.value || 22` trasformava l'IVA 0 in 22%.
       // In JS `0 || 22 === 22`, quindi i forfettari (IVA 0, Natura N2.2) e

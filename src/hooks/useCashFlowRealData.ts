@@ -46,7 +46,7 @@ export function useCashFlowRealData(companyId: string | null | undefined) {
           .from("invoices")
           .select("total, paid_amount, due_date")
           .eq("company_id", companyId!)
-          .not("status", "in", '("paid","cancelled","draft")')
+          .not("status", "in", '("paid","cancelled","draft","credited")')
           .not("due_date", "is", null)
           .lte("due_date", in90Str),
 

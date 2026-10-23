@@ -524,7 +524,7 @@ serveConMetricheRapida("check-scheduled-triggers", async (req) => {
 
             for (const inv of overdue || []) {
               const st = String(inv.status || "").toLowerCase();
-              if (["paid", "pagata", "cancelled", "canceled", "annullata", "draft", "bozza"].includes(st)) continue;
+              if (["paid", "pagata", "cancelled", "canceled", "annullata", "draft", "bozza", "credited"].includes(st)) continue;
               const giorniScaduta = Math.max(0, Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000));
               const emitted = await emitForTrigger(supabase, flow.company_id, "invoice_overdue", inv.id, "invoice", {
                 invoice_id: inv.id, invoice_number: inv.invoice_number, total: inv.total,

@@ -329,7 +329,7 @@ Deno.serve(async (req) => {
           .select("id, total, paid_amount, client_company_name, bank_iban, external_provider, external_id, invoice_number")
           .eq("company_id", cId)
           .is("deleted_at", null)
-          .not("status", "in", '("paid","cancelled","draft")')
+          .not("status", "in", '("paid","cancelled","draft","credited")')
           .limit(2000);
 
         // Fatture della fatturazione interna (documenti_fiscali): prima qui si

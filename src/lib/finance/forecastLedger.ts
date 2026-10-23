@@ -317,6 +317,8 @@ const closed = (status: string): boolean =>
     "pagata",
     "pagato",
     "cancelled",
+    // Fattura stornata da una nota di credito (e la nota che la compensa).
+    "credited",
     "annullata",
     "annullato",
     "draft",

@@ -47867,6 +47867,8 @@ export type Database = {
           pdf_url: string | null
           progressive_number: number | null
           quote_id: string | null
+          rif_fattura_data: string | null
+          rif_fattura_numero: string | null
           sede_id: string | null
           status: string
           subtotal: number | null
@@ -47919,6 +47921,8 @@ export type Database = {
           pdf_url?: string | null
           progressive_number?: number | null
           quote_id?: string | null
+          rif_fattura_data?: string | null
+          rif_fattura_numero?: string | null
           sede_id?: string | null
           status?: string
           subtotal?: number | null
@@ -47971,6 +47975,8 @@ export type Database = {
           pdf_url?: string | null
           progressive_number?: number | null
           quote_id?: string | null
+          rif_fattura_data?: string | null
+          rif_fattura_numero?: string | null
           sede_id?: string | null
           status?: string
           subtotal?: number | null
