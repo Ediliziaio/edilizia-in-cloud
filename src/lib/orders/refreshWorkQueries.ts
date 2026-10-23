@@ -52,6 +52,8 @@ export function refreshWorkQueries(
   const sharedKeys = [
     "order-employees-costs",
     "order-external-teams-costs",
+    // L'elenco commesse legge personale e squadre in una lettura sola (23/10/2026).
+    "elenco-commesse-dettagli",
     "laborStats",
     "campo-lavori-assegnati",
     "campo-cantieri-sub",

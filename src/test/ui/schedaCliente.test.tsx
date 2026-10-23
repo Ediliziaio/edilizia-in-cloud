@@ -20,17 +20,17 @@ const stato = vi.hoisted(() => ({
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ effectiveCompany: { id: "company", name: "Demo" }, user: { id: "titolare" }, userRoles: ["company_admin"], role: "company_admin" }),
 }));
-vi.mock("@/hooks/useCompanyBase", () => ({ useCompanyBase: () => null }));
+vi.mock("@/hooks/useCompanyBase", () => ({ useCompanyBase: (): null => null }));
 vi.mock("@/components/silvio/ChiediASilvio", () => ({ ChiediASilvio: () => <button type="button">Chiedi a Silvio</button> }));
-vi.mock("@/components/telephony/ContactCallHistory", () => ({ ContactCallHistory: () => null }));
-vi.mock("@/components/telephony/WebCallButton", () => ({ WebCallButton: () => null }));
-vi.mock("@/components/telephony/AiCallButton", () => ({ AiCallButton: () => null }));
+vi.mock("@/components/telephony/ContactCallHistory", () => ({ ContactCallHistory: (): null => null }));
+vi.mock("@/components/telephony/WebCallButton", () => ({ WebCallButton: (): null => null }));
+vi.mock("@/components/telephony/AiCallButton", () => ({ AiCallButton: (): null => null }));
 vi.mock("@/integrations/supabase/client", () => {
   const query = (tabella: string) => {
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "neq", "in", "is", "not", "or", "order", "limit", "range", "gte", "lte", "lt", "gt", "ilike", "contains", "filter", "match"]) q[m] = () => q;
-    const risultato = () => ({ data: stato.tabelle[tabella] ?? [], error: null });
-    q.maybeSingle = async () => ({ data: (stato.tabelle[tabella] ?? [])[0] ?? null, error: null });
+    const risultato = () => ({ data: stato.tabelle[tabella] ?? [], error: null as unknown });
+    q.maybeSingle = async () => ({ data: (stato.tabelle[tabella] ?? [])[0] ?? null, error: null as unknown });
     q.single = q.maybeSingle;
     q.then = (si: (r: unknown) => unknown, no: (e: unknown) => unknown) => Promise.resolve(risultato()).then(si, no);
     return q;
@@ -43,9 +43,12 @@ vi.mock("@/integrations/supabase/client", () => {
   };
   return { supabase: {
     from: query, rpc,
-    auth: { getUser: async () => ({ data: { user: { id: "titolare" } } }), getSession: async () => ({ data: { session: null } }) },
-    channel: () => ({ on: function () { return this; }, subscribe: () => ({}) }),
-    removeChannel: () => undefined,
+    auth: { getUser: async () => ({ data: { user: { id: "titolare" } } }), getSession: async () => ({ data: { session: null as unknown } }) },
+    channel: () => {
+      const canale: { on: () => unknown; subscribe: () => unknown } = { on: () => canale, subscribe: () => ({}) };
+      return canale;
+    },
+    removeChannel: (): void => undefined,
     storage: { from: () => ({ createSignedUrl: async () => ({ data: null as unknown, error: null as unknown }), createSignedUrls: async () => ({ data: [] as unknown[], error: null as unknown }) }) },
     functions: { invoke: async () => ({ data: null as unknown, error: null as unknown }) },
   } };

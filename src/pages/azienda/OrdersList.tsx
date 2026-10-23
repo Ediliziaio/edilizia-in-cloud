@@ -453,8 +453,10 @@ function OrdersListInner() {
       if (to) query = query.lte("created_at", to.toISOString());
       return readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to));
     },
-    // Grafico 12 mesi non mostrato su mobile → non scaricare i dati lì.
-    enabled: !!effectiveCompany?.id && !isMobile,
+    // Si scarica solo col grafico aperto (23/10/2026): prima leggeva tutte le
+    // commesse dell'anno con rate e varianti anche a grafico chiuso. Su mobile
+    // il grafico non c'è.
+    enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts,
 
     staleTime: 5 * 60 * 1000,
   });
@@ -475,69 +477,32 @@ function OrdersListInner() {
 
   const canonicalMargins = scopeMargins ?? [];
 
-  const { data: itemCosts = [] } = useQuery({
-    queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],
+  // Materiali, personale, squadre e venditori delle commesse della pagina, e i
+  // fornitori dei materiali, in una lettura sola (23/10/2026): erano cinque
+  // richieste, ognuna a ripreparare le regole di accesso della sua tabella.
+  // Stesse colonne di prima: il resto della pagina non cambia.
+  const { data: dettagli } = useQuery({
+    queryKey: ["elenco-commesse-dettagli", effectiveCompany?.id, orderIds],
     queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("order_id, purchase_price, quantity, vat_rate, supplier_id")
-        .in("order_id", orderIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("elenco_commesse_dettagli", { p_order_ids: orderIds });
       if (error) throw error;
-      return data;
+      return data as {
+        materiali: Array<{ order_id: string; purchase_price: number | null; quantity: number | null; vat_rate: number | null; supplier_id: string | null }>;
+        personale: Array<{ order_id: string; total_cost: number | null; employee_id: string | null; employee: { id: string; first_name: string; last_name: string } | null }>;
+        squadre: Array<{ order_id: string; total_cost: number | null; vat_rate: number | null; external_team_id: string | null; external_team: { id: string; name: string } | null }>;
+        venditori: Array<{ order_id: string; commission_amount: number | null; deduction_amount: number | null; salesperson_id: string | null; salesperson: { id: string; first_name: string; last_name: string } | null }>;
+        fornitori: Array<{ id: string; name: string }>;
+      };
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
-
-  const { data: employeeCosts = [] } = useQuery({
-    queryKey: ["order-employees-costs", effectiveCompany?.id, orderIds],
-    queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select("order_id, total_cost, employee_id, employee:employees(id, first_name, last_name)")
-        .in("order_id", orderIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: orderIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
-
-  const { data: externalTeamCosts = [] } = useQuery({
-    queryKey: ["order-external-teams-costs", effectiveCompany?.id, orderIds],
-    queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("order_external_teams")
-        .select("order_id, total_cost, vat_rate, external_team_id, external_team:external_teams(id, name)")
-        .in("order_id", orderIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: orderIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
-
-  const { data: salespeopleData = [] } = useQuery({
-    queryKey: ["order-salespeople-costs", effectiveCompany?.id, orderIds],
-    queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("order_salespeople")
-        .select("order_id, commission_amount, deduction_amount, salesperson_id, salesperson:salespeople(id, first_name, last_name)")
-        .in("order_id", orderIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: orderIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
+  const itemCosts = useMemo(() => dettagli?.materiali ?? [], [dettagli]);
+  const employeeCosts = useMemo(() => dettagli?.personale ?? [], [dettagli]);
+  const externalTeamCosts = useMemo(() => dettagli?.squadre ?? [], [dettagli]);
+  const salespeopleData = useMemo(() => dettagli?.venditori ?? [], [dettagli]);
 
   // Build name maps
   const salespeopleMap = useMemo(() => {
@@ -576,21 +541,7 @@ function OrdersListInner() {
     return map;
   }, [employeeCosts, externalTeamCosts]);
 
-  // Build supplier map from order_items
-  const supplierIds = useMemo(() => [...new Set(itemCosts.map(i => i.supplier_id).filter(Boolean) as string[])], [itemCosts]);
-
-  const { data: supplierProfiles = [] } = useQuery({
-    queryKey: ["supplier-profiles", supplierIds],
-    queryFn: async () => {
-      if (supplierIds.length === 0) return [];
-      const { data, error } = await supabase.from("suppliers").select("id, name").in("id", supplierIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: supplierIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
+  const supplierProfiles = useMemo(() => dettagli?.fornitori ?? [], [dettagli]);
 
   const supplierMap = useMemo(() => {
     const nameMap = new Map(supplierProfiles.map(s => [s.id, s.name]));
