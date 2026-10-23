@@ -85,9 +85,12 @@ const voce = (id: string, q: number, prezzo: number, ordine: number) => ({
   listino_voce_id: null as string | null, fonte: null as string | null, ordine,
 });
 
-async function pdfEdile(opts: { logo: boolean }): Promise<Pagina[]> {
+async function pdfEdile(opts: { logo: boolean; cointestatario?: boolean }): Promise<Pagina[]> {
   const e = await enrichClimatizzazionePdf({
-    progetto: { id: "p1", company_id: "c1", code: "CLM-1", detrazione_pct: 0, cliente_nome: "Mario", cliente_cognome: "Rossi" } as never,
+    progetto: {
+      id: "p1", company_id: "c1", code: "CLM-1", detrazione_pct: 0, cliente_nome: "Mario", cliente_cognome: "Rossi",
+      ...(opts.cointestatario ? { cointestatario_nome: "Anna", cointestatario_cognome: "Bianchi" } : {}),
+    } as never,
     computo: [voce("a", 10, 100, 0)] as never, media: [],
     template: { company_id: "c1", show_chi_siamo: false } as never,
     company: { name: "Bianchi", logo_url: opts.logo ? LOGO_PUBLIC : null },
@@ -122,6 +125,14 @@ describe("preventivo edile: copertina, testata e pagina della firma", () => {
     const documento = (await pdfEdile({ logo: true })).map((p) => p.testo).join(" ");
     expect(piatto(documento).includes("accettazioneproposta"), "il titolo nuovo").toBe(true);
     expect(piatto(documento).includes("firmadelcontratto"), "il titolo vecchio").toBe(false);
+  });
+
+  it("preventivo cointestato: firma anche il cointestatario; senza, la riga non c'è", async () => {
+    const cointestato = (await pdfEdile({ logo: true, cointestatario: true })).map((p) => p.testo).join(" ");
+    expect(piatto(cointestato).includes("firmadelcointestatario")).toBe(true);
+    expect(cointestato.includes("Anna Bianchi")).toBe(true);
+    const solo = (await pdfEdile({ logo: true })).map((p) => p.testo).join(" ");
+    expect(piatto(solo).includes("cointestatario")).toBe(false);
   });
 });
 

@@ -218,6 +218,8 @@ export interface DocEdileDati {
   cliente: string;
   /** Solo il nome, per il saluto: «Mario». */
   clienteNome: string | null;
+  /** Preventivo cointestato: «Anna Bianchi», che firma accanto al cliente. */
+  cointestatario?: string | null;
   /** «Via Roma 1, 20100 Milano, MI» */
   cantiere: string;
   localita: string | null;

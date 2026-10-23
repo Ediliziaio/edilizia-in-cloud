@@ -26,6 +26,7 @@ import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
+import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -51,6 +52,10 @@ export interface ProgettoComune {
   tipo_intervento: string | null;
   cliente_nome: string | null;
   cliente_cognome: string | null;
+  /** Preventivo cointestato: il secondo intestatario. */
+  cointestatario_nome?: string | null;
+  cointestatario_cognome?: string | null;
+  cointestatario_codice_fiscale?: string | null;
   cantiere_indirizzo: string | null;
   cantiere_citta: string | null;
   cantiere_provincia: string | null;
@@ -150,6 +155,7 @@ export function leggiModello(
         companyVat: azienda?.partita_iva ?? null,
         clienteNome: p.cliente_nome,
         clienteCognome: p.cliente_cognome,
+        cointestatario: nomeCointestatario(p),
         cantiereIndirizzo: [p.cantiere_indirizzo, p.cantiere_cap, p.cantiere_citta].filter(Boolean).join(", ") || null,
         cantiereCitta: p.cantiere_citta ?? null,
         numero: p.code,
@@ -395,6 +401,7 @@ export function costruisciDatiEdile(input: {
     modulo,
     codice: p.code,
     cliente: [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim() || "Gentile Cliente",
+    cointestatario: nomeCointestatario(p),
     clienteNome: stringa(p.cliente_nome),
     cantiere: [p.cantiere_indirizzo, [p.cantiere_cap, p.cantiere_citta].filter(Boolean).join(" "), p.cantiere_provincia]
       .filter(Boolean).join(", ").trim(),

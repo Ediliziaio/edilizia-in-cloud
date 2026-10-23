@@ -33,6 +33,8 @@ export interface PavProgetto {
   id: string; company_id: string; code: string | null; stato: PavStato; tipo_intervento: string | null;
   numero_ambienti: number | null; tipo_materiale: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
+  /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
+  cointestatario_nome?: string | null; cointestatario_cognome?: string | null; cointestatario_codice_fiscale?: string | null;
   cantiere_indirizzo: string | null; cantiere_citta: string | null; cantiere_provincia: string | null; cantiere_cap: string | null;
   immobile_tipo: string | null; immobile_superficie_mq: number | null; immobile_anno: number | null; immobile_piani: number | null;
   massimale_detrazione: number | null;

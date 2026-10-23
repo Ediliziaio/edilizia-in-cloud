@@ -1932,6 +1932,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <View style={{ width: 16 }} />
             <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />
           </View>
+          {dati.cointestatario ? (
+            <View wrap={false} style={{ flexDirection: "row", marginTop: 14 }}>
+              <View style={{ width: 150 }} />
+              <View style={{ width: 16 }} />
+              <View style={{ flex: 1 }} />
+              <View style={{ width: 16 }} />
+              <LineaFirma tema={tema} etichetta="FIRMA DEL COINTESTATARIO" chi={dati.cointestatario} />
+            </View>
+          ) : null}
 
           {modello.clausoleDaApprovare.length > 0 ? (
             <View wrap={false} style={{ marginTop: 22, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
@@ -1946,6 +1955,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} altezza={30} />
                 <View style={{ width: 16 }} />
                 <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COMMITTENTE" altezza={30} />
+                {dati.cointestatario ? (
+                  <>
+                    <View style={{ width: 16 }} />
+                    <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COINTESTATARIO" altezza={30} />
+                  </>
+                ) : null}
               </View>
             </View>
           ) : null}

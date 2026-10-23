@@ -31,6 +31,8 @@ export interface TetProgetto {
   esigenze?: TetListItem[];
   id: string; company_id: string; code: string | null; stato: TetStato; tipo_intervento: string | null; numero_falde: number | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
+  /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
+  cointestatario_nome?: string | null; cointestatario_cognome?: string | null; cointestatario_codice_fiscale?: string | null;
   cantiere_indirizzo: string | null; cantiere_citta: string | null; cantiere_provincia: string | null; cantiere_cap: string | null;
   immobile_tipo: string | null; immobile_superficie_mq: number | null; immobile_anno: number | null; immobile_piani: number | null;
   superficie_pianta_mq: number | null; pendenza_pct: number | null; perimetro_ml: number | null; amianto: boolean;

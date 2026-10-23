@@ -17,6 +17,8 @@ export interface DatiMergeModulo {
   companyPhone?: string | null;
   clienteNome?: string | null;
   clienteCognome?: string | null;
+  /** Preventivo cointestato: {{cliente.nome_completo}} diventa «Mario Rossi e Anna Bianchi». */
+  cointestatario?: string | null;
   clienteEmail?: string | null;
   clienteTelefono?: string | null;
   clienteIndirizzo?: string | null;
@@ -37,7 +39,8 @@ export interface DatiMergeModulo {
 
 export function applicaMergeTagModulo(testo: string | null | undefined, dati: DatiMergeModulo): string {
   if (!testo || !testo.includes("{{")) return testo ?? "";
-  const nomeCompleto = [dati.clienteNome, dati.clienteCognome].filter(Boolean).join(" ").trim();
+  const nomeCompleto = [[dati.clienteNome, dati.clienteCognome].filter(Boolean).join(" ").trim(), dati.cointestatario?.trim()]
+    .filter(Boolean).join(" e ");
   const ctx = buildMergeContext({
     quote: {
       quote_number: dati.numero ?? "",

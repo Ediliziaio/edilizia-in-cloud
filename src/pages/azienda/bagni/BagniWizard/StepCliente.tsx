@@ -28,6 +28,7 @@ import { User, Users, Mail, Phone, X, Check, Briefcase } from "lucide-react";
 import type { BgnProgetto } from "@/types/bagni";
 import type { BgnFormPatch } from "./types";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
+import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 
 interface ContactLite {
@@ -239,6 +240,8 @@ export default function StepCliente({ form, onChange }: Props) {
             />
           </div>
         </div>
+
+        <Cointestatario form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 
         {/* Indirizzo dei lavori: la spunta «stesso indirizzo del contatto» c'è solo se il contatto ne ha uno. */}
         <IndirizzoDeiLavori
