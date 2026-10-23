@@ -151,8 +151,10 @@ export const macroAreas: MacroArea[] = [
       // Gli ODA vivono in un tab «acquisto» dentro Commesse, non è più una voce
       // di menu (doppia porta = menu più lungo e basta).
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
-      // Ufficio acquisti (22/10/2026): i materiali validati dal tecnico di tutte le commesse.
-      { title: "Acquisti da fare", url: "/azienda/acquisti-da-fare", icon: ShoppingCart, permissionKey: "canManagePurchasing" },
+      // Gli acquisti (materiali da ordinare, offerte, ordini, consegne) sono la
+      // scheda «Acquisti» di Commesse (23/10/2026). Questa voce serve solo a chi
+      // ha l'«Ufficio acquisti» senza vedere le Commesse: gli altri ci arrivano da lì.
+      { title: "Acquisti", url: "/azienda/ordini?tab=acquisto&vista=pipeline", icon: ShoppingCart, permissionKey: "canManagePurchasing", hideIfPermissionKey: "canViewOrders" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // Assistenza aggrega richieste (ticket + interventi), Manutenzione (impianti,
       // contratti, scadenze) e la vista in calendario: una porta sola, a schede

@@ -7,6 +7,8 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
+import { AcquistiDaFareRedirect } from "./company/AcquistiDaFareRedirect";
+import type { Permissions } from "@/hooks/usePermissions";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
@@ -41,6 +43,9 @@ function LegacyCommessaEditRedirect() {
   return <Navigate to={`${id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"}${location.search}`} replace />;
 }
 
+/** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
+const vedeOrdiniOAcquisti = (p: Permissions) => p.canViewOrders || p.canManagePurchasing;
+
 function addSearch(path: string, search: string) {
   if (!search) return path;
   return `${path}${path.includes("?") ? "&" : "?"}${search.replace(/^\?/, "")}`;
@@ -64,9 +69,11 @@ function CommercialistaWriteGuard({
 function CommercialistaPermissionScope({
   permission,
   children,
+  consenti,
 }: {
   permission: Parameters<typeof withCompanyPermission>[0];
   children: ReactNode;
+  consenti?: (permissions: Permissions) => boolean;
 }) {
   const location = useLocation();
   const { role, userRoles } = useAuth();
@@ -79,15 +86,16 @@ function CommercialistaPermissionScope({
   if (searchParams.get("commercialistaMode") === "1" && eCommercialista) {
     return <>{children}</>;
   }
-  return <>{withCompanyPermission(permission, children)}</>;
+  return <>{withCompanyPermission(permission, children, consenti)}</>;
 }
 
 function withCompanyPermissionOrCommercialista(
   permission: Parameters<typeof withCompanyPermission>[0],
   element: ReactNode,
+  consenti?: (permissions: Permissions) => boolean,
 ) {
   return (
-    <CommercialistaPermissionScope permission={permission}>
+    <CommercialistaPermissionScope permission={permission} consenti={consenti}>
       {element}
     </CommercialistaPermissionScope>
   );
@@ -378,7 +386,6 @@ const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaK
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
-const AcquistiDaFare = lazy(() => import("@/pages/azienda/AcquistiDaFare"));
 const ScomposizioniVoce = lazy(() => import("@/pages/azienda/ScomposizioniVoce"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
@@ -612,7 +619,7 @@ export default function CompanyRoutesContainer() {
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
         <Route path="commesse/:id/modifica" element={<LegacyCommessaEditRedirect />} />
-        <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
+        <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         {/* Cantieri oggi ora è una scheda di Commesse: il vecchio indirizzo ci porta. */}
         <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini?tab=oggi" replace />} />
         <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)} />
@@ -774,13 +781,14 @@ export default function CompanyRoutesContainer() {
         {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
-        <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />)} />
+        <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)} />
         {/* Le richieste d'offerta stanno prima degli ordini nello stesso flusso:
             chi puo' vedere gli ordini d'acquisto puo' vedere anche da dove nascono. */}
         <Route path="richieste-offerta" element={<Navigate to="/azienda/ordini?tab=offerte" replace />} />
-        <Route path="richieste-offerta/:rfqId" element={withCompanyPermissionOrCommercialista("canViewOrders", <SupplierRfqDetail />)} />
-        {/* Materiali per fase (22/10/2026): l'ufficio acquisti e la libreria delle scomposizioni. */}
-        <Route path="acquisti-da-fare" element={withCompanyPermission("canManagePurchasing", <ErrorBoundary title="Errore negli acquisti da fare"><AcquistiDaFare /></ErrorBoundary>)} />
+        <Route path="richieste-offerta/:rfqId" element={withCompanyPermissionOrCommercialista("canViewOrders", <SupplierRfqDetail />, vedeOrdiniOAcquisti)} />
+        {/* Materiali per fase: l'ufficio acquisti ora sta nella pipeline di Commesse › Acquisti
+            (23/10/2026); la vecchia pagina resta come indirizzo per le notifiche già inviate. */}
+        <Route path="acquisti-da-fare" element={<AcquistiDaFareRedirect />} />
         <Route path="scomposizioni" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nelle scomposizioni"><ScomposizioniVoce /></ErrorBoundary>)} />
         <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
         <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />

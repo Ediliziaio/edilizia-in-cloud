@@ -190,7 +190,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
   { label: "Firma Elettronica (FEA)", viewKey: "can_view_firma_elettronica",  editKey: null, description: "Modulo firma elettronica avanzata (cantieri e CRM)" },
   { label: "Validare i materiali",   viewKey: "can_validate_bom",            editKey: null, description: "Il tecnico che controlla i materiali di ogni fase della commessa: corregge quantità e specifiche, li valida o li rimanda indietro con una nota. Approva le scomposizioni proposte dall'AI." },
-  { label: "Ufficio acquisti",       viewKey: "can_manage_purchasing",       editKey: null, description: "Vede «Acquisti da fare» con i materiali validati di tutte le commesse, sceglie i fornitori, chiede offerte e crea gli ordini." },
+  { label: "Ufficio acquisti",       viewKey: "can_manage_purchasing",       editKey: null, description: "Vede la scheda «Acquisti» (in Commesse) con i materiali validati di tutte le commesse, le offerte e gli ordini, sceglie i fornitori, chiede offerte e crea gli ordini." },
 ];
 
 export const FINANZA_SECTIONS: PermissionSectionDef[] = [

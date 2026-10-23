@@ -69,6 +69,6 @@ export function spiegazioneFase(stato: StatoMaterialiFase | null, p: PermessiMat
       ? "Verifica le righe: correggi le quantità, valida o rimanda indietro con una nota."
       : "In verifica dal tecnico: per ora non si ordina.";
   }
-  if (stato === "validata") return "Validati dal tecnico: l'ufficio acquisti li vede in «Acquisti da fare».";
+  if (stato === "validata") return "Validati dal tecnico: l'ufficio acquisti li vede in Commesse › Acquisti, colonna «Da ordinare».";
   return null;
 }

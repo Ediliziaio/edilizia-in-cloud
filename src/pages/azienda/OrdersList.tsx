@@ -1969,8 +1969,11 @@ export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
   // Tab da scrivania (offerte, anomalie, marginalità, provvigioni) fuori dal telefono.
   const isMobile = useIsMobile();
-  const requestedTab = searchParams.get("tab") || "ordini";
   const permissions = usePermissions();
+  // Chi ha solo il permesso «Ufficio acquisti» (senza vedere le commesse) entra
+  // direttamente negli acquisti: è l'unica scheda che gli serve e che può leggere.
+  const soloAcquisti = !permissions.canViewOrders && permissions.canManagePurchasing;
+  const requestedTab = searchParams.get("tab") || (soloAcquisti ? "acquisto" : "ordini");
   const { isFeatureEnabled } = useFeatureFlags();
   const surveysEnabled = isFeatureEnabled("surveys_module");
   const handleTabChange = (tab: string) => {
@@ -1983,19 +1986,21 @@ export default function OrdersList() {
   };
 
   const tabs = [
-    { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
+    { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
     // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
     { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
-    { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewOrders },
+    // Il centro degli acquisti (23/10/2026): materiali da ordinare, offerte,
+    // ordini e consegne in una pipeline. Ha preso il posto di «Acquisti da fare».
+    { id: "acquisto", label: "Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts && !isMobile },
     { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
-  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");
 
   useEffect(() => {
     if (requestedTab !== activeTab) {
