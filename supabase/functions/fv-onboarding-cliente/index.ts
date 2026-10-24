@@ -326,3 +326,4 @@ function redactSensitive(payload: unknown): unknown {
 }
 
 // Cointestatario (24/10/2026): ripubblicata col preventivo cointestato.
+// Ripubblicata il 24/10/2026 con la firma del cointestatario.

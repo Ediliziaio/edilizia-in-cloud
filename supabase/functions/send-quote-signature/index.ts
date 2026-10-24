@@ -464,3 +464,4 @@ Deno.serve(async (req) => {
     return errorResponse("Errore interno", 500);
   }
 });
+// Ripubblicata il 24/10/2026 con la firma del cointestatario.

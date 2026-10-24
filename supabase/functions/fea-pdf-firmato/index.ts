@@ -51,3 +51,4 @@ Deno.serve(async (req: Request) => {
 });
 
 // Firma del cointestatario (24/10/2026): PDF firmato con le firme di tutto il gruppo.
+// Ripubblicata il 24/10/2026 con la firma del cointestatario.

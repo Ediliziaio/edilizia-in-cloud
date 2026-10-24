@@ -449,14 +449,18 @@ Deno.serve(async (req: Request) => {
       if (ownerId) {
         const signerLabel = sigReq.signer_name ?? "il cliente";
         const parziale = gruppo && gruppo.richiesti > 1 && !gruppo.completo;
+        const titoloAvviso = parziale
+          ? `Firmato da ${signerLabel}: ${gruppo.firmati} firme su ${gruppo.richiesti}`
+          : `Documento firmato da ${nomiFirmatari ?? signerLabel}`;
+        const testoAvviso = parziale
+          ? `${signerLabel} ha firmato. Manca la firma del cointestatario: il preventivo sarà accettato quando firmano tutti.`
+          : `${nomiFirmatari ?? signerLabel} ha firmato elettronicamente il documento.`;
         await supabaseAdmin.rpc("create_notification", {
           p_company_id: sigReq.company_id,
           p_user_id: ownerId,
           p_type: "documento_firmato",
-          p_title: parziale ? `Firmato da ${signerLabel} (${gruppo.firmati} di ${gruppo.richiesti})` : `Documento firmato da ${nomiFirmatari ?? signerLabel}`,
-          p_body: parziale
-            ? `${signerLabel} ha firmato. Manca la firma del cointestatario: il preventivo sarà accettato quando firmano tutti.`
-            : `${nomiFirmatari ?? signerLabel} ha firmato elettronicamente il documento.`,
+          p_title: titoloAvviso,
+          p_body: testoAvviso,
           p_entity_type: "signature_request",
           p_entity_id: sigReq.id,
           p_action_url: "/azienda/firma-elettronica",

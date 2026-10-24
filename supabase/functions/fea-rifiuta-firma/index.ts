@@ -204,3 +204,4 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+// Ripubblicata il 24/10/2026 con la firma del cointestatario.
