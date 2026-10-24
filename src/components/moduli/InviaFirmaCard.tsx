@@ -31,6 +31,7 @@ import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
 import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import {
   getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
+  firmatariDelPreventivo,
   type ModuleQuoteRow,
 } from "@/lib/moduli/quoteBridge";
 
@@ -55,6 +56,8 @@ interface Props {
   pdfDisponibile?: boolean;
   /** Telefono: con questa la card disegna la barra in basso del passo (indietro · PDF · invia). */
   onIndietro?: () => void;
+  /** Preventivo cointestato: firma online anche il secondo intestatario. */
+  cointestatario?: { nome: string; email?: string | null; telefono?: string | null } | null;
 }
 
 const SERVE_IL_PERMESSO = "Per mandarlo al cliente serve il permesso di modificare i preventivi.";
@@ -71,6 +74,9 @@ export function InviaFirmaCard(props: Props) {
   const [email, setEmail] = useState(props.clientEmail ?? "");
   const [telefono, setTelefono] = useState(props.clientPhone ?? "");
   const [messaggio, setMessaggio] = useState("");
+  const co = props.cointestatario?.nome?.trim() ? props.cointestatario : null;
+  const [coEmail, setCoEmail] = useState(co?.email ?? "");
+  const [coTelefono, setCoTelefono] = useState(co?.telefono ?? "");
 
   // Quote-ombra collegata al progetto (null = mai preparata). React Query:
   // niente fetch-in-effect e refetch pulito dopo l'invio.
@@ -79,7 +85,13 @@ export function InviaFirmaCard(props: Props) {
     enabled: !!props.companyId && !!props.progettoId,
     queryFn: () => getModuleQuote(props.companyId, props.moduleKey, props.progettoId),
   });
-  const refresh = async () => { await refetch(); };
+  // Chi deve firmare l'ultimo invio e chi l'ha già fatto (due, se cointestato).
+  const { data: firmatari = [], refetch: refetchFirmatari } = useQuery({
+    queryKey: ["module-quote-firmatari", quote?.id, quote?.sent_at],
+    enabled: !!quote?.id && !!quote?.sent_at,
+    queryFn: () => firmatariDelPreventivo(quote!.id),
+  });
+  const refresh = async () => { await refetch(); await refetchFirmatari(); };
   // Offerta già decisa dal cliente (firmata, rifiutata) o chiusa: non si rimanda per la firma.
   const esito = esitoOffertaModulo(quote);
 
@@ -87,6 +99,8 @@ export function InviaFirmaCard(props: Props) {
     if (!user?.id) { toast.error("Utente non autenticato"); return; }
     if (esito) { toast.error(FRASI_OFFERTA_MODULO[esito]); return; }
     if (!email.trim() || !email.includes("@")) { toast.error("Inserisci l'email del cliente"); return; }
+    if (co && (!coEmail.trim() || !coEmail.includes("@"))) { toast.error(`Inserisci l'email di ${co.nome}: firma anche il cointestatario`); return; }
+    if (co && coEmail.trim().toLowerCase() === email.trim().toLowerCase()) { toast.error("Il cointestatario deve avere un'email diversa da quella del cliente"); return; }
     if (props.total <= 0) { toast.error("Il preventivo non ha un totale: completa il computo"); return; }
     setWorking(true);
     try {
@@ -106,9 +120,12 @@ export function InviaFirmaCard(props: Props) {
         validityDays: props.validityDays ?? 30,
         pdfBlob,
       });
-      await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined);
+      await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined,
+        co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null);
       toast.success("Preventivo inviato per firma", {
-        description: `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
+        description: co
+          ? `Email a ${email.trim()} e a ${coEmail.trim()}: è accettato quando firmano tutti e due.`
+          : `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
       });
       setDialogOpen(false);
       await refresh();
@@ -136,6 +153,8 @@ export function InviaFirmaCard(props: Props) {
     // se il venditore l'ha compilata/cambiata in un altro step, il dialog
     // non deve mostrare il valore vecchio catturato al mount.
     if (props.clientEmail && !email.trim()) setEmail(props.clientEmail);
+    if (co?.email && !coEmail.trim()) setCoEmail(co.email);
+    if (co?.telefono && !coTelefono.trim()) setCoTelefono(co.telefono);
     setDialogOpen(true);
   };
 
@@ -170,7 +189,11 @@ export function InviaFirmaCard(props: Props) {
     }
   };
 
-  const stato = esito === "accettata"
+  const firmatiDelGruppo = firmatari.filter((f) => f.stato === "firmato").length;
+  const parziale = !esito && firmatari.length > 1 && firmatiDelGruppo > 0;
+  const stato = parziale
+    ? { label: `Firmato ${firmatiDelGruppo} di ${firmatari.length}`, icon: PenLine, cls: "bg-amber-100 text-amber-800" }
+    : esito === "accettata"
     ? { label: "Firmato dal cliente", icon: PenLine, cls: "bg-emerald-100 text-emerald-800" }
     : esito === "rifiutata"
     ? { label: "Rifiutato dal cliente", icon: XCircle, cls: "bg-red-100 text-red-800" }
@@ -216,6 +239,20 @@ export function InviaFirmaCard(props: Props) {
             />
             <p className="mt-1 text-[11px] text-muted-foreground">Il codice arriva anche via SMS, se l'azienda ha credito SMS.</p>
           </div>
+          {co && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-xs font-medium">Firma anche {co.nome} (cointestatario)</p>
+              <div>
+                <Label className="text-xs">Email del cointestatario</Label>
+                <Input type="email" className="h-9 mt-1" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="cointestatario@esempio.it" />
+              </div>
+              <div>
+                <Label className="text-xs">Cellulare del cointestatario (opzionale)</Label>
+                <Input type="tel" inputMode="tel" className="h-9 mt-1" value={coTelefono} onChange={(e) => setCoTelefono(e.target.value)} placeholder="333 123 4567" />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Ognuno riceve il suo link: il preventivo è accettato quando firmano tutti e due.</p>
+            </div>
+          )}
           <div>
             <Label className="text-xs">Messaggio (opzionale)</Label>
             <Input
@@ -330,6 +367,26 @@ export function InviaFirmaCard(props: Props) {
             <Lock className="h-3 w-3 shrink-0" />
             {FRASI_OFFERTA_MODULO[esito]}
           </p>
+        )}
+        {firmatari.length > 1 && (
+          <ul className="space-y-1 rounded-md border bg-background p-2 text-xs">
+            {firmatari.map((f) => (
+              <li key={f.link} className="flex items-center justify-between gap-2">
+                <span className="truncate">{f.nome}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className={f.stato === "firmato" ? "text-emerald-700" : f.stato === "rifiutato" ? "text-red-700" : "text-muted-foreground"}>
+                    {f.stato === "firmato" ? "Firmato" : f.stato === "rifiutato" ? "Rifiutato" : f.stato === "in_attesa" ? "In attesa" : "Chiuso"}
+                  </span>
+                  {f.stato === "in_attesa" && !senzaPermesso && (
+                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[11px]"
+                      onClick={() => { void navigator.clipboard.writeText(f.link).then(() => toast.success(`Link di ${f.nome} copiato`)); }}>
+                      <Copy className="h-3 w-3 mr-1" /> Link
+                    </Button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
         <div className="flex flex-wrap gap-2">
           <Button

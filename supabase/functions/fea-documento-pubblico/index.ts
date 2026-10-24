@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -86,6 +86,20 @@ Deno.serve(async (req: Request) => {
       return errore(410, "Link di firma scaduto");
     }
 
+    // Preventivo cointestato: l'altro intestatario e se ha già firmato (solo nome e stato).
+    let altriFirmatari: Array<{ nome: string; firmato: boolean }> = [];
+    if (sigReq.gruppo_firma_id) {
+      const { data: altri } = await supabaseAdmin
+        .from("signature_requests")
+        .select("signer_name, status, ordine_firmatario")
+        .eq("gruppo_firma_id", sigReq.gruppo_firma_id)
+        .neq("id", sigReq.id)
+        .order("ordine_firmatario");
+      altriFirmatari = (altri ?? []).map((a: { signer_name: string | null; status: string }) => ({
+        nome: a.signer_name ?? "Cointestatario", firmato: a.status === "signed",
+      }));
+    }
+
     // Già firmato: non esporre l'intero flusso, solo i dati per la conferma
     if (sigReq.status === "signed") {
       let pdfFirmatoUrl: string | null = null;
@@ -101,6 +115,7 @@ Deno.serve(async (req: Request) => {
           tipo_documento: sigReq.tipo_documento ?? "order",
           signer_name: sigReq.signer_name,
           pdf_firmato_url: pdfFirmatoUrl,
+          altri_firmatari: altriFirmatari,
         }),
         { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
       );
@@ -272,6 +287,7 @@ Deno.serve(async (req: Request) => {
       dichiarazione_fea: identita?.serveDichiarazione
         ? { versione: DICHIARAZIONE_VERSIONE, testo: testoDichiarazione(azienda_nome, branding.siteUrl) }
         : null,
+      altri_firmatari: altriFirmatari,
       // Se un OTP è ancora valido, la pagina salta l'invio e mostra subito i 6 campi
       otp_valido_fino: sigReq.otp_scadenza && new Date(sigReq.otp_scadenza) > new Date(Date.now() + 30_000)
         ? sigReq.otp_scadenza

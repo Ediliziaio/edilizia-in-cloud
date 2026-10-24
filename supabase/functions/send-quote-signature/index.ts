@@ -30,6 +30,9 @@ Deno.serve(async (req) => {
       // "solo_pdf": manda il preventivo in PDF via email, senza firma OTP.
       // Additivo: il flusso firma resta identico quando mode e' assente.
       mode,
+      // Preventivo cointestato: il secondo firmatario ({ nome, email, telefono }). Firmano
+      // tutti e due; il preventivo è accettato all'ultima firma (fea-completa-firma).
+      cointestatario,
     } = await req.json();
 
     if (!quote_id) return errorResponse("quote_id richiesto");
@@ -106,6 +109,19 @@ Deno.serve(async (req) => {
 
     if (!finalEmail) {
       return errorResponse("Il cliente non ha un indirizzo email");
+    }
+    const coNome = typeof cointestatario?.nome === "string" ? cointestatario.nome.trim() : "";
+    const coEmail = typeof cointestatario?.email === "string" ? cointestatario.email.trim() : "";
+    const coTelefono = typeof cointestatario?.telefono === "string" ? cointestatario.telefono.trim() : "";
+    const conCointestatario = mode !== "solo_pdf" && Boolean(coNome || coEmail);
+    if (conCointestatario) {
+      if (!coNome || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(coEmail)) {
+        return errorResponse("Per la firma del cointestatario servono nome ed email validi.", 400, corsH);
+      }
+      // Codice, identità e copia firmata viaggiano per email: due firmatari, due indirizzi.
+      if (coEmail.toLowerCase() === String(finalEmail).trim().toLowerCase()) {
+        return errorResponse("Il cointestatario deve avere un indirizzo email diverso da quello del cliente.", 400, corsH);
+      }
     }
 
     // Calculate expires_at
@@ -190,6 +206,8 @@ Deno.serve(async (req) => {
     }
 
     const signatureToken = crypto.randomUUID().replace(/-/g, "");
+    const tokenCointestatario = conCointestatario ? crypto.randomUUID().replace(/-/g, "") : null;
+    const gruppoFirma = conCointestatario ? crypto.randomUUID() : null;
     const tipoFirmatario = quote.client_company || quote.client_vat_number ? "b2b" : "b2c";
     const nowIso = new Date().toISOString();
 
@@ -273,6 +291,7 @@ Deno.serve(async (req) => {
         tipo_documento: "quote",
         tipo_firmatario: tipoFirmatario,
         documento_hash: congelato.hash,
+        ...(gruppoFirma ? { gruppo_firma_id: gruppoFirma, ordine_firmatario: 1, firmatari_richiesti: 2 } : {}),
       })
       .select("id, token")
       .single();
@@ -282,10 +301,49 @@ Deno.serve(async (req) => {
       await supabaseAdmin.storage.from("quote-pdfs").remove([congelato.path]);
       return errorResponse("Errore nella creazione della richiesta di firma FEA", 500);
     }
+    // Il cointestatario firma lo STESSO documento congelato, con un suo link e un suo codice.
+    let richiestaCointestatario: { id: string; token: string } | null = null;
+    if (gruppoFirma && tokenCointestatario) {
+      const { data: seconda, error: secondaErr } = await supabaseAdmin
+        .from("signature_requests")
+        .insert({
+          company_id: quote.company_id,
+          quote_id,
+          documento_path: congelato.path,
+          livello_firma: livelloFirma,
+          token: tokenCointestatario,
+          signer_email: coEmail,
+          signer_name: coNome,
+          signer_phone: normalizzaTelefonoE164(coTelefono || null),
+          status: "pending",
+          expires_at: expiresAt.toISOString(),
+          created_by: userId,
+          tipo_documento: "quote",
+          tipo_firmatario: "b2c",
+          documento_hash: congelato.hash,
+          gruppo_firma_id: gruppoFirma,
+          ordine_firmatario: 2,
+          firmatari_richiesti: 2,
+        })
+        .select("id, token")
+        .single();
+      if (secondaErr || !seconda) {
+        console.error("Richiesta di firma del cointestatario non creata:", secondaErr);
+        await supabaseAdmin.from("signature_requests").update({ status: "cancelled", updated_at: nowIso }).eq("id", signatureRequest.id);
+        return errorResponse("Richiesta di firma del cointestatario non creata. Riprova.", 500);
+      }
+      richiestaCointestatario = seconda;
+    }
     await supabaseAdmin.from("fea_audit_log").insert({
       request_id: signatureRequest.id, company_id: quote.company_id, evento: "documento_congelato",
-      metadati: { path: congelato.path, documento_hash: congelato.hash, livello_firma: livelloFirma },
+      metadati: { path: congelato.path, documento_hash: congelato.hash, livello_firma: livelloFirma, gruppo_firma_id: gruppoFirma },
     });
+    if (richiestaCointestatario) {
+      await supabaseAdmin.from("fea_audit_log").insert({
+        request_id: richiestaCointestatario.id, company_id: quote.company_id, evento: "documento_congelato",
+        metadati: { path: congelato.path, documento_hash: congelato.hash, livello_firma: livelloFirma, gruppo_firma_id: gruppoFirma },
+      });
+    }
 
     // Update quote
     await supabaseAdmin
@@ -354,11 +412,49 @@ Deno.serve(async (req) => {
       metadati: { signer_email: finalEmail },
     });
 
+    // Il secondo invito, al cointestatario, col suo link.
+    let linkCointestatario: string | null = null;
+    if (richiestaCointestatario) {
+      linkCointestatario = `${appUrl}/firma-fea/${richiestaCointestatario.token}`;
+      const invitoCo = emailInvitoFirma(await brandingFirma(supabaseAdmin, quote.company_id), {
+        nome: coNome,
+        documento: `Preventivo ${quote.quote_number}`,
+        oggetto: quote.title ?? null,
+        importo: Number(quote.total || 0),
+        scadenza: expiresAt,
+        link: linkCointestatario,
+        messaggio: typeof custom_message === "string" ? custom_message : null,
+      });
+      await supabaseAdmin.from("fea_audit_log").insert({
+        request_id: richiestaCointestatario.id, company_id: quote.company_id, evento: "sessione_creata",
+        metadati: { tipo_documento: "quote", signer_email: coEmail, quote_id, gruppo_firma_id: gruppoFirma },
+      });
+      const esitoCo = await sendEmailUnified({
+        companyId: quote.company_id, stream: "transactional", to: [coEmail],
+        subject: invitoCo.subject, html: invitoCo.html, text: invitoCo.text, replyTo: invitoCo.replyTo,
+        templateName: "quote_signature", skipCredits: false, adminClient: supabaseAdmin,
+        metadata: { quote_id: quote.id, quote_number: quote.quote_number, cointestatario: true },
+      });
+      if (esitoCo.ok) {
+        await supabaseAdmin.from("fea_audit_log").insert({
+          request_id: richiestaCointestatario.id, company_id: quote.company_id, evento: "link_inviato",
+          metadati: { signer_email: coEmail },
+        });
+      } else {
+        console.error("Invito al cointestatario non partito:", esitoCo);
+      }
+    }
+
     return jsonResponse({
       success: true,
-      message: "Offerta inviata con successo",
+      message: richiestaCointestatario ? "Offerta inviata ai due intestatari" : "Offerta inviata con successo",
       signature_link: signatureLink,
       signature_request_id: signatureRequest.id,
+      // Preventivo cointestato: un link per firmatario.
+      firmatari: [
+        { nome: finalName, email: finalEmail, link: signatureLink },
+        ...(richiestaCointestatario && linkCointestatario ? [{ nome: coNome, email: coEmail, link: linkCointestatario }] : []),
+      ],
       // Il codice parte quando il cliente lo chiede: qui l'invito è partito.
       otp_inviato: true,
     });

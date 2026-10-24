@@ -16,6 +16,7 @@ import { revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
  * derivano da `useMemo`, la company da react-query.
  */
 import { useMemo, useState } from "react";
+import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { useQuery } from "@tanstack/react-query";
 import {
   FileText, Download, Eye, Loader2, Check, AlertCircle, AlertTriangle,
@@ -201,6 +202,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           progettoId={progetto.id}
           titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
           clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          cointestatario={nomeCointestatario(progetto) ? { nome: nomeCointestatario(progetto)!, email: progetto.cointestatario_email, telefono: progetto.cointestatario_telefono } : null}
           clientEmail={progetto.cliente_email}
           clientPhone={progetto.cliente_telefono}
           subtotal={totali.imponibile}

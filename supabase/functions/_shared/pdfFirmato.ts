@@ -104,17 +104,21 @@ export function aCapo(testo: string, font: PDFFont, size: number, larghezza: num
   return righe;
 }
 
-/** Timbro in basso su ogni pagina del documento originale. */
-function timbra(pagine: PDFPage[], font: PDFFont, d: DatiCertificato) {
+/**
+ * Timbro in basso su ogni pagina del documento originale. Con più firmatari
+ * (preventivo cointestato) ognuno ha la sua riga, una sopra l'altra.
+ */
+function timbra(pagine: PDFPage[], font: PDFFont, d: DatiCertificato, riga = 0) {
   const totale = pagine.length;
+  const base = 5 + riga * 12;
   pagine.forEach((p, i) => {
     const { width } = p.getSize();
-    const riga = perPdf(`Firmato elettronicamente da ${d.firmatario} il ${d.firmatoIl} - Cod. verifica ${d.codiceVerifica} - pag. ${i + 1}/${totale}`);
+    const testo = perPdf(`Firmato elettronicamente da ${d.firmatario} il ${d.firmatoIl} - Cod. verifica ${d.codiceVerifica} - pag. ${i + 1}/${totale}`);
     const size = 6.5;
-    const w = font.widthOfTextAtSize(riga, size);
+    const w = font.widthOfTextAtSize(testo, size);
     const x = Math.max(8, (width - w) / 2);
-    p.drawRectangle({ x: x - 4, y: 5, width: Math.min(w + 8, width - 8), height: 11, color: rgb(1, 1, 1), opacity: 0.85 });
-    p.drawText(riga, { x, y: 8, size, font, color: rgb(0.25, 0.25, 0.3) });
+    p.drawRectangle({ x: x - 4, y: base, width: Math.min(w + 8, width - 8), height: 11, color: rgb(1, 1, 1), opacity: 0.85 });
+    p.drawText(testo, { x, y: base + 3, size, font, color: rgb(0.25, 0.25, 0.3) });
   });
 }
 
@@ -190,7 +194,10 @@ function aggiungiCertificato(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, 
   );
 }
 
-export async function costruisciPdfFirmato(originale: Uint8Array | null, d: DatiCertificato): Promise<Uint8Array> {
+export async function costruisciPdfFirmato(originale: Uint8Array | null, dati: DatiCertificato | DatiCertificato[]): Promise<Uint8Array> {
+  // Più firmatari dello stesso documento (preventivo cointestato): un timbro e un certificato ciascuno.
+  const firme = Array.isArray(dati) ? dati : [dati];
+  const d = firme[0];
   let pdf: PDFDocument;
   let conTimbro = false;
   if (originale) {
@@ -206,9 +213,12 @@ export async function costruisciPdfFirmato(originale: Uint8Array | null, d: Dati
   }
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const dati = { ...d, conTimbro };
-  if (conTimbro) timbra(pdf.getPages(), regular, dati);
-  aggiungiCertificato(pdf, regular, bold, dati);
+  const pagineDocumento = pdf.getPages();
+  firme.forEach((f, i) => {
+    const conIlTimbro = { ...f, conTimbro };
+    if (conTimbro) timbra(pagineDocumento, regular, conIlTimbro, i);
+  });
+  for (const f of firme) aggiungiCertificato(pdf, regular, bold, { ...f, conTimbro });
   pdf.setTitle(perPdf(`${d.documento} - firmato`));
   pdf.setProducer("Edilizia in Cloud");
   return await pdf.save();
@@ -293,24 +303,11 @@ const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50
  * quando la richiesta è `signed`. Se il file c'è già, lo restituisce.
  */
 // deno-lint-ignore no-explicit-any
-export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<PdfFirmatoEsito> {
-  const { data: r, error } = await sb
-    .from("signature_requests")
-    .select("id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica")
-    .eq("id", richiestaId)
-    .maybeSingle();
-  if (error || !r) throw new Error("Richiesta di firma non trovata");
-  if (r.status !== "signed" || !r.signed_at) throw new Error("La richiesta non e ancora firmata");
-  if (r.signed_pdf_path && r.codice_verifica) {
-    return { path: r.signed_pdf_path, codiceVerifica: r.codice_verifica, hash: r.signed_pdf_hash ?? "", creato: false };
-  }
+const COLONNE_RICHIESTA = "id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica, gruppo_firma_id, ordine_firmatario, firmatari_richiesti";
 
-  const { data: azienda } = await sb.from("companies").select("name").eq("id", r.company_id).maybeSingle();
-  const { bytes, titolo } = await scaricaOriginale(sb, r);
-  const originale = bytes && eUnPdf(bytes) ? bytes : null;
-  const hashDocumento = bytes ? await sha256Hex(bytes) : (r.documento_hash ?? null);
-  const impronteDiverse = !!(bytes && r.documento_hash && r.documento_hash !== hashDocumento);
-  if (impronteDiverse) throw new Error("Il documento originale è cambiato rispetto a quello inviato per la firma. La copia firmata non viene generata su un documento diverso.");
+/** I dati del certificato di UNA firma (firmatario, codice, clausole, identificazione). */
+// deno-lint-ignore no-explicit-any
+async function datiDellaFirma(sb: any, r: any, aziendaNome: string, titolo: string, hashDocumento: string | null, conTimbro: boolean): Promise<DatiCertificato> {
   const codiceVerifica = await codiceDiVerifica(r.id, hashDocumento, r.signed_at);
 
   // Il testo delle clausole approvate: gli id sono quelli di clausoleFirma.ts.
@@ -335,8 +332,8 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
     }
   }
 
-  const out = await costruisciPdfFirmato(originale, {
-    azienda: azienda?.name ?? "Edilizia in Cloud",
+  return {
+    azienda: aziendaNome,
     documento: titolo,
     firmatario: r.signer_name ?? "Firmatario",
     email: r.signer_email ?? "",
@@ -349,30 +346,78 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
     codiceVerifica,
     clausole,
     recessoAccettato: !!r.b2c_recesso,
-    conTimbro: !!originale,
-    impronteDiverse,
+    conTimbro,
+    impronteDiverse: false,
     telefonoSms: r.otp_canale === "sms" ? mascheraTelefono(r.signer_phone) : null,
     livello: r.livello_firma === "avanzata" && identita ? "avanzata" : "semplice",
     identita,
     dichiarazione,
-  });
+  };
+}
 
-  const path = `${r.company_id}/firmati/${r.id}.pdf`;
+/**
+ * Il PDF firmato della richiesta: il documento congelato con il timbro su ogni pagina e il
+ * certificato. Per un preventivo cointestato, quando hanno firmato tutti, è UN documento con
+ * il timbro e il certificato di ciascun firmatario, e vale per tutte le richieste del gruppo;
+ * finché ne manca uno, chi ha firmato ha il suo PDF con la sua sola firma.
+ */
+export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<PdfFirmatoEsito> {
+  const { data: r, error } = await sb
+    .from("signature_requests")
+    .select(COLONNE_RICHIESTA)
+    .eq("id", richiestaId)
+    .maybeSingle();
+  if (error || !r) throw new Error("Richiesta di firma non trovata");
+  if (r.status !== "signed" || !r.signed_at) throw new Error("La richiesta non e ancora firmata");
+
+  // Preventivo cointestato completo: il documento di tutti.
+  // deno-lint-ignore no-explicit-any
+  let firme: any[] = [r];
+  let path = `${r.company_id}/firmati/${r.id}.pdf`;
+  if (r.gruppo_firma_id && Number(r.firmatari_richiesti) > 1) {
+    const { data: gruppo } = await sb.from("signature_requests").select(COLONNE_RICHIESTA)
+      .eq("gruppo_firma_id", r.gruppo_firma_id).order("ordine_firmatario");
+    // deno-lint-ignore no-explicit-any
+    const firmate = (gruppo ?? []).filter((g: any) => g.status === "signed" && g.signed_at);
+    if (firmate.length >= Number(r.firmatari_richiesti)) {
+      firme = firmate;
+      path = `${r.company_id}/firmati/gruppo-${r.gruppo_firma_id}.pdf`;
+    }
+  }
+  if (r.signed_pdf_path === path && r.codice_verifica) {
+    return { path: r.signed_pdf_path, codiceVerifica: r.codice_verifica, hash: r.signed_pdf_hash ?? "", creato: false };
+  }
+
+  const { data: azienda } = await sb.from("companies").select("name").eq("id", r.company_id).maybeSingle();
+  const { bytes, titolo } = await scaricaOriginale(sb, r);
+  const originale = bytes && eUnPdf(bytes) ? bytes : null;
+  const hashDocumento = bytes ? await sha256Hex(bytes) : (r.documento_hash ?? null);
+  const impronteDiverse = !!(bytes && r.documento_hash && r.documento_hash !== hashDocumento);
+  if (impronteDiverse) throw new Error("Il documento originale è cambiato rispetto a quello inviato per la firma. La copia firmata non viene generata su un documento diverso.");
+
+  const aziendaNome = azienda?.name ?? "Edilizia in Cloud";
+  const dati: DatiCertificato[] = [];
+  for (const f of firme) dati.push(await datiDellaFirma(sb, f, aziendaNome, titolo, hashDocumento, !!originale));
+  const out = await costruisciPdfFirmato(originale, dati);
+
   const { error: upErr } = await sb.storage.from(BUCKET).upload(path, out, { contentType: "application/pdf", upsert: true });
   if (upErr) throw new Error(`Salvataggio del PDF firmato non riuscito: ${upErr.message}`);
 
   const hash = await sha256Hex(out);
-  const { error: updErr } = await sb
-    .from("signature_requests")
-    .update({ signed_pdf_path: path, signed_pdf_hash: hash, codice_verifica: codiceVerifica, ...(r.documento_hash || !hashDocumento ? {} : { documento_hash: hashDocumento }) })
-    .eq("id", r.id);
-  if (updErr) throw new Error(`Registrazione del PDF firmato non riuscita: ${updErr.message}`);
-
-  await sb.from("fea_audit_log").insert({
-    request_id: r.id,
-    company_id: r.company_id,
-    evento: "certificato_generato",
-    metadati: { path, hash, codice_verifica: codiceVerifica, con_timbro: !!originale, impronte_diverse: impronteDiverse },
-  });
+  // Ogni firma ha il suo codice di verifica; il file firmato è lo stesso per tutto il gruppo.
+  for (const [i, f] of firme.entries()) {
+    const { error: updErr } = await sb
+      .from("signature_requests")
+      .update({ signed_pdf_path: path, signed_pdf_hash: hash, codice_verifica: dati[i].codiceVerifica, ...(f.documento_hash || !hashDocumento ? {} : { documento_hash: hashDocumento }) })
+      .eq("id", f.id);
+    if (updErr) throw new Error(`Registrazione del PDF firmato non riuscita: ${updErr.message}`);
+    await sb.from("fea_audit_log").insert({
+      request_id: f.id,
+      company_id: r.company_id,
+      evento: "certificato_generato",
+      metadati: { path, hash, codice_verifica: dati[i].codiceVerifica, con_timbro: !!originale, impronte_diverse: false, firmatari: firme.length },
+    });
+  }
+  const codiceVerifica = dati[firme.findIndex((f) => f.id === r.id)]?.codiceVerifica ?? dati[0].codiceVerifica;
   return { path, codiceVerifica, hash, creato: true };
 }

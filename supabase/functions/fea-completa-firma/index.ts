@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, tipo_documento, created_by, categoria, documento_path, livello_firma, sessione_firma_hash, sessione_firma_scadenza")
+      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, tipo_documento, created_by, categoria, documento_path, livello_firma, sessione_firma_hash, sessione_firma_scadenza, gruppo_firma_id")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 
@@ -213,13 +213,31 @@ Deno.serve(async (req: Request) => {
     if (firmaErr) return errore(500, "Firma non registrata. Riprova tra qualche istante.");
     if (!firmata) return errore(409, "La richiesta di firma è cambiata. Ricarica il documento prima di procedere.");
 
-    if (sigReq.quote_id) {
+    // Preventivo cointestato: firmano tutti e due. Il documento si chiude (preventivo
+    // accettato, progetto firmato) solo all'ultima firma del gruppo, e una volta sola anche
+    // se le due firme arrivano insieme (fea_gruppo_dopo_firma). Una richiesta da sola si
+    // chiude con la sua firma, come prima.
+    const { data: statoGruppo, error: gruppoErr } = await supabaseAdmin.rpc("fea_gruppo_dopo_firma", { p_richiesta: sigReq.id });
+    if (gruppoErr) console.error("Stato del gruppo di firma non letto:", gruppoErr);
+    const gruppo = (Array.isArray(statoGruppo) ? statoGruppo[0] : statoGruppo) as
+      { completo: boolean; chiude: boolean; firmati: number; richiesti: number; nomi: string | null } | null;
+    // Una richiesta da sola si chiude con la sua firma anche se la risposta sul gruppo manca;
+    // in un gruppo, senza risposta il documento resta aperto: meglio una firma da completare
+    // che un'accettazione a metà.
+    const chiudeDocumento = gruppo ? gruppo.chiude : !sigReq.gruppo_firma_id;
+    const nomiFirmatari = gruppo?.nomi || sigReq.signer_name;
+    const ripristinaGruppo = async () => {
+      if (!sigReq.gruppo_firma_id) return;
+      await supabaseAdmin.from("signature_requests").update({ gruppo_completato_at: null }).eq("gruppo_firma_id", sigReq.gruppo_firma_id);
+    };
+
+    if (chiudeDocumento && sigReq.quote_id) {
       const { data: preventivoAggiornato, error: quoteUpdateErr } = await supabaseAdmin
         .from("quotes")
         .update({
           status: "accettata",
           signed_at: ora,
-          signed_by_name: sigReq.signer_name,
+          signed_by_name: nomiFirmatari,
           updated_at: ora,
         })
         .eq("id", sigReq.quote_id)
@@ -237,6 +255,7 @@ Deno.serve(async (req: Request) => {
             documento_hash_firma: null, firmatario_id: null,
             sessione_firma_hash: sigReq.sessione_firma_hash, sessione_firma_scadenza: sigReq.sessione_firma_scadenza })
           .eq("id", sigReq.id).eq("status", "signed").eq("signed_at", ora);
+        await ripristinaGruppo();
         return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
       }
     }
@@ -244,7 +263,7 @@ Deno.serve(async (req: Request) => {
     // Anche il progetto da cui nasce il documento risulta firmato. Prima restava
     // «emesso» (fotovoltaico) o «bozza» (moduli): modificabile, annullabile, e
     // l'opportunità non vedeva mai un preventivo accettato.
-    if (sigReq.fv_progetto_id) {
+    if (chiudeDocumento && sigReq.fv_progetto_id) {
       const { error: fvErr } = await supabaseAdmin
         .from("fv_progetti")
         .update({ stato: "firmato", firmato_il: ora })
@@ -252,7 +271,7 @@ Deno.serve(async (req: Request) => {
         .eq("company_id", sigReq.company_id);
       if (fvErr) console.error("Stato firmato sul preventivo fotovoltaico non aggiornato:", fvErr);
     }
-    if (sigReq.quote_id) {
+    if (chiudeDocumento && sigReq.quote_id) {
       // I moduli (ristrutturazione, bagni…) firmano tramite un preventivo «ombra»
       // con source = modulo:<chiave>:<id progetto>.
       const { data: ombra } = await supabaseAdmin
@@ -293,6 +312,8 @@ Deno.serve(async (req: Request) => {
         documento_hash_firma: hashAllaFirma,
         livello_firma: sigReq.livello_firma,
         firmatario_id: firmatario?.id ?? null,
+        gruppo_firma_id: sigReq.gruppo_firma_id ?? null,
+        firmati_nel_gruppo: gruppo ? `${gruppo.firmati}/${gruppo.richiesti}` : null,
         b2c_recesso: sigReq.tipo_firmatario === "b2c" ? (b2c_recesso_accettato ?? true) : null,
         // Il consenso con il testo che chi firma ha visto: è la prova.
         privacy_accettata: informativaPrivacy ? true : null,
@@ -389,6 +410,30 @@ Deno.serve(async (req: Request) => {
         console.error("Email copia firmata error:", emailErr);
         // Non blocchiamo la firma per un errore email
       }
+
+      // Preventivo cointestato completo: anche chi aveva già firmato riceve il documento
+      // finale, con le firme di tutti.
+      if (gruppo?.completo && gruppo.richiesti > 1 && sigReq.gruppo_firma_id && allegato) {
+        const { data: altri } = await supabaseAdmin.from("signature_requests")
+          .select("id, signer_name, signer_email")
+          .eq("gruppo_firma_id", sigReq.gruppo_firma_id).neq("id", sigReq.id).eq("status", "signed");
+        for (const a of altri ?? []) {
+          try {
+            const copiaFinale = emailCopiaFirmata(marchio, {
+              nome: a.signer_name ?? "Gentile cliente", documento, firmatoIl: ora,
+              codiceVerifica: codice, linkVerifica, conPdf: true,
+            });
+            await sendEmailUnified({
+              companyId: sigReq.company_id, stream: "transactional", to: [a.signer_email],
+              subject: copiaFinale.subject, html: copiaFinale.html, text: copiaFinale.text, replyTo: copiaFinale.replyTo,
+              templateName: "fea_firma_completata", skipCredits: true, adminClient: supabaseAdmin,
+              attachments: [allegato], metadata: { request_id: a.id, signer_email: a.signer_email, documento_finale: true },
+            });
+          } catch (e) {
+            console.error("Copia finale al primo firmatario non inviata:", e);
+          }
+        }
+      }
     })();
     // deno-lint-ignore no-explicit-any
     const runtime = (globalThis as any).EdgeRuntime;
@@ -403,12 +448,15 @@ Deno.serve(async (req: Request) => {
       const ownerId = await risolviOwner(supabaseAdmin, sigReq);
       if (ownerId) {
         const signerLabel = sigReq.signer_name ?? "il cliente";
+        const parziale = gruppo && gruppo.richiesti > 1 && !gruppo.completo;
         await supabaseAdmin.rpc("create_notification", {
           p_company_id: sigReq.company_id,
           p_user_id: ownerId,
           p_type: "documento_firmato",
-          p_title: `Documento firmato da ${signerLabel}`,
-          p_body: `${signerLabel} ha firmato elettronicamente il documento.`,
+          p_title: parziale ? `Firmato da ${signerLabel} (${gruppo.firmati} di ${gruppo.richiesti})` : `Documento firmato da ${nomiFirmatari ?? signerLabel}`,
+          p_body: parziale
+            ? `${signerLabel} ha firmato. Manca la firma del cointestatario: il preventivo sarà accettato quando firmano tutti.`
+            : `${nomiFirmatari ?? signerLabel} ha firmato elettronicamente il documento.`,
           p_entity_type: "signature_request",
           p_entity_id: sigReq.id,
           p_action_url: "/azienda/firma-elettronica",
@@ -419,7 +467,11 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, firma_timestamp: ora }),
+      JSON.stringify({
+        success: true, firma_timestamp: ora,
+        // Preventivo cointestato: quanti hanno firmato su quanti devono firmare.
+        firmati: gruppo?.firmati ?? 1, firmatari_richiesti: gruppo?.richiesti ?? 1, completo: gruppo?.completo ?? true,
+      }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {

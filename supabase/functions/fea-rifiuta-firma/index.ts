@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, expires_at, company_id, quote_id, order_id, tipo_documento, signer_name, created_by")
+      .select("id, status, expires_at, company_id, quote_id, order_id, tipo_documento, signer_name, created_by, gruppo_firma_id")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 
@@ -141,6 +141,18 @@ Deno.serve(async (req: Request) => {
     });
     if (auditErr) {
       console.error("fea-rifiuta-firma audit error:", auditErr);
+    }
+
+    // Preventivo cointestato: un rifiuto vale per tutti. Il link dell'altro intestatario
+    // si chiude, così nessuno firma un preventivo già rifiutato.
+    if (sigReq.gruppo_firma_id) {
+      const { error: gruppoErr } = await supabaseAdmin
+        .from("signature_requests")
+        .update({ status: "cancelled", updated_at: ora })
+        .eq("gruppo_firma_id", sigReq.gruppo_firma_id)
+        .neq("id", sigReq.id)
+        .in("status", ["pending", "otp_verified"]);
+      if (gruppoErr) console.error("fea-rifiuta-firma: link del cointestatario non chiuso:", gruppoErr);
     }
 
     // Sync preventivo collegato: 'rifiutata' è uno stato valido di quotes (QuoteStatus).

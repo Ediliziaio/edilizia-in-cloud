@@ -9,6 +9,7 @@
  * rigenera la pagina e ne manda il link col foglio di condivisione.
  */
 import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
+import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrPagamentoMilestone, SrPianoFinanziamento, SrProgettoDetail, SrWizardStep } from "@/types/serramenti";
@@ -205,6 +206,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
           progettoId={progettoId}
           titolo={titoloInvio}
           clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          cointestatario={nomeCointestatario(p) ? { nome: nomeCointestatario(p)!, email: p.cointestatario_email, telefono: p.cointestatario_telefono } : null}
           clientEmail={p.cliente_email}
           clientPhone={p.cliente_telefono}
           subtotal={importiDiFirma.imponibile}

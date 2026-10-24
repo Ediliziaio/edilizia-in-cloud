@@ -34,6 +34,7 @@ interface ContattoCointestatario {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  phone: string | null;
   fiscal_code: string | null;
 }
 
@@ -50,7 +51,7 @@ export function Cointestatario({ form, onChange }: Props) {
     enabled: !!companyId && scelta,
     queryFn: async (): Promise<ContattoCointestatario[]> => {
       let q = supabase.from("marketing_contacts")
-        .select("id, first_name, last_name, email, fiscal_code")
+        .select("id, first_name, last_name, email, phone, fiscal_code")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .limit(20);
@@ -67,6 +68,8 @@ export function Cointestatario({ form, onChange }: Props) {
     onChange("cointestatario_nome", c.first_name?.trim() || null);
     onChange("cointestatario_cognome", c.last_name?.trim() || null);
     onChange("cointestatario_codice_fiscale", c.fiscal_code?.trim().toUpperCase() || null);
+    onChange("cointestatario_email", c.email?.trim() || null);
+    onChange("cointestatario_telefono", c.phone?.trim() || null);
     setScelta(false);
   };
 
@@ -86,6 +89,8 @@ export function Cointestatario({ form, onChange }: Props) {
               onChange("cointestatario_nome", null);
               onChange("cointestatario_cognome", null);
               onChange("cointestatario_codice_fiscale", null);
+              onChange("cointestatario_email", null);
+              onChange("cointestatario_telefono", null);
             }
           }}
         />
@@ -130,6 +135,14 @@ export function Cointestatario({ form, onChange }: Props) {
               <Label htmlFor="cointestatario-cf" className="text-xs">Codice fiscale</Label>
               <Input id="cointestatario-cf" value={form.cointestatario_codice_fiscale ?? ""}
                 onChange={(e) => onChange("cointestatario_codice_fiscale", e.target.value.trim() === "" ? null : e.target.value.toUpperCase())} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cointestatario-email" className="text-xs">Email (per la firma online)</Label>
+              <Input id="cointestatario-email" type="email" value={form.cointestatario_email ?? ""} onChange={cambia("cointestatario_email")} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cointestatario-telefono" className="text-xs">Cellulare</Label>
+              <Input id="cointestatario-telefono" type="tel" inputMode="tel" value={form.cointestatario_telefono ?? ""} onChange={cambia("cointestatario_telefono")} />
             </div>
           </div>
         </>

@@ -51,6 +51,15 @@ describe("PDF firmato", () => {
     expect(String.fromCharCode(...out.slice(0, 4))).toBe("%PDF");
   });
 
+  it("preventivo cointestato: un timbro per firmatario su ogni pagina e un certificato ciascuno", async () => {
+    const secondo = { ...dati, firmatario: "Anna Bianchi", email: "anna@example.it", richiestaId: "66666666-7777-8888-9999-000000000000", codiceVerifica: "WXYZ-9876-AB12" };
+    const out = await costruisciPdfFirmato(await pdfDiPagine(2), [dati, secondo]);
+    const letto = await PDFDocument.load(out);
+    // 2 pagine del documento + un certificato per firmatario (con una sola firma: 2 + 1).
+    expect(letto.getPageCount()).toBe(4);
+    expect((await PDFDocument.load(await costruisciPdfFirmato(await pdfDiPagine(2), dati))).getPageCount()).toBe(3);
+  });
+
   it("senza PDF originale (preventivo HTML) resta il solo certificato", async () => {
     const out = await costruisciPdfFirmato(null, dati);
     expect((await PDFDocument.load(out)).getPageCount()).toBeGreaterThanOrEqual(1);

@@ -49,3 +49,5 @@ Deno.serve(async (req: Request) => {
     return risposta(500, { error: "Errore interno del server" });
   }
 });
+
+// Firma del cointestatario (24/10/2026): PDF firmato con le firme di tutto il gruppo.

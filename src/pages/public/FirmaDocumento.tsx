@@ -93,6 +93,8 @@ export default function FirmaDocumento() {
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
   const [firmaTimestamp, setFirmaTimestamp] = useState('');
+  const [altriFirmatari, setAltriFirmatari] = useState<Array<{ nome: string; firmato: boolean }>>([]);
+  const [manca, setManca] = useState(false);
   const [pdfFirmatoUrl, setPdfFirmatoUrl] = useState<string | null>(null);
   const [recuperoPdfInCorso, setRecuperoPdfInCorso] = useState(false);
   const [rifiutoDialogAperto, setRifiutoDialogAperto] = useState(false);
@@ -165,6 +167,7 @@ export default function FirmaDocumento() {
       if (!data) throw new Error('Link non valido');
       if (data.error) throw new Error(data.error);
       // Documento già firmato: solo schermata di conferma, niente flusso di firma
+      setAltriFirmatari(Array.isArray(data.altri_firmatari) ? data.altri_firmatari : []);
       if (data.already_signed || data.status === 'signed') {
         setPdfFirmatoUrl(data.pdf_firmato_url ?? null);
         setFirmaTimestamp(data.signed_at ?? '');
@@ -336,6 +339,8 @@ export default function FirmaDocumento() {
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Registrazione della firma non confermata. Riprova.');
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
+      // Preventivo cointestato: manca ancora la firma dell'altro intestatario?
+      setManca(data.completo === false);
       setStep('successo');
       void recuperaCopiaFirmata(true);
     } catch (err) {
@@ -653,6 +658,9 @@ export default function FirmaDocumento() {
         <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-1">
           <p><strong>Documento:</strong> {sessione.documento_titolo}</p>
           <p><strong>Firmatario:</strong> {sessione.signer_name}</p>
+          {altriFirmatari.length > 0 && (
+            <p><strong>Firma anche:</strong> {altriFirmatari.map((f) => `${f.nome}${f.firmato ? ' (ha firmato)' : ''}`).join(', ')} — il documento è valido quando firmano tutti.</p>
+          )}
           <p><strong>Azienda:</strong> {sessione.azienda_nome}</p>
           <p><strong>Data e ora:</strong> {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: it })}</p>
         </div>
@@ -796,6 +804,11 @@ export default function FirmaDocumento() {
             ? `Documento già firmato il ${format(new Date(firmaTimestamp), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}.`
             : 'Questo documento risulta già firmato.'}
         </p>
+        {altriFirmatari.some((f) => !f.firmato) && (
+          <p className="text-amber-700 text-sm max-w-xs">
+            In attesa della firma di {altriFirmatari.filter((f) => !f.firmato).map((f) => f.nome).join(' e ')}.
+          </p>
+        )}
         <p className="text-slate-500 text-sm max-w-xs">
           Non è richiesta nessuna ulteriore azione. Per assistenza contatta l&apos;azienda che ti ha inviato il link.
         </p>
@@ -820,6 +833,11 @@ export default function FirmaDocumento() {
           La firma elettronica è stata registrata correttamente.
           {sessione?.tipo_firmatario === 'b2c' && ' Riceverai una copia via email.'}
         </p>
+        {manca && altriFirmatari.length > 0 && (
+          <p className="text-amber-700 text-sm max-w-xs">
+            Manca ancora la firma di {altriFirmatari.filter((f) => !f.firmato).map((f) => f.nome).join(' e ') || 'del cointestatario'}: quando firma, riceverai il documento con tutte e due le firme.
+          </p>
+        )}
         {sessione?.pdf_url && (
           <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="gap-2 h-11">

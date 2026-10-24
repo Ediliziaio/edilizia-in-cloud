@@ -42,6 +42,8 @@ export const INITIAL: WizardData = {
   cointestatario_nome: "",
   cointestatario_cognome: "",
   cointestatario_codice_fiscale: "",
+  cointestatario_email: "",
+  cointestatario_telefono: "",
   archetipo: "privato_prima",
   indirizzo: "",
   comune: "",

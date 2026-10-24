@@ -53,6 +53,8 @@ interface FvSolarLeadInput {
   cointestatario_nome?: string | null;
   cointestatario_cognome?: string | null;
   cointestatario_codice_fiscale?: string | null;
+  cointestatario_email?: string | null;
+  cointestatario_telefono?: string | null;
 }
 
 function validateInput(p: FvSolarLeadInput): string | null {
@@ -223,6 +225,8 @@ Deno.serve(async (req: Request) => {
         cointestatario_nome: payload.cointestatario_nome ?? null,
         cointestatario_cognome: payload.cointestatario_cognome ?? null,
         cointestatario_codice_fiscale: payload.cointestatario_codice_fiscale ?? null,
+        cointestatario_email: payload.cointestatario_email ?? null,
+        cointestatario_telefono: payload.cointestatario_telefono ?? null,
         archetipo: payload.archetipo,
         stato: "bozza",
         indirizzo: payload.indirizzo,

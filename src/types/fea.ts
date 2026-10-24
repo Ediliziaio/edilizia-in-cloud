@@ -184,6 +184,8 @@ export interface FEARichiediDTO {
 }
 
 export interface FEASessionePubblica {
+  /** Preventivo cointestato: gli altri firmatari dello stesso documento e se hanno già firmato. */
+  altri_firmatari?: Array<{ nome: string; firmato: boolean }>;
   request_id: string;
   tipo_documento: FEATipoDocumento;
   tipo_firmatario: FEATipoFirmatario;

@@ -114,6 +114,9 @@ export interface SrProgettoRow {
   cointestatario_nome?: string | null;
   cointestatario_cognome?: string | null;
   cointestatario_codice_fiscale?: string | null;
+  /** Email e cellulare del cointestatario: servono per la sua firma online. */
+  cointestatario_email?: string | null;
+  cointestatario_telefono?: string | null;
 
   // Cantiere
   cantiere_indirizzo: string | null;

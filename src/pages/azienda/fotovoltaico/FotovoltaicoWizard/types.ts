@@ -22,6 +22,8 @@ export interface WizardData {
   cointestatario_nome: string;
   cointestatario_cognome: string;
   cointestatario_codice_fiscale: string;
+  cointestatario_email: string;
+  cointestatario_telefono: string;
   archetipo: FvArchetipo;
   // Step 2: Immobile
   indirizzo: string;

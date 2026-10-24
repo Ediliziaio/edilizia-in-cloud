@@ -87,6 +87,8 @@ export async function createProgetto(
     cointestatario_nome: input.cointestatario_nome ?? null,
     cointestatario_cognome: input.cointestatario_cognome ?? null,
     cointestatario_codice_fiscale: input.cointestatario_codice_fiscale ?? null,
+    cointestatario_email: input.cointestatario_email ?? null,
+    cointestatario_telefono: input.cointestatario_telefono ?? null,
     cantiere_indirizzo: input.cantiere_indirizzo ?? null,
     cantiere_citta: input.cantiere_citta ?? null,
     cantiere_cap: input.cantiere_cap ?? null,
@@ -292,6 +294,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   "cliente_citta", "cliente_cap", "cliente_provincia", "cliente_telefono",
   "cliente_email", "cliente_codice_fiscale",
   "cointestatario_nome", "cointestatario_cognome", "cointestatario_codice_fiscale",
+  "cointestatario_email", "cointestatario_telefono",
   // Cantiere
   "cantiere_indirizzo", "cantiere_citta", "cantiere_cap", "cantiere_provincia",
   "cantiere_lat", "cantiere_lng", "cantiere_zona_climatica", "cantiere_piano",

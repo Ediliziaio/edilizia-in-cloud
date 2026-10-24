@@ -173,6 +173,8 @@ export async function sendModuleQuoteSignature(
   recipientName: string,
   customMessage?: string,
   recipientPhone?: string,
+  /** Preventivo cointestato: firma anche il secondo intestatario, con un suo link. */
+  cointestatario?: { nome: string; email: string; telefono?: string | null } | null,
 ): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-quote-signature", {
     body: {
@@ -181,6 +183,7 @@ export async function sendModuleQuoteSignature(
       recipient_name: recipientName,
       custom_message: customMessage || undefined,
       recipient_phone: recipientPhone || undefined,
+      cointestatario: cointestatario ?? undefined,
     },
   });
   // La frase vera del rifiuto sta nel corpo della risposta: `error.message` è il generico «non-2xx».
@@ -196,6 +199,42 @@ export async function sendModuleQuoteSignature(
  *  senza trattini: si normalizza, altrimenti il link non risolve. */
 export function signatureLink(token: string): string {
   return `${window.location.origin}/firma-fea/${token.replace(/-/g, "")}`;
+}
+
+export interface FirmatarioDelPreventivo {
+  nome: string;
+  stato: "in_attesa" | "firmato" | "rifiutato" | "chiuso";
+  link: string;
+}
+
+/**
+ * Chi deve firmare l'ultimo invio del preventivo e a che punto è: uno, o due per un
+ * preventivo cointestato (le richieste dello stesso gruppo di firma).
+ */
+export async function firmatariDelPreventivo(quoteId: string): Promise<FirmatarioDelPreventivo[]> {
+  // Le colonne del gruppo di firma non sono ancora nei tipi generati di Supabase.
+  type Riga = { id: string; gruppo_firma_id: string | null; signer_name: string | null; status: string; token: string };
+  type Esito<T> = PromiseLike<{ data: T | null }>;
+  interface Domanda { eq(c: string, v: string): Domanda; order(c: string, o?: { ascending: boolean }): Domanda; limit(n: number): Domanda; maybeSingle(): Esito<Riga>; then: Esito<Riga[]>["then"] }
+  const sb = supabase as unknown as { from(t: string): { select(c: string): Domanda } };
+  const { data: ultima } = await sb
+    .from("signature_requests")
+    .select("id, gruppo_firma_id")
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!ultima) return [];
+  const { data } = ultima.gruppo_firma_id
+    ? await sb.from("signature_requests").select("signer_name, status, token, ordine_firmatario")
+      .eq("gruppo_firma_id", ultima.gruppo_firma_id).order("ordine_firmatario")
+    : await sb.from("signature_requests").select("signer_name, status, token, ordine_firmatario").eq("id", ultima.id);
+  return (data ?? []).map((r) => ({
+    nome: r.signer_name ?? "Firmatario",
+    stato: r.status === "signed" ? "firmato" : r.status === "refused" ? "rifiutato"
+      : r.status === "pending" || r.status === "otp_verified" ? "in_attesa" : "chiuso",
+    link: `${window.location.origin}/firma-fea/${r.token}`,
+  }));
 }
 
 /** Link di firma della richiesta FEA più recente del preventivo (fonte di verità). */
