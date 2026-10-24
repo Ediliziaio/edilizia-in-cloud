@@ -135,6 +135,23 @@ describe("Retry-safe Google creation and imports", () => {
     await expect(saveGoogleAppointmentMapping(x.db, { ...mapping, google_event_id: "other" })).rejects.toThrow("non salvato");
     await expect(saveGoogleAppointmentMapping(x.db, { ...mapping, user_id: "other-reader" })).resolves.toBeUndefined();
   });
+  it("un collegamento identico già salvato da un collega non si reinserisce: niente conflitto, niente errore nel database", async () => {
+    // Calendario condiviso: più colleghi leggono lo stesso evento, l'id dell'appuntamento
+    // è lo stesso. Prima si inseriva e si aspettava il conflitto: stesso esito, ma un
+    // ERRORE nel database a ogni giro (228 al giorno).
+    const x = database();
+    await expect(saveGoogleAppointmentMapping(x.db, { ...mapping, user_id: "other-reader" })).resolves.toBeUndefined();
+    const sulCollegamento = x.state.operations.filter(op => op.table === "google_calendar_event_map");
+    expect(sulCollegamento.map(op => op.kind)).toEqual(["select"]);
+    expect(x.state.rows.google_calendar_event_map).toHaveLength(1);
+  });
+  it("un collegamento nuovo si controlla e poi si inserisce", async () => {
+    const x = database();
+    await expect(saveGoogleAppointmentMapping(x.db, { ...mapping, appointment_id: "apt-nuovo", google_event_id: "event-nuovo" })).resolves.toBeUndefined();
+    const sulCollegamento = x.state.operations.filter(op => op.table === "google_calendar_event_map");
+    expect(sulCollegamento.map(op => op.kind)).toEqual(["select", "insert"]);
+    expect(x.state.rows.google_calendar_event_map).toHaveLength(2);
+  });
 });
 
 describe("Google deletion must succeed before local cleanup", () => {

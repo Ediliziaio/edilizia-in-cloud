@@ -81,6 +81,16 @@ export async function loadGoogleAppointmentMappings(db: any, scope: Scope): Prom
 }
 
 export async function saveGoogleAppointmentMapping(db: any, values: Record<string, any>): Promise<void> {
+  // Calendario condiviso: più colleghi leggono lo stesso evento e tutti arrivano
+  // allo stesso appuntamento (l'id non dipende dall'utente). Il collegamento
+  // identico c'è già: prima si guarda, poi si inserisce. Inserire e aspettare il
+  // conflitto dava lo stesso risultato, ma un ERRORE in più nel database a ogni
+  // giro (228 al giorno il 24/10/2026) che copriva quelli veri.
+  const { data: giaSalvato } = await db.from("google_calendar_event_map").select("id")
+    .eq("company_id", values.company_id)
+    .eq("appointment_id", values.appointment_id).eq("google_calendar_id", values.google_calendar_id)
+    .eq("google_event_id", values.google_event_id).maybeSingle();
+  if (giaSalvato) return;
   const { error } = await db.from("google_calendar_event_map").insert(values);
   if (!error) return;
   if (error.code === "23505") {
