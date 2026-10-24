@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,9 @@ import {
   FileSpreadsheet,
   Archive,
   ChevronDown,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -168,6 +171,56 @@ function etichettaCategoria(c: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/** Chip di filtro rapido: si accende/spegne e mostra quante fatture contiene. */
+function ChipFiltro({ attivo, onClick, conteggio, children }: {
+  attivo: boolean;
+  onClick: () => void;
+  conteggio?: number;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={attivo}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        attivo
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      {children}
+      {conteggio != null && (
+        <span className={`tabular-nums ${attivo ? "opacity-80" : "text-muted-foreground"}`}>{conteggio}</span>
+      )}
+    </button>
+  );
+}
+
+/** Intestazione di colonna che si ordina al clic; la freccia dice il verso. */
+function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, className }: {
+  children: ReactNode;
+  campo: "data" | "fornitore" | "totale";
+  ordinamento: { campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" };
+  onOrdina: (campo: "data" | "fornitore" | "totale") => void;
+  className?: string;
+}) {
+  const attiva = ordinamento.campo === campo;
+  const Icona = !attiva ? ArrowUpDown : ordinamento.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={() => onOrdina(campo)}
+        className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${attiva ? "text-foreground" : ""}`}
+      >
+        {children}
+        <Icona className={`h-3.5 w-3.5 ${attiva ? "opacity-100" : "opacity-30"}`} />
+      </button>
+    </TableHead>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────
 
 export default function FattureRicevutePage() {
@@ -178,6 +231,15 @@ export default function FattureRicevutePage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
+  const [tipoFilter, setTipoFilter] = useState("all");
+  // «__nessuna__» = mai classificata dall'AI.
+  const [categoriaFilter, setCategoriaFilter] = useState("all");
+  const [ordineFilter, setOrdineFilter] = useState<"all" | "con" | "senza">("all");
+  const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">("all");
+  const [ordinamento, setOrdinamento] = useState<{ campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" }>({
+    campo: "data",
+    dir: "desc",
+  });
   // Le fatture dei fornitori arrivano dall'import del gestionale: Best Infissi
   // ne ha 6.979 dal 2020 e la pagina le chiedeva TUTTE, oltre il tetto di mille
   // righe di PostgREST — che tagliava via una parte dell'anno in corso. Si parte
@@ -328,10 +390,66 @@ export default function FattureRicevutePage() {
 
   // ─── Filters ────────────────────────────────────────────
 
+  const opzioniTipo = useMemo(
+    () => [...new Set(fatture.map((f) => f.tipo_documento).filter(Boolean))].sort(),
+    [fatture],
+  );
+  const opzioniCategoria = useMemo(
+    () => [...new Set(fatture.map((f) => f.categoria_ai).filter(Boolean) as string[])].sort(),
+    [fatture],
+  );
+  // Conteggi dei chip rapidi, sull'intero anno (non sul risultato dei filtri).
+  const conteggi = useMemo(
+    () => ({
+      daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
+      senzaOrdine: fatture.filter((f) => !f.purchase_order_id).length,
+    }),
+    [fatture],
+  );
+  const filtriAttivi =
+    (statoFilter !== "all" ? 1 : 0) +
+    (tipoFilter !== "all" ? 1 : 0) +
+    (categoriaFilter !== "all" ? 1 : 0) +
+    (ordineFilter !== "all" ? 1 : 0) +
+    (contabFilter !== "all" ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0);
+
+  const azzeraFiltri = () => {
+    setSearchQuery("");
+    setStatoFilter("all");
+    setTipoFilter("all");
+    setCategoriaFilter("all");
+    setOrdineFilter("all");
+    setContabFilter("all");
+  };
+
+  const ordinaPer = (campo: "data" | "fornitore" | "totale") =>
+    setOrdinamento((o) =>
+      o.campo === campo
+        ? { campo, dir: o.dir === "asc" ? "desc" : "asc" }
+        : { campo, dir: campo === "fornitore" ? "asc" : "desc" },
+    );
+
   const filtered = useMemo(() => {
     let result = fatture;
     if (statoFilter !== "all") {
       result = result.filter((f) => f.stato === statoFilter);
+    }
+    if (tipoFilter !== "all") {
+      result = result.filter((f) => f.tipo_documento === tipoFilter);
+    }
+    if (categoriaFilter === "__nessuna__") {
+      result = result.filter((f) => !f.categoria_ai);
+    } else if (categoriaFilter !== "all") {
+      result = result.filter((f) => f.categoria_ai === categoriaFilter);
+    }
+    if (ordineFilter === "con") {
+      result = result.filter((f) => !!f.purchase_order_id);
+    } else if (ordineFilter === "senza") {
+      result = result.filter((f) => !f.purchase_order_id);
+    }
+    if (contabFilter === "da_contabilizzare") {
+      result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -342,8 +460,17 @@ export default function FattureRicevutePage() {
           f.cedente_piva?.includes(q)
       );
     }
-    return result;
-  }, [fatture, statoFilter, searchQuery]);
+    const segno = ordinamento.dir === "asc" ? 1 : -1;
+    return [...result].sort((a, b) => {
+      if (ordinamento.campo === "fornitore") {
+        return segno * (a.cedente_ragione_sociale ?? "").localeCompare(b.cedente_ragione_sociale ?? "", "it");
+      }
+      if (ordinamento.campo === "totale") {
+        return segno * ((a.totale_documento ?? 0) - (b.totale_documento ?? 0));
+      }
+      return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
+    });
+  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, searchQuery, ordinamento]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -919,39 +1046,121 @@ export default function FattureRicevutePage() {
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
 
-      {/* Filters */}
-      <div className="flex gap-3 max-sm:hidden">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per fornitore, numero fattura, P.IVA..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      {/* Filtri: chip rapidi con il conteggio, poi ricerca e tendine. */}
+      <div className="space-y-3 max-sm:hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
+            Tutte
+          </ChipFiltro>
+          <ChipFiltro
+            attivo={statoFilter === "non_letta"}
+            onClick={() => setStatoFilter((s) => (s === "non_letta" ? "all" : "non_letta"))}
+            conteggio={kpi.nonLette}
+          >
+            Da leggere
+          </ChipFiltro>
+          <ChipFiltro
+            attivo={contabFilter === "da_contabilizzare"}
+            onClick={() => setContabFilter((c) => (c === "all" ? "da_contabilizzare" : "all"))}
+            conteggio={conteggi.daContabilizzare}
+          >
+            Da contabilizzare
+          </ChipFiltro>
+          <ChipFiltro
+            attivo={ordineFilter === "senza"}
+            onClick={() => setOrdineFilter((o) => (o === "senza" ? "all" : "senza"))}
+            conteggio={conteggi.senzaOrdine}
+          >
+            Senza ordine
+          </ChipFiltro>
+          <ChipFiltro
+            attivo={categoriaFilter === "__nessuna__"}
+            onClick={() => setCategoriaFilter((c) => (c === "__nessuna__" ? "all" : "__nessuna__"))}
+            conteggio={kpi.daClassificare}
+          >
+            Da classificare
+          </ChipFiltro>
+          <p className="ml-auto text-xs text-muted-foreground tabular-nums">
+            Mostrando <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
+          </p>
         </div>
-        <Select value={annoFilter} onValueChange={setAnnoFilter}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Anno" />
-          </SelectTrigger>
-          <SelectContent>
-            {anniDisponibili.map((a) => (
-              <SelectItem key={a} value={a}>{a}</SelectItem>
-            ))}
-            <SelectItem value="all">Tutti gli anni</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={statoFilter} onValueChange={setStatoFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Stato" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti gli stati</SelectItem>
-            <SelectItem value="non_letta">Non lette</SelectItem>
-            <SelectItem value="letta">Lette</SelectItem>
-            <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
-          </SelectContent>
-        </Select>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per fornitore, numero fattura, P.IVA..."
+              className="border-0 bg-slate-50 pl-9 shadow-none focus-visible:ring-1"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Select value={annoFilter} onValueChange={setAnnoFilter}>
+            <SelectTrigger className="w-[130px]" aria-label="Anno">
+              <SelectValue placeholder="Anno" />
+            </SelectTrigger>
+            <SelectContent>
+              {anniDisponibili.map((a) => (
+                <SelectItem key={a} value={a}>{a}</SelectItem>
+              ))}
+              <SelectItem value="all">Tutti gli anni</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statoFilter} onValueChange={setStatoFilter}>
+            <SelectTrigger className="w-[150px]" aria-label="Stato">
+              <SelectValue placeholder="Stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              <SelectItem value="non_letta">Non lette</SelectItem>
+              <SelectItem value="letta">Lette</SelectItem>
+              <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
+            </SelectContent>
+          </Select>
+          {opzioniTipo.length > 0 && (
+            <Select value={tipoFilter} onValueChange={setTipoFilter}>
+              <SelectTrigger className="w-[150px]" aria-label="Tipo documento">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i tipi</SelectItem>
+                {opzioniTipo.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {opzioniCategoria.length > 0 && (
+            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+              <SelectTrigger className="w-[170px]" aria-label="Categoria">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le categorie</SelectItem>
+                <SelectItem value="__nessuna__">Non classificate</SelectItem>
+                {opzioniCategoria.map((c) => (
+                  <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
+            <SelectTrigger className="w-[150px]" aria-label="Ordine d'acquisto">
+              <SelectValue placeholder="Ordine" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Ordine: tutti</SelectItem>
+              <SelectItem value="con">Con ordine</SelectItem>
+              <SelectItem value="senza">Senza ordine</SelectItem>
+            </SelectContent>
+          </Select>
+          {filtriAttivi > 0 && (
+            <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="text-muted-foreground">
+              <X className="mr-1 h-3.5 w-3.5" />
+              Azzera ({filtriAttivi})
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -963,9 +1172,17 @@ export default function FattureRicevutePage() {
         // Mobile: una riga di testo, senza icona grande né spiegazione.
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground max-sm:py-4">
           <Inbox className="h-12 w-12 mb-4 max-sm:hidden" />
-          <p className="text-lg font-medium max-sm:text-xs max-sm:font-normal">Nessuna fattura ricevuta</p>
+          <p className="text-lg font-medium max-sm:text-xs max-sm:font-normal">
+            {fatture.length > 0 ? "Nessuna fattura con questi filtri" : "Nessuna fattura ricevuta"}
+          </p>
           <p className="text-sm max-sm:hidden">
-            Le fatture arriveranno automaticamente dal SDI oppure puoi importare XML manualmente.
+            {fatture.length > 0 ? (
+              <Button variant="link" size="sm" onClick={azzeraFiltri} className="h-auto p-0">
+                Azzera i filtri
+              </Button>
+            ) : (
+              "Le fatture arriveranno automaticamente dal SDI oppure puoi importare XML manualmente."
+            )}
           </p>
         </div>
       ) : (
@@ -1004,14 +1221,14 @@ export default function FattureRicevutePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Fornitore</TableHead>
+                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Numero</TableHead>
-                <TableHead>Data</TableHead>
+                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Data</IntestazioneOrdinabile>
                 <TableHead>Arrivata il</TableHead>
                 <TableHead className="text-right">Imponibile</TableHead>
                 <TableHead className="text-right">IVA</TableHead>
-                <TableHead className="text-right">Totale</TableHead>
+                <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
                 <TableHead>Stato</TableHead>
                 <TableHead>Ordine</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>

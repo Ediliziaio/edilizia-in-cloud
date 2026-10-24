@@ -390,8 +390,15 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
     // "Fatture" è l'hub unico della fatturazione nativa: documenti, rubrica,
     // incassi, SDI e fiscalità vivono come tab interne.
+    // Ma se la rotta ha una voce propria (es. /azienda/documenti/fatture-ricevute),
+    // la voce propria è l'unica accesa.
     if (url === "/azienda/documenti") {
-      return pathname === "/azienda/documenti" || pathname.startsWith("/azienda/documenti/");
+      if (pathname === url) return true;
+      if (!pathname.startsWith(url + "/")) return false;
+      return !ALL_NAV_URLS.some(
+        otherUrl => otherUrl !== url && otherUrl.startsWith(url + "/") &&
+          (pathname === otherUrl || pathname.startsWith(otherUrl + "/"))
+      );
     }
     if (pathname === url) return true;
     if (pathname.startsWith(url + "/")) {
