@@ -4,6 +4,7 @@ import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDial
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
 import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
+import { avanzamentoFasi, seminaSchedaCommessa, type SchedaCommessa } from "@/lib/orders/schedaCommessa";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -340,9 +341,36 @@ function OrderDetailInner() {
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
-  const contractLink = useOrderContractLink(id);
-  const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   const queryClient = useQueryClient();
+
+  // Le letture più frequenti della scheda arrivano in una richiesta sola e vanno
+  // nella memoria sotto le chiavi dei componenti (vedi lib/orders/schedaCommessa).
+  // Finché non arriva, le letture della pagina aspettano; se non riesce, ognuna
+  // legge da sola come prima.
+  const conEconomia = permissions.canViewMargins;
+  const conTicket = permissions.canViewTickets;
+  const schedaAbilitata = !!id && !!user && !!companyId && !permissions.isLoading;
+  const scheda = useQuery({
+    queryKey: ["scheda-commessa", id, companyId, conEconomia, conTicket],
+    enabled: schedaAbilitata,
+    retry: false,
+    staleTime: 60_000,
+    // Tolta appena si esce: a ogni apertura una lettura nuova riempie di nuovo i pezzi.
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("scheda_commessa" as never, {
+        p_order_id: id, p_company_id: companyId, p_con_economia: conEconomia, p_con_ticket: conTicket,
+      } as never);
+      if (error) throw error;
+      const letta = data as unknown as SchedaCommessa | null;
+      if (letta) seminaSchedaCommessa(queryClient, letta, { id: id!, companyId: companyId! });
+      return letta ? true : false;
+    },
+  });
+  const schedaPronta = !!id && !!companyId && (scheda.isSuccess || scheda.isError);
+  const contractLink = useOrderContractLink(schedaPronta ? id : undefined);
+  const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
   const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
@@ -394,7 +422,7 @@ function OrderDetailInner() {
   const { data: conteggiViste } = useConteggiCommessa(id, companyId, !!order);
 
   const variationsEnabled = permissions.canViewOrderAmounts || permissions.canViewMargins;
-  const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled);
+  const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled && schedaPronta);
   // The page stays on its loading/error shell until variants are resolved too.
   const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo } = useOrderDetailNavigation(
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
@@ -417,7 +445,7 @@ function OrderDetailInner() {
       if (error) throw error;
       return (data || []) as unknown as (Installment & { id: string })[];
     },
-    enabled: !!id && !!user && !!order?.id,
+    enabled: !!id && !!user && !!order?.id && schedaPronta,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -455,7 +483,7 @@ function OrderDetailInner() {
       if (error) throw error;
       return data as OrderItemData[];
     },
-    enabled: !!id && !!user && !!order?.id,
+    enabled: !!id && !!user && !!order?.id && schedaPronta,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -487,7 +515,7 @@ function OrderDetailInner() {
       if (error) throw error;
       return data as OrderStatus[];
     },
-    enabled: !!effectiveCompany?.id,
+    enabled: !!effectiveCompany?.id && schedaPronta,
     staleTime: 600_000,
     gcTime: 30 * 60 * 1000,
   });
@@ -506,28 +534,16 @@ function OrderDetailInner() {
         .select("status, percentuale")
         .eq("order_id", id);
       if (error) throw error;
-      const rows = (data ?? []) as { status: string; percentuale: number | null }[];
-      // Completata = status O percentuale al 100: prima testata e semaforo
-      // misuravano due cose diverse (10 fasi al 90% = "0/10 completate").
-      const completata = (p: { status: string; percentuale: number | null }) =>
-        p.status === "completata" || Number(p.percentuale) >= 100;
-      // Avanzamento fisico = media % delle fasi (una fase "completata" senza
-      // percentuale vale 100): alimenta eseguito-vs-incassato e la proiezione
+      // Completata = status O percentuale al 100: testata e semaforo misurano
+      // la stessa cosa. La media alimenta eseguito-vs-incassato e la proiezione
       // del margine a fine lavori.
-      const pctDi = (p: { status: string; percentuale: number | null }) =>
-        completata(p) ? 100 : Math.min(100, Math.max(0, Number(p.percentuale) || 0));
-      return {
-        total: rows.length,
-        done: rows.filter(completata).length,
-        inCorso: rows.filter((p) => !completata(p) && (p.status === "in_corso" || Number(p.percentuale) > 0)).length,
-        avgPct: rows.length > 0 ? rows.reduce((s, p) => s + pctDi(p), 0) / rows.length : null,
-      };
+      return avanzamentoFasi((data ?? []) as { status: string; percentuale: number | null }[]);
     },
-    enabled: !!id,
+    enabled: !!id && schedaPronta,
     staleTime: 30_000,
   });
 
-  const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(id);
+  const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(schedaPronta ? id : undefined);
 
   // Fetch status history
   const { data: statusHistory = [] } = useQuery({
@@ -541,13 +557,13 @@ function OrderDetailInner() {
       if (error) throw error;
       return data as StatusHistoryEntry[];
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && schedaPronta,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
 
   // Fetch linked fatture
-  const { data: fattureCollegate = [] } = useFattureByOrdine(id);
+  const { data: fattureCollegate = [] } = useFattureByOrdine(schedaPronta ? id : undefined);
 
   const { data: documentiCommessa = [] } = useQuery<OrderDocumentSummary[]>({
     queryKey: ["order-documents-summary", id],
@@ -562,7 +578,7 @@ function OrderDetailInner() {
       // thumb_path non è ancora nei tipi generati.
       return (data ?? []) as unknown as OrderDocumentSummary[];
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && schedaPronta,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -575,7 +591,7 @@ function OrderDetailInner() {
     assigned?: { first_name?: string | null; last_name?: string | null } | null;
   } | null>({
     queryKey: ["order-next-task", id],
-    enabled: !!id && !!companyId,
+    enabled: !!id && !!companyId && schedaPronta,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1181,7 +1197,7 @@ function OrderDetailInner() {
     }
   }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts]);
 
-  if (orderLoading || (variationsEnabled && variations.isPending)) {
+  if (orderLoading || (schedaAbilitata && !schedaPronta) || (variationsEnabled && variations.isPending)) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
