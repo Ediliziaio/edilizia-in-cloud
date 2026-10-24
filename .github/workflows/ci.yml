@@ -416,6 +416,8 @@ jobs:
       # branch (SHA di zeri) o force-push che ha reso `before` irraggiungibile.
       - name: Detect changed functions
         id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Avvio a mano: si prende l'elenco chiesto, o tutte quelle che
           # esistono nel repository. Il diff del push qui non ha senso — il
@@ -444,6 +446,29 @@ jobs:
           BASE="${{ github.event.before }}"
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git rev-parse --verify "$BASE^{commit}" >/dev/null 2>&1; then
             BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+
+          # Da dove contare: l'ultimo push RIUSCITO, non il push precedente.
+          # `event.before` è l'ultimo commit pubblicato, riuscito o no: se la sua
+          # esecuzione si è fermata (un test rosso, un typecheck rosso) il deploy
+          # è stato saltato e quelle funzioni non uscivano più, perché il push
+          # dopo guardava solo i propri commit. Il 24/10/2026 la correzione al
+          # poller della posta è rimasta fuori così, con la posta ferma da tre
+          # giorni; il 7/09/2026 erano 18 funzioni, per otto ore.
+          # Una esecuzione riuscita ha ripubblicato tutto fino al suo commit, e
+          # una fallita (anche per una sola funzione) no: la successiva riparte
+          # da prima e riprova. Solo i push contano: un avvio a mano per poche
+          # funzioni non dice niente sulle altre. Se l'elenco non si legge, si
+          # resta sul comportamento di prima.
+          ULTIMO_OK=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=20" \
+            --jq '[.workflow_runs[] | select(.id != ${{ github.run_id }})] | .[0].head_sha // empty' 2>/dev/null || true)
+          if [ -n "$ULTIMO_OK" ] \
+              && git rev-parse --verify "$ULTIMO_OK^{commit}" >/dev/null 2>&1 \
+              && git merge-base --is-ancestor "$ULTIMO_OK" HEAD; then
+            echo "Base del confronto: ultimo push riuscito ${ULTIMO_OK}"
+            BASE="$ULTIMO_OK"
+          else
+            echo "Ultimo push riuscito non disponibile: si usa il push precedente"
           fi
           echo "Diff range: ${BASE:-<nessuno>} → HEAD"
           if [ -n "$BASE" ]; then
