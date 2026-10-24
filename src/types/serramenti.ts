@@ -110,6 +110,10 @@ export interface SrProgettoRow {
   cliente_telefono: string | null;
   cliente_email: string | null;
   cliente_codice_fiscale: string | null;
+  /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
+  cointestatario_nome?: string | null;
+  cointestatario_cognome?: string | null;
+  cointestatario_codice_fiscale?: string | null;
 
   // Cantiere
   cantiere_indirizzo: string | null;

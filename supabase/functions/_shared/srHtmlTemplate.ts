@@ -26,6 +26,9 @@ export interface SrPdfData {
   cliente_telefono: string | null;
   cliente_email: string | null;
   cliente_citta: string | null;
+  /** Preventivo cointestato: «Anna Bianchi» e il suo codice fiscale. */
+  cointestatario?: string | null;
+  cointestatario_codice_fiscale?: string | null;
 
   // Intervento
   cantiere_citta: string | null;
@@ -295,7 +298,7 @@ function renderPaginaCondizioni(d: SrPdfData, page: number, total: number): stri
         <p class="cond-firma-titolo">Approvazione specifica (artt. 1341 e 1342 c.c.)</p>
         <p class="paragraph cond-p">Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</p>
         <ul class="cond-list">${clausole.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
-        <div class="cond-righe"><div><span>Luogo e data</span></div><div><span>Seconda firma del Committente</span></div></div>
+        <div class="cond-righe"><div><span>Luogo e data</span></div><div><span>Seconda firma del Committente</span></div>${d.cointestatario ? `<div><span>Seconda firma del Cointestatario</span></div>` : ""}</div>
       </div>` : ""}
     </main>
     ${renderFooter(d, page, total)}
@@ -323,6 +326,7 @@ function renderPage1(d: SrPdfData, total = totalPages(d)): string {
       <h2 class="section-title">ANAGRAFICA CLIENTE</h2>
       <div class="info-grid">
         <div class="info-row"><span class="info-label">Intestatario</span><span class="info-val">${esc([d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" "))}</span></div>
+        ${d.cointestatario ? `<div class="info-row"><span class="info-label">Cointestatario</span><span class="info-val">${esc([d.cointestatario, d.cointestatario_codice_fiscale].filter(Boolean).join(" · "))}</span></div>` : ""}
         ${d.cliente_indirizzo ? `<div class="info-row"><span class="info-label">Indirizzo</span><span class="info-val">${esc(d.cliente_indirizzo)}</span></div>` : ""}
         ${d.cliente_telefono ? `<div class="info-row"><span class="info-label">Telefono</span><span class="info-val">${esc(d.cliente_telefono)}</span></div>` : ""}
         ${d.cliente_email ? `<div class="info-row"><span class="info-label">Email</span><span class="info-val">${esc(d.cliente_email)}</span></div>` : ""}

@@ -19,6 +19,7 @@
  * conferma "Modifiche non salvate" — coerente col bottone "Salva e continua".
  */
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -1366,6 +1367,10 @@ function StepCliente({
             className="h-9 uppercase"
           />
         </div>
+      </div>
+
+      <div className="mt-3">
+        <Cointestatario form={form} onChange={(campo, valore) => onChange(campo, valore)} />
       </div>
 
       {/* Dove si fanno i lavori: di serie lo stesso indirizzo del cliente, che segue da solo. Sta qui e non più

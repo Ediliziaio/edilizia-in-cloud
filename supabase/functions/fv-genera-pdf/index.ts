@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -660,6 +660,9 @@ Deno.serve(async (req: Request) => {
     const conNome = Boolean(String(prog.cliente_nome ?? "").trim() || String(prog.cliente_cognome ?? "").trim());
     const clienteNome = conNome ? String(prog.cliente_nome ?? "").trim() : titoloParts[0] ?? "";
     const clienteCognome = conNome ? String(prog.cliente_cognome ?? "").trim() : titoloParts.slice(1).join(" ") || "";
+    // Preventivo cointestato: il secondo intestatario, accanto al cliente e con la sua firma.
+    const cointestatario = [prog.cointestatario_nome, prog.cointestatario_cognome]
+      .map((s: string | null) => String(s ?? "").trim()).filter(Boolean).join(" ") || null;
 
     // ── Costruzione data context ──────────────────────────────────────────
     const data: FvPdfTemplateData = {
@@ -675,6 +678,8 @@ Deno.serve(async (req: Request) => {
         nome: clienteNome,
         cognome: clienteCognome,
         cf: null,
+        cointestatario,
+        cointestatario_cf: prog.cointestatario_codice_fiscale ?? null,
         indirizzo: prog.indirizzo ?? "",
         comune: prog.comune,
         cap: prog.cap,
@@ -859,8 +864,11 @@ Deno.serve(async (req: Request) => {
                 quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
                 // Il nome dal progetto, altrimenti dal titolo (la procedura guidata ci scrive il cliente).
                 // Prima queste colonne non si leggevano: nel contratto usciva «per (di seguito il Committente)».
-                client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim()
-                  || [clienteNome, clienteCognome].filter(Boolean).join(" ").trim() || undefined,
+                client_name: [
+                  [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim()
+                    || [clienteNome, clienteCognome].filter(Boolean).join(" ").trim(),
+                  cointestatario,
+                ].filter(Boolean).join(" e ") || undefined,
                 client_email: prog.cliente_email ?? "",
                 client_phone: prog.cliente_telefono ?? "",
                 client_address: prog.indirizzo ?? "",

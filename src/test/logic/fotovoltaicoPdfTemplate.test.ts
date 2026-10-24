@@ -131,6 +131,16 @@ describe("fotovoltaico PDF template", () => {
     expect(html).not.toContain('{{preventivo.numero}}');
     expect(html).toContain(`${data.cliente.nome} ${data.cliente.cognome}`);
   });
+  it("preventivo cointestato: nel contratto tutti e due, e firma anche il cointestatario", () => {
+    const data = basePdfData();
+    data.cliente = { ...data.cliente, cointestatario: "Anna Bianchi", cointestatario_cf: "BNCNNA80A41L219X" };
+    data.template = { ...data.template, condizioni_legali_attivo: true, condizioni_legali_testo: "<p>Committente {{cliente.nome_completo}}.</p>" };
+    const html = renderFvPdfHtml(data);
+    expect(html).toContain(`${data.cliente.nome} ${data.cliente.cognome} e Anna Bianchi`);
+    expect(html).toContain("Firma del cointestatario");
+    expect(html).toContain("CF BNCNNA80A41L219X");
+    expect(renderFvPdfHtml(basePdfData())).not.toContain("cointestatario");
+  });
   it("renders a screen-only action bar for printing or saving the PDF", () => {
     const html = renderFvPdfHtml(basePdfData());
 

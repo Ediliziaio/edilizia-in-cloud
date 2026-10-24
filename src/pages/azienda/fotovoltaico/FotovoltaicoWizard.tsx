@@ -14,6 +14,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
+import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -477,6 +478,7 @@ function FotovoltaicoWizard() {
       cliente_id?: string | null;
       cliente_nome?: string | null; cliente_cognome?: string | null;
       cliente_telefono?: string | null; cliente_email?: string | null;
+      cointestatario_nome?: string | null; cointestatario_cognome?: string | null; cointestatario_codice_fiscale?: string | null;
       cliente?: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null } | null;
     };
     setData((d) => ({
@@ -488,6 +490,9 @@ function FotovoltaicoWizard() {
       cliente_cognome: cli.cliente_cognome || cli.cliente?.last_name || "",
       cliente_telefono: cli.cliente_telefono || cli.cliente?.phone || "",
       cliente_email: cli.cliente_email || cli.cliente?.email || "",
+      cointestatario_nome: cli.cointestatario_nome ?? "",
+      cointestatario_cognome: cli.cointestatario_cognome ?? "",
+      cointestatario_codice_fiscale: cli.cointestatario_codice_fiscale ?? "",
       indirizzo: progettoEsistente.indirizzo,
       comune: progettoEsistente.comune ?? "",
       provincia: progettoEsistente.provincia ?? "",
@@ -844,6 +849,9 @@ function FotovoltaicoWizard() {
               cliente_cognome: data.cliente_cognome || null,
               cliente_telefono: data.cliente_telefono || null,
               cliente_email: data.cliente_email || null,
+              cointestatario_nome: data.cointestatario_nome || null,
+              cointestatario_cognome: data.cointestatario_cognome || null,
+              cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
               // Link CRM: aggancia il contatto e l'opportunità di provenienza
               // alla creazione del progetto (parità con SerramentiWizard). Senza
               // questi due campi il preventivo FV non risultava collegato.
@@ -898,6 +906,9 @@ function FotovoltaicoWizard() {
             cliente_cognome: data.cliente_cognome || null,
             cliente_telefono: data.cliente_telefono || null,
             cliente_email: data.cliente_email || null,
+            cointestatario_nome: data.cointestatario_nome || null,
+            cointestatario_cognome: data.cointestatario_cognome || null,
+            cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
             titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
             archetipo: data.archetipo,
             indirizzo: data.indirizzo,
@@ -1656,6 +1667,9 @@ function FotovoltaicoWizard() {
           cliente_cognome: data.cliente_cognome || null,
           cliente_telefono: data.cliente_telefono || null,
           cliente_email: data.cliente_email || null,
+          cointestatario_nome: data.cointestatario_nome || null,
+          cointestatario_cognome: data.cointestatario_cognome || null,
+          cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
           titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
           archetipo: data.archetipo,
           indirizzo: data.indirizzo,
@@ -2208,6 +2222,11 @@ function Step1Cliente({
             </Select>
           </div>
         </FvCard>
+
+        <Cointestatario
+          form={{ cointestatario_nome: data.cointestatario_nome, cointestatario_cognome: data.cointestatario_cognome, cointestatario_codice_fiscale: data.cointestatario_codice_fiscale }}
+          onChange={(campo, valore) => update(campo, valore ?? "")}
+        />
 
         <FvCard title="Contatti">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">

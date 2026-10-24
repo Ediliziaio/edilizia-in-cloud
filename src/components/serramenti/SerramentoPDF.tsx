@@ -19,6 +19,7 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
+import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { TestoContrattoPdf } from '../preventivi/pdf/TestoContrattoPdf';
 import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
 import { disegnaPagine, srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
@@ -2212,6 +2213,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   } : baseStyles;
 
   const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
+  // Preventivo cointestato: il secondo intestatario, accanto al cliente e con la sua firma.
+  const cointestatario = nomeCointestatario(p);
   const sintesi = p.intervento_sintesi?.trim()
     || generateInterventoSintesi(detail.serramenti, detail.accessori, p.tipo_intervento)
     || "Intervento da definire";
@@ -2501,7 +2504,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     companyAddress: tpl.indirizzo_completo ?? null,
     companyEmail: tpl.email ?? company?.email ?? null,
     companyPhone: tpl.telefono ?? company?.telefono ?? null,
-    clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
+    clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome, cointestatario,
     clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
     // L'Art. 1 dice «…presso {{cantiere.indirizzo}}»: con l'indirizzo dei lavori separato da quello del
     // cliente (06/10/2026) il tag usciva vuoto e il documento diceva «presso .».
@@ -2527,6 +2530,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const righeFirma: Array<[string, string]> = [
     ["Impresa", [companyName, partitaIvaFirma ? `P.IVA ${partitaIvaFirma}` : null].filter(Boolean).join(" · ")],
     ["Committente", clienteNome],
+    ...(cointestatario ? [["Cointestatario", [cointestatario, p.cointestatario_codice_fiscale ? `CF ${p.cointestatario_codice_fiscale}` : null].filter(Boolean).join(" · ")] as [string, string]] : []),
     ["Oggetto", sintesi],
   ];
   if (luogoLavori) righeFirma.push(["Luogo dei lavori", luogoLavori]);
@@ -3283,6 +3287,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               <Text style={styles.sectionTitle} minPresenceAhead={40}>Anagrafica cliente</Text>
               <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
+              {cointestatario ? (
+                <View style={styles.kvRow}><Text style={styles.kvKey}>Cointestatario</Text><Text style={styles.kvValue}>{[cointestatario, p.cointestatario_codice_fiscale].filter(Boolean).join(" · ")}</Text></View>
+              ) : null}
               {p.cliente_indirizzo && (
                 <View style={styles.kvRow}>
                   <Text style={styles.kvKey}>Indirizzo</Text>
@@ -4918,8 +4925,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     { e: "LUOGO E DATA", chi: null, w: 140 },
                     { e: "PER L'IMPRESA", chi: companyName, w: 0 },
                     { e: "FIRMA DEL COMMITTENTE", chi: clienteNome, w: 0 },
-                  ].map((f, i) => (
-                    <View key={i} style={{ width: f.w || undefined, flex: f.w ? undefined : 1, marginRight: i < 2 ? 16 : 0, borderTopWidth: 0.7, borderTopColor: C.gray900, paddingTop: 4 }}>
+                    ...(cointestatario ? [{ e: "FIRMA DEL COINTESTATARIO", chi: cointestatario, w: 0 }] : []),
+                  ].map((f, i, tutte) => (
+                    <View key={i} style={{ width: f.w || undefined, flex: f.w ? undefined : 1, marginRight: i < tutte.length - 1 ? 16 : 0, borderTopWidth: 0.7, borderTopColor: C.gray900, paddingTop: 4 }}>
                       <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.9 }}>{f.e}</Text>
                       {f.chi ? <Text style={{ fontFamily: FF, fontSize: 7.5, fontWeight: 700, color: C.gray900, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{f.chi}</Text> : null}
                     </View>
@@ -4939,6 +4947,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: C.gray500, paddingTop: 3 }}>
                         <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>SECONDA FIRMA DEL COMMITTENTE</Text>
                       </View>
+                      {cointestatario ? (
+                        <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: C.gray500, paddingTop: 3, marginLeft: 16 }}>
+                          <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>SECONDA FIRMA DEL COINTESTATARIO</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 ) : null}

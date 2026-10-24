@@ -18,6 +18,10 @@ export interface WizardData {
   cliente_telefono: string;
   cliente_email: string;
   cliente_id: string | null;
+  /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
+  cointestatario_nome: string;
+  cointestatario_cognome: string;
+  cointestatario_codice_fiscale: string;
   archetipo: FvArchetipo;
   // Step 2: Immobile
   indirizzo: string;

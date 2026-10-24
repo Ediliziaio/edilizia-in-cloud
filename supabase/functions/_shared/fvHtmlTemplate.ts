@@ -161,6 +161,9 @@ export interface FvPdfTemplateData {
     nome: string;
     cognome: string;
     cf?: string | null;
+    /** Preventivo cointestato: «Anna Bianchi» e il suo codice fiscale. */
+    cointestatario?: string | null;
+    cointestatario_cf?: string | null;
     indirizzo: string;
     comune?: string | null;
     cap?: string | null;
@@ -2392,6 +2395,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   const righe: Array<[string, string]> = [
     ["Impresa", [d.azienda.name, d.azienda.vat_number ? `P.IVA ${d.azienda.vat_number}` : null].filter(Boolean).join(" · ")],
     ["Committente", [cliente, d.cliente.cf ? `CF ${d.cliente.cf}` : null].filter(Boolean).join(" · ")],
+    ...(d.cliente.cointestatario ? [["Cointestatario", [d.cliente.cointestatario, d.cliente.cointestatario_cf ? `CF ${d.cliente.cointestatario_cf}` : null].filter(Boolean).join(" · ")] as [string, string]] : []),
     ["Oggetto", isFvAccumulo(d.template) ? `Integrazione sistema di accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh su impianto esistente, limitata alle voci elencate` : isFvLocalIntervention(d.template) ? `${fvInterventionLabel(d.template)}, limitato alle voci elencate` : `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}, chiavi in mano`],
   ];
   if (luogo) righe.push(["Luogo dei lavori", luogo]);
@@ -2413,6 +2417,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
           <div><div class="sig-line"></div><div class="sig-label">Luogo e data</div></div>
           <div><div class="sig-line"></div><div class="sig-label">Per l'impresa</div><div class="sig-name">${escHtml(d.azienda.name)}</div></div>
           <div><div class="sig-line"></div><div class="sig-label">Firma del committente</div><div class="sig-name">${escHtml(cliente)}</div></div>
+          ${d.cliente.cointestatario ? `<div></div><div></div><div><div class="sig-line"></div><div class="sig-label">Firma del cointestatario</div><div class="sig-name">${escHtml(d.cliente.cointestatario)}</div></div>` : ""}
         </div>
       </div>
       ${clausole.length > 0 ? `
@@ -2423,6 +2428,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
         <div class="cond-righe">
           <div><div class="cond-riga"></div><span>Luogo e data</span></div>
           <div><div class="cond-riga"></div><span>Seconda firma del Committente</span></div>
+          ${d.cliente.cointestatario ? `<div></div><div><div class="cond-riga"></div><span>Seconda firma del Cointestatario</span></div>` : ""}
         </div>
       </div>` : ""}
       ${haModuloRecesso(d) ? `
@@ -2677,7 +2683,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   // Live editor and server export must resolve the same contract fields.
   // On the server these may already be resolved; substitution is idempotent.
   if(d.template?.condizioni_legali_testo) d={...d,template:{...d.template,condizioni_legali_testo:substituteMergeTags(d.template.condizioni_legali_testo,{
-    cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:`${d.cliente.nome} ${d.cliente.cognome}`.trim()},
+    cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:[`${d.cliente.nome} ${d.cliente.cognome}`.trim(),d.cliente.cointestatario?.trim()].filter(Boolean).join(' e ')},
     azienda:{ragione_sociale:d.azienda.name,email:d.azienda.email??'',telefono:d.azienda.phone??''},
     cantiere:{indirizzo:indirizzoCompleto(d.cliente)},
     preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},

@@ -45,6 +45,14 @@ interface FvSolarLeadInput {
   isee?: number;
   numero_figli?: number;
   reddito_annuo_dichiarato?: number;
+  /** Snapshot dei recapiti del cliente e, se cointestato, del secondo intestatario. */
+  cliente_nome?: string | null;
+  cliente_cognome?: string | null;
+  cliente_telefono?: string | null;
+  cliente_email?: string | null;
+  cointestatario_nome?: string | null;
+  cointestatario_cognome?: string | null;
+  cointestatario_codice_fiscale?: string | null;
 }
 
 function validateInput(p: FvSolarLeadInput): string | null {
@@ -211,6 +219,10 @@ Deno.serve(async (req: Request) => {
         cliente_cognome: payload.cliente_cognome ?? null,
         cliente_telefono: payload.cliente_telefono ?? null,
         cliente_email: payload.cliente_email ?? null,
+        // Preventivo cointestato: il secondo intestatario (facoltativo).
+        cointestatario_nome: payload.cointestatario_nome ?? null,
+        cointestatario_cognome: payload.cointestatario_cognome ?? null,
+        cointestatario_codice_fiscale: payload.cointestatario_codice_fiscale ?? null,
         archetipo: payload.archetipo,
         stato: "bozza",
         indirizzo: payload.indirizzo,

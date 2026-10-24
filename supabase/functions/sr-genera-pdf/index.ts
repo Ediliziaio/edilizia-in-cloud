@@ -524,6 +524,9 @@ Deno.serve(async (req: Request) => {
       cliente_telefono: prog.cliente_telefono,
       cliente_email: prog.cliente_email,
       cliente_citta: prog.cliente_citta,
+      // Preventivo cointestato: il secondo intestatario (vuoto se non c'è).
+      cointestatario: [prog.cointestatario_nome, prog.cointestatario_cognome].map((s: string | null) => (s ?? "").trim()).filter(Boolean).join(" ") || null,
+      cointestatario_codice_fiscale: prog.cointestatario_codice_fiscale ?? null,
       cantiere_citta: prog.cantiere_citta,
       totale_serramenti: numSerr,
       totale_accessori: (accessori ?? []).reduce((acc: number, a: { quantita?: number }) => acc + (a.quantita ?? 1), 0),
@@ -536,7 +539,11 @@ Deno.serve(async (req: Request) => {
         return substituteMergeTags(testo, buildMergeContext({
             quote: {
               quote_number: prog.code,
-              client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
+              // Cointestato: «Mario Rossi e Anna Bianchi» in {{cliente.nome_completo}}.
+              client_name: [
+                [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim(),
+                [prog.cointestatario_nome, prog.cointestatario_cognome].filter(Boolean).join(" ").trim(),
+              ].filter(Boolean).join(" e ") || undefined,
               client_email: prog.cliente_email ?? "",
               client_phone: prog.cliente_telefono ?? "",
               client_address: prog.cliente_indirizzo ?? "",
