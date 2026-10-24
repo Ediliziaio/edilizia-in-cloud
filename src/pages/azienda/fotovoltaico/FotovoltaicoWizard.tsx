@@ -5294,11 +5294,217 @@ function Step6Finanziario({
       <FvPaymentToggle
         modalita={data.finanziamento_modalita}
         durata={data.durata_mesi_scelta ?? 84}
-        topConsigliata={topAuto}
+        topConsigliata={(tabellaScelta && topFinanziamenti.find((t) => t.id === tabellaScelta.id)) || topAuto}
         noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}
         ivaPerc={percentualeIvaFv(data.iva_aliquota)}
         onChange={(modalita) => update("finanziamento_modalita", modalita)}
       />
+
+      {/* Sprint 4: Modalità rateale dettagli + confronto top 3 finanziarie */}
+      {data.finanziamento_modalita === "rate" && (
+        <FvCard
+          title="Modalità rateale — dettagli e confronto"
+          action={
+            tabelleFinanziamento.length > 0 ? (
+              <FvChip variant="green">✓ Configurato in Impostazioni Azienda</FvChip>
+            ) : (
+              <FvChip variant="yellow">⚠ Nessuna tabella attiva</FvChip>
+            )
+          }
+          className="mt-4"
+        >
+          {tabelleFinanziamento.length === 0 ? (
+            <FvCallout variant="warn">
+              <strong>Nessuna tabella finanziamento attiva</strong> per l'importo{" "}
+              {formatEur(investimento)}. L'amministratore può caricare nuove tabelle in{" "}
+              <em>Impostazioni → Finanziamenti</em>.
+            </FvCallout>
+          ) : (
+            <>
+              {/* Dropdown durata + finanziaria scelta */}
+              <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <Label>Durata finanziamento</Label>
+                  <Select
+                    value={String(data.durata_mesi_scelta ?? 84)}
+                    onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {/* Durate disponibili da unione di tutte le tabelle */}
+                      {Array.from(
+                        new Set(
+                          tabelleFinanziamento.flatMap((t) => t.durate_disponibili),
+                        ),
+                      )
+                        .sort((a, b) => a - b)
+                        .map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d} mesi ({(d / 12).toFixed(0)} anni)
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Finanziaria scelta</Label>
+                  <Select
+                    value={data.tabella_finanziamento_id ?? "__top__"}
+                    onValueChange={(v) =>
+                      update("tabella_finanziamento_id", v === "__top__" ? null : v)
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__top__">
+                        ★ Top consigliata (best TAEG)
+                      </SelectItem>
+                      {tabelleFinanziamento.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Confronto top 3 con badge "consigliata" */}
+              {topFinanziamenti.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Confronto top {topFinanziamenti.length} per importo {formatEur(investimento)} ×{" "}
+                    {data.durata_mesi_scelta ?? 84} mesi
+                  </div>
+                  {topFinanziamenti.map((t, i) => {
+                    const isSelected =
+                      (!data.tabella_finanziamento_id && i === 0) ||
+                      data.tabella_finanziamento_id === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        className={`rounded-xl p-3 border-2 transition-all relative ${
+                          isSelected
+                            ? "border-orange-500 bg-orange-50"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        {i === 0 && (
+                          <span className="absolute -top-2 right-3 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            ★ Consigliata
+                          </span>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 text-sm">
+                              {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {t.rata.durata_mesi} mesi · TAEG{" "}
+                              <strong>{t.rata.taeg.toFixed(2)}%</strong> · TAN{" "}
+                              {t.rata.tan.toFixed(2)}%
+                              {t.rata.spese_istruttoria
+                                ? ` · spese istruttoria ${formatEur(t.rata.spese_istruttoria)}`
+                                : ""}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <div className="text-2xl font-extrabold text-orange-600 tabular-nums">
+                              {formatEur(t.rata.importo_rata)}
+                            </div>
+                            <div className="text-[11px] text-slate-500">/mese</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Riepilogo costo del credito */}
+              {(() => {
+                const ratiData = topFinanziamenti.find(
+                  (t) => t.id === (data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id),
+                );
+                if (!ratiData) return null;
+                const r = ratiData.rata;
+                return (
+                  <div className="border-t border-slate-200 pt-3 mt-2 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        <tr>
+                          <td className="text-slate-600 py-1">Importo finanziato</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {formatEur(r.importo_erogato)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Numero rate</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {r.numero_rate} mensili
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Importo rata</td>
+                          <td className="text-right font-bold text-orange-600 tabular-nums">
+                            {formatEur(r.importo_rata)}/mese
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Totale dovuto</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {formatEur(r.importo_totale_dovuto)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Costo del credito</td>
+                          <td className="text-right font-semibold tabular-nums text-slate-700">
+                            {formatEur(r.interessi_cliente ?? r.importo_totale_dovuto - r.importo_erogato)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              <FvCallout variant="info" >
+                Calcolato dal <strong>modulo Finanziamenti EiC</strong> con tabelle reali. Il
+                TAEG include spese istruttoria. Validato server-side contro le soglie ARERA
+                antiusura.
+              </FvCallout>
+            </>
+          )}
+        </FvCard>
+      )}
+
+      {/* Tasso zero: la durata si sceglie qui, subito sotto la modalità. */}
+      {data.finanziamento_modalita === "zero" && (
+        <FvCard title="Tasso zero — durata" className="mt-4">
+          <div className="grid sm:grid-cols-2 gap-3 items-end">
+            <div>
+              <Label>Numero di rate</Label>
+              <Select
+                value={String(data.durata_mesi_scelta ?? 60)}
+                onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[12, 24, 36, 48, 60, 84, 120].map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d} rate</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-3">
+              <div className="text-[11px] uppercase tracking-wide text-orange-600">Rata mensile</div>
+              <div className="text-lg font-bold text-orange-700 tabular-nums">
+                {formatEur(rataMensilePrestito)}<span className="text-xs font-medium">/mese</span>
+              </div>
+            </div>
+          </div>
+        </FvCard>
+      )}
 
       {/* MP: schema di pagamento diretto (acconto / SAL / saldo) — come gli altri preventivi */}
       <ModalitaPagamentoCard
@@ -5598,184 +5804,6 @@ function Step6Finanziario({
                 Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.
               </p>
             </div>
-          )}
-        </FvCard>
-      )}
-
-      {/* Sprint 4: Modalità rateale dettagli + confronto top 3 finanziarie */}
-      {data.finanziamento_modalita === "rate" && (
-        <FvCard
-          title="Modalità rateale — dettagli e confronto"
-          action={
-            tabelleFinanziamento.length > 0 ? (
-              <FvChip variant="green">✓ Configurato in Impostazioni Azienda</FvChip>
-            ) : (
-              <FvChip variant="yellow">⚠ Nessuna tabella attiva</FvChip>
-            )
-          }
-          className="mt-4"
-        >
-          {tabelleFinanziamento.length === 0 ? (
-            <FvCallout variant="warn">
-              <strong>Nessuna tabella finanziamento attiva</strong> per l'importo{" "}
-              {formatEur(investimento)}. L'amministratore può caricare nuove tabelle in{" "}
-              <em>Impostazioni → Finanziamenti</em>.
-            </FvCallout>
-          ) : (
-            <>
-              {/* Dropdown durata + finanziaria scelta */}
-              <div className="grid sm:grid-cols-2 gap-3 mb-4">
-                <div>
-                  <Label>Durata finanziamento</Label>
-                  <Select
-                    value={String(data.durata_mesi_scelta ?? 84)}
-                    onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {/* Durate disponibili da unione di tutte le tabelle */}
-                      {Array.from(
-                        new Set(
-                          tabelleFinanziamento.flatMap((t) => t.durate_disponibili),
-                        ),
-                      )
-                        .sort((a, b) => a - b)
-                        .map((d) => (
-                          <SelectItem key={d} value={String(d)}>
-                            {d} mesi ({(d / 12).toFixed(0)} anni)
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Finanziaria scelta</Label>
-                  <Select
-                    value={data.tabella_finanziamento_id ?? "__top__"}
-                    onValueChange={(v) =>
-                      update("tabella_finanziamento_id", v === "__top__" ? null : v)
-                    }
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__top__">
-                        ★ Top consigliata (best TAEG)
-                      </SelectItem>
-                      {tabelleFinanziamento.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Confronto top 3 con badge "consigliata" */}
-              {topFinanziamenti.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Confronto top {topFinanziamenti.length} per importo {formatEur(investimento)} ×{" "}
-                    {data.durata_mesi_scelta ?? 84} mesi
-                  </div>
-                  {topFinanziamenti.map((t, i) => {
-                    const isSelected =
-                      (!data.tabella_finanziamento_id && i === 0) ||
-                      data.tabella_finanziamento_id === t.id;
-                    return (
-                      <div
-                        key={t.id}
-                        className={`rounded-xl p-3 border-2 transition-all relative ${
-                          isSelected
-                            ? "border-orange-500 bg-orange-50"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        {i === 0 && (
-                          <span className="absolute -top-2 right-3 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            ★ Consigliata
-                          </span>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-900 text-sm">
-                              {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {t.rata.durata_mesi} mesi · TAEG{" "}
-                              <strong>{t.rata.taeg.toFixed(2)}%</strong> · TAN{" "}
-                              {t.rata.tan.toFixed(2)}%
-                              {t.rata.spese_istruttoria
-                                ? ` · spese istruttoria ${formatEur(t.rata.spese_istruttoria)}`
-                                : ""}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0 ml-3">
-                            <div className="text-2xl font-extrabold text-orange-600 tabular-nums">
-                              {formatEur(t.rata.importo_rata)}
-                            </div>
-                            <div className="text-[11px] text-slate-500">/mese</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Riepilogo costo del credito */}
-              {(() => {
-                const ratiData = topFinanziamenti.find(
-                  (t) => t.id === (data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id),
-                );
-                if (!ratiData) return null;
-                const r = ratiData.rata;
-                return (
-                  <div className="border-t border-slate-200 pt-3 mt-2 overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <tbody>
-                        <tr>
-                          <td className="text-slate-600 py-1">Importo finanziato</td>
-                          <td className="text-right font-semibold tabular-nums">
-                            {formatEur(r.importo_erogato)}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="text-slate-600 py-1">Numero rate</td>
-                          <td className="text-right font-semibold tabular-nums">
-                            {r.numero_rate} mensili
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="text-slate-600 py-1">Importo rata</td>
-                          <td className="text-right font-bold text-orange-600 tabular-nums">
-                            {formatEur(r.importo_rata)}/mese
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="text-slate-600 py-1">Totale dovuto</td>
-                          <td className="text-right font-semibold tabular-nums">
-                            {formatEur(r.importo_totale_dovuto)}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="text-slate-600 py-1">Costo del credito</td>
-                          <td className="text-right font-semibold tabular-nums text-slate-700">
-                            {formatEur(r.interessi_cliente ?? r.importo_totale_dovuto - r.importo_erogato)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-
-              <FvCallout variant="info" >
-                Calcolato dal <strong>modulo Finanziamenti EiC</strong> con tabelle reali. Il
-                TAEG include spese istruttoria. Validato server-side contro le soglie ARERA
-                antiusura.
-              </FvCallout>
-            </>
           )}
         </FvCard>
       )}
