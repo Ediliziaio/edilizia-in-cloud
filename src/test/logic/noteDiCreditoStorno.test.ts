@@ -56,9 +56,15 @@ const dir = resolve(__dirname, "../../../supabase/migrations");
 const nome = readdirSync(dir).find((f) => f.includes("note_credito_stornano_fattura"));
 if (!nome) throw new Error("migrazione note_credito_stornano_fattura non trovata");
 const sql = readFileSync(resolve(dir, nome), "utf8");
+// L'ultima versione di applica_note_di_credito: la migrazione che la ridefinisce
+// (lo storno annulla TUTTE le scadenze della coppia, anche le «pagata» a mano).
+const nomeStorno = readdirSync(dir).find((f) => f.includes("nota_credito_annulla_tutte_le_scadenze"));
+if (!nomeStorno) throw new Error("migrazione nota_credito_annulla_tutte_le_scadenze non trovata");
+const sqlStorno = readFileSync(resolve(dir, nomeStorno), "utf8");
 const corpo = (fn: string) => {
-  const i = sql.indexOf(`FUNCTION public.${fn}(`);
-  return sql.slice(i, sql.indexOf("$$;", i));
+  const sorgente = fn === "applica_note_di_credito" ? sqlStorno : sql;
+  const i = sorgente.indexOf(`FUNCTION public.${fn}(`);
+  return sorgente.slice(i, sorgente.indexOf("$$;", i));
 };
 
 describe("migrazione", () => {
@@ -70,8 +76,12 @@ describe("migrazione", () => {
     expect(f).toMatch(/coalesce\(f\.paid_amount, 0\) <= 0\.01/);
     expect(f).toMatch(/HAVING sum\(coalesce\(nc\.total, 0\)\) >= coalesce\(f\.total, 0\) - 0\.01/);
   });
-  it("le scadenze segnate a mano restano com'erano", () => {
-    expect(corpo("applica_note_di_credito")).toMatch(/paid_date IS NULL AND sc\.payment_method IS NULL/);
+  it("lo storno annulla TUTTE le scadenze della coppia, anche la «pagata» a mano", () => {
+    const f = corpo("applica_note_di_credito");
+    expect(f).toMatch(/sc\.status NOT IN \('annullata', 'cancelled'\)/);
+    // niente più eccezioni sulla «pagata»: l'incasso segnato a mano su una
+    // fattura stornata non è avvenuto.
+    expect(f).not.toMatch(/paid_date IS NULL AND sc\.payment_method IS NULL/);
   });
   it("l'abbinamento per importo vuole un solo candidato per parte", () => {
     expect(corpo("abbina_note_di_credito_per_importo")).toMatch(/per_nota = 1 AND c\.per_fattura = 1/);
