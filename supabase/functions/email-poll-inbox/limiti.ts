@@ -52,7 +52,49 @@ export const LIMITI_POLL = {
    * zero), quindi questa è una soglia prudente, non il budget di CPU vero.
    */
   budgetGiroMs: 3500,
+
+  /**
+   * Giri consecutivi su una casella IMAP con il cursore fermo allo stesso UID,
+   * oltre i quali si salta il messaggio che blocca (se ne leggono solo le
+   * intestazioni). Un giro che muore prima di salvare non lascia errori né
+   * avanzamento: l'unico segno è questo contatore, scritto PRIMA di scaricare.
+   */
+  imapTentativiPrimaDiSaltare: 2,
 } as const;
+
+/**
+ * Segno lasciato su una casella IMAP prima di scaricare: da quale UID, quante
+ * volte di fila e il `last_synced_at` visto in quel momento.
+ */
+export type StalloImap = { da_uid: number; volte: number; sync_visto: string | null };
+
+/**
+ * Il contatore del giro che sta per partire. Ogni esito normale di un giro
+ * (riuscito o con un errore) aggiorna `last_synced_at` (email_oauth_mark_sync):
+ * solo la morte del worker lo lascia com'era. Quindi il contatore sale SOLO se
+ * il cursore E il `last_synced_at` sono quelli del tentativo precedente, cioè
+ * se quel giro non è mai arrivato in fondo; altrimenti riparte da 1. Un login
+ * rifiutato o un server lento non contano: la casella non va saltata per quello.
+ */
+export function prossimoStalloImap(
+  precedente: unknown,
+  ultimoUid: number,
+  lastSyncedAt: string | null,
+): StalloImap {
+  const p = precedente as Partial<StalloImap> | null | undefined;
+  const nonFinito =
+    p != null &&
+    typeof p === "object" &&
+    Number(p.da_uid) === ultimoUid &&
+    (p.sync_visto ?? null) === (lastSyncedAt ?? null) &&
+    Number.isFinite(Number(p.volte));
+  return { da_uid: ultimoUid, volte: nonFinito ? Number(p!.volte) + 1 : 1, sync_visto: lastSyncedAt ?? null };
+}
+
+/** Vero se questo giro deve saltare il messaggio che blocca la casella. */
+export function devoSaltareMessaggio(stallo: StalloImap): boolean {
+  return stallo.volte > LIMITI_POLL.imapTentativiPrimaDiSaltare;
+}
 
 /**
  * Vero se conviene chiudere il giro qui: si è già servita almeno una casella e

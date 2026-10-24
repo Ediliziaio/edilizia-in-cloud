@@ -502,6 +502,72 @@ export interface ImapMessage {
    */
   headers: Record<string, string>;
   attachments: Array<{ filename: string; mime: string; contentBase64: string }>;
+  /**
+   * Presente quando il corpo NON è stato scaricato: si sono lette solo le
+   * intestazioni e `text` contiene la spiegazione per chi apre la conversazione.
+   * `troppo_grande` = oltre il tetto di dimensione; `in_blocco` = i giri
+   * precedenti si fermavano su questo messaggio, lo si salta per far avanzare
+   * la casella.
+   */
+  nonScaricato?: { motivo: "troppo_grande" | "in_blocco"; byte: number | null };
+}
+
+/**
+ * Tetti di scarico di un messaggio IMAP. Un messaggio si legge come testo e si
+ * analizza in JavaScript: oltre qualche megabyte il worker esaurisce la CPU e
+ * viene chiuso PRIMA di salvare l'avanzamento, quindi al giro dopo si
+ * ricomincia dallo stesso messaggio e la casella (e quelle dietro di lei) non
+ * avanza più (21/10/2026: cinque aziende senza posta in arrivo per tre giorni).
+ */
+export const LIMITI_IMAP_MESSAGGIO = {
+  /** Oltre questa dimensione (byte) si leggono solo le intestazioni. */
+  byteMax: 3 * 1024 * 1024,
+  /** Byte scaricati in un giro: raggiunti, i messaggi dopo restano al giro dopo. */
+  byteTotaliPerGiro: 5 * 1024 * 1024,
+} as const;
+
+/** `RFC822.SIZE 12345` dalla risposta del server; null se non c'è. */
+export function estraiDimensioneMessaggio(risposta: string): number | null {
+  const m = /RFC822\.SIZE\s+(\d+)/i.exec(risposta);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+export type ScaricoMessaggio = "completo" | "intestazioni" | "rimanda";
+
+/**
+ * Come trattare il prossimo messaggio. Il primo di un giro si legge sempre
+ * (nessun messaggio resta indietro per sempre), salvo sia sopra il tetto: allora
+ * solo intestazioni, e il giro va avanti. Dal secondo in poi, se il totale
+ * supererebbe il tetto per giro, si rimanda al giro dopo.
+ */
+export function decidiScaricoMessaggio(p: {
+  dimensione: number | null;
+  byteGiaScaricati: number;
+  messaggiGiaInPagina: number;
+  soloIntestazioni: boolean;
+}): ScaricoMessaggio {
+  if (p.soloIntestazioni) return "intestazioni";
+  // Il server non ha detto la dimensione: come prima, si scarica.
+  if (p.dimensione === null) return "completo";
+  if (p.dimensione > LIMITI_IMAP_MESSAGGIO.byteMax) return "intestazioni";
+  if (p.messaggiGiaInPagina > 0 && p.byteGiaScaricati + p.dimensione > LIMITI_IMAP_MESSAGGIO.byteTotaliPerGiro) {
+    return "rimanda";
+  }
+  return "completo";
+}
+
+/** Lo stesso messaggio, senza corpo né allegati, con la spiegazione al posto del testo. */
+export function messaggioNonScaricato(
+  m: ImapMessage,
+  motivo: "troppo_grande" | "in_blocco",
+  byte: number | null,
+): ImapMessage {
+  const aiuto = "Aprilo dal tuo programma di posta per leggerlo e per vedere gli allegati.";
+  const mb = byte !== null ? `${(byte / 1048576).toFixed(1).replace(".", ",")} MB` : null;
+  const nota = motivo === "troppo_grande"
+    ? `Questo messaggio${mb ? ` (${mb})` : ""} è troppo grande per essere scaricato dal gestionale. ${aiuto}`
+    : `Questo messaggio non è stato scaricato: le sincronizzazioni precedenti si fermavano su di lui. ${aiuto}`;
+  return { ...m, text: nota, html: null, attachments: [], nonScaricato: { motivo, byte } };
 }
 
 /** Header che ci interessano per classificare le autorisposte (RFC 3834 & co.). */
@@ -615,6 +681,11 @@ export async function imapScaricaNuovi(
   perMessageId?: string[],
   /** Cursor-based ingestion must save oldest outstanding UIDs first. */
   ordine: "recenti" | "cursore" = "recenti",
+  /**
+   * `soloIntestazioni`: non scaricare i corpi, solo le intestazioni. Lo usa il
+   * poller per superare un messaggio su cui i giri precedenti si sono fermati.
+   */
+  opzioni?: { soloIntestazioni?: boolean },
 ): Promise<ImapMessage[]> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
@@ -645,10 +716,18 @@ export async function imapScaricaNuovi(
   }
 
   async function readUntil(condition: (s: string) => boolean): Promise<string> {
-    while (!condition(buffer)) {
+    // La chiusura della risposta sta SEMPRE in fondo: la si cerca solo nella
+    // coda. Controllarla su tutto il buffer a ogni lettura da 16 KB costava un
+    // giro completo del testo per volta (quadratico): su un messaggio da pochi
+    // megabyte bastava a esaurire la CPU del worker.
+    const LUNGHEZZA_CODA = 8192;
+    let coda = buffer.slice(-LUNGHEZZA_CODA);
+    while (!condition(coda)) {
       const n = await leggiConScadenza();
       if (n === null) break;
-      buffer += decoder.decode(readBuf.subarray(0, n as number), { stream: true });
+      const pezzo = decoder.decode(readBuf.subarray(0, n as number), { stream: true });
+      buffer += pezzo;
+      coda = (coda + pezzo).slice(-LUNGHEZZA_CODA);
     }
     const result = buffer;
     buffer = "";
@@ -716,9 +795,37 @@ export async function imapScaricaNuovi(
     const uids=uidsPerId?trovati:scegliUidPolling(trovati,maxMessages,ordine);
 
     const messages: ImapMessage[] = [];
+    let byteScaricati = 0;
     for (const uid of uids) {
       try {
+        // La dimensione PRIMA del corpo: un messaggio enorme non si scarica
+        // intero (vedi LIMITI_IMAP_MESSAGGIO), si leggono solo le intestazioni.
+        const rispostaDimensione = opzioni?.soloIntestazioni ? "" : await send(`UID FETCH ${uid} (RFC822.SIZE)`);
+        const dimensione = estraiDimensioneMessaggio(rispostaDimensione);
+        const scarico = decidiScaricoMessaggio({
+          dimensione,
+          byteGiaScaricati: byteScaricati,
+          messaggiGiaInPagina: messages.length,
+          soloIntestazioni: !!opzioni?.soloIntestazioni,
+        });
+        // Il totale del giro è al tetto: questo e i successivi al giro dopo.
+        // Si esce dal ciclo, così in modalità cursore resta un prefisso contiguo.
+        if (scarico === "rimanda") break;
+        if (scarico === "intestazioni") {
+          const rispostaIntestazioni = await send(`UID FETCH ${uid} (BODY.PEEK[HEADER])`);
+          const solaTesta = parseImapMessage(uid, rispostaIntestazioni);
+          if (!solaTesta && ordine === "cursore") throw new Error("imap_message_incomplete");
+          if (solaTesta) {
+            messages.push(messaggioNonScaricato(
+              solaTesta,
+              opzioni?.soloIntestazioni ? "in_blocco" : "troppo_grande",
+              dimensione,
+            ));
+          }
+          continue;
+        }
         const fetchResp = await send(`UID FETCH ${uid} (BODY.PEEK[])`);
+        byteScaricati += dimensione ?? fetchResp.length;
         const parsed = parseImapMessage(uid, fetchResp);
         if(!parsed&&ordine==="cursore")throw new Error("imap_message_incomplete");
         if (parsed) messages.push(parsed);

@@ -26,7 +26,7 @@ import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
 // Tetti per giro (caselle, messaggi, allegati, tempo): tenere ogni giro piccolo
 // e certo di finire, così `last_synced_at` avanza e il lavoro resta leggero.
-import { LIMITI_POLL, fermaIlGiro } from "./limiti.ts";
+import { LIMITI_POLL, fermaIlGiro, prossimoStalloImap, devoSaltareMessaggio } from "./limiti.ts";
 import { pollWindow,saveEmailPage,validOutlookNextLink,decodeMailBase64,type PollWindow } from "./progresso.ts";
 interface ConnectionDue {
   id: string;
@@ -893,6 +893,9 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     // riprende il giro successivo (sono le più indietro nella lista).
     budget_esaurito: false,
     pending_windows: 0,
+    // Messaggi di cui si sono lette solo le intestazioni (troppo grandi, o su
+    // cui i giri precedenti si fermavano): in Conversazioni c'è la spiegazione.
+    messaggi_non_scaricati: 0,
     duration_ms: 0,
   };
   const t0 = Date.now();
@@ -1012,9 +1015,15 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         metadata=metaImap;
         const oldAnchor=Number(metaImap.eic_imap_since_ms);
         const imapSince=Number.isFinite(oldAnchor)&&oldAnchor>0?oldAnchor:sinceTs;
-        metadata={...metadata,eic_imap_since_ms:imapSince};
-        await checkpoint(); // Preserve first-sync anchor even if storing fails.
         const ultimoUid = Number(metaImap.last_imap_uid ?? 0);
+        // Il segno si scrive PRIMA di scaricare: se questo giro muore (CPU del
+        // worker) non lascia errori né avanzamento, e l'unica traccia è il
+        // contatore. Dopo imapTentativiPrimaDiSaltare giri morti sullo stesso
+        // punto, si legge solo l'intestazione del messaggio che blocca.
+        const stallo = prossimoStalloImap(metaImap.imap_stallo, Number.isFinite(ultimoUid) ? ultimoUid : 0, conn.last_synced_at ?? null);
+        const saltaMessaggio = devoSaltareMessaggio(stallo);
+        metadata={...metadata,eic_imap_since_ms:imapSince,imap_stallo:stallo};
+        await checkpoint(); // Preserve first-sync anchor even if storing fails.
         const imapConfig={
             host: c.imap_host,
             port: c.imap_port,
@@ -1025,13 +1034,16 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         const imapMsgs: ImapMessage[] = await imapScaricaNuovi(
           imapConfig,
           new Date(imapSince),
-          LIMITI_POLL.imapPerGiro,
+          saltaMessaggio ? 1 : LIMITI_POLL.imapPerGiro,
           Number.isFinite(ultimoUid) && ultimoUid > 0 ? ultimoUid : null,
           true, // anche i messaggi già letti altrove: qui è un client di posta
           undefined,
           "cursore", // Never jump over old UIDs when checkpointing a capped page.
+          { soloIntestazioni: saltaMessaggio },
         );
-        imapPageSize=imapMsgs.length;
+        // Saltando un messaggio la pagina è di uno solo: la si conta piena, così
+        // la finestra resta aperta e il giro dopo riparte dal cursore avanzato.
+        imapPageSize=saltaMessaggio&&imapMsgs.length>0?LIMITI_POLL.imapPerGiro:imapMsgs.length;
         for (const m of imapMsgs) {
           const n = parseInt(m.uid, 10);
           if (Number.isFinite(n) && n > uidPiuAlto) uidPiuAlto = n;
@@ -1040,10 +1052,12 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         emails = [];
         // Current mail remains visible while old UIDs are backfilled. Never
         // checkpoint the high UID of this separate, small recent-head read.
-        const recentMsgs=imapSince<Date.now()-3600_000
+        // Mentre si supera un messaggio che blocca non si legge altro: si isola.
+        const recentMsgs=imapSince<Date.now()-3600_000&&!saltaMessaggio
           ? await imapScaricaNuovi(imapConfig,new Date(Date.now()-30*60_000),3,null,true)
           : [];
         const uniqueMsgs=new Map([...recentMsgs,...imapMsgs].map(m=>[m.uid,m]));
+        summary.messaggi_non_scaricati += [...uniqueMsgs.values()].filter(m=>m.nonScaricato).length;
         for (const m of uniqueMsgs.values()) {
           const attachments = m.attachments && m.attachments.length
             ? await materializeImapAttachments(supa, conn.company_id!, m.messageId, m.attachments, imapAttRun)
