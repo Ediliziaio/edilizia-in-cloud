@@ -162,7 +162,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "invoices",
-          "id,total,paid_amount,due_date,status,invoice_number,client_company_name,order_id,document_type,payment_date,deleted_at,issue_date,tax_amount",
+          "id,total,paid_amount,due_date,status,invoice_number,client_company_name,order_id,document_type,payment_date,deleted_at,issue_date,tax_amount,credited_invoice_id",
         )
           .is("deleted_at", null)
           .neq("status", "draft")

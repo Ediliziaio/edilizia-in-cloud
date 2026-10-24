@@ -89,6 +89,7 @@ export interface InvoiceRow {
   deleted_at?: string | null;
   issue_date?: string | null;
   tax_amount?: Money;
+  credited_invoice_id?: string | null;
 }
 export interface CostRow {
   id: string;
@@ -429,6 +430,22 @@ export function buildForecastLedger(
   const orderMap = new Map(s.orders.map((o) => [o.id, o]));
   const costById = new Map(s.costs.map((c) => [c.id, c]));
   const invoices = new Map(s.invoices.map((i) => [i.id, i]));
+  // Note di credito collegate a una fattura: ne riducono il dovuto (parziali)
+  // o la stornano (totali, già chiuse). Centesimi sommati per fattura.
+  const creditedTo = new Map<string, number>();
+  for (const nc of s.invoices)
+    if (
+      creditNote(nc.document_type) &&
+      nc.credited_invoice_id &&
+      !nc.deleted_at &&
+      nc.status !== "cancelled"
+    )
+      creditedTo.set(
+        nc.credited_invoice_id,
+        (creditedTo.get(nc.credited_invoice_id) ?? 0) + toCents(nc.total),
+      );
+  const noteCollegate = (id: string | undefined | null): number =>
+    id ? creditedTo.get(id) ?? 0 : 0;
   const invoiceDeadlines = new Set(
     s.deadlines
       .filter((d) => d.invoice_id && !closed(d.status))
@@ -513,7 +530,19 @@ export function buildForecastLedger(
     // The actual invoice state takes precedence over a stale automatic deadline.
     const invoice = d.invoice_id ? invoices.get(d.invoice_id) : undefined;
     if (invoice && (closed(invoice.status) || invoice.deleted_at)) continue;
-    const amount = Math.max(0, toCents(d.amount) - toCents(d.paid_amount));
+    // La scadenza di una nota di credito collegata a una fattura non è un
+    // rimborso in uscita: è una riduzione del credito, già tolta sotto.
+    if (invoice && creditNote(invoice.document_type) && invoice.credited_invoice_id)
+      continue;
+    // Il dovuto della fattura è al netto delle note di credito collegate.
+    const noteFattura =
+      invoice && !creditNote(invoice.document_type)
+        ? noteCollegate(invoice.id)
+        : 0;
+    const amount = Math.max(
+      0,
+      toCents(d.amount) - toCents(d.paid_amount) - noteFattura,
+    );
     const duplicate =
       d.direction === "entrata" &&
       maybeDuplicate(
@@ -545,6 +574,13 @@ export function buildForecastLedger(
   for (const i of s.invoices) {
     if (i.deleted_at || ["cancelled", "draft"].includes(i.status)) continue;
     const isCredit = creditNote(i.document_type);
+    // Nota di credito collegata a una fattura: pesa come riduzione del credito
+    // (tolta dalla fattura), non come documento a sé — né in uscita né altro.
+    if (isCredit && i.credited_invoice_id) continue;
+    const residuoCents = Math.max(
+      0,
+      toCents(i.total) - toCents(i.paid_amount) - noteCollegate(i.id),
+    );
     if (!invoiceDeadlines.has(i.id) && !closed(i.status))
       add({
         id: `fattura:${i.id}`,
@@ -554,10 +590,7 @@ export function buildForecastLedger(
         direction: isCredit ? "out" : "in",
         cents: isCredit
           ? Math.max(0, toCents(i.total) - toCents(i.paid_amount))
-          : netIncome(
-              Math.max(0, toCents(i.total) - toCents(i.paid_amount)),
-              i.order_id,
-            ),
+          : netIncome(residuoCents, i.order_id),
         date: i.due_date,
         source: "Fattura",
         href: `/azienda/fatturazione/${i.id}`,

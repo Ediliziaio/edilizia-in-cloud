@@ -28,7 +28,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
       // Find invoices linked to this contact via client_email or contact_id
       const { data, error } = await (supabase as any)
         .from("invoices")
-        .select("id, invoice_number, issue_date, due_date, total, paid_amount, status, client_company_name, type")
+        .select("id, invoice_number, issue_date, due_date, total, paid_amount, status, client_company_name, type, document_type, credited_invoice_id")
         .eq("company_id", companyId)
         .eq("contact_id", contactId)
         .order("issue_date", { ascending: false })
@@ -44,12 +44,20 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
         status: string;
         client_company_name: string | null;
         type: string;
+        document_type: string | null;
+        credited_invoice_id: string | null;
       }[];
     },
     enabled: !!contactId && !!companyId,
   });
 
   if (isLoading) return <Skeleton className="h-20 w-full" />;
+
+  // Note di credito collegate → riducono il dovuto della fattura.
+  const creditedByInvoice = new Map<string, number>();
+  for (const nc of invoices)
+    if (nc.document_type === "credit_note" && nc.credited_invoice_id && nc.status !== "cancelled")
+      creditedByInvoice.set(nc.credited_invoice_id, (creditedByInvoice.get(nc.credited_invoice_id) ?? 0) + (nc.total || 0));
 
   const totalInvoiced = invoices.reduce((s, i) => s + (i.total || 0), 0);
   const totalPaid = invoices.reduce((s, i) => s + (i.paid_amount || 0), 0);
@@ -79,7 +87,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
       <div className="space-y-1.5">
         {invoices.map((inv) => {
           const st = STATUS_MAP[inv.status] || { label: inv.status, variant: "secondary" as const };
-          const remaining = (inv.total || 0) - (inv.paid_amount || 0);
+          const remaining = (inv.total || 0) - (inv.paid_amount || 0) - (creditedByInvoice.get(inv.id) ?? 0);
           return (
             <Link
               key={inv.id}

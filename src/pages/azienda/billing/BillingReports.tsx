@@ -33,7 +33,7 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
       const to = `${year}-12-31`;
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, status, document_type, issue_date, due_date, subtotal, tax_amount, total, paid_amount, client_company_name, invoice_number")
+        .select("id, status, document_type, issue_date, due_date, subtotal, tax_amount, total, paid_amount, client_company_name, invoice_number, credited_invoice_id")
         .eq("company_id", companyId!)
         .is("deleted_at", null)  // stesso motivo della lista: niente cestinate nei report
         .gte("issue_date", from)
@@ -70,7 +70,7 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
   const vatBreakdown = useMemo(() => {
     const totByStatus: Record<string, number> = {};
     invoices.forEach((inv) => {
-      if (inv.document_type === "proforma") return;
+      if (inv.document_type === "proforma" || inv.document_type === "credit_note") return;
       const label = inv.status === "paid" ? "Pagata" : inv.status === "credited" ? "Stornata" : inv.status === "overdue" ? "Scaduta" : "Da incassare";
       totByStatus[label] = (totByStatus[label] || 0) + Number(inv.total);
     });
@@ -80,10 +80,18 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
   // Aging report
   const aging = useMemo(() => {
     const now = new Date();
+    // Note di credito collegate → riducono il dovuto della fattura.
+    const creditedByInvoice = new Map<string, number>();
+    invoices.forEach((nc) => {
+      if (nc.document_type === "credit_note" && nc.credited_invoice_id && nc.status !== "cancelled")
+        creditedByInvoice.set(nc.credited_invoice_id, (creditedByInvoice.get(nc.credited_invoice_id) ?? 0) + Number(nc.total || 0));
+    });
     const buckets = { "0-30 gg": 0, "31-60 gg": 0, "61-90 gg": 0, "90+ gg": 0 };
     invoices.forEach((inv) => {
+      // Le note di credito non sono un credito da incassare: fuori dall'aging.
+      if (inv.document_type === "credit_note") return;
       if (inv.status === "paid" || inv.status === "credited" || !inv.due_date) return;
-      const remaining = Number(inv.total) - Number(inv.paid_amount || 0);
+      const remaining = Number(inv.total) - Number(inv.paid_amount || 0) - (creditedByInvoice.get(inv.id) ?? 0);
       if (remaining <= 0) return;
       const due = new Date(inv.due_date);
       const days = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));

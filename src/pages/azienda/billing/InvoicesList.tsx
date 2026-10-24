@@ -71,11 +71,12 @@ function syncFreshness(iso?: string | null): { label: string; stale: boolean } |
  * passata viene mostrata come Scaduta — coerente coi KPI e con la UX di Fatture
  * in Cloud — anche se il gestionale d'origine la riporta ancora come "Emessa".
  */
-function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null; document_type?: string | null }): string {
+function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null; document_type?: string | null }, credited = 0): string {
   if (["paid", "cancelled", "draft", "credited"].includes(inv.status)) return inv.status;
   // Una nota di credito è uno storno: non "scade" (prima risultava Scaduta da 150 giorni).
   if (inv.document_type === "credit_note") return inv.status;
-  const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0);
+  // Il residuo è al netto delle note di credito parziali collegate.
+  const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0) - credited;
   if (inv.due_date && new Date(inv.due_date) < new Date() && residuo > 0.005) return "overdue";
   return inv.status;
 }
@@ -111,12 +112,14 @@ function clienteInitials(name?: string | null): string {
  * riga di stato pagamento — "Saldata" (verde), "Residuo €X" (ambra, acconto
  * parziale) — o "Nota di credito" (storno, in rosso col segno meno).
  */
-function ImportoInfo({ inv }: { inv: { total?: number | null; paid_amount?: number | null; status: string; document_type?: string | null } }) {
+function ImportoInfo({ inv, credited = 0 }: { inv: { total?: number | null; paid_amount?: number | null; status: string; document_type?: string | null }; credited?: number }) {
   const total = Number(inv.total || 0);
   const paid = Number(inv.paid_amount || 0);
   const isCredit = inv.document_type === "credit_note";
-  const fullyPaid = !isCredit && (inv.status === "paid" || (paid > 0 && total - paid <= 0.005));
-  const partial = !isCredit && !fullyPaid && paid > 0.005;
+  // Residuo al netto delle note di credito parziali collegate.
+  const residuoNetto = total - paid - credited;
+  const fullyPaid = !isCredit && (inv.status === "paid" || (residuoNetto <= 0.005 && (paid > 0 || credited > 0)));
+  const partial = !isCredit && !fullyPaid && (paid > 0.005 || credited > 0.005);
   return (
     <>
       <div className={`font-medium ${isCredit ? "text-rose-600" : ""}`}>
@@ -127,7 +130,7 @@ function ImportoInfo({ inv }: { inv: { total?: number | null; paid_amount?: numb
       ) : fullyPaid ? (
         <div className="text-[10px] font-medium text-green-600">Saldata</div>
       ) : partial ? (
-        <div className="text-[10px] font-medium text-amber-600">Residuo {formatCurrency(total - paid)}</div>
+        <div className="text-[10px] font-medium text-amber-600">Residuo {formatCurrency(Math.max(0, residuoNetto))}</div>
       ) : null}
     </>
   );
@@ -207,7 +210,7 @@ export default function InvoicesList() {
         // Nomi reali verificati a schema: tax_amount (non vat_amount), document_type (non
         // invoice_type), external_provider (non provider), external_xml_url (non xml_url).
         // currency/customer_id NON esistono → rimosse.
-        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider, external_status")
+        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider, external_status, credited_invoice_id")
         .eq("company_id", companyId!)
         // Le fatture cestinate (soft delete) restavano in lista E nei KPI:
         // il totale "da incassare" contava documenti annullati, e cliccandoli
@@ -406,6 +409,17 @@ export default function InvoicesList() {
     return c;
   }, [invoices, yearFilter]);
 
+  // Note di credito collegate → importo che riduce il dovuto della fattura.
+  const creditedByInvoice = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const nc of invoices)
+      if (nc.document_type === "credit_note" && nc.credited_invoice_id && nc.status !== "cancelled")
+        m.set(nc.credited_invoice_id, (m.get(nc.credited_invoice_id) ?? 0) + Number(nc.total || 0));
+    return m;
+  }, [invoices]);
+  const residuoDi = (inv: { id: string; total?: number | null; paid_amount?: number | null }) =>
+    Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0) - (creditedByInvoice.get(inv.id) ?? 0);
+
   const filtered = useMemo(() => {
     let list = invoices.filter((i) => matchDocTab(i, docTab));
     // Filtro per anno (selettore in alto) + eventuale mese cliccato nella panoramica.
@@ -417,11 +431,11 @@ export default function InvoicesList() {
     // "unpaid" (da incassare) e "paid" che cattura anche i saldi per acconto.
     if (statusFilter !== "all") {
       list = list.filter((i) => {
-        const residuo = Number(i.total ?? 0) - Number(i.paid_amount ?? 0);
+        const residuo = residuoDi(i);
         if (statusFilter === "unpaid") {
           return !["paid", "cancelled", "credited"].includes(i.status) && residuo > 0.005;
         }
-        if (statusFilter === "overdue") return effectiveStatus(i) === "overdue";
+        if (statusFilter === "overdue") return effectiveStatus(i, creditedByInvoice.get(i.id) ?? 0) === "overdue";
         if (statusFilter === "paid") {
           return i.status === "paid" || (Number(i.paid_amount ?? 0) > 0.005 && residuo <= 0.005);
         }
@@ -436,7 +450,7 @@ export default function InvoicesList() {
       );
     }
     return list;
-  }, [invoices, docTab, yearFilter, monthFilter, stripYear, statusFilter, search]);
+  }, [invoices, docTab, yearFilter, monthFilter, stripYear, statusFilter, search, creditedByInvoice]);
 
   // Raggruppamento per MESE (decrescente), con totale e conteggio per mese.
   // Le fatture sono già ordinate per data desc dalla query.
@@ -468,17 +482,17 @@ export default function InvoicesList() {
     const billable = base.filter((i) => i.document_type !== "credit_note");
     const receivable = billable
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
-      .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
+      .reduce((s, i) => s + Math.max(0, residuoDi(i)), 0);
     const overdue = billable.filter((i) => {
       if (["paid", "cancelled", "credited"].includes(i.status)) return false;
       return i.due_date && new Date(i.due_date) < now;
     });
-    const overdueAmount = overdue.reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
+    const overdueAmount = overdue.reduce((s, i) => s + Math.max(0, residuoDi(i)), 0);
     const issuedThisMonth = base.filter(
       (i) => i.issue_date?.startsWith(thisMonth) && i.document_type === "invoice" && i.status !== "cancelled"
     ).length;
     return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth, total: base.length };
-  }, [invoices, yearFilter]);
+  }, [invoices, yearFilter, creditedByInvoice]);
 
   // RECUPERO CREDITI — cosa mancava: la pagina diceva "36 scadute 38k" ma non
   // QUANTO è vecchio il credito né CHI deve pagarti. Qui: bucket di aging
@@ -492,7 +506,7 @@ export default function InvoicesList() {
     const perCliente = new Map<string, { residuo: number; maxDays: number; n: number }>();
     for (const i of base) {
       if (!i.due_date) continue;
-      const residuo = Number(i.total || 0) - Number(i.paid_amount || 0);
+      const residuo = residuoDi(i);
       if (residuo <= 0.005) continue;
       const days = Math.floor((now - new Date(i.due_date).getTime()) / 86_400_000);
       if (days <= 0) continue; // solo scadute
@@ -931,12 +945,13 @@ export default function InvoicesList() {
                   {/* divide-border: sui <button> il bordo non prende il colore del tema (veniva nero). */}
                   <div className="divide-y divide-border">
                     {g.rows.map((inv) => {
-                      const eff = effectiveStatus(inv);
+                      const creditedInv = creditedByInvoice.get(inv.id) ?? 0;
+                      const eff = effectiveStatus(inv, creditedInv);
                       const cfg = STATUS_CONFIG[eff] || STATUS_CONFIG.draft;
                       const isCredit = inv.document_type === "credit_note";
                       const gg = !isCredit && !["paid", "cancelled", "credited"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
-                      const residuo = Number(inv.total || 0) - Number(inv.paid_amount || 0);
-                      const saldata = !isCredit && (inv.status === "paid" || (Number(inv.paid_amount || 0) > 0 && residuo <= 0.005));
+                      const residuo = Number(inv.total || 0) - Number(inv.paid_amount || 0) - creditedInv;
+                      const saldata = !isCredit && (inv.status === "paid" || (residuo <= 0.005 && (Number(inv.paid_amount || 0) > 0 || creditedInv > 0)));
                       const parziale = !isCredit && !saldata && Number(inv.paid_amount || 0) > 0.005;
                       return (
                         <button
@@ -997,7 +1012,7 @@ export default function InvoicesList() {
                         <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{g.rows.length} fatture</td>
                       </tr>
                       {g.rows.map((inv) => {
-                        const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
+                        const cfg = STATUS_CONFIG[effectiveStatus(inv, creditedByInvoice.get(inv.id) ?? 0)] || STATUS_CONFIG.draft;
                         return (
                           <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
                             <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
@@ -1018,7 +1033,7 @@ export default function InvoicesList() {
                                   : <span className="text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</span>;
                               })()}
                             </td>
-                            <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
+                            <td className="p-3 text-right"><ImportoInfo inv={inv} credited={creditedByInvoice.get(inv.id) ?? 0} /></td>
                             <td className="p-3">
                               <div className="flex flex-col gap-1 items-start">
                                 <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
