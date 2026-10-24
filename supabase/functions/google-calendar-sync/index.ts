@@ -727,6 +727,12 @@ async function reconcileCalendario(
   (existingMappings || []).forEach((m: any) => mappingsByGoogleId.set(m.google_event_id, m));
 
   const seenGoogleIds = new Set<string>();
+  // Gli appuntamenti che hanno già un evento Google in questo calendario: un
+  // secondo evento che dichiara di essere lo stesso appuntamento non si può
+  // collegare (un appuntamento ha un solo evento per calendario).
+  const appuntamentiCollegati = new Set<string>(
+    (existingMappings || []).map((m: any) => String(m.appointment_id)),
+  );
   let created = 0, updated = 0, removed = 0;
 
   for (const gEvent of googleEvents) {
@@ -775,6 +781,18 @@ async function reconcileCalendario(
           .eq("id", aptId).eq("company_id", companyId).maybeSingle();
         if (ownerError) throw new Error("Proprietà appuntamento Google non verificabile");
         if (!owned) continue;
+        // Doppione su Google: l'appuntamento è già collegato a un altro evento di
+        // questo calendario. Collegarlo fallirebbe sempre (indice unico) e, fuori
+        // da qualunque try/catch, interromperebbe la riconciliazione di TUTTO il
+        // calendario a ogni giro: gli eventi dopo questo non venivano più
+        // allineati e le cancellazioni non si propagavano (24/10/2026: due
+        // appuntamenti, 228 errori in un giorno). Si salta e si va avanti.
+        if (appuntamentiCollegati.has(String(aptId))) {
+          console.warn("[google-calendar-sync] evento Google doppione, appuntamento già collegato: si salta", {
+            appointment_id: aptId, google_event_id: googleEventId, calendar_id: calId,
+          });
+          continue;
+        }
         await saveGoogleAppointmentMapping(admin, {
           company_id: companyId,
           user_id: userId,
@@ -786,6 +804,7 @@ async function reconcileCalendario(
           last_synced_at: new Date().toISOString(),
           last_updated_by: "google",
         });
+        appuntamentiCollegati.add(String(aptId));
       }
     } else if (allowImport) {
       // New Google-only event → import to CRM
