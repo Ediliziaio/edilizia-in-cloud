@@ -37,6 +37,19 @@ type Fattura = {
 };
 
 const VOCALI = /[AEIOU]/;
+/**
+ * Il codice fiscale come sta nella fattura, pulito per il confronto: solo
+ * lettere e cifre, maiuscolo. Alcuni gestionali scrivono nel campo del codice
+ * fiscale la partita IVA CON il prefisso «IT» (IT14972911003): per il database
+ * non è un codice fiscale (13 caratteri), per la legge è il codice fiscale di
+ * una società, 11 cifre. Si toglie il prefisso solo se segue esattamente una
+ * partita IVA; un codice fiscale di persona non comincia mai così.
+ */
+export function codiceFiscaleDaFattura(grezzo: string | null | undefined): string | null {
+  const pulito = (grezzo || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  return pulito.replace(/^IT(?=\d{11}$)/, "") || null;
+}
+
 function lettere(parte: string): { consonanti: string[]; vocali: string[] } {
   const l = parte.toUpperCase().normalize("NFD").replace(/[^A-Z]/g, "").split("");
   return { consonanti: l.filter((c) => !VOCALI.test(c)), vocali: l.filter((c) => VOCALI.test(c)) };
@@ -95,7 +108,7 @@ export async function clienteDaFatturaImportata(
     if (!intestatario) return { esito: "da_verificare", motivo: "Intestatario assente" };
     // Azienda: ha la partita IVA, oppure un codice fiscale di 11 cifre (quello
     // delle società). Una persona ha il codice fiscale di 16 caratteri.
-    const cfFattura = (fattura.client_fiscal_code || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase() || null;
+    const cfFattura = codiceFiscaleDaFattura(fattura.client_fiscal_code);
     const ivaFattura = (fattura.client_vat_number || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/^IT/, "") || null;
     const azienda = !!ivaFattura || /^\d{11}$/.test(cfFattura || "");
     const persona = azienda ? { first_name: "", last_name: intestatario } : nomeDaIntestatario(intestatario, fattura.client_fiscal_code);
@@ -161,6 +174,13 @@ export async function clienteDaFatturaImportata(
     });
     if (errProfilo) {
       await supabase.auth.admin.deleteUser(id);
+      // Un dato fiscale che il database rifiuta («Codice fiscale non valido»,
+      // «Partita IVA non valida») non cambia riprovando: la fattura si segna
+      // da verificare. Come «errore» veniva ripresa ogni 5 minuti, per sempre,
+      // creando e cancellando un account ogni volta (288 volte in un giorno).
+      if (/non valid[oa]/i.test(errProfilo.message)) {
+        return { esito: "da_verificare", motivo: `Profilo: ${errProfilo.message}` };
+      }
       return { esito: "errore", motivo: `Profilo: ${errProfilo.message}` };
     }
     const { error: errRuolo } = await supabase.from("user_roles").insert({ user_id: id, role: "customer" });
