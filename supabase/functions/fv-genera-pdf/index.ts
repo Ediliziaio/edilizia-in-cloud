@@ -977,3 +977,5 @@ Deno.serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
+
+// Cointestatario (24/10/2026): ripubblicata col preventivo cointestato.

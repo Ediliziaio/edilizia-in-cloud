@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { fireEvent, render as renderBase, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const contatti = vi.hoisted(() => [{ id: "k1", first_name: "Anna", last_name: "Bianchi", email: null, fiscal_code: "bncnna80a41l219x" }]);
+const contatti = vi.hoisted(() => [{ id: "k1", first_name: "Anna", last_name: "Bianchi", email: null as string | null, fiscal_code: "bncnna80a41l219x" }]);
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az" }));
 vi.mock("@/integrations/supabase/client", () => {
   const catena: Record<string, unknown> = {};

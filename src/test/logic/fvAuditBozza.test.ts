@@ -13,6 +13,7 @@ import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard
 /** Un progetto compilato fino in fondo: ogni campo ha un valore diverso da quello iniziale. */
 const COMPILATO: WizardData = {
   cliente_nome: "Ada", cliente_cognome: "Verdi", cliente_telefono: "333 1234567", cliente_email: "ada@example.com", cliente_id: "c-1",
+  cointestatario_nome: "Bruno", cointestatario_cognome: "Verdi", cointestatario_codice_fiscale: "VRDBRN80A01F839X",
   archetipo: "privato_seconda",
   indirizzo: "Via Roma 1", comune: "Napoli", provincia: "NA", cap: "80100", regione: "Campania", popolazione_comune: 900000,
   latitudine: 40.85, longitudine: 14.26, tipologia_immobile: "villa", superficie_immobile_mq: 120, prima_casa: false,

@@ -320,3 +320,5 @@ function redactSensitive(payload: unknown): unknown {
   });
   return obj;
 }
+
+// Cointestatario (24/10/2026): ripubblicata col preventivo cointestato.
