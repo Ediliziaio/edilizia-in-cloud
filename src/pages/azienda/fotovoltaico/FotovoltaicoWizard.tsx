@@ -14,6 +14,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -161,7 +162,7 @@ import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImp
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
-import { creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
+import { creaModelloPreventivo, interventiDelModulo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 
 const formatEur = (n: number) =>
   `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
@@ -404,7 +405,7 @@ function FotovoltaicoWizard() {
   const { bundles: kitFvBundles } = useBundlesList();
   const { data: fvTemplate } = useTemplatePdf();
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
-  const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
+  const { data: progettoEsistente, refetch: rileggiProgetto } = useProgetto(progettoId ?? undefined);
   const modelloSalvato = useMemo<{ snapshot: ReturnType<typeof leggiModelloPreventivo>; error: string | null }>(() => {
     try { return { snapshot: progettoEsistente ? leggiModelloPreventivo("fotovoltaico", progettoEsistente.modello_snapshot, progettoEsistente.company_id) : null, error: null }; }
     catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
@@ -814,6 +815,11 @@ function FotovoltaicoWizard() {
       throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
     }
     if (fvTemplate === undefined) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
+    return costruisciModelloFv(modelloRichiesto);
+  };
+  /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
+  const costruisciModelloFv = async (modelloRichiesto: { id: string }) => {
+    if (!effectiveCompanyId) throw new Error("Azienda non disponibile: ricarica la pagina.");
     const [{ createFullFvTemplate, isFullFvModuleId }, { loadLocalFvTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullFvModules"), import("@/lib/moduli-vendita/localFvTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
@@ -1848,6 +1854,18 @@ function FotovoltaicoWizard() {
           </>
         }
       />
+      {progettoEsistente && progettoEsistente.stato === "bozza" && (
+        <div className="mx-auto w-full max-w-6xl px-4 pt-3">
+          <ModelloDelPreventivo
+            tabella="fv_progetti"
+            interventi={interventiDelModulo("fotovoltaico").map((i) => ({ id: i.id, title: i.title }))}
+            progetto={progettoEsistente}
+            snapshot={modelloSalvato.snapshot}
+            costruisci={(_companyId, m) => costruisciModelloFv(m)}
+            onAggiornato={rileggiProgetto}
+          />
+        </div>
+      )}
 
       {/* Telefono: niente testata dell'intervento; resta solo l'avviso, se c'è. */}
       {intervento && <section className={`mx-auto w-full max-w-6xl space-y-1 px-4 pt-4 max-sm:space-y-0 max-sm:px-0 max-sm:pt-0 max-sm:pb-3${!progettoId && !modelSupport.supported ? "" : " max-sm:hidden"}`} aria-label={`Intervento ${intervento.title}`}>

@@ -180,6 +180,13 @@ describe("la colonna del modello nel database", () => {
     expect(collegabile).toContain("new.modello_snapshot->>'companyId' = new.company_id::text");
     expect(collegabile).toContain("if old.stato = 'bozza' and new.stato = 'bozza'");
   });
+
+  it("la stessa regola vale per Tetti e Serramenti", () => {
+    const tettiSerramenti = readFileSync(resolve(cartella, "20281024130000_modello_aggiornabile_tetti_serramenti.sql"), "utf8");
+    expect(tettiSerramenti).toContain("create or replace function public.tet_preserve_quote_model_snapshot()");
+    expect(tettiSerramenti).toContain("create or replace function public.sr_preserve_quote_model_snapshot()");
+    expect(tettiSerramenti).toContain("if old.stato::text = 'bozza' and new.stato::text = 'bozza'");
+  });
 });
 
 describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {

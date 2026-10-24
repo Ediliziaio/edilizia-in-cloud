@@ -15,15 +15,22 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   TABELLA_PREVENTIVI, TIPO_INTERVENTO_DEL_MODELLO, interventiDelModulo,
-  type ModelloPreventivo, type ModuloConModelli,
+  type ModuloConModelli,
 } from "@/lib/moduli/modelloPreventivo";
 
+interface InterventoScelto { id: string; title: string }
+
 interface Props {
-  modulo: ModuloConModelli;
+  /** Preventivatori edili: tabella e interventi vengono dal modulo. */
+  modulo?: ModuloConModelli;
+  /** Gli altri (Tetti, Serramenti, Fotovoltaico): la tabella dei preventivi… */
+  tabella?: string;
+  /** …e gli interventi della libreria che il preventivo può prendere, già adatti al suo tipo. */
+  interventi?: readonly InterventoScelto[];
   progetto: { id: string; company_id: string; stato?: string | null; tipo_intervento?: string | null } | null | undefined;
-  snapshot: ModelloPreventivo<object> | null | undefined;
+  snapshot: { modelId: string; capturedAt: string } | null | undefined;
   /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare. */
-  costruisci: (companyId: string, model: { id: string }) => Promise<ModelloPreventivo<object>>;
+  costruisci: (companyId: string, model: { id: string }) => Promise<unknown>;
   onAggiornato: () => unknown;
 }
 
@@ -35,11 +42,12 @@ export function interventiPerTipo(modulo: ModuloConModelli, tipo: string | null 
   return adatti.length > 0 ? adatti : tutti;
 }
 
-export function ModelloDelPreventivo({ modulo, progetto, snapshot, costruisci, onAggiornato }: Props) {
-  const scelte = interventiPerTipo(modulo, progetto?.tipo_intervento);
+export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, snapshot, costruisci, onAggiornato }: Props) {
+  const scelte: readonly InterventoScelto[] = interventi ?? (modulo ? interventiPerTipo(modulo, progetto?.tipo_intervento) : []);
+  const tabellaPreventivi = tabella ?? (modulo ? TABELLA_PREVENTIVI[modulo] : null);
   const [scelto, setScelto] = useState<string>(scelte[0]?.id ?? "");
   const [inCorso, setInCorso] = useState(false);
-  if (!progetto || progetto.stato !== "bozza") return null;
+  if (!progetto || progetto.stato !== "bozza" || !tabellaPreventivi) return null;
 
   const applica = async (modelId: string) => {
     setInCorso(true);
@@ -47,7 +55,7 @@ export function ModelloDelPreventivo({ modulo, progetto, snapshot, costruisci, o
       const nuovo = await costruisci(progetto.company_id, { id: modelId });
       // modello_snapshot non è nei tipi generati di Supabase.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from(TABELLA_PREVENTIVI[modulo]).update({ modello_snapshot: nuovo })
+      const { error } = await (supabase as any).from(tabellaPreventivi).update({ modello_snapshot: nuovo })
         .eq("id", progetto.id).eq("company_id", progetto.company_id).eq("stato", "bozza");
       if (error) throw new Error(error.message);
       await onAggiornato();
@@ -70,6 +78,7 @@ export function ModelloDelPreventivo({ modulo, progetto, snapshot, costruisci, o
       </div>
     );
   }
+  if (scelte.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs">
       <span>Questo preventivo usa il modello base: le modifiche ai modelli della libreria non entrano nel PDF.</span>

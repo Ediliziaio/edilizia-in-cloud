@@ -70,7 +70,8 @@ import type { CrmContactMinimal } from "@/lib/serramenti/api";
 import { conLeModificheDelModulo, confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
 import { detrazioneCambiata, detrazioneDelPreventivo, totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
-import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
+import { SR_OPERATIONAL_MODELS, isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults, type SrQuoteModelId } from "@/lib/serramenti/quoteModel";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
   AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, IndirizzoDeiLavori, PannelloAnteprima,
@@ -248,6 +249,21 @@ export default function SerramentiWizard() {
 
   // Local form state — solo per i campi del progetto stesso
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
+  /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
+  const modelloAttualeSr = async (companyId: string, modelId: SrQuoteModelId) => {
+    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullSerramentiModules"), import("@/lib/moduli-vendita/localSerramentiTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
+    ]);
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
+    const { data: currentTemplate, error: readError } = await supabase.from("sr_template_pdf").select("*").eq("company_id", companyId).maybeSingle();
+    if (readError) throw new Error("Impossibile verificare il modello aziendale. Riprova prima di creare il preventivo.");
+    const localCopy = loadLocalSerramentiTemplate(companyId, modelId);
+    const template = localCopy?.template ?? createFullSerramentiTemplate({ ...(currentTemplate as unknown as Partial<SrTemplatePdfRow> | null), company_id: companyId }, modelId);
+    return makeSrQuoteModelSnapshot(companyId, modelId, template);
+  };
   const newQuoteInput = async (): Promise<Partial<SrProgettoRow>> => {
     const input = { ...form, tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione" };
     if (!requestedModel) return input;
@@ -255,19 +271,7 @@ export default function SerramentiWizard() {
       throw new Error("Questo modello non è ancora collegato al salvataggio. Usa il preventivatore generale oppure completa l'attivazione.");
     }
     if (loadingPdfTemplate || templateError) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
-    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
-      import("@/lib/moduli-vendita/fullSerramentiModules"), import("@/lib/moduli-vendita/localSerramentiTemplates"),
-      import("@/lib/moduli-vendita/archivioModelli"),
-    ]);
-    const companyId = effectiveCompany.id;
-    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
-    // un altro computer. Se il database non risponde resta la copia di questo browser.
-    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
-    const { data: currentTemplate, error: readError } = await supabase.from("sr_template_pdf").select("*").eq("company_id", companyId).maybeSingle();
-    if (readError) throw new Error("Impossibile verificare il modello aziendale. Riprova prima di creare il preventivo.");
-    const localCopy = loadLocalSerramentiTemplate(companyId, requestedModel);
-    const template = localCopy?.template ?? createFullSerramentiTemplate({ ...(currentTemplate as unknown as Partial<SrTemplatePdfRow> | null), company_id: companyId }, requestedModel);
-    const snapshot = makeSrQuoteModelSnapshot(companyId, requestedModel, template);
+    const snapshot = await modelloAttualeSr(effectiveCompany.id, requestedModel);
     const definition = findSerramentiTemplateModule(requestedModel)!;
     return { ...srModelProjectDefaults(snapshot), intervento_titolo: definition.title, intervento_sintesi: definition.summary,
       ...input, modello_snapshot: snapshot };
@@ -763,16 +767,29 @@ export default function SerramentiWizard() {
     </div>;
   }
 
+  const modelloDelPreventivo = detail ? (
+    <ModelloDelPreventivo
+      tabella="sr_progetti"
+      interventi={SR_OPERATIONAL_MODELS.map((m) => ({ id: m, title: findSerramentiTemplateModule(m)?.title ?? m }))}
+      progetto={detail.progetto}
+      snapshot={savedModel.snapshot}
+      costruisci={(companyId, m) => modelloAttualeSr(companyId, m.id as SrQuoteModelId)}
+      onAggiornato={refetch}
+    />
+  ) : null;
+
   return (
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
     <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
       {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
         <p className="font-semibold">{modelDefinition.title}</p>
-        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
+        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}</p>
+        {!isNew && detail && <div className="mt-2">{modelloDelPreventivo}</div>}
         <p className="mt-2 text-xs">Cliente e cantiere → Prodotti e servizi → Prezzi, sconti e PDF</p>
         {isNew && !modelSupport.supported && <p role="alert" className="mt-3 rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
       </div></div>}
+      {!modelDefinition && !isNew && detail && <div className="mx-auto max-w-6xl px-4 pt-4">{modelloDelPreventivo}</div>}
       {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>

@@ -40,6 +40,7 @@ import {
 } from "@/hooks/useTettiProgetto";
 import type { TetComputoVoce, TetProgetto } from "@/types/tetti";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
+import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
 import { avvisaSalvataggioFallito, motivoSalvataggioNonRiuscito, type OpzioniAvviso } from "@/lib/preventivatore/salvataggioFallito";
@@ -62,7 +63,7 @@ import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
 import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
-import { findTettiTemplateModule } from "@/lib/moduli-vendita/tettiTemplateModules";
+import { TETTI_TEMPLATE_MODULES, findTettiTemplateModule, type TettiTemplateModuleId } from "@/lib/moduli-vendita/tettiTemplateModules";
 import { makeTetQuoteModel, readTetQuoteModel } from "@/lib/tetti/quoteModel";
 import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
 
@@ -139,10 +140,8 @@ export default function TettiWizard() {
 
   // Local form state (campi del progetto).
   const [form, setForm] = useState<TetFormPatch>(() => model ? { tipo_intervento: TET_INTERVENTION_TYPES[model.id] } : {});
-  const createInput = async (): Promise<TetFormPatch> => {
-    if (!requestedModel) return form;
-    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
-    const companyId = effectiveCompany.id;
+  /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
+  const modelloAttuale = async (companyId: string, model: { id: TettiTemplateModuleId }) => {
     const [{ createFullTettiTemplate }, { loadLocalTettiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullTettiModules"), import("@/lib/moduli-vendita/localTettiTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
@@ -152,7 +151,12 @@ export default function TettiWizard() {
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const base = await getTetTemplatePdf(companyId);
     const source = loadLocalTettiTemplate(companyId, model.id)?.template ?? createFullTettiTemplate(base, model.id);
-    return { ...form, tipo_intervento: TET_INTERVENTION_TYPES[model.id], modello_snapshot: makeTetQuoteModel(companyId, model.id, source) };
+    return makeTetQuoteModel(companyId, model.id, source);
+  };
+  const createInput = async (): Promise<TetFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    return { ...form, tipo_intervento: TET_INTERVENTION_TYPES[model.id], modello_snapshot: await modelloAttuale(effectiveCompany.id, model) };
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
@@ -526,14 +530,25 @@ export default function TettiWizard() {
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
           nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
         }}
-        sopra={model && (
+        sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
           <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
             <div className="space-y-2 max-sm:hidden">
-              <h1 className="text-xl font-semibold">Preventivo · {model.title}</h1>
-              <p className="text-sm text-muted-foreground">{model.summary}</p>
+              <h1 className="text-xl font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
+              {model && <p className="text-sm text-muted-foreground">{model.summary}</p>}
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
             </div>
+            {!isNew && detail && (
+              <ModelloDelPreventivo
+                tabella="tet_progetti"
+                interventi={TETTI_TEMPLATE_MODULES.filter((m) => !detail.progetto.tipo_intervento || TET_INTERVENTION_TYPES[m.id] === detail.progetto.tipo_intervento)
+                  .concat(detail.progetto.tipo_intervento && !TETTI_TEMPLATE_MODULES.some((m) => TET_INTERVENTION_TYPES[m.id] === detail.progetto.tipo_intervento) ? TETTI_TEMPLATE_MODULES : [])}
+                progetto={detail.progetto}
+                snapshot={savedModel.snapshot}
+                costruisci={(companyId, m) => modelloAttuale(companyId, m as { id: TettiTemplateModuleId })}
+                onAggiornato={refetch}
+              />
+            )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
         )}
