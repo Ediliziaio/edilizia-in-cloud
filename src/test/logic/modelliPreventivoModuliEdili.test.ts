@@ -105,8 +105,14 @@ describe.each(MODULI_CON_MODELLI)("%s: il modello dell'intervento", (modulo) => 
   it("preventivatore, salvataggio, duplicazione e PDF usano il modello congelato", () => {
     const wizard = leggi(`src/pages/azienda/${dir}/${H}Wizard.tsx`);
     expect(wizard).toContain(`useSupportoModelloPreventivo("${modulo}")`);
-    expect(wizard).toContain(`creaModelloPreventivo("${modulo}", companyId, model.id, source)`);
-    expect(wizard).toContain(`await sincronizzaModelliAzienda(companyId)`);
+    if (modulo === 'bagni') {
+      // The shared live loader is now used by both AI preview and native creation.
+      expect(wizard).toContain("loadLiveQuoteModuleTemplate(companyId, 'bagni', model.id)");
+      expect(wizard).toContain(`creaModelloPreventivo("bagni", companyId, model.id, source.template)`);
+    } else {
+      expect(wizard).toContain(`creaModelloPreventivo("${modulo}", companyId, model.id, source)`);
+      expect(wizard).toContain(`await sincronizzaModelliAzienda(companyId)`);
+    }
     expect(wizard).toContain(`upsertMut.mutateAsync(await createInput())`);
     expect(wizard).toContain(`<StepImmobile form={form} onChange={onChange} model={model} />`);
     expect(wizard).toMatch(/<StepComputo[\s\S]*?model=\{model\}/);

@@ -54,6 +54,9 @@ import {
 } from "@/lib/moduli/prodottiListino";
 import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import type { PickedVoce, VoceSource } from "./types";
+import { useComputoReview } from './ComputoReviewContext';
+import { nativeBagniUnit } from '@/lib/preventivi/quoteBagniBridge';
+import { toast } from 'sonner';
 
 interface Props {
   open: boolean;
@@ -125,6 +128,7 @@ function ResultRow({
 }
 
 export default function AddVocePicker({ open, onOpenChange, onPick, targetCapitolo }: Props) {
+  const review = useComputoReview();
   const [term, setTerm] = useState("");
   const isMobile = useIsMobile();
   const [mode, setMode] = useState<SearchMode>("azienda");
@@ -141,13 +145,13 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
   const capitoli = useListinoCapitoli();
   // Il capitolo scelto vale solo se c'è ancora fra i capitoli del listino.
   const capitolo = capitoloId ? (capitoli.data ?? []).find((c) => c.id === capitoloId) ?? null : null;
-  const lavorazioni = useListinoVociSearch(azOn ? debounced : "", capitolo?.id ?? null);
+  const lavorazioni = useListinoVociSearch(azOn ? debounced : "", capitolo?.id ?? null, azOn);
   // Dentro un capitolo si guardano solo le sue lavorazioni.
   const altreSorgenti = azOn && !capitolo;
-  const prodotti = usePrefillFromArticolo(altreSorgenti ? debounced : "");
+  const prodotti = usePrefillFromArticolo(altreSorgenti ? debounced : "", altreSorgenti);
   // Il listino prodotti vero: foto, descrizione e prezzo vengono con la riga. Si interroga solo a selettore aperto.
   const prodottiListino = useProdottiListino(debounced, VERTICALE_LISTINO, altreSorgenti);
-  const manodopera = usePrefillFromTariffa(azOn ? debounced : "");
+  const manodopera = usePrefillFromTariffa(altreSorgenti ? debounced : "", altreSorgenti);
   // Prezzario regionale centrale (cross-fonte, solo pubblicate): hook gated a 2+ char.
   const prezzario = usePrezzarioVociGlobalSearch(
     open && mode === "prezzario" ? debounced : "",
@@ -172,6 +176,11 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
   };
 
   const handlePick = (voce: PickedVoce) => {
+    if (review && voce.sourceUnit !== undefined) {
+      const unit = nativeBagniUnit(voce.sourceUnit ?? '');
+      if (!unit) { toast.error('Unità non supportata dal computo Bagni: scegli il riferimento in chat senza convertirla in pezzi.'); return; }
+      voce = { ...voce, unita_misura: unit };
+    }
     onPick(voce);
     resetAndClose();
   };
@@ -188,6 +197,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
       descrizione: p.nome,
       unita_misura: mapUnitaMisura(p.unita),
       ...prodottoInRiga(p),
+      sourceUnit: p.modo === 'mq' ? 'mq' : p.unita,
       capitolo_nome: targetCapitolo,
       // La riga porta una copia di foto e descrizione del listino: il preventivo non cambia se poi si ritocca il listino.
       famiglia_id: p.id,
@@ -204,14 +214,15 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
   };
 
   // Le lavorazioni divise per capitolo, nell'ordine in cui arrivano.
+  const vociListino = lavorazioni.data;
   const lavorazioniPerCapitolo = useMemo(() => {
-    const gruppi = new Map<string, NonNullable<typeof lavorazioni.data>>();
-    for (const v of lavorazioni.data ?? []) {
+    const gruppi = new Map<string, NonNullable<typeof vociListino>>();
+    for (const v of vociListino ?? []) {
       const nome = v.capitolo_nome?.trim() || "Senza capitolo";
       gruppi.set(nome, [...(gruppi.get(nome) ?? []), v]);
     }
     return [...gruppi.entries()];
-  }, [lavorazioni.data]);
+  }, [vociListino]);
 
   const nLav = lavorazioni.data?.length ?? 0;
   const nProd = capitolo ? 0 : prodotti.data?.length ?? 0;
@@ -395,6 +406,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: v.descrizione,
                     unita_misura: v.unita_misura,
+                    sourceUnit: v.unita_misura,
                     prezzo_unitario: v.prezzo_unitario,
                     costo_materiali: v.costo_materiali,
                     costo_manodopera: v.costo_manodopera,
@@ -436,6 +448,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: p.name,
                     unita_misura: mapUnitaMisura(p.unita),
+                    sourceUnit: p.unita,
                     // Prezzo di partenza = vendita listino (fallback costo).
                     prezzo_unitario: p.prezzo_vendita || p.costo,
                     costo_materiali: p.costo,
@@ -463,6 +476,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: m.nome,
                     unita_misura: mapUnitaMisura(m.unita),
+                    sourceUnit: m.unita,
                     prezzo_unitario: m.prezzo_vendita || m.costo,
                     costo_materiali: 0,
                     costo_manodopera: m.costo,
@@ -499,6 +513,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                     handlePick({
                       descrizione: v.descrizione,
                       unita_misura: mapUnitaMisura(v.unita_misura),
+                      sourceUnit: v.unita_misura,
                       prezzo_unitario: prezzo,
                       costo_materiali: costoMat,
                       costo_manodopera: costoMano,

@@ -1144,3 +1144,8 @@ verify_jwt = false
 # Cron ogni 10 minuti (x-cron-secret o service role, controllati nel codice).
 [functions.clienti-da-fatture-importate]
 verify_jwt = false
+
+# App JWT verified by requireAuth, followed by tenant, edit and payment gates.
+# Preserves the existing deployed configuration; no anonymous AI access.
+[functions.ai-preventivo-conversazione]
+verify_jwt = false

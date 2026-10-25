@@ -8,12 +8,12 @@ import { logger } from '@/utils/logger';
 
 type QuoteTemplateMutation = Partial<Omit<QuoteTemplate, 'created_at' | 'updated_at'>> & { id?: string };
 
-export function useQuoteTemplates() {
+export function useQuoteTemplates(options: { live?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
-  const { data: templates = [], isLoading, error: fetchError } = useQuery({
+  const { data: templates = [], isLoading, error: fetchError, refetch } = useQuery({
     queryKey: queryKeys.quoteTemplates.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -30,7 +30,10 @@ export function useQuoteTemplates() {
       return (data ?? []) as unknown as QuoteTemplate[];
     },
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: options.live ? 0 : 5 * 60 * 1000,
+    refetchOnWindowFocus: options.live ? 'always' : true,
+    refetchInterval: options.live ? 60_000 : false,
+    refetchIntervalInBackground: false,
     gcTime: 15 * 60 * 1000,
   });
 
@@ -85,5 +88,5 @@ export function useQuoteTemplates() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),
   });
 
-  return { templates, defaultTemplate, isLoading, fetchError, upsertTemplate, deleteTemplate };
+  return { templates, defaultTemplate, isLoading, fetchError, refetch, upsertTemplate, deleteTemplate };
 }

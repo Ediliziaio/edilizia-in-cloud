@@ -101,14 +101,14 @@ beforeEach(() => { stato.id = "p1"; stato.margini = true; localStorage.clear(); 
 afterEach(() => cleanup());
 
 describe("Serramenti nel guscio comune", () => {
-  it("sei fasi in alto, col totale IVA inclusa sempre in vista (stesso numero dei conti: 5.173 €)", async () => {
+  it("sei fasi in alto, col totale IVA inclusa sempre in vista (stesso numero dei conti: 5.172,75 €)", async () => {
     monta();
     const nav = await screen.findByRole("navigation", { name: "Fasi del preventivo" });
     expect(within(nav).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
       "Contatto", "Immobile e contenuti", "Composizione offerta", "Foto e render", "Economia", "Consulenza e PDF",
     ]);
     // 2.460 + 1.100 + 1.240 + 150 = 4.950; sconto 5% → 4.702,50; IVA 10% → 5.172,75
-    expect(within(nav.parentElement as HTMLElement).getByText("€ 5.173")).toBeTruthy();
+    expect(within(nav.parentElement as HTMLElement).getByText("€ 5.172,75")).toBeTruthy();
     expect(within(nav.parentElement as HTMLElement).getByText("Totale IVA incl.")).toBeTruthy();
   });
 
@@ -211,7 +211,7 @@ describe("Serramenti nel guscio comune", () => {
   it("da telefono il totale nel piede apre l'anteprima dal basso", async () => {
     monta();
     await screen.findByRole("navigation", { name: "Fasi del preventivo" });
-    fireEvent.click(screen.getByRole("button", { name: /Totale € 5\.173: apri l'anteprima/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Totale € 5\.172,75: apri l'anteprima/ }));
     const tendina = await screen.findByRole("dialog");
     expect(within(tendina).getByText("Portafinestra")).toBeTruthy();
     expect(within(tendina).getByRole("button", { name: /Apri il PDF/ })).toBeTruthy();

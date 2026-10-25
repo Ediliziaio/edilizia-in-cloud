@@ -19,6 +19,7 @@ import type { QuoteItemPro } from "@/types/quoteItem";
 const BUILDER = "src/pages/azienda/marketing/QuoteBuilder.tsx";
 
 function gestoriVeri(nomi: string[], contesto: Record<string, unknown>) {
+  contesto.localEditor ??= undefined;
   const sorgente = ts.createSourceFile(BUILDER, readFileSync(BUILDER, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const trovati = new Map<string, ts.Expression>();
   const visita = (nodo: ts.Node) => {

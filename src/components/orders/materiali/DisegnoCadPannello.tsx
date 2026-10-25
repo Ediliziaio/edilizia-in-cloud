@@ -28,6 +28,7 @@ import { nomeVersione, riconosciFormato } from "@/lib/distinta/cad/leggiDxf";
 import { AVVISO_MB_DOCUMENTO, caricaDocumentoCommessa } from "@/lib/commesse/caricaDocumentoCommessa";
 import { MAX_BYTES_PER_FILE, MAX_MB_PER_FILE } from "@/lib/commesse/documentiCommessa";
 import { ISTRUZIONI_DWG, leggiDisegnoCad } from "@/lib/distinta/cad/leggiDisegnoCad";
+import { affidabilitaDisegno, fattoreScalaCad, misureCadPronte } from '@/lib/distinta/cad/affidabilitaDisegno';
 import {
   SENZA_LOCALE, UNITA_DISEGNO, contaSimboli, lunghezzePerLayer, metriPerUnita, misuraLunghezze, nomeUnita, trovaLocali,
 } from "@/lib/distinta/cad/contaDisegno";
@@ -58,6 +59,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
 
   const [unita, setUnita] = useState<number>(4);
   const [scala, setScala] = useState("1");
+  const [scalaConfermata, setScalaConfermata] = useState(false);
   const [layerLocali, setLayerLocali] = useState<string>(NESSUNO);
   const [cerchi, setCerchi] = useState(false);
   const [scelte, setScelte] = useState<Record<string, SceltaSimbolo>>({});
@@ -84,6 +86,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
 
   const apri = async (f: File) => {
     setFile(f); setDisegno(null); setErrore(null); setDocumento(null); setConfermaGrande(false);
+    setScalaConfermata(false); setScelte({}); setCerchi(false); setLayerLunghezze(new Set()); setNomiLunghezze({});
     const testa = new Uint8Array(await f.slice(0, 64).arrayBuffer());
     if (riconosciFormato(testa) === "dwg") { setErrore(ISTRUZIONI_DWG); return; }
     setAvanzamento(0);
@@ -99,7 +102,8 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       for (const c of d.contorni) conContorni.set(c.layer, (conContorni.get(c.layer) ?? 0) + 1);
       const probabile = [...conContorni.keys()].find((l) => /LOCAL|ROOM|STANZ|AMBIENT|VANI|SPAZ/i.test(l));
       setLayerLocali(probabile ?? NESSUNO);
-      setCerchi(d.blocchi.length === 0 && d.cerchi.length > 0);
+      // A circle may be a marker, hatch, furnishing or light symbol: opt-in only.
+      setCerchi(false);
       setLayerLunghezze(new Set(lunghezzePerLayer(d).map((l) => l.layer).filter((l) => /CORRUG|CAVI|CAVO|TUBO|TUBAZ|CANAL|PASSER|LINEA|DORSAL/i.test(l))));
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
@@ -109,7 +113,10 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     }
   };
 
-  const metri = (metriPerUnita(unita) ?? 0.001) * (Number(scala.replace(",", ".")) || 1);
+  const qualita = useMemo(() => disegno ? affidabilitaDisegno(disegno) : null, [disegno]);
+  const scalaValida = fattoreScalaCad(scala);
+  const misurePronte = !!disegno && misureCadPronte(disegno, scala, scalaConfermata);
+  const metri = (metriPerUnita(unita) ?? 0.001) * (scalaValida ?? 0);
   const locali = useMemo(() => disegno ? trovaLocali(disegno, { layerLocali: layerLocali === NESSUNO ? [] : [layerLocali] }) : null, [disegno, layerLocali]);
   const simboli = useMemo(() => disegno && locali ? contaSimboli(disegno, locali, { cerchi }) : [], [disegno, locali, cerchi]);
   // Le scelte nuove (o al cambio di file) partono dalla mappa salvata o dal suggerimento.
@@ -119,19 +126,19 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     return iniziali;
   }, [simboli, mappa.data, scelte]);
   const layerConLunghezza = useMemo(() => disegno ? lunghezzePerLayer(disegno) : [], [disegno]);
-  const lunghezze = useMemo(() => disegno && locali
+  const lunghezze = useMemo(() => disegno && locali && misurePronte
     ? misuraLunghezze(disegno, [...layerLunghezze], locali, { metri, maggiorazionePct: Number(maggiorazione.replace(",", ".")) || 0 })
-    : [], [disegno, locali, layerLunghezze, metri, maggiorazione]);
-  const righe = useMemo(() => file ? righeConteggio(simboli, scelteEffettive, lunghezze, nomiLunghezze, {
-    file: file.name, unita_disegno: nomeUnita(unita), scala: Number(scala.replace(",", ".")) || 1,
+    : [], [disegno, locali, layerLunghezze, metri, maggiorazione, misurePronte]);
+  const righe = useMemo(() => file && !qualita?.statiSovrapposti ? righeConteggio(simboli, scelteEffettive, lunghezze, nomiLunghezze, {
+    file: file.name, unita_disegno: nomeUnita(unita), scala: scalaValida,
     maggiorazione_pct: Number(maggiorazione.replace(",", ".")) || 0, layer_locali: layerLocali === NESSUNO ? null : layerLocali,
-  }) : [], [file, simboli, scelteEffettive, lunghezze, nomiLunghezze, unita, scala, maggiorazione, layerLocali]);
+  }) : [], [file, simboli, scelteEffettive, lunghezze, nomiLunghezze, unita, scalaValida, maggiorazione, layerLocali, qualita]);
 
   const cambia = (chiave: string, patch: Partial<SceltaSimbolo>) =>
     setScelte((s) => ({ ...s, [chiave]: { ...scelteEffettive[chiave], ...patch } }));
 
   const salva = async () => {
-    if (!file || !righe.length) return;
+    if (!file || !righe.length || qualita?.statiSovrapposti || !puoScrivere) return;
     setSalvo(true);
     try {
       const voci = vociDaSalvare(Object.values(scelteEffettive).filter((s) => s.origine !== "vuoto" || s.simbolo.trim()));
@@ -203,6 +210,8 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
 
       {disegno && locali && (
         <>
+          {qualita?.statiSovrapposti && <p role="alert" className="rounded border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">Il file contiene sia «Stato di fatto» sia «Stato di progetto»: non sommo tavole, piani o alternative. Per salvare conteggi carica un DXF separato con il solo stato e intervento da computare. Puoi comunque ispezionare questo disegno.</p>}
+          {qualita?.pdfImportato && <p className="rounded bg-blue-50 p-2 text-xs text-blue-900">Layer riconducibili a PDF importati: curve e cerchi non sono automaticamente serramenti, luci o materiali. L’unità dichiarata dal file può non coincidere con la scala delle tavole.</p>}
           {puoScrivere && (
             <div aria-label="Disegno tra i documenti" className="flex flex-wrap items-center gap-2 rounded bg-slate-50 p-2 text-xs">
               {documento ? (
@@ -238,14 +247,16 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
             <label className="space-y-1 text-xs">
               <span>Unità del disegno {disegno.insunits ? `(il file dice: ${nomeUnita(disegno.insunits)})` : "(il file non la dice)"}</span>
               <div className="flex gap-1">
-                <Select value={String(unita)} onValueChange={(v) => setUnita(Number(v))}>
+                <Select value={String(unita)} onValueChange={(v) => { setUnita(Number(v)); setScalaConfermata(false); }}>
                   <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
                   <SelectContent>{UNITA_DISEGNO.map((u) => <SelectItem key={u.valore} value={String(u.valore)}>{u.etichetta}</SelectItem>)}</SelectContent>
                 </Select>
                 <span className="self-center">× scala</span>
-                <Input className="h-8 w-20" value={scala} onChange={(e) => setScala(e.target.value)} aria-label="Scala del disegno" />
+                <Input className="h-8 w-20" value={scala} onChange={(e) => { setScala(e.target.value); setScalaConfermata(false); }} aria-label="Scala del disegno" />
               </div>
-              <span className="text-slate-500">Disegno in scala reale: 1. Tavola stampata e reimportata (es. 1:200): 200.</span>
+              <span className="text-slate-500">Disegno nativo in scala reale: 1. Per tavole reimportate verifica unità e fattore su una quota nota: «1:200» da solo non basta.</span>
+              {scalaValida === null && <span role="alert" className="block text-orange-800">Indica un fattore di scala positivo e finito.</span>}
+              {qualita?.richiedeCalibrazione && <span className="flex items-start gap-1"><Checkbox aria-label="Conferma calibrazione CAD" checked={scalaConfermata} disabled={scalaValida === null || qualita.statiSovrapposti} onCheckedChange={v => setScalaConfermata(v === true)} />Ho verificato unità e scala su una quota nota dello stato da computare.</span>}
             </label>
             <label className="space-y-1 text-xs">
               <span>Stanze</span>
@@ -265,7 +276,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
           <div className="grid gap-3 md:grid-cols-2">
             <section aria-label="Blocchi trovati" className="rounded border p-2">
               <div className="mb-1 flex items-center justify-between">
-                <h4 className="font-semibold">Simboli (conteggio esatto)</h4>
+                <h4 className="font-semibold">Elementi grafici da classificare</h4>
                 <label className="flex items-center gap-1 text-xs"><Checkbox checked={cerchi} onCheckedChange={(v) => setCerchi(!!v)} /> conta anche i cerchi</label>
               </div>
               <p className="mb-1 text-xs text-slate-500">Scrivi una volta il simbolo di ogni blocco: l'azienda lo ricorda per i prossimi disegni.</p>
@@ -313,7 +324,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
                       const n = new Set(layerLunghezze); if (v) n.add(l.layer); else n.delete(l.layer); setLayerLunghezze(n);
                     }} />
                     <span className="min-w-0 flex-1 truncate" title={l.layer}>{l.layer}</span>
-                    <span className="tabular-nums text-slate-600">{fmt(l.lunghezza * metri)} m</span>
+                    <span className="tabular-nums text-slate-600">{misurePronte ? `${fmt(l.lunghezza * metri)} m` : 'Da verificare'}</span>
                     {layerLunghezze.has(l.layer) && (
                       <Input className="h-7 w-40" placeholder="es. Corrugato Ø20" value={nomiLunghezze[l.layer] ?? ""} aria-label={`Materiale del layer ${l.layer}`}
                         onChange={(e) => setNomiLunghezze({ ...nomiLunghezze, [l.layer]: e.target.value })} />

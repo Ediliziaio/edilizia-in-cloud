@@ -212,6 +212,8 @@ export interface DocEdileModello {
 }
 
 export interface DocEdileDati {
+  /** Opt-in only for browser-local drafts; never implies issuance or acceptance. */
+  bozzaLocale?: { ivaDaDefinire: boolean };
   modulo: DocEdileModulo;
   codice: string | null;
   /** «Mario Rossi» */

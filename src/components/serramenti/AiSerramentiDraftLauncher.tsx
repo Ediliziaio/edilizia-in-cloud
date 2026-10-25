@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ArrowRight, Sparkles, Camera, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiSerramentiDraftDialog } from "./AiSerramentiDraftDialog";
@@ -6,6 +6,10 @@ import { useAddSerramento } from "@/lib/serramenti/queries";
 import { calcolaM2 } from "@/lib/serramenti/calcoli";
 import type { SrMaterialePrincipale, SrProgettoDetail } from "@/types/serramenti";
 import type { SrAiDraftItem } from "@/lib/serramenti/aiDraft";
+import { verifiedSerramentiAiItem } from "@/lib/serramenti/aiDraftValidation";
+import { useAuth } from "@/contexts/AuthContext";
+import { consentiPreventivoConversazionale } from '@/lib/preventivi/quoteRollout';
+const ConversationalDialog=lazy(()=>import('./SerramentiConversationalAiDialog'));
 
 type AiLauncherContext = "contact" | "bom";
 
@@ -46,6 +50,7 @@ export function AiSerramentiDraftLauncher({
   autoOpen,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const { effectiveCompany } = useAuth();
   const addMut = useAddSerramento(progettoId);
   const insertedCountRef = useRef(0);
   const copy = COPY[context];
@@ -64,8 +69,11 @@ export function AiSerramentiDraftLauncher({
     }
   }, [autoOpen]);
 
-  const handleApproveAiDraftItem = async (item: SrAiDraftItem) => {
-    const qty = item.quantita || 1;
+  const handleApproveAiDraftItem = async (proposal: SrAiDraftItem) => {
+    if (detail.progetto.id !== progettoId || !effectiveCompany?.id || detail.progetto.company_id !== effectiveCompany.id)
+      throw new Error('Il progetto o l’azienda attiva sono cambiati. Riapri il preventivo corretto.');
+    const item = verifiedSerramentiAiItem(proposal);
+    const qty = item.quantita;
     const noteParts = [
       "Bozza AI approvata dal commerciale",
       item.note,
@@ -152,14 +160,15 @@ export function AiSerramentiDraftLauncher({
         </div>
       </div>
 
-      <AiSerramentiDraftDialog
+      {open && consentiPreventivoConversazionale(effectiveCompany?.id) ? <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><ConversationalDialog key={progettoId} detail={detail} onClose={()=>setOpen(false)} onInserted={onInserted}/></Suspense> : open && <AiSerramentiDraftDialog
+        key={progettoId}
         open={open}
         onOpenChange={setOpen}
         progettoId={progettoId}
         detail={detail}
         onApproveItem={handleApproveAiDraftItem}
         approving={addMut.isPending}
-      />
+      />}
     </>
   );
 }

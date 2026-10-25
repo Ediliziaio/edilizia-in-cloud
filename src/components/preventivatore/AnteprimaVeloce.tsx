@@ -26,6 +26,8 @@ interface Props {
   /** L'id della riga che si sta toccando: si evidenzia anche qui. */
   evidenzia?: string | null;
   className?: string;
+  /** Importi con centesimi come nel PDF; 0 solo per viste esplicitamente sintetiche. */
+  decimali?: 0 | 2;
 }
 
 /** «€ 120 cad.» per i pezzi, «€ 18 / mq» per le misure: il prezzo unitario dice a cosa si riferisce. */
@@ -38,7 +40,8 @@ function Mancante({ children }: { children: string }) {
   return <span className="italic text-slate-300">{children}</span>;
 }
 
-function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: Props) {
+function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className, decimali = 2 }: Props) {
+  const euro = (value: number | null | undefined) => formattaEuro(value, decimali);
   const impresa = vista === "impresa";
   const aCorpo = Boolean(dati.prezzoACorpo);
   const senzaPrezzo = righeSenzaPrezzo(dati);
@@ -153,7 +156,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                             {r.descrizione && <p className="line-clamp-2 break-words text-[10.5px] leading-snug text-slate-500">{r.descrizione}</p>}
                             {r.dettaglio && <p className="break-words text-[10.5px] text-slate-500">{r.dettaglio}</p>}
                             {!impresa && r.prezzoUnitario != null && r.prezzoUnitario > 0 && r.quantita > 1 && (
-                              <p className="text-[10.5px] text-slate-400">{formattaEuro(r.prezzoUnitario)} {perUnita(r.unita)}</p>
+                              <p className="text-[10.5px] text-slate-400">{euro(r.prezzoUnitario)} {perUnita(r.unita)}</p>
                             )}
                           </div>
                         </div>
@@ -161,7 +164,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                       <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{formattaQuantita(r.quantita, r.unita)}</td>
                       {impresa && (
                         <td className="py-1.5 text-right tabular-nums text-slate-600">
-                          {r.costo != null && r.costo > 0 ? formattaEuro(r.costo) : <span className="text-slate-300">—</span>}
+                          {r.costo != null && r.costo > 0 ? euro(r.costo) : <span className="text-slate-300">—</span>}
                         </td>
                       )}
                       <td className="py-1.5 text-right tabular-nums">
@@ -170,7 +173,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                         ) : dap ? (
                           <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">da prezzare</span>
                         ) : (
-                          <b>{formattaEuro(r.totale)}</b>
+                          <b>{euro(r.totale)}</b>
                         )}
                       </td>
                     </tr>
@@ -198,7 +201,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                 )}
               >
                 <dt className={cn(!v.forte && "text-slate-600")}>{v.etichetta}</dt>
-                <dd>{v.negativo ? "− " : ""}{formattaEuro(v.importo)}</dd>
+                <dd>{v.negativo ? "− " : ""}{euro(v.importo)}</dd>
               </div>
             ))}
           </dl>
@@ -206,8 +209,8 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
           {impresa && dati.impresa && (
             <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
               <p>
-                <b>Vista impresa</b> · costi {formattaEuro(dati.impresa.costi)} · margine{" "}
-                <b>{dati.impresa.margine != null && (dati.impresa.costiCompleti || dati.impresa.costi > 0) ? formattaEuro(dati.impresa.margine) : "—"}</b>
+                <b>Vista impresa</b> · costi {euro(dati.impresa.costi)} · margine{" "}
+                <b>{dati.impresa.margine != null && (dati.impresa.costiCompleti || dati.impresa.costi > 0) ? euro(dati.impresa.margine) : "—"}</b>
                 {dati.impresa.marginePct != null && <> ({dati.impresa.marginePct.toFixed(0)}%)</>}
               </p>
               {!dati.impresa.costiCompleti && dati.impresa.righeSenzaCosto > 0 && (
@@ -229,13 +232,13 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
         <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 py-2 text-emerald-900">
           <p className="flex items-baseline justify-between gap-2">
             <span className="font-medium">Detrazione indicativa ({formattaNumero(dati.detrazione.pct, Number.isInteger(dati.detrazione.pct) ? 0 : 1)}%)</span>
-            <b className="tabular-nums">{formattaEuro(dati.detrazione.importo)}</b>
+            <b className="tabular-nums">{euro(dati.detrazione.importo)}</b>
           </p>
           <p className="mt-0.5 text-[10.5px] leading-snug text-emerald-800/90">
             {dati.detrazione.nota
               ? `${dati.detrazione.nota} `
               : dati.detrazione.massimale != null
-                ? `Calcolata sul tetto di spesa di ${formattaEuro(dati.detrazione.massimale)}${dati.detrazione.oltreMassimale ? ": la spesa lo supera" : ""}. `
+                ? `Calcolata sul tetto di spesa di ${euro(dati.detrazione.massimale)}${dati.detrazione.oltreMassimale ? ": la spesa lo supera" : ""}. `
                 : "Stima sull'imponibile netto. "}
             Non sostituisce la valutazione di un fiscalista.
           </p>

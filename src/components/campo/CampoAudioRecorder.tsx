@@ -18,6 +18,8 @@ type RecorderState = "idle" | "requesting" | "recording" | "stopped" | "error";
 interface CampoAudioRecorderProps {
   onConfirm: (blob: Blob, durationSec: number, mimeType: string) => void | Promise<void>;
   disabled?: boolean;
+  confirmLabel?: string;
+  confirmAvailable?: boolean;
 }
 
 function pickMimeType(): string {
@@ -43,6 +45,8 @@ function formatTime(sec: number): string {
 export default function CampoAudioRecorder({
   onConfirm,
   disabled,
+  confirmLabel = 'Usa questo',
+  confirmAvailable = true,
 }: CampoAudioRecorderProps): JSX.Element {
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -283,7 +287,7 @@ export default function CampoAudioRecorder({
   };
 
   const handleConfirm = async (): Promise<void> => {
-    if (disabled || confirmingRef.current || !audioBlob || durationRef.current < MIN_DURATION_SEC) return;
+    if (disabled || !confirmAvailable || confirmingRef.current || !audioBlob || durationRef.current < MIN_DURATION_SEC) return;
     confirmingRef.current = true;
     runRef.current += 1; // Annulla anche una richiesta di riascolto ancora in attesa.
     playRunRef.current += 1;
@@ -412,11 +416,11 @@ export default function CampoAudioRecorder({
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={disabled || confirming || elapsed < MIN_DURATION_SEC}
+              disabled={disabled || !confirmAvailable || confirming || elapsed < MIN_DURATION_SEC}
               className="flex-1 h-12 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
             >
               <Check className="w-5 h-5" />
-              Usa questo
+              {confirmLabel}
             </button>
           </div>
         </div>

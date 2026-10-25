@@ -690,7 +690,7 @@ export async function getAziendaPerPdf(companyId: string) {
 
 // ─── TEMPLATE PDF (per azienda) ─────────────────────────────────────────────
 
-export async function getTemplatePdf(companyId?: string): Promise<SrTemplatePdfRow | null> {
+export async function getTemplatePdf(companyId?: string, strict = false): Promise<SrTemplatePdfRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any).from("sr_template_pdf").select("*");
   // Filtra esplicitamente per company: senza questo il super_admin (che bypassa
@@ -698,6 +698,7 @@ export async function getTemplatePdf(companyId?: string): Promise<SrTemplatePdfR
   if (companyId) q = q.eq("company_id", companyId);
   const { data, error } = await q.maybeSingle();
   if (error && error.code !== "PGRST116") {
+    if (strict) throw new Error('Impossibile leggere il modello Serramenti aggiornato. Riprova.');
     console.error("[serramenti] getTemplatePdf failed", error);
     return null;
   }

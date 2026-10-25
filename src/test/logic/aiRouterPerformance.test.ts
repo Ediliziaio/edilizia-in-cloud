@@ -30,13 +30,35 @@ describe("router performance controls (fake provider, no paid calls)", () => {
     expect(precheck[1]).toMatchObject({ p_tokens_out: 6000 });
     const body = JSON.parse(fetcher.mock.calls[0][1]!.body as string);
     expect(body).toMatchObject({ max_tokens: 6000, session_id: "opaque-session" });
+    expect(body.provider).toBeUndefined();
     expect(turn.snapshot()).toMatchObject({ input_tokens: 100, output_tokens: 50, billed_cost_eur: 0.02, cache_write_tokens: 10 });
+  });
+  it("routes by latency only when the endpoint explicitly opts in, preserving schema requirements", async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => answer()); vi.stubGlobal("fetch", fetcher);
+    await aiRouterComplete({ supabase: db("openai/gpt-4o-mini"), taskKey: "test", messages: [{ role: "user", content: "test" }],
+      preferLowLatency: true, responseFormat: { type: "json_object" } });
+    const body = JSON.parse(fetcher.mock.calls[0][1]!.body as string);
+    expect(body).toMatchObject({ model: "openai/gpt-4o-mini", provider: { sort: "latency", require_parameters: true }, response_format: { type: "json_object" } });
+    expect(body.provider.data_collection).toBeUndefined();
   });
   it("preserves an explicitly zero provider price instead of estimating a paid price", async () => {
     const supabase = db(); vi.stubGlobal("fetch", vi.fn(async () => answer(0)));
     const result = await aiRouterComplete({ supabase, taskKey: "test", messages: [{ role: "user", content: "test" }] });
     expect(result.costUsd).toBe(0);
     expect(supabase.from).not.toHaveBeenCalledWith("ai_pricing_tiers");
+  });
+  it("an exact-model experiment cannot silently fall back and passes explicit reasoning", async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("model unavailable", { status: 400 })); vi.stubGlobal("fetch", fetcher);
+    await expect(aiRouterComplete({ supabase: db("openai/gpt-4o-mini", ["google/gemini-2.5-flash"]), taskKey: "test", forceModel: "anthropic/claude-haiku-5.5", disableModelFallback: true,
+      params: { max_tokens: 6000, reasoning: { effort: "low" } }, messages: [{ role: "user", content: "test" }] })).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetcher.mock.calls[0][1]!.body as string);
+    expect(body).toMatchObject({ model: "anthropic/claude-haiku-5.5", reasoning: { effort: "low" } }); expect(body.temperature).toBeUndefined(); expect(body.top_p).toBeUndefined();
+  });
+  it.each(["anthropic/claude-haiku-5.5", "anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol"])("routes %s without unsupported sampling parameters even from config defaults", async model => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => answer()); vi.stubGlobal("fetch", fetcher);
+    await aiRouterComplete({ supabase: db(model), taskKey: "test", params: { temperature: 0.2, top_p: 0.8, reasoning: { effort: "low" } }, messages: [{ role: "user", content: "test" }], preferLowLatency: true });
+    const body = JSON.parse(fetcher.mock.calls[0][1]!.body as string); expect(body.temperature).toBeUndefined(); expect(body.top_p).toBeUndefined(); expect(body.reasoning.effort).toBe("low"); expect(body.provider.require_parameters).toBe(true);
   });
   it("cannot reset the attempt limit through a retry or fallback", async () => {
     vi.useFakeTimers();

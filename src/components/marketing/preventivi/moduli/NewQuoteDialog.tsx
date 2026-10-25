@@ -13,22 +13,24 @@ import { useSupportoModelliPreventivo } from "@/hooks/useSupportoModelliPreventi
 import { MODULI_CON_MODELLI, eModuloConModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { SALES_AREAS, type SalesArea } from "@/lib/moduli-vendita/areas";
 import { hasAreaAccess, matchesIntervention, pilotHref, quoteCreationHref } from "./salesSelector";
+import { quoteAiWorkflow } from '@/lib/moduli-vendita/quoteAiWorkflow';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   params: URLSearchParams;
   trigger: ReactNode;
+  ai?: boolean;
 }
 
 /** I preventivatori che salvano il modello dell'intervento, Fotovoltaico compreso. */
 const MODULI_CON_MODELLI_E_FV = [...MODULI_CON_MODELLI, "fotovoltaico"] as const;
 
 /** One entry point, on top of the quote list. No template-editing destinations. */
-export function NewQuoteDialog({ open, onOpenChange, params, trigger }: Props) {
+export function NewQuoteDialog({ open, onOpenChange, params, trigger, ai = false }: Props) {
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogTrigger asChild>{trigger}</DialogTrigger>
-    {open && <QuoteChooser params={params} onSelect={() => onOpenChange(false)} />}
+    {open && <QuoteChooser ai={ai} params={params} onSelect={() => onOpenChange(false)} />}
   </Dialog>;
 }
 
@@ -45,8 +47,10 @@ function InterventionImage({ area, modelId }: { area: SalesArea; modelId: string
   return failed ? <AreaImage area={area} /> : <img src={`/quote-picker/${area.id}-${modelId}.webp`} alt="" width={640} height={360} loading="lazy" decoding="async" onError={() => setFailed(true)} className="h-24 w-full object-cover sm:h-28 max-sm:h-16" />;
 }
 
-function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect: () => void }) {
+function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSelect: () => void; ai: boolean }) {
   const permissions = usePermissions();
+  const classicHref = quoteCreationHref('/azienda/marketing/preventivi/nuovo', params);
+  const aiClassicHref = `${classicHref}${classicHref.includes('?') ? '&' : '?'}ai=1`;
   const { moduli, isLoading, isError } = useModuliVendita();
   const { isAreaVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
   const srSupport = useSerramentiModelSupport();
@@ -91,21 +95,26 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
     {/* Telefono: resta il titolo (via soprattitolo e spiegazione), a 18px. */}
     <DialogHeader className="shrink-0 border-b px-4 pb-4 pt-5 text-left sm:px-6 max-sm:pb-3 max-sm:pt-4">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-orange-600 max-sm:hidden">Un nuovo progetto, pochi passi</p>
-      <DialogTitle ref={heading} tabIndex={-1} className="pr-7 text-2xl font-semibold tracking-tight outline-none max-sm:text-lg">{area ? `Preventivo ${area.title}` : "Che preventivo vuoi creare?"}</DialogTitle>
-      <DialogDescription className="pr-3 max-sm:sr-only">{area ? "Scegli l’intervento e apri il relativo preventivatore." : "Parti da un’offerta libera o scegli una delle aree abilitate per la tua azienda."}</DialogDescription>
+      <DialogTitle ref={heading} tabIndex={-1} className="pr-7 text-2xl font-semibold tracking-tight outline-none max-sm:text-lg">{area ? `Preventivo ${area.title}` : ai ? "Preventivo AI · scegli come partire" : "Che preventivo vuoi creare?"}</DialogTitle>
+      <DialogDescription className="pr-3 max-sm:sr-only">{ai ? 'Scegli prima il modello. Nel relativo wizard puoi aprire Silvio AI con chat, voci modificabili e anteprima del preventivo. Il nuovo popup è in prova locale su Demo Azienda 2.' : area ? "Scegli l’intervento e apri il relativo preventivatore." : "Parti da un’offerta libera o scegli una delle aree abilitate per la tua azienda."}</DialogDescription>
     </DialogHeader>
 
     <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 max-sm:py-3" data-testid="quote-chooser-scroll">
       {area && <Button variant="ghost" size="sm" className="mb-3 min-h-11 -ml-2 max-sm:mb-1 max-sm:min-h-8" onClick={() => selectArea("")}><ArrowLeft className="mr-2 h-4 w-4" />Tutte le aree</Button>}
-      {!area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect} to={quoteCreationHref("/azienda/marketing/preventivi/nuovo", params)}
+      {!area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect} to={ai ? aiClassicHref : quoteCreationHref("/azienda/marketing/preventivi/nuovo", params)}
         className="mb-5 flex min-h-24 items-center gap-4 rounded-xl border border-orange-200 bg-orange-50/70 p-4 transition-colors hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:gap-3 max-sm:px-3 max-sm:py-2.5">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm max-sm:h-9 max-sm:w-9"><FileText aria-hidden="true" className="h-6 w-6 max-sm:h-5 max-sm:w-5" /></span>
-        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo classico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">Prodotti, servizi e voci libere. Lo componi come vuoi.</span></span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo classico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">{ai ? 'Descrivi il lavoro in chat. Le voci si costruiscono nel preventivo e restano modificabili nell’editor esistente.' : 'Prodotti, servizi e voci libere. Lo componi come vuoi.'}</span></span>
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 
       {!ricercaInutile && <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-sm max-sm:h-9" /></div>}
 
+      {ai && area && <p role="note" className="mb-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{area.sourceModule === 'fotovoltaico'
+        ? 'Scegli il modello e compila i dati del progetto. Nella fase Configurazione apri Silvio AI: dopo la conferma ritrovi componenti, manodopera e servizi nel configuratore modificabile.'
+        : area.sourceModule === 'serramenti'
+          ? 'Scegli il modello e apri Silvio AI nel preventivatore Serramenti. Immagini, varianti e schede restano quelle del modello e dei prodotti selezionati; le proposte entrano solo dopo la conferma.'
+          : 'Scegli il modello e compila il wizard. Nel passo Computo apri Silvio AI: chat e PDF usano quel modello. Le modifiche entrano nel computo solo dopo la conferma.'}</p>}
       {waiting ? <p role="status" className="py-8 text-center text-sm text-muted-foreground">Verifico le aree abilitate…</p>
         : isError ? <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">Non è stato possibile verificare i moduli aziendali. Chiudi e riprova: nessun accesso viene dato per confermato.</p>
         : !area && !searching ? <>
@@ -119,7 +128,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
             <AreaImage area={item} /><span className="flex min-h-16 items-center justify-between gap-2 p-3 max-sm:min-h-0 max-sm:px-1.5 max-sm:py-1.5"><span className="text-sm font-semibold leading-snug max-sm:line-clamp-2 max-sm:w-full max-sm:text-center max-sm:text-[11px] max-sm:leading-tight">{item.title}</span><ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-orange-600 max-sm:hidden" /></span>
           </button>)}</div>
         </> : <>
-          {area && !searching && view && <Link onClick={onSelect} to={quoteCreationHref(`${view.modulo.href}/nuovo`, params)} className="mb-4 flex min-h-14 items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:py-2.5">
+          {area && !searching && view && !(ai && area.sourceModule === 'bagni') && <Link onClick={onSelect} to={quoteCreationHref(`${view.modulo.href}/nuovo`, params)} className="mb-4 flex min-h-14 items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:py-2.5">
             <span><span className="block font-semibold">Preventivo {area.title} generale</span><span className="block text-xs text-muted-foreground max-sm:hidden">Per lavori misti, senza un modello d’intervento specifico.</span></span><ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
           </Link>}
           {areeSenzaModello.map(item => { const href = generaleHref(item); return href && <Link key={item.id} onClick={onSelect} to={href} className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -131,13 +140,15 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
               «Apri preventivatore» si leggono dal computer (resta l'avviso se
               il percorso non è pronto). */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">{mostrati.map(({ area: item, intervention }) => {
-            const href = pilotHref(item, intervention, params);
+            const workflow = quoteAiWorkflow(item, intervention);
+            const nativeHref = pilotHref(item, intervention, params);
+            const href = ai && workflow.kind === 'native-ai' && nativeHref ? `${nativeHref}${nativeHref.includes('?') ? '&' : '?'}ai=1` : nativeHref;
             const support = item.sourceModule === "tetti" ? tetSupport
               : eModuloConModelloPreventivo(item.sourceModule)
                 ? { supported: modelliSupport.supportato(item.sourceModule), isLoading: modelliSupport.isLoading, isError: modelliSupport.isError }
                 : srSupport;
             const ready = href && support.supported && !support.isLoading && !support.isError;
-            const content = <><InterventionImage area={item} modelId={intervention.id} /><span className="block p-3 max-sm:p-2"><span className="text-[11px] text-muted-foreground max-sm:hidden">{item.title}</span><span className="mt-1 block font-semibold max-sm:mt-0 max-sm:line-clamp-2 max-sm:text-xs max-sm:leading-tight">{intervention.title}</span><span className="mt-2 block text-xs leading-relaxed text-muted-foreground max-sm:hidden">{intervention.summary}</span><span className={`mt-3 flex items-center gap-2 text-xs ${ready ? "text-green-700 max-sm:hidden" : "text-amber-800 max-sm:mt-1 max-sm:text-[10px]"}`}>{ready ? <><Check className="h-3.5 w-3.5" />Apri preventivatore</> : href ? "Salvataggio da attivare" : "Collegamento in preparazione"}</span></span></>;
+            const content = <><InterventionImage area={item} modelId={intervention.id} /><span className="block p-3 max-sm:p-2"><span className="text-[11px] text-muted-foreground max-sm:hidden">{item.title}</span><span className="mt-1 block font-semibold max-sm:mt-0 max-sm:line-clamp-2 max-sm:text-xs max-sm:leading-tight">{intervention.title}</span><span className="mt-2 block text-xs leading-relaxed text-muted-foreground max-sm:hidden">{intervention.summary}</span><span className={`mt-3 flex items-center gap-2 text-xs ${ready ? (ai && workflow.kind === "manual-only" ? "text-amber-800" : "text-blue-700 max-sm:hidden") : "text-amber-800 max-sm:mt-1 max-sm:text-[10px]"}`}>{ready ? <><Check className="h-3.5 w-3.5" />{ai && workflow.kind === 'manual-only' ? 'Editor manuale · AI da collegare' : 'Apri preventivatore'}</> : href ? "Salvataggio da attivare" : "Collegamento in preparazione"}</span></span></>;
             return href ? <Link key={`${item.id}/${intervention.id}`} onClick={onSelect} to={href} aria-label={`Apri preventivatore ${intervention.title}`} className="overflow-hidden rounded-xl border text-sm hover:border-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{content}</Link>
               : <div key={`${item.id}/${intervention.id}`} aria-label={`Intervento non disponibile: ${intervention.title}`} className="overflow-hidden rounded-xl border bg-muted/20 text-sm">{content}</div>;
           })}</div>
@@ -145,6 +156,6 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
         </>}
     </div>
     {/* Telefono no: una frase di contorno in fondo al foglio. */}
-    <footer className="shrink-0 border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:px-6 max-sm:hidden">Ritrovi ogni offerta nella <span className="font-medium text-foreground">Lista Preventivi</span>, anche quelle dei moduli specifici.</footer>
+    <footer className="shrink-0 border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:px-6 max-sm:hidden">{ai ? 'Il modello si sceglie qui, le lavorazioni si compongono nel suo wizard. Chat AI e anteprima restano una bozza separata fino alla conferma. Il normale salvataggio del wizard non cambia; nessun invio automatico ai clienti.' : <>Ritrovi ogni offerta nella <span className="font-medium text-foreground">Lista Preventivi</span>, anche quelle dei moduli specifici.</>}</footer>
   </DialogContent>;
 }

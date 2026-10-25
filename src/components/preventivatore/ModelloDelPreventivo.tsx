@@ -9,7 +9,7 @@
  * Il database lo permette solo in bozza, per la stessa azienda e lo stesso intervento
  * (migrazione modello_preventivo_aggiornabile_in_bozza). Uscito dalla bozza non si mostra.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,11 +27,12 @@ interface Props {
   tabella?: string;
   /** …e gli interventi della libreria che il preventivo può prendere, già adatti al suo tipo. */
   interventi?: readonly InterventoScelto[];
-  progetto: { id: string; company_id: string; stato?: string | null; tipo_intervento?: string | null } | null | undefined;
+  progetto: { id: string; company_id: string; stato?: string | null; tipo_intervento?: string | null; updated_at?: string | null } | null | undefined;
   snapshot: { modelId: string; capturedAt: string } | null | undefined;
   /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare. */
   costruisci: (companyId: string, model: { id: string }) => Promise<unknown>;
   onAggiornato: () => unknown;
+  onVersion?: (updated: { id: string; updated_at?: string }) => void;
 }
 
 /** Gli interventi della libreria che corrispondono al tipo di intervento del preventivo. */
@@ -42,27 +43,45 @@ export function interventiPerTipo(modulo: ModuloConModelli, tipo: string | null 
   return adatti.length > 0 ? adatti : tutti;
 }
 
-export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, snapshot, costruisci, onAggiornato }: Props) {
+export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, snapshot, costruisci, onAggiornato, onVersion }: Props) {
   const scelte: readonly InterventoScelto[] = interventi ?? (modulo ? interventiPerTipo(modulo, progetto?.tipo_intervento) : []);
   const tabellaPreventivi = tabella ?? (modulo ? TABELLA_PREVENTIVI[modulo] : null);
   const [scelto, setScelto] = useState<string>(scelte[0]?.id ?? "");
   const [inCorso, setInCorso] = useState(false);
+  const lock = useRef(false);
+  const identity = JSON.stringify([progetto?.id, progetto?.company_id, progetto?.stato, progetto?.updated_at, snapshot]);
+  const currentIdentity = useRef<string | null>(identity);
+  useEffect(() => {
+    currentIdentity.current = identity;
+    return () => { currentIdentity.current = null; };
+  }, [identity]);
   if (!progetto || progetto.stato !== "bozza" || !tabellaPreventivi) return null;
 
   const applica = async (modelId: string) => {
+    if (lock.current) return;
+    lock.current = true;
+    const expectedIdentity = currentIdentity.current;
     setInCorso(true);
     try {
       const nuovo = await costruisci(progetto.company_id, { id: modelId });
+      if (!expectedIdentity || currentIdentity.current !== expectedIdentity)
+        throw new Error("Il preventivo è cambiato: riapri il modello prima di aggiornarlo.");
       // modello_snapshot non è nei tipi generati di Supabase.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from(tabellaPreventivi).update({ modello_snapshot: nuovo })
+      let query = (supabase as any).from(tabellaPreventivi).update({ modello_snapshot: nuovo })
         .eq("id", progetto.id).eq("company_id", progetto.company_id).eq("stato", "bozza");
+      if (progetto.updated_at) query = query.eq("updated_at", progetto.updated_at);
+      const { data, error } = await query.select("id, updated_at").maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data || data.id !== progetto.id)
+        throw new Error("Nessun modello aggiornato: il preventivo è cambiato o non è più modificabile. Ricaricalo e riprova.");
+      onVersion?.(data);
       await onAggiornato();
       toast.success("Modello aggiornato", { description: "Il PDF ora usa il modello di adesso." });
     } catch (e) {
       toast.error("Modello non aggiornato", { description: e instanceof Error ? e.message : String(e) });
     } finally {
+      lock.current = false;
       setInCorso(false);
     }
   };

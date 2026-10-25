@@ -16,6 +16,8 @@ export interface RigaComponenteFv {
   articolo_id: string | null;
   categoria: FvCategoriaComponente;
   descrizione: string;
+  marca: string | null;
+  modello: string | null;
   quantita: number;
   unita_misura: string;
   prezzo_unitario_netto: number;
@@ -77,6 +79,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
       articolo_id: null,
       categoria: "altro",
       descrizione: data.kit_nome ?? `Kit FV ${data.potenza_kwp} kWp`,
+      marca: null, modello: null,
       quantita: 1,
       unita_misura: "kit",
       prezzo_unitario_netto: 0,
@@ -98,6 +101,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
         articolo_id: data.pannello_id,
         categoria: "pannello",
         descrizione: (p.descrizione as string) ?? "Pannello FV",
+        marca: (p.marca as string) ?? null, modello: (p.modello as string) ?? null,
         quantita: data.numero_pannelli_scelti,
         unita_misura: "pz",
         prezzo_unitario_netto: netto,
@@ -119,6 +123,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
         articolo_id: data.inverter_id,
         categoria: "inverter",
         descrizione: (p.descrizione as string) ?? "Inverter",
+        marca: (p.marca as string) ?? null, modello: (p.modello as string) ?? null,
         quantita: 1,
         unita_misura: "pz",
         prezzo_unitario_netto: netto,
@@ -141,6 +146,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
           articolo_id: data.accumulo_id,
           categoria: "accumulo",
           descrizione: (p.descrizione as string) ?? "Accumulo",
+          marca: (p.marca as string) ?? null, modello: (p.modello as string) ?? null,
           quantita: 1,
           unita_misura: "pz",
           prezzo_unitario_netto: netto,
@@ -157,6 +163,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
           articolo_id: null,
           categoria: "accumulo",
           descrizione: `Accumulo ${data.capacita_accumulo_kwh} kWh`,
+          marca: null, modello: null,
           quantita: 1,
           unita_misura: "pz",
           prezzo_unitario_netto: 0,
@@ -184,6 +191,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
       articolo_id: null,
       categoria: "altro",
       descrizione: ex.descrizione.trim(),
+      marca: null, modello: null,
       quantita: ex.quantita,
       unita_misura: "pz",
       prezzo_unitario_netto: netto,

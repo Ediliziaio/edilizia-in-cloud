@@ -27,10 +27,10 @@ vi.mock("@/components/documenti/SmartDocumentImportModal", () => ({ SmartDocumen
 vi.mock("@/pages/azienda/marketing/AnalisiPreventivi", () => ({ default: () : null => null }));
 vi.mock("@/pages/azienda/marketing/QuoteApprovals", () => ({ default: () : null => null }));
 
-function Harness({ initial = "" }: { initial?: string }) {
+function Harness({ initial = "", ai = false }: { initial?: string; ai?: boolean }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  return <><p>Lista Preventivi</p><NewQuoteDialog open={open} onOpenChange={setOpen} params={new URLSearchParams(initial)} trigger={<button>Nuovo preventivo</button>} /><output data-testid="route">{location.pathname}{location.search}</output></>;
+  return <><p>Lista Preventivi</p><NewQuoteDialog ai={ai} open={open} onOpenChange={setOpen} params={new URLSearchParams(initial)} trigger={<button>Nuovo preventivo</button>} /><output data-testid="route">{location.pathname}{location.search}</output></>;
 }
 const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Harness initial={initial} /></MemoryRouter>); fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" })); };
 beforeEach(() => {
@@ -42,6 +42,42 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("popup unico di creazione preventivi", () => {
+  it('apre Serramenti con il modello scelto e il suo assistente AI, non un documento generico', () => {
+    render(<MemoryRouter><Harness ai initial="area=serramenti&contact_id=c1&token=non-copiare" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo preventivo' }));
+    const link = screen.getByRole('link', { name: 'Apri preventivatore Finestre e portefinestre' });
+    expect(link).toHaveAttribute('href', '/azienda/serramenti/nuovo?modello=finestre&contact_id=c1&ai=1');
+    expect(screen.getByRole('note')).toHaveTextContent('preventivatore Serramenti');
+    expect(screen.getByRole('note')).toHaveTextContent('solo dopo la conferma');
+  });
+  it('sceglie il modello Bagni e apre il suo wizard, non la simulazione parallela', () => {
+    render(<MemoryRouter><Harness ai initial="area=bagni&contact_id=c1&token=non-copiare" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo preventivo' }));
+    expect(screen.getByRole('note')).toHaveTextContent('solo dopo la conferma');
+    const link = screen.getByRole('link', { name: 'Apri preventivatore Ristrutturazione completa del bagno' });
+    expect(link).toHaveAttribute('href', '/azienda/bagni/nuovo?modello=completo&contact_id=c1');
+    fireEvent.click(link);
+    expect(screen.getByTestId('route')).toHaveTextContent('/azienda/bagni/nuovo?modello=completo&contact_id=c1');
+  });
+  it('sceglie il classico prima della chat AI e conserva solo il contesto CRM consentito', () => {
+    render(<MemoryRouter><Harness ai initial="contact_id=c1&opportunity_id=o1&scenario=tetti&token=non-copiare" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo preventivo' }));
+    const classic = screen.getByRole('link', { name: /^Preventivo classico/ });
+    expect(classic).toHaveAttribute('href', '/azienda/marketing/preventivi/nuovo?contact_id=c1&opportunity_id=o1&ai=1');
+    fireEvent.click(classic);
+    expect(screen.getByTestId('route')).toHaveTextContent('/azienda/marketing/preventivi/nuovo?contact_id=c1&opportunity_id=o1&ai=1');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('Fotovoltaico apre i modelli nativi con AI in Configurazione, non la simulazione parallela', () => {
+    render(<MemoryRouter><Harness ai initial="area=fotovoltaico" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo preventivo' }));
+    expect(screen.getByRole('note')).toHaveTextContent('Nella fase Configurazione apri Silvio AI');
+    expect(screen.getByRole('note')).toHaveTextContent('dopo la conferma');
+    expect(screen.queryByText('Editor manuale · AI da collegare')).not.toBeInTheDocument();
+    const module = screen.getByRole('link', { name: 'Apri preventivatore Nuovo impianto fotovoltaico' });
+    expect(module).toHaveAttribute('href', '/azienda/marketing/fotovoltaico/nuovo?modello=nuovo&ai=1');
+    expect(module.getAttribute('href')).not.toContain('simulazione-ai');
+  });
   it("l'hub conserva la lista e rimuove la scheda parallela di creazione", () => {
     render(<MemoryRouter><Preventivi /></MemoryRouter>);
     expect(screen.queryByRole("tab", { name: "Nuovo preventivo" })).not.toBeInTheDocument();

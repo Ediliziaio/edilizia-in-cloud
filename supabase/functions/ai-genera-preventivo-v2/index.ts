@@ -10,6 +10,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { type CellaGrigliaAi, type CondizioneAsseAi, type PrezziFamigliaAi, prezzoFamigliaAi } from "../_shared/prezzoFamigliaAi.ts";
+import { leggiPreventivoAi, type RispostaPreventivoAi } from "../_shared/preventivoAiContract.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -89,35 +90,6 @@ type ListinoGrigliaFamigliaRow = {
   valore_y: number;
   prezzo_vendita: number | string;
   prezzo_acquisto: number | string | null;
-};
-
-/** JSON che Claude deve restituire. Validato loose: i campi obbligatori sono
- * `sezioni: RigaAIResp[]`; tutto il resto è tollerato per compat forward. */
-type RigaAIResp = {
-  item_category?: string;
-  nome?: string;
-  descrizione?: string;
-  quantita?: number;
-  unita_misura?: string;
-  article_template_id?: string | null;
-  family_id?: string | null;
-  axis_selections?: Record<string, string> | null;
-  tariffa_id?: string | null;
-  misure_x_mm?: number | null;
-  misure_y_mm?: number | null;
-  is_posa_di?: string | null;
-  unit_price?: number | null;
-};
-
-type SezioneAIResp = {
-  nome?: string;
-  righe?: RigaAIResp[];
-};
-
-type ClaudeJsonResponse = {
-  sezioni?: SezioneAIResp[];
-  note?: string;
-  avvertenze?: string[];
 };
 
 /** Parole di una richiesta che non distinguono un prodotto da un altro. */
@@ -679,7 +651,7 @@ OUTPUT JSON (schema obbligatorio):
       "item_category": "prodotto"|"posa"|"trasporto"|"smaltimento"|"nolo"|"nota",
       "nome": string,
       "descrizione": string,
-      "quantita": number,
+      "quantita": number|null,
       "unita_misura": string,
       "article_template_id": string|null,
       "family_id": string|null,
@@ -701,7 +673,8 @@ REGOLE OUTPUT:
 - misure_x_mm = larghezza in millimetri (int). misure_y_mm = altezza. Se non noto → null.
 - item_category: "prodotto" per articoli fisici, "posa" per manodopera, "trasporto"/"nolo"/"smaltimento" per servizi accessori, "nota" per note informative senza prezzo.
 - Se un prodotto ha posa automatica definita nel listino → aggiungi una riga "posa" collegata con is_posa_di = client_temp_id della riga prodotto padre (puoi usare il nome univoco).
-- quantita deve essere un numero positivo. Se non noto → 1.
+- quantita deve essere un numero positivo ricavato dai dati forniti. Se non nota → null, mai 1 come riempitivo. Chiedi il dato mancante in "avvertenze".
+- Per le unità e le misure mancanti non inventare riferimenti o conversioni. Una foto non quotata non certifica misure.
 - In "avvertenze" elenca incertezze, match dubbi, prodotti non trovati nel listino.`;
     const systemPrompt = `${systemPromptBase}${fotoGuide}${outputSchema}`;
 
@@ -811,9 +784,9 @@ REGOLE OUTPUT:
     // Prima il regex `^```json\s*` + `\s*```$` falliva se Claude variava
     // leggermente il formato (niente lingua dopo la fence, testo prima/
     // dopo, newline extra): JSON.parse lanciava e l'utente vedeva errore.
-    let parsedData: ClaudeJsonResponse;
+    let parsedData: RispostaPreventivoAi;
     try {
-      parsedData = extractJsonFromLLM<ClaudeJsonResponse>(rawText);
+      parsedData = leggiPreventivoAi(extractJsonFromLLM<unknown>(rawText));
     } catch (err) {
       throw new Error(
         `Claude ha restituito un JSON non valido: ${(err as Error).message}`,
@@ -951,9 +924,9 @@ REGOLE OUTPUT:
               const pv = Number(prod.prezzo_vendita) || 0;
               riga.unit_price = Math.round(pv * mq * 100) / 100;
             } else {
-              riga.unit_price = Number(prod.prezzo_vendita) || null;
+              riga.unit_price = null;
               enrichmentWarnings.push(
-                `Prodotto '${prod.name}' è modalità mq ma mancano misure x/y — prezzo mostrato è €/mq.`,
+                `Prodotto '${prod.name}': completa larghezza e altezza prima di calcolare il prezzo del pezzo.`,
               );
             }
           } else if (modalita === "griglia") {
@@ -1020,11 +993,12 @@ REGOLE OUTPUT:
       avvertenze.push(...enrichmentWarnings);
     }
 
-    return jsonResponse({
+    return jsonResponse(leggiPreventivoAi({
+      schema_version: 1,
       sezioni: parsedData.sezioni,
       note: parsedData.note,
       avvertenze,
-    });
+    }));
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : String(err));
   }

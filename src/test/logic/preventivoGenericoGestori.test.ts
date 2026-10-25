@@ -17,6 +17,7 @@ import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
+import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
 import type { ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 
 const BUILDER = "src/pages/azienda/marketing/QuoteBuilder.tsx";
@@ -24,6 +25,7 @@ const OPPORTUNITA = "src/components/opportunities/OpportunityQuotesTab.tsx";
 
 /** Carica nel contesto i gestori nominati, nell'ordine dato: quelli dopo possono usare quelli prima. */
 function gestoriVeri(file: string, nomi: string[], contesto: Record<string, unknown>) {
+  contesto.localEditor ??= undefined;
   const sorgente = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const trovati = new Map<string, ts.Expression>();
   const visita = (nodo: ts.Node) => {
@@ -82,14 +84,16 @@ describe("Righe generate dall'AI: famiglie e voci di servizio", () => {
     let aggiunte: Riga[] = [];
     const toast = { warning: vi.fn() };
     const caricaGriglieFamiglie = vi.fn(async () => ({ "fam-1": griglia }));
+    const contestoQuoteRef = { current: "company-a:quote-a" };
     const g = gestoriVeri(BUILDER, ["ivaPredefinita", "aggiungiSezione"], {
       console, items, prezzoManualeIvaPct: null, ivaVoceNuova, calcolaPrezzoFamiglia, caricaGriglieFamiglie,
+      companyId: "company-a", id: "quote-a", contestoQuoteRef,
       articleFamilies: [famiglia], articoli: [], calcolaPrezzoProdotto: vi.fn(),
       tariffe: [tariffaPosa, tariffaTrasporto, tariffaKm], calcolaTariffaAutomatica, unitaTariffa, quantitaInizialeTariffa,
       conAssiVisibili, pianoInstallazione: 0, kmCantiere,
       setItems: (fn: (prev: Riga[]) => Riga[]) => { aggiunte = fn([]); }, toast,
     });
-    return { aggiungi: (righe: unknown[]) => g.aggiungiSezione("Serramenti", righe) as Promise<void>, righe: () => aggiunte, toast, caricaGriglieFamiglie };
+    return { aggiungi: (righe: unknown[]) => g.aggiungiSezione("Serramenti", righe) as Promise<void>, righe: () => aggiunte, toast, caricaGriglieFamiglie, contestoQuoteRef };
   }
 
   it("la famiglia porta la sua IVA e il costo del listino (netto degli sconti fornitore), la sua posa la stessa IVA", async () => {
@@ -126,14 +130,14 @@ describe("Righe generate dall'AI: famiglie e voci di servizio", () => {
     expect(ai.righe().map((r) => r.vat_rate)).toEqual([10, 10]);
   });
 
-  it("trasporto al km: l'unità è quella della tariffa, e senza km dall'AI vale la distanza del cantiere", async () => {
+  it("trasporto al km: conserva la quantità confermata anche quando è 1 e il cantiere dista 30 km", async () => {
     const ai = preparaAi([], 30);
     await ai.aggiungi([
       riga({ item_category: "trasporto", nome: "Trasporto", tariffa_id: "tar-km", unita_misura: "cad" }),
       riga({ item_category: "trasporto", nome: "Trasporto A/R", tariffa_id: "tar-km", quantita: 60 }),
     ]);
     const [andata, andataRitorno] = ai.righe();
-    expect(andata).toMatchObject({ quantity: 30, unit_of_measure: "km", unit_price: 0.8, prezzo_acquisto: 0.5 });
+    expect(andata).toMatchObject({ quantity: 1, unit_of_measure: "km", unit_price: 0.8, prezzo_acquisto: 0.5 });
     // I km scritti dall'AI restano i suoi.
     expect(andataRitorno).toMatchObject({ quantity: 60, unit_of_measure: "km", unit_price: 0.8 });
   });
@@ -143,6 +147,22 @@ describe("Righe generate dall'AI: famiglie e voci di servizio", () => {
     await ai.aggiungi([riga({ nome: "Finestra PVC", family_id: "fam-1", axis_selections: {}, misure_x_mm: 2000, misure_y_mm: 2000, unit_price: 600 })]);
     expect(ai.righe()[0].unit_price).toBe(0);
     expect(ai.toast.warning).toHaveBeenCalledWith("Misura fuori listino, prezzo da scrivere: Finestra PVC");
+  });
+  it("cambio di azienda durante la lettura del listino: nessuna riga inserita nel nuovo contesto", async () => {
+    const ai = preparaAi([]);
+    ai.caricaGriglieFamiglie.mockImplementationOnce(async () => {
+      ai.contestoQuoteRef.current = "altra-azienda:altro-preventivo";
+      return { "fam-1": griglia };
+    });
+    await expect(ai.aggiungi([riga({ nome: "Finestra PVC", family_id: "fam-1", misure_x_mm: 1000, misure_y_mm: 1200 })])).rejects.toThrow("Preventivo cambiato");
+    expect(ai.righe()).toEqual([]);
+  });
+  it("una preparazione fallita non inserisce metà delle righe", async () => {
+    const ai = preparaAi([]);
+    const bad = riga({ nome: "Riga non leggibile" });
+    Object.defineProperty(bad, "unit_price", { get: () => { throw new Error("lettura interrotta"); } });
+    await expect(ai.aggiungi([riga({ nome: "Prima", quantita: 2 }), bad])).rejects.toThrow("lettura interrotta");
+    expect(ai.righe()).toEqual([]);
   });
 });
 
@@ -185,7 +205,7 @@ describe("Tariffa al km: la quantità sono i km", () => {
     const toast = { info: vi.fn() };
     const g = gestoriVeri(BUILDER, ["ivaPredefinita", "prezziRigaTariffa", "addTariffa"], {
       items: [], prezzoManualeIvaPct: null, ivaVoceNuova, calcolaTariffaAutomatica, unitaTariffa, quantitaInizialeTariffa,
-      toast, pianoInstallazione: 0, kmCantiere,
+      toast, pianoInstallazione: 0, kmCantiere, descrizioneCommerciale,
       setItems: (fn: (prev: Riga[]) => Riga[]) => { righe = fn([]); },
     });
     return { aggiungi: (t: unknown) => g.addTariffa(t, "trasporto"), righe: () => righe, toast };
@@ -253,6 +273,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
       searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro,
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
+      templateValues: {}, contractFields: [], prezziVenditaCompleti,
       normalizzaRigaSconto, clearQuoteDraft: () => {}, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia,
       isConflittoModifica, queryClient: { invalidateQueries: () => {} },
       queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } }, navigate: () => {}, toast, supabase,

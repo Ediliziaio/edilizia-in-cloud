@@ -84,7 +84,7 @@ export function GuscioEdile({
 
   const vistaImpresa = puoVedereImpresa && vista === "impresa";
   const vistaEffettiva: VistaAnteprima = vistaImpresa ? "impresa" : "cliente";
-  const totaleTesto = anteprima.totaleDocumento != null ? formattaEuro(anteprima.totaleDocumento) : null;
+  const totaleTesto = anteprima.totaleDocumento != null ? formattaEuro(anteprima.totaleDocumento, 2) : null;
   const nota = "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il documento definitivo è al passo PDF.";
   const Icona = testata.icona;
 

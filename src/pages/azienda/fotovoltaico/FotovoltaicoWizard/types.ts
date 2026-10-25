@@ -118,6 +118,7 @@ export interface WizardData {
   /** Righe MANODOPERA editabili dal commerciale (Fase 5). Salvate in
    *  fv_manodopera_progetto. Vuote per un kit chiavi-in-mano. */
   manodopera_righe: Array<{
+    uid?: string;
     tariffa_id: string | null;
     descrizione: string;
     ore: number;
@@ -127,6 +128,8 @@ export interface WizardData {
   /** Righe SERVIZI/PRATICHE editabili dal commerciale (Fase 5). Salvate in
    *  fv_servizi_progetto. Vuote per un kit chiavi-in-mano. */
   servizi_righe: Array<{
+    uid?: string;
+    catalogue_id?: string | null;
     tipo: string;
     descrizione: string;
     quantita: number;

@@ -56,6 +56,8 @@ export interface AiRouterMessage {
 }
 
 export interface AiRouterParams {
+  /** Request-local comparison setting; never taken from unvalidated client data. */
+  reasoning?: { effort: "low" | "medium" | "high" };
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
@@ -79,6 +81,10 @@ export interface AiRouterCompleteOptions {
   userId?: string | null;
   /** Se vuoi forzare un modello specifico (override config) */
   forceModel?: string;
+  /** Exact-model experiments must never silently substitute a fallback. */
+  disableModelFallback?: boolean;
+  /** Request-local OpenRouter routing hint. Does not change model, privacy or global config. */
+  preferLowLatency?: boolean;
   /**
    * Idempotency key UNICA per questa chiamata (es. hash di session_id+message_id).
    * Se presente, charge_ai_call NON addebita doppio in caso di retry.
@@ -588,6 +594,7 @@ async function callOpenRouter(
   turnControl?: AiTurnControl,
   sessionId?: string,
   checkpoint?: (attempt: ProviderAttempt) => Promise<void>,
+  preferLowLatency = false,
 ): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
@@ -606,6 +613,8 @@ async function callOpenRouter(
   // OpenAI o-series + GPT-5 reasoning richiedono temperature=1 (default) o assenza.
   // Inviare temperature=0.3 ritorna 400 "Unsupported value: temperature".
   const SKIP_TEMPERATURE_PATTERNS = [
+    /^openai\/gpt-6\.1-sol(?:[:/-]|$)/i, // Verified OpenRouter capabilities for the opt-in Demo 2 comparison.
+    /^anthropic\/claude-(?:haiku|sonnet)-5\.5(?:[:/-]|$)/i, // Public model capabilities omit temperature/top_p; require_parameters would reject routing.
     /^openai\/o[1-9]/,             // o1, o3, o4
     /^openai\/gpt-5(?!\.[0-9]+-chat)(?!-chat)(?:[\b-]|$)/i,  // gpt-5, gpt-5-mini, gpt-5-pro, gpt-5-nano (NON -chat)
     /^openai\/gpt-5\.[0-9]+(?!-chat)/i,   // gpt-5.1 NON -chat
@@ -716,6 +725,8 @@ async function callOpenRouter(
   // The last SSE event remains necessary to collect the full usage/cost.
   body.usage = { include: true };
   if (responseFormat) body.response_format = responseFormat;
+  // Only opted-in endpoints prioritize latency; structured-output support stays required.
+  if (preferLowLatency) body.provider = { sort: "latency", require_parameters: true };
   // Streaming: la risposta arriva a pezzi (SSE) e viene ricomposta da
   // leggiStreamOpenRouter. OpenRouter manda comunque l'usage in un ultimo
   // evento prima di [DONE], quindi la contabilita' resta identica.
@@ -729,6 +740,7 @@ async function callOpenRouter(
     const isOpenAIReasoner = /^openai\/(?:o[1-9]|gpt-5)/i.test(model);
     body.reasoning = { effort: isOpenAIReasoner ? "minimal" : "low" };
   }
+  if (params.reasoning) body.reasoning = params.reasoning;
 
   // FIX 2 (C1): timeout differenziato.
   // - 30s default (Anthropic/OpenAI/Google standard)
@@ -750,7 +762,7 @@ async function callOpenRouter(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const turnAttempt = turnControl?.beginAttempt(payloadChars(messages, params.tools), effectiveMaxTokens);
-    const timeoutMs = Math.max(1, Math.min(FETCH_TIMEOUT_MS, turnControl?.remainingMs() ?? FETCH_TIMEOUT_MS));
+    const timeoutMs = turnControl?.attemptTimeoutMs(FETCH_TIMEOUT_MS) ?? FETCH_TIMEOUT_MS;
     let res: Response;
     try {
       res = await fetch(OPENROUTER_URL, {
@@ -1115,7 +1127,7 @@ export async function aiRouterComplete(
   // Merge params: config default + override esplicito
   const params: AiRouterParams = { ...config.default_params, ...(opts.params ?? {}) };
 
-  const modelsToTry = Array.from(new Set([config.primary_model, ...config.fallback_models].filter(Boolean)));
+  const modelsToTry = Array.from(new Set([config.primary_model, ...(opts.disableModelFallback ? [] : config.fallback_models)].filter(Boolean)));
   const attempts: Array<{ model: string; error: string }> = [];
 
   // ───────────────────────────────────────────────────────────────────────
@@ -1230,6 +1242,7 @@ export async function aiRouterComplete(
             );
           }
           if (onSoftCap === "downgrade_models" && config.fallback_models.length > 0) {
+            if (opts.disableModelFallback) throw new AiRouterError("Confronto interrotto dal limite di budget: il modello non viene sostituito.", opts.taskKey, []);
             // Downgrade automatico a modello economico (primo fallback)
             console.warn(
               `[aiRouter] soft cap raggiunto per company ${opts.companyId} (${b.effective_usage_pct}%) — downgrade da ${config.primary_model} a ${config.fallback_models[0]}`,
@@ -1272,6 +1285,7 @@ export async function aiRouterComplete(
         opts.turnControl,
         opts.sessionId,
         guard?.checkpoint,
+        opts.preferLowLatency === true,
       );
 
       const choice = data.choices?.[0];

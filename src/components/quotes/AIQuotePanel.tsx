@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,9 @@ import {
   Camera,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { importoRiga } from "@/hooks/usePreventivoCosti";
 import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
+import { leggiPreventivoAi, confermaPreventivoAi, riepilogoPreventivoAi, type SezionePreventivoAi, type SezionePreventivoAiConfermata } from "@/lib/preventivi/aiQuoteReview";
 
 interface Misura {
   label: string;
@@ -46,35 +48,13 @@ interface Misura {
   unita: "m" | "cm" | "mm";
 }
 
-interface RigaGenerata {
-  item_category: string;
-  nome: string;
-  descrizione: string;
-  quantita: number;
-  unita_misura: string;
-  article_template_id: string | null;
-  tariffa_id: string | null;
-  misure_x_mm: number | null;
-  misure_y_mm: number | null;
-  unit_price?: number;
-  is_posa_di?: string | null;
-  // Addendum P2-04: identità famiglia+configurazione quando l'AI sceglie
-  // un'istanza di article_families invece di un article_templates puntuale.
-  // Passati through da quote_items per preservare la config nel preventivo.
-  family_id?: string | null;
-  axis_selections?: Record<string, string> | null;
-}
-
-interface SezioneGenerata {
-  nome: string;
-  righe: RigaGenerata[];
-}
-
 interface AIQuotePanelProps {
-  onRigheGenerate: (sezioni: SezioneGenerata[]) => void;
+  onRigheGenerate: (sezioni: SezionePreventivoAiConfermata[]) => void | Promise<void>;
   companyId: string;
   tipoLavoro?: string;
   pianoInstallazione?: number;
+  /** Only honored in development; never redirects production API calls. */
+  generazioneSimulata?: (body: Record<string, unknown>, signal: AbortSignal) => Promise<{ data: unknown; error: { message: string } | null }>;
 }
 
 const MAX_FOTO_COUNT = 5;
@@ -103,19 +83,32 @@ function categoryColor(cat: string): string {
   return map[cat] ?? "bg-gray-100 text-gray-700";
 }
 
-export default function AIQuotePanel({
+export default function AIQuotePanel(props: AIQuotePanelProps) {
+  // Identity changes reset the whole session, with no effect-triggered state
+  // cascade or chance to insert the previous company's pending proposal.
+  return <AIQuotePanelSession key={props.companyId} {...props} />;
+}
+
+function AIQuotePanelSession({
   onRigheGenerate,
   companyId,
   tipoLavoro,
   pianoInstallazione,
+  generazioneSimulata,
 }: AIQuotePanelProps) {
+  const simulazione = import.meta.env.DEV && !!generazioneSimulata;
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"testo" | "voce" | "foto">("testo");
   const [descrizione, setDescrizione] = useState("");
   const [misure, setMisure] = useState<Misura[]>([]);
   const [stato, setStato] = useState<"idle" | "generando" | "risultato" | "errore">("idle");
   const isGenerating = stato === "generando";
-  const [risultato, setRisultato] = useState<SezioneGenerata[] | null>(null);
+  const [risultato, setRisultato] = useState<SezionePreventivoAi[] | null>(null);
+  const riepilogo = useMemo(() => riepilogoPreventivoAi(risultato ?? []), [risultato]);
+  const [isInserting, setIsInserting] = useState(false);
+  const insertingRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const [avvertenze, setAvvertenze] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -124,11 +117,25 @@ export default function AIQuotePanel({
   // Foto input (upload foto schizzo/preventivo cartaceo)
   const [fotoFiles, setFotoFiles] = useState<File[]>([]);
   const [fotoPreviewUrls, setFotoPreviewUrls] = useState<string[]>([]);
+  const fotoPreviewRef = useRef<string[]>([]);
+  useEffect(() => { fotoPreviewRef.current = fotoPreviewUrls; }, [fotoPreviewUrls]);
   const fotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; requestRef.current?.abort(); requestRef.current = null; };
+  }, []);
+
+  const annullaGenerazione = () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setStato("idle");
+    toast.info(simulazione ? "Simulazione interrotta. Nessun costo e nessuna riga inserita." : "Analisi interrotta. Nessuna riga inserita; un’elaborazione già avviata può avere un costo.");
+  };
 
   const stopRecording = useCallback(() => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
@@ -156,6 +163,8 @@ export default function AIQuotePanel({
   }, [stato]);
   useEffect(() => {
     return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
@@ -182,6 +191,7 @@ export default function AIQuotePanel({
   }, []);
 
   const startRecording = async () => {
+    if (simulazione) return; // Never call the paid transcription service in the lab.
     // FIX 16 (A7): MediaRecorder fallback robusto Safari/iOS — mp4/aac quando webm KO
     if (typeof MediaRecorder === "undefined") {
       toast.error("Browser non supporta registrazione audio. Usa la modalità testo.");
@@ -195,6 +205,7 @@ export default function AIQuotePanel({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (!mountedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
       const candidates = [
         "audio/webm;codecs=opus",
         "audio/webm",
@@ -230,6 +241,7 @@ export default function AIQuotePanel({
       };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (!mountedRef.current) return;
         const effectiveMimeType = mr.mimeType || mimeType || "audio/webm";
         const ext = effectiveMimeType.includes("mp4") || effectiveMimeType.includes("aac")
           ? "m4a"
@@ -280,57 +292,52 @@ export default function AIQuotePanel({
     }
   };
 
-  const genera = async () => {
+  const avviaGenerazione = async (prepara: () => Promise<Record<string, unknown>>, modo: "testo" | "voce" | "foto") => {
+    // Ref, not just disabled state: two clicks in the same render make one call.
+    if (requestRef.current || insertingRef.current) return;
     if (!companyId) {
       toast.error("Azienda non caricata, riprova");
       return;
     }
-    if (!descrizione.trim()) {
-      toast.error("Inserisci una descrizione");
-      return;
-    }
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const azienda = companyId;
+    const attuale = () => requestRef.current === controller && !controller.signal.aborted && mountedRef.current;
     setStato("generando");
     const t0 = performance.now();
     captureVelocityEvent("preventivatore.ai.generate.start", {
       descrizione_len: descrizione.length,
       misure_count: misure.length,
-      input_mode: activeTab, // "testo" | "voce"
+      input_mode: modo,
       tipo_lavoro: tipoLavoro ?? null,
       piano_installazione: pianoInstallazione ?? null,
     });
     try {
-      const misureConvertite = misure
-        .filter((m) => m.valore.trim() !== "")
-        .map((m) => {
-          const valore = parseFloat(m.valore);
-          if (isNaN(valore)) {
-            throw new Error(`Valore misura non valido: "${m.label || "senza etichetta"}"`);
-          }
-          return { label: m.label, valore, unita: m.unita };
-        });
-      const { data, error } = await supabase.functions.invoke("ai-genera-preventivo-v2", {
-        body: {
-          company_id: companyId,
-          descrizione,
-          tipo_lavoro: tipoLavoro,
-          piano_installazione: pianoInstallazione,
-          misure: misureConvertite,
-        },
+      const body = await prepara();
+      if (!attuale()) return;
+      const requestBody = { ...body, company_id: azienda, input_mode: modo, tipo_lavoro: tipoLavoro, piano_installazione: pianoInstallazione };
+      const { data, error } = import.meta.env.DEV && generazioneSimulata
+        ? await generazioneSimulata(requestBody, controller.signal)
+        : await supabase.functions.invoke("ai-genera-preventivo-v2", {
+        body: requestBody,
+        signal: controller.signal,
       });
+      if (!attuale()) return;
       if (error) throw new Error(error.message);
-      const sezioni: SezioneGenerata[] = data.sezioni ?? [];
+      const { sezioni, avvertenze, note } = leggiPreventivoAi(data);
       setRisultato(sezioni);
-      setAvvertenze(data.avvertenze ?? []);
-      setNote(data.note ?? "");
+      setAvvertenze(avvertenze);
+      setNote(note);
       setStato("risultato");
       const righeCount = sezioni.reduce((s, sez) => s + sez.righe.length, 0);
       captureVelocityEvent("preventivatore.ai.generate.success", {
         latency_ms: Math.round(performance.now() - t0),
         sezioni_count: sezioni.length,
         righe_count: righeCount,
-        avvertenze_count: (data.avvertenze ?? []).length,
+        avvertenze_count: avvertenze.length,
       });
     } catch (err: unknown) {
+      if (!attuale()) return;
       const msg = err instanceof Error ? err.message : "Errore generazione";
       toast.error(msg);
       setStato("errore");
@@ -343,7 +350,21 @@ export default function AIQuotePanel({
         company_id: companyId,
         descrizione_len: descrizione.length,
       });
+    } finally {
+      if (requestRef.current === controller) requestRef.current = null;
     }
+  };
+
+  const genera = async () => {
+    if (!descrizione.trim()) { toast.error("Inserisci una descrizione"); return; }
+    await avviaGenerazione(async () => ({
+      descrizione,
+      misure: misure.filter(m => m.valore.trim() !== "").map(m => {
+        const valore = Number(m.valore.trim().replace(",", "."));
+        if (!Number.isFinite(valore) || valore <= 0) throw new Error(`Valore misura non valido: "${m.label || "senza etichetta"}"`);
+        return { label: m.label, valore, unita: m.unita };
+      }),
+    }), activeTab === "voce" ? "voce" : "testo");
   };
 
   // MP-preventivi-v2: generazione da foto via AI vision.
@@ -353,14 +374,7 @@ export default function AIQuotePanel({
       toast.error("Carica almeno una foto");
       return;
     }
-    setStato("generando");
-    const t0 = performance.now();
-    captureVelocityEvent("preventivatore.ai.generate.foto.start", {
-      foto_count: fotoFiles.length,
-      has_nota: !!descrizione,
-      tipo_lavoro: tipoLavoro ?? null,
-    });
-    try {
+    await avviaGenerazione(async () => {
       const fotoB64 = await Promise.all(
         fotoFiles.map(async (f) => {
           const buf = await f.arrayBuffer();
@@ -374,32 +388,8 @@ export default function AIQuotePanel({
           };
         })
       );
-      const { data, error } = await supabase.functions.invoke("ai-genera-preventivo-v2", {
-        body: {
-          company_id: companyId,
-          input_mode: "foto",
-          descrizione: descrizione || "",
-          tipo_lavoro: tipoLavoro,
-          piano_installazione: pianoInstallazione,
-          foto: fotoB64,
-        },
-      });
-      if (error) throw new Error(error.message);
-      const sezioni: SezioneGenerata[] = data.sezioni ?? [];
-      setRisultato(sezioni);
-      setAvvertenze(data.avvertenze ?? []);
-      setNote(data.note ?? "");
-      setStato("risultato");
-      captureVelocityEvent("preventivatore.ai.generate.foto.success", {
-        latency_ms: Math.round(performance.now() - t0),
-        sezioni_count: sezioni.length,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Errore generazione da foto";
-      toast.error(msg);
-      setStato("errore");
-      captureVelocityError("preventivatore.ai.generate.foto", err, { company_id: companyId });
-    }
+      return { descrizione: descrizione || "", foto: fotoB64 };
+    }, "foto");
   };
 
   const clearFotoPreviews = useCallback(() => {
@@ -411,9 +401,9 @@ export default function AIQuotePanel({
 
   useEffect(() => {
     return () => {
-      fotoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      fotoPreviewRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [fotoPreviewUrls]);
+  }, []);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -436,11 +426,12 @@ export default function AIQuotePanel({
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "testo" | "voce" | "foto")}>
               <TabsList className="w-full">
                 <TabsTrigger value="testo" className="flex-1 tap-compact"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />Testo</TabsTrigger>
-                <TabsTrigger value="voce" className="flex-1 tap-compact"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>
-                <TabsTrigger value="foto" className="flex-1 tap-compact"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>
+                {!simulazione && <TabsTrigger value="voce" className="flex-1 tap-compact"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>}
+                {!simulazione && <TabsTrigger value="foto" className="flex-1 tap-compact"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="testo" className="space-y-3 mt-3">
+                {simulazione && <p className="text-xs text-muted-foreground">Prova testuale con dati sintetici. Voce e foto non sono attive in questa simulazione.</p>}
                 <Textarea
                   placeholder="Es: Sostituzione 2 finestre PVC a 2 ante, circa 100×140cm, soggiorno piano terra..."
                   value={descrizione}
@@ -667,16 +658,24 @@ export default function AIQuotePanel({
             <div className="space-y-3 py-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
-                L&apos;AI sta consultando il tuo listino e le tariffe...
+                {simulazione ? "Preparazione delle lavorazioni simulate, senza consultare listini reali..." : "L’AI sta consultando il tuo listino e le tariffe..."}
               </div>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-12 bg-muted animate-pulse rounded" />
               ))}
+              <Button type="button" variant="outline" onClick={annullaGenerazione}>Interrompi analisi</Button>
             </div>
           )}
 
           {stato === "risultato" && risultato && (
             <div className="space-y-4">
+              {!riepilogo.completo && (
+                <div role="status" className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">Completa i dati prima di inserire le righe</p>
+                  <ul className="mt-1 list-disc pl-4">{riepilogo.mancanti.map((m, i) => <li key={i}>{m}</li>)}</ul>
+                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { setStato("idle"); setRisultato(null); }}>Aggiungi dettagli alla richiesta</Button>
+                </div>
+              )}
               {avvertenze.length > 0 && (
                 <div className="flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
                   <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -688,9 +687,7 @@ export default function AIQuotePanel({
                 </div>
               )}
 
-              {/* Cliff no-match: l'AI non inventa prezzi, quindi le voci senza
-                  aggancio al listino escono a €0. Senza questo avviso il
-                  risultato sembra rotto anche quando è corretto. */}
+              {/* Missing price is unknown, never a free item. */}
               {(() => {
                 const senzaMatch = risultato
                   .flatMap((s) => s.righe)
@@ -699,7 +696,7 @@ export default function AIQuotePanel({
                       !r.article_template_id &&
                       !r.family_id &&
                       !r.tariffa_id &&
-                      !(typeof r.unit_price === "number" && r.unit_price > 0)
+                      r.item_category !== "nota" && r.unit_price == null
                   ).length;
                 if (senzaMatch === 0) return null;
                 return (
@@ -713,9 +710,8 @@ export default function AIQuotePanel({
                             : `${senzaMatch} voci non hanno un prezzo`}
                         </span>{" "}
                         perché nel tuo listino non c'è una tariffa o un prodotto
-                        corrispondente. L'AI non inventa prezzi: inseriscili tu
-                        sulle righe, oppure arricchisci il listino così la
-                        prossima volta si compilano da soli.
+                        corrispondente. Puoi scrivere il prezzo concordato qui sotto
+                        oppure completare il listino e rigenerare. Nessun prezzo è inventato.
                       </p>
                       <a
                         href="/azienda/impostazioni/listino"
@@ -740,7 +736,7 @@ export default function AIQuotePanel({
                   {sez.righe.map((r, ri) => (
                     <div
                       key={ri}
-                      className={`flex items-start gap-3 p-2.5 border rounded text-sm ${
+                      className={`flex flex-wrap items-start gap-3 p-2.5 border rounded text-sm ${
                         r.is_posa_di ? "ml-6 bg-muted/30" : "bg-white"
                       }`}
                     >
@@ -759,16 +755,38 @@ export default function AIQuotePanel({
                           <p className="text-xs text-muted-foreground truncate">{r.descrizione}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-muted-foreground">
-                          {r.quantita} {r.unita_misura}
-                        </span>
-                        {r.unit_price != null && r.unit_price > 0 && (
+                      {r.item_category !== "nota" && <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          type="number" min="0.01" step="0.01"
+                          aria-label={`Quantità di ${r.nome}`}
+                          placeholder="Quantità" value={r.quantita ?? ""} disabled={isInserting}
+                          className="w-24"
+                          onChange={e => {
+                            const value = e.target.value === "" ? null : Number(e.target.value);
+                            setRisultato(prev => prev?.map((s, sectionIndex) => sectionIndex !== si ? s : { ...s, righe: s.righe.map((row, index) => index !== ri ? row : { ...row, quantita: value != null && Number.isFinite(value) && value > 0 ? value : null }) }) ?? null);
+                          }}
+                        />
+                        <Input
+                          aria-label={`Unità di ${r.nome}`} placeholder="Unità" className="w-20" disabled={isInserting} value={r.unita_misura}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setRisultato(prev => prev?.map((s, index) => index !== si ? s : { ...s, righe: s.righe.map((row, index) => index !== ri ? row : { ...row, unita_misura: value }) }) ?? null);
+                          }}
+                        />
+                        {!r.article_template_id && !r.family_id && !r.tariffa_id && <label className="text-xs text-muted-foreground">
+                          Prezzo unitario netto
+                          <Input type="number" min="0" step="0.01" aria-label={`Prezzo netto di ${r.nome}`} placeholder="Da definire" value={r.unit_price ?? ""} className="w-28" disabled={isInserting}
+                            onChange={e => {
+                              const value = e.target.value === "" ? null : Number(e.target.value);
+                              setRisultato(prev => prev?.map((s, index) => index !== si ? s : { ...s, righe: s.righe.map((row, index) => index !== ri ? row : { ...row, unit_price: value != null && Number.isFinite(value) && value >= 0 ? value : null }) }) ?? null);
+                            }} />
+                        </label>}
+                        {r.unit_price != null && r.quantita != null ? (
                           <span className="text-sm font-medium">
-                            {formatCurrency(r.unit_price * r.quantita)}
+                            {formatCurrency(importoRiga({ quantity: r.quantita, unit_price: r.unit_price }))}
                           </span>
-                        )}
-                        {r.article_template_id && (
+                        ) : <span className="text-xs text-amber-700">Importo da completare</span>}
+                        {(r.article_template_id || r.family_id) && (
                           <span className="text-xs px-1 py-0.5 bg-green-100 text-green-700 rounded flex items-center gap-0.5">
                             <CheckCircle2 className="h-3 w-3" /> Listino
                           </span>
@@ -778,40 +796,37 @@ export default function AIQuotePanel({
                             Tariffa
                           </span>
                         )}
-                      </div>
+                      </div>}
                     </div>
                   ))}
                 </div>
               ))}
 
-              {(() => {
-                const tot = risultato
-                  .flatMap((s) => s.righe)
-                  .reduce((sum, r) => sum + (r.unit_price ?? 0) * r.quantita, 0);
-                return tot > 0 ? (
-                  <div className="flex justify-end pt-2 border-t">
-                    <span className="text-sm text-muted-foreground mr-2">Totale stimato:</span>
-                    <span className="font-bold">{formatCurrency(tot)}</span>
-                  </div>
-                ) : null;
-              })()}
+              <div className="flex flex-wrap justify-end gap-2 pt-2 border-t" aria-live="polite">
+                <span className="text-sm text-muted-foreground">{riepilogo.completo ? "Stima netta, IVA esclusa:" : "Parziale valorizzato, IVA esclusa:"}</span>
+                <span className="font-bold">{formatCurrency(riepilogo.totale)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">{simulazione ? "La conferma aggiorna solo questa prova locale. Prezzi, costi e IVA restano fittizi; nessun documento viene salvato o inviato." : "All’inserimento, il preventivo verifica listino, costi e IVA. Nessun documento viene inviato."}</p>
 
               {note && <p className="text-xs text-muted-foreground italic">{note}</p>}
 
               <div className="flex gap-2 pt-2">
                 <Button
-                  onClick={() => {
+                  disabled={!riepilogo.completo || isInserting}
+                  onClick={async () => {
+                    if (insertingRef.current) return;
+                    insertingRef.current = true;
+                    setIsInserting(true);
+                    try {
+                    const confermate = confermaPreventivoAi(risultato);
                     const righeTot = risultato.flatMap((s) => s.righe);
-                    const totale = righeTot.reduce(
-                      (sum, r) => sum + (r.unit_price ?? 0) * r.quantita,
-                      0,
-                    );
+                    await onRigheGenerate(confermate);
+                    if (!mountedRef.current) return;
                     captureVelocityEvent("preventivatore.ai.insert", {
                       righe_count: righeTot.length,
                       sezioni_count: risultato.length,
-                      totale_stimato: Math.round(totale * 100) / 100,
+                      totale_stimato: riepilogo.totale,
                     });
-                    onRigheGenerate(risultato);
                     setStato("idle");
                     setRisultato(null);
                     setDescrizione("");
@@ -819,13 +834,20 @@ export default function AIQuotePanel({
                     toast.success(
                       `${righeTot.length} righe aggiunte al preventivo`
                     );
+                    } catch {
+                      if (mountedRef.current) toast.error("Inserimento non completato. L’anteprima è conservata: verifica il listino e riprova.");
+                    } finally {
+                      insertingRef.current = false;
+                      if (mountedRef.current) setIsInserting(false);
+                    }
                   }}
                   className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
                 >
-                  Inserisci nel preventivo
+                  {isInserting ? "Inserimento in corso…" : "Inserisci nel preventivo"}
                 </Button>
                 <Button
                   variant="outline"
+                  disabled={isInserting}
                   onClick={() => {
                     captureVelocityEvent("preventivatore.ai.regenerate", {
                       descrizione_len: descrizione.length,
@@ -843,6 +865,7 @@ export default function AIQuotePanel({
                 </Button>
                 <Button
                   variant="outline"
+                  disabled={isInserting}
                   onClick={() => {
                     captureVelocityEvent("preventivatore.ai.discard", {
                       righe_count: risultato.flatMap((s) => s.righe).length,

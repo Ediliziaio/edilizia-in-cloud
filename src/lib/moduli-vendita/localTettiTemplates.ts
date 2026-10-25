@@ -23,6 +23,8 @@ function assertRecord(value: unknown, companyId: string, moduleId: TettiTemplate
   if (!r || r.version !== 1 || r.companyId !== companyId || r.moduleId !== moduleId ||
     typeof r.savedAt !== "string" || !Number.isFinite(Date.parse(r.savedAt)) ||
     !t || t.company_id !== companyId || t.id !== `local-tetti-${moduleId}` ||
+    (t.pdf_blocchi != null && (typeof t.pdf_blocchi !== 'object' || Array.isArray(t.pdf_blocchi))) ||
+    (t.pdf_blocchi?.modulo_intervento != null && t.pdf_blocchi.modulo_intervento !== moduleId) ||
     (t.cover_title !== null && typeof t.cover_title !== "string") ||
     lists.some(list => !Array.isArray(list) || list.some(item => !item || typeof item.titolo !== "string")) ||
     !Array.isArray(t.faq) || t.faq.some(f => !f || typeof f.domanda !== "string" || typeof f.risposta !== "string") ||
@@ -38,6 +40,15 @@ export function loadLocalTettiTemplate(companyId: string, moduleId: TettiTemplat
   let record: unknown;
   try { record = JSON.parse(raw); } catch { throw new Error("Copia locale danneggiata: i dati non sono stati modificati."); }
   assertRecord(record, companyId, moduleId);
+  // Older library records already bind company + module in their envelope and
+  // canonical template id, but predate the internal intervention marker. Bind
+  // only that missing metadata in memory: no content/default replacement and
+  // no write-back to the company library. A conflicting marker fails above.
+  if (record.template.pdf_blocchi?.modulo_intervento == null) {
+    return { ...record, template: { ...record.template,
+      pdf_blocchi: { ...record.template.pdf_blocchi, modulo_intervento: moduleId },
+    } };
+  }
   return record;
 }
 

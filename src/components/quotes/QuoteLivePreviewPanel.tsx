@@ -40,6 +40,16 @@ export interface QuoteLivePreviewProps {
   logoSrc?: string | null;
   coverSrc?: string | null;
   mergeContext?: MergeContext;
+  /** Partial net-only review (not a fiscal VAT-zero document). */
+  taxPending?: boolean;
+  totalPending?: boolean;
+  previewNotice?: string;
+  /** Chat-only workspace: document preview, no separate navigation controls. */
+  offerOnly?: boolean;
+  /** Opt-in motion for the local chat lab; no timers or animated calculations. */
+  animateChanges?: boolean;
+  /** Opt-in local workbench layout; counts refer to proposals outside items. */
+  workspaceReview?: { incomplete: number; awaiting: number; onReview: () => void; pending?: Array<{ id: string; title: string; description: string; quantity: number | null; unit: string; price: number | null; reference: string; issue: string | null }> };
 }
 
 /** Anteprima locale reattiva, senza salvataggi né richieste di generazione PDF.
@@ -51,6 +61,9 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
   const t = { ...DEFAULT_TEMPLATE, ...props.template };
   const visibleItems = props.items.filter((item) => item.mostra_nel_pdf !== false);
   const prices = props.showPrices && !props.onlyTotal && !props.manualPrice;
+  const totalLabel = props.taxPending ? "Parziale netto · IVA da definire" : "Totale IVA inclusa";
+  const displayedTotal = props.taxPending ? props.net : props.total;
+  const displayedMoney = props.totalPending ? 'Da determinare' : formatCurrency(displayedTotal);
   const today = new Date();
   const expiry = new Date(today);
   expiry.setDate(expiry.getDate() + props.validityDays);
@@ -60,7 +73,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
     cliente: { nome: props.clientName.split(" ")[0] || "Nome cliente", cognome: props.clientName.split(" ").slice(1).join(" "), nome_completo: props.clientName || "Nome cliente", indirizzo: props.clientAddress },
     cantiere: { indirizzo: props.siteAddress },
     azienda: { ragione_sociale: props.companyName },
-    preventivo: { data: today.toLocaleDateString("it-IT"), scadenza: expiry.toLocaleDateString("it-IT"), totale: formatCurrency(props.total), subtotale: formatCurrency(props.subtotal), iva: formatCurrency(props.total - props.net), piano_pagamenti: plan || t.payment_terms_text || "come da condizioni di pagamento concordate", frase_pagamenti: plan || t.payment_terms_text ? `Il pagamento avviene secondo il piano concordato: ${plan || t.payment_terms_text}` : "Il pagamento avviene secondo le modalità concordate tra le parti." },
+    preventivo: { data: today.toLocaleDateString("it-IT"), scadenza: expiry.toLocaleDateString("it-IT"), totale: props.totalPending ? 'Da determinare' : formatCurrency(props.total), subtotale: props.totalPending ? 'Da determinare' : formatCurrency(props.subtotal), iva: props.taxPending ? 'Da definire' : formatCurrency(props.total - props.net), piano_pagamenti: plan || t.payment_terms_text || "come da condizioni di pagamento concordate", frase_pagamenti: plan || t.payment_terms_text ? `Il pagamento avviene secondo il piano concordato: ${plan || t.payment_terms_text}` : "Il pagamento avviene secondo le modalità concordate tra le parti." },
     data: { oggi: today.toLocaleDateString("it-IT"), anno: String(today.getFullYear()) },
     ...props.mergeContext,
   };
@@ -70,24 +83,25 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
   const fondoCopertina = props.template.colore_copertina ?? primary;
   const meta = <div className="grid grid-cols-2 gap-4 border-t border-current/15 pt-4 text-xs">
     {t.show_client_details && <div><p className="mb-1 opacity-60">PREPARATO PER</p><p className="font-semibold">{props.clientName || "Nome del cliente"}</p><p className="mt-1 whitespace-pre-line opacity-75">{props.clientAddress}</p></div>}
-    <div><p className="mb-1 opacity-60">IL TUO PROGETTO</p><p className="font-semibold">{props.title || "Titolo del progetto"}</p><p className="mt-1 opacity-75">{props.siteAddress}</p>{t.show_validity_date && <p className="mt-2 opacity-75">Validità: {props.validityDays} giorni</p>}</div>
+    {(!props.workspaceReview || props.siteAddress) && <div><p className="mb-1 opacity-60">{props.workspaceReview ? "CANTIERE" : "IL TUO PROGETTO"}</p>{!props.workspaceReview && <p className="font-semibold">{props.title || "Titolo del progetto"}</p>}<p className="mt-1 opacity-75">{props.siteAddress}</p>{t.show_validity_date && <p className="mt-2 opacity-75">Validità: {props.validityDays} giorni</p>}</div>}
   </div>;
   // Col logo il nome dell'azienda non si ripete (come nel PDF: richiesta di Renova, 05/10/2026).
   const logo = t.show_logo && props.logoSrc && failedLogo !== props.logoSrc
     ? <img src={props.logoSrc} onError={() => setFailedLogo(props.logoSrc ?? null)} alt={props.companyName} className="mb-3 max-h-10 max-w-36 object-contain" /> : null;
 
   return (
-    <section aria-label="Anteprima live dell'offerta" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section aria-label="Anteprima live dell'offerta" className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${props.workspaceReview ? 'quote-workbench-preview' : ''}`}>
       <div className="border-b p-4">
-        <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-semibold"><Eye className="h-4 w-4 text-orange-600" /> Anteprima live</h2><span className="flex items-center gap-1.5 text-[11px] text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Dati aggiornati</span></div>
-        <p className="mt-1 truncate text-xs text-slate-500">{t.name}</p>
-        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" aria-label="Vista anteprima">
+        <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-semibold"><Eye className="h-4 w-4 text-orange-600" /> Anteprima live</h2><span className="quote-preview-status flex items-center gap-1.5 text-[11px] text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Dati aggiornati</span></div>
+        <p className="mt-1 truncate text-xs text-slate-500">{props.workspaceReview ? 'Si aggiorna mentre componi il preventivo' : t.name}</p>
+        {props.workspaceReview && <div className="quote-preview-review"><div aria-live="polite"><span><strong>{visibleItems.length}</strong> incluse nel parziale</span><span>{props.workspaceReview.incomplete} da completare · {props.workspaceReview.awaiting} da confermare</span></div><button type="button" onClick={props.workspaceReview.onReview}>Rivedi voci <span aria-hidden="true">↗</span></button></div>}
+        {!props.offerOnly && <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" aria-label="Vista anteprima">
           {([['cover', 'Copertina', ImageIcon], ['offer', 'Offerta', FileText]] as const).map(([key, label, Icon]) => <button key={key} type="button" aria-pressed={page === key} onClick={() => setPage(key)} className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${page === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}
-        </div>
+        </div>}
       </div>
-      <div className="max-h-[min(55vh,calc(100dvh-400px))] overflow-y-auto overscroll-contain bg-slate-100 p-3" tabIndex={0} aria-label="Documento in anteprima">
+      <div className="quote-live-document max-h-[min(55vh,calc(100dvh-400px))] overflow-y-auto overscroll-contain bg-slate-100 p-3" tabIndex={0} aria-label="Documento in anteprima">
         <article className="min-h-[420px] break-words bg-white shadow-sm" style={{ color: t.text_color, fontFamily: t.font_family === 'times' ? 'Georgia, serif' : 'Arial, sans-serif' }}>
-          {page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: fondoCopertina }}>
+          {!props.offerOnly && page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: fondoCopertina }}>
             {t.show_cover_image && props.coverSrc && failedCover !== props.coverSrc && <><img alt="" src={props.coverSrc} onError={() => setFailedCover(props.coverSrc ?? null)} className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-950/40 to-slate-950/95" /></>}
             <div className="relative">{logo}{!logo && <p className="text-xs font-semibold tracking-widest">{props.companyName}</p>}<p className="mt-2 text-[10px] uppercase tracking-[.2em]">Proposta commerciale</p></div>
             <div className="relative mt-16"><h3 className="text-3xl font-semibold leading-tight">{copy(t.cover_title) || props.title || 'Il tuo progetto, la nostra proposta'}</h3><p className="mb-8 mt-4 whitespace-pre-line text-sm leading-relaxed text-white/85">{copy(t.cover_subtitle || t.cover_tagline)}</p>{meta}</div>
@@ -95,8 +109,8 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
             <header className="mb-5 border-b-4 pb-4" style={{ borderColor: primary }}>{logo}{!logo && <p className="font-bold" style={{ color: primary }}>{props.companyName}</p>}<h3 className="mt-4 text-xl font-semibold">{props.title || 'La tua offerta'}</h3>{props.description && <p className="mt-2 whitespace-pre-line text-slate-500">{props.description}</p>}</header>
             {meta}
             {!props.onlyTotal && <><h4 className="mb-2 mt-6 font-semibold" style={{ color: primary }}>Prodotti e lavorazioni</h4>
-            {visibleItems.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">Aggiungi un prodotto o una lavorazione: li vedrai qui.</p> : <div>
-              {visibleItems.map((item, index) => <div key={item.id ?? `${item.client_temp_id ?? 'line'}-${index}`} className="border-b p-2.5" style={{ backgroundColor: t.table_zebra && index % 2 === 0 ? t.accent_color : undefined }}>
+            {visibleItems.length === 0 && !props.workspaceReview?.pending?.length ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">{props.workspaceReview ? 'Le voci complete appariranno qui dopo la tua conferma. Le proposte restano nella tab Voci del preventivo.' : 'Aggiungi un prodotto o una lavorazione: li vedrai qui.'}</p> : <div>
+              {visibleItems.map((item, index) => <div key={`${item.id ?? `${item.client_temp_id ?? 'line'}-${index}`}${props.animateChanges ? `:${item.quantity}:${item.unit_price}:${item.discount_percent}` : ''}`} className={`border-b p-2.5 ${props.animateChanges ? 'quote-preview-row-motion' : ''}`} style={{ backgroundColor: t.table_zebra && index % 2 === 0 ? t.accent_color : undefined, animationDelay: props.animateChanges ? `${Math.min(index, 5) * 18}ms` : undefined }}>
                 {props.showImages && props.imageForItem?.(item) && <img src={props.imageForItem(item)!} alt="" className="mb-2 h-16 w-16 rounded object-contain" />}
                 <div className="flex items-start justify-between gap-3"><p className="min-w-0 font-semibold">{item.name || 'Descrizione da completare'}</p>{prices && !['nota', 'subtotale'].includes(item.item_category) && <span className="shrink-0 tabular-nums">{formatCurrency(importoRiga(item))}</span>}</div>
                 {item.description && <p className="mt-1 whitespace-pre-line text-[11px] text-slate-600">{item.description}</p>}
@@ -105,15 +119,20 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
                 {item.item_category === 'subtotale' && !props.manualPrice && <p className="text-right font-semibold">{formatCurrency(subtotaleFinoA(visibleItems, index))}</p>}
                 {item.is_optional && !["nota", "subtotale"].includes(item.item_category) && <p className="mt-1 text-[10px] font-medium text-amber-700">Opzionale · escluso dal totale</p>}
               </div>)}
-            </div>}</>}
+            </div>}
+            {!!props.workspaceReview?.pending?.length && <section className="mt-5 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label="Proposte non incluse nel parziale">
+              <h5 className="font-semibold text-orange-800">Proposte in lavorazione</h5><p className="mb-3 text-[11px] text-slate-600">Non incluse nel parziale. Completa i dati e conferma le singole voci.</p>
+              {props.workspaceReview.pending.map(row => <div className="border-t border-orange-100 py-2" key={row.id}><p className="font-semibold">{row.title || "Titolo da definire"}</p><p className="mt-1 text-[11px] text-slate-600">{row.description.slice(0, 260)}{row.description.length > 260 ? "…" : ""}</p><p className="mt-1 text-[11px]">{row.quantity == null ? "Quantità da definire" : `${row.quantity.toLocaleString("it-IT")} ${row.unit}`} · {row.price == null ? "Prezzo da definire" : `${formatCurrency(row.price)}/${row.unit} · da confermare`}</p><p className="text-[10px] text-slate-500">{row.issue ?? "Completa · attende la tua conferma"} · {row.reference}</p></div>)}
+              <button type="button" className="mt-2 text-[11px] underline underline-offset-2" onClick={props.workspaceReview.onReview}>Modifica o conferma le voci ↗</button>
+            </section>}</>}
             <div className="mt-6 space-y-2">
               <>
-                <div className="flex justify-between gap-3"><span>{props.manualPrice ? 'Prezzo concordato' : 'Subtotale'}</span><span>{formatCurrency(props.subtotal)}</span></div>
+                <div className="flex justify-between gap-3"><span>{props.manualPrice ? 'Prezzo concordato' : 'Subtotale'}</span><span>{props.totalPending ? 'Da determinare' : formatCurrency(props.subtotal)}</span></div>
                 {props.discountPercent > 0 && <div className="flex justify-between gap-3 text-emerald-700"><span>Sconto {props.discountPercent}%</span><span>−{formatCurrency(props.subtotal - props.net)}</span></div>}
                 {props.discountPercent > 0 && <div className="flex justify-between"><span>Imponibile</span><span>{formatCurrency(props.net)}</span></div>}
-                {Object.entries(props.vatBreakdown).map(([rate, amount]) => <div key={rate} className="flex justify-between gap-3 text-slate-500"><span>IVA {rate}%</span><span>{formatCurrency(amount)}</span></div>)}
+                {!props.taxPending && Object.entries(props.vatBreakdown).map(([rate, amount]) => <div key={rate} className="flex justify-between gap-3 text-slate-500"><span>IVA {rate}%</span><span>{formatCurrency(amount)}</span></div>)}
               </>
-              <div className="flex items-center justify-between gap-3 rounded-lg p-4 text-white" style={{ backgroundColor: primary }}><span>Totale IVA inclusa</span><strong className="text-lg tabular-nums" data-testid="live-quote-total">{formatCurrency(props.total)}</strong></div>
+              <div className="flex items-center justify-between gap-3 rounded-lg p-4 text-white" style={{ backgroundColor: primary }}><span>{totalLabel}</span><strong key={props.animateChanges ? displayedTotal : 'total'} className={`text-lg tabular-nums ${props.animateChanges ? 'quote-preview-total-motion' : ''}`} data-testid="live-quote-total">{displayedMoney}</strong></div>
             </div>
             {t.show_payment_terms && (plan || t.payment_terms_text) && <PreviewText title="Pagamenti" text={plan || copy(t.payment_terms_text)} />}
             {t.show_delivery_terms && t.delivery_terms_text && <PreviewText title="Tempi e consegna" text={copy(t.delivery_terms_text)} />}
@@ -126,8 +145,8 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
         </article>
       </div>
       <div className="space-y-1 border-t px-4 py-3 text-[11px] leading-relaxed text-slate-500">
-        <div className="mb-2 flex items-center justify-between gap-2 text-slate-900"><span>Totale IVA inclusa</span><strong className="text-base tabular-nums">{formatCurrency(props.total)}</strong></div>
-        <p>Bozza visiva, non il PDF definitivo. «Salva e apri PDF» salva il preventivo e genera il documento con impaginazione e allegati.</p>
+        <div className="mb-2 flex items-center justify-between gap-2 text-slate-900"><span>{totalLabel}</span><strong key={props.animateChanges ? displayedTotal : 'footer-total'} aria-live={props.animateChanges ? 'polite' : undefined} className={`text-base tabular-nums ${props.animateChanges ? 'quote-preview-total-motion' : ''}`}>{displayedMoney}</strong></div>
+        <p>{props.previewNotice ?? "Bozza visiva, non il PDF definitivo. «Salva e apri PDF» salva il preventivo e genera il documento con impaginazione e allegati."}</p>
         {paymentPlanError(props.paymentPhases) && <p role="alert" className="text-amber-700">{paymentPlanError(props.paymentPhases)}</p>}
         {props.manualPrice && <p className="text-orange-700">Prezzo manuale attivo: il totale non segue la somma delle righe.</p>}
         {props.items.some((item) => item.mostra_nel_pdf === false && !item.is_optional) && <p className="text-orange-700">Le righe nascoste nel PDF restano incluse nel calcolo del totale.</p>}

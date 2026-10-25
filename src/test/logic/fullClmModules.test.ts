@@ -48,7 +48,8 @@ describe("Six native Climatizzazione modules", () => {
     expect(t.testimonianze).toEqual([]); expect(t.gallery_lavori).toEqual([]);
     expect(t.faq).toHaveLength(8); expect(t.cronoprogramma).toHaveLength(4);
     expect(t.default_detrazione_pct).toBe(0); expect(t.finanziamento_promo).toBeNull();
-    expect(t.condizioni_legali_attivo).toBe(false);
+    expect(t.condizioni_legali_attivo).toBe(true);
+    expect(t.condizioni_legali_testo).toBe('OLD');
     expect(t.pdf_ordine_capitoli!.length).toBeGreaterThan(15);
     expect(t.pdf_blocchi!.modulo_intervento).toBe(id);
     const blocks = t.pdf_blocchi as Record<string, any>;

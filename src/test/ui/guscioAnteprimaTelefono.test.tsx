@@ -50,8 +50,8 @@ describe("anteprima apribile e chiudibile sotto i 1280 px", () => {
       const finestra = await screen.findByRole("dialog");
       expect(within(finestra).getByText("Anteprima")).toBeTruthy();
       expect(within(finestra).getByText("Rimozione sanitari")).toBeTruthy();
-      // formattaEuro: «€ 900», senza decimali.
-      expect(within(finestra).getAllByText(/€\s900\b/).length).toBeGreaterThan(0);
+      // Stessi centesimi del documento, anche nell'anteprima da telefono.
+      expect(within(finestra).getAllByText('€ 900,00').length).toBeGreaterThan(0);
       fireEvent.keyDown(finestra, { key: "Escape" });
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     }

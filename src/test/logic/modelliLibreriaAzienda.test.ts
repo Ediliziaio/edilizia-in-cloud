@@ -59,6 +59,7 @@ vi.mock("@/integrations/supabase/client", () => {
 
 import {
   MODELLO_NON_ONLINE,
+  MODELLO_AGGIORNATO,
   archivioModelliAzienda,
   aziendaDelModello,
   dimenticaCopieInMemoria,
@@ -121,6 +122,22 @@ describe("le chiavi dei modelli", () => {
 });
 
 describe("salvare un modello", () => {
+  it('la lettura del preventivo scarica aggiornamenti senza mandare online modelli locali', async () => {
+    localStorage.setItem(CHIAVE, record(DOPO, 'Modifica non pubblicata'));
+    const result = await sincronizzaModelliAzienda(AZIENDA, { solaLettura: true });
+    expect(result.caricati).toBe(0); expect(db.scritture).toHaveLength(0);
+    expect(localStorage.getItem(CHIAVE)).toContain('Modifica non pubblicata');
+  });
+  it('notifica la stessa scheda quando scarica un modello più recente', async () => {
+    const listener = vi.fn(); window.addEventListener(MODELLO_AGGIORNATO, listener);
+    localStorage.setItem(CHIAVE, record(PRIMA, 'Vecchio'));
+    db.righe.push({ company_id: AZIENDA, chiave: CHIAVE, contenuto: JSON.parse(record(DOPO, 'Nuovo')), salvato_il: DOPO });
+    try {
+      const result = await sincronizzaModelliAzienda(AZIENDA, { solaLettura: true });
+      expect(result.scaricati).toBe(1); expect(listener).toHaveBeenCalledOnce();
+      expect(db.scritture).toHaveLength(0); expect(localStorage.getItem(CHIAVE)).toContain('Nuovo');
+    } finally { window.removeEventListener(MODELLO_AGGIORNATO, listener); }
+  });
   it("lo manda anche online, con la data del salvataggio", async () => {
     const salvato = saveLocalSerramentiTemplate(AZIENDA, "finestre", createSerramentiModuleTemplate({ company_id: AZIENDA }, "finestre"), null);
     await vi.waitFor(() => expect(db.scritture).toHaveLength(1));

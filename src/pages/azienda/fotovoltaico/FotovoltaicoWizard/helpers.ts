@@ -106,14 +106,15 @@ const ALLOWED_VALUES: Partial<Record<keyof WizardData, readonly string[]>> = {
 };
 
 /**
- * Chiave del draft locale. Per i progetti già creati la chiave è per-id; per
- * il preventivo NUOVO (pre-creazione) la chiave è scoped per azienda (`scope`):
+ * Chiave del draft locale: progetto più utente/azienda/modello (`scope`), anche
+ * per il preventivo NUOVO (pre-creazione). Senza scope resta leggibile solo
+ * esplicitamente dai percorsi legacy, mai adottati nel wizard corrente:
  * la vecchia chiave globale unica faceva riapparire la bozza di un'azienda
  * dentro un'altra (browser condiviso / multi-company).
  */
 function draftKey(progettoId: string | null, scope?: string | null): string {
-  if (progettoId) return `${LS_KEY_PREFIX}${progettoId}`;
-  return scope ? `${LS_KEY_NEW}::${scope}` : LS_KEY_NEW;
+  const base = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+  return scope ? `${base}::${scope}` : base;
 }
 
 function removeDraftKey(key: string): void {
@@ -320,9 +321,8 @@ export function validatePersistedDraft(value: unknown): PersistedDraft | null {
 
 export function loadPersistedDraft(progettoId: string | null, scope?: string | null): PersistedDraft | null {
   if (typeof window === "undefined") return null;
-  // Migrazione: la vecchia chiave globale non-scoped viene eliminata (non
-  // adottata: potrebbe appartenere a un'altra azienda sullo stesso browser).
-  if (!progettoId && scope) removeDraftKey(LS_KEY_NEW);
+  // Never adopt an unowned legacy draft into another user/company/model.
+  // Leave that legacy copy recoverable rather than deleting unknown local data.
   const key = draftKey(progettoId, scope);
   try {
     const raw = window.localStorage.getItem(key);
@@ -365,7 +365,7 @@ export function clearPersistedDraft(progettoId: string | null, scope?: string | 
   try {
     window.localStorage.removeItem(draftKey(progettoId, scope));
     // Rimuove anche l'eventuale residuo legacy non-scoped.
-    if (!progettoId) window.localStorage.removeItem(LS_KEY_NEW);
+    if (!progettoId && !scope) window.localStorage.removeItem(LS_KEY_NEW);
   } catch {
     /* noop */
   }

@@ -319,11 +319,11 @@ export function mapUnitaMisura(raw: string | null | undefined): BgnUnitaMisura {
  * Ricerca prodotti dal listino aziendale (`article_templates`) per prefill di
  * `costo_materiali`. `term` typeahead (nome / sku / marca).
  */
-export function usePrefillFromArticolo(term: string) {
+export function usePrefillFromArticolo(term: string, attivo = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery<PrefillArticoloOption[]>({
     queryKey: K.articoliSearch(companyId, term),
-    enabled: !!companyId,
+    enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
       let q = sb()
@@ -363,11 +363,11 @@ export function usePrefillFromArticolo(term: string) {
  * Ricerca manodopera dal listino aziendale (`tariffe_aziendali`) per prefill di
  * `costo_manodopera`. `term` typeahead (nome).
  */
-export function usePrefillFromTariffa(term: string) {
+export function usePrefillFromTariffa(term: string, attivo = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery<PrefillTariffaOption[]>({
     queryKey: K.tariffeSearch(companyId, term),
-    enabled: !!companyId,
+    enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
       let q = sb()
@@ -419,11 +419,11 @@ export interface ListinoVoceSearchOption {
  * capitolo (così la voce può essere pre-assegnata al capitolo giusto).
  */
 /** `capitoloId`: solo le voci di quel capitolo, tutte (si sfoglia il listino per capitolo). */
-export function useListinoVociSearch(term: string, capitoloId?: string | null) {
+export function useListinoVociSearch(term: string, capitoloId?: string | null, attivo = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery<ListinoVoceSearchOption[]>({
     queryKey: K.vociSearch(companyId, term, capitoloId),
-    enabled: !!companyId,
+    enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
       let q = sb()

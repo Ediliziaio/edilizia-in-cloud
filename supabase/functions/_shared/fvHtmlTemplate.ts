@@ -148,6 +148,8 @@ export function fotoBlocchiDalSito(
 }
 
 export interface FvPdfTemplateData {
+  /** Unsaved configuration preview: never print stale/uncomputed finance. */
+  configurationOnly?: boolean;
   azienda: {
     name: string;
     tagline?: string;
@@ -308,6 +310,7 @@ export interface FvPdfTemplateData {
     note_operative?: string | null;
   }>;
   template?: {
+    scadenza_validita_preventivo_giorni?: number | null;
     logo_url?: string | null;
     pdf_cover_hero?: string | null;
     pdf_cover_subhero?: string | null;
@@ -892,7 +895,7 @@ function renderPdfActionBar(d: FvPdfTemplateData): string {
       ? `<a href="${escHtml(websiteHref(d.azienda.website)!)}" target="_blank" rel="noopener">Sito</a>`
       : "",
   ].filter(Boolean).join("");
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const cliente = nomeCommittenti(d.cliente);
   return `<div class="pdf-action-bar" role="region" aria-label="Azioni preventivo fotovoltaico">
     <div class="pdf-action-meta">
       <strong>${escHtml(d.progetto.numero)} · ${escHtml(cliente || d.progetto.titolo)}</strong>
@@ -1090,12 +1093,17 @@ export function indirizzoCompleto(c: FvPdfTemplateData["cliente"]): string {
   ].filter(Boolean).join(", ").replace(/, \(/g, " (");
 }
 
+function nomeCommittenti(cliente: FvPdfTemplateData["cliente"]): string {
+  return [`${cliente.nome} ${cliente.cognome}`.trim(), cliente.cointestatario?.trim()]
+    .filter(Boolean).join(" e ");
+}
+
 function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
   const template = plainText(d.template?.pdf_cover_subhero_template);
   const staticText = plainText(d.template?.pdf_cover_subhero);
   const value = template || staticText || fallback;
   const replacements: Record<string, string> = {
-    cliente_nome: `${d.cliente.nome} ${d.cliente.cognome}`.trim(),
+    cliente_nome: nomeCommittenti(d.cliente),
     potenza_kwp: `${fmtNum(d.progetto.potenza_kwp, 1)} kWp`,
     accumulo_kwh: d.progetto.has_accumulo ? `${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : "senza accumulo",
     indirizzo: plainText(d.cliente.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim(),
@@ -1115,7 +1123,7 @@ function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
 // ─── Pagine ────────────────────────────────────────────────────────────────
 
 function pageCover(d: FvPdfTemplateData): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const cliente = nomeCommittenti(d.cliente);
   const indirizzoCliente = indirizzoCompleto(d.cliente);
   const tipologia = d.cliente.tipologia_immobile ?? "Abitazione";
   const defaultSubtitle = `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}${d.cliente.indirizzo ? `\nper ${d.cliente.indirizzo}.` : ""}`;
@@ -2605,6 +2613,7 @@ function quantePagineContratto(d: FvPdfTemplateData): number {
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
   const hasMap = hasRealMapImages(d);
   return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (d.configurationOnly && ['produzione','flussi','risparmio','costi_futuri','piano_pagamento','bollette_240','cassa_25','co2','decisione'].includes(page.id)) return false;
     if (isFvLocalIntervention(d.template) && FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(page.id)) return false;
     if (isFvLocalIntervention(d.template) && page.id === "componenti" && d.componenti.length === 0) return false;
     if (!page.visible) return false;
@@ -2683,7 +2692,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   // Live editor and server export must resolve the same contract fields.
   // On the server these may already be resolved; substitution is idempotent.
   if(d.template?.condizioni_legali_testo) d={...d,template:{...d.template,condizioni_legali_testo:substituteMergeTags(d.template.condizioni_legali_testo,{
-    cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:[`${d.cliente.nome} ${d.cliente.cognome}`.trim(),d.cliente.cointestatario?.trim()].filter(Boolean).join(' e ')},
+    cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:nomeCommittenti(d.cliente)},
     azienda:{ragione_sociale:d.azienda.name,email:d.azienda.email??'',telefono:d.azienda.phone??''},
     cantiere:{indirizzo:indirizzoCompleto(d.cliente)},
     preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},
@@ -2796,12 +2805,12 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Preventivo Fotovoltaico — ${escHtml(d.cliente.nome)} ${escHtml(d.cliente.cognome)} — ${escHtml(d.progetto.numero)}</title>
+<title>Preventivo Fotovoltaico — ${escHtml(nomeCommittenti(d.cliente))} — ${escHtml(d.progetto.numero)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>${STYLE}</style>
+<style>${STYLE}${d.configurationOnly ? '\n@media screen {body{padding:0;background:#e2e8f0;overflow-x:hidden}.page{margin:0 0 10mm;box-shadow:none}}' : ''}</style>
 </head>
 <body>
-${renderPdfActionBar(d)}
+${d.configurationOnly ? '' : renderPdfActionBar(d)}
 ${pages.join("\n")}
 <script>
   // Auto-print se ?print=1 (per "Stampa PDF" automatica)

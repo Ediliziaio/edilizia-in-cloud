@@ -373,7 +373,7 @@ function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }
           {modello.testoPiePagina ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{modello.testoPiePagina}</Text> : null}
           {modello.mostraPieVersione ? (
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>
-              {`Documento ${codice ?? ""} · ${oggi()} · emesso tramite EdiliziaInCloud · Domus Group S.r.l.`}
+              {dati.bozzaLocale ? `Bozza locale · ${oggi()} · generata con EdiliziaInCloud · nessuna emissione` : `Documento ${codice ?? ""} · ${oggi()} · emesso tramite EdiliziaInCloud · Domus Group S.r.l.`}
             </Text>
           ) : null}
         </View>
@@ -1145,7 +1145,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // La foto è alta 330 punti sulla pagina sua; meno, quando i passi salgono sull'ultima
   // pagina dei capitoli (vedi `fotoChiusuraInCoda`).
   const sommarioChiusura = fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita);
-  const passiChiusura = [
+  const passiChiusura = dati.bozzaLocale ? [
+    { titolo: "Verifica della bozza", descrizione: "Confermare misure, lavorazioni, prezzi, imposte e fattibilità prima di preparare un’offerta definitiva." },
+    { titolo: "Nessun invio eseguito", descrizione: "Documento generato soltanto in locale. Non contiene accettazione o firma e non certifica i dati tecnici." },
+  ] : [
     { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
     { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
   ];
@@ -1154,7 +1157,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // capitolo, e un capitolo che ci stava a filo, col margine, saltava intero alla pagina dopo.
   const chiusura = (altezzaFoto: number | null, inCoda = false) => (
     <View wrap={false} style={inCoda ? { marginTop: STACCO } : undefined}>
-      <Capitolo sectionKey="chiusura" tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={sommarioChiusura} />
+      <Capitolo sectionKey="chiusura" tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo={dati.bozzaLocale ? 'Da *verificare* insieme.' : 'Pronti a *partire*?'} sommario={sommarioChiusura} />
       {fotoChiusura && altezzaFoto ? (
         <Image src={fotoChiusura.src} style={{ width: UTILE, height: altezzaFoto, objectFit: "cover", marginBottom: 18 }} />
       ) : null}
@@ -1169,7 +1172,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </View>
         {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
             Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
-        {modello.condizioniLegali.length > 0 ? (
+        {dati.bozzaLocale ? <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14 }}><Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>BOZZA LOCALE - NON SOTTOSCRIVIBILE</Text><Text style={{ fontSize: 9, color: tema.grigio, marginTop: 8 }}>Prezzi e dati richiedono verifica. Nessuna accettazione, emissione o trasmissione eseguita.</Text></View> : modello.condizioniLegali.length > 0 ? (
           <View style={{ width: (UTILE - 12) * 1.25 / 2.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio, lineHeight: 1.5 }}>
@@ -1656,7 +1659,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 { e: "Imponibile netto", v: formatCurrency(totali.imponibile) },
               ] : []),
               // Beni significativi (DM 29/12/1999): l'IVA in due righe, 10% e 22%, ognuna con la sua base.
-              ...(totali.ivaRipartita && totali.ivaRipartita.imponibile22 > 0 ? [
+              ...(dati.bozzaLocale?.ivaDaDefinire ? [{ e: 'IVA', v: 'Da definire' }] : totali.ivaRipartita && totali.ivaRipartita.imponibile22 > 0 ? [
                 { e: `IVA 10% su ${formatCurrency(totali.ivaRipartita.imponibile10)}`, v: formatCurrency(totali.ivaRipartita.iva10) },
                 { e: `IVA 22% su ${formatCurrency(totali.ivaRipartita.imponibile22)} (beni significativi)`, v: formatCurrency(totali.ivaRipartita.iva22) },
               ] : [
@@ -1674,9 +1677,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           {/* La banda a tutta pagina: il numero che il cliente cerca, nel colore dell'azienda. */}
           <View style={{ marginHorizontal: -MARGINE, marginTop: 16, backgroundColor: tema.fondo, paddingHorizontal: MARGINE, paddingVertical: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.bianco, letterSpacing: 1.8 }}>IL TUO INVESTIMENTO</Text>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.bianco, letterSpacing: 1.8 }}>{dati.bozzaLocale ? 'BOZZA - VOCI INCLUSE' : 'IL TUO INVESTIMENTO'}</Text>
               <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>
-                {`${etichettaIvaInclusa(totali)}${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
+                {dati.bozzaLocale?.ivaDaDefinire ? 'Importo netto - IVA da definire' : `${etichettaIvaInclusa(totali)}${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
               </Text>
             </View>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 32, color: tema.bianco, letterSpacing: -0.6, paddingRight: 7 }}>{formatCurrency(totali.totale)}</Text>
@@ -1878,7 +1881,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       ) : null}
 
       {/* ─── Condizioni contrattuali e termini legali ─────────────────────── */}
-      {modello.condizioniLegali.length > 0 ? (
+      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
           <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
@@ -1900,7 +1903,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           tale. Riepilogo di ciò che si firma, dichiarazione, firme delle due
           parti e — quando le condizioni le elencano — l'approvazione specifica
           delle clausole dell'art. 1341 c.c., con una seconda firma. */}
-      {modello.condizioniLegali.length > 0 ? (
+      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
           <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
@@ -1971,7 +1974,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           Esce quando l'azienda lo accende nel modello (spento di serie): serve
           a chi firma con un privato a casa sua o a distanza (Allegato I, parte B,
           D.lgs. 206/2005), e allora va consegnato insieme al contratto. */}
-      {modello.condizioniLegali.length > 0 && modello.conRecesso ? (
+      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 && modello.conRecesso ? (
         <Page size="A4" style={pagina}>
           {cornice}
           <Text id={edileSectionDestination("recesso")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>

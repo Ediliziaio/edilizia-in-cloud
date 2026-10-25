@@ -9,6 +9,9 @@
  * preventivo: vedi ComplementiFinestra e lib/serramenti/complementiFinestra.
  */
 import { DisegnoDellaRiga } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { AiSerramentiDraftLauncher } from './AiSerramentiDraftLauncher';
+import { useAuth } from '@/contexts/AuthContext';
+import { consentiPreventivoConversazionale } from '@/lib/preventivi/quoteRollout';
 import { configDaFamiglia, disegnoDaConfig, formaDaConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { MisureForma, chiedeMisureForma } from "@/components/serramenti/MisureForma";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -86,6 +89,8 @@ interface Props {
 type ManualPricingMode = "prodotto" | "corpo";
 
 export function StepBom({ progettoId, detail, modelId }: Props) {
+  const {effectiveCompany}=useAuth();
+  const localAi=consentiPreventivoConversazionale(effectiveCompany?.id);
   const addMut = useAddSerramento(progettoId);
   const updateMut = useUpdateSerramento(progettoId);
   const deleteMut = useDeleteSerramento(progettoId);
@@ -373,6 +378,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
 
   return (
     <div className="space-y-3">
+      {localAi && detail.progetto.stato==='bozza' && <AiSerramentiDraftLauncher progettoId={progettoId} detail={detail} context="bom"/>}
       <SrCard
         title="Composizione offerta"
         description="Finestre, porte e persiane dal listino, voci fuori listino o importi a corpo. Tapparelle, zanzariere e cassonetti si aggiungono nel box della loro finestra, con le sue misure."

@@ -16,6 +16,7 @@ export function isSrQuoteModelId(value: unknown): value is SrQuoteModelId {
 /** Document configuration only. Prices/measurements always come from the real quote. */
 export interface SrQuoteModelSnapshot {
   version: 1;
+  modulo?: 'serramenti';
   modelId: SrQuoteModelId;
   companyId: string;
   capturedAt: string;
@@ -32,7 +33,7 @@ export function makeSrQuoteModelSnapshot(companyId: string, modelId: SrQuoteMode
     delete copy.pdf_blocchi.modulo_defaults;
     delete copy.pdf_blocchi.modulo_foto;
   }
-  const snapshot: SrQuoteModelSnapshot = { version: 1, companyId, modelId, capturedAt: new Date().toISOString(), template: copy };
+  const snapshot: SrQuoteModelSnapshot = { version: 1, modulo: 'serramenti', companyId, modelId, capturedAt: new Date().toISOString(), template: copy };
   readSrQuoteModelSnapshot(snapshot, companyId);
   return snapshot;
 }
@@ -41,7 +42,7 @@ export function makeSrQuoteModelSnapshot(companyId: string, modelId: SrQuoteMode
 export function readSrQuoteModelSnapshot(value: unknown, companyId: string): SrQuoteModelSnapshot | null {
   if (value == null) return null;
   const s = value as SrQuoteModelSnapshot;
-  if (s.version !== 1 || !isSrQuoteModelId(s.modelId) || s.companyId !== companyId ||
+  if (s.version !== 1 || (s.modulo !== undefined && s.modulo !== 'serramenti') || !isSrQuoteModelId(s.modelId) || s.companyId !== companyId ||
       !Number.isFinite(Date.parse(s.capturedAt)) || !s.template || s.template.company_id !== companyId ||
       s.template.pdf_blocchi?.modulo_intervento !== s.modelId ||
       typeof s.template.pdf_cover_hero !== "string" || !s.template.pdf_cover_hero.trim() ||

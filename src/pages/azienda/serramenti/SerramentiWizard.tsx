@@ -55,7 +55,7 @@ import {
   useProgetto, useCreateProgetto, useUpdateProgetto, useDuplicaProgetto,
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
-import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto, SrTemplatePdfRow } from "@/types/serramenti";
+import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
@@ -251,18 +251,10 @@ export default function SerramentiWizard() {
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
   /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
   const modelloAttualeSr = async (companyId: string, modelId: SrQuoteModelId) => {
-    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
-      import("@/lib/moduli-vendita/fullSerramentiModules"), import("@/lib/moduli-vendita/localSerramentiTemplates"),
-      import("@/lib/moduli-vendita/archivioModelli"),
-    ]);
-    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
-    // un altro computer. Se il database non risponde resta la copia di questo browser.
-    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
-    const { data: currentTemplate, error: readError } = await supabase.from("sr_template_pdf").select("*").eq("company_id", companyId).maybeSingle();
-    if (readError) throw new Error("Impossibile verificare il modello aziendale. Riprova prima di creare il preventivo.");
-    const localCopy = loadLocalSerramentiTemplate(companyId, modelId);
-    const template = localCopy?.template ?? createFullSerramentiTemplate({ ...(currentTemplate as unknown as Partial<SrTemplatePdfRow> | null), company_id: companyId }, modelId);
-    return makeSrQuoteModelSnapshot(companyId, modelId, template);
+    const { loadLiveQuoteModuleTemplate } = await import('@/lib/preventivi/liveQuoteModuleTemplate');
+    const source = await loadLiveQuoteModuleTemplate(companyId, 'serramenti', modelId);
+    if (source.module !== 'serramenti') throw new Error('Modello Serramenti non disponibile.');
+    return makeSrQuoteModelSnapshot(companyId, modelId, source.template);
   };
   const newQuoteInput = async (): Promise<Partial<SrProgettoRow>> => {
     const input = { ...form, tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione" };
@@ -619,7 +611,7 @@ export default function SerramentiWizard() {
     }),
     [form, detail, pdfCompany?.ragione_sociale, effectiveCompany?.name, vistaImpresa, costoPosizione],
   );
-  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento) : null;
+  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento, 2) : null;
 
   // Cambiando passo si riparte dall'alto: il contenitore che scorre è <main>, non la finestra.
   const primoPassoRef = useRef(true);
@@ -1202,7 +1194,7 @@ function StepCliente({
   // L'indirizzo del cliente e quello dei lavori: di serie lo stesso, e il secondo segue il primo.
   const indirizzo = useIndirizzoLavori(form, (chiave, valore) => onChange(chiave, valore));
   const detailForAi = detail
-    ? ({ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow })
+    ? ({ ...detail, progetto: { ...detail.progetto, ...form, id:detail.progetto.id, company_id:detail.progetto.company_id,created_at:detail.progetto.created_at,updated_at:detail.progetto.updated_at } as SrProgettoRow })
     : undefined;
 
   const handleSelectContact = (c: CrmContactMinimal) => {

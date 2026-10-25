@@ -122,7 +122,7 @@ export function useCreaProgetto() {
   });
 }
 
-export function useAggiornaProgetto() {
+export function useAggiornaProgetto(options?: { onVersion?: (id: string, updatedAt: string) => void }) {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   return useMutation({
@@ -137,12 +137,14 @@ export function useAggiornaProgetto() {
         .from("fv_progetti" as never)
         .update(input.patch as never)
         .eq("id", input.id)
-        .select("id")
+        .select("id, updated_at")
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new Error("Progetto non trovato o non modificabile");
+      return data as { id: string; updated_at: string };
     },
-    onSuccess: (_d, vars) => {
+    onSuccess: (saved, vars) => {
+      if (saved?.updated_at) options?.onVersion?.(saved.id, saved.updated_at);
       qc.invalidateQueries({ queryKey: QK.progetto(companyId, vars.id) });
       qc.invalidateQueries({ queryKey: QK.progetti(companyId) });
     },

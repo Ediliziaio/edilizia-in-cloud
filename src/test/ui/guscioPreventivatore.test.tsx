@@ -95,10 +95,10 @@ describe("AnteprimaVeloce", () => {
     expect(screen.getByText("Serramenti")).toBeTruthy();
     expect(screen.queryByText("Servizi")).toBeNull(); // un gruppo vuoto non si disegna
     // il totale della riga e la riga «Totale voci» dicono la stessa cifra: due volte
-    expect(within(container.querySelector('[data-riga="s1"]') as HTMLElement).getByText("€ 2.400")).toBeTruthy();
-    expect(screen.getAllByText("€ 2.400")).toHaveLength(2);
-    expect(screen.getByText("− € 120")).toBeTruthy();
-    expect(screen.getByText("€ 2.508")).toBeTruthy();
+    expect(within(container.querySelector('[data-riga="s1"]') as HTMLElement).getByText("€ 2.400,00")).toBeTruthy();
+    expect(screen.getAllByText("€ 2.400,00")).toHaveLength(2);
+    expect(screen.getByText("− € 120,00")).toBeTruthy();
+    expect(screen.getByText("€ 2.508,00")).toBeTruthy();
   });
 
   it("il prezzo unitario dice a cosa si riferisce: «cad.» per i pezzi, «/ mq» per le misure", () => {
@@ -109,9 +109,9 @@ describe("AnteprimaVeloce", () => {
         { id: "c", titolo: "Radiatori", quantita: 6, unita: "cad", prezzoUnitario: 120, totale: 720 },
       ] }],
     })} />);
-    expect(screen.getByText("€ 800 cad.")).toBeTruthy();
-    expect(screen.getByText("€ 18 / mq")).toBeTruthy();
-    expect(screen.getByText("€ 120 cad.")).toBeTruthy();
+    expect(screen.getByText("€ 800,00 cad.")).toBeTruthy();
+    expect(screen.getByText("€ 18,00 / mq")).toBeTruthy();
+    expect(screen.getByText("€ 120,00 cad.")).toBeTruthy();
   });
 
   it("la voce senza prezzo è «da prezzare» e l'avviso dice quante ce ne sono", () => {
@@ -127,7 +127,7 @@ describe("AnteprimaVeloce", () => {
 
     rerender(<AnteprimaVeloce dati={anteprima()} vista="impresa" />);
     expect(screen.getByText("Costo")).toBeTruthy();
-    expect(screen.getByText("€ 1.500")).toBeTruthy();
+    expect(screen.getByText("€ 1.500,00")).toBeTruthy();
     expect(screen.getByText(/Vista impresa/)).toBeTruthy();
     expect(screen.getByText(/Manca il costo su 1 voce: il margine è parziale/)).toBeTruthy();
   });
@@ -142,8 +142,8 @@ describe("AnteprimaVeloce", () => {
   it("la detrazione indicativa si legge col suo tetto di spesa, e dice quando lo si supera", () => {
     const { rerender } = render(<AnteprimaVeloce dati={anteprima({ detrazione: { pct: 50, importo: 1254, massimale: 96000, oltreMassimale: false } })} />);
     expect(screen.getByText("Detrazione indicativa (50%)")).toBeTruthy();
-    expect(screen.getByText("€ 1.254")).toBeTruthy();
-    expect(screen.getByText(/tetto di spesa di € 96\.000\./)).toBeTruthy();
+    expect(screen.getByText("€ 1.254,00")).toBeTruthy();
+    expect(screen.getByText(/tetto di spesa di € 96\.000,00\./)).toBeTruthy();
     expect(screen.queryByText(/la spesa lo supera/)).toBeNull();
 
     rerender(<AnteprimaVeloce dati={anteprima({ detrazione: { pct: 36, importo: 34560, massimale: 96000, oltreMassimale: true } })} />);
@@ -167,10 +167,10 @@ describe("AnteprimaVeloce", () => {
 
   it("il riepilogo sta in un blocco fisso in fondo alla colonna: scorrono le righe, il totale resta in vista", () => {
     render(<AnteprimaVeloce dati={anteprima()} />);
-    const blocco = screen.getByText("€ 2.508").closest(".sticky") as HTMLElement;
+    const blocco = screen.getByText("€ 2.508,00").closest(".sticky") as HTMLElement;
     expect(blocco).toBeTruthy();
     expect(blocco.className).toContain("bottom-0");
-    expect(within(blocco).getByText("€ 2.508")).toBeTruthy();
+    expect(within(blocco).getByText("€ 2.508,00")).toBeTruthy();
     // la detrazione e gli avvisi scorrono con le righe, non stanno nel blocco fisso
     expect(within(blocco).queryByText(/senza prezzo/)).toBeNull();
   });

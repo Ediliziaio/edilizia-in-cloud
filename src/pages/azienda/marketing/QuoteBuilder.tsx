@@ -1,6 +1,8 @@
 import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import type { QuoteWizardProjectContext } from '@/components/quotes/dev/QuoteWizardProjectPanel';
+const QuoteWizardProjectPanel = lazy(() => import('@/components/quotes/dev/QuoteWizardProjectPanel'));
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto, formattaValoriContratto } from '../../../../supabase/functions/_shared/campiContratto';
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -27,6 +29,9 @@ import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
+import type { QuoteLivePreviewProps } from "@/components/quotes/QuoteLivePreviewPanel";
+import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
+const ClassicWizardAiEntry = lazy(() => import("@/components/quotes/ClassicWizardAiEntry"));
 import { useListinoCliente } from "@/hooks/useListinoCliente";
 import { QuoteAdvisorPanel } from "@/components/quotes/QuoteAdvisorPanel";
 import { QuoteRenderPicker } from "@/components/render/QuoteRenderPicker";
@@ -384,15 +389,25 @@ async function caricaGriglieFamiglie(ids: string[]): Promise<Record<string, Grid
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function QuoteBuilder() {
+export default function QuoteBuilder({ localEditor }: { localEditor?: { initial: QuoteDraft; projectContext?: QuoteWizardProjectContext; onChange: (draft: QuoteDraft) => void; onBack: () => void } } = {}) {
+  const localEditorInitial = useRef(localEditor?.initial);
+  const localEditorChange = useRef(localEditor?.onChange);
+  useEffect(() => { localEditorChange.current = localEditor?.onChange; }, [localEditor?.onChange]);
+  const [localEditorReady, setLocalEditorReady] = useState(false);
   // Telefono (<768px): la scelta del modello PDF compare solo se ce n'è più d'uno.
   const isMobile = useIsMobile();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const isEdit = !!id;
+  const isEdit = !localEditor && !!id;
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
+  const contestoQuoteRef = useRef(`${companyId}:${id ?? "nuovo"}`);
+  useLayoutEffect(() => {
+    const contesto = `${companyId}:${id ?? "nuovo"}`;
+    contestoQuoteRef.current = contesto;
+    return () => { if (contestoQuoteRef.current === contesto) contestoQuoteRef.current = ""; };
+  }, [companyId, id]);
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -400,12 +415,13 @@ export default function QuoteBuilder() {
   // canViewMargins/Costs; azioni sul preventivo (override PDF) → canEditPreventivi.
   // Prima usava il ruolo GLOBALE, che non cambia con lo switch azienda → un admin
   // multi-azienda vedeva i margini anche dove è solo staff marketing.
-  const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
+  const canViewImpresa = !localEditor && (permissions.canViewMargins || permissions.canViewCosts);
   const canEditPreventivi = permissions.canEditPreventivi;
   // #40 Governance — soglie per-azienda (fallback a default su errore/tabella assente).
   const { data: governanceCfg } = useGovernanceThresholds(companyId);
 
   const [step, setStep] = useState(0);
+  const [aiEntryOpened, setAiEntryOpened] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Step 3 (Riepilogo): Finanziamento opzionale
@@ -546,7 +562,7 @@ export default function QuoteBuilder() {
   const [dettagliLavoroAperti, setDettagliLavoroAperti] = useState(false);
 
   useEffect(() => {
-    if (defaultTemplate && !selectedTemplateId && !isEdit) {
+    if (!localEditor && defaultTemplate && !selectedTemplateId && !isEdit) {
       setSelectedTemplateId(defaultTemplate.id);
     }
     // Intenzionale: pre-selezione template SOLO al primo caricamento di `defaultTemplate`.
@@ -1171,6 +1187,7 @@ export default function QuoteBuilder() {
     }>
   ) => {
     // Resolve cost prices and VAT for every row before updating state
+    const contestoInserimento = `${companyId}:${id ?? "nuovo"}`;
     const resolved: QuoteItemPro[] = [];
     // Righe con l'IVA presa dal listino (articolo o famiglia): le altre la
     // ricevono in fondo, guardando i prodotti (05/10/2026).
@@ -1201,7 +1218,7 @@ export default function QuoteBuilder() {
       let upa = 0;
       let vat_rate = ivaPredefinita();
       let ivaPropria = false;
-      let quantita = r.quantita;
+      const quantita = r.quantita;
       let unitaRiga = r.unita_misura || "pz";
 
       const famiglia = famigliaDi(r.family_id);
@@ -1266,14 +1283,9 @@ export default function QuoteBuilder() {
       } else if (r.tariffa_id) {
         const tar = tariffe.find((t) => t.id === r.tariffa_id);
         if (tar) {
-          // L'unità della tariffa, con cui il prezzo è scritto (05/10/2026). Al
-          // km la quantità sono i km: se l'AI non li sa (1) e il preventivo ha
-          // la distanza del cantiere, vale quella.
+          // Quantity was explicitly reviewed in the AI panel: one kilometre
+          // must remain one, not silently become the site's default distance.
           unitaRiga = unitaTariffa(tar);
-          if (unitaRiga === "km" && !(Number(r.quantita) > 1)) {
-            const { quantita: km, mancaDistanza } = quantitaInizialeTariffa(tar, kmCantiere);
-            if (!mancaDistanza) quantita = km;
-          }
           const qty = quantita || 1;
           const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione);
           if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
@@ -1334,10 +1346,11 @@ export default function QuoteBuilder() {
       toast.warning(`Misura fuori listino, prezzo da scrivere: ${fuoriListino.join(", ")}`);
     }
 
+    if (contestoQuoteRef.current !== contestoInserimento) throw new Error("Preventivo cambiato durante la preparazione delle righe.");
     setItems((prev) => {
       const base = [...(prev as QuoteItemPro[])];
-      resolved.forEach((item, idx) => {
-        base.push({ ...item, sort_order: base.length + idx });
+      resolved.forEach((item) => {
+        base.push({ ...item, sort_order: base.length });
       });
       return base;
     });
@@ -1420,6 +1433,18 @@ export default function QuoteBuilder() {
   };
 
   const updateItem = (index: number, field: keyof QuoteItemPro, value: QuoteItemPro[keyof QuoteItemPro]) => {
+    if (localEditor) {
+      setItems(items.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, [field]: value };
+        if (field === 'unit_of_measure' && value !== item.unit_of_measure) Object.assign(next, { quantity: 0, unit_price: 0, ai_missing_quantity: true, ai_missing_price: true, is_optional: true });
+        if (field === 'quantity') Object.assign(next, { ai_missing_quantity: typeof value !== 'number' || value <= 0 });
+        if (field === 'unit_price') Object.assign(next, { ai_missing_price: typeof value !== 'number' || value <= 0 });
+        if (next.quantity <= 0 || next.unit_price <= 0) next.is_optional = true;
+        return next;
+      }));
+      return;
+    }
     // Sprint A §4.9 — QUANTITY SYNC posa legata.
     // Se modifichiamo la `quantity` di un item parent (posa_linked), ricalcoliamo
     // in proporzione la quantità di ogni figlio. Rapporto preso dallo stato
@@ -1674,6 +1699,7 @@ export default function QuoteBuilder() {
   // Avvisa prima di uscire con modifiche non salvate
   const isDirty = !saving && (items.length > 0 || clientName.trim() !== "");
   useEffect(() => {
+    if (localEditor) return; // The shared chat memory owns the unsaved-change warning.
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
         e.preventDefault();
@@ -1682,10 +1708,10 @@ export default function QuoteBuilder() {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
+  }, [isDirty, localEditor]);
 
   // Bozza completa: nessuna scrittura remota per un preventivo nuovo.
-  const quoteDraftKey = companyId ? `quote-draft-${companyId}` : null;
+  const quoteDraftKey = companyId && !localEditor ? `quote-draft-${companyId}` : null;
   const [recoverableDraft, setRecoverableDraft] = useState<QuoteDraft | null>(null);
   const [localDraftFailed, setLocalDraftFailed] = useState(false);
   const [localDraftSaved, setLocalDraftSaved] = useState(false);
@@ -1703,6 +1729,12 @@ export default function QuoteBuilder() {
     pdfMisure, pdfAttributi, pdfNoteCliente, pdfCondizioni, pdfWatermarkText, pdfCopiaDestinatario,
   };
   const draftSerialized = JSON.stringify(draftSnapshot);
+  const previewNotes = [...new Set([notes, localEditor?.projectContext?.generatedNotes].filter(Boolean))].join('\n\n');
+  const localPreviewProps = localEditor ? {
+    taxPending: !items.some(item => !item.is_optional) || items.some(item => !item.is_optional && item.vat_rate == null),
+    totalPending: !items.some(item => !item.is_optional && !['nota', 'subtotale', 'sconto'].includes(item.item_category) && item.quantity > 0 && item.unit_price > 0),
+    previewNotice: 'Stessa bozza della chat, solo locale. Il parziale include soltanto le voci confermate; nessun PDF remoto o invio.',
+  } : {};
 
   useEffect(() => {
     if (isEdit || !quoteDraftKey || draftCheckedRef.current === quoteDraftKey) return;
@@ -1744,8 +1776,8 @@ export default function QuoteBuilder() {
     catch { setLocalDraftFailed(true); }
   }, [quoteDraftKey]);
 
-  const restoreQuoteDraft = () => {
-    const d = recoverableDraft;
+  const restoreQuoteDraft = (provided?: QuoteDraft) => {
+    const d = provided ?? recoverableDraft;
     if (!d) return;
     if (d.pdfPrezziRiga !== undefined) pdfDefaultsAppliedRef.current = true;
     if (d.partialQuoteId !== undefined) setPartialQuoteId(d.partialQuoteId);
@@ -1800,8 +1832,20 @@ export default function QuoteBuilder() {
     if (d.pdfWatermarkText !== undefined) setPdfWatermarkText(d.pdfWatermarkText);
     if (d.pdfCopiaDestinatario !== undefined) setPdfCopiaDestinatario(d.pdfCopiaDestinatario);
     setRecoverableDraft(null);
-    toast.success("Bozza ripristinata", { description: "Ripresi anche modello, pagamenti e impostazioni PDF, se presenti nella bozza." });
+    if (!provided) toast.success("Bozza ripristinata", { description: "Ripresi anche modello, pagamenti e impostazioni PDF, se presenti nella bozza." });
   };
+
+  useEffect(() => {
+    if (!localEditorInitial.current) return;
+    // Hydration of the existing editor from an externally owned local draft.
+    restoreQuoteDraft(localEditorInitial.current);
+    setLocalEditorReady(true);
+    // The editor hydrates exactly once per mount. Subsequent changes go back to the chat owner.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (localEditorReady) localEditorChange.current?.(JSON.parse(draftSerialized) as QuoteDraft);
+  }, [draftSerialized, localEditorReady]);
 
   // Step validation
   const validateStep = (currentStep: number): boolean => {
@@ -1859,6 +1903,16 @@ export default function QuoteBuilder() {
   // Le righe del preventivo possono avere aliquote diverse: qui serve solo una
   // media per stimare il lordo dei bonifici, non un dato fiscale.
   const imponibilePreventivo = totaliPro.subtotale_netto;
+  const livePreviewProps: QuoteLivePreviewProps = {
+    ...localPreviewProps, template: effectiveTemplate, mergeContext: { contratto: contractPreviewValues },
+    companyName: effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda",
+    clientName, clientAddress, title, description, siteAddress: indirizzoLavori, validityDays, items,
+    showImages: pdfImmagini, imageForItem: resolveItemImage, showMeasurements: pdfMisure,
+    subtotal, net: imponibilePreventivo, total, vatBreakdown: totaliPro.iva_breakdown, discountPercent,
+    manualPrice: totaliPro.prezzo_manuale, showPrices: pdfPrezziRiga, onlyTotal: pdfSoloTotale, showDiscounts: pdfSconti,
+    notes: previewNotes, showNotes: pdfNoteCliente, showConditions: pdfCondizioni, showSignature: pdfFirma,
+    paymentMethod, paymentPhases, logoSrc: templateAssetUrl(effectiveTemplate.logo_url), coverSrc: templateAssetUrl(effectiveTemplate.cover_image_url),
+  };
   const aliquotaMediaPreventivo =
     imponibilePreventivo > 0 ? ((total / imponibilePreventivo) - 1) * 100 : 22;
 
@@ -1873,6 +1927,7 @@ export default function QuoteBuilder() {
 
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
+    if (localEditor) { toast.info('Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.'); return; }
     if (!companyId || !user) return;
     if ((opts?.anteprima || opts?.complete || status !== 'bozza') && contractErrors.length) {
       toast.error('Completa i dati contrattuali', { description: contractErrors.slice(0, 3).join(' · ') });
@@ -2295,6 +2350,7 @@ export default function QuoteBuilder() {
 
   return (
     <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
+      {localEditor && <p role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Stessa bozza della chat, solo su questo browser. Le modifiche tornano a Silvio AI. Le voci incomplete restano opzionali, fuori dal totale. Nessun salvataggio nel gestionale o PDF remoto.</p>}
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
       {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
       {!isEdit && recoverableDraft && (
@@ -2309,7 +2365,7 @@ export default function QuoteBuilder() {
             <span className="truncate font-medium sm:hidden">Bozza non salvata</span>
           </div>
           <div className="flex shrink-0 items-center gap-2 max-sm:gap-1">
-            <Button size="sm" variant="outline" className="tap-compact h-8 bg-white" onClick={restoreQuoteDraft}>
+            <Button size="sm" variant="outline" className="tap-compact h-8 bg-white" onClick={() => restoreQuoteDraft()}>
               Ripristina
             </Button>
             <Button size="sm" variant="ghost" className="tap-compact h-8 max-sm:px-2" onClick={() => { setRecoverableDraft(null); clearQuoteDraft(); }}>
@@ -2321,7 +2377,7 @@ export default function QuoteBuilder() {
       {/* Header (replica FvPageHeader) — telefono: senza riquadro né icona. */}
       <QuotePageHeader
         className="testata-pagina"
-        title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
+        title={localEditor ? "Editor classico · bozza AI locale" : isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
         subtitle={
           autosaveFailed || localDraftFailed ? (
             <span className="flex items-center gap-1 font-medium text-red-600">
@@ -2338,11 +2394,11 @@ export default function QuoteBuilder() {
               variant="ghost"
               size="sm"
               className="h-9 max-sm:hidden"
-              onClick={() => navigate("/azienda/marketing/preventivi")}
-              title="Torna alla lista"
+              onClick={() => localEditor ? localEditor.onBack() : navigate("/azienda/marketing/preventivi")}
+              title={localEditor ? 'Torna alla chat' : 'Torna alla lista'}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Lista
+              {localEditor ? 'Torna alla chat' : 'Lista'}
             </Button>
             {/* Live totals badge */}
             {total > 0 && (
@@ -2395,6 +2451,7 @@ export default function QuoteBuilder() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="min-w-0 space-y-4">
+      {localEditor?.projectContext && <Suspense fallback={<p role="status">Recupero ipotesi e fasi…</p>}><QuoteWizardProjectPanel context={localEditor.projectContext} /></Suspense>}
 
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
@@ -2496,7 +2553,7 @@ export default function QuoteBuilder() {
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Note visibili al cliente</Label>
-                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={localEditor ? 3000 : undefined}
                       placeholder="Pagamento, tempi consegna, garanzia..." />
                   </div>
                   <div>
@@ -2602,6 +2659,7 @@ export default function QuoteBuilder() {
                 <Label>Indirizzo lavori (se diverso da cliente)</Label>
                 <Input
                   value={indirizzoLavori}
+                  maxLength={localEditor ? 300 : undefined}
                   onChange={(e) => setIndirizzoLavori(e.target.value)}
                   placeholder="Via, Città"
                 />
@@ -2675,16 +2733,19 @@ export default function QuoteBuilder() {
           <div className="flex-1 min-w-0 space-y-4">
             {/* AI Quote Panel — anche su telefono (testo, voce, foto): generare le
                 righe con l'AI dal cantiere è il caso d'uso; lì è compatto. */}
-            {companyId && (
+              {companyId && !localEditor && (
               <div>
-              <AIQuotePanel
+              {consentiPreventivoConversazionale(companyId) ? <Suspense fallback={<p role="status">Preparo Silvio AI…</p>}><ClassicWizardAiEntry companyId={companyId} draft={draftSnapshot} preview={livePreviewProps} defaultVat={ivaPredefinita()} onApply={setItems} autoOpen={searchParams.get('ai') === '1' && !aiEntryOpened} onAutoOpened={() => setAiEntryOpened(true)} /></Suspense> : <AIQuotePanel
+                key={`${companyId}:${id ?? "nuovo"}`}
                 companyId={companyId}
                 tipoLavoro={tipoLavoro}
                 pianoInstallazione={pianoInstallazione}
-                onRigheGenerate={(sezioni) => {
-                  sezioni.forEach((sez) => aggiungiSezione(sez.nome, sez.righe));
+                onRigheGenerate={async (sezioni) => {
+                  // One preparation and one state update, including VAT links
+                  // across sections. A failure cannot insert half the proposal.
+                  await aggiungiSezione("Proposta AI", sezioni.flatMap(sez => sez.righe));
                 }}
-              />
+              />}
               </div>
             )}
             <Card>
@@ -3036,7 +3097,7 @@ export default function QuoteBuilder() {
                                     min={0}
                                     step={0.01}
                                     aria-label={`Quantità: ${item.name || "riga"}`}
-                                    value={item.quantity}
+                                    value={localEditor && (item as QuoteItemPro & { ai_missing_quantity?: boolean }).ai_missing_quantity ? '' : item.quantity}
                                     onChange={(e) =>
                                       updateItem(
                                         idx,
@@ -3055,7 +3116,7 @@ export default function QuoteBuilder() {
                                     min={0}
                                     step={0.01}
                                     aria-label={`${isSconto ? "Importo sconto" : "Prezzo unitario"}: ${item.name || "riga"}`}
-                                    value={isSconto ? Math.abs(item.unit_price) : item.unit_price}
+                                    value={localEditor && (item as QuoteItemPro & { ai_missing_price?: boolean }).ai_missing_price ? '' : isSconto ? Math.abs(item.unit_price) : item.unit_price}
                                     onChange={(e) => {
                                       const valore = parseFloat(e.target.value) || 0;
                                       updateItem(idx, "unit_price", isSconto ? prezzoRigaSconto(valore) : valore);
@@ -3087,7 +3148,7 @@ export default function QuoteBuilder() {
                                   <Input
                                     type="number"
                                     aria-label={`IVA riga: ${item.name || "riga"}`}
-                                    value={item.vat_rate}
+                                    value={item.vat_rate ?? ''}
                                     onChange={(e) =>
                                       updateItem(
                                         idx,
@@ -3103,7 +3164,7 @@ export default function QuoteBuilder() {
                                       isSconto ? "text-red-600" : ""
                                     }`}
                                   >
-                                    {formatCurrency(importoRiga(item))}
+                                    {localEditor && ((item as QuoteItemPro & { ai_missing_price?: boolean; ai_missing_quantity?: boolean }).ai_missing_price || (item as QuoteItemPro & { ai_missing_quantity?: boolean }).ai_missing_quantity) ? 'Da definire' : formatCurrency(importoRiga(item))}
                                   </p>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -3111,6 +3172,7 @@ export default function QuoteBuilder() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
+                                        aria-label={`Azioni voce: ${item.name || 'riga'}`}
                                       >
                                         <MoreVertical className="h-4 w-4" />
                                       </Button>
@@ -3131,7 +3193,7 @@ export default function QuoteBuilder() {
                                         }
                                       >
                                         {item.is_optional
-                                          ? "Rimuovi optional"
+                                          ? localEditor ? 'Conferma e includi nel parziale' : "Rimuovi optional"
                                           : "Rendi opzionale"}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
@@ -3811,43 +3873,11 @@ export default function QuoteBuilder() {
       </div>
       {/* Telefono: vuota (anteprima nel passo «Conferma»), ma lasciava una riga di 24px. */}
       <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4 max-sm:hidden">
-        <div className="hidden lg:block"><QuoteLivePreviewPanel
-              template={effectiveTemplate}
-              mergeContext={{ contratto: contractPreviewValues }}
-              companyName={effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda"}
-              clientName={clientName} clientAddress={clientAddress}
-              title={title} description={description} siteAddress={indirizzoLavori}
-              validityDays={validityDays} items={items}
-              showImages={pdfImmagini} imageForItem={resolveItemImage} showMeasurements={pdfMisure}
-              subtotal={subtotal} net={imponibilePreventivo} total={total}
-              vatBreakdown={totaliPro.iva_breakdown} discountPercent={discountPercent}
-              manualPrice={totaliPro.prezzo_manuale}
-              showPrices={pdfPrezziRiga} onlyTotal={pdfSoloTotale} showDiscounts={pdfSconti}
-              notes={notes} showNotes={pdfNoteCliente} showConditions={pdfCondizioni} showSignature={pdfFirma}
-              paymentMethod={paymentMethod} paymentPhases={paymentPhases}
-              logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
-              coverSrc={templateAssetUrl(effectiveTemplate.cover_image_url)}
-            /></div>
+        <div className="hidden lg:block"><QuoteLivePreviewPanel {...livePreviewProps} /></div>
         {/* Telefono no: l'anteprima è il passo «Conferma», il totale sta nella barra in basso. */}
         <details className="rounded-xl border bg-white p-3 lg:hidden max-sm:hidden">
           <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>
-          <div className="mt-3"><QuoteLivePreviewPanel
-              template={effectiveTemplate}
-              mergeContext={{ contratto: contractPreviewValues }}
-              companyName={effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda"}
-              clientName={clientName} clientAddress={clientAddress}
-              title={title} description={description} siteAddress={indirizzoLavori}
-              validityDays={validityDays} items={items}
-              showImages={pdfImmagini} imageForItem={resolveItemImage} showMeasurements={pdfMisure}
-              subtotal={subtotal} net={imponibilePreventivo} total={total}
-              vatBreakdown={totaliPro.iva_breakdown} discountPercent={discountPercent}
-              manualPrice={totaliPro.prezzo_manuale}
-              showPrices={pdfPrezziRiga} onlyTotal={pdfSoloTotale} showDiscounts={pdfSconti}
-              notes={notes} showNotes={pdfNoteCliente} showConditions={pdfCondizioni} showSignature={pdfFirma}
-              paymentMethod={paymentMethod} paymentPhases={paymentPhases}
-              logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
-              coverSrc={templateAssetUrl(effectiveTemplate.cover_image_url)}
-            /></div>
+          <div className="mt-3"><QuoteLivePreviewPanel {...livePreviewProps} /></div>
         </details>
       </aside>
       </div>
@@ -3874,7 +3904,7 @@ export default function QuoteBuilder() {
                 <span className="flex items-center gap-1.5 text-red-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
                 </span>
-              ) : isEdit ? (
+              ) : localEditor ? <span>Bozza locale condivisa con la chat</span> : isEdit ? (
                 <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   {lastSavedHash === draftSerialized ? "Modifiche salvate" : "Modifiche da salvare"}
@@ -3909,7 +3939,8 @@ export default function QuoteBuilder() {
 
           {/* Telefono: il bottone principale prende il posto che resta. */}
           <div className="flex gap-2 items-center shrink-0 max-sm:flex-1 max-sm:justify-end">
-            {step === STEPS.length - 1 && (
+            {localEditor && <Button size="sm" onClick={localEditor.onBack}>Torna alla chat · modifiche mantenute</Button>}
+            {!localEditor && step === STEPS.length - 1 && (
               <Button
                 variant="outline"
                 size="sm"
@@ -3926,7 +3957,7 @@ export default function QuoteBuilder() {
                 <span className="hidden sm:inline">Salva e apri PDF</span>
               </Button>
             )}
-            <Button
+            {!localEditor && <Button
               variant="ghost"
               size="sm"
               onClick={() => handleSave("bozza")}
@@ -3940,7 +3971,7 @@ export default function QuoteBuilder() {
                 <Save className="h-4 w-4 sm:mr-2" />
               )}
               <span className="hidden sm:inline">Bozza</span>
-            </Button>
+            </Button>}
             {step < STEPS.length - 1 ? (
               <button
                 type="button"
@@ -3954,7 +3985,7 @@ export default function QuoteBuilder() {
             ) : (
               <button
                 type="button"
-                onClick={() => handleSave("bozza", { complete: true })}
+                onClick={() => localEditor ? localEditor.onBack() : handleSave("bozza", { complete: true })}
                 disabled={saving || !quoteReady}
                 className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
               >
@@ -3963,7 +3994,7 @@ export default function QuoteBuilder() {
                 ) : (
                   <FileCheck className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline">Salva preventivo</span>
+                <span className="hidden sm:inline">{localEditor ? 'Torna alla chat' : 'Salva preventivo'}</span>
                 <span className="sm:hidden">Salva</span>
               </button>
             )}

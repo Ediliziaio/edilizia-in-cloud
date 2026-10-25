@@ -1,0 +1,2300 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "status": "release-candidate-core-ready-cad-hosting-pending",
+  "baseCommit": "9106bd26e076de564b4b81c963f97028682be3f5",
+  "scope": "Native conversational quote rollout; dedicated CAD service remains disabled until hosting and container verification.",
+  "excludedPolicy": [
+    "work/** and output/** including screenshots, logs, backups and generated output",
+    "**/graphify-out/**",
+    "unlisted roots, credentials and environment files"
+  ],
+  "candidates": [
+    {
+      "path": "src/lib/preventivi/quoteCad.ts",
+      "sha256": "ddd06c47cacff2ac9c4dc24729b10151345e26bcd43cf6b2428ff79d725aee71",
+      "bytes": 8797,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteCadTransport.ts",
+      "sha256": "28426b26cef2f3437bfad5b79c44aa00052869c91a291e64212ed045f141702a",
+      "bytes": 1543,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteCadCard.tsx",
+      "sha256": "d3d60277b4da2385d5eb0a55fb8f06a4675c46735728ba33ba8f31b18ec8e25b",
+      "bytes": 2991,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/test/preventivatore/quoteCad.test.ts",
+      "sha256": "3034e038710bca5cccc9b6b8efe1367d577fce30579e671f27486cb41ad17213",
+      "bytes": 4292,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/cadSummary.test.ts",
+      "sha256": "52718c455cfd49ab57fdb4abdd26841a36667c3d9d10263e2519056efb316918",
+      "bytes": 3306,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/cadChatUi.test.tsx",
+      "sha256": "91561a3d961e21f7ad67a0190ae8719435127f161df7ad21268394ab838cafe7",
+      "bytes": 4367,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/cadService.test.ts",
+      "sha256": "8c9b0448bbc935666aaf17424e359072dc7bdac866d2da39819fdc2200d3d45d",
+      "bytes": 7046,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/cadProductionTransport.test.ts",
+      "sha256": "15507d14abae48a146621c13f7efb3d7c1ea7c2758c467e4859841299506d0a9",
+      "bytes": 3014,
+      "review": "test"
+    },
+    {
+      "path": "dev/preventivatore-ai/cadPlugin.mts",
+      "sha256": "683bf61da9330d62ab00df563bb8d92c03369061696d05524be5061402b15507",
+      "bytes": 2478,
+      "review": "local-tooling"
+    },
+    {
+      "path": "services/cad/summary.mts",
+      "sha256": "0d38df093f9764e5fb0142032dbf89569e1ed0ad331f5a70e795054ba06409e5",
+      "bytes": 5989,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/worker.mts",
+      "sha256": "532ee8f62df1ac80cd8f27484fad4c6f7146d36ee68106e860645dd8bfc5314a",
+      "bytes": 420,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/converter.mts",
+      "sha256": "68f09235a6669896eb240e456248fa588bfdd81866af4199258f1abaa1b31b24",
+      "bytes": 2940,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/authorization.mts",
+      "sha256": "7b2cabfda3d98d425333569924bf14b9985966edc45a7df41d9e244e43b14871",
+      "bytes": 2379,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/handler.mts",
+      "sha256": "32173702296f4249ec40786127e0c7d80a790c3aa2363669d6c96405d93b25ab",
+      "bytes": 5300,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/server.mts",
+      "sha256": "19b2d54eae3acef2b3dfc1606a638b9d2ad7b96873e42cad408caa8aa9effaf7",
+      "bytes": 1402,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/Dockerfile",
+      "sha256": "762a0eee6b9d638f04d5267c8b6c4dcf283a1f424c5a2ab6be9269d952a66ae2",
+      "bytes": 1816,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/Dockerfile.dockerignore",
+      "sha256": "da5d051db8287c19cd82e001d6cabdf8a9c67a4befd16871f3a678f81cd1af92",
+      "bytes": 384,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/compose.yaml",
+      "sha256": "34fc2578604a8becf1bae2f8efe79cf279c927d90d2c9de2ca5680c8a5b0debf",
+      "bytes": 731,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/package.runtime.json",
+      "sha256": "f92f9e2f1596e2b6c5d4d25b8498bc7710cf511daba4d5bed44f25ad6b9eae30",
+      "bytes": 59,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/tsconfig.json",
+      "sha256": "a1505710d076704b33f9fdb83e0945d102eb6fdf41dc0a9132e29789a9033f3f",
+      "bytes": 409,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "services/cad/README.md",
+      "sha256": "1ba77b16897cb356392a2cb4da4e47aa7ac32a1dce69c699ef40460d39bf3236",
+      "bytes": 6391,
+      "review": "dedicated-service-pending-container-verification"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteCadAccess.ts",
+      "sha256": "9072f955345891c9e55d686e76acbfb024b55bdc99d90c80d9deeb0b8643fa4c",
+      "bytes": 772,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/orders/materiali/DisegnoCadPannello.tsx",
+      "sha256": "d9bd84c5c0e595a77f6a989aca9f23bed69b51936e277b0599f8c4e5d1f4421b",
+      "bytes": 23675,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/distinta/cad/affidabilitaDisegno.ts",
+      "sha256": "20cabf2442f8eeefbe3499a458360adb1500a00569998a54470d1dee92476d45",
+      "bytes": 1288,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/test/preventivatore/cadReliability.test.ts",
+      "sha256": "0d0f785e3d6dc3920246dac3d99a4966b5e151f01cce93aec305048892dd2f6a",
+      "bytes": 2209,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/cadReliabilityUi.test.tsx",
+      "sha256": "99cc0354c827cfa34e83edfd90401fe9d880bc832448f4ec24af44634a1e4fdd",
+      "bytes": 3783,
+      "review": "test"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "b0412abe1be9b11d6e15afbf94f9369a6ee8be9dfa90ff6305de0732bb2535a6",
+      "bytes": 394961,
+      "review": "source-or-config"
+    },
+    {
+      "path": "deno.lock",
+      "sha256": "d44422c7b8a845dd3a1618b2808b0134b520aabc75c31d119090cb5d56701606",
+      "bytes": 407801,
+      "review": "source-or-config"
+    },
+    {
+      "path": "dev/preventivatore-ai/PlanOcr.swift",
+      "sha256": "7cb6b681bd7e327675f8b5488ca171d4b82cfd784d7aced8fa17b175d301ca46",
+      "bytes": 3752,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/chatProxyPlugin.mts",
+      "sha256": "99e3a220277d0eaeb749c8ae8c656cdd4d8b5d3e9e3cf988fc694ad297a1c858",
+      "bytes": 6108,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/edgeGates_test.ts",
+      "sha256": "da098c92cb98511faf730dc914497109221863ccf11243edae46b5b6b779094d",
+      "bytes": 1391,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/index.html",
+      "sha256": "9efde035da669f3231f0340fb28b5ba5a052c97aa5e4c31ddf8e09977aceb7d2",
+      "bytes": 283,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/main.tsx",
+      "sha256": "87dddc64fb8821d224f6dce80c43a37dae52771caff8a8d72ba27c662f9ac7fd",
+      "bytes": 285,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/planOcrPlugin.mts",
+      "sha256": "d627bad0a0f462c97d526ca98b5d157436b028c58634b70e7a64f309e2460a1e",
+      "bytes": 5114,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/quote-chat-disabled.test.ts",
+      "sha256": "5419b6197bdefcaee16af28617384a7f3af8d6dcda09301b5a47c299334dce41",
+      "bytes": 2002,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/services.ts",
+      "sha256": "d39c1fb1c1553265e3700dfc0f758e5f3feacf2f14bc1d2152d48b3e3362cadd",
+      "bytes": 111,
+      "review": "local-tooling"
+    },
+    {
+      "path": "dev/preventivatore-ai/testOcr.mjs",
+      "sha256": "caa4ee5b4a92e9a218a03fab470b022e7fcaa9527708e0f83afe2bf7c027cd6c",
+      "bytes": 3767,
+      "review": "local-tooling"
+    },
+    {
+      "path": "docs/piano-pianificazione-predittiva-cantieri.md",
+      "sha256": "c8a105a8601c7d9da10633bf27e365f338887d483b380adb3af921656aa09720",
+      "bytes": 29467,
+      "review": "documentation"
+    },
+    {
+      "path": "docs/piano-rilascio-preventivatore-ai.md",
+      "sha256": "e61a3ab22cada19e50c6fa3b59dd023dc72d1cc688b19fc73c5d69c997a67949",
+      "bytes": 29428,
+      "review": "documentation"
+    },
+    {
+      "path": "package.json",
+      "sha256": "b9fbb72bbe1eec4232f454a3cdb126baae4620999e0951e86cd501af28789aa1",
+      "bytes": 11730,
+      "review": "source-or-config"
+    },
+    {
+      "path": "public/fonts/Manrope-OFL.txt",
+      "sha256": "d826ab6583b12c26807d8716a545bdbbb672df04f48608a364ba9efdbe501c30",
+      "bytes": 4383,
+      "review": "asset-provenance"
+    },
+    {
+      "path": "public/fonts/manrope-latin-ext-wght-normal.woff2",
+      "sha256": "3911b66d9f2e005a4b989223405d0e5032619c668597ba467cc76a23c8fffcfb",
+      "bytes": 15120,
+      "review": "asset-provenance"
+    },
+    {
+      "path": "public/fonts/manrope-latin-wght-normal.woff2",
+      "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+      "bytes": 24836,
+      "review": "asset-provenance"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/AddVocePicker.tsx",
+      "sha256": "948e5a08f09e6251ca2724c308e22a63741d65df66da2cae0958da69288000bd",
+      "bytes": 24558,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/CapitoloSection.tsx",
+      "sha256": "f6c03c9694f7c236cfc99c64e2da0bfc3049958330f2d2e9038ba7d73e174b9a",
+      "bytes": 12727,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/ComputoEditor.tsx",
+      "sha256": "6cc403d384483a0fd884313fefe4f46cff79a3c2df715a106a4870fc30e676c7",
+      "bytes": 12899,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/ComputoReviewContext.tsx",
+      "sha256": "6d165c17fc1ccd7a7d43865130e226b5dae3d9b31de01e0f0d9bd901f4ee9089",
+      "bytes": 435,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/VoceRow.tsx",
+      "sha256": "3e01ee0a91d7eb12dd24b4bef53528d8a8c4604a04707d336a6237db60cef309",
+      "bytes": 18729,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/bagni/ComputoEditor/types.ts",
+      "sha256": "5ddb30acfdf6d7c7f7de6fef79e467f7e63b410cfe342c2ab4bc98f7505a18c3",
+      "bytes": 3598,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/campo/CampoAudioRecorder.tsx",
+      "sha256": "55669d482d9b498aa21b629864d612051ea4f405a8c3e811025f720a841a9402",
+      "bytes": 15866,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/fotovoltaico/FotovoltaicoConversationalAiDialog.tsx",
+      "sha256": "9d8e7c79d94832b72275f500f2086436c078c41cb190a65f482212fe107bd041",
+      "bytes": 8989,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/marketing/preventivi/moduli/NewQuoteDialog.tsx",
+      "sha256": "fa178d44c83698186e681d4b4ff453dbd630878241346449036d694e9619b7a3",
+      "bytes": 17104,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivatore/AnteprimaVeloce.tsx",
+      "sha256": "43e7f36fcaf0d30e82af2aa9928b042c91ba94f8d1f28744fc5775a43a311385",
+      "bytes": 13164,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivatore/GuscioEdile.tsx",
+      "sha256": "bbeb138cdbeb494214843721fe01110cf8e6bb69d9fe2119ae1a01345cb0cbcc",
+      "bytes": 11087,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivatore/ModelloDelPreventivo.tsx",
+      "sha256": "ed193036525b5eb2e487137cefb6cd0c83643fdfba5fc6db5e2d9a10eddf382a",
+      "bytes": 6134,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivatore/PdfDatiSalvatiGuard.tsx",
+      "sha256": "dd03cb75f6a622e20b4cd7f72322f0329df8a491327e8663f261f2d9756e53ed",
+      "bytes": 980,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivi/pdf/DocumentoEdilePDF.tsx",
+      "sha256": "6105f2c09b783e6356340e332aaba0bb0270ea08a0002a35c619279a1fc0dc28",
+      "bytes": 126068,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivi/pdf/adattatoreEdile.ts",
+      "sha256": "4867c8109a77a06a39e446d667d6c2e217d3eae1d656e6e3e46fd9dd9300eec2",
+      "bytes": 22305,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/preventivi/pdf/documentoEdileTipi.ts",
+      "sha256": "240ca2af3e285be7fcf761b458020363e180c8ad6fb053bc1b071f0cc853d2d6",
+      "bytes": 9192,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/AIQuotePanel.tsx",
+      "sha256": "0e05afe665b09fa8357888cb945dbc57e7060ea4f6052541170945a629dbbe01",
+      "bytes": 40797,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/ClassicWizardAiEntry.tsx",
+      "sha256": "b8899458cf930bdbf0cf142240f3205d77c547111f7874247668ad7ae093c890",
+      "bytes": 4153,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/NativeComputoAiDialog.tsx",
+      "sha256": "e8190702e76d3c8ab3df95978ecae709324d78fce49c5afd37ffc39cda34f06d",
+      "bytes": 7510,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/QuoteLivePreviewPanel.tsx",
+      "sha256": "2e08e35bad882d0c4e55c2ac05ac2cacf6be4f724038eea51dae704be5021407",
+      "bytes": 17571,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/QuoteTemplatePreview.tsx",
+      "sha256": "c09e349449ab241a9003bcea0b62086ee3f920e1e8f4cc87fe081c2dd6c079f5",
+      "bytes": 36818,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/QuoteWizardAiDialog.css",
+      "sha256": "e29aef1860d5f16bb4bea0955172fa9ac2b9957bb9d6f2df1ba2f448cca4e0c4",
+      "bytes": 3558,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/QuoteWizardAiDialog.tsx",
+      "sha256": "32c5b12314991725cad8169c08834826586394ff0a16ae8e615a9a4f82db42d0",
+      "bytes": 10058,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/VerticalWizardAiDialog.tsx",
+      "sha256": "ba5d096e079964cd5b52c1fd9d1f36bdb0d63da92284439c377fc83dbed03af3",
+      "bytes": 44650,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/LombardiaApartmentLab.tsx",
+      "sha256": "64167b28012f131e7f49b1f9d7434bfe75378ecb6b9399a5c92012f9a680c148",
+      "bytes": 11538,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/PersistentQuoteSession.tsx",
+      "sha256": "008e362786b2a7d87e0b4e7fb3a434db2e7d4b295e11a4b5901c782b3e42da93",
+      "bytes": 10577,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteAiSimulation.css",
+      "sha256": "0e6927b0346760d3590034cc4946b66886b8b1cf362e418442a8636a59107136",
+      "bytes": 33159,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteAiSimulation.tsx",
+      "sha256": "05370463c584cce1bba5f06ca10186a900cfabc44d36b2ee33ce323a80e1fca9",
+      "bytes": 7014,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteAiSimulationFixture.tsx",
+      "sha256": "f8dbe03f255cd603c39456771b8f9b5eb51b0a41354c6e008c01527b33f5c1bb",
+      "bytes": 9116,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteAssistedWorkspace.tsx",
+      "sha256": "76a25060a6ec3caad94f9b879e0d6e03f69a445a2fd505acc2a618eaeefac675",
+      "bytes": 131600,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteBagniEditor.tsx",
+      "sha256": "bbb2db9a15a48db573709e497e7845734c82bc83cad39aba31f7ac2d2a657dfd",
+      "bytes": 3699,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteBagniPreview.tsx",
+      "sha256": "0270bb932c4b53efaff9113ea8c9bf89e5ab586a4985579d0edf743f0bd364a6",
+      "bytes": 4735,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteCalculationTools.tsx",
+      "sha256": "766f3172e17dc3b7664c6ec3c0ca577f48834a400b1553b7fac6f3ad3f913c84",
+      "bytes": 5198,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteCatalogueMessage.tsx",
+      "sha256": "647e6b35b9e9a5f6ec4061a73954cf89a5f03ef95cda108ebfc0b8b2831d4617",
+      "bytes": 2206,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteChatChoices.tsx",
+      "sha256": "9451ce2fd673e5f1941aca1ff2dc65db07e922437d0139148460053e6da84e3a",
+      "bytes": 1839,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteChatComposer.css",
+      "sha256": "507c7b1cc81a373bc38e076cfb20e581d2e3a2377f3a94f58e09cf73ed769ca3",
+      "bytes": 27407,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteChatComposer.tsx",
+      "sha256": "a7645159aa08e2bafecc427b44356b9949f2b537d9dda9ace56a5f1d451e6e1e",
+      "bytes": 5761,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteChatResponse.tsx",
+      "sha256": "6af340c2611b3c53e756169db1802a31e185bca9512163d32f3d118cf7a7ce56",
+      "bytes": 3929,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteConversationLab.tsx",
+      "sha256": "6676840938776b3bf1640a9d33b098bab4bdefcf951be2a276dc9082ae2a75a4",
+      "bytes": 6161,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteConversationWorkspace.tsx",
+      "sha256": "fad48f6dd4cb839e7758e00d2f34d5a9a1aa693ab23901baca30998341a557f3",
+      "bytes": 22017,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteDemoMemoryPanel.tsx",
+      "sha256": "4513b2a8598b6601d2b86749ccabe40b6f970c27cd03d4de201ae01f3a6d06d5",
+      "bytes": 3519,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteFormulaSuggestions.tsx",
+      "sha256": "c88a4f4c86604711bfbabc1d9a3b9b260762af0ae8dcc09cbc8e20f0fc796273",
+      "bytes": 1592,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteLineEditor.tsx",
+      "sha256": "0729189a95bfe48fa5f620d1d0bab3302e6756809d2f253525fe6dedc296b3a9",
+      "bytes": 5059,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteLocalPdfButton.tsx",
+      "sha256": "7880a0f69d6a4ec70580bf5048676d4c1cb4d2c5d81212b398e7b0d1a724375d",
+      "bytes": 3992,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteModulePdfPreview.tsx",
+      "sha256": "6e74dbe3e540918e533a99d21f2176913823d90c3667c41d0f46e8ed081a3d77",
+      "bytes": 4219,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteModuleTemplateContext.tsx",
+      "sha256": "b851fe843f7a802f762e0b8ef9cf23160dfb68282e98008c69a6d950276c4138",
+      "bytes": 583,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuotePlanningChat.tsx",
+      "sha256": "d2ed6b2fdda46d0656e5c99c2250eac5b4d5d507b02c29371ce53eb114286fe7",
+      "bytes": 6873,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuotePlanningScenarioPanel.tsx",
+      "sha256": "178552755384fff1f2bde8f34506a6923b81cd9b1e7631b70230f2b9f8cf842c",
+      "bytes": 43733,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuotePreliminaryBudget.tsx",
+      "sha256": "6f7d274aeaa710615c9102c91d10735221cb6a4b585ddf2e46882d46d98e2ddc",
+      "bytes": 2611,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteProjectTools.tsx",
+      "sha256": "67d03e2b65060e1312f0fe05522595a729b02d926bcf52a693fbb0865905a622",
+      "bytes": 15944,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteSchedulePanel.tsx",
+      "sha256": "1ff79c96946b2d4e32c532d714c87571ef4f6aeeb7afd0679f83dfdad7899ee0",
+      "bytes": 5992,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteSimulationPicker.tsx",
+      "sha256": "20bbdcaeec657616f6dd3f092410211b5935fe5a2aa658282d13df19595159fd",
+      "bytes": 4177,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteSourcePicker.tsx",
+      "sha256": "89400a7504c725966d294b78c58a658c80e09dc9a5c324222b2e79bb87510f9d",
+      "bytes": 4167,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteStreamingReply.tsx",
+      "sha256": "ef14435c8248c18f85e5cc8bbca6e4a068857d7b2b3ecaff67006613c7b69313",
+      "bytes": 1133,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteSupportingFileDialog.tsx",
+      "sha256": "e4dfbcca4f06e7a2e57bbcd4e4fbf90148f61d18bbcd09627ff37c2a856ccffd",
+      "bytes": 5536,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteTaxPanel.tsx",
+      "sha256": "ecb209ef96a6e986c2563af40a3806fcaf41a9867fa74b5e1fb69922d613c229",
+      "bytes": 4018,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteTemplateDocument.tsx",
+      "sha256": "9142709fad05d078cd7115761efbb7332448910c9980c9f60da99ac8f535b137",
+      "bytes": 6907,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteTemplatePicker.tsx",
+      "sha256": "f52d5a96c31b455c20fcb7fd6235ce651302cd4fb2914e25a54478c5c0da04f1",
+      "bytes": 4974,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteTurnDetails.tsx",
+      "sha256": "1d8877887f3691022b3a31c088448083e2f9c230969b5d21b22c162ff12b7084",
+      "bytes": 1500,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteVoiceDialog.tsx",
+      "sha256": "05bf082194f2780c4b3b6097ff27212c4f15ed59c601b5cee85d70f4caf5cba7",
+      "bytes": 4772,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/QuoteWizardProjectPanel.tsx",
+      "sha256": "3b2deac808291632861c0463db9a4f430af5ad9e594bd1c3635d798a2edb051f",
+      "bytes": 2790,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/assets/planimetria-esempio.jpg",
+      "sha256": "2be259df2d17b4c63f94be5b32bc0739dd951e8f0274dbd50c6c8130325bde03",
+      "bytes": 57622,
+      "review": "asset-provenance"
+    },
+    {
+      "path": "src/components/quotes/dev/useLiveQuoteModuleTemplate.ts",
+      "sha256": "e8308bc4ae68b2d744145c4f48650022e665dd163729fd58fa8d6eb332ce31fa",
+      "bytes": 1658,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/quotes/dev/useQuoteChatScroll.ts",
+      "sha256": "e8b052551883dd8334a021394bafe54c4f191ad648cf773b8c857979d958e8ea",
+      "bytes": 1094,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/serramenti/AiSerramentiDraftDialog.tsx",
+      "sha256": "31a650da7c8ea192ad021d1fd113a4c4f09ee0ad5314667f29649415a77f15f7",
+      "bytes": 20039,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/serramenti/AiSerramentiDraftLauncher.tsx",
+      "sha256": "ab2c6fa1c4dafe2a7ffdc631b5d861b2fa614e16cc24e6c38dda3407bfbc4855",
+      "bytes": 7362,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/serramenti/SerramentiConversationalAiDialog.tsx",
+      "sha256": "8d3425cf8a7c61adc41b3db58547f4ed27c4e804085a543cf1ebce8ead7b57c7",
+      "bytes": 9218,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/serramenti/StepBom.tsx",
+      "sha256": "6d5cc23dd454b9b24cbf6b99d36d7dee89547f764ad0f40cda234cd157bc0dcc",
+      "bytes": 115671,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/ui/thinking-prompt-input.css",
+      "sha256": "e857cd69620a309230c8f6db4b766aced4220da3e968bb71df6a6d94e98c2f9e",
+      "bytes": 4610,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/components/ui/thinking-prompt-input.tsx",
+      "sha256": "b67ab0f1385ee37e7e3fa808b772ab36b1f0ffc0284361425d8fbd1a65db9343",
+      "bytes": 5719,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/hooks/useBagniListino.ts",
+      "sha256": "5f821eeb0713c4822532314ed1b2fb50a3d60eae0685fd18e07942fc64979bf2",
+      "bytes": 18177,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/hooks/useQuoteTemplates.ts",
+      "sha256": "4253c6d97337929fa9d3cd3e208ef263b585ded016ef675b39b0ae28b4404432",
+      "bytes": 4033,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/catalogoConversazione.ts",
+      "sha256": "72d3dd174b73ba4a96f81d1c30d654209831b3a956d7a9936498ec086253868e",
+      "bytes": 1665,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/componentiConfigurazione.ts",
+      "sha256": "2ef149318a00acebf1e1e77c2311c60bff37c65fabf20360cc00a413086e53e5",
+      "bytes": 7844,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/configurazioneAtomica.ts",
+      "sha256": "0600c8577a35f5bdd6152101fd9c1bb2b829a71e01577f35fa7701ed4b35c171",
+      "bytes": 4056,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/configurazioneValidation.ts",
+      "sha256": "9c8c4ecd34af83756db0f189e2be69c1e8ef28f0a3cc870ffde60e374bec583d",
+      "bytes": 4172,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/conversationPreview.ts",
+      "sha256": "f9ff232aad5c83d5d2f64deb690157fb1382215285c75222ec54be8a5aee947b",
+      "bytes": 3739,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/queries.ts",
+      "sha256": "46b809f5278b7d8c997e46d6145ededf327dd640e1c1122a6e1336df1183115e",
+      "bytes": 41281,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/servizioDaCatalogo.ts",
+      "sha256": "9ab13ed804bb56dba2d31f26b37b692326c9249ebc3225475e448c568cc5d2ab",
+      "bytes": 1288,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/fotovoltaico/useConfigurazioneAtomica.ts",
+      "sha256": "db36a1750cb7e63f97e9efd8d98f4c1ddfaf2d1665e50e5bcac5c83a4a542562",
+      "bytes": 1132,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/moduli-vendita/archivioModelli.ts",
+      "sha256": "e61455972db48fd81c8f39a53850fa934af511b9b1c530f3b2ebf2336664d2f3",
+      "bytes": 10629,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/moduli-vendita/localTettiTemplates.ts",
+      "sha256": "e771330416ddb182609df50fd0baf46f9c50176f76328c04f1ecec09580831d2",
+      "bytes": 4158,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/moduli-vendita/quoteAiWorkflow.ts",
+      "sha256": "07b172200c420d9964fe00bf94ae06195f560c0d841737513a85095a2132fc37",
+      "bytes": 1181,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/moduli/modelloPreventivo.ts",
+      "sha256": "9c3e5f67cfeb6326ddda9e0083ca9b46508d71590f14b2070062c407eff793b2",
+      "bytes": 9715,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/aiQuoteReview.ts",
+      "sha256": "75feedd8750f7b88c100c2a6636297bdba3befea055c87ab86dab589f5b9480b",
+      "bytes": 1076,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/classicWizardAiDraft.ts",
+      "sha256": "c232119f9749e1429bec2cc6a635e9077ec323daf3740be52a9a36addf0e314c",
+      "bytes": 5486,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/devLombardiaApartment.ts",
+      "sha256": "f3e9f884b5eee1b5aeead5105651337a6f1a2f9863ccbd1f68333766bdb2ae50",
+      "bytes": 14047,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/devPlanConversation.ts",
+      "sha256": "1823196ec4694e9b179f97d6c074cda5c9b9afb9473b3cb696757c855ad21570",
+      "bytes": 4316,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/devQuoteChatCommands.ts",
+      "sha256": "7dd050a1f738f43884daf312b14f2aa3cfbf6e45111935af60ae15c98c178e3a",
+      "bytes": 1169,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/devQuoteConversation.ts",
+      "sha256": "13e3280406433cb35995e4c0cd0d53b33a9cd9c84814aa416466dd50b486e89b",
+      "bytes": 4964,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/devSimulation.ts",
+      "sha256": "800e084e59c6c4330c4d13db6c372bd8e1f708c217a15a5ced767503bd8e1c09",
+      "bytes": 2848,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/embeddedWizardCommands.ts",
+      "sha256": "0467e20afda96019cddccaa7c352e72143ad0583970264588a973589dab01ba3",
+      "bytes": 597,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/liveQuoteModuleTemplate.ts",
+      "sha256": "922b59a23800fd9ba88d8fed765a92f23142a4a2dd8dfa571bbb8508b71790bb",
+      "bytes": 2510,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localPlanningScenario.ts",
+      "sha256": "f58b45372e0e8ce016f2c678bad0e466c3ddff0e2f99cce9f13cb779250b2d64",
+      "bytes": 1609,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localQuoteAudioTransport.ts",
+      "sha256": "a0c02a25d72598c6d31e68a41d084b3376bc3672e0840e6537b1ea26a2629c33",
+      "bytes": 4393,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localQuoteChatTransport.ts",
+      "sha256": "adc7c7af9b0b3d6e3c2adc18ead3439213f649a1587284b997ebae6b1812d229",
+      "bytes": 1113,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localQuoteMemory.ts",
+      "sha256": "ae25f4bfa85fa7fc5a596de3908ea50d9eb6c992571ead8d1ed79a7e78bc0814",
+      "bytes": 23288,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localQuotePdf.ts",
+      "sha256": "7f5c5769216af0416e214271c147d5020d0dec5dc9ad7cde794281b643934d36",
+      "bytes": 8926,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/localSimulation.ts",
+      "sha256": "6096fac4ccead1bcdd0c6fe8eca94ea85c75a364951bdb7aeda78fcbe41f5fb9",
+      "bytes": 305,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/planChat.ts",
+      "sha256": "64b8958ddfc268c90a132d96d1e2d10c494de1fd59339a9475fdab21627ca7d8",
+      "bytes": 3582,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/planReading.ts",
+      "sha256": "5d2be136120ce9ae53f096c1a1fdfb06548b19814c226ab1ca5ac27f62dd93b6",
+      "bytes": 5809,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteActionReceipt.ts",
+      "sha256": "955011c7aa8999d68acd1749988ce6665e5d643ec448d7f9cc50872ff8a2e9f3",
+      "bytes": 4000,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteAiEditorBridge.ts",
+      "sha256": "9ec47646205c89511bbd33877afd611afe1aeba25a785d53a5bb8d0973a59617",
+      "bytes": 5772,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteBagniBridge.ts",
+      "sha256": "02ae244d28cb3f975064cfa715ba69918145bf007b9566da2e30f150d41b3013",
+      "bytes": 6862,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteBathroomBudgetExample.ts",
+      "sha256": "e693afdcf9508e8a474eb317f64f15cf914340f053e4d2f6a0038a61d6ff28f6",
+      "bytes": 5817,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteBudgetQuality.ts",
+      "sha256": "15aea14884f2d30b41a211c7bf78241e3141f1a64ba1004120aa2c03a7d45aaf",
+      "bytes": 2127,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteCalculations.ts",
+      "sha256": "3e017aa0399bac7aa077673afbaccf65c3a5ed234d5d46bc444474ce28102e02",
+      "bytes": 8195,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteChatContext.ts",
+      "sha256": "a58e663e6326c50fdf02c8963a6f5f5d536c0c542d17af8ec799ce77214d3bd0",
+      "bytes": 5468,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteChatDocument.ts",
+      "sha256": "96adbeb56e358e135fbf789e4dfa3f714d973559947dca2afcb862bf13a60323",
+      "bytes": 13112,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteChatPresentation.ts",
+      "sha256": "a211b30180fb7814e97c5073eea8f2ebf15ade33a3068f627c4f2c68bca5f7de",
+      "bytes": 323,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteChatTransport.ts",
+      "sha256": "09584701ed8ab868e9ee5c3f0ee544c838e1a5bc0d1d6076ac29db5a21bc3be6",
+      "bytes": 4878,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteChoiceState.ts",
+      "sha256": "76ca5d9536cc1f5c553698d6e5991cf38b95bdc9ba08bf22a17a2942f5df9391",
+      "bytes": 385,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteCompletionReview.ts",
+      "sha256": "240494cebd50de93e043600d50d07458d8da88bf0b4c7de01cc263fbf860b548",
+      "bytes": 4143,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteComponentMemory.ts",
+      "sha256": "9fd2327fb2ebb6b9fbe6fac0551d43c6f021e13b6a2ff9aca5ed004422e7a0e9",
+      "bytes": 4892,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteDemoAutoCopy.ts",
+      "sha256": "3674c8b84309c6e475152efb8c7028dca392f85f964000929c67216caf3ab32c",
+      "bytes": 3351,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteDemoMemory.ts",
+      "sha256": "e132843d0dd61084870316e4b62e1375bc529cf3940d6d97c7d0e2dffa7057da",
+      "bytes": 3161,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteDocumentNotes.ts",
+      "sha256": "490ea376dfa18814bfb026bec1313163f25b9754a8917936b3631c096c227965",
+      "bytes": 1213,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteDossier.ts",
+      "sha256": "742eb251e130eeebd7f383d612951a89057289de0ee8be3fde69e71ba1908285",
+      "bytes": 3317,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteLineDuplicates.ts",
+      "sha256": "0085e786389109a58d0afa17317f8145acb9031f8bf35094099bfa8ffe6ab516",
+      "bytes": 6303,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteLocalCatalogue.ts",
+      "sha256": "a3ed4f50cfc712205146d6c941ce1daf7a0668d73a90de75d0936cffba3a89ae",
+      "bytes": 5639,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteModelCosts.ts",
+      "sha256": "538c962b574e183d642a9023fcf4d0ffea688b5f2b13c924d4125f08026892da",
+      "bytes": 7059,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteOpeningMeasures.ts",
+      "sha256": "8ca96dd1bf4c6ea2bb7c8ebd6ea683c4ee87e19192cd45d34c7ea1d1786ead5d",
+      "bytes": 1975,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quotePlanningChat.ts",
+      "sha256": "51b25ae516b9f796077faed7bfe2f5368efc01ba674385c70e75b581b4cc9689",
+      "bytes": 7852,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quotePlanningGuidance.ts",
+      "sha256": "bc51b34bdfcf7e85ac890dedc83d100138acfae1086e364e4c8c3a2494ea2c49",
+      "bytes": 2285,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quotePlanningScenario.ts",
+      "sha256": "85462d823313aabeb8b08cc3afa8839d975de856596a7811b12c22669b5da83a",
+      "bytes": 36274,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteProject.ts",
+      "sha256": "71d50ce8874655be843b708b27b5b7fa1f2645d91fde00a4de5943586e474265",
+      "bytes": 13232,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteProposalReview.ts",
+      "sha256": "cbf3f98c86ad37bf22bcad871ccedca1bb41f344d5b6c5c4cc05f8a978b57d38",
+      "bytes": 6187,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteRequestContext.ts",
+      "sha256": "aa4300ff3337d1ff3cb8decb0090b800905d04fc6e9f56c946efc6e18125f688",
+      "bytes": 8564,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteSchedule.ts",
+      "sha256": "6e37f522b2abdff9e55e3e9ab1e655535ae3754ffbb11e5d2dff841a069f9d07",
+      "bytes": 6343,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteSimulationScenarios.ts",
+      "sha256": "1309e06bd1a38dfe6afccab862f95b8747553b93f7c07d9ec3bb9be4088f0e2f",
+      "bytes": 10033,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteSourcePresentation.ts",
+      "sha256": "ad22335d698ff5d7cd3f3286389eef9eedb6a6a7dcf56ba4402835ee20879767",
+      "bytes": 1374,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteStartingPoint.ts",
+      "sha256": "0dd9c7d6d2aa24ec016a8e5c0d9a5d028cf1c4d0dedc25d97efa4d5b92db8978",
+      "bytes": 1342,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteStream.ts",
+      "sha256": "2133558a4490e980a6df3e747208865db8016b907e58e852f3e0d9e6eaecf72d",
+      "bytes": 2983,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteSupportingDocuments.ts",
+      "sha256": "038bb058b409260f91d5a1ab50e75d6feea934bedaa84434377f0a94a7ca6be8",
+      "bytes": 912,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteTax.ts",
+      "sha256": "0c54d503d63ec2cfa01deda949451578a9d232d8c288a2a42306f6aee64642b0",
+      "bytes": 3801,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteTransportEndpoint.ts",
+      "sha256": "1359757246509f9d249efbcd0293e26fab00487137110f1cb4e8603ccd5be664",
+      "bytes": 2166,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteVision.ts",
+      "sha256": "d120fb3c7663fcba7d981ec99e84c9315acdcc8b664d42a7d927fd9983fff5de",
+      "bytes": 6403,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteWorkCoverage.ts",
+      "sha256": "8448f996c44196e716c33f85bd7b0f912e12c94da61af3e2dcf1148a278be96a",
+      "bytes": 7952,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/verticalWizardDraft.ts",
+      "sha256": "ee858c7898a97ac52522cde363113772aef4a988bf5244ec3c8011824e8c87f8",
+      "bytes": 30693,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/wizardAiCommercial.ts",
+      "sha256": "83b01d197c17f16396d3ede4bf14fb391bbe809970a7b3f4f7b28615a8cd5536",
+      "bytes": 5615,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/wizardAiDraft.ts",
+      "sha256": "67cb627862344ad6acf745a7253766d776105faafc2ff1012e608d849a63d04f",
+      "bytes": 11813,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/wizardAiPriceSource.ts",
+      "sha256": "e724ba92987768e409d6d35cff9bbdb46331486e777b45ffc3c08707f5899caf",
+      "bytes": 1788,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/wizardQuoteTransport.ts",
+      "sha256": "1f8c2b619ef9409a6fba32bd6fb420c6e6ae50d3f089263ad78ee4614ba0f99c",
+      "bytes": 1233,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/prezzario/queries.ts",
+      "sha256": "86699f807d98953836fe711aaf0e1fdbc49a288c9e4f80530e4db837459be1d9",
+      "bytes": 10005,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/serramenti/aiDraftValidation.ts",
+      "sha256": "0a2d0eaa3f5e8d4ff49d464d8fdac98a3912775c03f1218b5d3c2aaf7005334b",
+      "bytes": 1528,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/serramenti/api.ts",
+      "sha256": "665329e8f73640209976f72768aebecfc49569d8b49bb54ab4fd1c40070436e6",
+      "bytes": 61797,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/serramenti/conversationPricing.ts",
+      "sha256": "638812ea5ee200d17285310b0d097ea9b6e12a0b0cfa5fef5cd30c22f9765d65",
+      "bytes": 5171,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/serramenti/conversationSave.ts",
+      "sha256": "f98bd043ba06d7bd571ffe62b1d58a89e893053a07a8247febc2366b8d4e216a",
+      "bytes": 1743,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/serramenti/quoteModel.ts",
+      "sha256": "4c0d6efdae9c1c1993eb98b9414f4e6dbc0ddaddd3eedacc5d2c571a05c4b84c",
+      "bytes": 4296,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/tetti/quoteModel.ts",
+      "sha256": "c883de03323d0fcecc1d964a74dea6bed53973f37dc6a8ec0f91753f687d2adf",
+      "bytes": 1973,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/bagni/BagniWizard.tsx",
+      "sha256": "255bba8fc80045d7ecb625c80cd11d9a579d0e4cfef35247ce7fcd53eeff4d9a",
+      "bytes": 32546,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/bagni/BagniWizard/StepComputo.tsx",
+      "sha256": "d460f38f5205976126b5f2200375a48776576fb1c30d99b9c8be9df1ac8993d8",
+      "bytes": 16854,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/climatizzazione/ClimatizzazioneWizard.tsx",
+      "sha256": "a14e65e82339e52ee4bf2e6a3a01c0dfd9710149211fbc4073cb7026be1572ab",
+      "bytes": 32296,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/climatizzazione/ClimatizzazioneWizard/StepComputo.tsx",
+      "sha256": "a850a3b872ed7e8241ccbd6d6b65304d9c97f6e61daadbd12ae55a415ce02065",
+      "bytes": 15357,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/elettrico/ElettricoWizard.tsx",
+      "sha256": "1a9fdbe5d651f98a5c3ca9a5f03e6dfd0e66e89ab09f7c58a45813902af3e695",
+      "bytes": 32116,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/elettrico/ElettricoWizard/StepComputo.tsx",
+      "sha256": "42064005b313f6e5cb182f38831057be621546f04adcd98529de43cf3b4039ce",
+      "bytes": 15303,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/fotovoltaico/FotovoltaicoWizard.tsx",
+      "sha256": "9dcb083dcecca7453b7bf6c96b51efb1e082645d09020b8c0f9f80bd6ec74c54",
+      "bytes": 287128,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/fotovoltaico/FotovoltaicoWizard/helpers.ts",
+      "sha256": "3ee2d30ab6a7e091a0180b09065f12d96993d7563619b181dd5d2db909d93a33",
+      "bytes": 13197,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/fotovoltaico/FotovoltaicoWizard/types.ts",
+      "sha256": "71ab324527bae16b83c4910f284dd61eaf691271e75a8b14a6561f38a18babf2",
+      "bytes": 6774,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/marketing/Preventivi.tsx",
+      "sha256": "39b3dea4656e684dbaa9db175423ca71fb01c6b3e80138044586907119a4ad96",
+      "bytes": 17697,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/marketing/QuoteAiSimulationPage.tsx",
+      "sha256": "1b5728059fa01b0090f7a269a6444fc12159a57b675ca69adf6648a2f704b7d9",
+      "bytes": 1212,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/marketing/QuoteBuilder.tsx",
+      "sha256": "3e108250c2193d6eba3d178dfbcb93479e9bcb74e6fdef6adfb5e034c86e6439",
+      "bytes": 205191,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/pavimenti/PavimentiWizard.tsx",
+      "sha256": "3d0421b82518b8b91b9d463210e640765e9049663251c9f4d2df7d2ae57b5176",
+      "bytes": 32118,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/pavimenti/PavimentiWizard/StepComputo.tsx",
+      "sha256": "ffbd01f58d95835f63fa14b12e30e6a8a6d3351d73c5ea69272e3e1bb14e43f2",
+      "bytes": 15303,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/piscine/PiscineWizard.tsx",
+      "sha256": "c39d2bcfc989869863ec38902388b725bec6253f7ca946eb1b87fc82daa045ef",
+      "bytes": 32055,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/piscine/PiscineWizard/StepComputo.tsx",
+      "sha256": "59a277de8056f6567329ad10625523631d7679d94b67588bd9b33c389476395a",
+      "bytes": 15285,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/ristrutturazione/RistrutturazioneWizard.tsx",
+      "sha256": "315572dbf6564a249eed92b1b9f29857ff056def32e5ede4ebc92d14b2421705",
+      "bytes": 32100,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/ristrutturazione/RistrutturazioneWizard/StepComputo.tsx",
+      "sha256": "12d80e083a8807a94e8f7bdc60d40fbc4e4d7a3cd9a0108fec7865dc20870f6d",
+      "bytes": 15616,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/serramenti/SerramentiWizard.tsx",
+      "sha256": "e82492450798fcb66bd16576224f6c265039c7a202fca223075c56a9deb5145f",
+      "bytes": 72915,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/termoidraulico/TermoidraulicoWizard.tsx",
+      "sha256": "d6e64ccb2cc6cb16b2e0003f11add892fd1e0940e13b7ea087dafe9771ee43bb",
+      "bytes": 33294,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/termoidraulico/TermoidraulicoWizard/StepComputo.tsx",
+      "sha256": "db1912ebc209b9c987a97d106cac3c4745803dd8e66ebe3188402b71ef60d424",
+      "bytes": 15348,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/tetti/TettiWizard.tsx",
+      "sha256": "3b2d851ab0a78e4901030727d74a008e788011b1f88b825dd8f15a8a25ce8f08",
+      "bytes": 32144,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/pages/azienda/tetti/TettiWizard/StepComputo.tsx",
+      "sha256": "2adeefbbd5c183bae4ee184db2531e5d028fd04464379c7ab998f839fb786fb6",
+      "bytes": 15720,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/routes/companyRoutes.tsx",
+      "sha256": "21c327c6397ca4800eb4c4e664faf2c7fb3d09c68e4f40210c6f34c626fd0f91",
+      "bytes": 112862,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/test/logic/aiRouterPerformance.test.ts",
+      "sha256": "648a00ef430a9d7bf8e7a871669a53ed173f8cd4eb1b719970f428434f683717",
+      "bytes": 10544,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/documentoEdile.test.ts",
+      "sha256": "09c4bc767c76484932e241a12a64307d9286c3c5782b24643b5bc06aed0bf6bc",
+      "bytes": 18471,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/fotovoltaicoWizardDraft.test.ts",
+      "sha256": "39e86928fcca22a5b948f07d8c14c480eef3503f45b7aee0cd0773adaf1bc94c",
+      "bytes": 3426,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/fullClmModules.test.ts",
+      "sha256": "7178c8c34d4ed8c4a092c4f9c3f38dfa72ad53a9d6694438f87d425d4cb60c04",
+      "bytes": 6628,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/fvPrezzoPreventivo.test.ts",
+      "sha256": "42dd0f63e96b964585177a18b1aa03af87b2c884733af267ea9890eb2aa742b3",
+      "bytes": 12890,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/margineCostiIncompleti.test.tsx",
+      "sha256": "d0aeba2521802655a261749501ff777f453fd4a40ece6f3d4ecda9bdf730a639",
+      "bytes": 4760,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/modelliLibreriaAzienda.test.ts",
+      "sha256": "989f2cba5c88a3027a4384fae2908537e2a1dad484d38b96bec87684f97455ba",
+      "bytes": 15567,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/modelliPreventivoModuliEdili.test.ts",
+      "sha256": "323d151789a2ec8f5781b8c1fb3704c4001321ee44aa8bbace0a7f59945a7d38",
+      "bytes": 16693,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/newQuoteDialog.test.tsx",
+      "sha256": "f3f7c50db983409ef9720602587de9d43a1d0950a5cbc308e21ab362bcf693e1",
+      "bytes": 15275,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/preventivoGenericoGestori.test.ts",
+      "sha256": "52b00b463b8593f22d924478012fb759b25be06c527589dec47328d686075c33",
+      "bytes": 22525,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/quoteBuilderDuplicaRiga.test.ts",
+      "sha256": "966ff4f86893e777930eb3f2cfdef52a5a74959e4161e617ccab1e4aa3fa2b65",
+      "bytes": 4864,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/quoteSaveHandlers.test.ts",
+      "sha256": "813f13cc8afbec92ffcda907152b51b8dc0b0d1524b1b22552077f85c6badf2b",
+      "bytes": 7264,
+      "review": "test"
+    },
+    {
+      "path": "src/test/logic/tettiLegacyIdentity.test.ts",
+      "sha256": "9c30289f3a8880ed20c1a743b04487db3656785479882881414be9d160669427",
+      "bytes": 3428,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/aiContract.test.ts",
+      "sha256": "f02b92c3f473b0b2e14150e9e8583b87e301ec343eb61644ed8baaa830d6a973",
+      "bytes": 4711,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/aiEditorBridge.test.ts",
+      "sha256": "1d2378c26624541ad1409a5fabe46c88e19fef7470b674376004314e56e20e81",
+      "bytes": 8055,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/aiPanel.test.tsx",
+      "sha256": "0f0870b5902f766fc271f84b68cc03ae1adcabc48023eb82a7a9849182b0df17",
+      "bytes": 9886,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/aiWorkflowUi.test.tsx",
+      "sha256": "8c6dd678b1941fc7bb555f2d0d85cbfd9aa94c56f99674a8c7d57592135ba3da",
+      "bytes": 7201,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/apartmentFixtures.ts",
+      "sha256": "ebc9f3bbcfdcb68e7878789837d86c35341a6db57c7a7fee919bf0774688d63b",
+      "bytes": 1157,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/assistedQuoteUi.test.tsx",
+      "sha256": "3c7d754a52f290412782dd872b09851551dadfb2839702267b7926efc47e0d81",
+      "bytes": 35456,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bagniAiBridge.test.ts",
+      "sha256": "3e4740232c97dbbe75ce5b0851d04c214a157186330d89c3b32eb44bf9b123c4",
+      "bytes": 4892,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bagniPickerPerformance.test.ts",
+      "sha256": "3e1dfe5d5d245f2fb169084ad46b9b43996895a8ac02f6e53f2ce820c5ab5ad6",
+      "bytes": 2648,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bagniReviewUi.test.tsx",
+      "sha256": "26de2eef3dc77029d58bb2a42c0e6cdcb6a0063276264d8a23e599e29979a24f",
+      "bytes": 3629,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bath12Scenario.test.ts",
+      "sha256": "a8b662d43f8bdb09a328bc82b3999e1e8f60ba86c53d8e69d117acbc8e0934ea",
+      "bytes": 1449,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bathCompletionGuard.test.ts",
+      "sha256": "90271ec3ac6dd532041a3f3a6983479fe3266287428bdb8b6e2f9570e6faf386",
+      "bytes": 6719,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/bathroomBudgetExample.test.ts",
+      "sha256": "81811991a1993f182bdb600bae688163db57ce48e191f84299e72d7fcc30a100",
+      "bytes": 5653,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/catalogueCodeVariants.test.ts",
+      "sha256": "bf321ea12574664c2e92e8f999f5d74be0a250316c4bf31f6f3bd7d9fec6cdb4",
+      "bytes": 1450,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/chatOnlyWorkspace.test.tsx",
+      "sha256": "b840a7fb4fc7fa870004645e72d3fb7194774bae5fdf479141424dcb0e403658",
+      "bytes": 9045,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/classicAiEntry.test.tsx",
+      "sha256": "08b7562e1eec286b8580350a4d35c4286fa437a5ac78b45a08b01a7ac092a22d",
+      "bytes": 3172,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/compositeLoopRegression.test.tsx",
+      "sha256": "37d34bcdbb0e8fb60d38a592b83ed818a72ec88a34c29617b5ea30dd85987ff4",
+      "bytes": 2379,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/conversation.test.tsx",
+      "sha256": "ea2d53a4456a8a9a043b63349148387eced60d36c1c2a25e4ece837d0cccb054",
+      "bytes": 8101,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/embeddedWizardCommands.test.ts",
+      "sha256": "6408a623b7ece8ae0c50a16cc66740488097d3807b09c154017ebd840d7f907e",
+      "bytes": 1752,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/formulaProposalLoop.test.tsx",
+      "sha256": "1999866567dd091b89d32146eafec74c8dc31cf2d23abe6ff380895dac6f5d51",
+      "bytes": 11864,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/freeQuoteConversation.test.ts",
+      "sha256": "bfefd80321ca7cbf75def96e2e1b927835dc60e54ca00a1bf111709f1e563f73",
+      "bytes": 9873,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/gardenCatalogueMatch.test.ts",
+      "sha256": "790e67da8a327673556e729dd36ba1bff6e6071878dfc19f181700fdcd3c75ab",
+      "bytes": 2371,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/integratedQuoteReliability.test.ts",
+      "sha256": "3658ded717eeddf37dcf2db4a0a1a42e7e7630cdc1ea2d05f150f9deb17d0079",
+      "bytes": 10047,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/liveQuoteModuleTemplate.test.ts",
+      "sha256": "42b943f221d15ed5b758e0c3d9dfd39daa5bb4fd722a87b623de9a4313a0816f",
+      "bytes": 3812,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/liveQuoteModuleUi.test.tsx",
+      "sha256": "2a970599b66653586c966a6c32a0396f7ede73827a918f1a827cdb6f32fb3a9f",
+      "bytes": 6372,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localCatalogueRead.test.ts",
+      "sha256": "59805185f889afaf1c4ebd1c00fb79396078899d9b6a50f74b7a2d8dd5e0b348",
+      "bytes": 4328,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localOcrSecurity.test.ts",
+      "sha256": "d489261464d0e19483748efbf8bcd4b53ebfa25cf0427809bf4a4a29a921d024",
+      "bytes": 1680,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localPerformance.test.ts",
+      "sha256": "774ad6748ae69311cce386c1057be3146713e709eac98c6253176a077aa35082",
+      "bytes": 2031,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localPlanFixtures.ts",
+      "sha256": "e5d47fc209a846d92338c5f490c4d66dc8adc38958ac7660f8737ca37bb7c0c5",
+      "bytes": 1787,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localQuoteChatTransport.test.ts",
+      "sha256": "60769717d30f2176720ab629b6ee2d57a4ac41beb32088dae88f09a8d05d82a5",
+      "bytes": 4601,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localQuoteMemory.test.ts",
+      "sha256": "d499aea883464c0e814f8fe63aae7f4e10faa6baff7ebf0e062ffcd7be50efe5",
+      "bytes": 9374,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localQuotePdf.test.ts",
+      "sha256": "1d0d1aa6e28b8612026aa4e73a3af4e341ff6f0ade30ab03a2c6f6e750287dc6",
+      "bytes": 5156,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localQuoteVersions.test.ts",
+      "sha256": "93ab447d788d0517b222263c56921fa670b9e4d8312c73c28e2a0e81f4cbfa53",
+      "bytes": 2680,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/localSimulation.test.ts",
+      "sha256": "f643daf6c81668a9da78de0ceb494f6f86e4d2e59a0d8a895f24a5ef2ee3aad2",
+      "bytes": 849,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/lombardiaApartment.test.ts",
+      "sha256": "33c430af573f2009a5fb5c981adadff6d26a70a24bcd90c1bd48c5a0a98e8f2b",
+      "bytes": 8133,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/lombardiaApartmentUi.test.tsx",
+      "sha256": "fdf9f8cb1b89683d2b665817b9dc917429d120342a2245e41111dc0ee08286d7",
+      "bytes": 4968,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/modelBenchmark.test.ts",
+      "sha256": "40827a3fe66f702cf020c6a1998e984658c1092fe097d949a1db69b5ad8b29c4",
+      "bytes": 3975,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/offline.test.ts",
+      "sha256": "c3c4d80e8143bb0b40ee36895401ba7724fe86a0a8a31f547b5abbdc6c09ef49",
+      "bytes": 891,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/offlineSetup.ts",
+      "sha256": "8eb7e803740fb81af538c9203f703263c143ace1a441170cf30c76b000393fe5",
+      "bytes": 595,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/openingMeasures.test.ts",
+      "sha256": "a50ee679013013b12e83d536cac29a8a5ce93842668fbfecfcbf603d8173db1b",
+      "bytes": 1371,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/planMemoryUi.test.tsx",
+      "sha256": "fc5f6863934f798926490220d9003bc86508eefaf531be24a5e02d1b799ab49d",
+      "bytes": 31911,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/planReading.test.ts",
+      "sha256": "cea54f3b8ec739a821a9ecb703af62e6d0647b4eef44f91b318f2df7f3b79aa2",
+      "bytes": 4522,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/prezzarioExactCodes.test.tsx",
+      "sha256": "640b4edc679517ce902efe66ba5a29b19b5bd2a0163e436693de6165d8d49605",
+      "bytes": 3772,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/productionQuoteTransport.test.ts",
+      "sha256": "4aa6b96e94ba01bb78e535ab0605fa6fd0c5708d6b974fefff3e7805ce5fc252",
+      "bytes": 8996,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quantityEstimates.test.tsx",
+      "sha256": "59a860fac435080ea6ccf8faa4ec2fefc921c8cfb039c7a63c0016d1e30639c9",
+      "bytes": 11737,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteAdvanced.test.ts",
+      "sha256": "a7488ae5494136cb30bdcf5d7f7850b373ec4e35c289b6cf8a06deb1ed4dcb8f",
+      "bytes": 7127,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteAudio.test.ts",
+      "sha256": "c7680c556d64960470e6e6ef348fd04e3b83bf4059f74889acd729f0b96bb57a",
+      "bytes": 5812,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteAudioEndpoint.test.ts",
+      "sha256": "c424ff341c2facd02dc9ebe1dd9bff60ab1fa968718df117b4db1d7ee7906142",
+      "bytes": 9047,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteAudioProxy.test.ts",
+      "sha256": "b9f36c6d099e38347f261c0c60bc41628477b77b42012d58144718faeb45efa3",
+      "bytes": 3001,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteBudgetQuality.test.tsx",
+      "sha256": "cd38d05184230e4da8693a586836e865120900c70a57bb22058d187b0921d102",
+      "bytes": 4136,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteCatalogue.test.ts",
+      "sha256": "f45b0784528c39db2ab4b46699e7d30a472e6704a3baf5f8afe0fa9bb94467c4",
+      "bytes": 16340,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteChatResponse.test.tsx",
+      "sha256": "16e721c8ac86d95b527286cc19256f110542ead864ee0e16600ca9855df996bd",
+      "bytes": 4218,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteChoices.test.tsx",
+      "sha256": "60b33a5fe3b47691547e6bb2bf5f4c39a50608edd7d946d7c09324da39aa6d1b",
+      "bytes": 11056,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteCompletionReview.test.ts",
+      "sha256": "47a47d56419e0e2c681f20044b633abc03b351ea5a1e4a9f8efac6278cc2e516",
+      "bytes": 1062,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteComposer.test.tsx",
+      "sha256": "12636290d38061ee9141024a3914b6acf2c652bec96775a89a728645679c3b4f",
+      "bytes": 11975,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteConversationProtocol.test.ts",
+      "sha256": "63a78052aa5ccddff414b93a53eb5088797c40bf6e4479e9592d0d4e1b7238ed",
+      "bytes": 9175,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteDemoAutoCopy.test.ts",
+      "sha256": "716c2181c3cbd894467ac424a260cc07d8c894ed3e5b0aca6afd34748c5cc173",
+      "bytes": 5264,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteDemoMemoryPanel.test.tsx",
+      "sha256": "f38eca2ff065a349b2ebebb58df233777f04514f1e4dfc047b7898bd2efca3a5",
+      "bytes": 4428,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteEndpointAdvanced.test.ts",
+      "sha256": "2446a932ffb74036c079d6feb638f6b29d04942c174973b8ab1186369d8c91a4",
+      "bytes": 9417,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteImageVision.test.ts",
+      "sha256": "f90ef35c1ce70b04588c1ca5d3aa1b648ec64e305bdc2a0234c59bc5862f1144",
+      "bytes": 3154,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteInteractionPolish.test.tsx",
+      "sha256": "051457833d28df06310fe2c9f5a373f74804735babb0c5637bddc292180f5a30",
+      "bytes": 3541,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteModelCosts.test.ts",
+      "sha256": "476e7d13e9674837df5d704243c1b36d38cfa5c52cf4cbb47c017b6d431d769e",
+      "bytes": 4414,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePdfVision.test.ts",
+      "sha256": "694628a67dfc97e4c79da592a8738d5ac859f1e4104f3ea00281e4cf55ea2e19",
+      "bytes": 3885,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePlanningChat.test.tsx",
+      "sha256": "d3036b2c27ffd9ce2ba58ff2e60cb3c91c2092199fb8ee5a9e0590ed26d7ed94",
+      "bytes": 10381,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePlanningDepth.test.ts",
+      "sha256": "0bb770da519e805ea044c772781441fbfea802c9ec61cb88f5368cc4a9ffe30c",
+      "bytes": 8723,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePlanningScenario.test.ts",
+      "sha256": "d4341db0abedf5ed0fa095948c00a475edeb62d1dd1e23d63b878fd843f9ab72",
+      "bytes": 29873,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePlanningScenarioPanel.test.tsx",
+      "sha256": "493b18d35821b94f9d964df33aba8de717fee9c2d4bca9aa4d00bf31c48dcfcc",
+      "bytes": 14471,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quotePlanningWorkspace.test.tsx",
+      "sha256": "2c4b1ef48bfa662816c4ff4dbf3be1a7ee5425a09fdd6b80e94360d46716f6d8",
+      "bytes": 5555,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteReliability.test.ts",
+      "sha256": "b8c16600ab0903c7dc8359a23f902333e028d7a927449ddf475b9efd491d157e",
+      "bytes": 8447,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteRequestContext.test.ts",
+      "sha256": "57a0e79542120acb869ae46f3487b7d95208de78362cd610c672027a779225c9",
+      "bytes": 6291,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteSourcePicker.test.tsx",
+      "sha256": "2a688b64718eb65e59c188f592896dd7436597c409e536669789188570e106e6",
+      "bytes": 7532,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteStreamFailure.test.ts",
+      "sha256": "b0bb6a614fbffdc7488ff356ace2b127506b1d3bda1e68345d5a42a48ab4a731",
+      "bytes": 3463,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteStreamingDossier.test.ts",
+      "sha256": "ef46cf8f0695ccaf6431a384eb958bfb6cc2d42c5ef29534a6a5adac7960da7b",
+      "bytes": 7729,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteTaxSchedule.test.tsx",
+      "sha256": "9ace6e0c1ac0c2c7fad32d4140693a534982cea5842c4d42afee034038e05230",
+      "bytes": 12638,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteTextStreaming.test.tsx",
+      "sha256": "d21988ca9f4e50aa19eef5716cc02549d75d05c172fc956b3d7f1d340dcef94e",
+      "bytes": 4957,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteTurnDetails.test.tsx",
+      "sha256": "c8e5eac4c044140ee0ea11791d283a3b424c34a7009f639a734cdabfcac92f7b",
+      "bytes": 4015,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteUxFlow.test.tsx",
+      "sha256": "7004048154c63242e41a46a2ce48a3ef5016cecc52b5f574b1a114f0235222a2",
+      "bytes": 4316,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteWizardHandoff.test.tsx",
+      "sha256": "5ce44667f1d390c806912a1d66afd24027f20456b58ce8b905e91963965ddb20",
+      "bytes": 8262,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteWorkLifecycle.test.ts",
+      "sha256": "efaa3437c66164b1eb277de3605d6c040ffdec28ceb06a9d3bec77e2bc580285",
+      "bytes": 10832,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/roomExclusionTargets.test.ts",
+      "sha256": "dee1e1b2daf82f88a9b00c3a4b9ea27082ff8dc0b7786f477e7a7fc2ff2191f6",
+      "bytes": 3932,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/roomMemory.test.ts",
+      "sha256": "2efd52a9c1cfb4fb13201579d85b812dcf058e93ffdc4e7ed8f1926d929826d1",
+      "bytes": 15105,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/scopeAccountingRegression.test.ts",
+      "sha256": "caec9b6a6b7734f58bd7df34e33c942f5515977e90ac753b36d6e460203babf8",
+      "bytes": 2547,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/simulationCategoryPicker.test.tsx",
+      "sha256": "971e707463ca47d88af2ee8eab58287e331a8254cc510b09e2488651c3aa5073",
+      "bytes": 11876,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/simulationIntegration.test.tsx",
+      "sha256": "8f8c0468abd5115fe764deafdd928ac5f7299f68f79fa03ff37922388abf9194",
+      "bytes": 4534,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/systemScope.test.ts",
+      "sha256": "4155ca6e8107557a85db7145fd441775b349c47db585bdd6847bdb28f10d2e59",
+      "bytes": 4170,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/templateWorkspaceUi.test.tsx",
+      "sha256": "af0a5ad126f789c78db0ef965e343db4717686b7c5a96a51f007d8f9617e9992",
+      "bytes": 17110,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/thinkingPrompt.test.tsx",
+      "sha256": "f2a8d917db50f5704d9e8a60c2eef1c6b1d4050ea30941c16378bd83c9f2d16b",
+      "bytes": 4110,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardAiCommercial.test.ts",
+      "sha256": "b7b4c7095af58284a24b39248b7dff6d4ed24862c923eea44a3cdb39cebdc199",
+      "bytes": 4326,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardAiDialog.test.tsx",
+      "sha256": "1fb1ccfd6c357a3a831d8fb874e9f28114547934525f1d39c9c4490859a4e9b6",
+      "bytes": 12214,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardAiDraft.test.ts",
+      "sha256": "b89e9fc94faf274bc30fc0964d87418c9543d7db35eecd9239e0880887061855",
+      "bytes": 13194,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardAiPriceSource.test.ts",
+      "sha256": "c0f065ce8af93e86266360494a5f7240a5b0c66cbf48601d7d7078b08be9c920",
+      "bytes": 2698,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardQuoteTransport.test.ts",
+      "sha256": "31c737221775d28194dda8fdba1b5ae7955bcd700c5fd654656e7084e20d75d9",
+      "bytes": 4076,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/wizardReplacementSafety.test.ts",
+      "sha256": "dddbaa051504baf10902c3babb3aff5306492b52f7cd1dc45ef74a7ca933ad0c",
+      "bytes": 3748,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/anteprimaCentesimi.test.tsx",
+      "sha256": "f144dc7ff0984b0011b658f524e5ea4f0d0411e4bacc9ea73de9c1297114ba24",
+      "bytes": 1589,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/campoAudioRecorder.test.tsx",
+      "sha256": "70ed0e3eb8b96483668f194ea75164a98cdd01c2c43f0a43ba2ae14639536aef",
+      "bytes": 11034,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/fotovoltaicoWizardGuscio.test.tsx",
+      "sha256": "7065d6075dea36c72fbd39eba64de190398c4f80a2a248003a2b190a7e6bd7f7",
+      "bytes": 15589,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/fvAuditWizard.test.tsx",
+      "sha256": "4fa24af1bb607f98e3dd5864dcfad0d2af88d70b4515d84abf8bf4f9eb1475b5",
+      "bytes": 31351,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/guscioAnteprimaTelefono.test.tsx",
+      "sha256": "560f732b11e011c3ce105bcf5f4943068fa458cb186a4db2f1c64e96ba699dc4",
+      "bytes": 3876,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/guscioPreventivatore.test.tsx",
+      "sha256": "541be4b24649fe87a9eff6c1031936d65e7870e670c58d7d4d3d2af94da35db0",
+      "bytes": 15071,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/modelloDelPreventivo.test.tsx",
+      "sha256": "d9629d4e698efcdcf5fc4b2b25cc60f3dfbc5f6fd72d5a3942a59af228d19a49",
+      "bytes": 5907,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/prodottiListinoNelComputo.test.tsx",
+      "sha256": "00f67f348de8c4331366ccc9fe54fe8fa8bd53dfd0a952520ae8da463a6eb74a",
+      "bytes": 14933,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/quoteLivePreview.test.tsx",
+      "sha256": "8a28a4a6bab1ee42376fe79644a76ace10e88a3fd432878309552c0128c711df",
+      "bytes": 7743,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/serramentiWizardGuscio.test.tsx",
+      "sha256": "fb3b7fa10a43584aafad4ba4d9c04652042608b41cbcc1422845170033273d65",
+      "bytes": 16068,
+      "review": "test"
+    },
+    {
+      "path": "src/test/ui/termoidraulicoWizardGuscio.test.tsx",
+      "sha256": "63ea9e44a79b38f8c7316ee823758b2cc5678d0614ff3cf50c20dcdbfbb86986",
+      "bytes": 13739,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/computoAiRoundtrip.test.tsx",
+      "sha256": "b3f4b2e5cc189440d386f206619f5289b36b2b567123460cb1d6c9eee5d9498b",
+      "bytes": 5827,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/fvAtomicSql.test.ts",
+      "sha256": "bbfe95dfdf46a1f92b5d3d95d60694354caac870659c90779abbea108ac3d6f5",
+      "bytes": 10598,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/modelIdentity.test.ts",
+      "sha256": "4945acc9e11a540e5295c4f824d1c3753ab5d56766e3e3c6945e4c5d58654e80",
+      "bytes": 2869,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/multiAreaSimulation.test.ts",
+      "sha256": "cbf50af771efd52790b604526a7a7e99fbb9f87d0bf969be15a6195ff05240f2",
+      "bytes": 19730,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/nativeComputoWizards.test.tsx",
+      "sha256": "243963424595b86d4bdbdce094e5605df2a6bd794e114026ec0b6f23f5a81907",
+      "bytes": 10072,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/nativePricingProtocol.test.ts",
+      "sha256": "736269e32d2cf0758af8bef6e131d8997c86b797f9dbc5a127ebec7f85a06c09",
+      "bytes": 9596,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/serramentiAiDialogSafety.test.tsx",
+      "sha256": "69fba5b2b0049a32e5f07bde812c406183f275ddefbb58e8ce969c068d313628",
+      "bytes": 3714,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/srAtomicSql.test.ts",
+      "sha256": "95f130f99a1053f2eb926f6c694ec0f8f4329cb24c76eac0aaf04d8507d7e6c6",
+      "bytes": 7898,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/verticalConversation.test.ts",
+      "sha256": "1abd4921bc90fd89fc09e3d1ab8b1735453ae1c271bb39f911a03c6eb161ff21",
+      "bytes": 26439,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/verticalConversationDialog.test.tsx",
+      "sha256": "7dc51c10c4a8bf3801a2e99e1718d53ab346e9981aa13a153da9d455036d8734",
+      "bytes": 21383,
+      "review": "test"
+    },
+    {
+      "path": "src/test/wizard-audit/verticalValidation.test.ts",
+      "sha256": "e78f1b6908122c6837ab3c30b36ae435dfb9c701425466c23af4ba584d8b6c6b",
+      "bytes": 4312,
+      "review": "test"
+    },
+    {
+      "path": "supabase/functions/_shared/aiRouter.ts",
+      "sha256": "3212f71325ed921d48c8054ecd1c208ace10bc39523af249cc804f35ab7b5962",
+      "bytes": 73266,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/aiTurnControl.ts",
+      "sha256": "bcfb3ba0f54d460c81b7d2887efcfa53db54f6da08e8cb59f9a2fe3e757c73ba",
+      "bytes": 5361,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/fvHtmlTemplate.ts",
+      "sha256": "6fca37c190b8b89694a0b51df031839ff24c5346df2a95270fe6cbefe4baadc6",
+      "bytes": 174329,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/preventivoAiContract.ts",
+      "sha256": "67c8544ecfb81a775ca6df11aed49423cff7dc5716e0295d6e5c2c40e80abae9",
+      "bytes": 6032,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteAdvanced.ts",
+      "sha256": "80ca7e0848986c650f26eb8c540ae14c55a82ad7a195670b2b4f86a10649e3de",
+      "bytes": 7264,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteAudio.ts",
+      "sha256": "24c55782337c7aa3f807c13e3865105b3f41edb1405401b913f16f021c0fbe16",
+      "bytes": 2948,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteAvailability.ts",
+      "sha256": "b93735eefabaf930dcf4581f7bb10cd34991644c578ea4c9ad1c8c7d6b190dc2",
+      "bytes": 591,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteCatalogue.ts",
+      "sha256": "a347a6c23220bd56870e976f4aa3f44e3d9c54297c6ede21768e304fa48c971d",
+      "bytes": 28648,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteCatalogueCodes.ts",
+      "sha256": "61a062b7e2487d8069932f87a336ed58b7f85317ba7b5c59441c1348bf422baa",
+      "bytes": 460,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteChoices.ts",
+      "sha256": "d1e809f33d00212e55ffc34944dc06fddf20a05de0b19d9495ea8722a77e80e8",
+      "bytes": 2167,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteConversation.ts",
+      "sha256": "da4b56152e608f3cf1f0af799f6866413e6dbf776acacbf114c97c1e05b73ce6",
+      "bytes": 36182,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteDemoMemory.ts",
+      "sha256": "38a0930920b73496d71bcf42821b32978bdcdfd1c85b9a77df3b04f4ec868822",
+      "bytes": 1906,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteFailure.ts",
+      "sha256": "70fa0120426d3b6791bf8e165722cdf6286f957d34302106b6564aa76797b256",
+      "bytes": 2242,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteMessagePreview.ts",
+      "sha256": "e626a60c233d21944444feb10bdd886502fa74078b763b7169377606f635d148",
+      "bytes": 2029,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteModelBenchmark.ts",
+      "sha256": "986e9099d94c4f020305db349d7b19f3f42d4358b934e1d2a5b447885cffed0a",
+      "bytes": 5859,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteNative.ts",
+      "sha256": "2f07b32ee2405cccb4e21e34f612bbe68f0a99b89e68d6253a2c792da6e4ff6a",
+      "bytes": 15189,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteRoomMemory.ts",
+      "sha256": "8c1d27b0363034ef9b48ea23bd4a304d9a278f692fbf11b5668a92163fdff41a",
+      "bytes": 16615,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteSchedule.ts",
+      "sha256": "c6e9fcf36106ff024e62c4df250bd7e666e95682e0ecac80a204cf943eb7c9ee",
+      "bytes": 4291,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteScopeMemory.ts",
+      "sha256": "909f1170bd134db8bdf2c040a7c01ba4de5f18156aebbb9339cc7af1cf7d2e02",
+      "bytes": 8705,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/_shared/quoteStream.ts",
+      "sha256": "cb8f53faf425c2f054c15286cd88447ef5ac93b38ec97cbf96da6bc2a22f756b",
+      "bytes": 2583,
+      "review": "shared-backend-consumers"
+    },
+    {
+      "path": "supabase/functions/ai-genera-preventivo-v2/index.ts",
+      "sha256": "7d1720de2cfa09bb022813dc20bbf0d6bf854d473508b02ba20945387082fd83",
+      "bytes": 41279,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/functions/ai-preventivo-conversazione/audio.ts",
+      "sha256": "f245564c7486b02d7dea164be00bb5620ab605baa9f694cc92052cc725026871",
+      "bytes": 5475,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/functions/ai-preventivo-conversazione/index.ts",
+      "sha256": "d1012253da5b34dee84519cb4489137a6db910743fb3ab5eca6d4880d9dad379",
+      "bytes": 16238,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/functions/ai-preventivo-conversazione/memory.ts",
+      "sha256": "e7a60cd265682b48d1f3b164f76703773f4dc78dcd70c67bd7a10b4c1ac237c9",
+      "bytes": 1460,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/migrations/20261024132650_fv_configurazione_atomica.sql",
+      "sha256": "cece666f67936682897d01bbab0d10deb002ce91b7b83d90a28ca58ce60a61ea",
+      "bytes": 13074,
+      "review": "database-before-activation"
+    },
+    {
+      "path": "supabase/migrations/20261024134400_sr_ai_bom_atomico.sql",
+      "sha256": "1e58658ad629e57615230fd69213b6a506dfc7aa2f28aea171a3a18179197a0e",
+      "bytes": 9053,
+      "review": "database-before-activation"
+    },
+    {
+      "path": "vite.config.ts",
+      "sha256": "094a5fc3b86d6bb710280f3971284946b0d7ec41e51e9b9d2e5b01ccbd45db75",
+      "bytes": 31158,
+      "review": "source-or-config"
+    },
+    {
+      "path": "vite.preventivatore-demo.config.ts",
+      "sha256": "5f96937a1165691e77cb4ccd528fc6e40019cd5ce21167fabffdf2e87a129240",
+      "bytes": 1032,
+      "review": "source-or-config"
+    },
+    {
+      "path": "vitest.preventivatore.config.ts",
+      "sha256": "41cc75006044348ae100a583383c8e55d8917bcd948e182248a7afd976791b79",
+      "bytes": 1556,
+      "review": "source-or-config"
+    },
+    {
+      "path": "vitest.wizard-audit.config.ts",
+      "sha256": "93349272e7a6e50e53abc4a5a26778f0f0c652dde579477d0e33dce25a0e7b2c",
+      "bytes": 2309,
+      "review": "source-or-config"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "06026df517a7ac2baeca4d31e7696b04cb51bc484bf0a67e5be7303dfbc6cb36",
+      "bytes": 28254,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/config.toml",
+      "sha256": "0e004748894b61b89ac8fbe17e4ae7a2debffea57b6241fcb7fa3a339e1c9ec6",
+      "bytes": 37336,
+      "review": "source-or-config"
+    },
+    {
+      "path": "supabase/functions/bgn-genera-pdf/_render.mjs",
+      "sha256": "a24f37931d65fe6b9708445d04c11abc3e1703a914ea82587f6b373a5bcd2657",
+      "bytes": 2793056,
+      "review": "rebuilt-server-pdf"
+    },
+    {
+      "path": "src/lib/preventivi/quoteBrowserPlan.ts",
+      "sha256": "8d2236e0b40fe4a592a6d88ea21ff29b7c83d2d71e6f6dcc0d7731965f274248",
+      "bytes": 4068,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/lib/preventivi/quoteRollout.ts",
+      "sha256": "921da893060a32d09dcdbaa01c68f4546a334152da021ba5ba0e99787dbd6dbd",
+      "bytes": 599,
+      "review": "source-or-config"
+    },
+    {
+      "path": "src/test/preventivatore/quoteBrowserPlan.test.ts",
+      "sha256": "a7bb259842486aa6456a9c4261a89ed5ac39aeb0ebce0bda4d81fd1cd28e1dcc",
+      "bytes": 2775,
+      "review": "test"
+    },
+    {
+      "path": "src/test/preventivatore/quoteRollout.test.ts",
+      "sha256": "9894467dcaefd06d7ab7439d3e02ea4764279eb9ae2aa1549480b2c92c2e4c0d",
+      "bytes": 1185,
+      "review": "test"
+    }
+  ]
+}

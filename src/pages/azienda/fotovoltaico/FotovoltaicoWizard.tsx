@@ -13,7 +13,7 @@
  * Step 8 — Generazione PDF + emissione
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
+import { lazy, Suspense, useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -123,6 +123,12 @@ import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimension
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
 import { derivaSpecModuloDaPotenza } from "@/lib/fotovoltaico/catalogoProdotti";
 import { righeComponentiFv } from "@/lib/fotovoltaico/componentiConfigurazione";
+import { problemiConfigurazioneFv, tipoServizioFv } from "@/lib/fotovoltaico/configurazioneValidation";
+import { fvConfigurationPayload } from "@/lib/fotovoltaico/configurazioneAtomica";
+import { useConfigurazioneAtomica } from "@/lib/fotovoltaico/useConfigurazioneAtomica";
+import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
+import { servizioDaCatalogo } from '@/lib/fotovoltaico/servizioDaCatalogo';
+const FvConversationalAi=lazy(()=>import('@/components/fotovoltaico/FotovoltaicoConversationalAiDialog'));
 import { anteprimaFotovoltaico, stimaProduzioneFv } from "@/lib/fotovoltaico/anteprima";
 // F16: ricostruisce l'etichetta orientamento (es. "S 180°") dall'azimut numerico
 // salvato in DB (fv_progetti.azimut_tetto) all'idratazione del progetto.
@@ -219,7 +225,10 @@ function campiTetto(d: WizardData) {
 // non cambia indirizzo quando crea la bozza, quindi la chiave non cambia a metà.
 export default function FotovoltaicoWizardPerProgetto() {
   const { id } = useParams<{ id?: string }>();
-  return <FotovoltaicoWizard key={id ?? "nuovo"} />;
+  const companyId = useEffectiveCompanyId();
+  const { user } = useAuth();
+  const [params] = useSearchParams();
+  return <FotovoltaicoWizard key={`${user?.id}:${companyId}:${id ?? 'nuovo'}:${params.get('modello') ?? ''}`} />;
 }
 
 function FotovoltaicoWizard() {
@@ -227,6 +236,10 @@ function FotovoltaicoWizard() {
   // Company effettiva del frontend (multi-azienda): serve a creare il progetto
   // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
   const effectiveCompanyId = useEffectiveCompanyId();
+  const atomicConfiguration = useConfigurazioneAtomica();
+  const localConversationalAi = consentiPreventivoConversazionale(effectiveCompanyId);
+  const [conversationOpen,setConversationOpen]=useState(false);
+  const [conversationRevision,setConversationRevision]=useState(0);
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
 
@@ -279,7 +292,8 @@ function FotovoltaicoWizard() {
   // Restore draft da localStorage al primo render (solo per progetti nuovi
   // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
   // il draft viene scartato dal merge con progettoEsistente.
-  const initialDraft = useMemo(() => loadPersistedDraft(id ?? null), [id]);
+  const draftScope = user?.id && effectiveCompanyId ? `${user.id}:${effectiveCompanyId}:${requestedModel ?? 'generale'}` : null;
+  const initialDraft = useMemo(() => draftScope ? loadPersistedDraft(id ?? null, draftScope) : null, [id, draftScope]);
 
   const [step, setStep] = useState(initialDraft?.step ?? 1);
   // Merge con INITIAL: i draft salvati prima dell'aggiunta di nuovi campi
@@ -323,7 +337,7 @@ function FotovoltaicoWizard() {
           label: "Ricomincia",
           onClick: () => {
             // Cancella draft + dismiss toast + reload
-            clearPersistedDraft(null);
+            clearPersistedDraft(null, draftScope);
             toast.dismiss(toastId);
             window.location.reload();
           },
@@ -350,6 +364,9 @@ function FotovoltaicoWizard() {
   // dell'utente ("i dati inseriti non vengono riportati"). Si idrata UNA volta
   // per ogni progetto aperto in modifica.
   const hydratedProjectIdRef = useRef<string | null>(null);
+  // Version belongs to the data loaded into this editor, not the latest
+  // background refetch. Only our own successful saves may advance it.
+  const configurationVersionRef=useRef<{projectId:string;updatedAt:string}|null>(null);
 
   // ─── Pre-popola anagrafica cliente da CRM (?contact_id=…) ──────────────────
   // Quando il wizard è aperto da un'opportunità/contatto del CRM, precompila
@@ -417,6 +434,13 @@ function FotovoltaicoWizard() {
   // (categoria='altro', esclusa la voce-kit) in modifica, così sopravvivono
   // al flusso delete+insert dello Step 5.
   const { data: componentiEsistenti } = useComponentiProgetto(progettoId ?? undefined);
+  // An existing configured draft must reopen its saved configuration without
+  // forcing another save/roof analysis just to reach the AI entry point.
+  const navigableSteps=useMemo(()=>{
+    if(id && progettoEsistente?.id===id && Number(progettoEsistente.potenza_kwp)>0 && componentiEsistenti?.length)
+      return new Set([...completedSteps,1,2,3,4,5]);
+    return completedSteps;
+  },[id,progettoEsistente,componentiEsistenti,completedSteps]);
 
   // Sprint 4: tabelle finanziamento per importo target del progetto
   // Il prezzo appena calcolato (scenarioFin) prima di quello riletto dal DB, che
@@ -432,7 +456,7 @@ function FotovoltaicoWizard() {
     data.durata_mesi_scelta,
   );
 
-  const aggiornaProgetto = useAggiornaProgetto();
+  const aggiornaProgetto = useAggiornaProgetto({onVersion:(projectId,updatedAt)=>{configurationVersionRef.current={projectId,updatedAt};}});
   const upsertComponenti = useUpsertComponenti();
   const upsertManodopera = useUpsertManodopera();
   const upsertServizi = useUpsertServizi();
@@ -475,6 +499,7 @@ function FotovoltaicoWizard() {
     // Già idratato questo progetto: non sovrascrivere le modifiche live.
     if (hydratedProjectIdRef.current === progettoEsistente.id) return;
     hydratedProjectIdRef.current = progettoEsistente.id;
+    configurationVersionRef.current={projectId:progettoEsistente.id,updatedAt:progettoEsistente.updated_at};
     const cli = progettoEsistente as {
       cliente_id?: string | null;
       cliente_nome?: string | null; cliente_cognome?: string | null;
@@ -608,7 +633,7 @@ function FotovoltaicoWizard() {
             ...d,
             prodotti_extra: extras.map((c) => ({
               uid: crypto.randomUUID(),
-              listino_id: null,
+              listino_id: null as string | null,
               descrizione: c.descrizione,
               quantita: Number(c.quantita) || 1,
               prezzo_vendita: Number(c.prezzo_unitario_vendita) || 0,
@@ -688,16 +713,16 @@ function FotovoltaicoWizard() {
   // ad ogni keystroke (su slow devices il json.stringify del draft completo
   // può diventare un collo di bottiglia con form lunghi).
   useEffect(() => {
-    if (readOnlyMode) return;
+    if (readOnlyMode || !draftScope) return;
     const timer = setTimeout(() => {
       savePersistedDraft(progettoId, {
         step,
         data,
         completedSteps: Array.from(completedSteps),
-      });
+      }, draftScope);
     }, 800);
     return () => clearTimeout(timer);
-  }, [step, data, completedSteps, progettoId, readOnlyMode]);
+  }, [step, data, completedSteps, progettoId, readOnlyMode, draftScope]);
 
   // beforeunload guard: avvisa se l'utente refresha/chiude con dati non salvati
   useEffect(() => {
@@ -761,26 +786,8 @@ function FotovoltaicoWizard() {
         return { valido: true };
       }
       case 5: {
-        // Kit FV: se hai scelto un kit dal listino basta quello (porta kWp + prezzo).
-        if (data.kit_bundle_id) {
-          return data.potenza_kwp > 0
-            ? { valido: true }
-            : { valido: false, motivo: "Il kit selezionato non ha una potenza (kWp) valida" };
-        }
-        if (data.potenza_kwp <= 0 || data.numero_pannelli_scelti <= 0)
-          return { valido: false, motivo: "Configura almeno un pannello" };
-        // Fix #17 Sprint 3: pannello e inverter sono obbligatori per il calcolo
-        // finanziario corretto. Senza articoli dal listino i prezzi non quadrano
-        // e il preventivo PDF mostra "—" sui componenti.
-        if (!data.pannello_id)
-          return { valido: false, motivo: "Seleziona un modello di pannello dal listino" };
-        if (!data.inverter_id)
-          return { valido: false, motivo: "Seleziona un inverter dal listino" };
-        // F13: NON richiediamo più accumulo_id quando con_accumulo è true. Lo
-        // slider "Accumulo (kWh)" imposta con_accumulo + capacità senza scegliere
-        // un articolo; il salvataggio Step 5 gestisce il ramo "accumulo generico"
-        // (descrizione + prezzo da capacità). Il dropdown modello resta opzionale.
-        return { valido: true };
+        const issues = problemiConfigurazioneFv(data);
+        return issues.length ? { valido: false, motivo: issues[0] } : { valido: true };
       }
       case 6:
         return scenarioFin != null
@@ -905,7 +912,7 @@ function FotovoltaicoWizard() {
         // rimosso, altrimenti al prossimo /nuovo verrebbe ripristinato quello
         // stale/quasi vuoto invece della vera bozza (bug "ripristina non
         // riprende la bozza").
-        clearPersistedDraft(null);
+        clearPersistedDraft(null, draftScope);
         toast.success("Progetto creato — continua con i consumi");
       } else {
         await aggiornaProgetto.mutateAsync({
@@ -1188,6 +1195,15 @@ function FotovoltaicoWizard() {
     if (!opts?.skipNav) setSalvando(true);
     setAutoSaveState("saving");
     try {
+      const issues = problemiConfigurazioneFv(data, { pannelli, inverter, accumuli });
+      if (issues.length) throw new Error(issues.join('. '));
+      if (localConversationalAi) {
+        const expected=configurationVersionRef.current;
+        const result=await atomicConfiguration.mutateAsync(fvConfigurationPayload(data, { pannelli, inverter, accumuli }, {
+          companyId: effectiveCompanyId!, projectId: progettoId, updatedAt: expected?.projectId===progettoId?expected.updatedAt:'',
+        }));
+        configurationVersionRef.current={projectId:progettoId,updatedAt:result.updatedAt};
+      } else {
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
@@ -1243,7 +1259,7 @@ function FotovoltaicoWizard() {
         progetto_id: progettoId,
         replace: true,
         righe: data.servizi_righe.map((r, i) => ({
-          tipo: r.tipo || "altro",
+          tipo: tipoServizioFv(r.tipo),
           descrizione: r.descrizione || "Servizio",
           quantita: Number(r.quantita) || 1,
           prezzo_netto: Number(r.prezzo_netto) || 0,
@@ -1252,6 +1268,7 @@ function FotovoltaicoWizard() {
           note_operative: r.note_operative ?? null,
         })),
       });
+      }
 
       if (!mountedRef.current) return;
       markSaved();
@@ -1329,7 +1346,7 @@ function FotovoltaicoWizard() {
     // aggiornaProgetto escluso dalle deps (identità instabile di useMutation);
     // le dipendenze dati sono progettoId + sconto + prezzo libero correnti.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progettoId, readOnlyMode, data.sconto_tipo, data.sconto_valore, data.prezzo_vendita_manuale, data.kit_bundle_id, data.iva_aliquota]);
+  }, [progettoId, readOnlyMode, data.sconto_tipo, data.sconto_valore, data.prezzo_vendita_manuale, data.kit_bundle_id, data.iva_aliquota, localConversationalAi]);
 
   // Auto-calcolo entrando nello step 6
   const autoCalcRequested = useRef<string | null>(null);
@@ -1547,8 +1564,8 @@ function FotovoltaicoWizard() {
 
       if (!mountedRef.current) return;
       // Pulisci draft locale: progetto è emesso, niente più bozze locali
-      clearPersistedDraft(progettoId);
-      clearPersistedDraft(null);
+      clearPersistedDraft(progettoId, draftScope);
+      clearPersistedDraft(null, draftScope);
       toast.success("Preventivo emesso! Apri la scheda 'Preventivo' per visualizzarlo.");
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {
@@ -1574,14 +1591,14 @@ function FotovoltaicoWizard() {
       // Flush SINCRONO della bozza: senza, un refresh entro ~800ms dal click su
       // "Avanti" cadrebbe nella finestra del debounce e perderebbe l'ultimo input.
       if (!readOnlyMode) {
-        savePersistedDraft(progettoId, { step: safe, data, completedSteps: Array.from(nextCompleted) });
+        if (draftScope) savePersistedDraft(progettoId, { step: safe, data, completedSteps: Array.from(nextCompleted) }, draftScope);
       }
       setStep(safe);
       // scroll to top of content: scorre <main> (altezza bloccata), non la finestra
       document.getElementById("main-content")?.scrollTo?.({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [step, completedSteps, readOnlyMode, progettoId, data],
+    [step, completedSteps, readOnlyMode, progettoId, data, draftScope],
   );
 
   const goPrev = useCallback(() => goTo(step - 1), [step, goTo]);
@@ -1641,6 +1658,9 @@ function FotovoltaicoWizard() {
     if (!progettoId) {
       toast.info("Compila e salva la fase 2 (immobile) per creare il progetto bozza.");
       return false;
+    }
+    if (localConversationalAi && step===5) {
+      try { await handleSalvaStep5({skipNav:true});return true; } catch { return false; }
     }
     setSalvando(true);
     setAutoSaveState("saving");
@@ -1726,7 +1746,7 @@ function FotovoltaicoWizard() {
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
-  }, [progettoId, data, aggiornaProgetto, markSaved, manodoperaEsistente, tariffeFv, upsertManodopera]);
+  }, [progettoId, data, aggiornaProgetto, markSaved, manodoperaEsistente, tariffeFv, upsertManodopera, localConversationalAi, step, handleSalvaStep5]);
 
   // «Duplica» e «Clona»: nuova bozza con numero nuovo e versione + 1, anche da
   // un preventivo emesso o firmato. Prima i due pulsanti mostravano un avviso e
@@ -1783,7 +1803,7 @@ function FotovoltaicoWizard() {
     }),
     [data, effectiveCompany?.name, numero, pannelli, inverter, accumuli, regoleSconto, step, completedSteps, scenarioFin, puoVedereImpresa],
   );
-  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento) : null;
+  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento, 2) : null;
 
   // Stato display nell'header
   const statoHeader = readOnlyMode
@@ -1862,6 +1882,9 @@ function FotovoltaicoWizard() {
             progetto={progettoEsistente}
             snapshot={modelloSalvato.snapshot}
             costruisci={(_companyId, m) => costruisciModelloFv(m)}
+            onVersion={(updated) => {
+              if (updated?.updated_at) configurationVersionRef.current = { projectId: updated.id, updatedAt: updated.updated_at };
+            }}
             onAggiornato={rileggiProgetto}
           />
         </div>
@@ -1957,7 +1980,7 @@ function FotovoltaicoWizard() {
             <AlertDialogAction
               className="bg-slate-500 hover:bg-slate-600"
               onClick={() => {
-                clearPersistedDraft(null);
+                clearPersistedDraft(null, draftScope);
                 navigate("/azienda/marketing/preventivi");
               }}
             >
@@ -1968,7 +1991,7 @@ function FotovoltaicoWizard() {
                 onClick={async () => {
                   // Prima usciva con «Bozza salvata» anche quando il salvataggio falliva.
                   if (!(await handleSalvaStep2())) return;
-                  clearPersistedDraft(null);
+                  clearPersistedDraft(null, draftScope);
                   toast.success("Bozza salvata — la ritrovi tra i preventivi");
                   navigate("/azienda/marketing/preventivi");
                 }}
@@ -2019,7 +2042,7 @@ function FotovoltaicoWizard() {
       <FvTabBar
         tabs={TABS}
         current={step}
-        completed={completedSteps}
+        completed={navigableSteps}
         className={STICKY_ALTO}
         totale={totaleTesto ? { valore: totaleTesto } : null}
         destra={
@@ -2041,7 +2064,7 @@ function FotovoltaicoWizard() {
           // si può sempre rivedere/correggere. In avanti solo verso fasi completate
           // o la fase immediatamente successiva (validazione su "Avanti" invariata).
           const isClickable =
-            n <= step || completedSteps.has(n) || n === step + 1;
+            n <= step || navigableSteps.has(n) || n === step + 1;
           if (!isClickable) {
             toast.info(
               `Completa la fase ${step} prima di passare alla fase ${n}.`,
@@ -2053,7 +2076,7 @@ function FotovoltaicoWizard() {
           // il progetto), come il bottone "Avanti". Senza, saltando avanti con lo
           // stepper il progetto non veniva creato (progettoId null → "Avanti" delle
           // fasi successive falliva). Indietro / fasi già completate → goTo libero.
-          if (n === step + 1 && !completedSteps.has(n)) {
+          if (n === step + 1 && !navigableSteps.has(n)) {
             void goNext();
           } else {
             goTo(n);
@@ -2091,8 +2114,16 @@ function FotovoltaicoWizard() {
               readOnlyMode={readOnlyMode}
             />
           )}
-          {step === 5 && (
+          {step === 5 && (<>
+            {localConversationalAi && progettoId && !readOnlyMode && <Button type="button" variant="outline" className="mb-4 rounded-full border-orange-300" onClick={()=>setConversationOpen(true)}>Apri Silvio AI · configura l’impianto</Button>}
+            {conversationOpen && localConversationalAi && progettoId && effectiveCompanyId && !readOnlyMode && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><FvConversationalAi companyId={effectiveCompanyId} companyName={effectiveCompany?.name??''} projectId={progettoId} numero={progettoEsistente?.numero??'Bozza locale'} data={data}
+              createdAt={progettoEsistente?.created_at} projectVersion={progettoEsistente?.updated_at}
+              modelTitle={intervento?.title}
+              template={(modelloSalvato.snapshot?.template??fvTemplate??{}) as Record<string,unknown>}
+              catalogue={{pannelli,inverter,accumuli,kits:kitFvBundles as unknown as Array<Record<string,unknown>>,labour:tariffeFv as unknown as Array<Record<string,unknown>>,services:serviziCatalogo as unknown as Array<Record<string,unknown>>}}
+              onClose={()=>setConversationOpen(false)} onApply={next=>{setData(next);setConversationRevision(n=>n+1);setScenarioFin(null);autoCalcRequested.current=null;}}/></Suspense>}
             <Step5Configurazione
+              key={`configurazione-${conversationRevision}`}
               data={data}
               update={update}
               readOnlyMode={readOnlyMode}
@@ -2111,7 +2142,7 @@ function FotovoltaicoWizard() {
                 void handleCalcolaFinanziario();
               }}
             />
-          )}
+          </>)}
           {step === 6 && (
             <Step6Finanziario
               data={data}
@@ -2315,7 +2346,7 @@ function Step2Immobile({
   const [acPredictions, setAcPredictions] = useState<{ place_id: string; description: string }[]>([]);
   const [acOpen, setAcOpen] = useState(false);
   const [acLoading, setAcLoading] = useState(false);
-  const acDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const acDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const acWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -3653,19 +3684,8 @@ function Step5Configurazione({
   };
 
   const aggiungiServizioDaCatalogo = (s: Record<string, unknown>) => {
-    const netto = Number(s.prezzo_netto_default ?? 0);
-    const margine = Math.min(0.8, Math.max(0, Number(s.margine_pct_default ?? 0.35)));
-    update("servizi_righe", [
-      ...data.servizi_righe,
-      {
-        tipo: String(s.codice ?? "altro"),
-        descrizione: String(s.descrizione ?? "Servizio"),
-        quantita: 1,
-        prezzo_netto: netto,
-        prezzo_vendita: margine < 1 ? Math.round((netto / (1 - margine)) * 100) / 100 : netto,
-        note_operative: s.note_operative ? String(s.note_operative) : null,
-      },
-    ]);
+    try { update('servizi_righe',[...data.servizi_righe,servizioDaCatalogo(s,1)]); }
+    catch(error){toast.error((error as Error).message);}
   };
   const aggiungiServizioLibero = () => {
     update("servizi_righe", [

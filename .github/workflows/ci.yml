@@ -78,6 +78,11 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run conversational quote and native wizard regressions
+        run: |
+          bun run test:preventivatore-ai
+          bunx vitest run --config vitest.wizard-audit.config.ts
+
       - name: Run public website and structured data regressions
         run: >-
           bunx vitest run --maxWorkers=1
@@ -366,10 +371,31 @@ jobs:
   # 3. Deploy changed edge functions (main only, after checks pass)
   # ─────────────────────────────────────────────────────────────────────────
 
+  cad-container:
+    name: CAD container validation (no hosting)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated CAD image
+        run: docker build -f services/cad/Dockerfile -t quote-cad:ci .
+      - name: Check startup, health and anonymous refusal without external network
+        run: |
+          docker run -d --name quote-cad-ci --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=1536m --cpus=1 --tmpfs=/tmp:rw,nosuid,nodev,noexec,size=1073741824,mode=1777 -e CAD_SUPABASE_URL=https://synthetic-backend.example -e CAD_SUPABASE_PUBLISHABLE_KEY=synthetic-public-key -e CAD_APP_ORIGINS=https://synthetic-app.example quote-cad:ci
+          for attempt in $(seq 1 20); do
+            if docker exec quote-cad-ci node -e "fetch('http://127.0.0.1:8094/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"; then break; fi
+            sleep 1
+          done
+          docker exec quote-cad-ci node --input-type=module -e "const h=await fetch('http://127.0.0.1:8094/health');if(h.status!==200)throw Error('health');const r=await fetch('http://127.0.0.1:8094/v1/read',{method:'POST',headers:{Origin:'https://synthetic-app.example','Content-Type':'application/octet-stream','X-Quote-Company':'d2000000-0000-4000-a000-000000000002','X-Quote-Cad-Request':'00000000-0000-4000-a000-000000000001','X-Quote-File-Size':'6'},body:'AC1032'});if(r.status!==401)throw Error('anonymous admission');"
+          docker stop --time=15 quote-cad-ci
+          test "$(docker inspect --format='{{.State.ExitCode}}' quote-cad-ci)" = 0
+      - name: Clean up test container
+        if: always()
+        run: docker rm -f quote-cad-ci 2>/dev/null || true
+
   deploy-functions:
     name: Deploy edge functions
     runs-on: ubuntu-latest
-    needs: [typecheck, test]
+    needs: [typecheck, test, cad-container]
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

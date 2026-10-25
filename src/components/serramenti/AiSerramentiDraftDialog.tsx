@@ -23,6 +23,7 @@ import {
   type SrAiDraftResult,
 } from "@/lib/serramenti/aiDraft";
 import { formatEuro } from "@/lib/serramenti/format";
+import { serramentiAiIssues, verifiedSerramentiAiItem } from "@/lib/serramenti/aiDraftValidation";
 
 interface Props {
   open: boolean;
@@ -70,11 +71,16 @@ export function AiSerramentiDraftDialog({
   const [listening, setListening] = useState(false);
   const [result, setResult] = useState<SrAiDraftResult | null>(null);
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+  const [inserting, setInserting] = useState(false);
+  const approvedRef = useRef(new Set<string>());
+  const approvalRef = useRef(false);
+  const loadingRef = useRef(false);
+  const generation = useRef(0);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
 
   const hasInput = prompt.trim().length >= 8 || files.length > 0;
   const validItems = useMemo(
-    () => (result?.items ?? []).filter((item) => item.missing_fields.length === 0),
+    () => (result?.items ?? []).filter((item) => serramentiAiIssues(item).length === 0),
     [result],
   );
 
@@ -94,22 +100,29 @@ export function AiSerramentiDraftDialog({
   };
 
   const runDraft = async () => {
+    if (loadingRef.current || approvalRef.current) return;
     if (!hasInput) {
       toast.warning("Inserisci una richiesta o almeno una foto del rilievo");
       return;
     }
     if (listening) stopDictation();
+    const run = ++generation.current;
+    loadingRef.current = true;
     setLoading(true);
     setResult(null);
     setApprovedIds(new Set());
+    approvedRef.current.clear();
     try {
       const images: SrAiDraftImageInput[] = await Promise.all(files.map(fileToDraftImage));
+      if (run !== generation.current) return;
       const draft = await generateSerramentiAiDraft({
         progettoId,
         prompt,
         images,
         source: images.length > 0 && prompt.trim() ? "mixed" : images.length > 0 ? "foto" : "testo",
       });
+      if (run !== generation.current) return;
+      if (new Set(draft.items.map(item => item.id)).size !== draft.items.length) throw new Error('Identità duplicate nella risposta AI: riprova senza inserire righe.');
       setResult(draft);
       if (draft.items.length === 0) {
         toast.warning("L'AI non ha riconosciuto righe utilizzabili", {
@@ -119,11 +132,12 @@ export function AiSerramentiDraftDialog({
         toast.success(`Bozza pronta: ${draft.items.length} ${draft.items.length === 1 ? "riga" : "righe"} da verificare`);
       }
     } catch (error) {
+      if (run !== generation.current) return;
       toast.error("Bozza AI non disponibile", {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
-      setLoading(false);
+      if (run === generation.current) { loadingRef.current = false; setLoading(false); }
     }
   };
 
@@ -169,13 +183,15 @@ export function AiSerramentiDraftDialog({
     setListening(false);
   }, []);
 
-  const approveItem = async (item: SrAiDraftItem) => {
-    if (item.missing_fields.length > 0) {
+  const insertItem = async (item: SrAiDraftItem) => {
+    if (approvedRef.current.has(item.id)) return true;
+    if (serramentiAiIssues(item).length > 0) {
       toast.warning("Completa i campi mancanti prima di approvare questa riga");
       return false;
     }
     try {
-      await onApproveItem(item);
+      await onApproveItem(verifiedSerramentiAiItem(item));
+      approvedRef.current.add(item.id);
       setApprovedIds((prev) => new Set(prev).add(item.id));
       toast.success("Riga inserita nel preventivo");
       return true;
@@ -187,13 +203,17 @@ export function AiSerramentiDraftDialog({
     }
   };
 
+  const approveItem = async (item: SrAiDraftItem) => {
+    if (approvalRef.current || loadingRef.current || approving || !result?.items.includes(item)) return;
+    approvalRef.current = true; setInserting(true);
+    try { await insertItem(item); } finally { approvalRef.current = false; setInserting(false); }
+  };
+
   const approveAll = async () => {
-    for (const item of validItems) {
-      if (!approvedIds.has(item.id)) {
-        const inserted = await approveItem(item);
-        if (!inserted) break;
-      }
-    }
+    if (approvalRef.current || loadingRef.current || approving) return;
+    approvalRef.current = true; setInserting(true);
+    try { for (const item of validItems) if (!await insertItem(item)) break; }
+    finally { approvalRef.current = false; setInserting(false); }
   };
 
   useEffect(() => {
@@ -201,11 +221,14 @@ export function AiSerramentiDraftDialog({
   }, [open, listening, stopDictation]);
 
   useEffect(() => () => {
+    generation.current++;
     recognitionRef.current?.stop();
     recognitionRef.current = null;
   }, []);
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && approvalRef.current) return;
+    if (!nextOpen) { generation.current++; loadingRef.current = false; setLoading(false); }
     if (!nextOpen && listening) stopDictation();
     onOpenChange(nextOpen);
   };
@@ -262,7 +285,9 @@ export function AiSerramentiDraftDialog({
                     setFiles([]);
                     setResult(null);
                     setApprovedIds(new Set());
+                    approvedRef.current.clear();
                   }}
+                  disabled={loading || inserting || approving}
                 >
                   Pulisci
                 </Button>
@@ -339,7 +364,7 @@ export function AiSerramentiDraftDialog({
                 {result.summary && <p className="text-xs text-slate-500">{result.summary}</p>}
               </div>
               {validItems.length > 1 && (
-                <Button size="sm" onClick={approveAll} disabled={approving || validItems.every((i) => approvedIds.has(i.id))}>
+                <Button size="sm" onClick={approveAll} disabled={loading || inserting || approving || validItems.every((i) => approvedIds.has(i.id))}>
                   Approva tutte le righe complete
                 </Button>
               )}
@@ -359,7 +384,8 @@ export function AiSerramentiDraftDialog({
             <div className="grid gap-3 md:grid-cols-2">
               {result.items.map((item) => {
                 const isApproved = approvedIds.has(item.id);
-                const isComplete = item.missing_fields.length === 0;
+                const issues = serramentiAiIssues(item);
+                const isComplete = issues.length === 0;
                 const confidenceTone =
                   item.confidence >= 0.82 ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
                   item.confidence >= 0.55 ? "text-amber-700 bg-amber-50 border-amber-200" :
@@ -389,15 +415,15 @@ export function AiSerramentiDraftDialog({
                         <Info label="Listino" value={item.family_nome ?? "da confermare"} />
                         <Info
                           label="Prezzo"
-                          value={item.prezzo_totale != null ? formatEuro(item.prezzo_totale) : "da calcolare"}
+                          value={isComplete ? formatEuro(verifiedSerramentiAiItem(item).prezzo_totale!) : "da verificare"}
                         />
                       </div>
 
-                      {(item.missing_fields.length > 0 || item.warnings.length > 0) && (
+                      {(issues.length > 0 || item.warnings.length > 0) && (
                         <div className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
                           <p className="font-semibold">Controllo richiesto</p>
                           <ul className="mt-1 list-disc pl-4">
-                            {[...item.missing_fields.map((f) => `Campo mancante: ${f}`), ...item.warnings].map((msg, index) => (
+                            {[...issues.map((f) => `Da completare: ${f}`), ...item.warnings].map((msg, index) => (
                               <li key={`${item.id}-${index}`}>{msg}</li>
                             ))}
                           </ul>
@@ -407,7 +433,7 @@ export function AiSerramentiDraftDialog({
                       <Button
                         className="w-full"
                         variant={isApproved ? "outline" : "default"}
-                        disabled={!isComplete || isApproved || approving}
+                        disabled={!isComplete || isApproved || approving || inserting || loading}
                         onClick={() => void approveItem(item)}
                       >
                         {approving ? (
@@ -431,7 +457,7 @@ export function AiSerramentiDraftDialog({
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="max-sm:hidden">
             Chiudi
           </Button>
-          <Button type="button" onClick={() => void runDraft()} disabled={!hasInput || loading}>
+          <Button type="button" onClick={() => void runDraft()} disabled={!hasInput || loading || inserting || approving}>
             {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Analizza e prepara bozza
           </Button>

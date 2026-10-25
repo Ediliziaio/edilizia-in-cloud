@@ -77,7 +77,7 @@ import FotovoltaicoWizard from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard"
 
 /** La bozza di chi è arrivato alla Fase 5: 12 pannelli da 450 W (5,4 kWp) e un inverter dal listino. */
 function seminaBozza(step: number, extra: Record<string, unknown> = {}, completate: number[] = [1, 2, 3, 4].filter((n) => n < step)) {
-  localStorage.setItem(LS_KEY_NEW, JSON.stringify({
+  localStorage.setItem(`${LS_KEY_NEW}::u1:c1:generale`, JSON.stringify({
     step,
     completedSteps: completate,
     savedAt: Date.now(),
@@ -122,7 +122,7 @@ describe("Fotovoltaico nel guscio comune", () => {
     expect(within(barra()).getByText(/Fase 5 di 8/).parentElement?.textContent).toContain("Configurazione");
     expect(tab("Configurazione").getAttribute("aria-current")).toBe("step");
     // 12 × 180 + 1.500 = 3.660 + IVA 10% = 4.026
-    expect(within(barra()).getByText("€ 4.026")).toBeTruthy();
+    expect(within(barra()).getByText("€ 4.026,00")).toBeTruthy();
     expect(within(barra()).getByText("Totale IVA incl.")).toBeTruthy();
   });
 
@@ -145,7 +145,7 @@ describe("Fotovoltaico nel guscio comune", () => {
     // totali: 3.660 + IVA 10% (366) = 4.026
     expect(a.getByText("Totale voci")).toBeTruthy();
     expect(a.getByText("IVA 10%")).toBeTruthy();
-    expect(a.getByText("€ 4.026")).toBeTruthy();
+    expect(a.getByText("€ 4.026,00")).toBeTruthy();
   });
 
   it("mentre compili la Fase 5 anteprima e totale in barra si ricalcolano a ogni voce, sconto e prezzo a corpo", async () => {
@@ -158,7 +158,7 @@ describe("Fotovoltaico nel guscio comune", () => {
     fireEvent.change(await screen.findByPlaceholderText("Descrizione"), { target: { value: "Posa impianto" } });
     fireEvent.change(screen.getByTitle("Ore"), { target: { value: "10" } });
     fireEvent.change(screen.getByTitle("€/h vendita"), { target: { value: "50" } });
-    await waitFor(() => expect(within(barra()).getByText("€ 4.576")).toBeTruthy());
+    await waitFor(() => expect(within(barra()).getByText("€ 4.576,00")).toBeTruthy());
     expect(within(anteprima()).getByText("Posa impianto")).toBeTruthy();
     expect(within(anteprima()).getByText("Installazione e manodopera")).toBeTruthy();
 
@@ -166,23 +166,23 @@ describe("Fotovoltaico nel guscio comune", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "+ Voce libera" })[1]);
     fireEvent.change(await screen.findByPlaceholderText("Descrizione servizio"), { target: { value: "Pratica GSE" } });
     fireEvent.change(screen.getByTitle("Prezzo vendita"), { target: { value: "250" } });
-    await waitFor(() => expect(within(barra()).getByText("€ 4.851")).toBeTruthy());
+    await waitFor(() => expect(within(barra()).getByText("€ 4.851,00")).toBeTruthy());
     expect(within(anteprima()).getByText("Pratica GSE")).toBeTruthy();
 
     // sconto di 300 €: imponibile 4.110 + IVA = 4.521
     fireEvent.click(screen.getByRole("button", { name: "€" }));
     fireEvent.change(screen.getByPlaceholderText("es. 500"), { target: { value: "300" } });
-    await waitFor(() => expect(within(barra()).getByText("€ 4.521")).toBeTruthy());
-    expect(within(anteprima()).getByText("− € 300")).toBeTruthy();
+    await waitFor(() => expect(within(barra()).getByText("€ 4.521,00")).toBeTruthy());
+    expect(within(anteprima()).getByText("− € 300,00")).toBeTruthy();
     expect(within(anteprima()).getByText("Imponibile")).toBeTruthy();
 
     // prezzo a corpo di 5.000 €: prende il posto della somma delle voci, lo sconto non vale → 5.500
     const corpo = screen.getByLabelText("Prezzo a corpo (imponibile, IVA esclusa)");
     fireEvent.change(corpo, { target: { value: "5000" } });
     fireEvent.blur(corpo);
-    await waitFor(() => expect(within(barra()).getByText("€ 5.500")).toBeTruthy());
+    await waitFor(() => expect(within(barra()).getByText("€ 5.500,00")).toBeTruthy());
     expect(within(anteprima()).getByText("Prezzo concordato")).toBeTruthy();
-    expect(within(anteprima()).queryByText("− € 300")).toBeNull();
+    expect(within(anteprima()).queryByText("− € 300,00")).toBeNull();
     expect(within(anteprima()).getByText(/Prezzo scritto a mano/)).toBeTruthy();
   });
 
@@ -202,7 +202,7 @@ describe("Fotovoltaico nel guscio comune", () => {
     await waitFor(() => expect(within(anteprima()).getByText("Costo")).toBeTruthy());
     expect(within(anteprima()).getByText(/Vista impresa/)).toBeTruthy();
     // costo 12 × 120 + 1.000 = 2.440 su 3.660 di imponibile → margine 1.220
-    expect(within(anteprima()).getByText("€ 1.220")).toBeTruthy();
+    expect(within(anteprima()).getByText("€ 1.220,00")).toBeTruthy();
   });
 
   it("prima della Fase 5 non c'è un impianto inventato: si vedono i dati del tetto e il totale non c'è", async () => {
@@ -224,7 +224,7 @@ describe("Fotovoltaico nel guscio comune", () => {
     fireEvent.click(tab("Immobile"));
     await screen.findByText(/Fase 2 di 8/);
     expect(within(anteprima()).getByText("Impianto fotovoltaico da 5,4 kWp")).toBeTruthy();
-    expect(within(barra()).getByText("€ 4.026")).toBeTruthy();
+    expect(within(barra()).getByText("€ 4.026,00")).toBeTruthy();
   });
 
   it("un preventivo nuovo, ancora vuoto, mostra la carta bianca e non un totale", async () => {
@@ -250,10 +250,10 @@ describe("Fotovoltaico nel guscio comune", () => {
     seminaBozza(5);
     monta();
     await arrivaAllaFase5();
-    fireEvent.click(screen.getByRole("button", { name: /Totale € 4\.026: apri l'anteprima/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Totale € 4\.026,00: apri l'anteprima/ }));
     const tendina = await screen.findByRole("dialog");
     expect(within(tendina).getByText("Pannello 450 W bifacciale")).toBeTruthy();
-    expect(within(tendina).getByText("€ 4.026")).toBeTruthy();
+    expect(within(tendina).getByText("€ 4.026,00")).toBeTruthy();
   });
 
   it("senza la colonna (tablet e telefono) l'anteprima si apre anche dall'occhio nella barra", async () => {

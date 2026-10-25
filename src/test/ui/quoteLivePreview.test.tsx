@@ -17,6 +17,12 @@ const props: QuoteLivePreviewProps = {
 afterEach(cleanup);
 
 describe("Anteprima live del preventivo classico", () => {
+  it('non mostra un totale zero quando la bozza AI è ancora da completare', () => {
+    render(<QuoteLivePreviewPanel {...props} subtotal={0} net={0} total={0} vatBreakdown={{}} discountPercent={0} taxPending totalPending previewNotice="Prova locale, nessun PDF remoto." />);
+    expect(screen.getByTestId('live-quote-total')).toHaveTextContent('Da determinare');
+    expect(screen.queryByText('Totale IVA inclusa')).not.toBeInTheDocument();
+    expect(screen.getByText('Prova locale, nessun PDF remoto.')).toBeInTheDocument();
+  });
   it("usa cliente e prodotti reali e si aggiorna senza generare o salvare un PDF", () => {
     const { rerender } = render(<QuoteLivePreviewPanel {...props} />);
     expect(screen.getByText("Cliente di prova")).toBeInTheDocument();

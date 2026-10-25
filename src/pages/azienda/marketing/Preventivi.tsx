@@ -60,6 +60,7 @@ import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentIm
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
+import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
 
 import AnalisiPreventivi from "./AnalisiPreventivi";
 import QuoteApprovals from "./QuoteApprovals";
@@ -88,6 +89,8 @@ export default function Preventivi() {
     });
   const [searchParams, setSearchParams] = useSearchParams();
   const [showNewQuote, setShowNewQuote] = useState(false);
+  const [showAiQuote, setShowAiQuote] = useState(false);
+  const localAiEnabled = consentiPreventivoConversazionale(companyId) && permissions.canEditPreventivi;
   // Old selector links now open the popup above the same unified list.
   const quoteDialogOpen = showNewQuote || searchParams.get("tab") === "moduli";
   const handleQuoteDialog = (open: boolean) => {
@@ -258,6 +261,7 @@ export default function Preventivi() {
                   <Plus className="mr-1 h-4 w-4" />Nuovo
                 </Button>
               )}
+              {localAiEnabled && <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setShowAiQuote(true)}>Preventivo AI</Button>}
             </div>
           </div>
           {/* Senza sottotitolo: a 1024 si tagliava a metà («dal prim…») e diceva
@@ -268,6 +272,7 @@ export default function Preventivi() {
             icon={<FileSignature className="h-5 w-5" />}
             actions={
               <>
+                {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm"><Sparkles className="mr-2 h-4 w-4" />Preventivo AI</Button>} />}
                 {/* "Crea da..." — entry points AI (smart import, computo, foto/audio). */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

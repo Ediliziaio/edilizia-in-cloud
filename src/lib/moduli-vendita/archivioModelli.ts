@@ -24,6 +24,11 @@ const CHIAVE_IN_SOSPESO = "eic:modelli-libreria:in-sospeso:v1";
  * ha già detto «salvato», la libreria avvisa che i colleghi non lo vedono ancora.
  */
 export const MODELLO_NON_ONLINE = "eic:modelli-libreria:non-online";
+/** Same-tab consumers do not receive the browser's storage event. */
+export const MODELLO_AGGIORNATO = "eic:modelli-libreria:aggiornato";
+function notificaModello(chiave: string) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(MODELLO_AGGIORNATO, { detail: { companyId: aziendaDelModello(chiave), chiave } }));
+}
 /** Quanti modelli scaricare per richiesta: le chiavi vanno nell'indirizzo. */
 const LOTTO_SCARICO = 20;
 
@@ -157,6 +162,7 @@ export const archivioModelliAzienda: StoragePort = {
     }
     tieniCopia(chiave, valore);
     segnaInSospeso(chiave, true);
+    notificaModello(chiave);
     void provaAMandareOnline(chiave, valore).then((online) => {
       if (!online) window.dispatchEvent(new CustomEvent(MODELLO_NON_ONLINE, { detail: { chiave } }));
     });
@@ -178,7 +184,7 @@ export interface EsitoSincronizzazione {
  * browser e manda online quelle salvate qui dopo (o rimaste indietro). Senza
  * permesso di scrittura (un venditore) scarica soltanto.
  */
-export async function sincronizzaModelliAzienda(companyId: string): Promise<EsitoSincronizzazione> {
+export async function sincronizzaModelliAzienda(companyId: string, opzioni: { solaLettura?: boolean } = {}): Promise<EsitoSincronizzazione> {
   const tabella = await tabellaModelli();
   const { data: elenco, error } = await tabella
     .select<{ chiave: string; salvato_il: string }>("chiave, salvato_il")
@@ -197,13 +203,18 @@ export async function sincronizzaModelliAzienda(companyId: string): Promise<Esit
       .in("chiave", daScaricare.slice(i, i + LOTTO_SCARICO));
     if (erroreScarico) throw new Error(erroreScarico.message);
     for (const riga of data ?? []) {
+      // A user may save a newer model while this download is in flight.
+      if (aziendaDelModello(riga.chiave) !== companyId || localeAggiornata(leggiCopia(riga.chiave), riga.salvato_il)) continue;
       tieniCopia(riga.chiave, JSON.stringify(riga.contenuto));
       segnaInSospeso(riga.chiave, false);
       scaricati += 1;
+      notificaModello(riga.chiave);
     }
   }
 
   let caricati = 0;
+  // Quote previews must never upload pending library edits as a side effect.
+  if (opzioni.solaLettura) return { scaricati, caricati, daMandareOnline: modelliDaMandareOnline(companyId) };
   const daMandare = new Set(modelliDaMandareOnline(companyId));
   // Le chiavi si raccolgono prima: mandare online riscrive l'elenco in sospeso,
   // e con localStorage.key(i) durante le scritture si salterebbero delle copie.

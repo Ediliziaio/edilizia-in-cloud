@@ -25,7 +25,7 @@ describe("righeComponentiFv — le righe che la Fase 5 salva e l'anteprima mostr
   it("un kit chiavi in mano è una voce sola col prezzo del kit, senza costo noto", () => {
     const righe = righeComponentiFv({ ...CONFIG, kit_bundle_id: "k1", kit_nome: "Kit 6 kWp + batteria", kit_prezzo: 9800, potenza_kwp: 6, con_accumulo: true, capacita_accumulo_kwh: 10 }, LISTINO);
     expect(righe).toEqual([{
-      articolo_id: null, categoria: "altro", descrizione: "Kit 6 kWp + batteria", quantita: 1, unita_misura: "kit",
+      articolo_id: null, categoria: "altro", descrizione: "Kit 6 kWp + batteria", marca: null, modello: null, quantita: 1, unita_misura: "kit",
       prezzo_unitario_netto: 0, prezzo_unitario_vendita: 9800, margine_pct: null, potenza_unitaria_w: null,
       potenza_unitaria_kw: 6, capacita_kwh: 10, garanzia_anni: 25, ordinamento: 1,
     }]);

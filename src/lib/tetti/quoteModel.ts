@@ -3,6 +3,7 @@ import { findTettiTemplateModule, type TettiTemplateModuleId } from "@/lib/modul
 
 export interface TetQuoteModelSnapshot {
   version: 1;
+  modulo?: 'tetti';
   modelId: TettiTemplateModuleId;
   companyId: string;
   capturedAt: string;
@@ -11,7 +12,7 @@ export interface TetQuoteModelSnapshot {
 export function readTetQuoteModel(value: unknown, companyId: string): TetQuoteModelSnapshot | null {
   if (value == null) return null;
   const s = value as TetQuoteModelSnapshot;
-  if (s.version !== 1 || !findTettiTemplateModule(s.modelId) || s.companyId !== companyId ||
+  if (s.version !== 1 || (s.modulo !== undefined && s.modulo !== 'tetti') || !findTettiTemplateModule(s.modelId) || s.companyId !== companyId ||
       !Number.isFinite(Date.parse(s.capturedAt)) || s.template?.company_id !== companyId ||
       s.template.pdf_blocchi?.modulo_intervento !== s.modelId || !s.template.cover_title?.trim() ||
       !Array.isArray(s.template.pdf_ordine_capitoli) || !s.template.pdf_ordine_capitoli.length) {
@@ -25,7 +26,7 @@ export function makeTetQuoteModel(companyId: string, modelId: TettiTemplateModul
     delete template.pdf_blocchi.modulo_defaults;
     delete template.pdf_blocchi.modulo_foto;
   }
-  const snapshot: TetQuoteModelSnapshot = { version: 1, modelId, companyId, capturedAt: new Date().toISOString(), template };
+  const snapshot: TetQuoteModelSnapshot = { version: 1, modulo: 'tetti', modelId, companyId, capturedAt: new Date().toISOString(), template };
   readTetQuoteModel(snapshot, companyId);
   return snapshot;
 }

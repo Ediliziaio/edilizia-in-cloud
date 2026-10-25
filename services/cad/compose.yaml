@@ -1,0 +1,20 @@
+services:
+  cad:
+    build:
+      context: ../..
+      dockerfile: services/cad/Dockerfile
+    image: ediliziaincloud/quote-cad:local-candidate
+    restart: "no"
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 1536m
+    cpus: 1.0
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=1073741824,mode=1777"]
+    ports: ["127.0.0.1:8094:8094"]
+    environment:
+      CAD_SUPABASE_URL: ${CAD_SUPABASE_URL:?Set the trusted backend URL}
+      CAD_SUPABASE_PUBLISHABLE_KEY: ${CAD_SUPABASE_PUBLISHABLE_KEY:?Set the publishable key, never service_role}
+      CAD_APP_ORIGINS: ${CAD_APP_ORIGINS:?Set exact HTTPS application origins separated by commas}

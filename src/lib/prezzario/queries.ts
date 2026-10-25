@@ -19,6 +19,7 @@ import { useAdottaPrezzarioListino } from "./adozioneLavorazioni";
 import type { PrezzarioFonte, PrezzarioCapitolo, PrezzarioVoce, StatoFonte } from "./tipi";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
+import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
 export type { AdottaPrezzarioInput } from "./adozioneLavorazioni";
 
 // Tipi prezzario_* / rst_* non rigenerati: cast unico, riusato in tutto il file.
@@ -40,19 +41,45 @@ const STATIC_STALE_TIME = 24 * 60 * 60 * 1000; // 24h: i prezzari cambiano per a
  * desc (la più recente per regione in cima). La RLS già filtra il pubblicato;
  * teniamo il filtro esplicito per chiarezza/coerenza coi tipi.
  */
-export function usePrezzarioFonti() {
+export function usePrezzarioFonti(enabled = true) {
   return useQuery<PrezzarioFonte[]>({
     queryKey: QK.fonti,
     staleTime: STATIC_STALE_TIME,
-    queryFn: async () => {
+    enabled,
+    queryFn: async ({ signal }) => {
       const { data, error } = await sb()
         .from("prezzario_fonte")
         .select("*")
         .eq("stato", "pubblicato")
         .order("regione", { ascending: true })
-        .order("anno", { ascending: false });
+        .order("anno", { ascending: false }).abortSignal(signal);
       if (error) throw new Error(error.message);
       return (data ?? []) as PrezzarioFonte[];
+    },
+  });
+}
+
+/** Bounded exact-code retrieval; never scans/adopts a regional catalogue.
+ * Missing/ambiguous rows are deliberately left for the caller to review. */
+export function usePrezzarioVociPerCodici(fonteId: string | null, codici: readonly string[]) {
+  const normalized = [...new Set(codici)].sort();
+  const valid = normalized.length > 0 && normalized.length <= 30;
+  return useQuery<PrezzarioVoce[]>({
+    queryKey: ["prezzario", "codici-esatti", fonteId, normalized],
+    enabled: !!fonteId && valid,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      if (!fonteId || !valid) throw new Error("Scegli una fonte e al massimo 30 codici.");
+      const { data, error } = await withHeavyDatabaseRead(async requestSignal =>
+        await sb().from("prezzario_voce")
+          .select("id,fonte_id,codice,descrizione,unita_misura,prezzo,fonte:prezzario_fonte!inner(stato)")
+          .eq("fonte_id", fonteId).eq("fonte.stato", "pubblicato")
+          .in("codice", normalized).order("codice").order("id")
+          .limit(normalized.length * 2).abortSignal(requestSignal),
+      "Voci del prezzario selezionato", 8_000, signal);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as PrezzarioVoce[];
     },
   });
 }

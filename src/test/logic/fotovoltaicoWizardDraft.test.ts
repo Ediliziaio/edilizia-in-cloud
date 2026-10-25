@@ -13,6 +13,19 @@ describe("fotovoltaico wizard draft persistence", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
+  it('separates drafts by user, company and model, including an existing project', () => {
+    const draft = { step: 2, data: { ...INITIAL, cliente_nome: 'Cliente sintetico' }, completedSteps: [1] };
+    for (const id of [null, 'project']) {
+      savePersistedDraft(id, draft, 'user-a:demo2:nuovo');
+      expect(loadPersistedDraft(id, 'user-a:demo2:nuovo')?.data.cliente_nome).toBe('Cliente sintetico');
+      for (const scope of ['user-b:demo2:nuovo', 'user-a:altra:nuovo', 'user-a:demo2:accumulo']) expect(loadPersistedDraft(id, scope)).toBeNull();
+    }
+  });
+  it('never adopts or deletes an unowned legacy draft when loading a scoped draft', () => {
+    savePersistedDraft(null, { step: 2, data: { ...INITIAL, cliente_nome: 'Bozza precedente' }, completedSteps: [1] });
+    expect(loadPersistedDraft(null, 'user:company:model')).toBeNull();
+    expect(loadPersistedDraft(null)?.data.cliente_nome).toBe('Bozza precedente');
+  });
 
   it("returns null and removes drafts with invalid JSON", () => {
     window.localStorage.setItem(LS_KEY_NEW, "{broken");

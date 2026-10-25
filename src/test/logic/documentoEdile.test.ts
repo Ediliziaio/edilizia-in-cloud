@@ -151,6 +151,20 @@ describe("il kit del marchio: si sceglie una volta in «Brand & Azienda»", () =
 });
 
 describe("dal modulo al documento", () => {
+  it.each(Object.entries(MODULI_EDILI))("%s conserva ipotesi ed esclusioni delle stime oltre la sintesi prodotto", (_nome, modulo) => {
+    const descrizione = `${"Dettaglio della prestazione indicativa. ".repeat(12)}Ipotesi: accesso ordinario. Esclusioni: verifica specialistica della soletta e nuova linea elettrica.`;
+    const dati = costruisciDatiEdile({
+      modulo, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Stima", subtotale: 1000, voci: [
+        { id: "stima", descrizione: "Posa", descrizione_estesa: descrizione, fonte: "Stima AI indicativa, non prezzario verificato. Intervallo netto: 500 - 1500 EUR.", unita_misura: "a_corpo", quantita: 1, prezzo_unitario: 1000, importo: 1000 },
+        { id: "prodotto", descrizione: "Prodotto", descrizione_estesa: descrizione, unita_misura: "cad", quantita: 1, prezzo_unitario: 0, importo: 0 },
+      ] }],
+    });
+    expect(dati.capitoli[0].voci[0].dettaglio).toBe(descrizione);
+    expect(dati.capitoli[0].voci[0].dettaglio).toContain("Esclusioni:");
+    expect(dati.capitoli[0].voci[1].dettaglio?.length).toBeLessThanOrEqual(220);
+  });
+
   it("la scheda dell'intervento porta solo i fatti che ci sono", () => {
     const dati = costruisciDatiEdile({
       modulo: MODULI_EDILI.tetti,

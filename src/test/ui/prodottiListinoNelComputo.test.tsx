@@ -247,7 +247,7 @@ describe("ogni modulo a computo, anche uno futuro, usa il listino prodotti", () 
     const verticale = MODULI.find((m) => m.slug === cartella)!.verticale;
     expect(picker).toContain("useProdottiListino(debounced, VERTICALE_LISTINO, altreSorgenti)");
     expect(picker).toContain("...prodottoInRiga(p),");
-    expect(picker).toContain("useListinoVociSearch(azOn ? debounced : \"\", capitolo?.id ?? null)");
+    expect(picker).toMatch(/useListinoVociSearch\(azOn \? debounced : "", capitolo\?\.id \?\? null(?:, azOn)?\)/);
     expect(picker).toContain(`const VERTICALE_LISTINO: VerticaleModulo = "${verticale}";`);
     expect(picker).toContain("famiglia_id: p.id,");
     expect(picker).toContain("immagine_url: p.immagine_url,");

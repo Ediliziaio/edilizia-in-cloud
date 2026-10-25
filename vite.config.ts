@@ -7,6 +7,9 @@ import { minify as htmlMinify } from "html-minifier-terser";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { viteLocalCacheKey } from "./config/viteLocalCache";
+import { localPlanOcrPlugin } from "./dev/preventivatore-ai/planOcrPlugin.mts";
+import { localQuoteChatProxy } from "./dev/preventivatore-ai/chatProxyPlugin.mts";
+import { localCadPlugin } from "./dev/preventivatore-ai/cadPlugin.mts";
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
@@ -32,6 +35,10 @@ export default defineConfig(({ command, mode }) => ({
   },
   plugins: [
     react(),
+    localPlanOcrPlugin(),
+    localCadPlugin(),
+    // Explicitly authorized Demo 2 trial. Dev-only, fixed function, tenant checked twice.
+    localQuoteChatProxy({ allowDemoRemote: true }),
     // v8.6.109 — Defer del CSS principale per migliorare FCP/LCP mobile.
     // Il bundle CSS index-*.css e' ~382KB (~50KB gzip) e blocca il rendering
     // iniziale (PSI flaggava 'Richieste di blocco del rendering' -160ms).

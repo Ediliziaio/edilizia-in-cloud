@@ -9,8 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 
-const { stato, NESSUNO, aggiorna, invoca, vista } = vi.hoisted(() => ({
+const { stato, NESSUNO, aggiorna, invoca, vista, atomicSave, legacyRows } = vi.hoisted(() => ({
   stato: {
+    company: 'c1',
+    inverters: [] as unknown[],
     margini: true,
     progetto: null as Record<string, unknown> | null,
     scenario: null as Record<string, unknown> | null,
@@ -28,6 +30,7 @@ const { stato, NESSUNO, aggiorna, invoca, vista } = vi.hoisted(() => ({
   aggiorna: vi.fn(async (_: unknown): Promise<void> => undefined),
   invoca: vi.fn(async (_nome: string, _opzioni?: unknown): Promise<{ data: unknown; error: unknown }> => ({ data: null, error: null })),
   vista: { confronto: null as unknown, simulatore: null as unknown },
+  atomicSave:vi.fn(),legacyRows:vi.fn(async()=>({})),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -37,7 +40,7 @@ vi.mock("react-router-dom", () => ({
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={String(to)}>{children}</a>,
 }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(), message: vi.fn(), dismiss: vi.fn() }) }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, effectiveCompany: { id: "c1", name: "Bianchi Solare" } }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, effectiveCompany: { id: stato.company, name: "Bianchi Solare" } }) }));
 vi.mock("@/integrations/supabase/client", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const catena: any = new Proxy({}, { get: (_t, p) => (p === "then" ? undefined : p === "maybeSingle" || p === "single" ? () => Promise.resolve({ data: null as null, error: null as null }) : () => catena) });
@@ -46,7 +49,9 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewMargins: stato.margini, canViewCosts: stato.margini }) }));
 vi.mock("@/hooks/useSupportoModelliPreventivo", () => ({ useSupportoModelloPreventivo: () => ({ supported: true, isLoading: false }) }));
-vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
+vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => stato.company }));
+vi.mock('@/lib/fotovoltaico/useConfigurazioneAtomica',()=>({useConfigurazioneAtomica:()=>({mutateAsync:atomicSave})}));
+vi.mock('@/components/fotovoltaico/FotovoltaicoConversationalAiDialog',()=>({default:({data,onApply,onClose}:{data:import('@/pages/azienda/fotovoltaico/FotovoltaicoWizard/types').WizardData;onApply:(d:import('@/pages/azienda/fotovoltaico/FotovoltaicoWizard/types').WizardData)=>void;onClose:()=>void})=><div role="dialog" aria-label="Adattatore FV di prova"><button onClick={()=>{onApply({...data,numero_pannelli_scelti:20,potenza_kwp:9});onClose();}}>Conferma configurazione di prova</button><button onClick={onClose}>Annulla adattatore di prova</button></div>}));
 vi.mock("@/hooks/useDiscountRules", () => ({ useDiscountRules: () => ({ data: stato.regole, isLoading: false }) }));
 vi.mock("@/hooks/useBundles", () => ({ useBundlesList: () => ({ bundles: NESSUNO }) }));
 vi.mock("@/lib/fotovoltaico/queries", async () => {
@@ -60,7 +65,7 @@ vi.mock("@/lib/fotovoltaico/queries", async () => {
       const t = setTimeout(() => setPronto(true), stato.ritardoCatalogo);
       return () => clearTimeout(t);
     }, []);
-    return categoria === "pannello" && pronto ? { data: stato.pannelli, isLoading: false } : { data: NESSUNO, isLoading: !pronto };
+    return categoria === "pannello" && pronto ? { data: stato.pannelli, isLoading: false } : categoria==='inverter'?{data:stato.inverters,isLoading:false}:{ data: NESSUNO, isLoading: !pronto };
   }
   const mutazione = { mutateAsync: vi.fn(() => Promise.resolve({})), mutate: vi.fn(), isPending: false };
   const aggiornamento = { mutateAsync: (x: unknown) => aggiorna(x), mutate: vi.fn(), isPending: false };
@@ -71,9 +76,9 @@ vi.mock("@/lib/fotovoltaico/queries", async () => {
     useArticoliFv,
     useComponentiProgetto: () => ({ data: stato.componenti, isLoading: false }),
     useListinoPerFv: () => lista,
-    useUpsertComponenti: () => mutazione,
-    useUpsertManodopera: () => mutazione,
-    useUpsertServizi: () => mutazione,
+    useUpsertComponenti: () => ({...mutazione,mutateAsync:legacyRows}),
+    useUpsertManodopera: () => ({...mutazione,mutateAsync:legacyRows}),
+    useUpsertServizi: () => ({...mutazione,mutateAsync:legacyRows}),
     useTariffeFv: () => lista,
     useManodoperaProgetto: () => ({ data: undefined as unknown, isLoading: false }),
     useServiziProgetto: () => ({ data: undefined as unknown, isLoading: false }),
@@ -141,12 +146,13 @@ const monta = () => render(
 
 /** Il draft del browser per il progetto p1: serve a farlo aprire alla Fase voluta. */
 function apriAllaFase(step: number, extra: Record<string, unknown> = {}) {
-  localStorage.setItem("fv_wizard_draft_v1_p1", JSON.stringify({
+  localStorage.setItem(`fv_wizard_draft_v1_p1::u1:${stato.company}:generale`, JSON.stringify({
     step, completedSteps: [1, 2, 3, 4, 5].filter((n) => n < step), savedAt: Date.now(), data: { ...INITIAL, ...extra },
   }));
 }
 
 beforeEach(() => {
+  stato.company='c1';stato.inverters=[];atomicSave.mockReset();legacyRows.mockClear();
   stato.margini = true;
   stato.progetto = riga();
   stato.scenario = scenarioDelServer();
@@ -168,6 +174,42 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 const arrivaAllaFase6 = async () => { await screen.findByText(/Anteprima finanziaria per il cliente/); };
+
+describe('Demo 2: conversational FV transfer and atomic native save',()=>{
+  const prepare=()=>{
+    stato.company='d2000000-0000-4000-a000-000000000002';
+    stato.progetto=riga({company_id:stato.company,updated_at:'2026-10-24T08:00:00Z'});
+    stato.pannelli=[{id:'panel',potenza_w:450,prezzo_vendita:180,prezzo_acquisto:100}];stato.inverters=[{id:'inv',prezzo_vendita:1200,prezzo_acquisto:700}];
+    stato.componenti=[{id:'c1',categoria:'pannello',articolo_id:'panel',quantita:12},{id:'c2',categoria:'inverter',articolo_id:'inv',quantita:1}];
+    atomicSave.mockResolvedValue({projectId:'p1',updatedAt:'2026-10-24T09:00:00Z',replayed:false});
+    apriAllaFase(5);return monta();
+  };
+  it('opens the module adapter; transfers confirmed data without saving until the native save action',async()=>{
+    prepare();fireEvent.click(await screen.findByRole('button',{name:'Apri Silvio AI · configura l’impianto'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Conferma configurazione di prova'}));
+    expect(atomicSave).not.toHaveBeenCalled();expect(aggiorna).not.toHaveBeenCalled();expect(legacyRows).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button',{name:/Avanti/}));await waitFor(()=>expect(atomicSave).toHaveBeenCalledTimes(1));
+    expect(atomicSave).toHaveBeenCalledWith(expect.objectContaining({p_expected_updated_at:'2026-10-24T08:00:00Z',p_project:expect.objectContaining({numero_pannelli_scelti:20,potenza_kwp:9}),p_components:expect.arrayContaining([expect.objectContaining({categoria:'pannello',quantita:20})])}));
+    expect(legacyRows).not.toHaveBeenCalled();
+    // Entering phase 6 may calculate finance on the mocked LOCAL backend,
+    // but no configuration project patch or legacy row replacement is used.
+    expect(aggiorna.mock.calls.every(([value])=>!('potenza_kwp' in (value as {patch:object}).patch))).toBe(true);
+    expect(invoca.mock.calls.every(([name])=>name==='fv-calcolo-finanziario')).toBe(true);
+  });
+  it('uses the same atomic path for Save and close, and does not fall back if it fails',async()=>{
+    prepare();atomicSave.mockRejectedValue(new Error('Transazione fallita'));
+    await screen.findByRole('button',{name:'Apri Silvio AI · configura l’impianto'});
+    fireEvent.click(screen.getByRole('button',{name:'Salva e chiudi'}));await waitFor(()=>expect(atomicSave).toHaveBeenCalledTimes(1));
+    expect(aggiorna).not.toHaveBeenCalled();expect(legacyRows).not.toHaveBeenCalled();expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Transazione fallita'));
+  });
+  it('keeps the version belonging to the loaded editor, not a newer background project snapshot',async()=>{
+    prepare();await screen.findByRole('button',{name:'Apri Silvio AI · configura l’impianto'});
+    stato.progetto={...stato.progetto,updated_at:'2026-10-25T08:00:00Z'};
+    fireEvent.change(screen.getByRole('textbox',{name:'Prezzo a corpo (imponibile, IVA esclusa)'}),{target:{value:'9000'}});
+    fireEvent.click(screen.getByRole('button',{name:'Salva e chiudi'}));await waitFor(()=>expect(atomicSave).toHaveBeenCalledTimes(1));
+    expect(atomicSave.mock.calls[0][0].p_expected_updated_at).toBe('2026-10-24T08:00:00Z');
+  });
+});
 
 describe("Fase 6: confronto varianti e simulatore", () => {
   it("partono dal prezzo del kWh del cliente (0,25), non da uno scritto nel codice: il rientro della configurazione scelta deve tornare con quello della scheda", async () => {
@@ -310,6 +352,18 @@ function progettoCon12ModuliDa450() {
 const potenzaMostrata = () => screen.getByText("Potenza", { selector: "div" }).parentElement?.textContent;
 
 describe("Fase 5: la potenza dell'impianto alla riapertura del progetto", () => {
+  it('blocca gli extra incompleti prima di consentire il salvataggio della configurazione', async () => {
+    apriAllaFase(5, { pannello_id: 'pan-1', inverter_id: 'inv-1', prodotti_extra: [{ uid: 'extra', listino_id: null, descrizione: '', quantita: 0, prezzo_vendita: 0, prezzo_acquisto: null }] });
+    monta(); await screen.findByText(/Prezzo di vendita e IVA/);
+    expect(screen.getByRole('button', { name: /Avanti/ })).toBeDisabled();
+  });
+  it('un articolo non più disponibile non provoca neppure il primo aggiornamento del progetto', async () => {
+    apriAllaFase(5, { pannello_id: 'deleted', inverter_id: 'inv-1' });
+    monta(); await screen.findByText(/Prezzo di vendita e IVA/); aggiorna.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /Avanti/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('non è disponibile')));
+    expect(aggiorna).not.toHaveBeenCalled(); expect(screen.getByText(/Prezzo di vendita e IVA/)).toBeInTheDocument();
+  });
   it("con il catalogo dei pannelli che arriva dopo i componenti la potenza resta 5,40 kWp (12 × 450 W), non diventa 12 × 540 W = 6,48", async () => {
     progettoCon12ModuliDa450();
     stato.ritardoCatalogo = 150;

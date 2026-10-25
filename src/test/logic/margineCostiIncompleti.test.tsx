@@ -51,7 +51,7 @@ describe("margine con costi incompleti — anteprima del preventivo, vista impre
   it("costi completi: margine in euro e in percentuale", () => {
     anteprimaImpresa([CON_COSTO]);
     const riquadro = screen.getByText(/Vista impresa/).closest("div") as HTMLElement;
-    expect(within(riquadro).getByText("€ 400")).toBeInTheDocument();
+    expect(within(riquadro).getByText("€ 400,00")).toBeInTheDocument();
     expect(within(riquadro).getByText(/\(40%\)/)).toBeInTheDocument();
     expect(within(riquadro).queryByText(/Costi incompleti/)).toBeNull();
   });

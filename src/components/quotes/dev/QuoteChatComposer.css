@@ -1,0 +1,228 @@
+/* Scoped workbench refresh. Other assistants keep their original composer. */
+/* Self-hosted variable font: loaded only when the quote chat uses it.
+   Do not inherit this typography into the document/PDF preview or editors. */
+@font-face {
+  font-family: "Manrope Quote Chat";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Manrope Quote Chat";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/manrope-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+.chat-only-workspace .quote-lab-chat {
+  font-family: -apple-system, BlinkMacSystemFont, "Manrope Quote Chat", "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: normal;
+}
+.chat-only-workspace .quote-lab-chat :is(button, input, textarea, select) { font-family: inherit; }
+.chat-only-workspace.simulation-shell { max-width: 1560px; padding: 16px 20px 24px; }
+.chat-only-workspace .simulation-head { margin-bottom: 18px; align-items: center; gap: 16px; }
+.chat-only-workspace .simulation-head h1 { font-size: clamp(21px, 2vw, 29px); line-height: 1.3; margin: 8px 0; letter-spacing: -.035em; }
+.chat-only-workspace .simulation-head p { font-size: 12px; }
+.chat-only-workspace .simulation-kicker { font-size: 9px; letter-spacing: .12em; }
+.chat-only-workspace .simulation-safe { font-size: 10px; padding: 7px 11px; background: #f8faff; }
+.chat-only-workspace .quote-workbench-layout { --quote-workbench-height: clamp(620px, calc(100dvh - 205px), 920px); gap: 18px; }
+.chat-only-workspace .quote-workbench { border-radius: 18px; background: white; box-shadow: 0 5px 28px #172b4d05; }
+.chat-only-workspace .quote-workbench-tabs { height: 51px; min-height: 51px; padding: 6px; background: #f8faff; }
+.chat-only-workspace .quote-workbench-tabs [role=tab] { min-height: 36px; font-size: 12px; border-radius: 11px; }
+.chat-only-workspace .quote-workbench-tabs [role=tab][data-state=active] { background: #1c385f; box-shadow: inset 0 -2px #f97316, 0 2px 4px #1e3a5f10; }
+.chat-only-workspace .chat-workspace-header { padding: 12px 17px; min-height: 66px; flex-shrink: 0; }
+.chat-only-workspace .quote-chat-identity > span { font-size: 13px; letter-spacing: -.015em; }
+.quote-chat-identity > span > i { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: #fff1e7; color: #c2410c; font-style: normal; }
+.chat-only-workspace .quote-chat-identity > small { font-size: 10px; margin-top: 3px; color: #64748b; }
+.quote-chat-header-meta { display: flex; align-items: center; gap: 12px; }
+.quote-model-details { position: relative; font-size: 10px; color: #536784; }
+.quote-model-details > summary { padding: 5px 8px; cursor: pointer; border-radius: 7px; background: #f1f5fb; white-space: nowrap; }
+.quote-model-details > div { position: absolute; top: calc(100% + 8px); right: 0; width: min(290px, 75vw); z-index: 12; background: white; border: 1px solid #dbe3ef; padding: 13px; border-radius: 12px; box-shadow: 0 10px 30px #172b4d15; line-height: 1.7; overflow-wrap: anywhere; }
+.quote-model-details p + p { margin-top: 6px; }.quote-model-details button { color: #1d4ed8; margin-top: 8px; text-decoration: underline; }
+.chat-only-workspace .quote-lab-messages { padding: 20px; gap: 22px; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; background: linear-gradient(#fafcff 0, #fff 100px); }
+.chat-only-workspace .quote-workbench .quote-lab-messages { min-height: 140px; }
+.chat-only-workspace .quote-lab-message { font-size: 15px; font-weight: 400; line-height: 1.8; letter-spacing: normal; color: #24344b; }
+.chat-only-workspace .quote-chat-response { line-height: 1.8; }
+.chat-only-workspace .quote-chat-response h4 { font-size: 1em; line-height: 1.5; }
+.chat-only-workspace .quote-chat-response strong { font-weight: 650; }
+.chat-only-workspace .quote-lab-message > small { font-size: 11px; letter-spacing: .01em; color: #64748b; }
+.chat-only-workspace .quote-lab-message .quote-choice-pill { font-size: 13px; line-height: 1.55; }
+.chat-only-workspace .quote-lab-message.user { border: 1px solid #e3ecf9; border-radius: 16px 16px 4px 16px; background: #f0f5ff; padding: 10px 14px; }
+.chat-only-workspace .quote-chat-compose-region { flex-shrink: 0; padding: 10px 14px 0; background: linear-gradient(#ffffffb0, white 15px); }
+.chat-only-workspace .quote-composer-dock .thinking-composer { width: 100%; margin: 0; border: 1px solid #d3dfef; box-shadow: 0 3px 16px #1e3a5f06; }
+.chat-only-workspace .quote-composer-dock .thinking-composer:focus-within { border-color: #7ea9e5; box-shadow: 0 0 0 3px #2563eb09, 0 3px 16px #1e3a5f06; }
+.chat-only-workspace .thinking-composer.thinking-composer--compact textarea { font-size: 13px; color: #1c3559; min-height: 28px; }
+.chat-only-workspace .thinking-composer.thinking-composer--compact textarea::placeholder { color: #8a9ab0; }
+.chat-only-workspace .thinking-composer textarea:focus-visible { box-shadow: none; }
+.chat-only-workspace .thinking-composer .quote-composer-icon { width: 34px; height: 34px; display: inline-flex; justify-content: center; align-items: center; color: #637794; background: transparent; border-radius: 10px; transition: background .16s, color .16s; }
+.chat-only-workspace .thinking-composer .quote-composer-icon:hover:not(:disabled) { background: #edf4ff; color: #1d4ed8; }
+.chat-only-workspace .thinking-composer .quote-composer-tool-trigger { width: auto; height: 32px; display: inline-flex; gap: 6px; padding: 0 8px; background: transparent; color: #637794; border-radius: 8px; font-size: 10px; }
+.chat-only-workspace .thinking-composer .quote-composer-tool-trigger:hover:not(:disabled) { background: #f1f5fb; color: #1e40af; }
+.chat-only-workspace .thinking-composer-send-tools > button[data-busy] { background: #e56820; width: 34px; height: 34px; border-radius: 11px; box-shadow: 0 2px 5px #c2410c15; }
+.chat-only-workspace .thinking-composer-send-tools > button[data-busy]:hover:not(:disabled) { background: #c64b0e; }
+.quote-composer-hint { display: flex; justify-content: space-between; gap: 10px; padding: 7px 4px 0; font-size: 9px; line-height: 1.5; color: #8a98ab; }
+.quote-composer-hint > span:last-child { color: #70839e; white-space: nowrap; }
+.chat-only-workspace .quote-composer-dock .thinking-composer--inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; min-height: 54px; padding: 8px 8px 8px 19px; border: 1px solid #fdba74; border-radius: 28px; box-shadow: 0 2px 5px #172b4d0a; }
+.chat-only-workspace .quote-composer-dock .thinking-composer--inline:focus-within { border-color: #fb923c; box-shadow: 0 0 0 3px #ffedd580, 0 2px 6px #172b4d0a; }
+.chat-only-workspace .thinking-composer--inline.thinking-composer--compact textarea { min-width: 0; align-self: center; padding: 2px 0; line-height: 25px; font-size: 15px; }
+.chat-only-workspace .thinking-composer--inline .thinking-composer-actions { margin-top: 0; gap: 0; }
+.chat-only-workspace .thinking-composer--inline .thinking-composer-send-tools { gap: 3px; }
+.chat-only-workspace .thinking-composer--inline .quote-composer-icon { width: 34px; height: 36px; border-radius: 50%; color: #94a3b8; }
+.chat-only-workspace .thinking-composer--inline .thinking-composer-send-tools > button[data-busy] { width: 36px; height: 36px; border-radius: 50%; background: #f97316; box-shadow: none; }
+.chat-only-workspace .thinking-composer--inline .thinking-composer-send-tools > button[data-busy]:disabled { background: #f1f5f9; color: #94a3b8; opacity: 1; }
+.quote-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 5px 0; }
+.quote-composer-footer .quote-composer-tool-trigger { display: inline-flex; align-items: center; gap: 5px; padding: 5px 2px; color: #64748b; font-size: 10px; border-radius: 5px; white-space: nowrap; }
+.quote-composer-footer .quote-composer-tool-trigger:hover:not(:disabled) { color: #1d4ed8; }
+.quote-composer-footer .quote-composer-tool-trigger:disabled { opacity: .4; }
+.quote-composer-footer .quote-composer-hint { padding: 0; gap: 12px; font-size: 9px; }
+.chat-only-workspace .quote-chat-follow-up { margin-top: 12px; padding-top: 2px; }
+.chat-only-workspace .quote-chat-follow-up .quote-chat-questions { margin: 0; padding-left: 17px; color: #294767; }
+.chat-only-workspace .quote-chat-follow-up .quote-chat-questions li + li { margin-top: 5px; }
+.chat-only-workspace .quote-chat-follow-up .quote-chat-response > :first-child { margin-top: 0; }
+.chat-only-workspace .quote-chat-follow-up .quote-chat-response > :last-child { margin-bottom: 0; }
+.chat-only-workspace .quote-chat-follow-up .quote-chat-choices { margin-top: 12px; }
+.quote-chat-quick-help { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.quote-chat-quick-help button { border: 1px solid #cbd5e1; border-radius: 20px; padding: 8px 12px; color: #294767; background: white; font-size: 12px; transition: border-color 160ms, background 160ms; }
+.quote-chat-quick-help button:hover:not(:disabled) { border-color: #60a5fa; background: #eff6ff; }
+.quote-chat-quick-help button:disabled { opacity: .5; cursor: not-allowed; }
+.quote-chat-quick-help button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.quote-source-picker { margin-top: 8px; padding: 14px; border: 1px solid #dbe3ef; border-radius: 14px; background: #fff; white-space: normal; }
+.quote-source-picker-head,.quote-source-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quote-source-picker-head > strong { font-size: 13px; color: #1e3a5f; }
+.quote-source-picker-head > button,.quote-source-selected > button { font-size: 12px; color: #1d4ed8; }
+.quote-source-selected > span { display: flex; flex-direction: column; gap: 3px; }.quote-source-selected small { font-size: 10px; color: #64748b; }.quote-source-selected strong { font-size: 13px; color: #1e3a5f; }
+.quote-source-search { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 10px; color: #64748b; }
+.quote-source-search:focus-within { border-color: #fb923c; box-shadow: 0 0 0 2px #ffedd5; }.quote-source-search input { min-width: 0; width: 100%; outline: none; background: transparent; border: 0; font-size: 13px; }
+.quote-source-results { max-height: 224px; overflow-y: auto; list-style: none; padding: 0; margin: 9px 0; scrollbar-width: thin; }
+.quote-source-results li + li { margin-top: 3px; }.quote-source-results button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px; border-radius: 8px; padding: 9px 10px; text-align: left; color: #294767; min-height: 40px; }
+.quote-source-results button > span { display: flex; flex-direction: column; gap: 3px; }.quote-source-results strong { font-size: 12px; font-weight: 550; }.quote-source-results small { font-size: 10px; color: #64748b; }
+.quote-source-results button:hover:not(:disabled) { background: #f1f5fb; }.quote-source-results button[aria-pressed=true] { background: #eff6ff; color: #1d4ed8; }
+.quote-source-picker button:disabled { opacity: .45; cursor: not-allowed; }.quote-source-picker button:focus-visible,.quote-source-picker summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.quote-source-result-count { font-size: 10px; color: #64748b; }.quote-source-confirm { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; margin-top: 11px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.quote-source-confirm > strong { font-size: 12px; align-self: center; color: #1e3a5f; }.quote-source-confirm > details { grid-column: 1; font-size: 10px; color: #64748b; }.quote-source-confirm > details summary { cursor: pointer; }.quote-source-confirm > details p { margin-top: 5px; overflow-wrap: anywhere; }
+.quote-source-confirm > button { grid-column: 2; grid-row: 1 / span 2; align-self: center; background: #1e3a5f; color: white; border-radius: 9px; padding: 9px 12px; font-size: 12px; }
+@media (max-width: 480px) { .quote-source-confirm { grid-template-columns: 1fr; }.quote-source-confirm > button { grid-column: 1; grid-row: auto; }.quote-source-results button { min-height: 44px; } }
+.chat-only-workspace .quote-chat-follow-up .quote-choice-custom { margin-top: 6px; font-size: 11px; text-decoration: none; color: #64748b; }
+.chat-only-workspace .quote-turn-details { margin-top: 12px; font-size: 11px; color: #64748b; white-space: normal; }
+.quote-turn-details > summary { display: flex; align-items: center; gap: 9px; width: fit-content; cursor: pointer; list-style: none; padding: 4px 0; }
+.quote-turn-details > summary::before { content: '›'; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
+.quote-turn-details[open] > summary::before { transform: rotate(90deg); }
+.quote-turn-details-count { padding: 2px 7px; border-radius: 20px; background: #fff7ed; color: #9a5b28; font-size: 10px; }
+.quote-turn-details-content { margin-top: 7px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafcff; }
+.quote-turn-details-content section + section { border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 10px; }
+.quote-turn-details-content section > strong { font-size: 11px; color: #294767; }
+.quote-turn-receipt-text { white-space: pre-line; line-height: 1.7; margin-top: 6px; }
+.quote-turn-details-content button { margin-top: 8px; color: #1d4ed8; text-decoration: underline; }
+.quote-turn-details > summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .quote-turn-details > summary::before { transition: none; } }
+@media (max-width: 900px) { .quote-composer-footer .quote-composer-hint > span:first-child { display: none; } }
+@media (max-width: 480px) { .chat-only-workspace .quote-composer-dock .thinking-composer--inline { padding-left: 14px; gap: 4px; }.chat-only-workspace .thinking-composer--inline .quote-composer-icon { width: 30px; }.chat-only-workspace .thinking-composer--inline .thinking-composer-send-tools { gap: 0; } }
+.quote-chat-privacy { flex-shrink: 0; padding: 7px 18px 11px; font-size: 9px; color: #7688a2; }
+.quote-chat-privacy > summary { cursor: pointer; width: fit-content; }.quote-chat-privacy > summary span { color: #526e96; }
+.quote-chat-privacy > p { max-height: 90px; overflow: auto; line-height: 1.65; margin-top: 6px; }
+.quote-composer-menu { min-width: 245px; max-width: min(340px, calc(100vw - 24px)); padding: 6px; border-color: #dbe3ef; border-radius: 12px; box-shadow: 0 12px 35px #1e3a5f18; }
+.quote-composer-menu [role=menuitem] { gap: 9px; font-size: 12px; padding: 9px 10px; border-radius: 7px; color: #294767; cursor: pointer; }.quote-composer-menu [role=menuitem] svg { flex-shrink: 0; color: #7389a7; }
+.quote-composer-dialog { max-width: 540px; max-height: 90dvh; overflow-y: auto; border-radius: 20px; border-color: #dbe3ef; color: #1c3559; }
+.quote-composer-dialog h2 { font-size: 19px; letter-spacing: -.025em; }.quote-composer-dialog [id$=description] { font-size: 12px; line-height: 1.7; }
+.quote-support-upload { position: relative; display: flex; align-items: center; gap: 12px; padding: 18px; border: 1px dashed #a7bfdf; border-radius: 12px; background: #f7faff; cursor: pointer; color: #345f96; font-size: 12px; }
+.quote-support-upload > span { overflow-wrap: anywhere; }.quote-support-upload small { display: block; color: #8292aa; margin-top: 5px; font-size: 10px; }
+.quote-support-upload input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }.quote-support-upload:focus-within { outline: 2px solid #2563eb; outline-offset: 3px; }
+.quote-support-extract { display: grid; gap: 9px; font-size: 12px; }.quote-support-extract > span { display: flex; align-items: center; gap: 7px; }.quote-support-extract small { margin-left: auto; font-size: 10px; color: #8292aa; }
+.quote-support-extract textarea { min-height: 150px; width: 100%; padding: 12px; font-size: 12px; line-height: 1.7; border: 1px solid #cfdaea; background: #fcfdff; border-radius: 10px; resize: vertical; }
+.quote-support-note { color: #7b8ba1; line-height: 1.7; font-size: 10px; }.quote-support-error { color: #a12f22; padding: 9px 12px; border-radius: 9px; background: #fff4f0; font-size: 12px; line-height: 1.6; }
+.quote-voice-pending { padding: 10px 12px; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; color: #345f96; font-size: 11px; line-height: 1.7; }
+.quote-voice-upload { position: relative; display: block; text-align: center; padding: 10px; border: 1px dashed #b8cdea; border-radius: 9px; font-size: 12px; color: #345f96; cursor: pointer; overflow-wrap: anywhere; }.quote-voice-upload input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }.quote-voice-upload:focus-within { outline: 2px solid #2563eb; outline-offset: 2px; }
+.quote-voice-import { display: flex; gap: 8px; flex-wrap: wrap; }.quote-voice-import audio { width: 100%; }.quote-voice-import button { padding: 8px 12px; border-radius: 8px; background: #edf4ff; color: #1e40af; font-size: 12px; }.quote-voice-import button:disabled { opacity: .4; cursor: not-allowed; }
+.quote-support-footer { display: flex; justify-content: flex-end; gap: 8px; align-items: center; }.quote-support-footer button { padding: 10px 14px; border-radius: 9px; font-size: 12px; border: 1px solid #dbe3ef; }.quote-support-footer button + button { color: white; background: #1e3a5f; border-color: #1e3a5f; }.quote-support-footer button:disabled { opacity: .4; cursor: not-allowed; }
+.quote-support-status,.quote-support-pages { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #536784; }.quote-support-pages input { width: 60px; margin-left: 8px; border: 1px solid #cfdaea; padding: 6px; border-radius: 6px; }.quote-support-pages button { margin-left: auto; text-decoration: underline; color: #1d4ed8; }
+.quote-composer-dialog button:focus-visible,.quote-support-extract textarea:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 700px) { .chat-only-workspace.simulation-shell { padding: 14px 10px; }.chat-only-workspace .simulation-head { display: block; }.chat-only-workspace .simulation-safe { display: inline-block; margin-top: 8px; }.chat-only-workspace .quote-lab-messages { padding: 16px; }.chat-only-workspace .quote-workbench-layout { --quote-workbench-height: clamp(580px, calc(100dvh - 160px), 850px); }.quote-composer-hint > span:first-child { display: none; }.quote-composer-hint { justify-content: flex-end; }.quote-chat-header-meta { gap: 7px; }.quote-support-footer { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .chat-only-workspace .thinking-composer .quote-composer-icon { transition: none; }.quote-voice-dialog .animate-ping { animation: none; } }
+/* Keep the composer readable and avoid focus zoom on small touch screens. */
+@media (max-width: 700px) {
+  .chat-only-workspace .thinking-composer--inline.thinking-composer--compact textarea { font-size: 16px; }
+}
+
+/* Conversation-native setup: bounded lists, no new workspace tabs or full catalogue fetch. */
+.quote-chat-picker { margin-top: 12px; padding: 13px; border: 1px solid #dbe5f3; border-radius: 13px; background: #fbfdff; white-space: normal; }
+.quote-chat-picker > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.quote-chat-picker header > div { min-width: 0; display: grid; gap: 4px; }.quote-chat-picker header strong { font-size: 13px; color: #1e3a5f; }
+.quote-chat-picker header small { color: #64748b; font-size: 11px; line-height: 1.6; }
+.quote-chat-picker header > button { display: inline-flex; gap: 5px; align-items: center; flex-shrink: 0; color: #1d4ed8; font-size: 11px; padding: 4px; }
+.quote-picker-results { list-style: none; max-height: 240px; overflow: auto; padding: 0; margin: 8px 0; scrollbar-width: thin; overscroll-behavior: contain; }
+.quote-picker-results li + li { margin-top: 3px; }.quote-picker-results button { display: flex; gap: 10px; align-items: center; text-align: left; width: 100%; min-height: 46px; border: 1px solid transparent; border-radius: 9px; padding: 9px; color: #294767; }
+.quote-picker-results button > span { flex: 1; min-width: 0; display: grid; gap: 4px; }.quote-picker-results strong { font-size: 12px; line-height: 1.5; }
+.quote-picker-results small { color: #71829b; font-size: 10px; line-height: 1.6; }.quote-picker-results svg { flex-shrink: 0; color: #426b9e; }
+.quote-picker-results button:hover:not(:disabled) { background: #eff6ff; }.quote-picker-results button[aria-pressed=true],.quote-picker-results button[aria-current=true] { border-color: #93b8ef; background: #eff6ff; }
+.quote-chat-picker button:disabled { opacity: .45; cursor: not-allowed; }.quote-chat-picker button:focus-visible,.quote-picker-examples summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.quote-chat-picker > footer { font-size: 10px; color: #71829b; line-height: 1.6; border-top: 1px solid #e2e8f0; padding-top: 9px; margin-top: 8px; }
+.quote-chat-picker > p { font-size: 11px; line-height: 1.6; padding: 8px 0; color: #64748b; }.quote-chat-picker > p[role=alert] { color: #9a3412; }
+.quote-picker-confirm { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+.quote-picker-confirm small { color: #64748b; font-size: 10px; line-height: 1.6; }.quote-picker-confirm button { flex-shrink: 0; padding: 9px 12px; border-radius: 9px; background: #1e3a5f; color: #fff; font-size: 11px; }
+.quote-picker-examples { font-size: 10px; color: #64748b; margin-top: 10px; }.quote-picker-examples summary { cursor: pointer; }.quote-picker-examples > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }.quote-picker-examples button { padding: 7px 9px; border: 1px solid #dbe5f3; border-radius: 15px; color: #294767; }
+@media (max-width: 480px) { .quote-picker-confirm { align-items: stretch; flex-direction: column; }.quote-chat-picker > header { flex-wrap: wrap; }.quote-picker-results { max-height: 220px; } }
+.quote-flow-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; margin-bottom: 20px; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 14px; color: #1e3a8a; font-size: 13px; }
+.quote-flow-bar button { padding: 10px 16px; border-radius: 999px; background: #ea580c; color: white; font-weight: 600; white-space: nowrap; }
+.quote-flow-bar button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 640px) { .quote-flow-bar { flex-direction: column; align-items: stretch; } }
+
+/* Quiet, platform-inspired controls. Text and document surfaces stay opaque.
+   Blur is static and bounded to the composer, never animated on the transcript. */
+.chat-only-workspace .quote-workbench { box-shadow: 0 8px 30px #172b4d07; }
+.chat-only-workspace .quote-workbench-tabs { position: relative; isolation: isolate; background: #f5f6fa; }
+.chat-only-workspace .quote-workbench-indicator {
+  position: absolute; z-index: 0; pointer-events: none; top: 6px; bottom: 6px; left: 6px;
+  width: calc(50% - 9px); border-radius: 11px;
+  background: linear-gradient(145deg, #263c60, #1c2e4d);
+  box-shadow: inset 0 -2px #ef8b43, inset 0 1px #ffffff20, 0 2px 5px #172b4d14;
+  transition: transform 220ms cubic-bezier(.22,.75,.25,1);
+}
+.chat-only-workspace .quote-workbench-tabs[data-pane="lines"] .quote-workbench-indicator { transform: translateX(calc(100% + 6px)); }
+.chat-only-workspace .quote-workbench-tabs [role="tab"] { position: relative; z-index: 1; transition: color 160ms ease; }
+.chat-only-workspace .quote-workbench-tabs [role="tab"][data-state="active"] { background: transparent; box-shadow: none; }
+.chat-only-workspace .quote-workbench .quote-workbench-panel:not([hidden]) { animation: quote-panel-reveal 160ms ease-out; }
+.chat-only-workspace .quote-lab-messages { background: #fff; }
+.chat-only-workspace .quote-lab-message { animation: quote-soft-arrive 180ms ease-out; }
+.chat-only-workspace .quote-lab-message.user { background: #f1f5fc; border-color: #e5ebf4; border-radius: 18px 18px 5px 18px; }
+.chat-only-workspace .quote-composer-dock { position: relative; border-radius: 30px; }
+.chat-only-workspace .quote-composer-dock .thinking-composer--inline {
+  min-height: 58px; border-color: #d9dfe8;
+  background: linear-gradient(135deg, #fff, #f8faff);
+  box-shadow: inset 0 1px 0 #fff, 0 5px 18px #172b4d0b;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.chat-only-workspace .quote-composer-dock .thinking-composer--inline:focus-within {
+  border-color: #e9a16a; box-shadow: 0 0 0 3px #fb923c12, inset 0 1px #fff, 0 6px 20px #172b4d0d;
+}
+@supports ((backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px))) {
+  .chat-only-workspace .quote-composer-dock .thinking-composer--inline {
+    background: linear-gradient(135deg, #fffffff5, #f3f7fbe8);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    backdrop-filter: blur(12px) saturate(1.15);
+  }
+}
+.chat-only-workspace .quote-lab-message .quote-choice-pill { border-color: #dce2eb; box-shadow: inset 0 1px #fff, 0 1px 3px #172b4d05; animation: quote-soft-arrive 180ms ease-out backwards; }
+.chat-only-workspace .quote-lab-message .quote-choice-pill:hover:not(:disabled) { transform: translateY(-1px); border-color: #a5b8d1; box-shadow: 0 3px 8px #172b4d0a; }
+.chat-only-workspace .quote-lab-message .quote-choice-pill:active:not(:disabled) { transform: scale(.985); }
+.chat-only-workspace .quote-lab-message .quote-choice-pill[aria-pressed="true"] { background: #edf4ff; border-color: #7da6db; box-shadow: inset 0 0 0 1px #7da6db25; }
+.chat-only-workspace .thinking-composer .quote-composer-icon:active:not(:disabled) { transform: scale(.95); }
+@keyframes quote-soft-arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes quote-panel-reveal { from { opacity: .65; } to { opacity: 1; } }
+@media (prefers-reduced-transparency: reduce) {
+  .chat-only-workspace .quote-composer-dock .thinking-composer--inline { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-only-workspace .quote-workbench-indicator,
+  .chat-only-workspace .quote-workbench-tabs [role="tab"],
+  .chat-only-workspace .quote-composer-dock .thinking-composer--inline,
+  .chat-only-workspace .quote-lab-message .quote-choice-pill,
+  .chat-only-workspace .quote-lab-message,
+  .chat-only-workspace .quote-workbench .quote-workbench-panel:not([hidden]),
+  .chat-only-workspace .thinking-composer .quote-composer-icon { animation: none; transition: none; }
+  .chat-only-workspace .quote-lab-message .quote-choice-pill,
+  .chat-only-workspace .thinking-composer .quote-composer-icon { transform: none !important; }
+}

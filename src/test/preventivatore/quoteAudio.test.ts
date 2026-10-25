@@ -1,0 +1,33 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Blob as NodeBlob } from 'node:buffer';
+import { readQuoteAudioRequest, readQuoteAudioResult, quoteAudioBlob, QUOTE_AUDIO_MAX_BYTES } from '../../../supabase/functions/_shared/quoteAudio';
+import { createLocalQuoteAudioTransport } from '@/lib/preventivi/localQuoteAudioTransport';
+const companyId = 'd2000000-0000-4000-a000-000000000002';
+const turnId = '11111111-1111-4111-a111-111111111111';
+const wav = 'RIFF' + 'x'.repeat(4) + 'WAVE' + 'x'.repeat(40);
+const request = () => ({ version: 1, companyId, sessionId: turnId, turnId, audio: { mime: 'audio/wav', base64: btoa(wav) } });
+const result = (turn = turnId) => ({ version: 1, turnId: turn, text: '  Rifare il bagno  ', model: 'openai/whisper-1', durationSeconds: 5, receipt: { ledgerId: 'ledger-demo', estimated: true, costUsd: .0005 } });
+describe('Contratto audio: dati limitati e ricevuta verificabile', () => {
+  it('decodifica soltanto audio coerente con il formato', () => { expect(quoteAudioBlob(readQuoteAudioRequest(request())).size).toBe(wav.length); expect(readQuoteAudioResult(result()).text).toBe('Rifare il bagno'); });
+  it.each(['audio/mpeg', 'image/svg+xml', 'audio/mp4'])('rifiuta MIME non supportati o incongruenti: %s', mime => { expect(() => readQuoteAudioRequest({ ...request(), audio: { ...request().audio, mime } })).toThrow(); });
+  it.each(['https://example.com/audio.wav', '', 'a===', btoa('RIFFWAVE')])('rifiuta URL, codifica o audio incompleti', base64 => { expect(() => readQuoteAudioRequest({ ...request(), audio: { mime: 'audio/wav', base64 } })).toThrow(); });
+  it('limita dimensioni e identificativi', () => { expect(() => readQuoteAudioRequest({ ...request(), turnId: 'bad' })).toThrow(); expect(() => readQuoteAudioRequest({ ...request(), audio: { mime: 'audio/wav', base64: 'A'.repeat(2_800_000) } })).toThrow(); });
+  it.each([{ text: '' }, { text: 'a'.repeat(12001) }, { durationSeconds: 126 }, { durationSeconds: NaN }, { receipt: null }, { model: 'untrusted' }])('non mostra risultati non verificabili: %o', patch => { expect(() => readQuoteAudioResult({ ...result(), ...patch })).toThrow(); });
+});
+describe('Trasporto audio locale: nessun invio o nuovo tentativo implicito', () => {
+  const endpoint = 'http://127.0.0.1:8081/functions/v1/ai-preventivo-conversazione';
+  const fetcher = vi.fn<typeof fetch>(); const getToken = vi.fn(async () => 'user-session');
+  const factory = (patch = {}) => createLocalQuoteAudioTransport({ endpoint, companyId, getToken, publishableKey: 'public-key', fetch: fetcher, ...patch });
+  const blob = (type = 'audio/wav') => new NodeBlob([wav], { type }) as Blob;
+  beforeEach(() => { vi.clearAllMocks(); getToken.mockResolvedValue('user-session'); fetcher.mockImplementation(async (_url, opts) => new Response(JSON.stringify(result(JSON.parse(String(opts?.body)).turnId)), { status: 200 })); });
+  afterEach(() => vi.useRealTimers());
+  it.each(['https://example.com/functions/v1/ai-preventivo-conversazione', endpoint + '?remote=1', endpoint.replace('127.0.0.1', 'user:pass@localhost')])('blocca altre destinazioni: %s', value => expect(() => factory({ endpoint: value })).toThrow());
+  it('blocca altre aziende', () => expect(() => factory({ companyId: turnId })).toThrow());
+  it('trascrive esplicitamente su /audio e riusa lo stesso esito per doppio clic', async () => { const transport = factory(); const audio = blob('audio/x-wav'); const signal = new AbortController().signal; const a = transport(audio, signal); const b = transport(audio, signal); expect(a).toBe(b); expect(await a).toBe('Rifare il bagno'); await transport(audio, signal); expect(fetcher).toHaveBeenCalledOnce(); expect(fetcher.mock.calls[0][0]).toBe(endpoint + '/audio'); expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({ companyId, audio: { mime: 'audio/wav' } }); });
+  it('non invia senza sessione', async () => { getToken.mockResolvedValue(null!); await expect(factory()(blob(), new AbortController().signal)).rejects.toThrow('Accedi'); expect(fetcher).not.toHaveBeenCalled(); });
+  it('blocca file vuoti, troppo grandi o falsi prima della rete', async () => { const transport = factory(); for (const audio of [new NodeBlob([]), new NodeBlob([new Uint8Array(QUOTE_AUDIO_MAX_BYTES + 1)]), new NodeBlob(['not an audio'], { type: 'audio/wav' })]) await expect(transport(audio as Blob, new AbortController().signal)).rejects.toThrow(); expect(fetcher).not.toHaveBeenCalled(); });
+  it('non ritenta un esito HTTP incerto', async () => { fetcher.mockResolvedValue(new Response('', { status: 502 })); const transport = factory(); const audio = blob(); for (let i = 0; i < 2; i++) await expect(transport(audio, new AbortController().signal)).rejects.toThrow('502'); expect(fetcher).toHaveBeenCalledOnce(); });
+  it('rifiuta un testo riferito a un altro turno', async () => { fetcher.mockResolvedValue(new Response(JSON.stringify(result()), { status: 200 })); await expect(factory()(blob(), new AbortController().signal)).rejects.toThrow('corrente'); });
+  it('un annullamento iniziale non invia audio', () => { const ctrl = new AbortController(); ctrl.abort(); expect(() => factory()(blob(), ctrl.signal)).toThrow(); expect(fetcher).not.toHaveBeenCalled(); });
+  it('scade senza ritentare dopo 80 secondi', async () => { vi.useFakeTimers(); fetcher.mockImplementation(async (_url, opts) => new Promise((_resolve, reject) => opts?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))); const transport = factory(); const audio = blob(); const attempt = transport(audio, new AbortController().signal); const assertion = expect(attempt).rejects.toThrow(); await vi.advanceTimersByTimeAsync(80_001); await assertion; expect(fetcher).toHaveBeenCalledOnce(); });
+});

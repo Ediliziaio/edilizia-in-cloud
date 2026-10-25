@@ -15,6 +15,7 @@
  *  6. PDF       — generazione preventivo brandizzato             (Task 22, in arrivo)
  */
 import { useState, useEffect, useMemo, useRef } from "react";
+import { PdfDatiSalvatiGuard } from "@/components/preventivatore/PdfDatiSalvatiGuard";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -335,7 +336,7 @@ export default function PiscineWizard() {
   const statoSalvataggio: StatoSalvataggio = isNew
     ? "nuovo"
     : (upsertMut.isPending || statoComputo === "salvando") ? "salvando"
-    : (erroreSalvataggio && dirty) ? "errore"
+    : ((erroreSalvataggio && dirty) || statoComputo === "errore") ? "errore"
     : (dirty || statoComputo === "modifiche") ? "modifiche"
     : "salvato";
 
@@ -533,7 +534,7 @@ export default function PiscineWizard() {
           inCorso: upsertMut.isPending || creating,
           ultimoPasso,
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
-          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
+          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail) && statoSalvataggio === "salvato",
         }}
         sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
@@ -577,6 +578,7 @@ export default function PiscineWizard() {
             onVociChange={setComputoLive}
             onStato={gestisciStatoComputo}
             initialDirty={statoComputo === "modifiche"}
+            aiContext={{ module: "piscine", title: model?.title ?? "Piscine", project: { ...detail.progetto, ...form }, template: templatePdf, media: detail.media }}
             model={model}
           />
         )}
@@ -595,13 +597,15 @@ export default function PiscineWizard() {
           // Merge progetto salvato + edit correnti del form (sconto/IVA/
           // detrazione, cliente, cantiere) così l'anteprima riflette le
           // modifiche non ancora persistite dello step Economia.
+          <PdfDatiSalvatiGuard stato={statoSalvataggio} onComputo={() => void handleStepClick("computo")}>
           <StepPdf
             progetto={{ ...detail.progetto, ...form }}
-            computo={detail.computo}
+            computo={computoLive ?? detail.computo}
             media={detail.media}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
           />
+          </PdfDatiSalvatiGuard>
         )}
         {currentStep === "pdf" && !(id && detail) && (
           <StepComingSoon step={currentStep} />

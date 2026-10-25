@@ -10,6 +10,7 @@ import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 // Execute the real handlers, with synthetic services only. This catches ordering
 // regressions that pure helper tests cannot see, without loading the giant editor.
 function actualHandler(file: string, name: string, context: Record<string, unknown>) {
+  context.localEditor ??= undefined;
   const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let initializer: ts.Expression | undefined;
   function visit(node: ts.Node) {

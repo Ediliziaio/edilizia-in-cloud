@@ -15,6 +15,7 @@
  *  6. PDF       — generazione preventivo brandizzato             (Task 22, in arrivo)
  */
 import { useState, useEffect, useMemo, useRef } from "react";
+import { PdfDatiSalvatiGuard } from "@/components/preventivatore/PdfDatiSalvatiGuard";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,7 +38,6 @@ import {
   useBagniProgetto,
   useUpsertProgetto,
   useBgnTemplatePdf,
-  getBgnTemplatePdf,
 } from "@/hooks/useBagniProgetto";
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
@@ -146,17 +146,10 @@ export default function BagniWizard() {
   const [form, setForm] = useState<BgnFormPatch>(() => model ? { tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.bagni[model.id] } : {});
   /** Il modello dell'azienda per l'intervento, com'è adesso, pronto da congelare nel preventivo. */
   const modelloAttuale = async (companyId: string, model: { id: string }) => {
-    const [{ createFullBgnTemplate, isFullBgnModuleId }, { loadLocalBgnTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
-      import("@/lib/moduli-vendita/fullBgnModules"), import("@/lib/moduli-vendita/localBgnTemplates"),
-      import("@/lib/moduli-vendita/archivioModelli"),
-    ]);
-    if (!isFullBgnModuleId(model.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
-    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
-    // un altro computer. Se il database non risponde resta la copia di questo browser.
-    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
-    const base = await getBgnTemplatePdf(companyId);
-    const source = loadLocalBgnTemplate(companyId, model.id)?.template ?? createFullBgnTemplate(base, model.id);
-    return creaModelloPreventivo("bagni", companyId, model.id, source);
+    const { loadLiveQuoteModuleTemplate } = await import('@/lib/preventivi/liveQuoteModuleTemplate');
+    const source = await loadLiveQuoteModuleTemplate(companyId, 'bagni', model.id);
+    if (source.module !== 'bagni') throw new Error('Modello Bagni non disponibile.');
+    return creaModelloPreventivo("bagni", companyId, model.id, source.template);
   };
   const createInput = async (): Promise<BgnFormPatch> => {
     if (!requestedModel) return form;
@@ -212,6 +205,7 @@ export default function BagniWizard() {
 
   // Link diretto a un passo (?step=pdf): appena il progetto è caricato, apre
   // quel passo. Vince sull'auto-advance qui sotto (che lo salterebbe).
+  const didAutoAdvanceRef = useRef(false);
   const didApplyStepFromUrlRef = useRef(false);
   useEffect(() => {
     if (didApplyStepFromUrlRef.current) return;
@@ -223,7 +217,6 @@ export default function BagniWizard() {
   }, [requestedStep, id, detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-advance Step 1 → Step 2 dopo creazione iniziale (single-fire).
-  const didAutoAdvanceRef = useRef(false);
   useEffect(() => {
     if (didAutoAdvanceRef.current) return;
     if (requestedStep) { didAutoAdvanceRef.current = true; return; } // il link decide il passo
@@ -353,7 +346,7 @@ export default function BagniWizard() {
   const statoSalvataggio: StatoSalvataggio = isNew
     ? "nuovo"
     : (upsertMut.isPending || statoComputo === "salvando") ? "salvando"
-    : (erroreSalvataggio && dirty) ? "errore"
+    : ((erroreSalvataggio && dirty) || statoComputo === "errore") ? "errore"
     : (dirty || statoComputo === "modifiche") ? "modifiche"
     : "salvato";
 
@@ -551,7 +544,7 @@ export default function BagniWizard() {
           inCorso: upsertMut.isPending || creating,
           ultimoPasso,
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
-          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
+          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail) && statoSalvataggio === "salvato",
         }}
         sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
@@ -595,6 +588,7 @@ export default function BagniWizard() {
             onVociChange={setComputoLive}
             onStato={gestisciStatoComputo}
             initialDirty={statoComputo === "modifiche"}
+            aiContext={{ module: "bagni", title: model?.title ?? "Bagni", project: { ...detail.progetto, ...form }, template: templatePdf, media: detail.media }}
             model={model}
           />
         )}
@@ -613,13 +607,15 @@ export default function BagniWizard() {
           // Merge progetto salvato + edit correnti del form (sconto/IVA/
           // detrazione, cliente, cantiere) così l'anteprima riflette le
           // modifiche non ancora persistite dello step Economia.
+          <PdfDatiSalvatiGuard stato={statoSalvataggio} onComputo={() => void handleStepClick("computo")}>
           <StepPdf
             progetto={{ ...detail.progetto, ...form }}
-            computo={detail.computo}
+            computo={computoLive ?? detail.computo}
             media={detail.media}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
           />
+          </PdfDatiSalvatiGuard>
         )}
         {currentStep === "pdf" && !(id && detail) && (
           <StepComingSoon step={currentStep} />

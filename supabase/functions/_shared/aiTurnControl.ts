@@ -13,6 +13,8 @@ export interface AiTurnLimits {
   maxEstimatedInputTokens: number;
   /** Stop starting more calls after this OBSERVED spend, not a guaranteed price cap. */
   stopAfterObservedUsd: number;
+  /** Dedicated opt-in only; defaults for all other endpoints stay unchanged. */
+  providerTimeoutMs?: number;
 }
 
 const DEFAULT_LIMITS: AiTurnLimits = {
@@ -50,11 +52,13 @@ export class AiTurnControl {
     for (const value of Object.values(this.limits)) {
       if (!Number.isFinite(value) || value <= 0) throw new Error("Invalid AI turn limits");
     }
+    if (this.limits.providerTimeoutMs != null && this.limits.providerTimeoutMs > 60_000) throw new Error("Provider timeout exceeds bounded maximum");
     this.startedAt = now();
     this.deadlineAt = this.startedAt + this.limits.durationMs;
   }
 
   remainingMs(): number { return Math.max(0, this.deadlineAt - this.now()); }
+  attemptTimeoutMs(defaultMs: number): number { return Math.max(1, Math.min(this.limits.providerTimeoutMs ?? defaultMs, this.remainingMs())); }
 
   assertCanStart(): void {
     if (this.remainingMs() < 1_000) throw new AiTurnLimitError("time");

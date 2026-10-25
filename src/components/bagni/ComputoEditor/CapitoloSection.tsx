@@ -39,6 +39,7 @@ import type { BgnComputoVoce } from "@/types/bagni";
 import VoceRow from "./VoceRow";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
+import { useComputoReview } from './ComputoReviewContext';
 
 /** Palette accent ciclica per i capitoli (bordo · pallino · pill subtotale). */
 const ACCENTS = [
@@ -70,6 +71,7 @@ export default function CapitoloSection({
   onChange, onRename, onDeleteCapitolo,
 }: Props) {
   const [open, setOpen] = useState(true);
+  const review = useComputoReview();
   const [pickerOpen, setPickerOpen] = useState(false);
   // Il nome si scrive qui e si applica all'uscita dal campo (o con Invio):
   // applicato a ogni tasto spostava le voci in «Generale» a campo vuoto, o le
@@ -89,8 +91,8 @@ export default function CapitoloSection({
 
   // Subtotale live del capitolo (somma importi righe).
   const subtotale = useMemo(
-    () => voci.reduce((acc, v) => acc + calcRigaImporto(v), 0),
-    [voci],
+    () => voci.reduce((acc, v) => acc + (!review || review.included.has(v.id) ? calcRigaImporto(v) : 0), 0),
+    [voci, review],
   );
 
   const handleDragEnd = (e: DragEndEvent) => {

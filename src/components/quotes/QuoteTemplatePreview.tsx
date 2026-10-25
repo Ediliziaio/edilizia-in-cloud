@@ -2,6 +2,22 @@ import React from 'react';
 import type { QuoteTemplate, TextAlignment } from '@/types/quoteTemplate';
 import { quoteTemplateSampleData, type AnteprimaModello } from '@/lib/quoteTemplatePreview';
 import { testoSopra } from '../../../supabase/functions/_shared/temaColori';
+import { formatCurrency } from '@/lib/formatters';
+import { substituteMergeTags } from '../../../supabase/functions/_shared/quoteTemplateComposer';
+import { campiContratto } from '../../../supabase/functions/_shared/campiContratto';
+import { recalcPhaseAmounts, paymentPlanError, type QuotePaymentPhase } from '@/lib/preventivi/paymentTerms';
+
+/** Optional real draft data. Without it the settings catalogue keeps its sample preview. */
+export interface TemplatePreviewDocument {
+  title: string; clientName: string; clientAddress?: string; siteAddress?: string; date: string;
+  rows: Array<{ id: string; name: string; description: string; quantity: number; unit: string; price: number; amount: number }>;
+  net: number; taxPending: boolean;
+  tax?: number | null; gross?: number | null; taxBreakdown?: Record<string, number>; displayGross?: boolean;
+  commonNotes?: string; scheduleText?: string; globalDiscountPercent?: number;
+  paymentMethod?: string; paymentPhases?: QuotePaymentPhase[];
+  blocks?: Array<{ id: string; title: string; text: string; image?: string; specs?: Array<{ label: string; value: string }> }>;
+}
+const DraftContext = React.createContext<TemplatePreviewDocument | undefined>(undefined);
 
 interface Props {
   /** Il modello, anche già risolto coi blocchi collegati (colore della copertina compreso). */
@@ -12,6 +28,7 @@ interface Props {
   logoSrc?: string;
   logoLightSrc?: string;
   coverSrc?: string;
+  documentData?: TemplatePreviewDocument;
 }
 
 /**
@@ -46,13 +63,13 @@ function rowPadding(density: QuoteTemplate['row_density'] | undefined): number {
  * L'anteprima deve descrivere una proposta generica: il verticale (serramenti,
  * bagni, fotovoltaico, ecc.) viene scelto nel preventivo reale, non qui.
  */
-function previewCopy(t: Partial<QuoteTemplate>) {
+function previewCopy(t: Partial<QuoteTemplate>, draft?: TemplatePreviewDocument) {
   return {
     eyebrow: 'PROPOSTA COMMERCIALE',
-    title: t.cover_title?.trim().replace(/\*/g, '') || 'Proposta personalizzata',
-    subtitle: t.cover_subtitle?.trim() || 'Soluzione, tempi e investimento in un unico documento.',
-    tagline: t.cover_tagline?.trim() || 'Una proposta chiara, pensata per il tuo progetto.',
-    serviceLine: 'Progetti su misura · qualità, tempi e assistenza',
+    title: draft?.title || t.cover_title?.trim().replace(/\*/g, '') || 'Proposta personalizzata',
+    subtitle: t.cover_subtitle?.trim() || (draft ? '' : 'Soluzione, tempi e investimento in un unico documento.'),
+    tagline: t.cover_tagline?.trim() || (draft ? '' : 'Una proposta chiara, pensata per il tuo progetto.'),
+    serviceLine: draft ? 'Preventivo · bozza locale' : 'Progetti su misura · qualità, tempi e assistenza',
   };
 }
 
@@ -64,8 +81,24 @@ export function QuoteTemplatePreview({
   logoSrc,
   logoLightSrc,
   coverSrc,
+  documentData,
 }: Props) {
-  const t = quoteTemplateSampleData(template, companyName);
+  const phases = documentData?.paymentPhases ?? [];
+  const invalidPlan = paymentPlanError(phases);
+  const plan = invalidPlan ? 'Piano di pagamento da completare e confermare.' : [documentData?.paymentMethod,
+    ...recalcPhaseAmounts(phases, documentData?.gross ?? 0).map(phase => `${phase.label}: ${phase.percent}%${documentData?.gross != null ? ` — ${formatCurrency(phase.amount)}` : ' — importo da definire'}`),
+  ].filter(Boolean).join('\n');
+  const paymentText = plan || template.payment_terms_text || 'Da concordare';
+  const draftText = documentData && ((value: string) => substituteMergeTags(value, {
+    cliente: { nome_completo: documentData.clientName, nome: documentData.clientName, indirizzo: documentData.clientAddress || '[Da definire]' },
+    cantiere: { indirizzo: documentData.siteAddress || '[Da definire]', citta: '[Da definire]' },
+    contratto: Object.fromEntries(campiContratto(template.contractual_terms_text, template.legal_terms_text).map(f => [f.nome, '[Da compilare]'])),
+    azienda: { ragione_sociale: companyName },
+    preventivo: { data: documentData.date, numero: 'BOZZA', totale: !documentData.taxPending && documentData.gross != null ? formatCurrency(documentData.gross) : 'Da determinare', subtotale: documentData.rows.length ? formatCurrency(documentData.net) : 'Da determinare', iva: !documentData.taxPending && documentData.tax != null ? formatCurrency(documentData.tax) : 'Da definire', piano_pagamenti: paymentText, frase_pagamenti: `Il pagamento avviene secondo il piano concordato: ${paymentText}` },
+    data: { oggi: documentData.date },
+  }));
+  const t = documentData ? Object.fromEntries(Object.entries(template).map(([key, value]) => [key, typeof value === 'string' ? draftText!(value) : value])) as AnteprimaModello : quoteTemplateSampleData(template, companyName);
+  if (documentData && plan) t.payment_terms_text = plan;
   const primary = t.primary_color ?? '#1E40AF';
   const secondary = t.secondary_color ?? '#3B82F6';
   const accent = t.accent_color ?? '#DBEAFE';
@@ -88,18 +121,18 @@ export function QuoteTemplatePreview({
   const hasCover = page === 'cover' && !!(t.cover_title?.trim() || t.cover_subtitle?.trim() || (t.show_cover_image && t.cover_image_url));
 
   return (
-    <div style={{ width: sheetW * scale, height: sheetH * scale, overflow: 'hidden' }}>
+    <DraftContext.Provider value={documentData ? { ...documentData, blocks: documentData.blocks?.map(block => ({ ...block, title: draftText!(block.title), text: draftText!(block.text) })) } : undefined}><div data-template-layout={layout} style={{ width: sheetW * scale, ...(documentData ? { zoom: scale, width: sheetW } : { height: sheetH * scale, overflow: 'hidden' }) }}>
       <div
         style={{
           width: sheetW,
-          height: sheetH,
+          ...(documentData ? { minHeight: sheetH } : { height: sheetH }),
           backgroundColor: '#FFFFFF',
           position: 'relative',
-          overflow: 'hidden',
+          overflow: documentData && !hasCover ? 'visible' : 'hidden',
           fontFamily,
           fontSize: type.body,
           lineHeight: type.lineHeight,
-          transform: `scale(${scale})`,
+          transform: documentData ? undefined : `scale(${scale})`,
           transformOrigin: 'top left',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
           borderRadius: 4,
@@ -155,14 +188,14 @@ export function QuoteTemplatePreview({
         {/* Footer */}
         {!hasCover && t.footer_text && (
           <div style={{
-            position: 'absolute', bottom: 16, left: marginPx, right: marginPx,
+            ...(documentData ? { margin: `32px ${marginPx}px 0`, paddingBottom: 20 } : { position: 'absolute', bottom: 16, left: marginPx, right: marginPx }),
             fontSize: type.small, color: '#9CA3AF', textAlign: 'center',
           }}>
             {t.footer_text}
           </div>
         )}
       </div>
-    </div>
+    </div></DraftContext.Provider>
   );
 }
 
@@ -170,6 +203,7 @@ export function QuoteTemplatePreview({
 function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc, logoTransparent }: {
   template: Partial<QuoteTemplate>; companyName: string; primary: string; logoSrc?: string; coverSrc?: string; logoTransparent?: boolean;
 }) {
+  const draft = React.useContext(DraftContext);
   const [failedPhoto, setFailedPhoto] = React.useState<string | null>(null);
   if (t.show_cover_image && t.cover_image_url?.endsWith('.pdf')) return <div style={{ position: 'absolute', inset: 0, background: '#f8fafc', color: '#334155', display: 'grid', placeContent: 'center', padding: 48, textAlign: 'center' }}><strong>Copertina PDF personalizzata</strong><p>La grafica originale è visibile nell'anteprima PDF.</p></div>;
   const photo = t.show_cover_image && coverSrc !== failedPhoto ? coverSrc : undefined;
@@ -194,7 +228,7 @@ function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc, logo
         {[1, .72, .48, .28, .14].map((opacity) => <span key={opacity} style={{ height: 2, background: '#fff', opacity, flex: 1 }} />)}
       </div>
       <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
-        {[["PREPARATO PER", "Mario Rossi"], ["INDIRIZZO", "Via Garibaldi 10, Roma"], ["RIFERIMENTO", "OFF-2026-001"], ["DATA", "9 marzo 2026"]].map(([label, value]) => <div key={label}><div style={{ fontSize: 6.5, letterSpacing: 1, color: '#dbeafe', marginBottom: 8 }}>{label}</div><div style={{ fontSize: 9.5, fontWeight: 700 }}>{value}</div></div>)}
+        {[["PREPARATO PER", draft?.clientName ?? "Mario Rossi"], ["INDIRIZZO", draft ? draft.clientAddress || 'Da definire' : "Via Garibaldi 10, Roma"], ["RIFERIMENTO", draft ? 'BOZZA LOCALE' : "OFF-2026-001"], ["DATA", draft?.date ?? "9 marzo 2026"]].map(([label, value]) => <div key={label}><div style={{ fontSize: 6.5, letterSpacing: 1, color: '#dbeafe', marginBottom: 8 }}>{label}</div><div style={{ fontSize: 9.5, fontWeight: 700 }}>{value}</div></div>)}
       </div>
     </div>
   );
@@ -241,7 +275,9 @@ function PreviewLogo({
   headerText?: string;
   transparent?: boolean;
 }) {
+  const draft = React.useContext(DraftContext);
   if (t.show_logo === false) return null;
+  if (draft && !logoSrc) return null;
 
   const size = logoSizePx(t.logo_size);
 
@@ -286,7 +322,7 @@ function PreviewLogo({
 }
 
 function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
-  const copy = previewCopy(t);
+  const draft = React.useContext(DraftContext); const copy = previewCopy(t, draft);
   return (
     <>
       <div style={{ height: 8, backgroundColor: primary }} />
@@ -312,7 +348,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
           </div>
         </div>
         {t.show_quote_number !== false && (
-          <div style={{ fontSize: type.small, color: '#6B7280' }}>OFFERTA N. OFF-2026-001</div>
+          <div style={{ fontSize: type.small, color: '#6B7280' }}>{draft ? 'BOZZA LOCALE' : 'OFFERTA N. OFF-2026-001'}</div>
         )}
       </div>
       <div style={{ margin: `12px ${marginPx}px`, height: 1, backgroundColor: '#E5E7EB' }} />
@@ -326,7 +362,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
 }
 
 function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, logoTransparent, marginPx, type, alignment }: LayoutProps) {
-  const copy = previewCopy(t);
+  const draft = React.useContext(DraftContext); const copy = previewCopy(t, draft);
   return (
     <>
       <div style={{
@@ -339,7 +375,7 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
           <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} transparent={logoTransparent} />
         </div>
         <div style={{ fontSize: type.body + 2, fontWeight: 650, marginBottom: 6 }}>{companyName}</div>
-        {t.show_quote_number !== false && <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 14 }}>OFFERTA N. OFF-2026-001 · 09/03/2026</div>}
+        {t.show_quote_number !== false && <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 14 }}>{draft ? `BOZZA LOCALE · ${draft.date}` : 'OFFERTA N. OFF-2026-001 · 09/03/2026'}</div>}
         <div style={{ fontSize: type.small, letterSpacing: 1.2, fontWeight: 700, opacity: 0.82 }}>{copy.eyebrow}</div>
         <div style={{ fontSize: type.h1, fontWeight: 700, marginTop: 4 }}>{copy.title}</div>
         <div style={{ fontSize: type.body, marginTop: 6, opacity: 0.9 }}>{copy.subtitle}</div>
@@ -355,7 +391,7 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
 }
 
 function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
-  const copy = previewCopy(t);
+  const draft = React.useContext(DraftContext); const copy = previewCopy(t, draft);
   return (
     <div style={{ padding: `${marginPx}px ${marginPx}px 0`, textAlign: alignment }}>
       <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 20, marginBottom: 30 }}>
@@ -365,7 +401,7 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoS
             <div style={{ fontSize: type.body + 4, fontWeight: 650, color: textColor }}>{companyName}</div>
           </div>
           {t.show_quote_number !== false && (
-            <div style={{ fontSize: type.small, color: '#9CA3AF' }}>OFF-2026-001</div>
+            <div style={{ fontSize: type.small, color: '#9CA3AF' }}>{draft ? 'BOZZA LOCALE' : 'OFF-2026-001'}</div>
           )}
         </div>
       </div>
@@ -383,7 +419,7 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoS
 }
 
 function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, logoTransparent, marginPx, type, alignment }: LayoutProps) {
-  const copy = previewCopy(t);
+  const draft = React.useContext(DraftContext); const copy = previewCopy(t, draft);
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       <div style={{
@@ -403,7 +439,7 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
       </div>
       <div style={{ flex: 1, padding: `${marginPx * 2}px ${marginPx}px 0`, textAlign: alignment }}>
         {t.show_quote_number !== false && (
-          <div style={{ fontSize: type.small, color: '#9CA3AF', marginBottom: 30 }}>OFFERTA N. OFF-2026-001</div>
+          <div style={{ fontSize: type.small, color: '#9CA3AF', marginBottom: 30 }}>{draft ? 'BOZZA LOCALE' : 'OFFERTA N. OFF-2026-001'}</div>
         )}
         <div style={{
           fontSize: type.h1 * 1.4, fontWeight: 800, lineHeight: 1.1,
@@ -508,6 +544,40 @@ function CoverBody({
   );
 }
 
+function TemplateText({ text }: { text: string }) {
+  // The same template may be markdown or HTML. Text-only conversion never executes markup.
+  const lines = text.replace(/<br\s*\/?\s*>|<\/p>|<\/div>|<\/h[1-6]>|<\/li>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').split('\n');
+  return <div>{lines.map((line, i) => /^#{1,6}\s+/.test(line) ? <h5 key={i} style={{ marginTop: 10, fontWeight: 700 }}>{line.replace(/^#{1,6}\s+/, '').replace(/\*\*/g, '')}</h5> : <p key={i} style={{ whiteSpace: 'pre-wrap', marginTop: line.trim() ? 5 : 8 }}>{line.replace(/\*\*/g, '')}</p>)}</div>;
+}
+function DraftDetail({ draft, primary, accent, textColor, t, marginPx, type }: {
+  draft: TemplatePreviewDocument; primary: string; accent: string; textColor: string;
+  t: Partial<QuoteTemplate>; marginPx: number; type: ReturnType<typeof buildTypographyScale>;
+}) {
+  const padding = rowPadding(t.row_density);
+  const border = t.table_borders === 'none' ? 'none' : '1px solid #e5e7eb';
+  const cell: React.CSSProperties = { padding: `${padding}px 7px`, borderBottom: border, ...(t.table_borders === 'all' ? { borderRight: border } : {}), verticalAlign: 'top' };
+  return <div style={{ padding: `20px ${marginPx}px 32px`, color: textColor }}>
+    {t.layout === 'classic' && <h3 style={{ fontSize: type.h1, fontWeight: 700, marginBottom: 20 }}>{draft.title}</h3>}
+    {t.show_client_details !== false && <div style={{ marginBottom: 24 }}><small style={{ color: '#64748b' }}>PREPARATO PER</small><p style={{ fontWeight: 600 }}>{draft.clientName}</p>{draft.clientAddress && <p>{draft.clientAddress}</p>}</div>}
+    {draft.siteAddress && <p style={{ marginBottom: 16, fontSize: type.small }}>Cantiere: {draft.siteAddress}</p>}
+    <table aria-label="Lavorazioni confermate nel modello" style={{ width: '100%', borderCollapse: 'collapse', fontSize: type.body }}>
+      <thead><tr style={{ backgroundColor: primary, color: t.header_text_color || '#fff' }}>{['Descrizione', 'Qtà / U.M.', 'Prezzo netto', 'Importo netto'].map((label, i) => <th key={label} style={{ padding: `${padding}px 7px`, textAlign: i ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
+      <tbody>{draft.rows.map((row, i) => <tr className="quote-template-row-motion" key={`${row.id}:${row.quantity}:${row.price}:${row.name}`} style={{ background: t.table_zebra !== false && i % 2 === 0 ? accent : undefined }}>
+        <td style={{ ...cell, width: '53%', overflowWrap: 'anywhere' }}><strong>{row.name}</strong><p style={{ fontSize: type.small, whiteSpace: 'pre-wrap', marginTop: 5 }}>{row.description}</p></td>
+        <td style={{ ...cell, textAlign: 'right' }}>{row.quantity.toLocaleString('it-IT')} {row.unit}</td><td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(row.price)}</td><td style={{ ...cell, textAlign: 'right', fontWeight: 600 }}>{formatCurrency(row.amount)}</td>
+      </tr>)}</tbody>
+    </table>
+    {!draft.rows.length && <p style={{ padding: '28px 0', color: '#64748b' }}>Le lavorazioni appariranno dopo la conferma. Nessuna proposta incompleta è inclusa nel documento.</p>}
+    <div style={{ marginTop: 24, textAlign: 'right' }}>{draft.globalDiscountPercent != null && draft.globalDiscountPercent > 0 && <p>Sconto generale applicato: {draft.globalDiscountPercent.toLocaleString('it-IT')}%</p>}{!draft.taxPending && draft.gross != null ? <><p>Imponibile netto: {formatCurrency(draft.net)}</p>{Object.entries(draft.taxBreakdown ?? {}).map(([rate, amount]) => <p key={rate}>IVA {rate}%: {formatCurrency(amount)}</p>)}<strong style={{ fontSize: type.h3, color: primary }} data-testid="live-quote-total">Totale IVA compresa: {formatCurrency(draft.gross)}</strong></> : <><p style={{ color: '#64748b' }}>IVA da definire</p><strong style={{ fontSize: type.h3, color: primary }} data-testid="live-quote-total">{draft.rows.length ? `Parziale netto: ${formatCurrency(draft.net)}` : 'Importo da determinare'}</strong></>}</div>
+    {draft.commonNotes && <section style={{ marginTop: 22 }} aria-label="Ipotesi ed esclusioni comuni"><h4 style={{ color: primary, fontWeight: 700 }}>Ipotesi, esclusioni e note</h4><p style={{ whiteSpace: 'pre-wrap', fontSize: type.small, marginTop: 6 }}>{draft.commonNotes}</p></section>}
+    {draft.scheduleText && <section style={{ marginTop: 22 }} aria-label="Programma lavori nel preventivo"><h4 style={{ color: primary, fontWeight: 700 }}>Programma indicativo dei lavori</h4><p style={{ whiteSpace: 'pre-wrap', fontSize: type.small, marginTop: 6 }}>{draft.scheduleText}</p></section>}
+    <p style={{ marginTop: 20, fontSize: type.small, color: '#64748b' }}>Bozza parziale: solo lavorazioni confermate. Dati cliente, IVA, tempi e condizioni da verificare prima dell’emissione.</p>
+    {!!draft.blocks?.length && <p style={{ marginTop: 28, fontSize: type.small, color: '#64748b' }}>Contenuti allegati dal modello scelto · non aggiungono lavorazioni o importi</p>}
+    {draft.blocks?.map(block => <section key={block.id} style={{ marginTop: 28 }}><h4 style={{ color: primary, fontWeight: 700 }}>{block.title}</h4>{block.image && <img src={block.image} alt={block.title} style={{ maxWidth: '100%', maxHeight: 260, objectFit: 'contain', marginTop: 10 }} />}<TemplateText text={block.text} />{block.specs?.map((spec, i) => <p key={i} style={{ marginTop: 5 }}><strong>{spec.label}:</strong> {spec.value}</p>)}</section>)}
+    {[[t.show_payment_terms !== false, 'Pagamenti', t.payment_terms_text], [t.show_delivery_terms !== false, 'Tempi e consegna', t.delivery_terms_text], [t.show_contractual_terms, 'Condizioni contrattuali', t.contractual_terms_text], [t.show_legal_terms, 'Termini legali', t.legal_terms_text]].map(([show, title, text]) => show && typeof text === 'string' && text.trim() ? <section key={String(title)} style={{ marginTop: 24, fontSize: type.body }}><h4 style={{ color: primary, fontWeight: 700 }}>{String(title)}</h4><TemplateText text={text} /></section> : null)}
+  </div>;
+}
+
 function DetailBody({
   primary, accent, textColor, t, marginPx, type, inline,
 }: {
@@ -519,6 +589,8 @@ function DetailBody({
   type: ReturnType<typeof buildTypographyScale>;
   inline?: boolean;
 }) {
+  const draft = React.useContext(DraftContext);
+  if (draft) return <DraftDetail draft={draft} primary={primary} accent={accent} textColor={textColor} t={t} marginPx={inline ? 0 : marginPx} type={type} />;
   const rows = [
     { name: 'Fornitura principale su misura', qty: 3, price: '€ 890,00', total: '€ 2.670,00' },
     { name: 'Dotazioni e finiture concordate', qty: 2, price: '€ 1.200,00', total: '€ 2.400,00' },

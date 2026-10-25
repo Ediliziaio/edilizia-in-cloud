@@ -13,7 +13,10 @@
  * le voci iniziali una sola volta. L'autosave invalida la query ma NON rimonta
  * (la key è l'id stabile del progetto), così le modifiche locali non si perdono.
  */
-import { useState, useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useRef } from "react";
+import type { NativeComputoAiContext } from "@/components/quotes/NativeComputoAiDialog";
+import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
+const NativeComputoAiDialog = lazy(() => import("@/components/quotes/NativeComputoAiDialog"));
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, Settings2, Info, Sparkles, Mic } from "lucide-react";
@@ -30,6 +33,7 @@ import type { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateM
 import type { StatoSalvataggio } from "@/components/preventivatore";
 
 interface Props {
+  aiContext?: NativeComputoAiContext;
   progettoId: string;
   initialComputo: TetComputoVoce[];
   /** A ogni modifica: l'anteprima a destra del preventivo si ricalcola con queste voci. */
@@ -44,7 +48,7 @@ interface Props {
 const LISTINO_SETTINGS_HREF =
   "/azienda/tetti/listino";
 
-export default function StepComputo({ progettoId, initialComputo, initialDirty = false, onVociChange, onStato, model }: Props) {
+export default function StepComputo({ progettoId, initialComputo, initialDirty = false, onVociChange, onStato, model, aiContext }: Props) {
   const companyId = useEffectiveCompanyId();
   const saveMut = useSaveComputo(progettoId);
 
@@ -54,6 +58,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
   const [savedOnce, setSavedOnce] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const nativeAi = !!aiContext && consentiPreventivoConversazionale(companyId);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -69,7 +74,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
   const handleImportVoci = (estratte: ComputoVoceLocal[]) => {
     if (estratte.length === 0) return;
     const base = computo.length;
-    const nuove: TetComputoVoce[] = estratte.map((v, i) => ({
+    const nuove: TetComputoVoce[] = estratte.map((v, i): TetComputoVoce => ({
       id:
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -254,7 +259,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           size="sm"
           className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
-          onClick={() => setImportOpen(true)}
+          onClick={() => nativeAi ? setVoiceOpen(true) : setImportOpen(true)}
         >
           <Sparkles className="h-3.5 w-3.5 text-orange-500" /> <span className="max-sm:hidden">Importa computo da PDF (AI)</span><span className="sm:hidden">Importa PDF</span>
         </Button>
@@ -266,7 +271,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           disabled={!companyId}
           onClick={() => setVoiceOpen(true)}
         >
-          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">Descrivi a voce (AI)</span><span className="sm:hidden">Detta a voce</span>
+          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">{nativeAi ? "Apri Silvio AI" : "Descrivi a voce (AI)"}</span><span className="sm:hidden">{nativeAi ? "Silvio AI" : "Detta a voce"}</span>
         </Button>
         {/* Telefono: due bottoni affiancati, senza la frase di spiegazione. */}
         <span className="text-[11px] text-muted-foreground max-sm:hidden">
@@ -289,13 +294,13 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       )}
 
       {/* Voce/descrizione → voci computo (stessa onConfirmVoci dell'import file) */}
-      <VoiceComputoDialog
+      {nativeAi && voiceOpen ? <Suspense fallback={<p role="status">Apro Silvio AI…</p>}><NativeComputoAiDialog context={aiContext!} rows={computo} companyId={companyId!} projectId={progettoId} open={voiceOpen} onOpenChange={setVoiceOpen} onApply={handleChange} /></Suspense> : <VoiceComputoDialog
         open={voiceOpen}
         onOpenChange={setVoiceOpen}
         onConfirmVoci={handleImportVoci}
         tipoLavoro="tetti"
         confirmLabel="Aggiungi al computo"
-      />
+      />}
 
       <ComputoUploadModal
         open={importOpen}

@@ -81,14 +81,14 @@ beforeEach(() => { stato.id = "p1"; stato.margini = true; localStorage.clear(); 
 afterEach(() => cleanup());
 
 describe("Termoidraulico nel guscio comune", () => {
-  it("sei fasi in alto, col totale IVA inclusa sempre in vista (3.260 €)", async () => {
+  it("sei fasi in alto, col totale IVA inclusa e i centesimi sempre in vista (3.260,40 €)", async () => {
     monta();
     const nav = await barra();
     expect(within(nav).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
       "Cliente", "Dati impianto", "Computo", "Foto", "Economia", "PDF",
     ]);
     // 2.400 + 6 × 120 = 3.120; sconto 5% → 2.964; IVA 10% → 3.260,40
-    expect(within(nav.parentElement as HTMLElement).getByText("€ 3.260")).toBeTruthy();
+    expect(within(nav.parentElement as HTMLElement).getByText("€ 3.260,40")).toBeTruthy();
   });
 
   it("a destra il preventivo: capitoli, righe, sconto, detrazione e la voce senza prezzo segnalata", async () => {
@@ -105,7 +105,7 @@ describe("Termoidraulico nel guscio comune", () => {
     expect(a.getByText(/1 voce senza prezzo/)).toBeTruthy();
     // 50% su 2.964 € netti, sotto il tetto di 96.000 €
     expect(a.getByText("Detrazione indicativa (50%)")).toBeTruthy();
-    expect(a.getByText("€ 1.482")).toBeTruthy();
+    expect(a.getByText("€ 1.482,00")).toBeTruthy();
   });
 
   it("nel computo l'anteprima si ricalcola a ogni voce, e il totale in barra con lei", async () => {
@@ -114,7 +114,7 @@ describe("Termoidraulico nel guscio comune", () => {
     fireEvent.click(within(nav).getByRole("button", { name: "Computo" }));
     fireEvent.click(await screen.findByRole("button", { name: "aggiungi una voce" }));
     // 3.120 + 1.000 = 4.120; sconto 5% → 3.914; IVA 10% → 4.305,40
-    await waitFor(() => expect(within(nav.parentElement as HTMLElement).getByText("€ 4.305")).toBeTruthy());
+    await waitFor(() => expect(within(nav.parentElement as HTMLElement).getByText("€ 4.305,40")).toBeTruthy());
     expect(within(anteprima()).getByText("Valvola di sicurezza")).toBeTruthy();
   });
 
@@ -187,7 +187,7 @@ describe("Termoidraulico nel guscio comune", () => {
     expect(within(anteprima()).getByText(/Vista impresa/)).toBeTruthy();
     // «Posa e collaudo» è a 0 €: non è venduta. Tutte le righe a prezzo hanno il costo: margine vero.
     // 2.964 netti − (1.900 + 6 × 80 = 2.380) = 584
-    expect(within(anteprima()).getByText("€ 584")).toBeTruthy();
+    expect(within(anteprima()).getByText("€ 584,00")).toBeTruthy();
   });
 
   it("cambiando fase si riparte dall'alto della pagina (scorre <main>, non la finestra)", async () => {

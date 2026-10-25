@@ -24,7 +24,7 @@ import {
 } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
-import { descrizioneBreve } from "@/lib/moduli/testoProdotto";
+import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import type {
@@ -379,7 +379,12 @@ export function costruisciDatiEdile(input: {
         fonte: v.fonte ?? null,
         // Il prodotto del listino porta foto e descrizione; le altre righe no, e non si inventa niente.
         foto: stringa(v.immagine_url),
-        dettaglio: descrizioneBreve(v.descrizione_estesa),
+        // Una stima accettata porta anche ipotesi ed esclusioni: accorciarle
+        // trasformerebbe il perimetro economico del documento. Le normali
+        // schede prodotto mantengono invece la sintesi già prevista.
+        dettaglio: /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
+          ? testoDelListino(v.descrizione_estesa)
+          : descrizioneBreve(v.descrizione_estesa),
         // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
         margineEur: importo > 0 && costo <= 0 ? null : importo - costo,
       };

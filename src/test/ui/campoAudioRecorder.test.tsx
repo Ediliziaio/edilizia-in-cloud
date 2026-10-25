@@ -62,6 +62,12 @@ it("nega il microfono con un messaggio recuperabile", async () => {
   expect(screen.getByRole("alert")).toHaveTextContent("Permesso microfono negato");
   expect(screen.getByRole("button", { name: "Inizia registrazione" })).toBeEnabled();
 });
+it('permette registrazione e riascolto ma non conferma un servizio non ancora attivo', async () => {
+  const confirm = vi.fn(); render(<CampoAudioRecorder onConfirm={confirm} confirmAvailable={false} confirmLabel="Trascrivi audio" />);
+  await record(); expect(screen.getByRole('button', { name: 'Riproduci' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Trascrivi audio' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Trascrivi audio' })); expect(confirm).not.toHaveBeenCalled();
+});
 it("ferma automaticamente a due minuti anche se il timer avanza in un unico giro", async () => {
   render(<CampoAudioRecorder onConfirm={vi.fn()} />); await start();
   await act(async () => vi.advanceTimersByTime(120000));

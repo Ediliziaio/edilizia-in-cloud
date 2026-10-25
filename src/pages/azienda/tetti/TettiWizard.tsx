@@ -15,6 +15,7 @@
  *  6. PDF       — generazione preventivo brandizzato             (Task 22, in arrivo)
  */
 import { useState, useEffect, useMemo, useRef } from "react";
+import { PdfDatiSalvatiGuard } from "@/components/preventivatore/PdfDatiSalvatiGuard";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -332,7 +333,7 @@ export default function TettiWizard() {
   const statoSalvataggio: StatoSalvataggio = isNew
     ? "nuovo"
     : (upsertMut.isPending || statoComputo === "salvando") ? "salvando"
-    : (erroreSalvataggio && dirty) ? "errore"
+    : ((erroreSalvataggio && dirty) || statoComputo === "errore") ? "errore"
     : (dirty || statoComputo === "modifiche") ? "modifiche"
     : "salvato";
 
@@ -420,6 +421,8 @@ export default function TettiWizard() {
       </div>
     );
   }
+
+  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{savedModel.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=tetti")}>Scegli un intervento</Button></div>;
 
   const statoMeta = TET_STATI_LABEL[(detail?.progetto.stato as TetProgetto["stato"]) ?? "bozza"];
   const ultimoPasso = currentStepIndex === TET_WIZARD_STEPS.length - 1;
@@ -528,7 +531,7 @@ export default function TettiWizard() {
           inCorso: upsertMut.isPending || creating,
           ultimoPasso,
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
-          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail),
+          nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail) && statoSalvataggio === "salvato",
         }}
         sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
@@ -580,6 +583,7 @@ export default function TettiWizard() {
             onVociChange={setComputoLive}
             onStato={gestisciStatoComputo}
             initialDirty={statoComputo === "modifiche"}
+            aiContext={{ module: "tetti", title: model?.title ?? "Tetti", project: { ...detail.progetto, ...form }, template: templatePdf, media: detail.media }}
             model={model}
           />
         )}
@@ -598,13 +602,15 @@ export default function TettiWizard() {
           // Merge progetto salvato + edit correnti del form (sconto/IVA/
           // detrazione, cliente, cantiere) così l'anteprima riflette le
           // modifiche non ancora persistite dello step Economia.
+          <PdfDatiSalvatiGuard stato={statoSalvataggio} onComputo={() => void handleStepClick("computo")}>
           <StepPdf
             progetto={{ ...detail.progetto, ...form }}
-            computo={detail.computo}
+            computo={computoLive ?? detail.computo}
             media={detail.media}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
           />
+          </PdfDatiSalvatiGuard>
         )}
         {currentStep === "pdf" && !(id && detail) && (
           <StepComingSoon step={currentStep} />

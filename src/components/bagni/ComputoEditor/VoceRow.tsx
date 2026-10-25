@@ -37,6 +37,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import { calcRigaImporto } from "@/lib/bagni/calcoli";
 import type { BgnComputoVoce, BgnUnitaMisura } from "@/types/bagni";
+import { useComputoReview } from './ComputoReviewContext';
 
 /** Unità di misura selezionabili (allineate a `BgnUnitaMisura`). */
 const UM_OPTIONS: BgnUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -66,6 +67,8 @@ function margineTone(pct: number): string {
 
 export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, conCosti }: Props) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const review = useComputoReview();
+  const incomplete = !!review && (voce.quantita <= 0 || voce.prezzo_unitario <= 0 || !voce.descrizione.trim());
 
   const sortable = useSortable({ id: voce.id });
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
@@ -174,7 +177,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 type="number"
                 inputMode="decimal"
                 min={0}
-                value={Number.isFinite(voce.quantita) ? voce.quantita : 0}
+                aria-label={review ? `Quantità ${voce.descrizione}` : undefined}
+                placeholder={review ? 'Da definire' : undefined}
+                value={review && voce.quantita <= 0 ? '' : Number.isFinite(voce.quantita) ? voce.quantita : 0}
                 onChange={(e) => onChange({ quantita: num(e.target.value) })}
                 className="h-7 w-16 px-1.5 text-right text-sm tabular-nums max-sm:w-[52px]"
               />
@@ -187,7 +192,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 inputMode="decimal"
                 min={0}
                 step="0.01"
-                value={Number.isFinite(voce.prezzo_unitario) ? voce.prezzo_unitario : 0}
+                aria-label={review ? `Prezzo ${voce.descrizione}` : undefined}
+                placeholder={review ? 'Da definire' : undefined}
+                value={review && voce.prezzo_unitario <= 0 ? '' : Number.isFinite(voce.prezzo_unitario) ? voce.prezzo_unitario : 0}
                 onChange={(e) => onChange({ prezzo_unitario: num(e.target.value) })}
                 className="h-7 w-20 px-1.5 text-right text-sm tabular-nums max-sm:w-[68px]"
               />
@@ -255,10 +262,21 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 </Tooltip>
               )}
               <span className="min-w-[88px] text-right text-base font-bold tabular-nums text-slate-900 max-sm:min-w-0 max-sm:text-sm">
-                {formatCurrency(importo)}
+                {incomplete ? 'Da completare' : formatCurrency(importo)}
               </span>
             </div>
           </div>
+
+          {review && <div className="mt-2 space-y-2 px-1.5">
+            <textarea aria-label={`Dettagli ${voce.descrizione}`} value={voce.descrizione_estesa ?? ''} rows={2}
+              className="w-full rounded-md border p-2 text-xs" placeholder="Materiali, posa, esclusioni…"
+              onChange={e => onChange({ descrizione_estesa: e.target.value })} />
+            <label className="flex items-center gap-2 text-xs text-blue-900">
+              <input type="checkbox" checked={review.included.has(voce.id)} disabled={incomplete}
+                onChange={e => review.toggle(voce.id, e.target.checked)} />
+              {incomplete ? 'Completa quantità e prezzo prima di includere' : 'Conferma e includi nel parziale'}
+            </label>
+          </div>}
 
           {/* Breakdown materiali + manodopera (espandibile) */}
           {/* Telefono: i costi si guardano dal computer, come i margini. */}

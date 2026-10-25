@@ -24,6 +24,7 @@ import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImp
 import CapitoloSection from "./CapitoloSection";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
+import { useComputoReview } from './ComputoReviewContext';
 
 interface Props {
   value: BgnComputoVoce[];
@@ -45,7 +46,9 @@ export default function ComputoEditor({
 }: Props) {
   const [showMargine, setShowMargine] = useState(false);
   // Costi e margine (per riga) li vede solo chi ha il permesso, come la vista «Impresa» dell'anteprima.
-  const puoVedereImpresa = usePuoVedereImpresa();
+  const impresaPermission = usePuoVedereImpresa();
+  const review = useComputoReview();
+  const puoVedereImpresa = impresaPermission && !review;
   const [globalPickerOpen, setGlobalPickerOpen] = useState(false);
   // Capitoli creati ma ancora senza voci (solo nomi, ordine d'inserimento).
   const [emptyCapitoli, setEmptyCapitoli] = useState<string[]>([]);

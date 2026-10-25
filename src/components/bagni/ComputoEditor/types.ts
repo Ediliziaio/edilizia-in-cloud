@@ -15,6 +15,8 @@ import type { BgnComputoVoce, BgnUnitaMisura } from "@/types/bagni";
 export interface PickedVoce {
   descrizione: string;
   unita_misura: BgnUnitaMisura;
+  /** Unità originale prima della compatibilità del wizard; la revisione AI non la presume. */
+  sourceUnit?: string | null;
   prezzo_unitario: number;
   costo_materiali: number;
   costo_manodopera: number;

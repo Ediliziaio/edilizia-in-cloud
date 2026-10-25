@@ -113,6 +113,8 @@ export function interventoDelModulo(modulo: ModuloConModelloPreventivo, id: stri
 
 export interface ModelloPreventivo<T> {
   version: 1;
+  /** Present on new snapshots; absent on legacy documents. */
+  modulo?: ModuloConModelloPreventivo;
   modelId: string;
   companyId: string;
   capturedAt: string;
@@ -128,7 +130,7 @@ export function leggiModelloPreventivo<T extends object>(
   if (value == null) return null;
   const s = value as ModelloPreventivo<T>;
   const t = s?.template as TemplateConBlocchi | undefined;
-  if (s.version !== 1 || !interventoDelModulo(modulo, s.modelId) || s.companyId !== companyId ||
+  if (s.version !== 1 || (s.modulo !== undefined && s.modulo !== modulo) || !interventoDelModulo(modulo, s.modelId) || s.companyId !== companyId ||
       !Number.isFinite(Date.parse(s.capturedAt)) || !t || typeof t !== "object" || t.company_id !== companyId ||
       t.pdf_blocchi?.modulo_intervento !== s.modelId) {
     throw new Error(`Il modello ${NOME[modulo]} salvato nel preventivo non è valido o è di un'altra azienda. Nessun PDF generico verrà usato al suo posto.`);
@@ -143,13 +145,18 @@ export function leggiModelloPreventivo<T extends object>(
 export function creaModelloPreventivo<T extends object>(
   modulo: ModuloConModelloPreventivo, companyId: string, modelId: string, source: T,
 ): ModelloPreventivo<T> {
+  const original = source as TemplateConBlocchi;
+  if (!companyId || (original.company_id != null && original.company_id !== companyId)
+    || (original.pdf_blocchi?.modulo_intervento != null && original.pdf_blocchi.modulo_intervento !== modelId)) {
+    throw new Error('Il modello non corrisponde all’azienda o all’intervento richiesto. Nessuna copia generica è stata creata.');
+  }
   const template = structuredClone(source) as T & TemplateConBlocchi;
   const blocchi = { ...(template.pdf_blocchi ?? {}) };
   delete blocchi.modulo_defaults;
   delete blocchi.modulo_foto;
   template.pdf_blocchi = { ...blocchi, modulo_intervento: modelId };
   template.company_id = companyId;
-  const snapshot: ModelloPreventivo<T> = { version: 1, modelId, companyId, capturedAt: new Date().toISOString(), template };
+  const snapshot: ModelloPreventivo<T> = { version: 1, modulo, modelId, companyId, capturedAt: new Date().toISOString(), template };
   leggiModelloPreventivo(modulo, snapshot, companyId);
   return snapshot;
 }
