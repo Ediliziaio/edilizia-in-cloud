@@ -11,6 +11,12 @@
   ],
   "candidates": [
     {
+      "path": "supabase/migrations/20281024133000_edili_finanziamento_finanziaria_scelta.sql",
+      "sha256": "c0509727d76336566e85527575b34f1e9192668aeb48ca364fb85af5eae91ed3",
+      "bytes": 1679,
+      "review": "restored-verbatim-from-applied-database-history-no-reexecution"
+    },
+    {
       "path": "src/lib/preventivi/quoteCad.ts",
       "sha256": "ddd06c47cacff2ac9c4dc24729b10151345e26bcd43cf6b2428ff79d725aee71",
       "bytes": 8797,
