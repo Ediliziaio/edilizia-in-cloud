@@ -173,7 +173,7 @@ describe("Conversazione e voci: due tab nello stesso spazio", () => {
     expect(screen.getAllByRole('region', { name: 'Budget preliminare AI separato dal computo' })).toHaveLength(1); // old chat card evicted, independent saved summary remains
     expect(screen.getByRole('region', { name: 'Budget preliminare AI separato dal computo' })).toHaveTextContent('100,00');
     expect(call).toHaveBeenCalledTimes(1);
-  });
+  }, 30_000); // 51 invii in un render solo: sulla CI occupata sfiorava i 5 secondi
   it('risposte ai dati mancanti continuano il budget e non diventano modifiche al computo', async () => {
     const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => ({ ...response(r), turn: { ...response(r).turn, message: 'Chiarimento budget', preliminaryBudget: null, proposals: [] } }));
     render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);
