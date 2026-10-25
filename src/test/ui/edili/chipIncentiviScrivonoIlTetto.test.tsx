@@ -14,6 +14,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 30_000 });
 
 const template = () => ({ data: { finanziamento_promo: { attivo: true, rate: 12, tan_pct: 0 } } });
+vi.mock("@/hooks/useTabelleFinanziamento", () => ({
+  useTabelleFinanziamentoAttive: () => ({ data: [] as unknown[], isLoading: false }),
+  useTabellaFinanziamentoRighe: () => ({ data: [] as unknown[], isLoading: false }),
+}));
 vi.mock("@/hooks/useBagniProgetto", () => ({ useBgnTemplatePdf: () => template() }));
 vi.mock("@/hooks/useTettiProgetto", () => ({ useTetTemplatePdf: () => template() }));
 vi.mock("@/hooks/useClimatizzazioneProgetto", () => ({ useClmTemplatePdf: () => template() }));

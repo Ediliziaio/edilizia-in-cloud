@@ -45,6 +45,11 @@ export interface PisProgetto {
   mostra_finanziamento?: boolean | null;
   /** Numero di rate scelto per questo preventivo (rata nel PDF): null = quello del modello (finanziamento_promo.rate); il TAN è quello del modello. */
   finanziamento_rate?: number | null;
+  /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
+  finanziamento_tabella_id?: string | null;
+  finanziamento_tan_pct?: number | null;
+  finanziamento_rata?: number | null;
+  finanziamento_importo?: number | null;
   sconto_pct: number; iva_pct: number; detrazione_pct: number;
   /**
    * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle righe

@@ -434,7 +434,7 @@ export function FvFooter({
   telefono,
 }: FvFooterProps) {
   return (
-    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
+    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 md:pr-24 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
       {/* Telefono: lo stato del salvataggio c'è già in testata; restano i tre bottoni. */}
       <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap max-md:hidden">
         {autoSaveState === "saving" && (

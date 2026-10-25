@@ -185,7 +185,7 @@ describe("la scelta delle rate è collegata in tutti e otto i moduli", () => {
 
   it("il PDF usa le rate del preventivo e non solo quelle del modello", () => {
     const pdf = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
-    expect(pdf).toContain("promoConRateDelPreventivo(modello.finanziamentoPromo, dati.finanziamentoRate)");
+    expect(pdf).toContain("promoDelPreventivo(modello.finanziamentoPromo, dati.finanziamentoRate, dati.finanziamentoScelta)");
     expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toContain("finanziamentoRate: rateDelPreventivo(p.finanziamento_rate)");
   });
 });

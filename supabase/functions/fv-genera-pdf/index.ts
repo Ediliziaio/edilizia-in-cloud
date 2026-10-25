@@ -244,8 +244,12 @@ Deno.serve(async (req: Request) => {
         if (!r.ok) return undefined;
         const buf = new Uint8Array(await r.arrayBuffer());
         const ct = r.headers.get("content-type") ?? "image/jpeg";
+        // A blocchi da 32 kB: il giro byte per byte (un carattere alla volta, poi btoa) per le decine di foto
+        // del preventivo superava il tempo di calcolo della funzione («not having enough compute resources»).
         let b64 = "";
-        for (let i = 0; i < buf.length; i++) b64 += String.fromCharCode(buf[i]);
+        for (let i = 0; i < buf.length; i += 0x8000) {
+          b64 += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000) as unknown as number[]);
+        }
         return `data:${ct};base64,${btoa(b64)}`;
       } catch { return undefined; }
     };

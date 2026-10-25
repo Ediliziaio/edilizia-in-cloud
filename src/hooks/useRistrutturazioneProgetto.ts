@@ -325,6 +325,10 @@ export function useClonaProgetto() {
           // La rata nel PDF (rate scelte, rata nascosta) fa parte delle condizioni: senza, la copia riparte dal modello.
           mostra_finanziamento: src.mostra_finanziamento ?? null,
           finanziamento_rate: src.finanziamento_rate ?? null,
+          finanziamento_tabella_id: src.finanziamento_tabella_id ?? null,
+          finanziamento_tan_pct: src.finanziamento_tan_pct ?? null,
+          finanziamento_rata: src.finanziamento_rata ?? null,
+          finanziamento_importo: src.finanziamento_importo ?? null,
           note: src.note,
           template_id: src.template_id,
           ...(src.modello_snapshot ? { modello_snapshot: leggiModelloPreventivo("ristrutturazione", src.modello_snapshot, companyId) } : {}),

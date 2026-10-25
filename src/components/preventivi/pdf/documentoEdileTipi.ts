@@ -238,4 +238,6 @@ export interface DocEdileDati {
   mostraFinanziamento: boolean;
   /** Le rate scelte per questo preventivo; senza, vale il numero del modello. */
   finanziamentoRate?: number | null;
+  /** La finanziaria scelta per questo preventivo (TAN, rata e importo della sua tabella); senza, vale la promo del modello. */
+  finanziamentoScelta?: { tanPct: number | null; rata: number | null; importo: number | null } | null;
 }

@@ -25,7 +25,7 @@ import {
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
-import { rateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
+import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
@@ -67,6 +67,11 @@ export interface ProgettoComune {
   mostra_finanziamento?: boolean | null;
   /** Le rate scelte per questo preventivo (null = quelle del modello). */
   finanziamento_rate?: number | null;
+  /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
+  finanziamento_tabella_id?: string | null;
+  finanziamento_tan_pct?: number | null;
+  finanziamento_rata?: number | null;
+  finanziamento_importo?: number | null;
   created_at?: string | null;
   /** Le esigenze del cliente scelte per questo preventivo (facoltative, jsonb {titolo, descrizione}). */
   esigenze?: unknown;
@@ -439,5 +444,6 @@ export function costruisciDatiEdile(input: {
     },
     mostraFinanziamento: p.mostra_finanziamento !== false,
     finanziamentoRate: rateDelPreventivo(p.finanziamento_rate),
+    finanziamentoScelta: sceltaFinanziariaDelPreventivo(p),
   });
 }

@@ -21,6 +21,10 @@ vi.mock("@/hooks/useTermoidraulicoProgetto", () => ({ useIdrTemplatePdf: () => t
 vi.mock("@/hooks/usePavimentiProgetto", () => ({ usePavTemplatePdf: () => template() }));
 vi.mock("@/hooks/usePiscineProgetto", () => ({ usePisTemplatePdf: () => template() }));
 vi.mock("@/hooks/useRistrutturazioneProgetto", () => ({ useRstTemplatePdf: () => template() }));
+vi.mock("@/hooks/useTabelleFinanziamento", () => ({
+  useTabelleFinanziamentoAttive: () => ({ data: [] as unknown[], isLoading: false }),
+  useTabellaFinanziamentoRighe: () => ({ data: [] as unknown[], isLoading: false }),
+}));
 vi.mock("@/hooks/usePrezzoFinaleAMano", () => ({ usePrezzoFinaleAMano: () => ({ data: false, isLoading: false, isError: false }) }));
 vi.mock("@/hooks/useDiscountRules", () => ({
   useDiscountRules: () => ({

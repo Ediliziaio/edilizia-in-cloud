@@ -152,6 +152,19 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               onChange={(v) => onChange("mostra_finanziamento", v)}
               rateScelte={form.finanziamento_rate}
               onChangeRate={(n) => onChange("finanziamento_rate", n)}
+              finanziaria={{
+                tabellaId: form.finanziamento_tabella_id ?? null,
+                tanPct: form.finanziamento_tan_pct ?? null,
+                rata: form.finanziamento_rata ?? null,
+                importo: form.finanziamento_importo ?? null,
+              }}
+              onChangeFinanziaria={(s) => {
+                onChange("finanziamento_rate", s.rate);
+                onChange("finanziamento_tabella_id", s.tabellaId);
+                onChange("finanziamento_tan_pct", s.tanPct);
+                onChange("finanziamento_rata", s.rata);
+                onChange("finanziamento_importo", s.importo);
+              }}
             />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">

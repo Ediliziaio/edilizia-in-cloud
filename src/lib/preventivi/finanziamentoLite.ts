@@ -39,6 +39,52 @@ export function promoConRateDelPreventivo(raw: unknown, rateScelte: unknown): un
   return { ...(raw as Record<string, unknown>), rate };
 }
 
+/**
+ * La finanziaria scelta sul preventivo (colonne `finanziamento_*` dei progetti edili): il TAN della riga di tabella
+ * scelta, la rata di quella riga e l'importo su cui è stata calcolata. Vuota = vale la promo del modello.
+ */
+export interface SceltaFinanziaria {
+  tanPct: number | null;
+  rata: number | null;
+  importo: number | null;
+}
+
+/** Legge i campi del progetto: senza la finanziaria scelta ridà null. Difensivo: dal database i numeri possono essere stringhe. */
+export function sceltaFinanziariaDelPreventivo(p: {
+  finanziamento_tabella_id?: unknown; finanziamento_tan_pct?: unknown; finanziamento_rata?: unknown; finanziamento_importo?: unknown;
+}): SceltaFinanziaria | null {
+  if (!p.finanziamento_tabella_id) return null;
+  const num = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  return { tanPct: num(p.finanziamento_tan_pct), rata: num(p.finanziamento_rata), importo: num(p.finanziamento_importo) };
+}
+
+/**
+ * La promo del PDF: quella del modello col numero di rate del preventivo; se il preventivo ha scelto una
+ * finanziaria il TAN è quello della sua tabella, e vale anche senza promo nel modello. Niente rate o niente TAN
+ * (e nessuna promo): nessuna promo.
+ */
+export function promoDelPreventivo(raw: unknown, rateScelte: unknown, scelta?: SceltaFinanziaria | null): FinanziamentoPromo | null {
+  const promo = parseFinanziamentoPromo(promoConRateDelPreventivo(raw, rateScelte));
+  if (promo) return scelta?.tanPct != null ? { ...promo, tan_pct: scelta.tanPct } : promo;
+  const rate = rateDelPreventivo(rateScelte);
+  if (scelta && scelta.tanPct != null && rate != null) return { attivo: true, rate, tan_pct: scelta.tanPct };
+  return null;
+}
+
+/**
+ * La rata mensile del PDF. Con la finanziaria scelta e il totale uguale a quello su cui era stata calcolata vale la
+ * rata esatta della tabella (spese comprese); se il totale è cambiato dopo, si ricalcola col TAN della tabella
+ * sul totale di adesso, così la rata non resta quella di un prezzo vecchio.
+ */
+export function rataDelPreventivoPdf(totale: number, promo: FinanziamentoPromo, scelta?: SceltaFinanziaria | null): number {
+  if (scelta?.rata != null && scelta.rata > 0 && scelta.importo != null && Math.abs(scelta.importo - totale) < 0.5) return scelta.rata;
+  return calcolaRataMensile(totale, promo.rate, promo.tan_pct);
+}
+
 /** Le rate da offrire come scelta: quelle di sempre, più quella del modello e quella già scelta se non ci sono. */
 export function opzioniRate(rateModello: number, rateScelte?: number | null): number[] {
   const tutte = new Set<number>(FINANZIAMENTO_RATE_OPZIONI);
