@@ -81,7 +81,7 @@ Deno.serve(async req => {
       const paymentBlock = await gateAiPayment(db, audioRequest.companyId, headers); if (paymentBlock) return paymentBlock;
       // Ogni trascrizione spende soldi veri (OpenAI) e poi crediti dell'azienda: prima il limite di richieste, poi il saldo.
       const audioRate = await checkQuoteRateLimit(db, 'audio', audioRequest.companyId, userId);
-      if (!audioRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE }, 429, { ...headers, 'Retry-After': String(audioRate.retryAfterSeconds) });
+      if (!audioRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE, retryAfterSeconds: audioRate.retryAfterSeconds }, 429, { ...headers, 'Retry-After': String(audioRate.retryAfterSeconds) });
       const audioCredit = await precheckCreditoAudio(db, audioRequest.companyId);
       if (!audioCredit.ok) return creditDecisionResponse(audioCredit, headers);
       return await transcribeQuoteAudio(audioRequest, db, userId, req.signal, headers);
@@ -96,7 +96,7 @@ Deno.serve(async req => {
     if (paymentBlock) return paymentBlock;
     // Una raffica di richieste brucia i crediti dell'azienda: il saldo non basta a fermarla.
     const chatRate = await checkQuoteRateLimit(db, 'chat', request.companyId, userId);
-    if (!chatRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE }, 429, { ...headers, 'Retry-After': String(chatRate.retryAfterSeconds) });
+    if (!chatRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE, retryAfterSeconds: chatRate.retryAfterSeconds }, 429, { ...headers, 'Retry-After': String(chatRate.retryAfterSeconds) });
     // Only fixed synthetic cases may select a test model. The incoming text,
     // source and lines are replaced, not used as a general model override API.
     const experiment = request.modelTest;

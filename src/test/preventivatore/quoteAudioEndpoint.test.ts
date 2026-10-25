@@ -49,7 +49,7 @@ describe('Endpoint audio Demo2: accessi, consumi e idempotenza durevole', () => 
     state.rateOk = false;
     const r = await post();
     expect(r.status).toBe(429);
-    expect(await r.json()).toMatchObject({ code: 'AI_RATE_LIMIT' });
+    expect(await r.json()).toMatchObject({ code: 'AI_RATE_LIMIT', retryAfterSeconds: 9 });
     expect(provider).not.toHaveBeenCalled(); expect(state.events).not.toContain('precheck_ai_credit');
   });
   it('rifiuta un altro tenant e contenuti malformati', async () => { expect((await post({ ...body(), companyId: id })).status).toBe(403); expect((await post({ ...body(), audio: { mime: 'audio/wav', base64: btoa('not audio') } })).status).toBe(400); expect(provider).not.toHaveBeenCalled(); });
