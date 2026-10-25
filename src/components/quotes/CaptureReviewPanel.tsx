@@ -409,7 +409,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       };
 
       if (!result.ok) {
-        toast.error(result.error ?? "Apply fallito");
+        toast.error(result.error ?? "Non è stato possibile applicare le modifiche. Riprova.");
         setSaving(false);
         return;
       }

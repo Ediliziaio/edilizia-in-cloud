@@ -62,7 +62,12 @@ vi.mock("@/integrations/supabase/client", () => {
   const nulla = (): Promise<{ data: null; error: null }> => Promise.resolve({ data: null, error: null });
   return {
     supabase: {
-      from: (t: string) => catena(t), rpc: nulla, functions: { invoke: nulla },
+      from: (t: string) => catena(t), functions: { invoke: nulla },
+      // Il salvataggio del computo è la funzione atomica del database: i totali scritti stanno nei suoi parametri.
+      rpc: (nome: string, args?: { p_prefisso?: string; p_totali?: unknown }) => {
+        if (nome === "computo_salva_atomico") scritture.push({ tabella: `${String(args?.p_prefisso)}_progetti`, operazione: "update", dati: args?.p_totali });
+        return nulla();
+      },
       storage: { from: () => ({ createSignedUrl: nulla, createSignedUrls: () => Promise.resolve({ data: [] as unknown[], error: null }), getPublicUrl: () => ({ data: { publicUrl: "" } }) }) },
       auth: { getSession: () => Promise.resolve({ data: { session: null } }) },
     },

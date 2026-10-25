@@ -18,6 +18,8 @@ import { catalogueCodeVariants } from '../_shared/quoteCatalogueCodes.ts';
 import { classifyQuoteFailure } from '../_shared/quoteFailure.ts';
 import { quoteCompanyEnabled, QUOTE_DEMO_COMPANY } from '../_shared/quoteAvailability.ts';
 import { readQuoteCadAccess } from '../_shared/quoteCadAccess.ts';
+import { checkQuoteRateLimit, QUOTE_RATE_LIMIT_MESSAGE } from '../_shared/quoteRateLimit.ts';
+import { companyCreditResponse, creditDecisionResponse, precheckCreditoAudio, QUOTE_COMPANY_CREDIT_MESSAGE } from '../_shared/quoteCreditGuard.ts';
 
 /** Production activation is explicit and does not bypass tenant/payment gates.
  * Existing demo-only deployments retain their original scope by default.
@@ -77,6 +79,11 @@ Deno.serve(async req => {
       try { await verificaPermessoAzienda(db, userId, audioRequest.companyId, ['can_edit_preventivi'], 'trascrivere audio del preventivo'); }
       catch { return errorResponse('Permesso preventivi richiesto', 403, headers); }
       const paymentBlock = await gateAiPayment(db, audioRequest.companyId, headers); if (paymentBlock) return paymentBlock;
+      // Ogni trascrizione spende soldi veri (OpenAI) e poi crediti dell'azienda: prima il limite di richieste, poi il saldo.
+      const audioRate = await checkQuoteRateLimit(db, 'audio', audioRequest.companyId, userId);
+      if (!audioRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE }, 429, { ...headers, 'Retry-After': String(audioRate.retryAfterSeconds) });
+      const audioCredit = await precheckCreditoAudio(db, audioRequest.companyId);
+      if (!audioCredit.ok) return creditDecisionResponse(audioCredit, headers);
       return await transcribeQuoteAudio(audioRequest, db, userId, req.signal, headers);
     }
     let request;
@@ -87,6 +94,9 @@ Deno.serve(async req => {
     catch { return errorResponse("Permesso preventivi richiesto", 403, headers); }
     const paymentBlock = await gateAiPayment(db, request.companyId, headers);
     if (paymentBlock) return paymentBlock;
+    // Una raffica di richieste brucia i crediti dell'azienda: il saldo non basta a fermarla.
+    const chatRate = await checkQuoteRateLimit(db, 'chat', request.companyId, userId);
+    if (!chatRate.allowed) return jsonResponse({ code: 'AI_RATE_LIMIT', error: QUOTE_RATE_LIMIT_MESSAGE }, 429, { ...headers, 'Retry-After': String(chatRate.retryAfterSeconds) });
     // Only fixed synthetic cases may select a test model. The incoming text,
     // source and lines are replaced, not used as a general model override API.
     const experiment = request.modelTest;
@@ -181,6 +191,9 @@ Deno.serve(async req => {
     // company's payment gate (402); never echo raw provider errors or retry.
     const failure = classifyQuoteFailure(e);
     console.error("[quote-chat]", failure.code);
+    // I crediti dell'AZIENDA finiti sono un 402 con le chiavi che la finestra di ricarica riconosce: prima
+    // arrivavano come «risposta non verificabile» (502) e nessuno capiva che doveva ricaricare.
+    if (failure.code === 'AI_COMPANY_CREDIT') return companyCreditResponse(QUOTE_COMPANY_CREDIT_MESSAGE, headers);
     const status = failure.code === 'AI_PROVIDER_CREDIT' ? 503
       : failure.code === 'AI_REQUEST_UNCERTAIN' || failure.code === 'AI_TIMEOUT' ? 504
       : failure.code === 'AI_TURN_LIMIT' ? 429 : 502;

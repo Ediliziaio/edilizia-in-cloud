@@ -52,7 +52,11 @@ vi.mock("@/integrations/supabase/client", () => {
     });
     return p;
   };
-  return { supabase: { from: (t: string) => catena(t), rpc: (nome: string) => Promise.resolve({ data: (nome === "genera_codice_progetto" ? "X-2026-004" : null) as string | null, error: null as null }) } };
+  return { supabase: { from: (t: string) => catena(t), rpc: (nome: string, args?: { p_prefisso?: string; p_righe?: Array<Record<string, unknown>> }) => {
+    // Il salvataggio del computo è la funzione atomica del database: le righe stanno nei suoi parametri.
+    if (nome === "computo_salva_atomico") scritture.push({ tabella: `${String(args?.p_prefisso)}_computo_voci`, righe: args?.p_righe ?? [] });
+    return Promise.resolve({ data: (nome === "genera_codice_progetto" ? "X-2026-004" : null) as string | null, error: null as null });
+  } } };
 });
 
 const MODULI: Array<{ p: string; hook: () => Promise<Record<string, unknown>> }> = [

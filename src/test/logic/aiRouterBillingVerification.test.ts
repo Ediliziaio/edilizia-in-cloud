@@ -11,7 +11,7 @@ const RATE = { input: 1.925, output: 7.7, wholesaleInput: 0.55, wholesaleOutput:
 const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
 type Args = Record<string, unknown>;
 
-function fakeDb(options: { denyCredit?: boolean; billingFailure?: boolean; billingRejected?: boolean; cacheHit?: boolean; noWholesaleRate?: boolean;
+function fakeDb(options: { denyCredit?: boolean; precheckError?: boolean; billingFailure?: boolean; billingRejected?: boolean; cacheHit?: boolean; noWholesaleRate?: boolean;
   guardUnavailable?: boolean; checkpointFailure?: boolean; finishFailure?: boolean } = {}) {
   const entries = new Map<string, { ledger_id: string; cost_real_eur: number; cost_billed_eur: number; margin_eur: number }>();
   const requests = new Map<string, { state: string; input: unknown; owner: unknown; result?: unknown; attempts: unknown[] }>();
@@ -40,7 +40,10 @@ function fakeDb(options: { denyCredit?: boolean; billingFailure?: boolean; billi
     }
     if (name === "get_ai_router_config") return { data: { primary_model: "anthropic/claude-sonnet-4.5",
       fallback_models: ["openai/gpt-4o-mini"], default_params: {}, tier_key: "t2_vision" } };
-    if (name === "precheck_ai_credit") return { data: { ok: !options.denyCredit, reason: "test_credit_gate" } };
+    if (name === "precheck_ai_credit") {
+      if (options.precheckError) return { error: { message: "test precheck unavailable" } };
+      return { data: { ok: !options.denyCredit, reason: "test_credit_gate" } };
+    }
     if (name !== "charge_ai_call") return { data: null };
     if (options.billingFailure) return { error: { message: "test ledger unavailable" } };
     if (options.billingRejected) return { data: { success: false, error: "wallet rejected" } };
@@ -141,6 +144,23 @@ describe("Silvio billing verification — simulated RPC and provider", () => {
     await expect(aiRouterComplete({ ...request, supabase })).rejects.toThrow("Credito insufficiente");
     expect(fetcher).not.toHaveBeenCalled();
     expect([...supabase.entries.values()].map(e => e.cost_billed_eur)).toEqual([0]);
+  });
+
+  it("un saldo insufficiente dell'azienda è un errore tipizzato: la chat dei preventivi lo trasforma in «ricarica»", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => reply({ cost: 1 })));
+    await expect(aiRouterComplete({ ...request, supabase: fakeDb({ denyCredit: true }) })).rejects.toMatchObject({
+      name: "AiCompanyCreditError", reason: "test_credit_gate", taskKey: request.taskKey,
+    });
+  });
+
+  it("un controllo del saldo che non risponde è un nostro guasto, NON una richiesta di ricarica", async () => {
+    const fetcher = vi.fn(async () => reply({ cost: 1 })); vi.stubGlobal("fetch", fetcher);
+    const errore = await aiRouterComplete({ ...request, supabase: fakeDb({ precheckError: true }) }).catch((e) => e);
+    // Non parte nessuna chiamata a pagamento, ma all'azienda non si dice di ricaricare.
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(errore).toBeInstanceOf(Error);
+    expect(errore.name).toBe("AiRouterError");
+    expect(errore.name).not.toBe("AiCompanyCreditError");
   });
 
   it("a zero-charge credit denial does not poison a later funded retry", async () => {

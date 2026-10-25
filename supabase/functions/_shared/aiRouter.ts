@@ -176,6 +176,18 @@ export class AiRouterError extends Error {
   }
 }
 
+/**
+ * Il saldo dell'AZIENDA non basta, o le sue chiamate AI sono bloccate: niente chiamata al provider e niente addebito.
+ * Distinto da un guasto del controllo stesso (precheck_error), che non chiede una ricarica. Il messaggio resta quello di
+ * sempre («Credito insufficiente o bloccato: …»): chi lo legge a parole, come la finestra di ricarica, continua a capirlo.
+ */
+export class AiCompanyCreditError extends AiRouterError {
+  constructor(message: string, taskKey: string, public reason?: string) {
+    super(message, taskKey, []);
+    this.name = "AiCompanyCreditError";
+  }
+}
+
 class AiRouterBillingError extends Error {
   constructor(message: string) {
     super(message);
@@ -1194,11 +1206,12 @@ export async function aiRouterComplete(
         durationMs: 0,
         metadata: { precheck: precheck },
       });
-      throw new AiRouterError(
-        `Credito insufficiente o bloccato: ${precheck.message ?? precheck.reason ?? "unknown"}`,
-        opts.taskKey,
-        [],
-      );
+      const messaggioCredito = `Credito insufficiente o bloccato: ${precheck.message ?? precheck.reason ?? "unknown"}`;
+      // Un controllo che non risponde (precheck_error/precheck_exception) è un nostro guasto: non chiede una ricarica.
+      if (precheck.reason === "precheck_error" || precheck.reason === "precheck_exception") {
+        throw new AiRouterError(messaggioCredito, opts.taskKey, []);
+      }
+      throw new AiCompanyCreditError(messaggioCredito, opts.taskKey, precheck.reason);
     }
 
     // ─────────────────────────────────────────────────────────────────────

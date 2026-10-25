@@ -3,6 +3,9 @@ export const QUOTE_FAILURES = {
   AI_REQUEST_UNCERTAIN: 'La richiesta AI ha un esito incerto. Bozza intatta; non viene ripetuta automaticamente. Verifica lo stato del servizio prima di riprovare.',
   AI_TIMEOUT: 'Il tempo disponibile per questa risposta è terminato. Bozza intatta; nessun nuovo tentativo automatico.',
   AI_TURN_LIMIT: 'Questa richiesta ha raggiunto il limite di elaborazione. Bozza intatta; nessun nuovo tentativo automatico. Prosegui con una lavorazione alla volta.',
+  // Il saldo dell'AZIENDA (non quello del provider): serve una ricarica. La frase «crediti … insufficienti» è quella che la
+  // finestra di ricarica dell'app riconosce in ogni risposta.
+  AI_COMPANY_CREDIT: 'I crediti AI dell’azienda sono insufficienti. Bozza intatta, nessuna proposta applicata e nessun addebito. Ricarica i crediti per continuare.',
   AI_PROVIDER_CREDIT: 'Il servizio AI non ha credito disponibile. Bozza intatta; nessun nuovo tentativo automatico. Serve verificare il credito del servizio.',
   AI_RESPONSE_INVALID: 'Operazione AI interrotta o risposta non verificabile. Bozza intatta; nessun nuovo tentativo automatico.',
 } as const;
@@ -17,6 +20,7 @@ export function classifyQuoteFailure(error: unknown) {
   if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') return publicQuoteFailure('AI_TIMEOUT');
   if (error instanceof Error) {
     if (error.name === 'AiProviderCreditError') return publicQuoteFailure('AI_PROVIDER_CREDIT');
+    if (error.name === 'AiCompanyCreditError') return publicQuoteFailure('AI_COMPANY_CREDIT');
     if (error.name === 'AiRequestGuardError' && 'code' in error && [
       'provider_outcome_unknown', 'uncertain', 'reconciliation_required',
       'checkpoint_unavailable', 'completion_unavailable', 'tool_replay_requires_recovery',

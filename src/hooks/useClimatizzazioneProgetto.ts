@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { calcMargineRiga, calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/climatizzazione/calcoli";
 import {
-  aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
+  cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
   type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
@@ -389,23 +389,14 @@ export function useSaveComputo(progettoId: string | undefined) {
       // Un salvataggio alla volta per progetto: l'autosave dello step e il
       // salvataggio all'uscita partivano insieme e duplicavano le righe.
       return inFila(progettoId, async () => {
-        // 1) Parametri economici correnti del progetto (sconto/IVA: fonte il DB)
-        //    e id delle righe che questo salvataggio sostituisce.
-        const [{ data: prog, error: pErr }, { data: vecchie, error: vErr }] = await Promise.all([
-          sb()
-            .from("clm_progetti")
-            .select("sconto_pct, iva_pct, prezzo_manuale")
-            .eq("id", progettoId)
-            .eq("company_id", companyId)
-            .maybeSingle(),
-          sb()
-            .from("clm_computo_voci")
-            .select("id")
-            .eq("progetto_id", progettoId)
-            .eq("company_id", companyId),
-        ]);
+        // 1) Parametri economici correnti del progetto (sconto/IVA: fonte il DB).
+        const { data: prog, error: pErr } = await sb()
+          .from("clm_progetti")
+          .select("sconto_pct, iva_pct, prezzo_manuale")
+          .eq("id", progettoId)
+          .eq("company_id", companyId)
+          .maybeSingle();
         if (pErr) throw new Error(pErr.message);
-        if (vErr) throw new Error(vErr.message);
 
         // 2) Ricalcola importo di ogni riga PRIMA dell'insert (mai fidarsi del
         //    valore in arrivo dal form) + ordine progressivo stabile.
@@ -455,33 +446,19 @@ export function useSaveComputo(progettoId: string | undefined) {
           };
         });
 
-        // 3) Prima le righe nuove, poi via le vecchie per id. Cancellare prima e
-        //    inserire dopo lasciava il computo VUOTO se l'insert falliva; così al
-        //    peggio resta doppio fino al salvataggio dopo, che lo ripulisce.
-        if (rows.length > 0) {
-          const { error: iErr } = await sb().from("clm_computo_voci").insert(rows);
-          if (iErr) throw new Error(iErr.message);
-        }
-        const idVecchi = ((vecchie ?? []) as Array<{ id: string }>).map((v) => v.id);
-        // A lotti: centinaia di id in un solo filtro superano la lunghezza dell'URL.
-        for (const lotto of aLotti(idVecchi, 100)) {
-          const { error: dErr } = await sb()
-            .from("clm_computo_voci")
-            .delete()
-            .eq("progetto_id", progettoId)
-            .eq("company_id", companyId)
-            .in("id", lotto);
-          if (dErr) throw new Error(dErr.message);
-        }
-
-        // 4) Aggiorna totali sul progetto (imponibile/totale post sconto+IVA).
+        // 3) Righe nuove, righe di prima e totali del progetto in UNA transazione
+        //    (computo_salva_atomico, che blocca anche il progetto). Prima erano tre
+        //    richieste dal browser: un guasto in mezzo lasciava il computo doppio, e
+        //    due salvataggi da schede o dispositivi diversi si sovrapponevano.
+        //    Imponibile e totale sono quelli post sconto+IVA.
         const totali = totaliDaRighe(rows, prog ?? {});
-        const { error: uErr } = await sb()
-          .from("clm_progetti")
-          .update({ ...totali, updated_at: new Date().toISOString() })
-          .eq("id", progettoId)
-          .eq("company_id", companyId);
-        if (uErr) throw new Error(uErr.message);
+        const { error: sErr } = await sb().rpc("computo_salva_atomico", {
+          p_prefisso: "clm",
+          p_progetto_id: progettoId,
+          p_righe: rows,
+          p_totali: totali,
+        });
+        if (sErr) throw new Error(sErr.message);
 
         return totali;
       });
