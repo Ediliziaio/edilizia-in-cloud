@@ -2664,7 +2664,17 @@ const ARANCIO_DI_SERIE = "#F97316";
 export function applicaTemaFv(html: string, template: FvPdfTemplateData["template"] | null | undefined): string {
   const primario = normalizzaHex(template?.colore_primario);
   const accento = normalizzaHex(template?.colore_accento);
-  let out = html;
+  const cambiaPrimario = !!primario && primario !== BLU_DI_SERIE;
+  const cambiaAccento = !!accento && accento !== ARANCIO_DI_SERIE;
+  if (!cambiaPrimario && !cambiaAccento) return html;
+  // Le foto incorporate (base64) sono megabyte: le sostituzioni di colore le attraverserebbero una a una
+  // (fino a undici passate sul documento intero). Si mettono da parte, si cambiano i colori sul resto
+  // e si rimettono: i colori non possono stare in un base64, il risultato è lo stesso.
+  const immagini: string[] = [];
+  let out = html.replace(/data:[\w.+\/-]+;base64,[A-Za-z0-9+\/=]+/g, (m) => {
+    immagini.push(m);
+    return `\u0000IMG${immagini.length - 1}\u0000`;
+  });
   if (primario && primario !== BLU_DI_SERIE) {
     const fondo = fondoPerTestoBianco(primario);
     // Ordine: prima le varianti, poi il colore base (che è sottostringa di nessuna).
@@ -2685,7 +2695,7 @@ export function applicaTemaFv(html: string, template: FvPdfTemplateData["templat
       .replace(/249,\s*115,\s*22/g, rgbElenco(accento))
       .replace(/#F97316/gi, accento);
   }
-  return out;
+  return immagini.length ? out.replace(/\u0000IMG(\d+)\u0000/g, (_m, i) => immagini[Number(i)]) : out;
 }
 
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
