@@ -98,25 +98,57 @@ async function detectCantieriInRitardo(
   };
 
   try {
-    // Cantieri con expected_date passata + non chiusi (current_status_id != "completato/chiuso")
+    // In ritardo è una commessa APERTA con la scadenza passata, con la regola del
+    // Cruscotto (cruscottoMetrics.classifyWorkOrders / isLateWork): non nel cestino,
+    // non annullata, non nella fase che chiude il lavoro (l'ultima del flusso
+    // dell'azienda, fasi di supporto escluse) e non in una fase di supporto. La
+    // scadenza è la fine dei lavori, o la data prevista se manca.
+    // Prima si guardava solo expected_date: il 24/10/2026 49 proposte su 84 erano su
+    // commesse già in «Lavori completati» e 12 su commesse nel cestino.
     const today = new Date().toISOString().slice(0, 10);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supa as any)
+    const { data: fasi, error: fasiErr } = await (supa as any)
+      .from("order_statuses")
+      .select("id, position, is_support_phase")
+      .eq("company_id", companyId);
+    if (fasiErr) {
+      result.errors.push(`query order_statuses: ${fasiErr.message}`);
+      return result;
+    }
+    const fasiAzienda = (fasi ?? []) as Array<{ id: string; position: number; is_support_phase: boolean | null }>;
+    const faseConclusiva = fasiAzienda
+      .filter((f) => !f.is_support_phase)
+      .reduce<{ id: string; position: number } | null>(
+        (ultima, f) => (!ultima || f.position > ultima.position ? f : ultima),
+        null,
+      );
+    const faseDi = new Map(fasiAzienda.map((f) => [f.id, f]));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: candidate, error } = await (supa as any)
       .from("orders")
-      .select("id, description, expected_date, current_status_id")
+      .select("id, description, expected_date, work_end_date, current_status_id, status, fulfillment_status")
       .eq("company_id", companyId)
-      .lt("expected_date", today)
-      .not("expected_date", "is", null)
-      .limit(20);
+      .is("deleted_at", null)
+      .or(`work_end_date.lt.${today},and(work_end_date.is.null,expected_date.lt.${today})`)
+      .order("expected_date", { ascending: false, nullsFirst: false })
+      .limit(300);
     if (error) {
       result.errors.push(`query orders: ${error.message}`);
       return result;
     }
-    for (const o of data ?? []) {
+    const aperta = (o: Record<string, unknown>): boolean => {
+      if (["annullato", "cancelled", "canceled"].includes(String(o.status ?? ""))) return false;
+      const fase = o.current_status_id ? faseDi.get(String(o.current_status_id)) : undefined;
+      if (fase) return !fase.is_support_phase && fase.id !== faseConclusiva?.id;
+      return !(o.fulfillment_status === "completed" || o.status === "completato");
+    };
+    const data = ((candidate ?? []) as Array<Record<string, unknown>>).filter(aperta).slice(0, 20);
+    for (const o of data) {
+      const scadenza = String(o.work_end_date || o.expected_date);
       const daysLate = Math.max(
         1,
         Math.floor(
-          (Date.now() - new Date(String(o.expected_date)).getTime()) / 86_400_000,
+          (Date.now() - new Date(scadenza).getTime()) / 86_400_000,
         ),
       );
       const { data: propId, error: createErr } = await supa.rpc(
@@ -130,7 +162,7 @@ async function detectCantieriInRitardo(
           p_payload: { cantiere_id: o.id, days_late: daysLate, suggested_action: "genera_piano_recovery_cantiere" },
           p_signal_type: "cantiere_in_ritardo",
           p_signal_entity_id: o.id,
-          p_signal_metadata: { days_late: daysLate, expected_date: o.expected_date },
+          p_signal_metadata: { days_late: daysLate, expected_date: scadenza },
           p_risk_level: daysLate > 14 ? "red" : "yellow",
           p_ttl_days: 7,
         },
@@ -165,41 +197,53 @@ async function detectFattureScadute(
   };
 
   try {
-    const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 30);
-    const dateLimitStr = dateLimit.toISOString().slice(0, 10);
+    // Fatture EMESSE (document_type invoice, stato issued) scadute da 30 a 120 giorni,
+    // con un residuo da incassare. Oltre i 120 giorni non è più un sollecito da
+    // «preparare»: sono fatture ferme da mesi (spesso importate, mai segnate pagate).
+    // Le più alte per prime, al massimo 10 per azienda: con tutte le scadute il primo
+    // giro avrebbe riempito di proposte le aziende con l'arretrato più lungo.
+    // Prima: colonne che non esistono (numero, importo_totale, data_scadenza,
+    // customer_id) e stati che non esistono (pagata, annullata); l'errore veniva
+    // ignorato e il segnale non è mai partito.
+    const dal = new Date();
+    dal.setDate(dal.getDate() - 120);
+    const al = new Date();
+    al.setDate(al.getDate() - 30);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supa as any)
+    const { data: candidate, error } = await (supa as any)
       .from("invoices")
-      .select("id, numero, importo_totale, data_scadenza, customer_id")
+      .select("id, invoice_number, total, paid_amount, due_date, client_id, client_company_name")
       .eq("company_id", companyId)
-      .lt("data_scadenza", dateLimitStr)
-      .not("data_scadenza", "is", null)
-      .neq("status", "pagata")
-      .neq("status", "annullata")
-      .limit(20);
+      .is("deleted_at", null)
+      .eq("document_type", "invoice")
+      .eq("status", "issued")
+      .gte("due_date", dal.toISOString().slice(0, 10))
+      .lt("due_date", al.toISOString().slice(0, 10))
+      .order("total", { ascending: false })
+      .limit(60);
     if (error) {
-      // Tabella invoices potrebbe non esistere o avere schema diverso → degrade silenzioso
-      if (!error.message.includes("does not exist") && !error.message.includes("column")) {
-        result.errors.push(`query invoices: ${error.message}`);
-      }
+      result.errors.push(`query invoices: ${error.message}`);
       return result;
     }
-    for (const inv of data ?? []) {
+    const data = ((candidate ?? []) as Array<Record<string, unknown>>)
+      .map((f) => ({ ...f, residuo: Number(f.total ?? 0) - Number(f.paid_amount ?? 0) }))
+      .filter((f) => f.residuo > 0.005)
+      .slice(0, 10);
+    for (const inv of data) {
       const daysLate = Math.floor(
-        (Date.now() - new Date(String(inv.data_scadenza)).getTime()) / 86_400_000,
+        (Date.now() - new Date(String(inv.due_date)).getTime()) / 86_400_000,
       );
-      const importo = Number(inv.importo_totale ?? 0);
+      const importo = Number(inv.residuo);
       const { error: createErr } = await supa.rpc("create_proactive_proposal", {
         p_company_id: companyId,
         p_user_id: defaultUserId,
         p_persona_key: "amministrazione",
         p_action_type: "review_overdue_invoice",
-        p_summary: `Fattura ${inv.numero ?? inv.id} scaduta da ${daysLate}gg (€${importo.toFixed(2)}) — preparo sollecito?`,
-        p_payload: { invoice_id: inv.id, days_late: daysLate, amount_eur: importo, suggested_action: "invia_reminder_pagamento" },
+        p_summary: `Fattura ${inv.invoice_number ?? inv.id}${inv.client_company_name ? ` a ${String(inv.client_company_name).substring(0, 40)}` : ""} scaduta da ${daysLate}gg (€${importo.toFixed(2)}) — preparo sollecito?`,
+        p_payload: { invoice_id: inv.id, client_id: inv.client_id ?? null, days_late: daysLate, amount_eur: importo, suggested_action: "invia_reminder_pagamento" },
         p_signal_type: "fattura_scaduta_30gg",
         p_signal_entity_id: inv.id,
-        p_signal_metadata: { days_late: daysLate, importo_eur: importo, customer_id: inv.customer_id },
+        p_signal_metadata: { days_late: daysLate, importo_eur: importo, client_id: inv.client_id ?? null },
         p_risk_level: importo > 5000 ? "red" : "yellow",
         p_ttl_days: 7,
       });
@@ -231,23 +275,30 @@ async function detectDurcInScadenza(
     const limitDate = new Date();
     limitDate.setDate(limitDate.getDate() + 30);
     const limitStr = limitDate.toISOString().slice(0, 10);
+    // Il DURC di un subappaltatore sta nella scheda sicurezza della commessa
+    // (subappaltatori_sicurezza.durc_scadenza), non nell'anagrafica: la colonna
+    // durc_valido_fino non è mai esistita e l'errore veniva ignorato, quindi il
+    // segnale non è mai partito. Solo incarichi ancora in corso (senza data di fine,
+    // o con la fine non ancora passata): il DURC scaduto di un lavoro finito da mesi
+    // non è un problema da proporre.
+    const oggi = new Date().toISOString().slice(0, 10);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supa as any)
-      .from("subappaltatori")
-      .select("id, ragione_sociale, durc_valido_fino")
+      .from("subappaltatori_sicurezza")
+      .select("id, ragione_sociale, durc_scadenza, order_id, campo_subappaltatore_id")
       .eq("company_id", companyId)
-      .lt("durc_valido_fino", limitStr)
-      .not("durc_valido_fino", "is", null)
+      .not("durc_scadenza", "is", null)
+      .lt("durc_scadenza", limitStr)
+      .or(`data_fine.is.null,data_fine.gte.${oggi}`)
+      .order("durc_scadenza", { ascending: true })
       .limit(20);
     if (error) {
-      if (!error.message.includes("does not exist") && !error.message.includes("column")) {
-        result.errors.push(`query subappaltatori: ${error.message}`);
-      }
+      result.errors.push(`query subappaltatori_sicurezza: ${error.message}`);
       return result;
     }
     for (const sub of data ?? []) {
       const daysToExpiry = Math.floor(
-        (new Date(String(sub.durc_valido_fino)).getTime() - Date.now()) / 86_400_000,
+        (new Date(String(sub.durc_scadenza)).getTime() - Date.now()) / 86_400_000,
       );
       const isExpired = daysToExpiry < 0;
       const { error: createErr } = await supa.rpc("create_proactive_proposal", {
@@ -258,7 +309,13 @@ async function detectDurcInScadenza(
         p_summary: isExpired
           ? `DURC subappaltatore ${sub.ragione_sociale} SCADUTO da ${Math.abs(daysToExpiry)}gg — bloccare cantieri?`
           : `DURC subappaltatore ${sub.ragione_sociale} scade tra ${daysToExpiry}gg — richiedo nuovo?`,
-        p_payload: { subappaltatore_id: sub.id, days_to_expiry: daysToExpiry, suggested_action: "richiedi_durc_online" },
+        p_payload: {
+          subappaltatore_id: sub.campo_subappaltatore_id ?? null,
+          scheda_sicurezza_id: sub.id,
+          order_id: sub.order_id ?? null,
+          days_to_expiry: daysToExpiry,
+          suggested_action: "richiedi_durc_online",
+        },
         p_signal_type: "durc_scadenza_subappaltatore",
         p_signal_entity_id: sub.id,
         p_signal_metadata: { days_to_expiry: daysToExpiry, is_expired: isExpired },
@@ -290,29 +347,37 @@ async function detectLeadDormienti(
   };
 
   try {
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 30);
-    const limitStr = limitDate.toISOString();
-    // marketing_opportunities con last_activity_at < 30gg + status aperto
+    // Trattative APERTE con un valore, ferme da 30 a 120 giorni, le più alte per
+    // prime, al massimo 5 per azienda. Prima: la colonna value_eur non esiste (è
+    // value) e gli stati cercati (new, qualified, proposal, negotiation) neppure: gli
+    // stati veri sono open, won, lost, abandoned. Senza valore e senza il tetto, con
+    // lo stato giusto sarebbero partite 26.000 proposte su lead di marketing mai
+    // lavorati (una sola azienda ne ha 17.000).
+    const fermaDa = new Date();
+    fermaDa.setDate(fermaDa.getDate() - 30);
+    const fermaFinoA = new Date();
+    fermaFinoA.setDate(fermaFinoA.getDate() - 120);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supa as any)
       .from("marketing_opportunities")
-      .select("id, name, contact_id, value_eur, last_activity_at, status")
+      .select("id, name, contact_id, value, last_activity_at, status")
       .eq("company_id", companyId)
-      .lt("last_activity_at", limitStr)
-      .in("status", ["new", "qualified", "proposal", "negotiation"])
-      .limit(15);
+      .is("deleted_at", null)
+      .eq("status", "open")
+      .gt("value", 0)
+      .lt("last_activity_at", fermaDa.toISOString())
+      .gte("last_activity_at", fermaFinoA.toISOString())
+      .order("value", { ascending: false })
+      .limit(5);
     if (error) {
-      if (!error.message.includes("does not exist") && !error.message.includes("column")) {
-        result.errors.push(`query opportunities: ${error.message}`);
-      }
+      result.errors.push(`query opportunities: ${error.message}`);
       return result;
     }
     for (const opp of data ?? []) {
       const daysIdle = opp.last_activity_at
         ? Math.floor((Date.now() - new Date(String(opp.last_activity_at)).getTime()) / 86_400_000)
         : 999;
-      const value = Number(opp.value_eur ?? 0);
+      const value = Number(opp.value ?? 0);
       const { error: createErr } = await supa.rpc("create_proactive_proposal", {
         p_company_id: companyId,
         p_user_id: defaultUserId,
@@ -377,38 +442,29 @@ async function detectCashflowCritico(
     let worstCumulativeEur: number | null = null;
     let worstWeekIso: string | null = null;
 
+    // L'ultimo scenario «worst» salvato per l'azienda, letto dalla RPC
+    // silvio_tool_get_cashflow_forecast_scenarios(p_company_id, p_user_id). Prima: si
+    // leggeva una colonna `scenarios` che non esiste, e la RPC veniva chiamata con un
+    // parametro (p_giorni) che non ha, cercando chiavi (worst_case, cumulative_eur)
+    // che non restituisce: l'errore era ignorato e il segnale non poteva partire.
+    // La RPC restituisce {realistic, best, worst: {min_balance_eur, first_risk_date,
+    // risk_days_count, ...}, has_forecast}; lo scenario nasce da
+    // ai-cashflow-forecast-builder, che SENZA cron non salva niente: finché la tabella
+    // cashflow_forecast_snapshots è vuota, qui non scatta nessuna proposta.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: snap } = await (supa as any)
-      .from("cashflow_forecast_snapshots")
-      .select("scenarios, created_at")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const snapScenarios = (snap as { scenarios?: Record<string, unknown> } | null)?.scenarios;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const worstFromSnap = (snapScenarios as any)?.worst_case ?? null;
-    if (worstFromSnap && typeof worstFromSnap.cumulative_eur === "number") {
-      worstCumulativeEur = worstFromSnap.cumulative_eur;
-      worstWeekIso = typeof worstFromSnap.min_balance_week === "string"
-        ? worstFromSnap.min_balance_week
-        : null;
+    const { data: forecast, error: forecastErr } = await (supa as any).rpc(
+      "silvio_tool_get_cashflow_forecast_scenarios",
+      { p_company_id: companyId, p_user_id: defaultUserId },
+    );
+    if (forecastErr) {
+      result.errors.push(`forecast cassa: ${forecastErr.message}`);
+      return result;
     }
-
-    // Fallback: ricomputo via RPC se non c'è snapshot recente.
-    if (worstCumulativeEur === null) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: forecast } = await (supa as any).rpc(
-        "silvio_tool_get_cashflow_forecast_scenarios",
-        { p_company_id: companyId, p_giorni: 90 },
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const worst = (forecast as any)?.worst_case;
-      if (worst && typeof worst.cumulative_eur === "number") {
-        worstCumulativeEur = worst.cumulative_eur;
-        worstWeekIso = typeof worst.min_balance_week === "string" ? worst.min_balance_week : null;
-      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const worst = (forecast as any)?.worst;
+    if (worst && typeof worst.min_balance_eur === "number") {
+      worstCumulativeEur = worst.min_balance_eur;
+      worstWeekIso = typeof worst.first_risk_date === "string" ? worst.first_risk_date : null;
     }
 
     // Soglia di trigger: -5000 EUR. Sotto questa cifra la cassa è solo "sotto target",
@@ -844,16 +900,15 @@ async function detectLeadNuovoNoTouch(
       .from("marketing_opportunities")
       .select("id, name, contact_id, value, source, created_at, last_activity_at, assigned_to")
       .eq("company_id", companyId)
-      .eq("status", "new")
+      .is("deleted_at", null)
+      .eq("status", "open") // gli stati veri: open, won, lost, abandoned; «new» non esiste
       .is("last_activity_at", null)
       .gte("created_at", cutoffStr)
       .order("created_at", { ascending: false })
       .limit(15);
 
     if (oErr) {
-      if (!oErr.message.includes("does not exist") && !oErr.message.includes("column")) {
-        result.errors.push(`query opportunities new: ${oErr.message}`);
-      }
+      result.errors.push(`query opportunities new: ${oErr.message}`);
       return result;
     }
 
