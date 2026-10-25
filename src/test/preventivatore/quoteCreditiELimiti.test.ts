@@ -139,6 +139,88 @@ describe("limite di richieste: chat e audio", () => {
   });
 });
 
+/** Simula il conteggio atomico del database: finestre a scorrimento per (nome, chiamante). */
+function contatoreFinto() {
+  const registro = new Map<string, number>();
+  return {
+    rpc: (_nome: string, a: Record<string, unknown>) => {
+      const chiave = `${a.p_function_name}|${a.p_caller_id}`;
+      const n = (registro.get(chiave) ?? 0) + 1;
+      const max = Number(a.p_max_calls);
+      if (n > max) return Promise.resolve({ data: { allowed: false, retry_after_seconds: Number(a.p_window_seconds) } });
+      registro.set(chiave, n);
+      return Promise.resolve({ data: { allowed: true } });
+    },
+  };
+}
+
+describe("simulazioni: raffiche contro il limite", () => {
+  it("un utente che martella la chat: passano 20 richieste, dalla 21ª in poi 429", async () => {
+    const db = contatoreFinto();
+    const esiti: boolean[] = [];
+    for (let i = 0; i < 30; i++) esiti.push((await checkQuoteRateLimit(db, "chat", AZIENDA, UTENTE)).allowed);
+    expect(esiti.filter(Boolean)).toHaveLength(20);
+    expect(esiti.slice(0, 20).every(Boolean)).toBe(true);
+    expect(esiti.slice(20).some(Boolean)).toBe(false);
+  });
+
+  it("un utente che martella l'audio: passano 6 trascrizioni, poi basta", async () => {
+    const db = contatoreFinto();
+    let passate = 0;
+    for (let i = 0; i < 12; i++) if ((await checkQuoteRateLimit(db, "audio", AZIENDA, UTENTE)).allowed) passate++;
+    expect(passate).toBe(QUOTE_RATE_LIMITS.audio.utenteAlMinuto);
+  });
+
+  it("l'audio non consuma il limite della chat, e viceversa", async () => {
+    const db = contatoreFinto();
+    for (let i = 0; i < 6; i++) await checkQuoteRateLimit(db, "audio", AZIENDA, UTENTE);
+    expect((await checkQuoteRateLimit(db, "audio", AZIENDA, UTENTE)).allowed).toBe(false);
+    expect((await checkQuoteRateLimit(db, "chat", AZIENDA, UTENTE)).allowed).toBe(true);
+  });
+
+  it("cinque colleghi sotto soglia ciascuno: l'azienda si ferma al tetto comune (60 chat al minuto)", async () => {
+    const db = contatoreFinto();
+    let passate = 0;
+    for (let giro = 0; giro < 20; giro++) {
+      for (let u = 0; u < 5; u++) {
+        if ((await checkQuoteRateLimit(db, "chat", AZIENDA, `${UTENTE}-${u}`)).allowed) passate++;
+      }
+    }
+    expect(passate).toBeLessThanOrEqual(QUOTE_RATE_LIMITS.chat.aziendaAlMinuto);
+    expect(passate).toBeGreaterThan(40);
+  });
+
+  it("un'altra azienda non risente della raffica", async () => {
+    const db = contatoreFinto();
+    for (let i = 0; i < 70; i++) await checkQuoteRateLimit(db, "chat", AZIENDA, UTENTE);
+    expect((await checkQuoteRateLimit(db, "chat", "altra-azienda", "altro-utente")).allowed).toBe(true);
+  });
+});
+
+describe("simulazioni: il saldo finisce a metà conversazione", () => {
+  it("le prime trascrizioni passano, quando il saldo scende sotto la soglia si ferma tutto senza partire", async () => {
+    let saldo = 0.12;
+    const { db } = dbCredito({
+      markup: [{ task_kind: "default", markup_multiplier: 3 }],
+      precheck: (a) => ({ data: { ok: saldo >= Number(a.p_estimated_cost_eur) * 1.5 } }),
+    });
+    const stima = await stimaAddebitoAudioEur(db);
+    const esiti: boolean[] = [];
+    for (let i = 0; i < 6; i++) {
+      const d = await precheckCreditoAudio(db, AZIENDA);
+      esiti.push(d.ok);
+      if (d.ok) saldo -= stima; // l'addebito reale di una trascrizione
+    }
+    expect(esiti[0]).toBe(true);
+    expect(esiti.includes(false)).toBe(true);
+    // Dopo il primo rifiuto non si torna a passare senza una ricarica.
+    const primo = esiti.indexOf(false);
+    expect(esiti.slice(primo).every((x) => !x)).toBe(true);
+    saldo += 10; // ricarica
+    expect((await precheckCreditoAudio(db, AZIENDA)).ok).toBe(true);
+  });
+});
+
 describe("saldo dell'azienda prima della trascrizione audio", () => {
   it("la stima è il costo massimo di una trascrizione × cambio × markup del compito", async () => {
     vi.stubGlobal("Deno", { env: { get: (): string | undefined => undefined } });

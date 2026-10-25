@@ -83,7 +83,13 @@ vi.mock("@/integrations/supabase/client", () => {
   const canale: Canale = { on: () => canale, subscribe: () => canale, unsubscribe: (): void => undefined };
   return {
     supabase: {
-      from: (t: string) => catena(t), rpc: nulla, functions: { invoke: nulla },
+      from: (t: string) => catena(t),
+      // Il computo si salva con una sola chiamata (computo_salva_atomico): le righe nuove viaggiano in p_righe.
+      rpc: (nome: string, args?: { p_prefisso?: string; p_righe?: Array<Record<string, unknown>> }) => {
+        if (nome === "computo_salva_atomico") registro.inserimenti.push({ tabella: `${args?.p_prefisso}_computo_voci`, righe: args?.p_righe ?? [] });
+        return nulla();
+      },
+      functions: { invoke: nulla },
       storage: { from: () => ({ upload: nulla, download: nulla, remove: nulla, list: () => Promise.resolve({ data: [], error: null }), getPublicUrl: () => ({ data: { publicUrl: "" } }), createSignedUrl: () => Promise.resolve({ data: { signedUrl: "" }, error: null }), createSignedUrls: () => Promise.resolve({ data: [], error: null }) }) },
       auth: { getSession: () => Promise.resolve({ data: { session: null } }), getUser: () => Promise.resolve({ data: { user: { id: "u1" } } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: (): void => undefined } } }) },
       channel: () => canale, removeChannel: (): void => undefined,
@@ -142,7 +148,7 @@ describe.each(MODULI)("$slug: dal selettore al salvataggio", ({ slug, p, wizard 
     await waitFor(() => expect(within(anteprima).getByText("Antiscivolo, finitura pietra.")).toBeInTheDocument());
     expect(anteprima.querySelector('img[src="/templates/bagno/products/piatto-doccia.webp"]')).not.toBeNull();
 
-    // Il salvataggio automatico scrive la riga con la provenienza, la foto e la descrizione.
+    // Il salvataggio automatico (una sola transazione) scrive la riga con la provenienza, la foto e la descrizione.
     await waitFor(() => expect(inserimenti().some((i) => i.tabella === `${p}_computo_voci`)).toBe(true), { timeout: 10_000 });
     const scritta = inserimenti().find((i) => i.tabella === `${p}_computo_voci`)!.righe[0];
     expect(scritta).toMatchObject({

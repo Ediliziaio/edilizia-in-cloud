@@ -23,6 +23,23 @@ describe('dedicated Demo2 endpoint uses bounded GPT, visual and budget options (
   beforeEach(() => { state.calls = []; state.events = []; state.flag = true; state.production = false; state.auth = true; state.member = true; state.edit = true; state.payment = true; state.failure = null; });
   afterAll(() => vi.unstubAllGlobals());
   const post = (body: unknown) => state.handler!(new Request('http://localhost/functions/v1/ai-preventivo-conversazione', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  it('crediti AI dell\'azienda finiti: 402 con le chiavi della finestra di ricarica, senza dettagli del provider', async () => {
+    state.production = true;
+    state.failure = Object.assign(new Error('Credito insufficiente o bloccato: balance_too_low (chiave sk-or-segreta)'), { name: 'AiCompanyCreditError' });
+    const response = await post({ ...quoteBenchmarkCases()[0].request, companyId: 'b2000000-0000-4000-a000-000000000001' });
+    expect(response.status).toBe(402);
+    const corpo = await response.json();
+    expect(corpo).toMatchObject({ code: 'AI_COMPANY_CREDIT', wallet: 'ai' });
+    expect(JSON.stringify(corpo)).not.toMatch(/sk-or|balance_too_low/);
+    expect(corpo.error).toMatch(/Ricarica/);
+  });
+  it('credito della PIATTAFORMA su OpenRouter finito: 503, mai una richiesta di ricarica all\'azienda', async () => {
+    state.production = true;
+    state.failure = Object.assign(new Error('402 payment required'), { name: 'AiProviderCreditError' });
+    const response = await post({ ...quoteBenchmarkCases()[0].request, companyId: 'b2000000-0000-4000-a000-000000000001' });
+    expect(response.status).not.toBe(402);
+    expect((await response.json()).code).not.toBe('AI_COMPANY_CREDIT');
+  });
   it('never calls provider when the demo flag is disabled', async () => {
     state.flag = false; expect((await post(quoteBenchmarkCases()[0].request)).status).toBe(503); expect(state.calls).toHaveLength(0);
   });
