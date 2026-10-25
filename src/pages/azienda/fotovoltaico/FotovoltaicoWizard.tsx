@@ -5496,12 +5496,7 @@ function Step6Finanziario({
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-orange-600">Rata mensile</div>
-              <div className="text-lg font-bold text-orange-700 tabular-nums">
-                {formatEur(rataMensilePrestito)}<span className="text-xs font-medium">/mese</span>
-              </div>
-            </div>
+            <p className="text-xs text-slate-500">La rata, con l'anticipo, è qui sotto in «Modalità di pagamento».</p>
           </div>
         </FvCard>
       )}
