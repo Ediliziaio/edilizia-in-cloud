@@ -3,6 +3,7 @@ import type { ChatDocument, ChatLine } from "./quoteChatDocument";
 import { chatLineIssue } from "./quoteChatDocument";
 import { quoteLineOverlaps } from "./quoteLineDuplicates";
 import { wizardAiPriceSource, wizardAiPricingFromSource } from './wizardAiPriceSource';
+import { isListinoSourceId } from '../../../supabase/functions/_shared/quoteListinoSource';
 
 /** These eight native engines share the computo row contract, not their forms or templates. */
 export type NativeComputoRow = RstComputoVoce;
@@ -286,6 +287,10 @@ export function reconcileComputoDraft(
       quantita: line.quantity!,
       prezzo_unitario: line.price!,
       ordine: rows.length,
+      // Una riga presa dal listino aziendale porta il collegamento alla voce e la fonte del prezzo.
+      ...(line.reference && isListinoSourceId(line.reference.sourceId)
+        ? { listino_voce_id: line.reference.id, fonte: wizardAiPriceSource(line) }
+        : {}),
       // Derived values must be recalculated by the native editor/save, not trusted from AI.
       importo: 0,
       margine_eur: 0,

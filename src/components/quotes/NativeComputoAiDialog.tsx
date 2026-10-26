@@ -4,6 +4,8 @@ import { PdfBlobLivePreviewPanel } from '@/components/shared/PdfBlobLivePreviewP
 import { emptyQuoteProject, type QuoteProject } from '@/lib/preventivi/quoteProject';
 import { cloneWizardDraft, computoChatDocument, reconcileComputoDraft, wizardDraftFingerprint, type NativeComputoModule, type NativeComputoRow } from '@/lib/preventivi/wizardAiDraft';
 import type { ChatDocument } from '@/lib/preventivi/quoteChatDocument';
+import { enrichComputoRowsFromListino } from '@/lib/preventivi/wizardAiListino';
+import { QUOTE_LISTINO_SOURCES } from '../../../supabase/functions/_shared/quoteListinoSource';
 import type { WizardAiCommercialDraft } from '@/lib/preventivi/wizardAiCommercial';
 import type { QuoteItemPro } from '@/types/quoteItem';
 
@@ -69,6 +71,6 @@ export default function NativeComputoAiDialog({ context, rows, companyId, projec
   return <QuoteWizardAiDialog open={open} onOpenChange={onOpenChange} companyId={companyId} title={seed.context.title} document={seed.document} project={project}
     fingerprint={wizardDraftFingerprint([rows, context, companyId, projectId])} commercial={{ draft: commercial, defaultVat: project.tax!.defaultRate, module: context.module }} chapters
     preview={(draft, chapters) => { try { return <NativeDraftPreview context={seed.context} document={draft} rows={reconcile(draft, chapters).rows} />; } catch (e) { return <NativeDraftPreview context={seed.context} document={draft} rows={[]} error={(e as Error).message} />; } }}
-    review={(draft, chapters) => reconcile(draft, chapters)}
-    onApply={(draft, chapters) => onApply(reconcile(draft, chapters).rows)} />;
+    review={(draft, chapters) => reconcile(draft, chapters)} listinoSourceId={QUOTE_LISTINO_SOURCES[context.module].id}
+    onApply={async (draft, chapters) => onApply(await enrichComputoRowsFromListino(context.module, reconcile(draft, chapters).rows))} />;
 }

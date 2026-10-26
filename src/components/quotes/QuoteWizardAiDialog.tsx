@@ -24,6 +24,8 @@ export type QuoteWizardAiDialogProps = {
   review: (document: ChatDocument, chapters: Record<string, string>) => WizardAiReview;
   onApply: (document: ChatDocument, chapters: Record<string, string>) => void | Promise<void>;
   chapters?: boolean;
+  /** Il listino aziendale del modulo come fonte di prezzi della chat (id riservato di quoteListinoSource). */
+  listinoSourceId?: string;
   commercial?: { draft: QuoteDraft; defaultVat: number | null; module?: NativeComputoModule };
 };
 
@@ -84,7 +86,7 @@ export default function QuoteWizardAiDialog(props: QuoteWizardAiDialogProps) {
     {conflict ? <div role="alert" className="quote-wizard-ai-alert">{identityChanged ? 'L’account o l’azienda attiva è cambiata.' : 'Il preventivo è cambiato mentre lavoravi qui.'} Chiudi e riapri Silvio AI per ripartire dai dati aggiornati. Nessuna modifica verrà applicata.</div> :
     <fieldset disabled={applying} className="quote-wizard-ai-body min-w-0"><Suspense fallback={<p role="status" className="p-8">Preparo chat e modello del preventivo…</p>}><Workspace companyId={props.companyId} companyName={effectiveCompany?.name} simulated={false}
       transport={transport} transcribeAudio={transcribe} cadReader={cadReader} onBack={close}
-      embedded={{ title: props.title, document: seed.document, project: seed.project, commercial: props.commercial, onChange: receive, preview: document => props.preview(document, chapters) }} /></Suspense></fieldset>}
+      embedded={{ title: props.title, document: seed.document, project: seed.project, commercial: props.commercial, fixedSourceId: props.listinoSourceId, onChange: receive, preview: document => props.preview(document, chapters) }} /></Suspense></fieldset>}
     {reviewing && !conflict && <section className="quote-wizard-ai-review" aria-label="Riepilogo modifiche prima di applicare"><h3>Controlla cosa cambia nel wizard</h3>
       {review.error && <p role="alert">{review.error}</p>}
       <ul>{review.changes.map(change => <li key={change.id}><span className={`quote-change-${change.kind}`}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {change.before.quantity} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {change.after.quantity} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p></div>

@@ -17,6 +17,7 @@ import { quoteMessagePreview } from '../_shared/quoteMessagePreview.ts';
 import { catalogueCodeVariants } from '../_shared/quoteCatalogueCodes.ts';
 import { classifyQuoteFailure } from '../_shared/quoteFailure.ts';
 import { quoteCompanyEnabled, QUOTE_DEMO_COMPANY } from '../_shared/quoteAvailability.ts';
+import { isListinoSourceId, listinoSourceName, searchListinoSource } from '../_shared/quoteListinoSource.ts';
 import { readQuoteCadAccess } from '../_shared/quoteCadAccess.ts';
 import { checkQuoteRateLimit, QUOTE_RATE_LIMIT_MESSAGE } from '../_shared/quoteRateLimit.ts';
 import { companyCreditResponse, creditDecisionResponse, precheckCreditoAudio, QUOTE_COMPANY_CREDIT_MESSAGE } from '../_shared/quoteCreditGuard.ts';
@@ -111,7 +112,10 @@ Deno.serve(async req => {
     }
     // A selected edition is a constraint, not an instruction to trust client prices.
     let sourceName = "";
-    if (request.sourceId && !experiment) {
+    // La fonte può essere un prezzario pubblicato OPPURE il listino aziendale del computo (id riservato, mai di un'altra azienda).
+    const listinoSource = !!request.sourceId && !experiment && isListinoSourceId(request.sourceId);
+    if (listinoSource) sourceName = listinoSourceName(request.sourceId!);
+    if (request.sourceId && !experiment && !listinoSource) {
       const { data, error } = await db.from("prezzario_fonte").select("id,nome,stato")
         .eq("id", request.sourceId).eq("stato", "pubblicato").maybeSingle().abortSignal(AbortSignal.timeout(8_000));
       if (error || !data) return errorResponse("Fonte pubblicata non disponibile", 422, headers);
@@ -150,6 +154,7 @@ Deno.serve(async req => {
       search: async (sourceId, terms, ids, targets) => {
         req.signal.throwIfAborted();
         if (experiment) return [QUOTE_BENCHMARK_REFERENCE];
+        if (isListinoSourceId(sourceId)) return await searchListinoSource(db, request.companyId, sourceId, terms, ids, targets, AbortSignal.timeout(8_000));
         const rows = new Map<string, QuoteChatReference>();
         const query = () => db.from("prezzario_voce")
           .select("id,fonte_id,codice,descrizione,unita_misura,prezzo,fonte:prezzario_fonte!inner(stato)")

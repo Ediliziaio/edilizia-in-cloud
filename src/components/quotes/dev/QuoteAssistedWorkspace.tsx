@@ -112,6 +112,8 @@ type WorkspaceProps = {
     commercial?: { draft: QuoteDraft; defaultVat: number | null; module?: import('@/lib/preventivi/wizardAiDraft').NativeComputoModule };
     onChange: (document: ChatDocument, busy: boolean) => void;
     preview: (document: ChatDocument) => ReactNode;
+    /** Fonte di prezzi fissa fin dall'apertura (es. il listino aziendale del computo). */
+    fixedSourceId?: string;
   };
 };
 export default function QuoteAssistedWorkspace(props: WorkspaceProps) {
@@ -173,7 +175,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     const last = [...initial?.messages ?? []].reverse().find(m => m.preliminaryBudget);
     return last?.preliminaryBudget ? { preliminaryBudget: last.preliminaryBudget, budgetRevision: last.budgetRevision ?? 0, budgetModel: last.budgetModel ?? 'Modello non registrato' } : null;
   });
-  const [sourceId, setSourceId] = useState<string | null>(initial?.sourceId ?? null);
+  const [sourceId, setSourceId] = useState<string | null>(embedded?.fixedSourceId ?? initial?.sourceId ?? null);
   const [brief, setBrief] = useState<string | undefined>(initial?.brief);
   const [scopeFacts, setScopeFacts] = useState<QuoteScopeFact[]>(() => refreshQuoteScopeFacts(initial?.scopeFacts ?? (initial?.messages ?? []).filter(m => m.role === "user").reduce((facts, m) => updateQuoteScopeFacts(facts, m.text), [] as QuoteScopeFact[])));
   const [roomDecisions, setRoomDecisions] = useState<QuoteRoomDecision[]>(() => initial?.roomDecisions ? refreshQuoteRoomDecisions(initial.roomDecisions) : (initial?.messages ?? []).filter(m => m.role === "user").reduce((facts, m) => updateQuoteRoomDecisions(facts, m.text).decisions, roomDecisionsFromLegacy(initial?.scopeFacts ?? [])));
