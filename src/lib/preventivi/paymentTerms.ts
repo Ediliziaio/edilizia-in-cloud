@@ -10,6 +10,8 @@
  * assorbe gli arrotondamenti nell'ultima fase con percentuale positiva.
  */
 
+import { PIANI_DI_PARTENZA } from "@/lib/preventivi/pianoPagamento";
+
 export type QuotePaymentPhaseType = "deposit" | "balance" | "financing";
 
 export interface QuotePaymentPhase {
@@ -38,6 +40,27 @@ export function defaultQuotePaymentPhases(): QuotePaymentPhase[] {
     { label: "Acconto alla firma", type: "deposit", percent: 30, amount: 0 },
     { label: "Saldo a fine lavori", type: "balance", percent: 70, amount: 0 },
   ];
+}
+
+/**
+ * I modi di pagare del mestiere anche nel preventivo classico (26/10/2026): gli stessi dei preventivatori edili
+ * (lib/preventivi/pianoPagamento), scritti una volta sola. Qui diventano fasi del classico: il «quando» resta nel
+ * nome della rata, perché le fasi del classico non hanno l'evento come dato.
+ */
+export interface QuotePaymentPreset { chiave: string; nome: string; descrizione: string; fasi: QuotePaymentPhase[] }
+
+export function quotePaymentPresets(): QuotePaymentPreset[] {
+  return PIANI_DI_PARTENZA.map((p) => ({
+    chiave: p.chiave,
+    nome: p.nome,
+    descrizione: p.descrizione,
+    fasi: p.piano.righe.map((r, i, tutte): QuotePaymentPhase => ({
+      label: r.nome,
+      type: i === tutte.length - 1 ? "balance" : "deposit",
+      percent: r.percent,
+      amount: 0,
+    })),
+  }));
 }
 
 /**

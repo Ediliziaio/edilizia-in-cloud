@@ -22,7 +22,7 @@ import {
   PAYMENT_METHOD_PRESETS,
   recalcPhaseAmounts,
   phasesPercentTotal,
-  defaultQuotePaymentPhases,
+  quotePaymentPresets,
   paymentPlanError,
 } from "@/lib/preventivi/paymentTerms";
 
@@ -59,8 +59,6 @@ export function QuotePaymentTermsCard({
 
   const removePhase = (idx: number) => push(phases.filter((_, i) => i !== idx));
 
-  const applyDefault = () => push(defaultQuotePaymentPhases());
-
   return (
     <Card className="border-orange-100">
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
@@ -94,9 +92,18 @@ export function QuotePaymentTermsCard({
           <div className="flex items-center justify-between">
             <Label>Fasi di pagamento</Label>
             {phases.length === 0 ? (
-              <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={applyDefault}>
-                <Plus className="h-3.5 w-3.5" /> Piano standard (30/70)
-              </Button>
+              /* I modi di pagare che si usano davvero: gli stessi dei preventivatori edili. */
+              <div className="flex flex-wrap gap-1.5">
+                {quotePaymentPresets().map((preset) => (
+                  <Button
+                    key={preset.chiave} type="button" variant="outline" size="sm" className="h-7 gap-1"
+                    title={preset.descrizione}
+                    onClick={() => push(preset.fasi.map((f) => ({ ...f })))}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {preset.nome}
+                  </Button>
+                ))}
+              </div>
             ) : (
               <Badge
                 variant="outline"
