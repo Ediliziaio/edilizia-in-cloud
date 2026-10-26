@@ -15,7 +15,7 @@ vi.mock("@/components/marketing/preventivi/moduli/NewQuoteDialog", () => ({
   },
 }));
 vi.mock("@/lib/moduli-vendita", () => ({
-  useModuliVendita: () => ({ moduli: [] }),
+  useModuliVendita: () => ({ moduli: [] as unknown[] }),
   useModuliVisibilita: () => ({ isModuloVisibile: () => true }),
 }));
 
