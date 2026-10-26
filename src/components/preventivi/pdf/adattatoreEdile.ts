@@ -27,6 +27,17 @@ import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti } from "@/lib/preventivi/pianoPagamento";
+import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
+
+/**
+ * Le fasi del cantiere nel PDF: quelle scritte su QUESTO preventivo, se ci sono; altrimenti quelle del modello.
+ * Un bagno e una ristrutturazione non durano uguale, e prima raccontavano gli stessi tempi.
+ */
+function cronoprogrammaDelDocumento(delPreventivo: unknown, delModello: unknown): DocEdileFase[] {
+  const proprie = fasiDaStampare(leggiCronoprogramma(delPreventivo));
+  if (proprie.length > 0) return proprie.map((f) => ({ fase: f.fase, durata: f.durata, descrizione: f.descrizione }));
+  return elenco<DocEdileFase>(delModello).filter((x) => stringa(x?.fase));
+}
 
 /**
  * Le rate del preventivo come le stampa il PDF. Un piano che non copre il prezzo non esce: il cliente vedrebbe un
@@ -83,6 +94,8 @@ export interface ProgettoComune {
   finanziamento_rate?: number | null;
   /** Il piano di pagamento di questo preventivo. */
   piano_pagamento?: unknown;
+  /** Le fasi del cantiere scritte su questo preventivo. */
+  cronoprogramma?: unknown;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
   finanziamento_tabella_id?: string | null;
   finanziamento_tan_pct?: number | null;
@@ -244,7 +257,7 @@ export function leggiModello(
       .filter((x) => stringa(x?.testo))
       // Le stelle solo se l'azienda le ha riportate, da 1 a 5: mai di serie.
       .map((x) => ({ ...x, voto: typeof x.voto === "number" && x.voto >= 1 && x.voto <= 5 ? Math.round(x.voto) : null })),
-    cronoprogramma: elenco<DocEdileFase>(t.cronoprogramma).filter((x) => stringa(x?.fase)),
+    cronoprogramma: cronoprogrammaDelDocumento(contesto.progetto.cronoprogramma, t.cronoprogramma),
     mostraCronoprogramma: t.show_cronoprogramma !== false,
     galleriaLavori: elenco<DocEdileFoto>(t.gallery_lavori).filter((x) => stringa(x?.url)),
     // Come nelle pagine libere, i segnaposto ({cliente_nome}, {citta}…) si espandono.

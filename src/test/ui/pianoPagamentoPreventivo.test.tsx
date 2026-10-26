@@ -28,21 +28,37 @@ describe("senza piano", () => {
     expect(testo()).toContain("Nel PDF non compare nessun pagamento");
   });
 
-  it("col testo nel modello dice che è quello a uscire, e offre comunque le rate", () => {
+  it("col testo nel modello dice che è quello a uscire, e offre comunque i modi di pagare", () => {
     monta(null, { testoDelModello: "<p>30% alla firma</p>" });
     expect(testo()).toContain("esce la frase scritta nel modello");
-    expect(screen.getByRole("button", { name: "Modalità di pagamento" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "A SAL" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Acconto e saldo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Firma, merce e saldo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Acconto e SAL" })).toBeTruthy();
   });
 
-  it("«Modalità di pagamento» parte da acconto e saldo; «A SAL» dai SAL numerati", () => {
+  it("«Acconto e saldo» fa 30/70; «Firma, merce e saldo» mette in mezzo l'arrivo della merce; «Acconto e SAL» i SAL numerati", () => {
     const onChange = monta(null);
-    fireEvent.click(screen.getByRole("button", { name: "Modalità di pagamento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Acconto e saldo" }));
     expect(onChange).toHaveBeenLastCalledWith(pianoRateDiPartenza());
-    fireEvent.click(screen.getByRole("button", { name: "A SAL" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Firma, merce e saldo" }));
+    const merce = onChange.mock.calls.at(-1)![0] as PianoPagamento;
+    expect(merce.righe.map((r) => r.evento)).toEqual(["firma_contratto", "merce_magazzino", "fine_lavori"]);
+    expect(merce.righe.map((r) => r.percent)).toEqual([30, 40, 30]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Acconto e SAL" }));
     const p = onChange.mock.calls.at(-1)![0] as PianoPagamento;
     expect(p.modo).toBe("sal");
     expect(p.righe.filter((r) => r.evento === "sal_numero")).toHaveLength(3);
+  });
+
+  it("il modo consigliato cambia col mestiere: le ristrutturazioni partono dai SAL, i bagni dalla merce", () => {
+    const primo = () => screen.getAllByRole("button").map((b) => b.textContent)[0];
+    monta(null, { modulo: "ristrutturazione" });
+    expect(primo()).toBe("Acconto e SAL");
+    cleanup();
+    monta(null, { modulo: "bagni" });
+    expect(primo()).toBe("Firma, merce e saldo");
   });
 
   it("con i modelli dell'azienda si può partire da uno di quelli", () => {

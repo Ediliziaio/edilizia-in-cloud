@@ -41,6 +41,7 @@ const toPct = (raw: string): number => {
 import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
 import { PianoPagamentoCard } from "@/components/moduli/PianoPagamentoCard";
+import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useTetTemplatePdf } from "@/hooks/useTettiProgetto";
@@ -172,6 +173,13 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               onChange={(p) => onChange("piano_pagamento", p)}
               totale={totali.totale}
               testoDelModello={(template as unknown as { payment_terms_text?: string | null } | undefined)?.payment_terms_text}
+              modulo="tetti"
+            />
+            <CronoprogrammaCard
+              fasi={form.cronoprogramma}
+              onChange={(fasi) => onChange("cronoprogramma", fasi)}
+              fasiDelModello={(template as unknown as { cronoprogramma?: unknown } | undefined)?.cronoprogramma}
+              modulo="tetti"
             />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">

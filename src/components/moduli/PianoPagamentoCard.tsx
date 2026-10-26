@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 import { EVENTI_RATA, GRUPPI_EVENTO, type GruppoEvento } from "@/lib/orders/rateEventi";
 import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import {
-  MAX_NOME_RATA_PIANO, MAX_RATE_PIANO, cambiaModo, leggiPianoPagamento, pianoCompleto, pianoDaModello,
-  pianoRateDiPartenza, pianoSalDiPartenza, quandoSiPaga, rateConImporti, totalePercentuali,
+  MAX_NOME_RATA_PIANO, MAX_RATE_PIANO, cambiaModo, leggiPianoPagamento, partenzeDelModulo, pianoCompleto,
+  pianoDaModello, quandoSiPaga, rateConImporti, totalePercentuali,
   type ModoPagamento, type PianoPagamento, type RataPreventivo,
 } from "@/lib/preventivi/pianoPagamento";
 
@@ -33,6 +33,8 @@ interface Props {
   totale: number;
   /** Il testo del modello, se c'è: senza piano è quello che finisce nel PDF. */
   testoDelModello?: string | null;
+  /** Il preventivatore («bagni», «ristrutturazione»…): decide quale modo di pagare si propone per primo. */
+  modulo?: string | null;
 }
 
 /** Gli eventi da offrire in ognuno dei due modi. */
@@ -45,7 +47,7 @@ const eventiDelModo = (modo: ModoPagamento) =>
 
 const arrotonda2 = (n: number) => Math.round(n * 100) / 100;
 
-export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModello }: Props) {
+export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModello, modulo }: Props) {
   const piano = leggiPianoPagamento(raw);
   const { modelli } = useModelliPagamento();
   const [modelloScelto, setModelloScelto] = useState("");
@@ -71,8 +73,12 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
             : "Nel PDF esce la frase scritta nel modello. Qui puoi fare le rate di questo preventivo, con gli importi."}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <Button type="button" size="sm" variant="outline" onClick={() => scrivi(pianoRateDiPartenza())}>Modalità di pagamento</Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => scrivi(pianoSalDiPartenza())}>A SAL</Button>
+          {/* I modi di pagare che si usano in questo mestiere: il primo è quello consigliato. */}
+          {partenzeDelModulo(modulo).map((p, i) => (
+            <Button key={p.chiave} type="button" size="sm" variant={i === 0 ? "default" : "outline"} title={p.descrizione} onClick={() => scrivi(p.piano)}>
+              {p.nome}
+            </Button>
+          ))}
           {modelli.length > 0 && (
             <Select value={modelloScelto} onValueChange={(v) => { setModelloScelto(v); const m = modelli.find((x) => x.id === v); if (m) scrivi(pianoDaModello(m)); }}>
               <SelectTrigger className="h-8 w-auto min-w-[11rem] text-xs" aria-label="Parti da un modello di pagamento"><SelectValue placeholder="Da un modello…" /></SelectTrigger>

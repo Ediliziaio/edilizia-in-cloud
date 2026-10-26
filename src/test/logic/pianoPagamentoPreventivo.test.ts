@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cambiaModo, leggiPianoPagamento, pianoCompleto, pianoDaModello, pianoRateDiPartenza, pianoSalDiPartenza,
-  quandoSiPaga, rateConImporti, totalePercentuali, type PianoPagamento,
+  PIANI_DI_PARTENZA, partenzeDelModulo, quandoSiPaga, rateConImporti, totalePercentuali, type PianoPagamento,
 } from "@/lib/preventivi/pianoPagamento";
 
 const somma = (righe: ReadonlyArray<{ importo: number }>) => Math.round(righe.reduce((s, r) => s + r.importo, 0) * 100) / 100;
@@ -152,5 +152,35 @@ describe("cambio di modo", () => {
   it("lo stesso modo non cambia niente", () => {
     const p = pianoRateDiPartenza();
     expect(cambiaModo(p, "rate")).toBe(p);
+  });
+});
+
+describe("i modi di pagare del mestiere", () => {
+  it("ogni piano di partenza copre il prezzo intero", () => {
+    for (const p of PIANI_DI_PARTENZA) expect(totalePercentuali(p.piano.righe), p.chiave).toBe(100);
+  });
+
+  it("«Firma, merce e saldo» ha l'arrivo della merce in mezzo: è il caso di chi ordina materiale", () => {
+    const p = PIANI_DI_PARTENZA.find((x) => x.chiave === "firma-merce-saldo")!;
+    expect(p.piano.righe.map((r) => r.evento)).toEqual(["firma_contratto", "merce_magazzino", "fine_lavori"]);
+    expect(p.piano.modo).toBe("rate");
+  });
+
+  it("«Acconto e SAL» è un piano a SAL numerati", () => {
+    const p = PIANI_DI_PARTENZA.find((x) => x.chiave === "acconto-sal-saldo")!;
+    expect(p.piano.modo).toBe("sal");
+    expect(p.piano.righe.filter((r) => r.evento === "sal_numero").map((r) => r.numero)).toEqual([1, 2, 3]);
+  });
+
+  it("il consigliato segue il mestiere: SAL per ristrutturazioni, tetti e piscine; merce per bagni e impianti", () => {
+    for (const m of ["ristrutturazione", "tetti", "piscine"]) expect(partenzeDelModulo(m)[0].chiave, m).toBe("acconto-sal-saldo");
+    for (const m of ["bagni", "climatizzazione", "elettrico", "termoidraulico", "pavimenti"]) expect(partenzeDelModulo(m)[0].chiave, m).toBe("firma-merce-saldo");
+  });
+
+  it("qualunque mestiere li trova tutti, senza doppioni: nessun modo di pagare sparisce", () => {
+    for (const m of ["ristrutturazione", "bagni", "sconosciuto", null]) {
+      const chiavi = partenzeDelModulo(m).map((p) => p.chiave);
+      expect(new Set(chiavi).size, String(m)).toBe(PIANI_DI_PARTENZA.length);
+    }
   });
 });

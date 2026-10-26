@@ -322,6 +322,7 @@ export function useClonaProgetto() {
           mostra_finanziamento: src.mostra_finanziamento ?? null,
           finanziamento_rate: src.finanziamento_rate ?? null,
           piano_pagamento: src.piano_pagamento ?? null,
+          cronoprogramma: src.cronoprogramma ?? null,
           finanziamento_tabella_id: src.finanziamento_tabella_id ?? null,
           finanziamento_tan_pct: src.finanziamento_tan_pct ?? null,
           finanziamento_rata: src.finanziamento_rata ?? null,

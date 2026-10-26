@@ -151,6 +151,65 @@ export function pianoSalDiPartenza(quantiSal = 3, accontoPct = 20, saldoPct = 10
   return { modo: "sal", righe, note: null };
 }
 
+/** Un punto di partenza pronto: come si paga di solito quel tipo di lavoro. */
+export interface PianoDiPartenza { chiave: string; nome: string; descrizione: string; piano: PianoPagamento }
+
+const rata = (nome: string, percent: number, evento: EventoRataPreventivo, numero: number | null = null): RataPreventivo =>
+  ({ nome, percent, evento, numero });
+
+/**
+ * I modi di pagare che si usano davvero in cantiere. Non sono regole: sono il punto da cui partire, poi si cambiano
+ * nomi, percentuali e momenti. L'ordine in cui si offrono lo decide il mestiere (vedi `partenzeDelModulo`).
+ */
+export const PIANI_DI_PARTENZA: readonly PianoDiPartenza[] = [
+  {
+    chiave: "acconto-saldo", nome: "Acconto e saldo", descrizione: "30% alla firma, il resto a fine lavori.",
+    piano: { modo: "rate", righe: [rata("Acconto alla firma", 30, "firma_contratto"), rata("Saldo a fine lavori", 70, "fine_lavori")], note: null },
+  },
+  {
+    chiave: "firma-merce-saldo", nome: "Firma, merce e saldo", descrizione: "Per i lavori con materiale da ordinare: 30% alla firma, 40% all'arrivo della merce, saldo a fine lavori.",
+    piano: { modo: "rate", righe: [
+      rata("Acconto alla firma", 30, "firma_contratto"),
+      rata("All'arrivo della merce", 40, "merce_magazzino"),
+      rata("Saldo a fine lavori", 30, "fine_lavori"),
+    ], note: null },
+  },
+  {
+    chiave: "firma-inizio-merce-saldo", nome: "Firma, inizio, merce e saldo", descrizione: "Quattro passaggi: firma, partenza del cantiere, arrivo della merce e saldo.",
+    piano: { modo: "rate", righe: [
+      rata("Acconto alla firma", 20, "firma_contratto"),
+      rata("All'inizio dei lavori", 30, "inizio_lavori"),
+      rata("All'arrivo della merce", 30, "merce_magazzino"),
+      rata("Saldo a fine lavori", 20, "fine_lavori"),
+    ], note: null },
+  },
+  {
+    chiave: "acconto-sal-saldo", nome: "Acconto e SAL", descrizione: "Per i lavori lunghi: acconto alla firma, tre stati avanzamento, saldo a fine lavori.",
+    piano: pianoSalDiPartenza(3, 20, 10),
+  },
+];
+
+/**
+ * I punti di partenza nell'ordine giusto per il mestiere: dove si ordina materiale si parte dalla merce, nei lavori
+ * lunghi dai SAL. Il primo è quello consigliato; ci sono tutti, perché il modo lo decide chi vende.
+ */
+export function partenzeDelModulo(modulo: string | null | undefined): PianoDiPartenza[] {
+  const ordine: Record<string, readonly string[]> = {
+    ristrutturazione: ["acconto-sal-saldo", "firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo"],
+    piscine: ["acconto-sal-saldo", "firma-inizio-merce-saldo", "firma-merce-saldo", "acconto-saldo"],
+    tetti: ["acconto-sal-saldo", "firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo"],
+    bagni: ["firma-merce-saldo", "acconto-saldo", "acconto-sal-saldo", "firma-inizio-merce-saldo"],
+    climatizzazione: ["firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo", "acconto-sal-saldo"],
+    elettrico: ["firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo", "acconto-sal-saldo"],
+    termoidraulico: ["firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo", "acconto-sal-saldo"],
+    pavimenti: ["firma-merce-saldo", "acconto-saldo", "firma-inizio-merce-saldo", "acconto-sal-saldo"],
+  };
+  const chiavi = ordine[String(modulo ?? "")] ?? PIANI_DI_PARTENZA.map((p) => p.chiave);
+  const perChiave = new Map(PIANI_DI_PARTENZA.map((p) => [p.chiave, p]));
+  const scelti = chiavi.flatMap((c) => { const p = perChiave.get(c); return p ? [p] : []; });
+  return [...scelti, ...PIANI_DI_PARTENZA.filter((p) => !chiavi.includes(p.chiave))];
+}
+
 /**
  * Il piano quando si cambia modo: le rate dell'altro modo non si buttano via a caso. Da «rate» a «sal» si tiene
  * l'acconto e il saldo e si mettono i SAL in mezzo; da «sal» a «rate» restano acconto e saldo.

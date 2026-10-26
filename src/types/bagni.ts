@@ -46,6 +46,8 @@ export interface BgnProgetto {
   finanziamento_rate?: number | null;
   /** Il piano di pagamento di questo preventivo: { modo, righe, note }. Null = vale il testo del modello. */
   piano_pagamento?: unknown;
+  /** Le fasi del cantiere per questo preventivo. Null = quelle del modello. */
+  cronoprogramma?: unknown;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
   finanziamento_tabella_id?: string | null;
   finanziamento_tan_pct?: number | null;
