@@ -57,7 +57,7 @@ describe('Crediti AI finiti nel flusso: si apre la finestra di ricarica', () => 
     usePaymentGateStore.getState().hide();
     const run = vi.fn(async (): Promise<never> => { throw error; });
     const response = quoteEventResponse(run, identity, new AbortController().signal, {});
-    await readQuoteStream(response, identity, new AbortController().signal).catch(() => undefined);
+    await readQuoteStream(response, identity, new AbortController().signal).catch((): undefined => undefined);
     return usePaymentGateStore.getState();
   };
 
