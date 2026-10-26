@@ -6,6 +6,9 @@ export type QuoteProgressEvent = { type: 'progress'; turnId: string; revision: n
 export type QuoteDraftEvent = { type: 'draft'; turnId: string; revision: number; stage: 0 | 1; text: string };
 export type QuoteStreamEvent = QuoteProgressEvent | QuoteDraftEvent;
 export function quoteEventResponse<T>(run: (emit: (stage: QuoteProgress) => void, draft: (text: string, stage: 0 | 1) => void) => Promise<T>, identity: { turnId: string; revision: number }, signal: AbortSignal, headers: HeadersInit): Response {
+  // Il chiamante può passare l'intera richiesta (con la planimetria in base64): negli eventi viaggiano SOLO turno e revisione.
+  // Prima ogni evento si portava dietro tutta la richiesta: con una pianta il flusso superava i 700 KB e il client lo scartava.
+  const ident = { turnId: identity.turnId, revision: identity.revision };
   const encoder = new TextEncoder(); let closed = false;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -17,9 +20,9 @@ export function quoteEventResponse<T>(run: (emit: (stage: QuoteProgress) => void
             if (count >= 32 || !text || text.length > 3000 || text === previous && stage === lastStage) return;
             const now = Date.now(); if (stage === lastStage && now - lastSent < 250) return;
             count++; previous = text; lastStage = stage; lastSent = now;
-            send({ type: 'draft', ...identity, stage, text });
+            send({ type: 'draft', ...ident, stage, text });
           };
-          const result = await run(stage => send({ type: 'progress', ...identity, stage }), draft); send({ type: 'result', ...identity, result });
+          const result = await run(stage => send({ type: 'progress', ...ident, stage }), draft); send({ type: 'result', ...ident, result });
         }
         catch (error) {
           if (!closed && !signal.aborted) {
@@ -29,7 +32,7 @@ export function quoteEventResponse<T>(run: (emit: (stage: QuoteProgress) => void
             console.error('[quote-chat-stream]', { code: failure.code });
             // Solo per l'azienda demo (index.ts lo imposta): il dettaglio arriva anche nell'evento, per le prove.
             const demoDetail = (error as { demoDetail?: unknown } | null)?.demoDetail;
-            send({ type: 'error', ...identity, ...failure, ...(typeof demoDetail === 'string' ? { detail: demoDetail } : {}) });
+            send({ type: 'error', ...ident, ...failure, ...(typeof demoDetail === 'string' ? { detail: demoDetail } : {}) });
           }
         }
         finally { if (!closed) { closed = true; controller.close(); } }

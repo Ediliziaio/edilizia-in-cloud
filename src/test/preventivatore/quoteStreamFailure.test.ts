@@ -100,3 +100,23 @@ describe('Diagnosi di una risposta scartata: dettaglio solo per la demo, mai nei
     expect(JSON.stringify(log.mock.calls)).not.toContain('Proposta 2');
   });
 });
+
+describe('Eventi del flusso: solo turno e revisione, mai la richiesta intera', () => {
+  const richiestaPesante = { ...identity, companyId: 'azienda', advanced: { vision: { dataUrl: 'data:image/jpeg;base64,' + 'A'.repeat(200_000) } }, messages: [{ role: 'user', text: 'x'.repeat(5000) }] };
+
+  it('con una planimetria in base64 nella richiesta, il flusso resta piccolo e il client lo legge', async () => {
+    const run = vi.fn(async (emit: (s: 'analysis') => void, draft: (t: string, st: 0 | 1) => void) => { emit('analysis'); draft('Anteprima', 0); return { ok: true }; });
+    const response = quoteEventResponse(run, richiestaPesante, new AbortController().signal, {});
+    const testo = await response.clone().text();
+    expect(testo.length).toBeLessThan(2000);
+    expect(testo).not.toContain('AAAA'); expect(testo).not.toContain('azienda');
+    await expect(readQuoteStream(response, identity, new AbortController().signal)).resolves.toEqual({ ok: true });
+  });
+
+  it('anche l’evento di errore non porta con sé la richiesta', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = vi.fn(async (): Promise<never> => { throw new Error('x'); });
+    const testo = await quoteEventResponse(run, richiestaPesante, new AbortController().signal, {}).text();
+    expect(testo.length).toBeLessThan(1500); expect(testo).toContain('"code":"AI_RESPONSE_INVALID"'); expect(testo).not.toContain('AAAA');
+  });
+});

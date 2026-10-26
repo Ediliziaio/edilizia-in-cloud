@@ -188,7 +188,7 @@ Deno.serve(async req => {
       try { return await execute(...a); }
       catch (e) { if (request.companyId === QUOTE_DEMO_COMPANY && req.headers.get('x-quote-debug') === '1' && e instanceof Error) Object.assign(e, { demoDetail: `${e.name}: ${e.message}`.slice(0, 300) }); throw e; }
     };
-    if (req.headers.get('accept')?.includes('text/event-stream')) return quoteEventResponse(executeConDiagnosi, request, req.signal, headers);
+    if (req.headers.get('accept')?.includes('text/event-stream')) return quoteEventResponse(executeConDiagnosi, { turnId: request.turnId, revision: request.revision }, req.signal, headers);
     return jsonResponse(await executeConDiagnosi(), 200, headers);
   } catch (e) {
     if (e instanceof Response) return e;
