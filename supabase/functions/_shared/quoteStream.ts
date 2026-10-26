@@ -27,7 +27,9 @@ export function quoteEventResponse<T>(run: (emit: (stage: QuoteProgress) => void
             // This asynchronous catch runs after the HTTP handler returned its
             // Response: the handler's outer catch cannot observe these errors.
             console.error('[quote-chat-stream]', { code: failure.code });
-            send({ type: 'error', ...identity, ...failure });
+            // Solo per l'azienda demo (index.ts lo imposta): il dettaglio arriva anche nell'evento, per le prove.
+            const demoDetail = (error as { demoDetail?: unknown } | null)?.demoDetail;
+            send({ type: 'error', ...identity, ...failure, ...(typeof demoDetail === 'string' ? { detail: demoDetail } : {}) });
           }
         }
         finally { if (!closed) { closed = true; controller.close(); } }

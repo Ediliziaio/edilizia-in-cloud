@@ -183,8 +183,13 @@ Deno.serve(async req => {
     // Only proposals: no quotes/quote_items, customer messages, invoices or exports.
     return { ...result, ...(request.advanced ? { usage: { calls, inputTokens, outputTokens, costUsd: knownCost ? cost : null, visionUsed: !!request.advanced.vision } } : {}), ...(experiment ? { modelTest: { requestedModel: experiment.model, caseId: experiment.caseId, calls, inputTokens, outputTokens, costUsd: knownCost ? cost : null, rawTurns } } : {}) };
     };
-    if (req.headers.get('accept')?.includes('text/event-stream')) return quoteEventResponse(execute, request, req.signal, headers);
-    return jsonResponse(await execute(), 200, headers);
+    // Solo per l'azienda demo E con l'intestazione x-quote-debug: 1, il motivo di una risposta scartata viaggia anche nella risposta (prove e collaudi).
+    const executeConDiagnosi = async (...a: Parameters<typeof execute>) => {
+      try { return await execute(...a); }
+      catch (e) { if (request.companyId === QUOTE_DEMO_COMPANY && req.headers.get('x-quote-debug') === '1' && e instanceof Error) Object.assign(e, { demoDetail: `${e.name}: ${e.message}`.slice(0, 300) }); throw e; }
+    };
+    if (req.headers.get('accept')?.includes('text/event-stream')) return quoteEventResponse(executeConDiagnosi, request, req.signal, headers);
+    return jsonResponse(await executeConDiagnosi(), 200, headers);
   } catch (e) {
     if (e instanceof Response) return e;
     // Same public categories for JSON and SSE. Provider credit is NOT the
@@ -197,6 +202,7 @@ Deno.serve(async req => {
     const status = failure.code === 'AI_PROVIDER_CREDIT' ? 503
       : failure.code === 'AI_REQUEST_UNCERTAIN' || failure.code === 'AI_TIMEOUT' ? 504
       : failure.code === 'AI_TURN_LIMIT' ? 429 : 502;
-    return jsonResponse({ code: failure.code, error: failure.message }, status, headers);
+    const demoDetail = (e as { demoDetail?: unknown } | null)?.demoDetail;
+    return jsonResponse({ code: failure.code, error: failure.message, ...(typeof demoDetail === 'string' ? { detail: demoDetail } : {}) }, status, headers);
   }
 });

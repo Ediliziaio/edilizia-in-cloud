@@ -55,7 +55,7 @@ describe('Crediti AI finiti nel flusso: si apre la finestra di ricarica', () => 
   const nelFlusso = async (error: Error) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     usePaymentGateStore.getState().hide();
-    const run = vi.fn(async () => { throw error; });
+    const run = vi.fn(async (): Promise<never> => { throw error; });
     const response = quoteEventResponse(run, identity, new AbortController().signal, {});
     await readQuoteStream(response, identity, new AbortController().signal).catch(() => undefined);
     return usePaymentGateStore.getState();
@@ -75,5 +75,28 @@ describe('Crediti AI finiti nel flusso: si apre la finestra di ricarica', () => 
 
   it('un errore qualunque non apre niente', async () => {
     expect((await nelFlusso(new Error('x'))).open).toBe(false);
+  });
+});
+
+describe('Diagnosi di una risposta scartata: dettaglio solo per la demo, mai nei log', () => {
+  const eventi = async (error: Error) => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = vi.fn(async (): Promise<never> => { throw error; });
+    const response = quoteEventResponse(run, identity, new AbortController().signal, {});
+    const testo = await response.text();
+    return { testo, log };
+  };
+
+  it('cliente reale: né il motivo né un dettaglio, né nell’evento né nei log', async () => {
+    const { testo, log } = await eventi(new Error('Proposta 2: unità «xx» non ammessa'));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('unità');
+    expect(testo).not.toContain('unità «xx»'); expect(testo).not.toContain('"detail"');
+  });
+
+  it('azienda demo: il dettaglio è nell’evento, ma non nei log', async () => {
+    const errore = Object.assign(new Error('x'), { demoDetail: 'Error: Proposta 2 non valida' });
+    const { testo, log } = await eventi(errore);
+    expect(testo).toContain('"detail":"Error: Proposta 2 non valida"');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('Proposta 2');
   });
 });
