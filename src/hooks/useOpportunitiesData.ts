@@ -885,9 +885,14 @@ export function useOpportunitaCestino(enabled: boolean) {
   });
 }
 
-export function useCompanyStaff() {
+/**
+ * `aziendaDellOpportunita`: chi apre una scheda dall'hub amministrativo vede opportunità di un'altra azienda
+ * (i lead di un cliente): i nomi da assegnare sono quelli di QUELL'azienda, non dell'azienda in cui si è entrati.
+ * Senza, vale l'azienda in uso, come sempre.
+ */
+export function useCompanyStaff(aziendaDellOpportunita?: string | null) {
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = aziendaDellOpportunita || effectiveCompany?.id;
   const staffQuery = useCompanyStaffUsers(companyId, "all");
 
   const data = useMemo(
@@ -910,9 +915,9 @@ export function useCompanyStaff() {
  * ESCLUDE chi è SOLO call center: il CC resta selezionabile nel suo campo
  * dedicato (useCompanyCallCenterUsers), ma non è un "venditore che chiude".
  */
-export function useCompanySalespeople() {
+export function useCompanySalespeople(aziendaDellOpportunita?: string | null) {
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = aziendaDellOpportunita || effectiveCompany?.id;
   const staffQuery = useCompanyStaffUsers(companyId, "sales");
 
   const data = useMemo(
@@ -938,9 +943,9 @@ export function useCompanySalespeople() {
  * Returns call center users for the company.
  * Same cascade strategy as salespeople but for role='call_center'.
  */
-export function useCompanyCallCenterUsers() {
+export function useCompanyCallCenterUsers(aziendaDellOpportunita?: string | null) {
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = aziendaDellOpportunita || effectiveCompany?.id;
   const staffQuery = useCompanyStaffUsers(companyId, "sales");
 
   const data = useMemo(

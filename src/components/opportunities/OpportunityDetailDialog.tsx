@@ -111,9 +111,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const softphone = useSoftphoneOptional();
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
-  const { data: staff = [] } = useCompanyStaff();
-  const { data: salespeople = [] } = useCompanySalespeople();
-  const { data: callCenterUsers = [] } = useCompanyCallCenterUsers();
+  // I nomi da assegnare sono quelli dell'azienda a cui appartiene l'opportunità.
+  const { data: staff = [] } = useCompanyStaff(opportunity?.company_id);
+  const { data: salespeople = [] } = useCompanySalespeople(opportunity?.company_id);
+  const { data: callCenterUsers = [] } = useCompanyCallCenterUsers(opportunity?.company_id);
   const { data: notes = [] } = useOpportunityNotes(opportunity?.id || null, opportunity?.contact_id || null);
   const addNote = useAddOpportunityNote();
   const { data: pipelines = [] } = usePipelines();
