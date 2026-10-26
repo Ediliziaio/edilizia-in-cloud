@@ -42,6 +42,7 @@ import {
 } from "@/hooks/useRistrutturazioneProgetto";
 import type { RstComputoVoce, RstProgetto } from "@/types/ristrutturazione";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
+import { CopiaConAltroModello } from "@/components/preventivatore/CopiaConAltroModello";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
@@ -542,7 +543,10 @@ export default function RistrutturazioneWizard() {
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
             </div>
             {!isNew && detail && (
-              <ModelloDelPreventivo modulo="ristrutturazione" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+              <div className="flex flex-wrap items-center gap-2">
+                <ModelloDelPreventivo modulo="ristrutturazione" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+                <CopiaConAltroModello modulo="ristrutturazione" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} />
+              </div>
             )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
