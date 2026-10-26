@@ -169,7 +169,6 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 onChange("finanziamento_importo", s.importo);
               }}
             />
-            <ObiettivoETempiCard righe={computo} base={totali} />
             <PianoPagamentoCard
               piano={form.piano_pagamento}
               onChange={(p) => onChange("piano_pagamento", p)}
@@ -226,6 +225,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
             </div>
           </CardContent>
         </Card>
+        <ObiettivoETempiCard righe={computo} base={totali} />
       </div>
     </div>
   );

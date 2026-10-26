@@ -10,7 +10,7 @@
  * ipotesi, e lo dice la scheda: le assunzioni sono sempre a vista e modificabili.
  */
 import { useMemo, useState } from "react";
-import { Gauge, Timer } from "lucide-react";
+import { ChevronDown, Gauge, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +57,7 @@ export function ObiettivoETempiCard({ righe, base }: Props) {
     oreGiorno: String(ASSUNZIONI_TEMPI_PREDEFINITE.oreGiorno), resaPct: String(ASSUNZIONI_TEMPI_PREDEFINITE.resaPct),
   });
   const [giorni, setGiorni] = useState("");
+  const [aperta, setAperta] = useState(false);
   const [inizio, setInizio] = useState("");
   const [consegna, setConsegna] = useState("");
 
@@ -85,6 +86,15 @@ export function ObiettivoETempiCard({ righe, base }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [esito, tempi, ass.operai, inizio, consegna],
   );
+  // Una riga per la scheda chiusa: il margine di oggi e i giorni della squadra, senza aprirla.
+  const sintesi = useMemo(() => {
+    const parti: string[] = [];
+    if (base.imponibile > 0 && base.righeSenzaCosto === 0) parti.push(`margine ${(Math.round(((base.imponibile - base.costoTot) / base.imponibile) * 1000) / 10).toLocaleString("it-IT")}%`);
+    else if (base.imponibile > 0) parti.push("costi incompleti");
+    if (tempi.stato === "ok") parti.push(`${tempi.giorniLavorativi} ${tempi.giorniLavorativi === 1 ? "giorno" : "giorni"} con ${assunzioni.operai} ${assunzioni.operai === 1 ? "operaio" : "operai"}`);
+    return parti.join(" · ");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, tempi, ass.operai]);
   const dataIt = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
   if (!puoVedere || righe.length === 0) return null;
@@ -92,11 +102,17 @@ export function ObiettivoETempiCard({ righe, base }: Props) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base"><Gauge className="h-4 w-4" aria-hidden /> Obiettivo di margine e tempi</CardTitle>
-        <p className="text-xs text-muted-foreground">Calcoli sui costi del computo. Solo per chi vede costi e margini: il cliente non lo vede.</p>
+      <CardHeader className="p-0">
+        <button type="button" onClick={() => setAperta((v) => !v)} aria-expanded={aperta} aria-controls="obiettivo-tempi-corpo"
+          className="flex w-full items-center justify-between gap-3 rounded-lg p-4 text-left hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+          <span className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-sm"><Gauge className="h-4 w-4 shrink-0" aria-hidden /> Obiettivo di margine e tempi</CardTitle>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{aperta ? "Solo per chi vede costi e margini: il cliente non lo vede." : sintesi || "Apri per calcolare margine, squadra e tempi"}</span>
+          </span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperta && "rotate-180")} aria-hidden />
+        </button>
       </CardHeader>
-      <CardContent className="space-y-5">
+      {aperta && <CardContent id="obiettivo-tempi-corpo" className="space-y-5">
         <section className="space-y-3" aria-label="Margine a ritroso">
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(11rem,100%),1fr))] gap-3">
             <Campo id="ob-margine" label="Margine che voglio" value={margine} onChange={setMargine} suffisso="%" />
@@ -234,7 +250,7 @@ export function ObiettivoETempiCard({ righe, base }: Props) {
             <p className="text-[11px] text-muted-foreground">Consigli ricavati dai numeri sopra, non da un giudizio: se cambi un dato, cambiano anche loro.</p>
           </section>
         )}
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }
