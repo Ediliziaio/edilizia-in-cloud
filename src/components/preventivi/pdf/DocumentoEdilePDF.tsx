@@ -1273,7 +1273,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           ? 12 + 7.5 * 1.2 + capitoli.length * ((capitoli.length > 6 ? 10 : 16) + 10 * 1.2) + 14
           : 0;
         const totaliH = (totali.scontoPct > 0 ? 4 : 2) * (10 + 10 * 1.2 + 0.6);
-        const pagamentoH = modello.pagamentoHtml ? STIMA_TITOLINO + stimaTestoRicco(tema, modello.pagamentoHtml, UTILE - 250 - 28 - 12, 9, 1.45) : 0;
+        const pagamentoH = dati.pianoPagamento
+          ? STIMA_TITOLINO + dati.pianoPagamento.righe.length * 16 + (dati.pianoPagamento.note ? 16 : 0)
+          : modello.pagamentoHtml ? STIMA_TITOLINO + stimaTestoRicco(tema, modello.pagamentoHtml, UTILE - 250 - 28 - 12, 9, 1.45) : 0;
         const banda = 16 + 44 + 32 * 1.2;
         const finanziamento = promo && rata > 0 ? 14 + 22 + 10 * 1.2 + 2 + altezzaTesto("Simulazione indicativa in 120 rate mensili (TAN 9,9%), soggetta ad approvazione della finanziaria.", UTILE - 28 - 130, "Helvetica", 9, 1.4) : 0;
         const detrazione = totali.detrazionePct > 0 ? 14 + 22 + Math.max(8 * 1.2 + 4 + 17 * 1.2 + 1 + 8.5 * 1.2, altezzaTesto("Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.", UTILE - 28 - 150, "Helvetica", 9, 1.45)) : 0;
@@ -1644,7 +1646,26 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           {/* Le modalità di pagamento accanto ai totali: prima stavano sotto, dopo la
               detrazione, e con un computo lungo finivano da sole su un foglio nuovo. */}
           <View style={{ flex: 1, paddingRight: 28 }}>
-            {modello.pagamentoHtml ? (
+            {/* Le rate di QUESTO preventivo, se ci sono: nome, quando si paga e importo. Senza piano resta la
+                frase scritta nel modello dell'azienda, com'era prima. */}
+            {dati.pianoPagamento ? (
+              <>
+                <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
+                {dati.pianoPagamento.righe.map((r, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8, paddingVertical: 2.5, borderBottomWidth: i < dati.pianoPagamento!.righe.length - 1 ? 0.5 : 0, borderBottomColor: tema.filetto }}>
+                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, flex: 1 }}>
+                      {r.nome}
+                      <Text style={{ fontFamily: tema.caratteri.testo, color: tema.grigio }}>{`  ·  ${r.quando}`}</Text>
+                    </Text>
+                    <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio }}>{percento(r.percent)}</Text>
+                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>{formatCurrency(r.importo)}</Text>
+                  </View>
+                ))}
+                {dati.pianoPagamento.note ? (
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 4 }}>{dati.pianoPagamento.note}</Text>
+                ) : null}
+              </>
+            ) : modello.pagamentoHtml ? (
               <>
                 <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
                 <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.45 }} />
