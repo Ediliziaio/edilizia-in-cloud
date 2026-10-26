@@ -68,7 +68,7 @@ export async function searchListinoSource(
   if ((all.data?.length ?? 0) <= WHOLE_LISTINO_MAX) keep(all.data);
   else {
     // Listino grande: si cerca per parole (solo lettere e cifre, mai caratteri del filtro).
-    const words = [...new Set(terms.flatMap(t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? []))].slice(0, 6);
+    const words = [...new Set(terms.flatMap((t): string[] => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? []))].slice(0, 6);
     if (words.length) {
       const filter = words.flatMap(w => [`descrizione.ilike.%${w}%`, `codice.ilike.%${w}%`]).join(",");
       const { data, error } = await select().or(filter).order("ordine", { ascending: true }).limit(CATALOGUE_LIMITS.rowsPerQuery * 2);
