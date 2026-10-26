@@ -1,5 +1,6 @@
 import { QUOTE_PROGRESS, type QuoteStreamEvent } from '../../../supabase/functions/_shared/quoteStream';
 import { publicQuoteFailure } from '../../../supabase/functions/_shared/quoteFailure';
+import { segnalaCreditoEsaurito } from '../creditoEsaurito';
 export const quoteProgressLabel = { analysis: 'Leggo il progetto e le scelte già fatte', catalogue: 'Cerco e verifico i riferimenti nel prezzario', composition: 'Compongo la risposta con i riferimenti trovati', validation: 'Controllo proposte, esclusioni e riferimenti' };
 /** Bounded SSE reader: no partial JSON, tool arguments or prose ever mutate the draft. */
 export async function readQuoteStream(response: Response, identity: { turnId: string; revision: number }, signal: AbortSignal, progress?: (event: QuoteStreamEvent) => void): Promise<unknown> {
@@ -18,6 +19,8 @@ export async function readQuoteStream(response: Response, identity: { turnId: st
     else if (event.type === 'result') { final = event.result; completed = true; }
     else if (event.type === 'error') {
       const failure = publicQuoteFailure(event.code);
+      // Nel flusso l'errore arriva come evento, non come 402: la finestra di ricarica si apre da qui.
+      if (failure.code === 'AI_COMPANY_CREDIT') segnalaCreditoEsaurito({ portafoglio: 'ai', messaggio: failure.message });
       throw Object.assign(new Error(failure.message), { code: failure.code });
     }
     else throw new Error('Evento AI non riconosciuto.');

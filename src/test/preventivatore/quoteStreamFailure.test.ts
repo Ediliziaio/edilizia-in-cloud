@@ -4,6 +4,7 @@ import { AiProviderCreditError, AiRequestGuardError } from '../../../supabase/fu
 import { classifyQuoteFailure, publicQuoteFailure } from '../../../supabase/functions/_shared/quoteFailure';
 import { quoteEventResponse } from '../../../supabase/functions/_shared/quoteStream';
 import { readQuoteStream } from '@/lib/preventivi/quoteStream';
+import { usePaymentGateStore } from '@/store/paymentGateStore';
 
 const identity = { turnId: 'test-turn', revision: 1 };
 afterEach(() => vi.restoreAllMocks());
@@ -47,5 +48,32 @@ describe('Interruzioni AI: categorie sicure e nessun risultato parziale', () => 
     controller.abort(); finish();
     await response.text();
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('Crediti AI finiti nel flusso: si apre la finestra di ricarica', () => {
+  const nelFlusso = async (error: Error) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    usePaymentGateStore.getState().hide();
+    const run = vi.fn(async () => { throw error; });
+    const response = quoteEventResponse(run, identity, new AbortController().signal, {});
+    await readQuoteStream(response, identity, new AbortController().signal).catch(() => undefined);
+    return usePaymentGateStore.getState();
+  };
+
+  it('crediti dell’azienda finiti: finestra aperta sul portafoglio AI, con la frase pubblica', async () => {
+    const s = await nelFlusso(Object.assign(new Error('Credito insufficiente: chiave sk-or-segreta'), { name: 'AiCompanyCreditError' }));
+    expect(s.open).toBe(true); expect(s.kind).toBe('credits');
+    expect(s.dettaglio?.portafoglio).toBe('ai');
+    expect(JSON.stringify(s.dettaglio)).not.toContain('sk-or');
+  });
+
+  it('crediti della piattaforma finiti (OpenRouter): NESSUNA richiesta di ricarica all’azienda', async () => {
+    const s = await nelFlusso(new AiProviderCreditError());
+    expect(s.open).toBe(false);
+  });
+
+  it('un errore qualunque non apre niente', async () => {
+    expect((await nelFlusso(new Error('x'))).open).toBe(false);
   });
 });
