@@ -618,6 +618,7 @@ export default function BagniWizard() {
             media={detail.media}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
+            onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof typeof form, v as never); }}
           />
           </PdfDatiSalvatiGuard>
         )}

@@ -28,6 +28,7 @@ import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti } from "@/lib/preventivi/pianoPagamento";
 import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
+import { haTesto, testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
 
 /**
  * Le fasi del cantiere nel PDF: quelle scritte su QUESTO preventivo, se ci sono; altrimenti quelle del modello.
@@ -94,6 +95,10 @@ export interface ProgettoComune {
   finanziamento_rate?: number | null;
   /** Il piano di pagamento di questo preventivo. */
   piano_pagamento?: unknown;
+  /** false = questo PDF esce senza la parte contrattuale (vale fuori dalla firma). */
+  condizioni_nel_pdf?: boolean | null;
+  /** Le condizioni riscritte per questo preventivo. Vuoto = quelle del modello. */
+  condizioni_testo?: string | null;
   /** Le fasi del cantiere scritte su questo preventivo. */
   cronoprogramma?: unknown;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
@@ -180,9 +185,12 @@ export function leggiModello(
   // Un preventivo firmato è il contratto: se l'azienda non ha scritto le proprie
   // condizioni, il documento esce con quelle di base del suo settore invece che
   // senza niente. L'editor le mostra e le fa adattare; l'interruttore le toglie.
-  const testoCondizioni = String(t.condizioni_legali_testo ?? "").trim()
+  const delModello = String(t.condizioni_legali_testo ?? "").trim()
     || condizioniStandard(contesto.settore ?? "generico");
-  const condizioniLegali = !condizioniAttive
+  // Il singolo preventivo può uscire senza la parte contrattuale (primo invio) o averne una sua, scritta per quel
+  // cliente. Chi manda in FIRMA passa il progetto da `perLaFirma()`, che rimette le condizioni: il firmato è il contratto.
+  const testoCondizioni = testoCondizioniDelPdf(contesto.progetto, delModello);
+  const condizioniLegali = !condizioniAttive || !haTesto(testoCondizioni)
     ? []
     : separaFirmeContratto(leggiTestoRiccoContratto(applicaMergeTagModulo(testoCondizioni, {
         companyName: azienda?.ragione_sociale ?? azienda?.name ?? null,

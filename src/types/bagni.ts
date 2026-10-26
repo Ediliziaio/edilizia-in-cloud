@@ -48,6 +48,10 @@ export interface BgnProgetto {
   piano_pagamento?: unknown;
   /** Le fasi del cantiere per questo preventivo. Null = quelle del modello. */
   cronoprogramma?: unknown;
+  /** false = il PDF esce senza la parte contrattuale (in firma ci sono comunque). */
+  condizioni_nel_pdf?: boolean | null;
+  /** Condizioni scritte per questo preventivo. Null = quelle del modello. */
+  condizioni_testo?: string | null;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
   finanziamento_tabella_id?: string | null;
   finanziamento_tan_pct?: number | null;
