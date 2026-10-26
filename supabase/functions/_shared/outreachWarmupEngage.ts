@@ -6,8 +6,9 @@
  */
 // deno-lint-ignore-file no-explicit-any
 import { getOauthAccessToken } from "./outreachMailboxSend.ts";
+import { gmailCanModifyLabels } from "./gmailMailboxScopes.ts";
 
-export interface EngageEsito { recuperate: number; lette: number; errore?: string }
+export interface EngageEsito { recuperate: number; lette: number; errore?: string; skipped?: "gmail_modify_not_granted" }
 
 async function gmailList(token: string, q: string): Promise<string[]> {
   const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25&q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -37,9 +38,13 @@ export async function engageMailbox(admin: any, box: { email: string; provider: 
   if (!box.oauth_connection_id) return { ...esito, errore: "nessuna connessione OAuth" };
   const altri = poolEmails.filter((e) => e !== box.email.toLowerCase()).slice(0, 15);
   if (altri.length === 0) return esito;
-  const { accessToken } = await getOauthAccessToken(admin, box.oauth_connection_id);
+  const { accessToken, tokens } = await getOauthAccessToken(admin, box.oauth_connection_id);
 
   if (box.provider === "gmail") {
+    // Lettura e invio non autorizzano cambi di etichetta. Le nuove connessioni
+    // CRM non devono produrre 403 né richiedere un consenso più ampio per il warm-up.
+    // Le vecchie connessioni con un grant adeguato continuano a funzionare.
+    if (!gmailCanModifyLabels(tokens.scopes)) return { ...esito, skipped: "gmail_modify_not_granted" };
     const from = `from:(${altri.join(" OR ")})`;
     for (const id of await gmailList(accessToken, `${from} in:spam newer_than:3d`)) {
       await gmailModify(accessToken, id, ["INBOX"], ["SPAM"]); esito.recuperate++;

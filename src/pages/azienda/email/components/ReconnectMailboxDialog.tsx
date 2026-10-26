@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { GoogleEmailPrivacyNotice } from "@/components/integrations/GoogleEmailPrivacyNotice";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -87,6 +88,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
           </DialogDescription>
         </DialogHeader>
 
+        {brokenConnections.some((conn) => oauthProvider(conn.provider) === "gmail") && <GoogleEmailPrivacyNotice />}
         <div className="space-y-2.5">
           {brokenConnections.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Nessuna casella da riconnettere.</p>

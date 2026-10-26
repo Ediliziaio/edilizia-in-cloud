@@ -18,6 +18,7 @@
  */
 
 import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
+import { gmailMailboxAuthorizationUrl } from "../_shared/gmailMailboxScopes.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -29,15 +30,7 @@ interface StartBody {
   company_id?: string;
 }
 
-const GMAIL_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const OUTLOOK_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-
-const GMAIL_SCOPES = [
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.modify", // per marcare letti
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/userinfo.email",
-];
 const OUTLOOK_SCOPES = [
   "openid",
   "offline_access",
@@ -195,16 +188,7 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: body.redirect_uri,
-      response_type: "code",
-      scope: GMAIL_SCOPES.join(" "),
-      access_type: "offline",  // serve refresh token
-      prompt: "consent",        // forza refresh_token anche su re-auth
-      state,
-    });
-    authUrl = `${GMAIL_AUTH_URL}?${params.toString()}`;
+    authUrl = gmailMailboxAuthorizationUrl(clientId, body.redirect_uri, state);
   } else {
     const { clientId } = await getMsOAuthCredentials();
     if (!clientId) {

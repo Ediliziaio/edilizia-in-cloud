@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
     <LegalLayout
       title="Privacy Policy"
       metaDescription="Informativa sul trattamento dei dati personali di Edilizia in Cloud (Domus Group S.r.l.) ai sensi del GDPR (Reg. UE 2016/679)."
-      lastUpdate="15 settembre 2026"
+      lastUpdate="26 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Privacy-Policy.pdf"
       currentPath="/privacy-policy"
     >
@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
         Resa ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 ("GDPR") e del D.Lgs.
         196/2003 e ss.mm.ii. ("Codice Privacy").
         <br />
-        Ultimo aggiornamento: 15 settembre 2026 · Versione: 1.1
+        Ultimo aggiornamento: 26 ottobre 2026 · Versione: 1.2
       </p>
 
       <h2>Indice</h2>
@@ -88,7 +88,7 @@ export default function PrivacyPolicy() {
         </li>
         <li>PEC: domusgroupsrl@legalmail.it</li>
         <li>Codice destinatario SDI: USAL8PV</li>
-        <li>Telefono: [telefono assistenza]</li>
+        <li>Telefono: <a href="tel:+393501780908">+39 350 178 0908</a></li>
       </ul>
       <p>
         La Società non ha attualmente designato un Responsabile della Protezione dei Dati (Data
@@ -211,8 +211,8 @@ export default function PrivacyPolicy() {
           nome, cognome, email, telefono, ruolo aziendale, qualifica professionale;
         </li>
         <li>
-          <strong>Credenziali di accesso:</strong> username, password (memorizzate in forma
-          cifrata mediante algoritmi one-way hash), token di sessione, fattori di autenticazione
+          <strong>Credenziali di accesso:</strong> username, password (protette mediante
+          hash non reversibili), token di sessione, fattori di autenticazione
           a due fattori;
         </li>
         <li>
@@ -723,11 +723,6 @@ export default function PrivacyPolicy() {
             <td>Sincronizzazione calendario Apple (CalDAV)</td>
             <td>USA (con SCC)</td>
           </tr>
-          <tr>
-            <td>[provider FEA da definire]</td>
-            <td>Firma Elettronica Avanzata e Qualificata</td>
-            <td>UE</td>
-          </tr>
         </tbody>
       </table>
 
@@ -911,34 +906,55 @@ export default function PrivacyPolicy() {
         <li>
           <strong>Gmail</strong>: lettura dei messaggi e degli allegati della casella collegata,
           per mostrarli nella posta del Servizio e collegarli a clienti, preventivi e opportunità;
-          invio delle email che l'Utente scrive o approva, dalla sua casella.
+          invio delle email che l'Utente scrive o approva, dalla sua casella. I nuovi collegamenti
+          richiedono lettura (gmail.readonly), invio (gmail.send) e identificazione della casella:
+          non richiedono accesso completo alla casella o cancellazione definitiva dei messaggi.
+          Le operazioni di lettura, archiviazione o cestino nel Servizio non implicano una modifica
+          delle etichette o la cancellazione del messaggio originale su Gmail.
         </li>
         <li>
-          <strong>Google Calendar</strong> (calendar.readonly, calendar.events): lettura degli
-          impegni, per non fissare appuntamenti sovrapposti; creazione, modifica e cancellazione
-          degli eventi che corrispondono agli appuntamenti e ai lavori gestiti nel Servizio.
+          <strong>Google Calendar</strong> (calendar.readonly, calendar.events): lettura dei
+          calendari e degli impegni, per mostrare la disponibilità ed evitare sovrapposizioni;
+          creazione, modifica e cancellazione degli eventi che corrispondono agli appuntamenti
+          e ai lavori gestiti nel Servizio. L'importazione degli appuntamenti da Google e la
+          direzione della sincronizzazione dipendono dalle impostazioni abilitate dall'azienda
+          e dall'Utente per il calendario scelto.
         </li>
         <li>
           <strong>Google Ads</strong> (adwords): lettura di account, campagne e risultati, per
-          mostrarli nel Servizio; invio a Google Ads delle conversioni registrate nel CRM, per
-          misurare il ritorno delle campagne.
+          mostrarli nel Servizio e produrre report su budget, spesa, impressioni, clic e risultati
+          delle campagne collegate. La disponibilità del collegamento non equivale alla
+          pubblicazione automatica di campagne o alla modifica del budget su Google.
         </li>
         <li>
-          <strong>Google Business Profile</strong> (business.manage): lettura delle recensioni
-          della scheda aziendale e pubblicazione delle risposte che l'Utente scrive o approva.
+          <strong>Google Business Profile / Google My Business</strong> (business.manage):
+          lettura degli account e delle sedi che l'Utente può gestire, delle recensioni della
+          sede selezionata e delle eventuali risposte già pubblicate, per mostrarle nel Servizio.
+          Il collegamento non comporta la pubblicazione automatica di risposte o modifiche
+          alla scheda dell'attività.
         </li>
         <li>
           <strong>Dati di base dell'account</strong> (indirizzo email e nome): per riconoscere
           quale account è collegato.
         </li>
       </ul>
+      <p>
+        Le connessioni Gmail autorizzate prima di questo aggiornamento possono conservare permessi
+        più ampi già concessi (per esempio gmail.modify). L'aggiornamento non li revoca e non
+        sostituisce le credenziali esistenti. Le eventuali operazioni sulle etichette di Gmail
+        richiedono un'autorizzazione adeguata già presente e una funzionalità configurata; non
+        sono necessarie per la semplice lettura e l'invio della posta nel CRM. L'Utente può
+        controllare e revocare i permessi dal proprio Account Google.
+      </p>
 
       <h3>15.2 Intelligenza artificiale</h3>
       <p>
         Il contenuto delle email può essere elaborato da fornitori di intelligenza artificiale che
-        agiscono come sub-responsabili, tra cui OpenAI e Anthropic, solo per le funzioni che
-        l'Utente usa: classificare i messaggi, riassumerli, estrarre dati dagli allegati e preparare
-        bozze di risposta. I dati provenienti dagli account Google <strong>non sono usati per
+        agiscono come sub-responsabili, tra cui OpenAI e Anthropic, anche tramite OpenRouter,
+        nell'ambito delle funzioni AI abilitate: classificare i messaggi, riassumerli, estrarre
+        dati dagli allegati e preparare bozze di risposta. Le elaborazioni possono essere
+        automatiche nelle funzioni configurate; i dati necessari sono trasmessi ai fornitori
+        coinvolti, descritti nelle sezioni 6 e 9. I dati provenienti dagli account Google <strong>non sono usati per
         addestrare</strong> modelli di intelligenza artificiale, né del Servizio né dei fornitori.
       </p>
 
@@ -959,15 +975,17 @@ export default function PrivacyPolicy() {
 
       <h3>15.4 Conservazione e revoca</h3>
       <p>
-        Le credenziali di accesso rilasciate da Google sono conservate sui server del Servizio, con
+        I token di accesso rilasciati da Google sono conservati cifrati sui server del Servizio, con
         accesso riservato al personale autorizzato. L'Utente può scollegare un account Google dalle
         impostazioni delle integrazioni del Servizio oppure da{" "}
         <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
           myaccount.google.com/permissions
         </a>
-        : da quel momento il Servizio smette di accedere ai dati dell'account. I dati già
-        sincronizzati si conservano secondo la sezione 8 e se ne può chiedere la cancellazione ai
-        contatti indicati nella sezione 2.
+        . Lo scollegamento interrompe l'utilizzo della connessione nel Servizio; la revoca da
+        Google rimuove l'autorizzazione concessa all'app. Nessuna delle due operazioni cancella
+        automaticamente messaggi, allegati, appuntamenti o report già importati nel CRM.
+        Queste copie si conservano per le finalità del Servizio e secondo la sezione 8;
+        l'Utente può richiederne la cancellazione ai contatti indicati nella sezione 2.
       </p>
 
       <h3>15.5 Google API Services User Data Policy</h3>
