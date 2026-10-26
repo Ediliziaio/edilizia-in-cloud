@@ -29,6 +29,7 @@
  * dir propria della function ed ESCLUDE `_shared/`: quando cambia solo il
  * template condiviso, basta un bump qui per far ridistribuire la function.
  * 25/10/2026: i colori del tema si applicano sul documento senza le foto base64 (una passata, non undici).
+ * 26/10/2026: il piano di posa usa le misure del pannello scelto (_shared/fvPianoTetto.ts).
  */
 
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
