@@ -236,6 +236,9 @@ function sanitizzaLayoutOverlay(value: unknown): WizardData["layout_overlay"] | 
     x, y, rot, cols,
     ...(value.unita === "m" ? { unita: "m" as const } : {}),
     ...(value.orient === "o" || value.orient === "v" ? { orient: value.orient as "o" | "v" } : {}),
+    ...(isRecord(value.modulo) && isFiniteNumber(value.modulo.corto) && isFiniteNumber(value.modulo.lungo)
+      ? { modulo: { corto: value.modulo.corto, lungo: value.modulo.lungo, stimato: value.modulo.stimato !== false } }
+      : {}),
   };
 }
 

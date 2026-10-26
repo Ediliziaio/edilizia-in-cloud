@@ -6,7 +6,8 @@
  *
  * La vista è sempre la stessa: Google Static Maps centrata sull'indirizzo, zoom 20, 640 × 400 punti (a scala 2
  * l'immagine ha il doppio dei pixel, le coordinate restano quelle). Da lì i metri per punto: ogni modulo ha le sue
- * misure vere (1,13 × 1,72 m di riferimento) e lo si vede stare, o non stare, sulla falda.
+ * misure vere del pannello scelto nel preventivo (scheda tecnica, o stimate dalla potenza; 1,13 × 1,72 m senza niente
+ * di meglio) e lo si vede stare, o non stare, sulla falda.
  *
  * Il piano si salva in `fv_progetti.layout_overlay`:
  *   { x, y, rot, cols, unita: "m", orient }   x e y sono METRI dal centro della vista (x a destra, y in basso),
@@ -26,6 +27,9 @@ export const MODULO_RIFERIMENTO = { larghezza_m: 1.134, altezza_m: 1.722 } as co
 export const PIANO_SPAZIO_M = 0.02;
 const SPOSTAMENTO_MAX_M = 60;
 
+/** Le misure del modulo, in metri, col lato corto e col lato lungo. `stimato`: non da scheda tecnica ma dalla potenza. */
+export interface MisureModulo { corto: number; lungo: number; stimato: boolean }
+
 export interface PianoTetto {
   x: number;
   y: number;
@@ -33,7 +37,14 @@ export interface PianoTetto {
   cols: number;
   unita: "m";
   orient: "v" | "o";
+  /** Il modulo con cui il piano è stato disegnato (quello scelto nel preventivo); senza, quello di riferimento. */
+  modulo?: MisureModulo;
 }
+
+/** Larghezza tipica dei moduli da 108-132 mezze celle, per la stima dalla potenza. */
+const LATO_CORTO_STIMATO_M = 1.134;
+/** Watt per metro quadro dei moduli di oggi (430 W su 1,95 m²…): per la stima della lunghezza. */
+const WATT_PER_M2_STIMATI = 220;
 
 const finito = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const limita = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
@@ -44,12 +55,40 @@ export function metriPerPunto(latitudine: number, zoom: number = PIANO_ZOOM): nu
   return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 }
 
+/**
+ * Le misure del modulo scelto: dalla scheda tecnica se ci sono (lunghezza e larghezza in millimetri); altrimenti
+ * stimate dalla potenza; senza nemmeno quella, il modulo di riferimento. Misure impossibili si scartano.
+ */
+export function misureModulo(articolo: { lunghezza_mm?: unknown; larghezza_mm?: unknown; potenza_w?: unknown } | null | undefined): MisureModulo {
+  const num = (v: unknown) => (v == null || v === "" ? NaN : Number(v));
+  const l = num(articolo?.lunghezza_mm);
+  const w = num(articolo?.larghezza_mm);
+  if (Number.isFinite(l) && Number.isFinite(w) && l > 0 && w > 0) {
+    const corto = Math.min(l, w) / 1000;
+    const lungo = Math.max(l, w) / 1000;
+    if (corto >= 0.5 && corto <= 1.6 && lungo >= 0.8 && lungo <= 3.2) return { corto, lungo, stimato: false };
+  }
+  const watt = num(articolo?.potenza_w);
+  if (Number.isFinite(watt) && watt >= 100 && watt <= 900) {
+    const lungo = limita(watt / WATT_PER_M2_STIMATI / LATO_CORTO_STIMATO_M, 1.0, 2.8);
+    return { corto: LATO_CORTO_STIMATO_M, lungo: Math.round(lungo * 1000) / 1000, stimato: true };
+  }
+  return { corto: MODULO_RIFERIMENTO.larghezza_m, lungo: MODULO_RIFERIMENTO.altezza_m, stimato: true };
+}
+
+const uguali = (a: MisureModulo | undefined, b: MisureModulo | undefined) =>
+  !!a && !!b && Math.abs(a.corto - b.corto) < 0.0005 && Math.abs(a.lungo - b.lungo) < 0.0005 && a.stimato === b.stimato;
+
 /** Il piano com'è salvato, se è un piano in scala; i vecchi in percentuale, o ciò che non lo è, danno null. */
 export function leggiPiano(raw: unknown): PianoTetto | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   if (r.unita !== "m") return null;
   if (!finito(r.x) || !finito(r.y) || !finito(r.rot) || !finito(r.cols)) return null;
+  const m = r.modulo as Record<string, unknown> | null | undefined;
+  const modulo: MisureModulo | undefined = m && finito(m.corto) && finito(m.lungo) && m.corto >= 0.5 && m.corto <= 1.6 && m.lungo >= 0.8 && m.lungo <= 3.2
+    ? { corto: m.corto, lungo: m.lungo, stimato: m.stimato !== false }
+    : undefined;
   return {
     x: limita(r.x, -SPOSTAMENTO_MAX_M, SPOSTAMENTO_MAX_M),
     y: limita(r.y, -SPOSTAMENTO_MAX_M, SPOSTAMENTO_MAX_M),
@@ -57,6 +96,7 @@ export function leggiPiano(raw: unknown): PianoTetto | null {
     cols: Math.round(limita(r.cols, 1, 40)),
     unita: "m",
     orient: r.orient === "o" ? "o" : "v",
+    ...(modulo ? { modulo } : {}),
   };
 }
 
@@ -67,8 +107,18 @@ export function colonneSuggerite(moduli: number): number {
 }
 
 /** Il piano di partenza: al centro della vista, dritto, in verticale. */
-export function pianoIniziale(moduli: number): PianoTetto {
-  return { x: 0, y: 0, rot: 0, cols: colonneSuggerite(moduli), unita: "m", orient: "v" };
+export function pianoIniziale(moduli: number, modulo?: MisureModulo): PianoTetto {
+  return { x: 0, y: 0, rot: 0, cols: colonneSuggerite(moduli), unita: "m", orient: "v", ...(modulo ? { modulo } : {}) };
+}
+
+/** Il piano col modulo scelto adesso: se il pannello cambia dopo il disegno, le misure seguono e il resto resta. */
+export function pianoConModulo(piano: PianoTetto, modulo: MisureModulo): PianoTetto {
+  return uguali(piano.modulo, modulo) ? piano : { ...piano, modulo };
+}
+
+/** Le misure con cui si disegna: quelle del piano, o il modulo di riferimento. */
+export function misureDelPiano(piano: PianoTetto): MisureModulo {
+  return piano.modulo ?? { corto: MODULO_RIFERIMENTO.larghezza_m, lungo: MODULO_RIFERIMENTO.altezza_m, stimato: true };
 }
 
 export interface PannelloDisegnato { x: number; y: number; w: number; h: number }
@@ -105,8 +155,9 @@ export function disponiPannelli(opts: {
   const cols = Math.max(1, Math.min(opts.piano.cols, n || 1));
   const righe = n > 0 ? Math.ceil(n / cols) : 0;
   const verticale = opts.piano.orient !== "o";
-  const mw = (verticale ? MODULO_RIFERIMENTO.larghezza_m : MODULO_RIFERIMENTO.altezza_m) / mpp;
-  const mh = (verticale ? MODULO_RIFERIMENTO.altezza_m : MODULO_RIFERIMENTO.larghezza_m) / mpp;
+  const misure = misureDelPiano(opts.piano);
+  const mw = (verticale ? misure.corto : misure.lungo) / mpp;
+  const mh = (verticale ? misure.lungo : misure.corto) / mpp;
   const spazio = PIANO_SPAZIO_M / mpp;
   const W = cols * mw + (cols - 1) * spazio;
   const H = righe * mh + Math.max(righe - 1, 0) * spazio;
@@ -128,7 +179,7 @@ export function disponiPannelli(opts: {
     cx, cy, rot: opts.piano.rot, pannelli,
     larghezzaM: n > 0 ? W * mpp : 0,
     altezzaM: n > 0 ? H * mpp : 0,
-    areaM2: n * MODULO_RIFERIMENTO.larghezza_m * MODULO_RIFERIMENTO.altezza_m,
+    areaM2: n * misure.corto * misure.lungo,
     righe, fuori,
   };
 }
@@ -142,6 +193,12 @@ export function svgPannelli(piano: PianoDisegnato, colori: { riempimento: string
     .map((p) => `<rect x="${arrotonda(p.x)}" y="${arrotonda(p.y)}" width="${arrotonda(p.w)}" height="${arrotonda(p.h)}" rx="1" fill="${colori.riempimento}" stroke="${colori.bordo}" stroke-width="0.8"/>`)
     .join("");
   return `<g transform="translate(${arrotonda(piano.cx)} ${arrotonda(piano.cy)}) rotate(${arrotonda(piano.rot)})">${rects}</g>`;
+}
+
+/** Le misure del modulo come testo: «1,13 × 1,72 m». */
+export function misureTesto(m: MisureModulo): string {
+  const due = (v: number) => (Math.round(v * 100) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${due(m.corto)} × ${due(m.lungo)} m`;
 }
 
 /** Una lunghezza in metri come testo italiano: «12,4 m». */

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MODULO_RIFERIMENTO, PIANO_ALTEZZA, PIANO_LARGHEZZA, colonneSuggerite, disponiPannelli, leggiPiano,
-  metriPerPunto, metriTesto, pianoIniziale, svgPannelli,
+  metriPerPunto, metriTesto, misureModulo, misureTesto, pianoConModulo, pianoIniziale, svgPannelli,
 } from "../../../supabase/functions/_shared/fvPianoTetto.ts";
 import { FV_PDF_PAGES_META, normalizeFvPdfPagesOrder } from "../../../supabase/functions/_shared/fvPagine.ts";
 import { getFvPdfRenderedPagesCount, renderFvPdfHtml, type FvPdfTemplateData } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
@@ -38,6 +38,54 @@ describe("il piano salvato", () => {
     expect(colonneSuggerite(1)).toBe(1);
     expect(colonneSuggerite(3)).toBeLessThanOrEqual(3);
     expect(colonneSuggerite(24)).toBe(6);
+  });
+});
+
+describe("le misure del pannello scelto", () => {
+  it("con lunghezza e larghezza della scheda tecnica si usano quelle, in qualunque ordine", () => {
+    expect(misureModulo({ lunghezza_mm: 2278, larghezza_mm: 1134, potenza_w: 550 })).toEqual({ corto: 1.134, lungo: 2.278, stimato: false });
+    expect(misureModulo({ lunghezza_mm: "1134", larghezza_mm: "2278" })).toEqual({ corto: 1.134, lungo: 2.278, stimato: false });
+  });
+
+  it("senza misure si stima dalla potenza: un modulo più potente è più lungo", () => {
+    const m430 = misureModulo({ potenza_w: 430 });
+    const m550 = misureModulo({ potenza_w: 550 });
+    expect(m430.stimato).toBe(true);
+    expect(m430.corto).toBeCloseTo(1.134, 3);
+    expect(m430.lungo).toBeCloseTo(430 / 220 / 1.134, 2);
+    expect(m550.lungo).toBeGreaterThan(m430.lungo);
+    expect(m550.lungo).toBeLessThan(2.6);
+  });
+
+  it("misure impossibili o niente di niente: si torna alla potenza, e poi al modulo di riferimento", () => {
+    expect(misureModulo({ lunghezza_mm: 10, larghezza_mm: 20, potenza_w: 450 }).stimato).toBe(true);
+    expect(misureModulo({ lunghezza_mm: 99999, larghezza_mm: 1134, potenza_w: 450 }).lungo).toBeCloseTo(450 / 220 / 1.134, 2);
+    expect(misureModulo(null)).toEqual({ corto: 1.134, lungo: 1.722, stimato: true });
+    expect(misureModulo({ potenza_w: "x" })).toEqual({ corto: 1.134, lungo: 1.722, stimato: true });
+  });
+
+  it("le misure si scrivono in italiano, con due decimali", () => {
+    expect(misureTesto({ corto: 1.134, lungo: 2.278, stimato: false })).toBe("1,13 × 2,28 m");
+  });
+
+  it("il piano porta le misure con cui è stato disegnato; cambiando pannello cambiano solo quelle", () => {
+    const grande = { corto: 1.134, lungo: 2.278, stimato: false };
+    const piano = pianoIniziale(8, grande);
+    expect(leggiPiano(piano)?.modulo).toEqual(grande);
+    expect(pianoConModulo(piano, grande)).toBe(piano);
+    const nuovo = pianoConModulo({ ...piano, x: 3, rot: 12 }, { corto: 1.13, lungo: 1.72, stimato: false });
+    expect(nuovo).toMatchObject({ x: 3, rot: 12, modulo: { corto: 1.13, lungo: 1.72, stimato: false } });
+    expect(leggiPiano({ ...piano, modulo: { corto: 9, lungo: 9 } })?.modulo).toBeUndefined();
+  });
+
+  it("i moduli si disegnano grandi quanto il pannello scelto, e l'area segue", () => {
+    const mpp = metriPerPunto(42);
+    const grande = { corto: 1.134, lungo: 2.278, stimato: false };
+    const d = disponiPannelli({ moduli: 10, piano: pianoIniziale(10, grande), metriPerPuntoVista: mpp });
+    expect(d.pannelli[0].h * mpp).toBeCloseTo(2.278, 6);
+    expect(d.areaM2).toBeCloseTo(10 * 1.134 * 2.278, 6);
+    const o = disponiPannelli({ moduli: 10, piano: { ...pianoIniziale(10, grande), orient: "o" }, metriPerPuntoVista: mpp });
+    expect(o.pannelli[0].w * mpp).toBeCloseTo(2.278, 6);
   });
 });
 
@@ -134,7 +182,16 @@ describe("pagina del piano nel PDF", () => {
     expect((html.match(/rx="1" fill="rgba\(37,99,235,0.78\)"/g) ?? []).length).toBe(12);
     expect(html).toContain("5 m");
     expect(html).toContain("SE 152°");
-    expect(html).toContain("1,13 × 1,72 m");
+    expect(html).toContain("Moduli da 1,13 × 1,72 m, misure stimate dalla potenza");
+  });
+
+  it("con le misure della scheda tecnica il PDF le scrive, senza «stimate», e disegna moduli di quella lunghezza", () => {
+    const grande = { corto: 1.134, lungo: 2.278, stimato: false };
+    const html = renderFvPdfHtml(dati({ ...PIANO, piano: { ...PIANO.piano, modulo: grande } }));
+    expect(html).toContain("Moduli da 1,13 × 2,28 m. Il posizionamento");
+    expect(html).not.toContain("misure stimate dalla potenza");
+    const alte = [...html.matchAll(/rx="1" fill="rgba\(37,99,235,0.78\)"/g)];
+    expect(alte).toHaveLength(12);
   });
 
   it("senza piano, o senza la vista satellitare, la pagina non c'è", () => {

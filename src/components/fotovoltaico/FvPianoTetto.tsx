@@ -15,10 +15,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, disponiPannelli, leggiPiano, metriPerPunto, metriTesto,
-  pianoIniziale, type PianoTetto,
+  misureTesto, pianoConModulo, pianoIniziale, type MisureModulo, type PianoTetto,
 } from "../../../supabase/functions/_shared/fvPianoTetto";
 
-type PianoSalvato = { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o" };
+type PianoSalvato = { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o"; modulo?: MisureModulo };
 
 interface Props {
   lat: number;
@@ -30,9 +30,11 @@ interface Props {
   onChange: (piano: PianoSalvato | null) => void;
   /** false = solo lettura (preventivo già emesso). */
   modificabile: boolean;
+  /** Le misure del pannello scelto nel preventivo (scheda tecnica, o stimate dalla potenza). */
+  modulo: MisureModulo;
 }
 
-export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificabile }: Props) {
+export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificabile, modulo }: Props) {
   const [img, setImg] = useState<string | null>(null);
   const [stato, setStato] = useState<"carico" | "ok" | "errore">("carico");
   const [fornitore, setFornitore] = useState<string | null>(null);
@@ -62,6 +64,15 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
   }, [lat, lng]);
 
   const attuale: PianoTetto | null = leggiPiano(piano);
+
+  // Il pannello cambia dopo il disegno: le misure seguono il pannello scelto, posizione e rotazione restano.
+  const misureSalvate = attuale?.modulo;
+  useEffect(() => {
+    if (!modificabile || !attuale) return;
+    const aggiornato = pianoConModulo(attuale, modulo);
+    if (aggiornato !== attuale) onChange(aggiornato);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modulo.corto, modulo.lungo, modulo.stimato, misureSalvate?.corto, misureSalvate?.lungo, misureSalvate?.stimato, modificabile, !!attuale]);
   const mpp = metriPerPunto(lat);
   const disegno = attuale ? disponiPannelli({ moduli, piano: attuale, metriPerPuntoVista: mpp }) : null;
   const scrivi = (patch: Partial<PianoTetto>) => {
@@ -108,14 +119,14 @@ export function FvPianoTetto({ lat, lng, moduli, kwp, piano, onChange, modificab
           </h4>
           <p className="text-[11px] text-slate-500 mt-0.5">
             {attuale
-              ? "Trascina i moduli sulla falda e ruotali: sono in scala, 1,13 × 1,72 m l'uno. Finisce nel PDF."
+              ? `Trascina i moduli sulla falda e ruotali: sono in scala, ${misureTesto(attuale.modulo ?? modulo)} l'uno${(attuale.modulo ?? modulo).stimato ? " (misure stimate dalla potenza: scrivile nel pannello del listino)" : ""}. Finisce nel PDF.`
               : "Disegna dove vanno i pannelli sul tetto: nel PDF compare una pagina col piano in scala."}
           </p>
         </div>
         {modificabile && !attuale && stato === "ok" && (
           <button
             type="button"
-            onClick={() => onChange(pianoIniziale(moduli))}
+            onClick={() => onChange(pianoIniziale(moduli, modulo))}
             className="px-3.5 py-2 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-sm hover:shadow-md"
           >
             Disegna il piano sul tetto

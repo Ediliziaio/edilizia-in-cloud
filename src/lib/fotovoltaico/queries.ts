@@ -376,6 +376,9 @@ export interface ArticoloFv {
   potenza_w: number | null;
   potenza_kw: number | null;
   capacita_kwh: number | null;
+  /** Misure del pannello in millimetri (scheda tecnica): servono al piano di posa sul tetto. */
+  lunghezza_mm: number | null;
+  larghezza_mm: number | null;
   garanzia_anni: number | null;
   efficienza_pct: number | null;
   marca_fv: string | null;
@@ -389,7 +392,7 @@ export interface ArticoloFv {
 }
 
 const FV_CAT_COLS =
-  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, immagine_url, attivo, listino_family_id";
+  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, lunghezza_mm, larghezza_mm, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, immagine_url, attivo, listino_family_id";
 
 // Lista COMPLETA dei componenti FV (inclusi i disattivati) per la gestione.
 export function useArticoliFvCatalogo() {
@@ -467,6 +470,8 @@ export interface ArticoloFvInput {
   potenza_w?: number | null;
   potenza_kw?: number | null;
   capacita_kwh?: number | null;
+  lunghezza_mm?: number | null;
+  larghezza_mm?: number | null;
   garanzia_anni?: number | null;
   efficienza_pct?: number | null;
   marca_fv?: string | null;
@@ -492,6 +497,8 @@ export function useUpsertArticoloFv() {
         potenza_w: input.potenza_w ?? null,
         potenza_kw: input.potenza_kw ?? null,
         capacita_kwh: input.capacita_kwh ?? null,
+        lunghezza_mm: input.lunghezza_mm ?? null,
+        larghezza_mm: input.larghezza_mm ?? null,
         garanzia_anni: input.garanzia_anni ?? null,
         efficienza_pct: input.efficienza_pct ?? null,
         marca_fv: input.marca_fv ?? null,

@@ -100,7 +100,7 @@ export interface WizardData {
   /** Piano di posa dei moduli sulla vista satellitare (Fase 5): x/y in METRI dal centro della vista
    *  (`unita: "m"`), rotazione in gradi, colonne, orientamento dei moduli. null = piano non disegnato:
    *  il PDF non ha la pagina del piano. I vecchi piani, in percentuale e senza `unita`, non sono in scala. */
-  layout_overlay: { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o" } | null;
+  layout_overlay: { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o"; modulo?: { corto: number; lungo: number; stimato: boolean } } | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   /** Prodotti extra dal listino generale (caldaia, clima, colonnina, …):

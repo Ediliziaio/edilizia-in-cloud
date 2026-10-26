@@ -119,6 +119,7 @@ import { CassaCumulataChart } from "@/components/fotovoltaico/CassaCumulataChart
 import { FvConfrontoVarianti } from "@/components/fotovoltaico/FvConfrontoVarianti";
 import { FvLayoutTetto } from "@/components/fotovoltaico/FvLayoutTetto";
 import { FvPianoTetto } from "@/components/fotovoltaico/FvPianoTetto";
+import { misureModulo } from "../../../../supabase/functions/_shared/fvPianoTetto";
 import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreInterattivo";
 import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
@@ -4003,6 +4004,7 @@ function Step5Configurazione({
           piano={data.layout_overlay}
           onChange={(p) => update("layout_overlay", p)}
           modificabile={!readOnlyMode}
+          modulo={misureModulo(pannelli.find((p) => p.id === data.pannello_id) as { lunghezza_mm?: unknown; larghezza_mm?: unknown; potenza_w?: unknown } | undefined)}
         />
       )}
 

@@ -13,10 +13,11 @@ import { FvPianoTetto } from "@/components/fotovoltaico/FvPianoTetto";
 afterEach(() => { cleanup(); invoke.mockReset(); });
 
 const vista = (provider = "google") => invoke.mockResolvedValue({ data: { dataUrl: "data:image/png;base64,AAAA", provider }, error: null });
-const PIANO = { x: 0, y: 0, rot: 0, cols: 4, unita: "m" as const, orient: "v" as const };
+const RIF = { corto: 1.134, lungo: 1.722, stimato: true };
+const PIANO = { x: 0, y: 0, rot: 0, cols: 4, unita: "m" as const, orient: "v" as const, modulo: RIF };
 const monta = (extra: Partial<Parameters<typeof FvPianoTetto>[0]> = {}) => {
   const onChange = vi.fn();
-  const view = render(<FvPianoTetto lat={42.56} lng={12.64} moduli={12} kwp={6} piano={null} onChange={onChange} modificabile {...extra} />);
+  const view = render(<FvPianoTetto lat={42.56} lng={12.64} moduli={12} kwp={6} piano={null} onChange={onChange} modificabile modulo={RIF} {...extra} />);
   return { onChange, ...view };
 };
 
@@ -34,7 +35,7 @@ describe("FvPianoTetto", () => {
     const tasto = await screen.findByRole("button", { name: "Disegna il piano sul tetto" });
     expect(container.querySelectorAll("rect[fill='rgba(37,99,235,0.78)']")).toHaveLength(0);
     fireEvent.click(tasto);
-    expect(onChange).toHaveBeenCalledWith({ x: 0, y: 0, rot: 0, cols: 5, unita: "m", orient: "v" });
+    expect(onChange).toHaveBeenCalledWith({ x: 0, y: 0, rot: 0, cols: 5, unita: "m", orient: "v", modulo: RIF });
   });
 
   it("col piano disegnato ci sono i 12 moduli e i comandi cambiano rotazione, colonne e posa", async () => {
@@ -95,5 +96,36 @@ describe("FvPianoTetto", () => {
     vista();
     monta({ moduli: 0 });
     expect(screen.getByText(/Scegli il numero dei pannelli/)).toBeTruthy();
+  });
+
+  it("il piano parte con le misure del pannello scelto, scritte nel testo; se cambia pannello le misure seguono", async () => {
+    vista();
+    const scheda = { corto: 1.134, lungo: 2.278, stimato: false };
+    const { onChange } = monta({ piano: PIANO, modulo: scheda });
+    await screen.findByRole("img", { name: /Piano di posa/ });
+    expect(onChange).toHaveBeenCalledWith({ ...PIANO, modulo: scheda });
+  });
+
+  it("col pannello già quello del piano non si riscrive niente, e dice se le misure sono stimate dalla potenza", async () => {
+    vista();
+    const { onChange } = monta({ piano: PIANO });
+    expect(await screen.findByText(/misure stimate dalla potenza/)).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("con le misure della scheda tecnica non c'è la dicitura «stimate»", async () => {
+    vista();
+    const scheda = { corto: 1.134, lungo: 2.278, stimato: false };
+    monta({ piano: { ...PIANO, modulo: scheda }, modulo: scheda });
+    await screen.findByRole("img", { name: /Piano di posa/ });
+    expect(screen.queryByText(/misure stimate dalla potenza/)).toBeNull();
+    expect(screen.getByText(/1,13 × 2,28 m l'uno/)).toBeTruthy();
+  });
+
+  it("preventivo emesso: le misure non si riscrivono nemmeno se il pannello è cambiato", async () => {
+    vista();
+    const { onChange } = monta({ piano: PIANO, modificabile: false, modulo: { corto: 1.134, lungo: 2.278, stimato: false } });
+    await screen.findByRole("img", { name: /Piano di posa/ });
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -128,6 +128,9 @@ interface FormState {
   codice: string;
   prezzo_vendita: string;
   spec: string;
+  /** Misure del pannello in millimetri (testo): per il piano di posa sul tetto. */
+  lunghezza_mm: string;
+  larghezza_mm: string;
   immagine_url: string;
 }
 
@@ -139,6 +142,8 @@ const EMPTY_FORM: FormState = {
   codice: "",
   prezzo_vendita: "",
   spec: "",
+  lunghezza_mm: "",
+  larghezza_mm: "",
   immagine_url: "",
 };
 
@@ -235,6 +240,8 @@ export default function ComponentiFv() {
       codice: a.codice ?? "",
       prezzo_vendita: a.prezzo_vendita != null ? String(a.prezzo_vendita) : "",
       spec: specVal != null ? String(specVal) : "",
+      lunghezza_mm: a.lunghezza_mm != null ? String(a.lunghezza_mm) : "",
+      larghezza_mm: a.larghezza_mm != null ? String(a.larghezza_mm) : "",
       immagine_url: a.immagine_url ?? "",
     });
     setListinoSearch("");
@@ -271,6 +278,14 @@ export default function ComponentiFv() {
       return;
     }
     const specNum = specLetto ?? null;
+    // Le misure del pannello (mm): vuote vanno bene (il piano le stima dalla potenza), scritte male no.
+    const lunghezzaLetta = form.categoria_fv === "pannello" ? leggiNumeroComponente(form.lunghezza_mm) : undefined;
+    const larghezzaLetta = form.categoria_fv === "pannello" ? leggiNumeroComponente(form.larghezza_mm) : undefined;
+    const misuraStorta = (v: number | null | undefined) => v === null || (v != null && (v < 500 || v > 3200));
+    if (misuraStorta(lunghezzaLetta) || misuraStorta(larghezzaLetta)) {
+      toast.error("Misure del pannello non valide", { description: "Scrivi i millimetri, per esempio 1722 e 1134" });
+      return;
+    }
     const specField = tipoMeta(form.categoria_fv)?.specField ?? null;
     try {
       await upsert.mutateAsync({
@@ -284,6 +299,7 @@ export default function ComponentiFv() {
         potenza_w: specField === "potenza_w" ? specNum : null,
         potenza_kw: specField === "potenza_kw" ? specNum : null,
         capacita_kwh: specField === "capacita_kwh" ? specNum : null,
+        ...(form.categoria_fv === "pannello" ? { lunghezza_mm: lunghezzaLetta ?? null, larghezza_mm: larghezzaLetta ?? null } : {}),
         immagine_url: form.immagine_url || null,
       });
       toast.success(form.id ? "Componente aggiornato" : "Componente aggiunto al catalogo FV");
@@ -480,6 +496,17 @@ export default function ComponentiFv() {
                 <Input inputMode="decimal" value={form.prezzo_vendita} onChange={(e) => setForm((f) => ({ ...f, prezzo_vendita: e.target.value }))} placeholder="0,00" />
               </div>
             </div>
+
+            {form.categoria_fv === "pannello" && (
+              <div>
+                <Label className="mb-1.5 block">Misure del pannello, in mm (per il piano di posa sul tetto)</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input inputMode="numeric" aria-label="Lunghezza del pannello in millimetri" value={form.lunghezza_mm} onChange={(e) => setForm((f) => ({ ...f, lunghezza_mm: e.target.value }))} placeholder="Lunghezza, es. 1722" />
+                  <Input inputMode="numeric" aria-label="Larghezza del pannello in millimetri" value={form.larghezza_mm} onChange={(e) => setForm((f) => ({ ...f, larghezza_mm: e.target.value }))} placeholder="Larghezza, es. 1134" />
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">Sono sulla scheda tecnica. Se le lasci vuote, il piano stima le misure dalla potenza.</p>
+              </div>
+            )}
 
             <div>
               <Label className="mb-1.5 block">Codice (opzionale)</Label>

@@ -19,7 +19,7 @@ import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
 } from "./recensioniOnline.ts";
 import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "./fvPagine.ts";
-import { PIANO_ALTEZZA, PIANO_LARGHEZZA, disponiPannelli, metriPerPunto, metriTesto, svgPannelli } from "./fvPianoTetto.ts";
+import { PIANO_ALTEZZA, PIANO_LARGHEZZA, disponiPannelli, metriPerPunto, metriTesto, misureDelPiano, misureTesto, svgPannelli } from "./fvPianoTetto.ts";
 export {
   FV_PDF_PAGES_DEFAULT, FV_PDF_PAGES_META, normalizeFvPdfPagesOrder,
   type FvPdfPageId, type FvPdfPageMeta, type FvPdfPageOrderItem,
@@ -208,7 +208,7 @@ export interface FvPdfTemplateData {
   /** Il piano di posa disegnato in Fase 5 (vedi _shared/fvPianoTetto.ts): vista satellitare in scala + moduli. */
   piano_tetto?: {
     img: string;
-    piano: { x: number; y: number; rot: number; cols: number; unita: "m"; orient: "v" | "o" };
+    piano: { x: number; y: number; rot: number; cols: number; unita: "m"; orient: "v" | "o"; modulo?: { corto: number; lungo: number; stimato: boolean } };
     latitudine: number;
     moduli: number;
     kwp?: number | null;
@@ -1402,7 +1402,7 @@ function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): str
       <div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Disposizione in scala, da confermare.</strong>
-        Moduli di riferimento 1,13 × 1,72 m. Il posizionamento definitivo, con ombre, ostacoli e distanze di sicurezza, si conferma nel sopralluogo e nello studio di fattibilità.</div>
+        Moduli da ${misureTesto(misureDelPiano(pt.piano))}${misureDelPiano(pt.piano).stimato ? ", misure stimate dalla potenza" : ""}. Il posizionamento definitivo, con ombre, ostacoli e distanze di sicurezza, si conferma nel sopralluogo e nello studio di fattibilità.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
