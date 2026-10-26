@@ -232,7 +232,11 @@ function sanitizzaLayoutOverlay(value: unknown): WizardData["layout_overlay"] | 
   if (!isRecord(value)) return undefined;
   const { x, y, rot, cols } = value;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(rot) || !isFiniteNumber(cols)) return undefined;
-  return { x, y, rot, cols };
+  return {
+    x, y, rot, cols,
+    ...(value.unita === "m" ? { unita: "m" as const } : {}),
+    ...(value.orient === "o" || value.orient === "v" ? { orient: value.orient as "o" | "v" } : {}),
+  };
 }
 
 const CAMPI_STRUTTURATI: Partial<Record<keyof WizardData, (candidate: unknown) => unknown>> = {

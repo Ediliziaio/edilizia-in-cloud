@@ -32,6 +32,7 @@
  */
 
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
+import { PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, leggiPiano } from "../_shared/fvPianoTetto.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
@@ -124,7 +125,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -274,6 +275,23 @@ Deno.serve(async (req: Request) => {
         fetchSatImg(15), // panoramica zona
       ]);
       if (close || medium || overview || wide) mapImages = { close, medium, overview, wide };
+    }
+
+    // ── Piano di posa: la stessa vista dell'editor (zoom 20, 640 × 400, scala 2), così i moduli
+    // disegnati in Fase 5 cadono dove li ha messi l'installatore. Senza piano disegnato o senza
+    // la vista satellitare la pagina non esce.
+    const pianoDisegnato = leggiPiano(prog.layout_overlay);
+    const moduliDelPiano = Number(prog.numero_pannelli_scelti) || 0;
+    let pianoTetto: {
+      img: string; piano: NonNullable<ReturnType<typeof leggiPiano>>; latitudine: number; moduli: number; kwp: number | null;
+    } | null = null;
+    if (pianoDisegnato && moduliDelPiano > 0 && satLat && satLng && googleMapsKey) {
+      const imgPiano = await urlToB64(
+        `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${PIANO_ZOOM}&size=${PIANO_LARGHEZZA}x${PIANO_ALTEZZA}&scale=2&maptype=satellite&key=${googleMapsKey}`,
+      );
+      if (imgPiano?.startsWith("data:image/")) {
+        pianoTetto = { img: imgPiano, piano: pianoDisegnato, latitudine: satLat, moduli: moduliDelPiano, kwp: Number(prog.potenza_kwp) || null };
+      }
     }
 
     // ── Cantieri + Bundle: fetch immagini in parallelo ────────────────────────
@@ -715,6 +733,7 @@ Deno.serve(async (req: Request) => {
         inclinazione_tetto: p.inclinazione_tetto ?? null,
       },
       map_images: mapImages,
+      piano_tetto: pianoTetto,
       cantieri_foto: cantieriFotoB64.filter((s): s is string => Boolean(s)),
       // Il voto su Google, Trustpilot… scritto nel Profilo azienda: la pagina «Dicono di noi».
       voti_online: (company as { recensioni_online?: unknown }).recensioni_online ?? [],

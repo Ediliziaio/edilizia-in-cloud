@@ -97,9 +97,10 @@ export interface WizardData {
   /** Aliquota IVA del preventivo, frazione (0,10 = 10%): la sceglie chi prepara il
    *  preventivo (Fase 5). Persistita su fv_progetti.iva_aliquota. */
   iva_aliquota: number;
-  /** Editor layout manuale dei moduli sulla foto satellitare (stile Reonic):
-   *  offset x/y in %, rotazione in gradi, numero colonne. null = overlay centrato. */
-  layout_overlay: { x: number; y: number; rot: number; cols: number } | null;
+  /** Piano di posa dei moduli sulla vista satellitare (Fase 5): x/y in METRI dal centro della vista
+   *  (`unita: "m"`), rotazione in gradi, colonne, orientamento dei moduli. null = piano non disegnato:
+   *  il PDF non ha la pagina del piano. I vecchi piani, in percentuale e senza `unita`, non sono in scala. */
+  layout_overlay: { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o" } | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   /** Prodotti extra dal listino generale (caldaia, clima, colonnina, …):

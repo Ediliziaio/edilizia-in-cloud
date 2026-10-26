@@ -194,7 +194,8 @@ describe('Demo 2: conversational FV transfer and atomic native save',()=>{
     // Entering phase 6 may calculate finance on the mocked LOCAL backend,
     // but no configuration project patch or legacy row replacement is used.
     expect(aggiorna.mock.calls.every(([value])=>!('potenza_kwp' in (value as {patch:object}).patch))).toBe(true);
-    expect(invoca.mock.calls.every(([name])=>name==='fv-calcolo-finanziario')).toBe(true);
+    // La Fase 5 legge anche la vista satellitare del tetto (maps-proxy, sola lettura per il piano di posa).
+    expect(invoca.mock.calls.every(([name])=>name==='fv-calcolo-finanziario'||name==='maps-proxy')).toBe(true);
   });
   it('uses the same atomic path for Save and close, and does not fall back if it fails',async()=>{
     prepare();atomicSave.mockRejectedValue(new Error('Transazione fallita'));

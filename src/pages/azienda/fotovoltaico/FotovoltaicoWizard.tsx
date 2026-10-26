@@ -118,6 +118,7 @@ import { toast } from "sonner";
 import { CassaCumulataChart } from "@/components/fotovoltaico/CassaCumulataChart";
 import { FvConfrontoVarianti } from "@/components/fotovoltaico/FvConfrontoVarianti";
 import { FvLayoutTetto } from "@/components/fotovoltaico/FvLayoutTetto";
+import { FvPianoTetto } from "@/components/fotovoltaico/FvPianoTetto";
 import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreInterattivo";
 import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
@@ -573,7 +574,7 @@ function FotovoltaicoWizard() {
           : null,
       iva_aliquota: aliquotaIvaFv((progettoEsistente as { iva_aliquota?: number | string | null }).iva_aliquota),
       layout_overlay:
-        (progettoEsistente as { layout_overlay?: { x: number; y: number; rot: number; cols: number } | null })
+        (progettoEsistente as { layout_overlay?: WizardData["layout_overlay"] })
           .layout_overlay ?? null,
       modalita_pagamento:
         (progettoEsistente as { modalita_pagamento?: WizardData["modalita_pagamento"] })
@@ -3991,9 +3992,19 @@ function Step5Configurazione({
         />
       </div>
 
-      {/* 13/7: mappa di posizionamento pannelli RIMOSSA dalla configurazione —
-          il posizionamento si definisce nello studio di fattibilità post-firma.
-          La falda della Fase 4 (vista indicativa) resta e finisce nel PDF. */}
+      {/* Piano di posa (25/10/2026): i moduli disegnati in scala sulla vista satellitare, sulla falda giusta.
+          Torna l'editor tolto il 13/07, ora in scala e solo su richiesta: il piano disegnato è una pagina del PDF. */}
+      {data.latitudine != null && data.longitudine != null && (
+        <FvPianoTetto
+          lat={data.latitudine}
+          lng={data.longitudine}
+          moduli={data.numero_pannelli_scelti ?? 0}
+          kwp={data.potenza_kwp}
+          piano={data.layout_overlay}
+          onChange={(p) => update("layout_overlay", p)}
+          modificabile={!readOnlyMode}
+        />
+      )}
 
       {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
       <FvDimensionamentoStringhe

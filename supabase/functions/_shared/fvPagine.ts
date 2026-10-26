@@ -15,6 +15,7 @@ export type FvPdfPageId =
   | "recensioni"
   | "investimento"
   | "anteprima"
+  | "piano_tetto"
   | "componenti"
   | "macro_categorie"
   | "produzione"
@@ -67,6 +68,8 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // Come funziona un impianto, con due foto tecniche: prima dell'impianto del cliente.
   { id: "come_funziona", label: "Come funziona un impianto", descrizione: "Produce, converte, conserva, scambia: spiegato con due foto tecniche.", obbligatoria: false },
   { id: "anteprima", label: "Anteprima impianto", descrizione: "Vista tetto, layout pannelli e fonte dati.", obbligatoria: false },
+  // Il piano di posa disegnato nel preventivo (editor in Fase 5): esce solo se è stato disegnato.
+  { id: "piano_tetto", label: "Piano di posa sul tetto", descrizione: "I pannelli disegnati in scala sulla vista satellitare del tetto. Esce solo se il piano è stato disegnato nella Fase 5.", obbligatoria: false },
   { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
   { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
   { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },

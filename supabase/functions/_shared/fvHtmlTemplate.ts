@@ -19,6 +19,7 @@ import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
 } from "./recensioniOnline.ts";
 import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "./fvPagine.ts";
+import { PIANO_ALTEZZA, PIANO_LARGHEZZA, disponiPannelli, metriPerPunto, metriTesto, svgPannelli } from "./fvPianoTetto.ts";
 export {
   FV_PDF_PAGES_DEFAULT, FV_PDF_PAGES_META, normalizeFvPdfPagesOrder,
   type FvPdfPageId, type FvPdfPageMeta, type FvPdfPageOrderItem,
@@ -204,6 +205,14 @@ export interface FvPdfTemplateData {
   };
   /** Immagini satellitari reali come data:image/png;base64 — opzionale.
    *  Se presenti sostituiscono gli SVG mock nella pagina "Anteprima impianto". */
+  /** Il piano di posa disegnato in Fase 5 (vedi _shared/fvPianoTetto.ts): vista satellitare in scala + moduli. */
+  piano_tetto?: {
+    img: string;
+    piano: { x: number; y: number; rot: number; cols: number; unita: "m"; orient: "v" | "o" };
+    latitudine: number;
+    moduli: number;
+    kwp?: number | null;
+  } | null;
   map_images?: {
     close?: string;    // zoom 20 — zenitale ravvicinata
     medium?: string;   // zoom 18 — vista aerea
@@ -1353,6 +1362,48 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
         <span class="callout-icon">i</span>
         <div><strong>Nota anteprima impianto</strong>${escHtml(renderDisclaimer)}</div>
       </div>` : ""}
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
+/** Il piano di posa: i moduli disegnati in scala sulla vista satellitare, con scala, nord e numeri. */
+function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const pt = d.piano_tetto!;
+  const mpp = metriPerPunto(pt.latitudine);
+  const disegno = disponiPannelli({ moduli: pt.moduli, piano: pt.piano, metriPerPuntoVista: mpp });
+  const barraM = 5;
+  const barraPx = barraM / mpp;
+  const kwp = pt.kwp != null && pt.kwp > 0 ? `${fmtNum(pt.kwp, 1)} kWp` : null;
+  const spec = (etichetta: string, valore: string) => `<div style="flex:1;min-width:30mm;padding:2.5mm 3mm;border:1px solid #E2E8F0;border-radius:8px;background:#F8FAFC;">
+      <div style="font-size:7.5pt;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;">${escHtml(etichetta)}</div>
+      <div style="font-size:12pt;font-weight:700;color:#1E3A5F;margin-top:0.5mm;">${escHtml(valore)}</div></div>`;
+  const specs = [
+    spec("Moduli", `${pt.moduli}${kwp ? ` · ${kwp}` : ""}`),
+    spec("Ingombro", `${metriTesto(disegno.larghezzaM)} × ${metriTesto(disegno.altezzaM)}`),
+    spec("Superficie moduli", `${fmtNum(disegno.areaM2, 0)} m²`),
+    ...(d.progetto.azimut ? [spec("Esposizione", `${d.progetto.azimut}${d.progetto.inclinazione_tetto != null ? ` · ${d.progetto.inclinazione_tetto}°` : ""}`)] : []),
+  ].join("");
+  return `<div class="page">
+    ${header(d.progetto.numero, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Piano di posa</div>
+      <h1 class="page-title">Dove vanno<br/>i tuoi pannelli.</h1>
+      <p class="page-subtitle">I ${pt.moduli} moduli disegnati in scala sulla vista dall'alto del tetto in ${escHtml(d.cliente.indirizzo)}.</p>
+      <div style="position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid #CBD5E1;margin:3mm 0;">
+        <svg viewBox="0 0 ${PIANO_LARGHEZZA} ${PIANO_ALTEZZA}" style="display:block;width:100%;height:auto;" role="img" aria-label="Piano di posa dei pannelli sul tetto">
+          <image href="${pt.img}" x="0" y="0" width="${PIANO_LARGHEZZA}" height="${PIANO_ALTEZZA}" preserveAspectRatio="xMidYMid slice"/>
+          ${svgPannelli(disegno)}
+          <g transform="translate(${PIANO_LARGHEZZA - 40} 36)"><circle r="17" fill="rgba(2,6,23,0.6)"/><path d="M0 -12 L5 5 L0 2 L-5 5 Z" fill="#fff"/><text y="-17" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Helvetica,Arial,sans-serif">N</text></g>
+          <g transform="translate(16 ${PIANO_ALTEZZA - 18})"><rect x="-6" y="-12" width="${Math.round(barraPx + 40)}" height="24" rx="5" fill="rgba(2,6,23,0.6)"/><rect x="0" y="-2" width="${Math.round(barraPx)}" height="4" fill="#fff"/><text x="${Math.round(barraPx + 6)}" y="3" font-size="10" font-weight="700" fill="#fff" font-family="Helvetica,Arial,sans-serif">${barraM} m</text></g>
+        </svg>
+      </div>
+      <div style="display:flex;gap:2.5mm;flex-wrap:wrap;margin:3mm 0;">${specs}</div>
+      <div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Disposizione in scala, da confermare.</strong>
+        Moduli di riferimento 1,13 × 1,72 m. Il posizionamento definitivo, con ombre, ostacoli e distanze di sicurezza, si conferma nel sopralluogo e nello studio di fattibilità.</div>
+      </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -2619,6 +2670,8 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
     if (!page.visible) return false;
     // Senza immagini satellite reali l'anteprima non ha niente da mostrare.
     if (page.id === "anteprima" && !hasMap) return false;
+    // Il piano di posa esce solo se è stato disegnato e la vista satellitare è arrivata.
+    if (page.id === "piano_tetto" && !(d.piano_tetto?.img && d.piano_tetto.moduli > 0)) return false;
     // Rata, TAN e TAEG esistono solo con un finanziamento vero.
     if (page.id === "piano_pagamento" && !d.finanziamento) return false;
     // Senza cassa calcolata non c'è niente da proiettare sui 25 anni.
@@ -2734,6 +2787,9 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "anteprima":
         append(page.id, pageAnteprima(d, ++pageN, TOTAL));
+        break;
+      case "piano_tetto":
+        append(page.id, pagePianoTetto(d, ++pageN, TOTAL));
         break;
       case "componenti":
         // Pagina tabellare «Composizione della fornitura» (foto prodotto,

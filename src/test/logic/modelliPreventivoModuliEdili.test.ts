@@ -227,7 +227,7 @@ describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {
     expect(creazione).toContain("...(modello ? { modello_snapshot: modello } : {}),");
     expect(creazione).not.toMatch(/logFunction\([^)]*, payload, /);
     const pdf = leggi("supabase/functions/fv-genera-pdf/index.ts");
-    expect(pdf).toContain("iva_aliquota, modello_snapshot\"");
+    expect(pdf).toContain("iva_aliquota, modello_snapshot, layout_overlay\"");
     expect(pdf).toContain("modelloDelPreventivo?.template ?? templateRes.data ?? {}");
     expect(pdf).toContain("if (modelloDelPreventivo === false)");
   });
