@@ -24,8 +24,8 @@ vi.mock("@/integrations/supabase/client", () => {
       select: () => q,
       eq: (k: string, v: unknown) => { filtri.push([k, v]); if (operazione === "delete") stato.cancellazioni.push({ tabella, id: v }); return q; },
       order: () => q,
-      maybeSingle: async () => ({ data: righe()[0] ?? null, error: null }),
-      single: async () => ({ data: operazione === "insert" ? { id: "nuovo-1", code: (dati as Riga).code } : righe()[0], error: null }),
+      maybeSingle: async (): Promise<{ data: Riga | null; error: null }> => ({ data: righe()[0] ?? null, error: null }),
+      single: async (): Promise<{ data: Riga | null; error: null }> => ({ data: operazione === "insert" ? { id: "nuovo-1", code: (dati as Riga).code } : righe()[0] ?? null, error: null }),
       insert: (riga: Riga | Riga[]) => {
         operazione = "insert"; dati = riga; stato.inserimenti.push({ tabella, riga });
         if (tabella.endsWith("_computo_voci") && stato.erroreVoci) return Promise.resolve({ error: { message: stato.erroreVoci } });
