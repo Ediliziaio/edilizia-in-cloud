@@ -10,6 +10,9 @@
  *  - Se nessun modulo è sbloccato → si comporta come un button singolo
  *    che porta al classico (no dropdown inutile).
  *
+ * Nell'app dell'azienda (non nell'hub admin) il pulsante apre la finestra di scelta di NewQuoteDialog: aree e
+ * modelli abilitati, la stessa dell'elenco Preventivi. Il menu a discesa resta per l'hub admin e con «Crea con AI».
+ *
  * Riusabile su:
  *  - /azienda/marketing/preventivi (header pagina)
  *  - Dashboard quick actions
@@ -17,7 +20,8 @@
  */
 import { Link, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -80,9 +84,32 @@ export function NewPreventivoMenu({
     [moduli, isModuloVisibile],
   );
 
+  // Nell'app dell'azienda «Nuovo preventivo» apre la stessa finestra di scelta dell'elenco Preventivi (aree e modelli
+  // disponibili), con il contatto e l'opportunità già collegati: dal contatto e dall'opportunità il preventivo
+  // esce così com'esce dall'elenco, non in un'altra forma. (Il menu a discesa mandava al preventivo «classico».)
+  const [sceltaAperta, setSceltaAperta] = useState(false);
+  const paramsCollegamento = useMemo(() => new URLSearchParams(qs), [qs]);
+  const conFinestraDiScelta = routePrefix === "/azienda/marketing" && !onCreaConAI;
+
   // Contesto-aware: dall'hub admin il preventivo classico resta su
   // /admin/marketing (prima usciva su /azienda/* perdendo il provider).
   const classicoHref = `${routePrefix}/preventivi/nuovo${qs ? `?${qs}` : ""}`;
+
+  if (conFinestraDiScelta) {
+    return (
+      <NewQuoteDialog
+        open={sceltaAperta}
+        onOpenChange={setSceltaAperta}
+        params={paramsCollegamento}
+        trigger={
+          <Button size={size} className={cn(triggerClass(size), className)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            {label}
+          </Button>
+        }
+      />
+    );
+  }
 
   // Se nessun modulo verticale è abilitato (e non c'è la voce AI) → niente
   // dropdown, solo button diretto al classico.

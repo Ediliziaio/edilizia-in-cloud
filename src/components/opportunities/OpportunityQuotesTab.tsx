@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,6 @@ import {
   Trash2,
   ChevronUp,
   Zap,
-  ExternalLink,
   RectangleVertical,
   Sun,
 } from "lucide-react";
@@ -499,25 +499,14 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
   const fmt = (n: number) => formatCurrency(n);
 
-  // Link a builder con opportunity_id (per linking automatico)
-  const builderQs = new URLSearchParams();
-  if (contactId) builderQs.set("contact_id", contactId);
-  if (opportunityId) builderQs.set("opportunity_id", opportunityId);
-
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">Preventivi</h3>
         <div className="flex gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => navigate(`${routePrefix}/preventivi/nuovo?${builderQs.toString()}`)}
-          >
-            <ExternalLink className="h-3.5 w-3.5 mr-1" />
-            Preventivo avanzato
-          </Button>
+          {/* Scelta del modello come nell'elenco Preventivi (prima: solo il preventivo «avanzato»/classico). */}
+          <NewPreventivoMenu contactId={contactId} opportunityId={opportunityId} size="sm" label="Nuovo preventivo" />
         </div>
       </div>
 

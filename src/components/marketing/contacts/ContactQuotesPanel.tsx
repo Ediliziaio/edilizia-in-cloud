@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus } from "lucide-react";
+import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { linkPreventivo, etichettaTipoPreventivo } from "@/lib/preventivi/linkPreventivo";
@@ -40,14 +40,8 @@ export function ContactQuotesPanel({ contactId, companyId }: { contactId: string
 
   return (
     <div className="space-y-2">
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full text-[10px] h-7"
-        onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?contact_id=${contactId}`)}
-      >
-        <Plus className="h-3 w-3 mr-1" /> Nuovo Preventivo
-      </Button>
+      {/* La stessa finestra di scelta dell'elenco Preventivi: il preventivo esce uguale da qualunque parte si crei. */}
+      <NewPreventivoMenu contactId={contactId} size="sm" label="Nuovo Preventivo" className="w-full text-[10px] h-7" />
       {quotes.length === 0 ? (
         <p className="text-[11px] text-muted-foreground text-center py-6">Nessun preventivo</p>
       ) : (
