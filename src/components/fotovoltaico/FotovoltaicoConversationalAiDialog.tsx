@@ -246,9 +246,10 @@ export default function FotovoltaicoConversationalAiDialog({
         projectVersion,
       ])}
       onClose={onClose}
+      loadingNote={extra.isLoading ? "Carico il listino fotovoltaico… un attimo, poi puoi scrivere." : null}
       context={(draft, query) => {
         if (extra.isLoading || extra.isError)
-          throw new Error("Attendi il caricamento del listino FV o riprova.");
+          throw new Error(extra.isError ? "Non riesco a caricare il listino fotovoltaico: riapri la finestra e riprova." : "Attendi il caricamento del listino FV o riprova.");
         const ctx = fvNativeContext(draft, modelTitle, []),
           used = new Set(
             ctx.current.flatMap((r) =>

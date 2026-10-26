@@ -74,6 +74,8 @@ export type VerticalWizardAiProps<T> = {
   fingerprint: string;
   onClose: () => void;
   context: (draft: T, query?: string) => NativeContext;
+  /** Finché c'è una frase, il campo di scrittura è fermo e la mostra (es. «Carico il listino…»): meglio che far fallire il messaggio. */
+  loadingNote?: string | null;
   applyProposal: (
     draft: T,
     proposal: NativeTurn,
@@ -926,10 +928,15 @@ export default function VerticalWizardAiDialog<T>(
                       e.target.value = "";
                     }}
                   />
+                  {props.loadingNote && (
+                    <p role="status" className="px-1 pb-1 text-xs text-muted-foreground">
+                      {props.loadingNote}
+                    </p>
+                  )}
                   <QuoteChatComposer
                     value={input}
                     busy={busy}
-                    disabled={applying || conflict}
+                    disabled={applying || conflict || !!props.loadingNote}
                     real
                     hasPlan={!!vision}
                     hasLines={changed}
