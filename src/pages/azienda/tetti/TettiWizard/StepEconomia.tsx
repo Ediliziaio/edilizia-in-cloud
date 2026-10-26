@@ -42,6 +42,7 @@ import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi"
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
 import { PianoPagamentoCard } from "@/components/moduli/PianoPagamentoCard";
 import { ObiettivoETempiCard } from "@/components/moduli/ObiettivoETempiCard";
+import { RiepilogoAmbienti } from "@/components/computo/RiepilogoAmbienti";
 import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
@@ -225,6 +226,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
             </div>
           </CardContent>
         </Card>
+        <RiepilogoAmbienti righe={computo} />
         <ObiettivoETempiCard righe={computo} base={totali} />
       </div>
     </div>

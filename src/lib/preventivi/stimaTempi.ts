@@ -1,8 +1,9 @@
 /**
  * Tempi e personale stimati dalle voci del computo.
  *
- * Il computo non ha ore, ha il costo di manodopera di ogni voce (per unità). Le ore-persona sono quel costo
- * diviso il costo orario della squadra: un'IPOTESI, non una misura, e come tale mostra le sue assunzioni
+ * Una voce può avere le ore-persona scritte da chi conosce il lavoro (`ore_previste`): quelle valgono sempre. Senza,
+ * il computo ha il costo di manodopera di ogni voce (per unità) e le ore sono quel costo diviso il costo orario della
+ * squadra: un'IPOTESI, non una misura, e come tale mostra le sue assunzioni
  * (costo orario, operai, ore al giorno, resa) e le lascia modificare. Le voci senza manodopera (fornitura
  * pura) non hanno ore e sono contate a parte; non si inventa una produttività.
  */
@@ -32,6 +33,8 @@ export type EsitoTempi =
       settimane: number;
       perCapitolo: CapitoloOre[];
       vociConManodopera: number;
+      /** Quante delle voci hanno le ore scritte a mano (le altre sono stimate dal costo). */
+      vociConOreScritte: number;
       vociSenzaManodopera: number;
       /** Operai che servono per chiudere nei giorni richiesti (se richiesti). */
       operaiPerTarget: { giorni: number; operai: number } | null;
@@ -56,13 +59,15 @@ export function stimaTempiDaComputo(righe: RigaCosto[], a: AssunzioniTempi, gior
   const errore = validaAssunzioni(a);
   if (errore) return { stato: 'non_valido', motivo: errore };
   const perCap = new Map<string, number>();
-  let ore = 0, con = 0, senza = 0;
+  let ore = 0, con = 0, senza = 0, scritte = 0;
   for (const r of righe) {
     const q = Math.max(0, n(r.quantita));
     if (q <= 0) continue;
+    const scritte_h = n(r.ore_previste);
     const man = n(r.costo_manodopera) * q;
-    if (man <= 0) { senza++; continue; }
-    const h = man / a.costoOrario;
+    if (scritte_h <= 0 && man <= 0) { senza++; continue; }
+    const h = scritte_h > 0 ? scritte_h : man / a.costoOrario;
+    if (scritte_h > 0) scritte++;
     ore += h; con++;
     const k = r.capitolo_nome || 'Generale';
     perCap.set(k, (perCap.get(k) ?? 0) + h);
@@ -78,6 +83,7 @@ export function stimaTempiDaComputo(righe: RigaCosto[], a: AssunzioniTempi, gior
     settimane: r1(giorni / a.giorniSettimana),
     perCapitolo: [...perCap].map(([nome, h]) => ({ nome, ore: r1(h), quotaPct: r1((h / ore) * 100) })).sort((x, y) => y.ore - x.ore),
     vociConManodopera: con,
+    vociConOreScritte: scritte,
     vociSenzaManodopera: senza,
     operaiPerTarget: Number.isInteger(target) && target >= 1 && target <= 1000
       ? { giorni: target, operai: Math.max(1, Math.ceil(ore / (target * oreProduttiveGiorno) - 1e-9)) } : null,

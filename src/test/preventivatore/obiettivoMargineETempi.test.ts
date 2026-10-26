@@ -77,6 +77,16 @@ describe('stima di tempi e personale', () => {
     expect(t.orePersona).toBe(280);
     expect(t.operaiPerTarget).toEqual({ giorni: 5, operai: 7 }); // 280 / (5 × 8)
   });
+  it('le ore scritte a mano battono la stima dal costo, anche senza costo di manodopera', () => {
+    const t = stimaTempiDaComputo([
+      { descrizione: 'Posa gres', capitolo_nome: 'Pavimenti', quantita: 10, costo_materiali: 30, costo_manodopera: 24, ore_previste: 20 }, // stima dal costo sarebbe 8 h
+      { descrizione: 'Allaccio', capitolo_nome: 'Impianti', quantita: 1, costo_materiali: 0, costo_manodopera: 0, ore_previste: 4 },
+    ], a);
+    if (t.stato !== 'ok') throw new Error(t.stato);
+    expect(t.orePersona).toBe(24);
+    expect(t.vociConOreScritte).toBe(2);
+    expect(t.vociSenzaManodopera).toBe(0);
+  });
   it('senza manodopera nelle voci non inventa ore', () => {
     expect(stimaTempiDaComputo([righe[2]], a)).toEqual({ stato: 'senza_manodopera', voci: 1 });
   });

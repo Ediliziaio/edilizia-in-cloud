@@ -25,6 +25,7 @@ import {
   type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 import type {
   EleProgetto,
   EleComputoVoce,
@@ -360,6 +361,7 @@ export function useClonaProgetto() {
           famiglia_id: v.famiglia_id ?? null,
           immagine_url: v.immagine_url ?? null,
           descrizione_estesa: v.descrizione_estesa ?? null,
+          ...dettagliPerSalvataggio(v),
           ordine: v.ordine ?? idx,
         }));
         const { error: iErr } = await sb().from("ele_computo_voci").insert(rows);
@@ -446,6 +448,7 @@ export function useSaveComputo(progettoId: string | undefined) {
             famiglia_id: r.famiglia_id ?? null,
             immagine_url: r.immagine_url ?? null,
             descrizione_estesa: r.descrizione_estesa ?? null,
+            ...dettagliPerSalvataggio(r),
             ordine: r.ordine ?? idx,
           };
         });

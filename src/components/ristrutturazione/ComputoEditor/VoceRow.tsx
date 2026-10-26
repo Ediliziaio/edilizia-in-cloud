@@ -20,8 +20,7 @@ import { useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Copy, Trash2, Percent, ChevronDown, Package, HardHat, MapPin,
-} from "lucide-react";
+  GripVertical, Copy, Trash2, Percent, ChevronDown, Package, HardHat, } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +38,7 @@ import { calcRigaImporto } from "@/lib/ristrutturazione/calcoli";
 import type { RstComputoVoce, RstUnitaMisura } from "@/types/ristrutturazione";
 import type { ConfrontoVoce } from "@/lib/prezzario/confronto";
 import { ScostamentoVoce } from "@/components/prezzario/ScostamentoVoce";
+import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `RstUnitaMisura`). */
 const UM_OPTIONS: RstUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -289,17 +289,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="mt-1.5 ml-1.5 space-y-2 rounded-lg bg-muted/40 p-2">
-                {/* Ambiente / stanza (opzionale) */}
-                <label className="flex items-center gap-1.5 text-[11px]">
-                  <MapPin className="h-3 w-3 text-orange-500" />
-                  <span className="text-muted-foreground">Ambiente</span>
-                  <Input
-                    value={voce.ambiente ?? ""}
-                    onChange={(e) => onChange({ ambiente: e.target.value || null })}
-                    placeholder="es. Bagno, Cucina, Zona notte…"
-                    className="h-6 flex-1 px-1.5 text-[11px]"
-                  />
-                </label>
+                {/* L'ambiente si scrive nei «Dettagli» comuni a tutti i preventivatori. */}
                 {/* Beni significativi (DM 29/12/1999): con l'IVA al 10% contano a parte. */}
                 <label className="flex cursor-pointer items-center gap-1.5 text-[11px]">
                   <input
@@ -356,6 +346,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               </div>
             </CollapsibleContent>
           </Collapsible>
+          <VoceDettagli voce={voce} onChange={onChange} idBase={`voce-${voce.id}`} />
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

@@ -32,6 +32,7 @@ import ComputoEditor from "@/components/ristrutturazione/ComputoEditor/ComputoEd
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
 import type { StatoSalvataggio } from "@/components/preventivatore";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 
 interface Props {
   aiContext?: NativeComputoAiContext;
@@ -122,8 +123,8 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       famiglia_id: v.famiglia_id ?? null,
       immagine_url: v.immagine_url ?? null,
       descrizione_estesa: v.descrizione_estesa ?? null,
-      // Senza l'ambiente nel payload ogni salvataggio azzerava il campo «Ambiente».
-      ambiente: v.ambiente ?? null,
+      // Senza i dettagli (ambiente compreso) nel payload ogni salvataggio azzerava i campi.
+      ...dettagliPerSalvataggio(v),
       // Senza, ogni salvataggio toglieva la spunta di bene significativo.
       bene_significativo: v.bene_significativo === true,
       ordine: v.ordine ?? i,

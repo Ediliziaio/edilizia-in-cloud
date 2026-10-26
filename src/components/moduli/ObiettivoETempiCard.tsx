@@ -235,7 +235,7 @@ export function ObiettivoETempiCard({ righe, base }: Props) {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Ore = costo di manodopera delle voci ÷ costo orario. È una stima, non una misura: controllala con la tua squadra.
+                {tempi.vociConOreScritte > 0 ? `${tempi.vociConOreScritte} ${tempi.vociConOreScritte === 1 ? "voce ha" : "voci hanno"} le ore scritte da te; per le altre, ` : ""}Ore = costo di manodopera delle voci ÷ costo orario. È una stima, non una misura: controllala con la tua squadra.
                 {tempi.vociSenzaManodopera > 0 && ` ${tempi.vociSenzaManodopera} ${tempi.vociSenzaManodopera === 1 ? "voce" : "voci"} senza manodopera (solo fornitura) non ${tempi.vociSenzaManodopera === 1 ? "ha" : "hanno"} ore.`}
               </p>
             </div>

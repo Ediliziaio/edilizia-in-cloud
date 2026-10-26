@@ -1,4 +1,5 @@
 import type { GalleryLavoroItem } from "./gallery";
+import type { DettagliVoce } from "@/lib/computo/vociDettagli";
 
 export type PavUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type PavStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
@@ -10,7 +11,7 @@ export interface PavListinoVoce {
   costo_materiali: number; costo_manodopera: number; ricarico_pct: number; prezzo_unitario: number;
   articolo_id: string | null; tariffa_id: string | null; note: string | null; ordine: number;
 }
-export interface PavComputoVoce {
+export interface PavComputoVoce extends DettagliVoce {
   id: string; progetto_id: string; company_id: string; capitolo_nome: string;
   descrizione: string; unita_misura: PavUnitaMisura; quantita: number;
   prezzo_unitario: number; costo_materiali: number; costo_manodopera: number;

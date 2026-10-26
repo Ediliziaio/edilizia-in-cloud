@@ -15,6 +15,8 @@ export interface RigaCosto {
   quantita?: number | string | null;
   costo_materiali?: number | string | null;
   costo_manodopera?: number | string | null;
+  /** Ore-persona della voce scritte da chi conosce il lavoro: valgono più della stima dal costo. */
+  ore_previste?: number | string | null;
 }
 
 /** Totali già calcolati dal modulo, IVA esclusa salvo `totale`. */
