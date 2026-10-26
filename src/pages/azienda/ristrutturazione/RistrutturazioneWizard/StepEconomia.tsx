@@ -63,6 +63,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
           bene_significativo: v.bene_significativo === true,
+          opzionale: v.opzionale,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
         {

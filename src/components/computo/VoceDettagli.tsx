@@ -1,6 +1,6 @@
 /**
  * «Dettagli» di una voce del computo, uguale negli otto preventivatori edili: ambiente, misure (come si ricava la
- * quantità), ore previste, marca e modello, nota interna. (La voce opzionale arriva a parte: tocca i totali.)
+ * quantità), ore previste, marca e modello, nota interna. Voce opzionale: proposta al cliente ma fuori dal totale.
  *
  * Chiuso mostra una riga di sintesi, così la voce resta pulita; si apre solo per chi ne ha bisogno. La nota interna
  * è dichiarata «solo per te»: non esce mai nel PDF del cliente. Le misure non cambiano la quantità da sole: si
@@ -59,6 +59,7 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
         <button type="button" className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
           <ChevronDown className={cn("h-3 w-3 shrink-0 transition-transform", aperto && "rotate-180")} aria-hidden />
           <span className="font-medium">Dettagli</span>
+          {voce.opzionale === true && <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-900">Opzionale · non nel totale</span>}
           {!aperto && sintesi && <span className="truncate">· {sintesi}</span>}
         </button>
       </CollapsibleTrigger>
@@ -137,6 +138,11 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
               className="w-full rounded-md border bg-background px-3 py-1.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               onChange={(e) => onChange({ note_interne: e.target.value })} />
           </div>
+
+          <label className="flex items-start gap-2 text-xs">
+            <input type="checkbox" checked={voce.opzionale === true} onChange={(e) => onChange({ opzionale: e.target.checked })} className="mt-0.5" />
+            <span><strong>Voce opzionale</strong> · la proponi al cliente ma non è inclusa nel totale (alternativa o extra a sua scelta).</span>
+          </label>
         </div>
       </CollapsibleContent>
     </Collapsible>

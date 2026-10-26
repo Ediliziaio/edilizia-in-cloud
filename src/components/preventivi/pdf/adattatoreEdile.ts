@@ -131,6 +131,8 @@ export interface VoceComune {
   ambiente?: string | null;
   marca?: string | null;
   modello?: string | null;
+  /** Voce proposta ma non inclusa nel totale: nel PDF si dice, così il cliente non somma a mente. */
+  opzionale?: boolean | null;
 }
 
 export interface AziendaComune {
@@ -420,7 +422,7 @@ export function costruisciDatiEdile(input: {
       const costo = ((Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0)) * (Number(v.quantita) || 0);
       return {
         id: v.id,
-        descrizione: v.descrizione || "—",
+        descrizione: `${v.descrizione || "—"}${v.opzionale === true ? " (opzionale, non incluso nel totale)" : ""}`,
         unitaMisura: unitaInParole(v.unita_misura),
         quantita: Number(v.quantita) || 0,
         prezzoUnitario: Number(v.prezzo_unitario) || 0,

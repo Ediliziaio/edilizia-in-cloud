@@ -203,6 +203,7 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
       sconto_pct: v.sconto_pct,
       costo_materiali: v.costo_materiali,
       costo_manodopera: v.costo_manodopera,
+      opzionale: v.opzionale,
     }));
     const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 0 });
     return { ...cap, subtotale: t.imponibile, costo: t.costoTot };
@@ -219,6 +220,7 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
     sconto_pct: v.sconto_pct,
     costo_materiali: v.costo_materiali,
     costo_manodopera: v.costo_manodopera,
+    opzionale: v.opzionale,
   }));
   const agg = calcTotaliComputo(allRows, {
     sconto_pct: scontoPct,

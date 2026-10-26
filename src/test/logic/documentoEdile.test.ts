@@ -193,6 +193,18 @@ describe("dal modulo al documento", () => {
     expect(JSON.stringify(dati)).not.toContain("chiedere sconto");
   });
 
+  it("una voce opzionale si dice nel PDF: il cliente non deve sommarla a mente", () => {
+    const dati = costruisciDatiEdile({
+      modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Rubinetteria", subtotale: 200, voci: [
+        { id: "1", descrizione: "Miscelatore base", unita_misura: "cad", quantita: 1, prezzo_unitario: 200, importo: 200 },
+        { id: "2", descrizione: "Miscelatore di pregio", unita_misura: "cad", quantita: 1, prezzo_unitario: 450, importo: 450, opzionale: true },
+      ] }],
+    });
+    expect(dati.capitoli[0].voci[0].descrizione).toBe("Miscelatore base");
+    expect(dati.capitoli[0].voci[1].descrizione).toBe("Miscelatore di pregio (opzionale, non incluso nel totale)");
+  });
+
   it("il margine della voce si calcola sui costi per quantità (documento interno)", () => {
     const dati = costruisciDatiEdile({
       modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],

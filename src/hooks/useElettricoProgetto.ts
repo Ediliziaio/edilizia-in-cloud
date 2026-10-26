@@ -163,7 +163,7 @@ async function totaliConParametri(
   const [voci, progetto] = await Promise.all([
     sb()
       .from("ele_computo_voci")
-      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera")
+      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera, opzionale")
       .eq("progetto_id", progettoId)
       .eq("company_id", companyId),
     serveProgetto

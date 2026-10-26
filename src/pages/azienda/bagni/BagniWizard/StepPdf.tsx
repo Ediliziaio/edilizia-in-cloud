@@ -123,6 +123,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          opzionale: v.opzionale,
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,

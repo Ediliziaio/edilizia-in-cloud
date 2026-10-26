@@ -73,6 +73,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          opzionale: v.opzionale,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
         { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: form.prezzo_manuale ?? null },
