@@ -40,13 +40,13 @@ function mount(module: typeof families[number][0]) {
 describe.each(families)('%s: actual computo step → actual AI dialog → native save boundary', module => {
   it('opening, editing inside chat and cancelling never invoke native persistence', async () => {
     mount(module); fireEvent.click(screen.getByRole('button', { name: /Apri Silvio AI/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Cambia prezzo nella chat di prova' }, { timeout: 5000 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cambia prezzo nella chat di prova' }, { timeout: 25_000 }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]); fireEvent.click(screen.getByRole('button', { name: 'Scarta e chiudi' }));
     expect(state.save).not.toHaveBeenCalled();
-  });
+  }, 30_000); // il primo carica a freddo i pezzi del dialogo AI: sulla CI sfiorava i 5 s
   it('only explicit confirmation reaches the native autosave, keeping all existing metadata', async () => {
     const view = mount(module); fireEvent.click(screen.getByRole('button', { name: /Apri Silvio AI/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Cambia prezzo nella chat di prova' }, { timeout: 5000 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cambia prezzo nella chat di prova' }, { timeout: 25_000 }));
     fireEvent.click(screen.getByRole('button', { name: 'Rivedi e applica' })); expect(state.save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Conferma e applica al preventivo' }));
     await waitFor(() => expect(state.save).toHaveBeenCalledTimes(1), { timeout: 3000 });
@@ -54,5 +54,5 @@ describe.each(families)('%s: actual computo step → actual AI dialog → native
       costo_materiali: 31, costo_manodopera: 25, sconto_pct: 10, listino_voce_id: 'catalogue', famiglia_id: 'family', immagine_url: '/photo.jpg', fonte: 'Fonte verificata' });
     expect(view.changed).toHaveBeenLastCalledWith([expect.objectContaining({ id: 'existing', prezzo_unitario: 175 })]);
     expect(view.original.prezzo_unitario).toBe(150);
-  });
+  }, 30_000);
 });

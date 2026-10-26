@@ -519,7 +519,7 @@ export default function VerticalWizardAiDialog<T>(
               del preventivo.
             </DialogDescription>
           </div>
-          <span className="quote-wizard-ai-badge">Bozza locale</span>
+          <span className="quote-wizard-ai-badge">Bozza di lavoro</span>
         </header>
         {conflict ? (
           <p role="alert" className="quote-wizard-ai-alert">
@@ -999,7 +999,7 @@ export default function VerticalWizardAiDialog<T>(
             <>
               <p>
                 {changed
-                  ? "Modifiche solo nella bozza locale"
+                  ? "Modifiche solo nella bozza di lavoro"
                   : "Nessuna modifica al preventivo originale"}
               </p>
               <Button

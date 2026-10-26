@@ -46,7 +46,7 @@ export function QuoteChatComposer({ value, onValueChange, onSubmit, onStop, onAt
           {!real && item('Leggi immagine di esempio (OCR reale)', 'example', ScanLine)}
         </DropdownMenuContent>
       </DropdownMenu>
-      <div className="quote-composer-hint"><span>Invio per inviare <span aria-hidden="true">·</span> Maiusc + Invio per andare a capo</span><span>Solo bozza locale</span></div>
+      <div className="quote-composer-hint"><span>Invio per inviare <span aria-hidden="true">·</span> Maiusc + Invio per andare a capo</span><span>Nulla cambia finché non confermi</span></div>
     </div>
     {panel === 'materials' && <QuoteSupportingFileDialog onClose={() => setPanel(null)} onInsert={insert} />}
     {panel === 'voice' && <QuoteVoiceDialog onClose={() => setPanel(null)} onInsert={insert} transcribe={transcribe} />}

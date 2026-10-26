@@ -3,6 +3,7 @@ import { publicQuoteFailure, type QuoteFailureCode } from '../../../supabase/fun
 import type { QuoteChatTransport } from './quoteChatDocument';
 import { configuredQuoteEndpoint, quoteResponseText } from './quoteTransportEndpoint';
 import { readQuoteStream } from './quoteStream';
+import { segnalaBloccoDaRisposta } from '../creditoEsaurito';
 
 export type QuoteChatTransportOptions = {
   backendUrl: string; companyId: string;
@@ -13,7 +14,12 @@ export type QuoteChatTransportOptions = {
 const knownFailures: QuoteFailureCode[] = ['AI_COMPANY_CREDIT', 'AI_PROVIDER_CREDIT', 'AI_REQUEST_UNCERTAIN', 'AI_TIMEOUT', 'AI_TURN_LIMIT'];
 async function responseFailure(response: Response, signal: AbortSignal, unavailable?: string): Promise<Error> {
   let code: unknown;
-  try { code = (JSON.parse(await quoteResponseText(response, 16_000, signal)) as { code?: unknown })?.code; }
+  try {
+    const body: unknown = JSON.parse(await quoteResponseText(response, 16_000, signal));
+    code = (body as { code?: unknown })?.code;
+    // Questo trasporto non passa dal client Supabase: la finestra di ricarica la apriamo noi, come per ogni altra funzione.
+    if (response.status === 402) segnalaBloccoDaRisposta(402, body);
+  }
   catch { signal.throwIfAborted(); /* Never display arbitrary server/provider prose. */ }
   if (knownFailures.includes(code as QuoteFailureCode)) {
     const failure = publicQuoteFailure(code);

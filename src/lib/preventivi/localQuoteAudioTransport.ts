@@ -1,5 +1,6 @@
 import { readQuoteAudioRequest, readQuoteAudioResult, QUOTE_AUDIO_MAX_BYTES } from '../../../supabase/functions/_shared/quoteAudio';
 import { configuredQuoteEndpoint, quoteResponseText } from './quoteTransportEndpoint';
+import { segnalaBloccoDaRisposta } from '../creditoEsaurito';
 /** Audio uses the same authenticated loopback proxy, never a provider key in the app. */
 export function createLocalQuoteAudioTransport(options: { endpoint: string; companyId: string; getToken: () => Promise<string | null>; publishableKey: string; fetch?: typeof fetch }) {
   const url = new URL(options.endpoint);
@@ -32,6 +33,10 @@ function audioTransport(url: URL, options: {companyId:string; getToken:()=>Promi
       const timeout = setTimeout(() => ctrl.abort(), 80_000);
       try {
         const response = await (options.fetch ?? fetch)(url.href, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: options.publishableKey }, body: JSON.stringify(request), signal: ctrl.signal });
+        if (response.status === 402) {
+          // Stessa finestra di ricarica della chat: l'audio non passa dal client Supabase.
+          try { segnalaBloccoDaRisposta(402, JSON.parse(await quoteResponseText(response.clone(), 16_000, ctrl.signal))); } catch { /* basta il messaggio qui sotto */ }
+        }
         if (!response.ok) throw new Error(response.status === 503 ? 'Trascrizione non configurata sul server. La registrazione resta disponibile.' : response.status === 401 ? 'Sessione scaduta: accedi nuovamente.' : response.status === 402 ? 'I crediti AI dell’azienda o il metodo di pagamento sono da verificare: nessun audio trascritto e nessun addebito. La registrazione resta disponibile.'
  : response.status === 429 ? 'Troppe trascrizioni ravvicinate. Attendi qualche istante: la registrazione resta disponibile e nessun addebito è stato fatto.' : response.status === 409 ? 'Questa registrazione è già stata elaborata o il suo esito è incerto. Non ripeto la chiamata: recupera il testo ricevuto oppure registra un nuovo audio.' : `Trascrizione non completata (${response.status}). Nessun nuovo tentativo automatico: la registrazione resta disponibile.`);
         const text = await quoteResponseText(response, 25000, ctrl.signal); ctrl.signal.throwIfAborted();
