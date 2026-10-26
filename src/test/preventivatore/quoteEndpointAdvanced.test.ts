@@ -33,6 +33,15 @@ describe('dedicated Demo2 endpoint uses bounded GPT, visual and budget options (
     expect(JSON.stringify(corpo)).not.toMatch(/sk-or|balance_too_low/);
     expect(corpo.error).toMatch(/Ricarica/);
   });
+  it('addebito non riuscito dopo la risposta del modello: 503 con codice dedicato, senza dettagli interni', async () => {
+    state.production = true;
+    state.failure = Object.assign(new Error('AI billing ledger unavailable after provider success (chiave interna)'), { name: 'AiRouterBillingError' });
+    const response = await post({ ...quoteBenchmarkCases()[0].request, companyId: 'b2000000-0000-4000-a000-000000000001' });
+    expect(response.status).toBe(503);
+    const corpo = await response.json();
+    expect(corpo).toMatchObject({ code: 'AI_BILLING_UNAVAILABLE' });
+    expect(JSON.stringify(corpo)).not.toMatch(/ledger|chiave interna/);
+  });
   it('credito della PIATTAFORMA su OpenRouter finito: 503, mai una richiesta di ricarica all\'azienda', async () => {
     state.production = true;
     state.failure = Object.assign(new Error('402 payment required'), { name: 'AiProviderCreditError' });

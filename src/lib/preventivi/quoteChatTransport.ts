@@ -11,7 +11,7 @@ export type QuoteChatTransportOptions = {
   fetch?: typeof fetch; unavailableMessage?: string;
 };
 
-const knownFailures: QuoteFailureCode[] = ['AI_COMPANY_CREDIT', 'AI_PROVIDER_CREDIT', 'AI_REQUEST_UNCERTAIN', 'AI_TIMEOUT', 'AI_TURN_LIMIT'];
+const knownFailures: QuoteFailureCode[] = ['AI_COMPANY_CREDIT', 'AI_BILLING_UNAVAILABLE', 'AI_PROVIDER_CREDIT', 'AI_REQUEST_UNCERTAIN', 'AI_TIMEOUT', 'AI_TURN_LIMIT'];
 async function responseFailure(response: Response, signal: AbortSignal, unavailable?: string): Promise<Error> {
   let code: unknown;
   try {

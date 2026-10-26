@@ -15,6 +15,7 @@ describe('Interruzioni AI: categorie sicure e nessun risultato parziale', () => 
     [new AiTurnLimitError('attempts'), 'AI_TURN_LIMIT'],
     [new AiTurnLimitError('cost'), 'AI_TURN_LIMIT'],
     [new AiProviderCreditError(), 'AI_PROVIDER_CREDIT'],
+    [Object.assign(new Error('ledger unavailable: dati del fornitore'), { name: 'AiRouterBillingError' }), 'AI_BILLING_UNAVAILABLE'],
     [new AiRequestGuardError('provider_outcome_unknown'), 'AI_REQUEST_UNCERTAIN'],
     [new AiRequestGuardError('completion_unavailable'), 'AI_REQUEST_UNCERTAIN'],
     [new AiRequestGuardError('checkpoint_unavailable'), 'AI_REQUEST_UNCERTAIN'],
@@ -118,5 +119,22 @@ describe('Eventi del flusso: solo turno e revisione, mai la richiesta intera', (
     const run = vi.fn(async (): Promise<never> => { throw new Error('x'); });
     const testo = await quoteEventResponse(run, richiestaPesante, new AbortController().signal, {}).text();
     expect(testo.length).toBeLessThan(1500); expect(testo).toContain('"code":"AI_RESPONSE_INVALID"'); expect(testo).not.toContain('AAAA');
+  });
+});
+
+describe('Addebito non riuscito dopo la risposta del modello', () => {
+  it('l’utente legge un messaggio chiaro e SENZA richiesta di ricarica (è un guasto nostro)', () => {
+    const f = publicQuoteFailure('AI_BILLING_UNAVAILABLE');
+    expect(f.message).toMatch(/addebito dei crediti AI non è riuscito/); expect(f.message).toMatch(/bozza intatta/i);
+    expect(f.message).not.toMatch(/ricarica|insufficienti/i);
+  });
+
+  it('nel flusso arriva come codice dedicato e non apre la finestra di ricarica', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    usePaymentGateStore.getState().hide();
+    const run = vi.fn(async (): Promise<never> => { throw Object.assign(new Error('x'), { name: 'AiRouterBillingError' }); });
+    const response = quoteEventResponse(run, identity, new AbortController().signal, {});
+    await expect(readQuoteStream(response, identity, new AbortController().signal)).rejects.toMatchObject({ code: 'AI_BILLING_UNAVAILABLE' });
+    expect(usePaymentGateStore.getState().open).toBe(false);
   });
 });
