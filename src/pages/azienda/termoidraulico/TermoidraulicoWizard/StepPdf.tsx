@@ -1,4 +1,4 @@
-import { revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * StepPdf — step "PDF" del wizard Termoidraulico (Task 22).
  *
@@ -250,7 +250,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
           generaPdfBlob={async () => {
             const url = await renderIdrPreviewBlobUrl(payload);
-            const blob = await (await fetch(url)).blob();
+            const blob = await readPdfPreviewBlob(url);
             revokePdfPreviewUrl(url);
             return blob;
           }}
