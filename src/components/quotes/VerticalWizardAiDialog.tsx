@@ -16,7 +16,7 @@ import { consentiSimulazionePreventivoAi } from "@/lib/preventivi/localSimulatio
 import { quoteChatReleaseFlag } from "@/lib/preventivi/quoteRollout";
 import { quoteEvidenceMessages } from "@/lib/preventivi/quoteChatContext";
 import { prepareQuoteVision } from "@/lib/preventivi/quoteVision";
-import { quoteCadEvidence, quoteCadQuestions, type QuoteCadState } from '@/lib/preventivi/quoteCad';
+import { quoteCadEvidence, quoteCadMeasureSummary, quoteCadQuestions, type QuoteCadState } from '@/lib/preventivi/quoteCad';
 import { createQuoteCadReader } from '@/lib/preventivi/quoteCadTransport';
 import { QuoteCadCard } from './dev/QuoteCadCard';
 import {
@@ -477,7 +477,7 @@ export default function VerticalWizardAiDialog<T>(
         if (ctrl.signal.aborted || generation !== run.current || !alive.current) return;
         if (cad && cad.reading.id !== reading.id) throw new Error('La chat contiene già un altro DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo.');
         setCad({ reading, selectedState: cad?.selectedState ?? 'unknown' });
-        setMessages(m => [...m, { role: 'user', text: `Leggi il DWG «${reading.name}».` }, { role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** ${reading.totalTexts} testi, ${reading.layers.length} layer riportati. Misure, componenti e prezzi non sono confermati.\n\n${quoteCadQuestions(reading).join('\n\n')}` }]);
+        setMessages(m => [...m, { role: 'user', text: `Leggi il DWG «${reading.name}».` }, { role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** ${reading.totalTexts} testi, ${reading.layers.length} layer riportati. Misure, componenti e prezzi non sono confermati.${quoteCadMeasureSummary(reading) ? `\n\n${quoteCadMeasureSummary(reading)}` : ''}\n\n${quoteCadQuestions(reading).join('\n\n')}` }]);
         return;
       }
       if (cad) throw new Error('Questa chat contiene un DWG. Chiudi e riapri la bozza di lavoro prima di sostituirlo con un’immagine.');

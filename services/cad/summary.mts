@@ -2,6 +2,9 @@
 import { createReadStream } from 'node:fs';
 import type { QuoteCadReading } from '../../src/lib/preventivi/quoteCad.ts';
 import { CAD_TEXT_LIMIT } from '../../src/lib/preventivi/quoteCad.ts';
+import { buildCadGeometry, polyMetrics, type RawPoly, type RawText } from './geometry.mts';
+/** Oltre questi limiti la geometria si dichiara parziale: la memoria del servizio è piccola (256 MB). */
+const POLY_LIMIT = 150_000, TEXT_POSITION_LIMIT = 20_000;
 /** LibreDWG's JSON can be hundreds of MB. Parse one record at a time. */
 export async function* cadObjects(path: string, metadata: Record<string, unknown>, maxObject = 8 * 1024 * 1024) {
   let header = '', found = false, closed = false, depth = 0, quoted = false, escaped = false;
@@ -49,6 +52,7 @@ const clean = (s: unknown) => String(s ?? '').replace(/\\P/g, '\n').replace(/\\[
 export async function summarizeCad(path: string, identity: { id: string; name: string; size: number }): Promise<QuoteCadReading> {
   const metadata: Record<string, unknown> = {}, layers = new Map<string, string>();
   const candidates = new Map<string, { handle: string; layerHandle: string; text: string; xy: [number, number] | null; rank: number; order: number }>();
+  const polys: RawPoly[] = [], textPoints: RawText[] = []; let closedPolys = 0;
   let entities = 0, inserts = 0, dimensions = 0, totalTexts = 0, externalReferences = 0, partial = false, existing = false, project = false, pdfImported = false, records = 0;
   for await (const r of cadObjects(path, metadata)) {
     if (++records > 2_000_000) throw new Error('CAD entity limit');
@@ -62,9 +66,22 @@ export async function summarizeCad(path: string, identity: { id: string; name: s
     entities++;
     if (type === 'INSERT' || type === 'MINSERT') inserts++;
     if (type.startsWith('DIMENSION')) dimensions++;
+    // Forme chiuse (flag 512): servono a ricavare i locali. Gli archi (bulge) non si approssimano: si contano e si escludono.
+    if (type === 'LWPOLYLINE' && (Number(r.flag ?? 0) & 512) && Array.isArray(r.points)) {
+      closedPolys++;
+      if (Array.isArray(r.bulges) && r.bulges.some(b => Number(b) !== 0)) { /* con archi: esclusa, non si approssima */ }
+      else if (polys.length < POLY_LIMIT) {
+        const pts = (r.points as unknown[]).filter((p): p is number[] => Array.isArray(p) && p.length >= 2).map(p => [Number(p[0]), Number(p[1])]);
+        const m = polyMetrics(pts);
+        if (m) polys.push({ layer: ref(r.layer), pts, ...m });
+      } else partial = true;
+    }
     if (!['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'].includes(type)) continue;
     const full = clean(r.text ?? r.text_value); if (!full) continue;
     totalTexts++;
+    const at = r.ins_pt ?? r.insertion_pt;
+    if (textPoints.length < TEXT_POSITION_LIMIT && Array.isArray(at) && at.length >= 2 && at.slice(0, 2).every(n => typeof n === 'number' && Number.isFinite(n)))
+      textPoints.push({ text: full.replace(/\s+/g, ' ').slice(0, 80), x: at[0] as number, y: at[1] as number, handle: ref(r.handle) });
     const normalized = full.toLocaleLowerCase('it').replace(/\s+/g, ' ');
     existing ||= normalized.includes('stato di fatto'); project ||= normalized.includes('stato di progetto');
     if (candidates.has(normalized)) continue;
@@ -84,7 +101,10 @@ export async function summarizeCad(path: string, identity: { id: string; name: s
   // Stay below the transport's byte cap even for multibyte scripts. Keep the
   // highest-ranked facts; disclose every omitted occurrence in the result.
   while (Buffer.byteLength(JSON.stringify(texts)) > 135_000) { texts.pop(); partial = true; }
-  return { version: 1, engine: 'LibreDWG', ...identity, units: Number.isInteger(header?.INSUNITS) && Number(header?.INSUNITS) >= 0 && Number(header?.INSUNITS) <= 24 ? Number(header?.INSUNITS) : null,
+  const insunits = Number.isInteger(header?.INSUNITS) && Number(header?.INSUNITS) >= 0 && Number(header?.INSUNITS) <= 24 ? Number(header?.INSUNITS) : null;
+  for (const p of polys) p.layer = layers.get(p.layer) ?? 'non risolto';
+  const geometry = buildCadGeometry(polys, textPoints, insunits, closedPolys, pdfImported);
+  return { version: 1, engine: 'LibreDWG', ...identity, ...(geometry ? { geometry } : {}), units: Number.isInteger(header?.INSUNITS) && Number(header?.INSUNITS) >= 0 && Number(header?.INSUNITS) <= 24 ? Number(header?.INSUNITS) : null,
     entities, inserts, dimensions, layers: [...layers.values()].slice(0, 80), texts, totalTexts, omittedTexts: totalTexts - texts.length,
     pdfImported, mixedStates: existing && project, externalReferences, partial: partial || layers.size > 80 || !!metadata.skipped };
 }

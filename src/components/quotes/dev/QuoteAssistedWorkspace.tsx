@@ -56,7 +56,7 @@ import type { LocalChatMessage, LocalQuoteSnapshot, SavedQuoteBudget } from "@/l
 import { readLocalQuoteSnapshot } from '@/lib/preventivi/localQuoteMemory';
 import { planCandidates, readPlanLocally, confirmPlanRectangle, PLAN_MAX_BYTES, type PlanAttachment, type PlanRoom, type PlanRectangle, type PlanText } from "@/lib/preventivi/planReading";
 import { planWorksResult, recalculatePlanLines } from "@/lib/preventivi/planChat";
-import { cadSignature, CAD_MAX_BYTES, readCadLocally, quoteCadEvidence, quoteCadQuestions, type QuoteCadState } from '@/lib/preventivi/quoteCad';
+import { cadSignature, CAD_MAX_BYTES, readCadLocally, quoteCadEvidence, quoteCadMeasureSummary, quoteCadQuestions, type QuoteCadState } from '@/lib/preventivi/quoteCad';
 import { QuoteCadCard } from './QuoteCadCard';
 import type { QuoteCadReader } from '@/lib/preventivi/quoteCadTransport';
 import { buildQuoteChatContext, quoteChatHistory, quoteEvidenceMessages } from "@/lib/preventivi/quoteChatContext";
@@ -268,7 +268,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
           if (ctrl.signal.aborted || run !== generation.current) return;
           if (cad && cad.reading.id !== reading.id) throw new Error('Questa bozza ha già un altro DWG. Scrivi «nuovo progetto» prima di sostituirlo.');
           setCad({ reading, selectedState: cad?.selectedState ?? 'unknown' });
-          append({ role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** Ho trovato ${reading.totalTexts} testi e ${reading.layers.length} layer riportati. Non ho aggiunto voci o prezzi: legenda, testi ripetuti e geometrie non sono ancora quantità verificate. L’originale non è stato inviato all’AI; il riepilogo è ripreso con questa bozza.`, questions: quoteCadQuestions(reading) });
+          append({ role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** Ho trovato ${reading.totalTexts} testi e ${reading.layers.length} layer riportati. Non ho aggiunto voci o prezzi: legenda, testi ripetuti e geometrie non sono ancora quantità verificate. L’originale non è stato inviato all’AI; il riepilogo è ripreso con questa bozza.${quoteCadMeasureSummary(reading) ? ` ${quoteCadMeasureSummary(reading)}` : ''}`, questions: quoteCadQuestions(reading) });
         } catch (error) { if (!ctrl.signal.aborted && run === generation.current) append({ role: 'assistant', text: error instanceof Error ? error.message : 'DWG non leggibile.' }); }
         finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
         return;
