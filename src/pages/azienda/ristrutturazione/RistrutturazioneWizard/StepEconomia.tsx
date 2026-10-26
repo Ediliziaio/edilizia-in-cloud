@@ -22,6 +22,7 @@ import type { RstComputoVoce, RstProgetto } from "@/types/ristrutturazione";
 import type { RstFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
 import { PianoPagamentoCard } from "@/components/moduli/PianoPagamentoCard";
+import { ObiettivoETempiCard } from "@/components/moduli/ObiettivoETempiCard";
 import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
@@ -221,6 +222,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 onChange("finanziamento_importo", s.importo);
               }}
             />
+            <ObiettivoETempiCard righe={computo} base={totali} />
             <PianoPagamentoCard
               piano={form.piano_pagamento}
               onChange={(p) => onChange("piano_pagamento", p)}
