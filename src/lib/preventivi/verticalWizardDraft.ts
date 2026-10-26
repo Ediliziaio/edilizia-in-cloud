@@ -25,6 +25,22 @@ import {
   type CostiTariffa,
 } from "@/lib/listino/costoTariffa";
 
+const MATERIALI_SERRAMENTO = ["pvc", "alluminio", "legno", "alluminio_legno", "acciaio", "misto"] as const;
+
+/**
+ * Porta il materiale scritto dall'AI o a mano («PVC», «Alluminio-legno», «legno alluminio») ai
+ * valori del configuratore. `null` se vuoto, `undefined` se non è un materiale conosciuto.
+ */
+export function normalizzaMaterialeSerramento(valore: unknown): (typeof MATERIALI_SERRAMENTO)[number] | null | undefined {
+  if (valore == null) return null;
+  const chiave = String(valore)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!chiave) return null;
+  if (chiave === "legno_alluminio") return "alluminio_legno";
+  return (MATERIALI_SERRAMENTO as readonly string[]).includes(chiave) ? (chiave as (typeof MATERIALI_SERRAMENTO)[number]) : undefined;
+}
+
 export type NativeCatalogue = NativeContext["catalogue"];
 export type NativePrice = {
   price: number;
@@ -403,19 +419,11 @@ export async function applySrNativeTurn(
       ] as const)
         if (has(f, field)) row[key] = text(f[field]);
       if (has(f, "material")) {
-        if (
-          f.material != null &&
-          ![
-            "pvc",
-            "alluminio",
-            "legno",
-            "alluminio_legno",
-            "acciaio",
-            "misto",
-          ].includes(String(f.material))
-        )
+        // L'AI scrive «PVC» o «Alluminio-legno»: il configuratore vuole i valori in minuscolo.
+        const material = normalizzaMaterialeSerramento(f.material);
+        if (f.material != null && String(f.material).trim() !== "" && material === undefined)
           throw new Error("Materiale non supportato");
-        row.materiale = f.material as SrMaterialePrincipale | null;
+        row.materiale = (material ?? null) as SrMaterialePrincipale | null;
       }
       if (catalogueChanged) {
         row.foto_storage_path = quoted?.image ?? null;
