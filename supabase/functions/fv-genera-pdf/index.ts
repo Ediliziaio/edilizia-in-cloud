@@ -30,6 +30,7 @@
  * template condiviso, basta un bump qui per far ridistribuire la function.
  * 25/10/2026: i colori del tema si applicano sul documento senza le foto base64 (una passata, non undici).
  * 26/10/2026: il piano di posa usa le misure del pannello scelto (_shared/fvPianoTetto.ts).
+ * 26/10/2026: foto più leggere nel documento (viste satellitari in JPEG, foto del deposito ridimensionate).
  */
 
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
@@ -241,9 +242,31 @@ Deno.serve(async (req: Request) => {
     );
 
     // ── Helper: fetch URL → data URI base64 ─────────────────────────────────
+    // Le foto dell'azienda stanno nel deposito di Supabase: se il deposito può ridimensionarle (1280 punti di lato,
+    // qualità 72) si chiede quella versione, che pesa un decimo e basta per un foglio A4. Se non risponde con
+    // un'immagine si ripiega sull'originale, e se il deposito rifiuta (non autorizzato, servizio spento) per quel tipo di indirizzo non si riprova.
+    const ridotteDalDeposito = { public: true, sign: true };
+    const versioneRidotta = (url: string): { url: string; tipo: "public" | "sign" } | null => {
+      const m = url.match(/\/storage\/v1\/object\/(public|sign)\//);
+      if (!m) return null;
+      const tipo = m[1] as "public" | "sign";
+      if (!ridotteDalDeposito[tipo]) return null;
+      return { url: url.replace("/storage/v1/object/", "/storage/v1/render/image/") + (url.includes("?") ? "&" : "?") + "width=1280&quality=72", tipo };
+    };
     const urlToB64 = async (url: string, timeout = 8000): Promise<string | undefined> => {
       try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+        const ridotta = versioneRidotta(url);
+        let r: Response | null = null;
+        if (ridotta) {
+          try {
+            const rr = await fetch(ridotta.url, { signal: AbortSignal.timeout(timeout) });
+            if (rr.ok && (rr.headers.get("content-type") ?? "").startsWith("image/")) r = rr;
+            // Non autorizzato o servizio spento: inutile riprovare per le altre foto. Un file che il deposito non
+            // sa ridimensionare (un SVG, per esempio) si legge com'è e basta.
+            else if ([401, 402, 403].includes(rr.status)) ridotteDalDeposito[ridotta.tipo] = false;
+          } catch { /* rete o tempo: per questa foto si prende l'originale */ }
+        }
+        if (!r) r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
         if (!r.ok) return undefined;
         const buf = new Uint8Array(await r.arrayBuffer());
         const ct = r.headers.get("content-type") ?? "image/jpeg";
@@ -266,7 +289,7 @@ Deno.serve(async (req: Request) => {
     if (satLat && satLng && googleMapsKey) {
       const fetchSatImg = (zoom: number) =>
         urlToB64(
-          `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${zoom}&size=640x480&scale=2&maptype=satellite&key=${googleMapsKey}`,
+          `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${zoom}&size=640x480&scale=2&maptype=satellite&format=jpg&key=${googleMapsKey}`,
         );
       // 4 zoom distinti → 4 viste sempre diverse nel PDF
       const [close, medium, overview, wide] = await Promise.all([
@@ -288,7 +311,7 @@ Deno.serve(async (req: Request) => {
     } | null = null;
     if (pianoDisegnato && moduliDelPiano > 0 && satLat && satLng && googleMapsKey) {
       const imgPiano = await urlToB64(
-        `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${PIANO_ZOOM}&size=${PIANO_LARGHEZZA}x${PIANO_ALTEZZA}&scale=2&maptype=satellite&key=${googleMapsKey}`,
+        `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${PIANO_ZOOM}&size=${PIANO_LARGHEZZA}x${PIANO_ALTEZZA}&scale=2&maptype=satellite&format=jpg&key=${googleMapsKey}`,
       );
       if (imgPiano?.startsWith("data:image/")) {
         pianoTetto = { img: imgPiano, piano: pianoDisegnato, latitudine: satLat, moduli: moduliDelPiano, kwp: Number(prog.potenza_kwp) || null };

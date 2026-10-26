@@ -87,7 +87,10 @@ export function useCompanyStaffUsers(
   return useQuery({
     queryKey: companyStaffUsersKeys.byCompany(companyId, scope),
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    // Un elenco vuoto non è mai «fresco»: un'azienda ha sempre almeno il titolare, e un elenco vuoto vuol dire che la
+    // lettura è partita prima che la sessione fosse pronta. Tenuto per cinque minuti lasciava «Venditore» e
+    // «Follower» senza nomi (il solo «Non assegnato») anche a sessione pronta.
+    staleTime: (query) => (query.state.data && query.state.data.length > 0 ? 5 * 60 * 1000 : 0),
     gcTime: 15 * 60 * 1000,
     queryFn: async (): Promise<StaffUser[]> => {
       if (!companyId) return [];
