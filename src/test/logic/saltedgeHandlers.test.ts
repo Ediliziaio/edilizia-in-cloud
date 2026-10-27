@@ -17,7 +17,7 @@ async function load(file: string) {
   vm.runInNewContext(source, { exports: {}, Response, Request, URL, Date, Error, crypto, console,
     Deno: { serve: (h: typeof handler) => { handle = h; }, env: { get: (key: string) => vars[key] } },
     require: (path: string) => {
-      if (path.includes("supabase-js")) return { createClient: (_url: string, key: string) => key === "anon" ? { auth: { getUser: async () => ({ data: { user: { id: user, email: "test@example.test" } }, error: null }) } } : db };
+      if (path.includes("supabase-js")) return { createClient: (_url: string, key: string) => key === "anon" ? { auth: { getUser: async () => ({ data: { user: { id: user, email: "test@example.test" } }, error: null as null }) } } : db };
       if (path.endsWith("/headers.ts")) return { getCorsHeaders: () => ({}) };
       if (path.endsWith("/permessoAzienda.ts")) return { verificaPermessoAzienda: async (_db: unknown, _user: string, id: string) => { if (denied || id !== company) throw new Error("Non autorizzato"); } };
       if (path.endsWith("/auth.ts")) return { isSuperAdminEmailAllowed: () => false };

@@ -90,13 +90,13 @@ describe("Collegamento Salt Edge nell'interfaccia reale", () => {
   });
   it("non dichiara successo quando la finalizzazione e' rifiutata", async () => {
     state.invoke.mockResolvedValue({ error: null, data: { error: "Sessione non valida" } });
-    function Root() { useSaltEdgeReturn(state.company); return null; }
+    function Root(): null { useSaltEdgeReturn(state.company); return null; }
     mount(<Root />, "/azienda/tesoreria?bank_provider=saltedge&se_state=forged&connection_id=10");
     await waitFor(() => expect(state.toast.error).toHaveBeenCalled());
     expect(state.toast.success).not.toHaveBeenCalled();
   });
   it("un consenso annullato non chiama la finalizzazione", async () => {
-    function Root() { useSaltEdgeReturn(state.company); return null; }
+    function Root(): null { useSaltEdgeReturn(state.company); return null; }
     mount(<Root />, "/azienda/tesoreria?bank_provider=saltedge&se_state=nonce&error_class=AccessDenied");
     await waitFor(() => expect(state.toast.error).toHaveBeenCalled()); expect(state.invoke).not.toHaveBeenCalled();
   });

@@ -24,7 +24,7 @@ export class SaltTestDatabase {
   async rpc(name: string, args: Record<string, string>) {
     if (name === "saltedge_account_conflict") {
       const r = await this.pg.query<{ value: boolean }>("select saltedge_account_conflict($1,$2,$3) as value", [args.p_company, args.p_connection, args.p_iban]);
-      return { data: r.rows[0].value, error: null };
+      return { data: r.rows[0].value, error: null as null };
     }
     if (name !== "claim_saltedge_lock") throw new Error("Unexpected RPC");
     const r = await this.pg.query<{ token: string | null }>("select claim_saltedge_lock($1) as token", [args.p_key]);
@@ -65,7 +65,7 @@ class SaltQuery {
       if (this.op === "upsert") sql += ` on conflict (${this.conflict.split(",").map(identifier).join(",")}) do update set ${keys.map(k => `${identifier(k)}=excluded.${identifier(k)}`).join(",")}`;
       sql += ` returning ${columns}`;
     }
-    try { const r = await this.db.pg.query(sql, params); return { data: this.one ? r.rows[0] ?? null : r.rows, error: null }; }
+    try { const r = await this.db.pg.query(sql, params); return { data: this.one ? r.rows[0] ?? null : r.rows, error: null as null }; }
     catch (error) { return { data: null, error }; }
   }
   then<T>(resolve: (v: Awaited<ReturnType<SaltQuery["run"]>>) => T) { return this.run().then(resolve); }

@@ -59,7 +59,7 @@ export class SaltEdgeClient {
       Accept: "application/json", "Content-Type": "application/json", "App-id": this.config.appId, Secret: this.config.secret,
       "Expires-at": expires, Signature: signature,
     }, ...(body ? { body } : {}) });
-    const result = await response.json().catch(() => null);
+    const result = await response.json().catch((): null => null);
     if (!response.ok || result?.error || !result || !("data" in result)) {
       console.error("saltedge upstream request failed", { status: response.status, contentType: response.headers.get("content-type"), responseFields: result && typeof result === "object" ? Object.keys(result) : [] });
       if (response.status === 403 && response.headers.get("content-type")?.includes("text/html")) throw new SaltEdgeError("UpstreamRequestRejected", 502);
@@ -90,7 +90,7 @@ export function saltTransaction(t: SaltTransaction, remoteAccount: string, compa
   if (t.account_id !== remoteAccount || !Number.isFinite(t.amount) || !/^\d{4}-\d{2}-\d{2}$/.test(t.made_on) || !/^[A-Z]{3}$/.test(t.currency_code)) throw new SaltEdgeError("InvalidTransaction");
   if (t.duplicated || t.status !== "posted") return null;
   return { company_id: companyId, account_id: accountId, external_transaction_id: `se:${remoteAccount}:${t.id}`,
-    booking_date: t.made_on, value_date: null, amount: t.amount, currency: t.currency_code, description: t.description ?? null,
+    booking_date: t.made_on, value_date: null as null, amount: t.amount, currency: t.currency_code, description: t.description ?? null,
     transaction_type: t.amount < 0 ? "debit" : "credit", status: "booked",
     creditor_name: t.extra?.payee ?? null, debtor_name: t.extra?.payer ?? null,
     creditor_iban: t.extra?.creditor_iban ?? null, debtor_iban: t.extra?.debtor_iban ?? null,

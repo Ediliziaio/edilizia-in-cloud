@@ -62,10 +62,10 @@ describe("Salt Edge beta: database Postgres locale, API esterna simulata", () =>
   it("non riporta riuscito un import parziale o un errore di salvataggio", async () => {
     failedPage = true;
     await expect(saltSync(db, api, row)).rejects.toThrow("ProviderUnavailable");
-    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
+    expect((await db.pg.query<{ last_sync_at: string | null }>("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
     failedPage = false; db.failTable = "bank_transactions";
     await expect(saltSync(db, api, row)).rejects.toThrow("DatabaseError");
-    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
+    expect((await db.pg.query<{ last_sync_at: string | null }>("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
   });
   it("blocca dati reali in Pending e consensi revocati PRIMA delle scritture finanziarie", async () => {
     remote.country_code = "IT";
@@ -78,7 +78,7 @@ describe("Salt Edge beta: database Postgres locale, API esterna simulata", () =>
   it("non dichiara collegata una banca che sta ancora preparando i dati", async () => {
     remote.last_attempt!.finished = false;
     expect(await saltSync(db, api, row)).toMatchObject({ processing: true, imported: 0 });
-    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
+    expect((await db.pg.query<{ last_sync_at: string | null }>("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
   });
   it("non duplica i saldi di un IBAN gia' attivo su un altro collegamento", async () => {
     const legacy = await db.from("bank_connections").insert({ company_id: company, institution_id: "other", provider_slug: "saltedge", status: "linked" }).select("id").single();
@@ -87,7 +87,7 @@ describe("Salt Edge beta: database Postgres locale, API esterna simulata", () =>
     expect((await db.pg.query<{ current_balance: string }>("select current_balance from bank_accounts")).rows.map(r => r.current_balance)).toEqual(["987.00"]);
   });
   it("collega solo la sessione attesa e non sposta una connessione fra aziende", async () => {
-    const session = { id: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee", company_id: company, user_id: user, customer_id: "20", connection_id: null, state_hash: "hash" };
+    const session = { id: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee", company_id: company, user_id: user, customer_id: "20", connection_id: null as string | null, state_hash: "hash" };
     await db.from("bank_saltedge_sessions").insert(session);
     await expect(saltAttach(db, remote, session)).rejects.toThrow("InvalidSession");
     remote.last_attempt!.custom_fields!.eic_session_id = session.id;
