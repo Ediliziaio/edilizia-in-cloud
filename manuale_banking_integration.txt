@@ -1,3 +1,7 @@
+DOCUMENTO STORICO NON OPERATIVO: il connettore corrente e il piano di collaudo
+sono descritti in docs/integrazione-saltedge-beta.md. Non usare le API,
+le credenziali o i callback riportati qui per nuove implementazioni.
+
 ================================================================================
 MANUALE SVILUPPO — BANKING INTEGRATION SERVICE (Tesoreria Open Banking)
 Stile AGICAP · PSD2 · GoCardless Bank Account Data API

@@ -61,7 +61,7 @@ function PrimaNotaInner() {
           .from("bank_connections")
           .select("id", { count: "exact", head: true })
           .eq("company_id", effectiveCompany?.id ?? "")
-          .eq("status", "active");
+          .in("status", ["linked", "active"]);
         if (!count || count === 0) {
           throw new Error("NO_BANK_CONNECTION");
         }

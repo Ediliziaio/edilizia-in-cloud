@@ -2,7 +2,7 @@
 // CostiBankReconcileDialog — "Riconcilia con banca" per i costi non pagati
 // ============================================================================
 // Prende i costi scaduti/non pagati, carica gli addebiti bancari recenti
-// (bank_transactions, già sincronizzati da Tesoreria/Enable Banking) e
+// (bank_transactions, già sincronizzati dalla Tesoreria) e
 // propone i match via matchCostsToBankTransactions. Conferma singola o in
 // blocco (solo match forti): la scrittura passa dal callback onPayCost del
 // manager → mutation esistenti (con Prima Nota automatica).

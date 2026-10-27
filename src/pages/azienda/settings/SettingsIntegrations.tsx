@@ -171,7 +171,7 @@ export default function SettingsIntegrations() {
   // collegamento si completa.
   const [searchParams] = useSearchParams();
   const [popup, setPopup] = useState<PopupAperto>(() => {
-    if (searchParams.get("code") || (searchParams.get("error") && searchParams.get("state"))) return { id: "banca" };
+    if (searchParams.get("bank_provider") === "saltedge" || searchParams.get("code") || (searchParams.get("error") && searchParams.get("state"))) return { id: "banca" };
     if (searchParams.get("stripe")) return { id: "stripe" };
     return null;
   });

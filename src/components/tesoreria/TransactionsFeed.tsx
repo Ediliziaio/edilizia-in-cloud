@@ -13,12 +13,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, toFiniteAmount } from "@/lib/treasury";
+import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, treasuryTransactionAmount } from "@/lib/treasury";
 import { neutralizeCsvFormula } from "@/lib/csvExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
-
-const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
 const CATEGORIES = [
   { value: "Stipendi", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
@@ -231,7 +229,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
       Conto: tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "",
       Categoria: tx.category || "",
       Tipo: tx.transaction_type === "credit" ? "Entrata" : "Uscita",
-      Importo: tx.amount,
+      Importo: treasuryTransactionAmount(tx),
       Valuta: tx.currency || "EUR",
       Riferimento: tx.reference || "",
       Stato: tx.status || "",
@@ -324,9 +322,13 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   // Summary
   const summary = useMemo(() => {
-    const income = transactions.filter((t) => t.transaction_type === "credit").reduce((s, t) => s + toFiniteAmount(t.amount), 0);
-    const expenses = transactions.filter((t) => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(toFiniteAmount(t.amount)), 0);
-    return { count: totalCount, income, expenses, net: income - expenses };
+    const groups = [...new Set(transactions.map(t => t.currency || "EUR"))].map(currency => {
+      const rows = transactions.filter(t => (t.currency || "EUR") === currency);
+      const income = rows.filter(t => t.transaction_type === "credit").reduce((s, t) => s + treasuryTransactionAmount(t), 0);
+      const expenses = rows.filter(t => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(treasuryTransactionAmount(t)), 0);
+      return { currency, income, expenses, net: income - expenses };
+    });
+    return { count: totalCount, groups };
   }, [transactions, totalCount]);
 
   const getCategoryBadge = (cat: string | null) => {
@@ -435,7 +437,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                 </p>
               </div>
               <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                {tx.transaction_type === "credit" ? "+" : ""}{formatEur(tx.amount)}
+                {tx.transaction_type === "credit" ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
               </span>
             </button>
           ))}
@@ -505,7 +507,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                       )}
                     </td>
                     <td className={`p-3 text-right font-semibold ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                      {tx.transaction_type === "credit" ? "+" : ""}{formatEur(tx.amount)}
+                      {tx.transaction_type === "credit" ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
                     </td>
                   </tr>
                 ))}
@@ -535,7 +537,8 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
       {/* Summary. Mobile no: una riga lunga di numeri in fondo alla lista. */}
       <div className="text-sm text-muted-foreground text-center py-2 max-sm:hidden">
-        Risultati: {summary.count} transazioni · Entrate: {formatEur(summary.income)} · Uscite: {formatEur(summary.expenses)} · Netto: {formatEur(summary.net)}
+        Risultati: {summary.count} transazioni · Riepilogo pagina
+        {summary.groups.map(g => <div key={g.currency}>{g.currency} · Entrate: {formatTreasuryCurrency(g.income, "—", g.currency)} · Uscite: {formatTreasuryCurrency(g.expenses, "—", g.currency)} · Netto: {formatTreasuryCurrency(g.net, "—", g.currency)}</div>)}
       </div>
 
       {/* Detail Sheet — mobile: dal basso, con data, importo, descrizione e
@@ -555,7 +558,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                 <div className="max-sm:hidden"><Label className="text-muted-foreground">Data valuta</Label><p>{formatDateIt(selectedTx.value_date)}</p></div>
                 <div><Label className="text-muted-foreground">Importo</Label>
                   <p className={`font-bold ${selectedTx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                    {formatEur(selectedTx.amount)}
+                    {formatTreasuryCurrency(treasuryTransactionAmount(selectedTx), "—", selectedTx.currency)}
                   </p>
                 </div>
                 <div className="max-sm:hidden"><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status}</p></div>
