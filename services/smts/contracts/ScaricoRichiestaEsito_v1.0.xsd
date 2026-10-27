@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+	xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/ServiziMassivi/output/ScaricoRichiestaEsito/v1.0"  
+	targetNamespace="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/ServiziMassivi/output/ScaricoRichiestaEsito/v1.0"  
+	version="1.0">
+	
+	<xs:element name="EsitoRichiesta" type="EsitoRichiestaType" />
+	
+	<xs:complexType name="EsitoRichiestaType">
+		<xs:sequence>
+			<xs:element name="IdRichiesta" type="xs:string"/>
+			<xs:element name="Piva" type="PivaType"/>
+			<xs:element name="DataFineDisponibilita" type="xs:dateTime" minOccurs="0"/>
+			<xs:choice>
+				<xs:element name="NumeroArchivi" type="Integer3Type"/>
+				<xs:element name="NumeroErrori" type="Integer3Type"/>
+			</xs:choice>
+			<xs:element name="Esito" type="EsitoType"/>
+		</xs:sequence>
+		<xs:attribute name="versione" type="VersioneType" use="required"/>
+	</xs:complexType>
+	
+	<xs:complexType name="ElencoArchiviType">
+		<xs:sequence>
+			<xs:element name="Archivio" type="ArchivioType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	
+	<xs:complexType name="ArchivioType">
+		<xs:sequence>
+			<xs:element name="IdFile" type="xs:string"/>
+			<xs:element name="NomeFile" type="String100LatinType"/>
+			<xs:element name="DimensioneFile" type="Integer15Type"/>
+			<xs:element name="TipoElementi" type="String100LatinType"/>
+			<xs:element name="NumeroElementi"  type="Integer3Type"/>			
+		</xs:sequence>
+	</xs:complexType>
+	
+	<xs:complexType name="EsitoType">
+		<xs:choice>
+			<xs:element name="ElencoArchivi" type="ElencoArchiviType"/>
+			<xs:element name="ElencoErrori"  type="ElencoErroriType"/>
+		</xs:choice>
+	</xs:complexType>
+	
+	<xs:complexType name="ElencoErroriType">
+		<xs:sequence>
+			<xs:element name="Errore" type="ErroreType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	
+	<xs:complexType name="ErroreType">
+		<xs:sequence>
+			<xs:element name="Codice" type="xs:string"/>
+			<xs:element name="Descrizione" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+
+	<xs:simpleType name="PivaType">
+		<xs:restriction base="xs:string">
+			<xs:length value="11"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<xs:simpleType name="String100LatinType">
+		<xs:restriction base="xs:normalizedString">
+			<xs:pattern value="[\p{IsBasicLatin}\p{IsLatin-1Supplement}]{1,100}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<xs:simpleType name="Integer15Type">
+		<xs:restriction base="xs:positiveInteger">
+			<xs:minInclusive value="1"/>
+			<xs:maxInclusive value="999999999999999"/>
+		</xs:restriction>
+	</xs:simpleType> 
+	
+	<xs:simpleType name="Integer3Type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="999"/>
+		</xs:restriction>
+	</xs:simpleType> 
+	
+	<xs:simpleType name="VersioneType">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="5"/>
+		</xs:restriction>
+	</xs:simpleType>
+</xs:schema>

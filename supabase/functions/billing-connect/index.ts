@@ -1,3 +1,10 @@
+import { preferredBillingProvider } from "../_shared/billingProviderPreference.ts";
+import { ITALA_PLATFORM_REFERENCE, italaPlatformReady, platformItalaClient } from "../_shared/italaSecrets.ts";
+import { sealItalaCredentials } from "../_shared/italaSecrets.ts";
+import { ItalaClient } from "../_shared/italaClient.ts";
+import { vatNumber } from "../_shared/billingMassive.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, ArubaAdapter, AcubeAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -58,6 +65,17 @@ serveConMetriche("billing-connect", async (req) => {
     companyId = await resolveEffectiveCompanyId(supabase, user.id);
   }
   if (!companyId) return json({ error: "Nessuna azienda associata all'utente" }, 404);
+
+  const preferDirect = async (provider: string) => {
+    const { data, error } = await supabase.from("billing_integrations").select("provider,is_primary,is_active").eq("company_id", companyId);
+    if (error) throw new Error("Impossibile verificare il provider principale.");
+    const preferred = preferredBillingProvider(data ?? []);
+    if (preferred === provider) {
+      const { error: first } = await supabase.from("billing_integrations").update({ is_primary: true }).eq("company_id", companyId).eq("provider", provider);
+      const { error: rest } = await supabase.from("billing_integrations").update({ is_primary: false }).eq("company_id", companyId).neq("provider", provider);
+      if (first || rest) throw new Error("Collegamento salvato, ma selezione del provider principale non riuscita.");
+    }
+  };
 
   // ── OAuth2 FIC: ottieni URL autorizzazione
   if (action === "get_fic_auth_url") {
@@ -155,6 +173,7 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
+    await preferDirect("fattureincloud");
     return json({ success: true, company_name: ficCo?.name, vat_number: ficCo?.vat_number });
   }
 
@@ -180,12 +199,78 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }).eq("id", integ.id);
     if (error) return json({ error: `Salvataggio non riuscito: ${error.message}` }, 500);
+    await preferDirect("fattureincloud");
     return json({ success: true, company_name: ficCo.name, vat_number: ficCo.vat_number });
+  }
+
+  if (action === "itala_platform_status") {
+    const codes = await codiciFiscaliAzienda(companyId);
+    return json({ configured: italaPlatformReady(), vat_number: codes[2] || codes[0] || null });
+  }
+  if (action === "connect_platform_itala" && req.method === "POST") {
+    const roles = await ruoliNellAzienda(supabase, user.id, companyId);
+    if (!roles.includes("company_admin") && !(roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email))) return json({ error: "Serve l'amministratore dell'azienda." }, 403);
+    if (body.consent_provider !== true) return json({ error: "Conferma il collegamento e la trasmissione dell'anagrafica aziendale a ITALA." }, 400);
+    const { data: an, error: anError } = await supabase.from("anagrafica_azienda")
+      .select("ragione_sociale, partita_iva, codice_fiscale").eq("company_id", companyId).maybeSingle();
+    const { data: co } = await supabase.from("companies").select("name, vat_number, fiscal_code").eq("id", companyId).maybeSingle();
+    if (anError) return json({ error: "Impossibile leggere l'anagrafica aziendale." }, 400);
+    const vat = vatNumber(an?.partita_iva || co?.vat_number);
+    const name = an?.ragione_sociale || co?.name;
+    const cf = an?.codice_fiscale || co?.fiscal_code || vat;
+    if (!name) return json({ error: "Completa la ragione sociale nell'anagrafica aziendale." }, 400);
+    const client = platformItalaClient();
+    let found = false;
+    for (let page = 1; page <= 100; page++) {
+      const companies = await client.request<Array<{ piva?: string; partita_iva?: string }>>(`/aziende?per_page=1000&page=${page}`);
+      if (!Array.isArray(companies)) throw new Error("Elenco aziende ITALA non valido.");
+      if (companies.some(c => (c.piva || c.partita_iva || "").replace(/^IT/i, "") === vat)) { found = true; break; }
+      if (companies.length < 1000) break;
+      if (page === 100) throw new Error("Impossibile verificare tutte le aziende dell'account. Nessuna azienda creata.");
+    }
+    if (!found) await client.request("/aziende", "POST", { ragione_sociale: name, piva: vat, cfis: cf });
+    const { data: previous, error: prevError } = await supabase.from("billing_integrations").select("provider,is_active,is_primary").eq("company_id", companyId);
+    if (prevError) throw new Error("Impossibile verificare il programma già collegato.");
+    const preferred = preferredBillingProvider([...(previous ?? []).filter(c => c.provider !== "itala"), { provider: "itala", is_active: true }]);
+    const { error } = await supabase.from("billing_integrations").upsert({
+      company_id: companyId, provider: "itala", is_active: true, api_key: ITALA_PLATFORM_REFERENCE,
+      provider_vat_number: vat, provider_company_name: "Edilizia in Cloud · ITALA", auto_sync: true,
+      is_primary: preferred === "itala", updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+    if (error) throw new Error("Impossibile salvare il collegamento ITALA.");
+    if (preferred && preferred !== "itala") await supabase.from("billing_integrations").update({ is_primary: true }).eq("company_id", companyId).eq("provider", preferred);
+    return json({ success: true, vat_number: vat, primary_provider: preferred });
+  }
+
+  // Permanent REST 2.0 API credentials, scoped to the current company's VAT.
+  if (action === "configure_itala" && req.method === "POST") {
+    const roles = await ruoliNellAzienda(supabase, user.id, companyId);
+    if (!roles.includes("company_admin") && !(roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email))) {
+      return json({ error: "Solo l'amministratore può configurare le credenziali del provider." }, 403);
+    }
+    const client_id = typeof body.client_id === "string" ? body.client_id.trim() : "";
+    const client_secret = typeof body.client_secret === "string" ? body.client_secret : "";
+    const environment = body.environment === "test" ? "test" : "prod";
+    if (!client_id || !client_secret) return json({ error: "Client ID e Client Secret richiesti." }, 400);
+    const codes = await codiciFiscaliAzienda(companyId);
+    const vat = vatNumber(codes[2] || codes[0]);
+    const secret = JSON.stringify({ client_id, client_secret, environment });
+    const client = new ItalaClient(secret);
+    // This endpoint is read-only; do not consume invoices with unread=true.
+    await client.request("/credito");
+    const { error } = await supabase.from("billing_integrations").upsert({
+      company_id: companyId, provider: "itala", is_active: true, api_key: await sealItalaCredentials(secret),
+      provider_vat_number: vat, provider_company_name: "Fattura Elettronica API",
+      auto_sync: false, updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+    if (error) return json({ error: "Impossibile salvare il collegamento." }, 500);
+    return json({ success: true, company_name: "Fattura Elettronica API", vat_number: vat, environment });
   }
 
   // ── Configura provider con API key
   if (action === "configure_apikey" && req.method === "POST") {
     const { provider, api_key } = body as { provider: string; api_key: string };
+    if (provider === "itala") return json({ error: "Usa il collegamento centrale ITALA nelle impostazioni di fatturazione." }, 409);
     const adapter = createAdapter({ provider, api_key });
     const test = await adapter.testConnection();
     if (!test.success) return json({ error: test.error || "API key non valida" }, 400);
@@ -200,6 +285,7 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
+    await preferDirect(typeof body.provider === "string" ? body.provider : action!.replace("configure_", ""));
     return json({ success: true, company_name: test.companyName });
   }
 
@@ -231,6 +317,7 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
+    await preferDirect(typeof body.provider === "string" ? body.provider : action!.replace("configure_", ""));
     return json({ success: true, company_name: test.companyName });
   }
 
@@ -260,6 +347,7 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
+    await preferDirect(typeof body.provider === "string" ? body.provider : action!.replace("configure_", ""));
     return json({ success: true, company_name: test.companyName });
   }
 
@@ -296,6 +384,7 @@ serveConMetriche("billing-connect", async (req) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
+    await preferDirect(typeof body.provider === "string" ? body.provider : action!.replace("configure_", ""));
     return json({ success: true, company_name: test.companyName });
   }
 

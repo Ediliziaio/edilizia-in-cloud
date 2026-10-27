@@ -1149,3 +1149,7 @@ verify_jwt = false
 # Preserves the existing deployed configuration; no anonymous AI access.
 [functions.ai-preventivo-conversazione]
 verify_jwt = false
+
+# Authenticated company administrator; application verifies JWT and VAT scope.
+[functions.billing-massive]
+verify_jwt = false

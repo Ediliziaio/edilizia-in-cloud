@@ -59,6 +59,8 @@ export interface AnagraficaFattura {
   paese: string;
 }
 
+export interface RiepilogoIvaLetto { aliquota: string; natura: string | null; imponibile: number; imposta: number; esigibilita: string }
+
 export interface FatturaLetta {
   cedentePiva: string;
   cedenteNome: string;
@@ -75,6 +77,8 @@ export interface FatturaLetta {
   modalitaPagamento: string | null;
   iban: string | null;
   righe: RigaFattura[];
+  riepilogoIva?: RiepilogoIvaLetto[];
+  tipoDocumentoSdi?: string;
 }
 
 function primo(el: ElementoXml | DocumentoXml | null | undefined, tag: string): ElementoXml | null {
@@ -138,7 +142,7 @@ function leggiAnagrafica(parte: ElementoXml | null): AnagraficaFattura {
  * leggibile: mai un oggetto a meta', che a valle diventerebbe una riga
  * contabile sbagliata.
  */
-export function leggiFatturaPA(xml: string, parser: LettoreXml): FatturaLetta | null {
+export function leggiFatturaPA(xml: string, parser: LettoreXml, indiceCorpo = 0): FatturaLetta | null {
   let doc: DocumentoXml | null;
   try {
     doc = parser.parseFromString(xml, "text/xml");
@@ -149,7 +153,7 @@ export function leggiFatturaPA(xml: string, parser: LettoreXml): FatturaLetta | 
   if (doc.getElementsByTagName("parsererror").length > 0) return null;
 
   const header = primo(doc, "FatturaElettronicaHeader");
-  const body = primo(doc, "FatturaElettronicaBody");
+  const body = doc.getElementsByTagName("FatturaElettronicaBody")[indiceCorpo] ?? null;
   if (!header || !body) return null;
 
   // PERCORSO esatto, non il primo IdCodice che capita.
@@ -172,9 +176,11 @@ export function leggiFatturaPA(xml: string, parser: LettoreXml): FatturaLetta | 
 
   let imponibile = 0;
   let imposta = 0;
+  const riepilogoIva: RiepilogoIvaLetto[] = [];
   for (const r of Array.from(body.getElementsByTagName("DatiRiepilogo"))) {
     imponibile += numero(r, "ImponibileImporto");
     imposta += numero(r, "Imposta");
+    riepilogoIva.push({ aliquota: testo(r, "AliquotaIVA"), natura: testo(r, "Natura") || null, imponibile: numero(r, "ImponibileImporto"), imposta: numero(r, "Imposta"), esigibilita: testo(r, "EsigibilitaIVA") || "I" });
   }
 
   const totaleDichiarato = numero(dgd, "ImportoTotaleDocumento");
@@ -219,6 +225,6 @@ export function leggiFatturaPA(xml: string, parser: LettoreXml): FatturaLetta | 
     scadenza: testo(pagamento, "DataScadenzaPagamento") || null,
     modalitaPagamento: testo(pagamento, "ModalitaPagamento") || null,
     iban: testo(pagamento, "IBAN") || null,
-    righe,
+    righe, riepilogoIva, tipoDocumentoSdi: testo(dgd, "TipoDocumento"),
   };
 }

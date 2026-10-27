@@ -1,6 +1,9 @@
 // supabase/functions/_shared/billingAdapter.ts
 // Sistema di sola integrazione/monitoraggio — nessuna logica di creazione fatture
 
+import { italaClientFromStored } from "./italaSecrets.ts";
+import { ITALA_STATUS_MAP, italaDocument } from "./italaFatture.ts";
+
 import {
   type FatelwCred,
   connect as fatelwConnect,
@@ -399,36 +402,24 @@ export class InvoicetronicAdapter implements BillingProviderAdapter {
 
 export class ItalaAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "itala";
-  private token: string;
-  private base = "https://fattura-elettronica-api.it/ws2.0/prod";
-
-  constructor(bearerToken: string) { this.token = bearerToken; }
-  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
-
+  constructor(private secret: string, private vat?: string | null) {}
   async testConnection() {
     try {
-      const r = await fetch(`${this.base}/fatture?per_page=1`, { headers: this.h });
-      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
-      return { success: true, companyName: "Account ITALA" };
-    } catch (e) { return { success: false, error: String(e) }; }
+      await (await italaClientFromStored(this.secret)).request("/credito");
+      return { success: true, companyName: "Fattura Elettronica API" };
+    } catch (e) { return { success: false, error: e instanceof Error ? e.message : "Collegamento non riuscito" }; }
   }
-
   async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
-    const r = await fetch(`${this.base}/fatture/${externalId}`, { headers: this.h });
-    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
-    const d = await r.json();
-    // Enum sdi_stato (privati): INVI/PREN inviata, CONS consegnata, ERRO/NONC scartata.
-    // PA: ACCE accettata, RIFI rifiutata, DECO decorrenza termini.
-    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
-      INVI: "sent", PREN: "sent", CONS: "delivered", ERRO: "issued", NONC: "issued",
-      ACCE: "delivered", RIFI: "issued", DECO: "delivered",
-    };
-    return {
-      success: true,
-      internalStatus: map[d.sdi_stato] || "issued",
-      externalStatus: d.sdi_stato,
-      sdiId: d.sdi_identificativo?.toString(),
-    };
+    try {
+      const providerId = externalId.split("_")[0];
+      if (!/^\d+$/.test(providerId)) throw new Error("Identificativo fattura non valido");
+      if (!this.vat) throw new Error("Ricollega ITALA per verificare la partita IVA dell'azienda.");
+      const d = await (await italaClientFromStored(this.secret)).ownedInvoice(providerId, this.vat);
+      d.ricezione = Number(d.ricezione);
+      if (d.ricezione !== 0) throw new Error("Il documento non è una fattura emessa.");
+      italaDocument(d, this.vat);
+      return { success: true, internalStatus: ITALA_STATUS_MAP[d.sdi_stato ?? ""] ?? "issued", externalStatus: d.sdi_stato, sdiId: d.sdi_identificativo?.toString() };
+    } catch (e) { return { success: false, internalStatus: "issued", error: e instanceof Error ? e.message : "Stato non disponibile" }; }
   }
 }
 
@@ -598,6 +589,7 @@ export function createAdapter(integration: {
   company_external_id?: string | null;
   provider_username?: string | null;
   provider_base_url?: string | null;
+  provider_vat_number?: string | null;
 }): BillingProviderAdapter {
   switch (integration.provider as BillingProvider) {
     case "fattureincloud":
@@ -618,8 +610,8 @@ export function createAdapter(integration: {
       if (!integration.api_key) throw new Error("Invoicetronic: api_key richiesta");
       return new InvoicetronicAdapter(integration.api_key);
     case "itala":
-      if (!integration.api_key) throw new Error("ITALA: bearer token richiesto");
-      return new ItalaAdapter(integration.api_key);
+      if (!integration.api_key) throw new Error("ITALA: collegamento richiesto");
+      return new ItalaAdapter(integration.api_key, integration.provider_vat_number);
     case "acube":
       // A-Cube: company_external_id = email, api_key = password.
       if (!integration.company_external_id || !integration.api_key)
