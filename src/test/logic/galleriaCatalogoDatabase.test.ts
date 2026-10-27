@@ -12,9 +12,10 @@ beforeAll(async () => {
     create table public.listino_schede_linea (
       id uuid primary key default gen_random_uuid(), company_id uuid not null, macrocategoria_id uuid,
       chiave text, nome text, descrizione text, immagine_url text, profondita_mm integer,
-      camere smallint, guarnizioni smallint, uw numeric, scheda_tecnica_url text, scheda_tecnica_nome text
+      camere smallint, guarnizioni smallint, uw numeric, scheda_tecnica_url text, scheda_tecnica_nome text,
+      immagini jsonb
     );
-    create table public.supplier_product_lines(id uuid primary key default gen_random_uuid(), company_id uuid not null);
+    create table public.supplier_product_lines(id uuid primary key default gen_random_uuid(), company_id uuid not null, immagini jsonb);
     alter table public.listino_schede_linea enable row level security;
     create policy azienda on public.listino_schede_linea to authenticated
       using (company_id = current_setting('app.company_id')::uuid)
@@ -41,11 +42,24 @@ beforeAll(async () => {
         from jsonb_array_elements(contenuto) s;
     end; $fn$;
   `);
+  await db.query("insert into listino_schede_linea(company_id,nome) values($1,'Preesistente vuoto')", [azienda]);
+  await db.query("insert into listino_schede_linea(company_id,nome,immagini) values($1,'Preesistente immagini',$2::jsonb)", [azienda, JSON.stringify(galleria)]);
+  await db.query("insert into supplier_product_lines(company_id) values($1)", [azienda]);
   await db.exec(await readFile("supabase/migrations/20281026140001_immagini_linee_prodotto.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db.close());
 
 describe("Gallerie: database locale reale, copie e isolamento aziende", () => {
+  it("aggiorna colonne precedenti nullable senza perdere immagini", async () => {
+    const previous = await db.query<{ nome: string; immagini: unknown }>("select nome,immagini from listino_schede_linea where nome like 'Preesistente%' order by nome");
+    expect(previous.rows).toEqual([
+      { nome: "Preesistente immagini", immagini: galleria },
+      { nome: "Preesistente vuoto", immagini: [] },
+    ]);
+    expect((await db.query("select immagini from supplier_product_lines")).rows).toEqual([{ immagini: [] }]);
+    await db.query("insert into supplier_product_lines(company_id) values($1)", [azienda]);
+    expect((await db.query("select immagini from supplier_product_lines")).rows).toEqual([{ immagini: [] }, { immagini: [] }]);
+  });
   it("salva e rilegge ordine, ruoli e didascalie", async () => {
     await db.query("insert into listino_schede_linea(company_id,nome,immagini) values($1,'Originale',$2::jsonb)", [azienda, JSON.stringify(galleria)]);
     const result = await db.query<{ immagini: unknown }>("select immagini from listino_schede_linea where nome='Originale'");

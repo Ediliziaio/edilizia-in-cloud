@@ -89,7 +89,6 @@ export default function Tesoreria() {
       .from("bank_connections")
       .select("id", { count: "exact", head: true })
       .eq("company_id", effectiveCompany.id)
-      .eq("provider_slug", "saltedge")
       .neq("status", "disconnected");
 
     if (error) {

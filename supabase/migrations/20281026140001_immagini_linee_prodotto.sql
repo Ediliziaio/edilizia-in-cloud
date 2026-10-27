@@ -1,5 +1,7 @@
 -- CLI-generated migration, ordered after the repository's existing migrations.
 -- No new table or policy: the existing tenant RLS also protects these columns.
+set local lock_timeout = '3s';
+set local statement_timeout = '60s';
 create or replace function public.catalogo_immagini_valide(v jsonb)
 returns boolean language sql immutable security invoker set search_path = '' as $fn$
   select case when jsonb_typeof(v) is distinct from 'array' then false else
@@ -18,6 +20,12 @@ grant execute on function public.catalogo_immagini_valide(jsonb) to authenticate
 
 alter table public.listino_schede_linea add column if not exists immagini jsonb not null default '[]';
 alter table public.supplier_product_lines add column if not exists immagini jsonb not null default '[]';
+-- Earlier gallery patches created nullable columns. Preserve existing images;
+-- only an absent gallery becomes the same empty array used by new records.
+update public.listino_schede_linea set immagini = '[]'::jsonb where immagini is null;
+update public.supplier_product_lines set immagini = '[]'::jsonb where immagini is null;
+alter table public.listino_schede_linea alter column immagini set default '[]'::jsonb, alter column immagini set not null;
+alter table public.supplier_product_lines alter column immagini set default '[]'::jsonb, alter column immagini set not null;
 alter table public.listino_schede_linea add constraint listino_schede_linea_immagini_valide check (public.catalogo_immagini_valide(immagini));
 alter table public.supplier_product_lines add constraint supplier_product_lines_immagini_valide check (public.catalogo_immagini_valide(immagini));
 

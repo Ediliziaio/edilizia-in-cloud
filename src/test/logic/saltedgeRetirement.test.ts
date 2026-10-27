@@ -6,6 +6,12 @@ import { describe, expect, it } from "vitest";
 const retirement = readFileSync(resolve("supabase/migrations/20261027131446_retire_enable_banking_connector.sql"), "utf8");
 
 describe("Ritiro del vecchio connettore senza cancellazioni contabili", () => {
+  it("non nasconde la tesoreria delle connessioni precedenti", () => {
+    const treasury = readFileSync(resolve("src/pages/azienda/Tesoreria.tsx"), "utf8");
+    const connectionCheck = treasury.slice(treasury.indexOf('from("bank_connections")'), treasury.indexOf('if (error)', treasury.indexOf('from("bank_connections")')));
+    expect(connectionCheck).toContain('.eq("company_id", effectiveCompany.id)');
+    expect(connectionCheck).not.toContain('.eq("provider_slug", "saltedge")');
+  });
   it("funziona anche senza pg_cron", async () => {
     const db = new PGlite();
     try { await db.exec(retirement); } finally { await db.close(); }

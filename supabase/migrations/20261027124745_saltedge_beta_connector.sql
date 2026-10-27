@@ -1,4 +1,6 @@
 -- Additive beta: no deletion, reassignment or reactivation of legacy bank data.
+set local lock_timeout = '3s';
+set local statement_timeout = '60s';
 alter table public.bank_connections
   add column if not exists provider_connection_id text,
   add column if not exists saltedge_customer_id text,
@@ -6,12 +8,12 @@ alter table public.bank_connections
 create unique index if not exists bank_saltedge_remote_connection
   on public.bank_connections(provider_connection_id) where provider_slug = 'saltedge';
 
-create table public.bank_saltedge_customers (
+create table if not exists public.bank_saltedge_customers (
   user_id uuid primary key references auth.users(id) on delete cascade,
   customer_id text not null unique check (customer_id ~ '^[0-9]{1,30}$'),
   created_at timestamptz not null default now()
 );
-create table public.bank_saltedge_sessions (
+create table if not exists public.bank_saltedge_sessions (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -22,8 +24,8 @@ create table public.bank_saltedge_sessions (
   consumed_at timestamptz,
   created_at timestamptz not null default now()
 );
-create index bank_saltedge_sessions_company on public.bank_saltedge_sessions(company_id);
-create table public.bank_saltedge_locks (
+create index if not exists bank_saltedge_sessions_company on public.bank_saltedge_sessions(company_id);
+create table if not exists public.bank_saltedge_locks (
   key text primary key,
   token uuid not null default gen_random_uuid(),
   expires_at timestamptz not null default now() + interval '5 minutes'
@@ -34,7 +36,7 @@ alter table public.bank_saltedge_locks enable row level security;
 revoke all on public.bank_saltedge_customers, public.bank_saltedge_sessions, public.bank_saltedge_locks from public, anon, authenticated;
 grant all on public.bank_saltedge_customers, public.bank_saltedge_sessions, public.bank_saltedge_locks to service_role;
 
-create function public.claim_saltedge_lock(p_key text) returns uuid
+create or replace function public.claim_saltedge_lock(p_key text) returns uuid
 language plpgsql security invoker set search_path = '' as $$
 declare result uuid;
 begin
@@ -49,7 +51,7 @@ $$;
 revoke all on function public.claim_saltedge_lock(text) from public, anon, authenticated;
 grant execute on function public.claim_saltedge_lock(text) to service_role;
 
-create function public.saltedge_account_conflict(p_company uuid, p_connection uuid, p_iban text) returns boolean
+create or replace function public.saltedge_account_conflict(p_company uuid, p_connection uuid, p_iban text) returns boolean
 language sql stable security invoker set search_path = '' as $$
   select exists(select 1 from public.bank_accounts
     where company_id=p_company and connection_id<>p_connection and is_active
