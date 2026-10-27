@@ -112,10 +112,9 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        // `immagini` non è ancora una colonna della tabella: arriverà con la
-        // migrazione della galleria di catalogo. Fino a quel momento il payload
-        // la porta e il database risponde 42703/PGRST204, che `erroreGalleria`
-        // traduce in «La galleria richiede l'aggiornamento del database».
+        // `immagini` esiste dal 27/10/2026 (migrazione 20281027210000), ma non è
+        // ancora nei tipi generati di Supabase: il cast serve solo finché
+        // `integrations/supabase/types.ts` non viene rigenerato.
         .insert({ ...payload, company_id: companyId } as TablesInsert<"supplier_product_lines">)
         .select("*")
         .single();
@@ -140,7 +139,7 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        // Stesso motivo dell'insert: `immagini` non esiste ancora come colonna.
+        // Stesso motivo dell'insert: la colonna c'è, i tipi generati no ancora.
         .update(args.patch as TablesUpdate<"supplier_product_lines">)
         .eq("id", args.id)
         .eq("company_id", companyId)
