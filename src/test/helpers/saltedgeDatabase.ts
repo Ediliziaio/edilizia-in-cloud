@@ -28,7 +28,7 @@ export class SaltTestDatabase {
     }
     if (name !== "claim_saltedge_lock") throw new Error("Unexpected RPC");
     const r = await this.pg.query<{ token: string | null }>("select claim_saltedge_lock($1) as token", [args.p_key]);
-    return { data: r.rows[0].token, error: null };
+    return { data: r.rows[0].token, error: null as null };
   }
 }
 class SaltQuery {
@@ -49,7 +49,7 @@ class SaltQuery {
   single() { this.one = true; return this; }
   maybeSingle() { this.one = true; return this; }
   async run() {
-    if (this.db.failTable === this.table && this.op !== "select") return { data: null, error: { message: "Simulated database failure" } };
+    if (this.db.failTable === this.table && this.op !== "select") return { data: null as null, error: { message: "Simulated database failure" } };
     const params: unknown[] = [];
     const param = (v: unknown) => { params.push(v && typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : v); return `$${params.length}`; };
     const columns = this.columns === "*" ? "*" : this.columns.split(",").map(identifier).join(",");
@@ -59,14 +59,14 @@ class SaltQuery {
     else if (this.op === "delete") sql = `delete from ${identifier(this.table)}${where()} returning ${columns}`;
     else if (this.op === "update") sql = `update ${identifier(this.table)} set ${Object.entries(this.values[0]).map(([k, v]) => `${identifier(k)}=${param(v)}`).join(",")}${where()} returning ${columns}`;
     else {
-      if (!this.values.length) return { data: [], error: null };
+      if (!this.values.length) return { data: [] as unknown[], error: null as null };
       const keys = Object.keys(this.values[0]);
       sql = `insert into ${identifier(this.table)}(${keys.map(identifier).join(",")}) values ${this.values.map(v => `(${keys.map(k => param(v[k])).join(",")})`).join(",")}`;
       if (this.op === "upsert") sql += ` on conflict (${this.conflict.split(",").map(identifier).join(",")}) do update set ${keys.map(k => `${identifier(k)}=excluded.${identifier(k)}`).join(",")}`;
       sql += ` returning ${columns}`;
     }
     try { const r = await this.db.pg.query(sql, params); return { data: this.one ? r.rows[0] ?? null : r.rows, error: null as null }; }
-    catch (error) { return { data: null, error }; }
+    catch (error) { return { data: null as null, error }; }
   }
   then<T>(resolve: (v: Awaited<ReturnType<SaltQuery["run"]>>) => T) { return this.run().then(resolve); }
 }

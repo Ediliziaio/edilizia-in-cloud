@@ -30,8 +30,8 @@ describe("Salt Edge: valute native senza conversioni implicite", () => {
     const company = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
     const connection = await db.from("bank_connections").insert({ company_id: company, institution_id: "fake", provider_slug: "saltedge" }).select("id").single();
     expect(connection.error).toBeNull();
-    const account = await db.from("bank_accounts").insert({ company_id: company, connection_id: connection.data.id, external_account_id: "se:precision", currency: "BTC", current_balance: 0.01234567 }).select("current_balance").single();
+    const account = await db.from("bank_accounts").insert({ company_id: company, connection_id: (connection.data as { id: string }).id, external_account_id: "se:precision", currency: "BTC", current_balance: 0.01234567 }).select("current_balance").single();
     expect(account.error).toBeNull();
-    expect(account.data.current_balance).toBe("0.01234567");
+    expect((account.data as { current_balance: string }).current_balance).toBe("0.01234567");
   });
 });
