@@ -22,6 +22,9 @@ import { handleMarketing } from "./handlers/marketing.ts";
 import { handleNotifiche } from "./handlers/notifiche.ts";
 import { lingueDelModello, statoDopoAvvisoMeta } from "./statoModello.ts";
 import { filtroStatiSuperabili, motivoMancataConsegna, statiSuperabili } from "./esitoConsegna.ts";
+import { codiceMancataConsegna } from "./esitoConsegna.ts";
+import { segnalaCanaleWhatsAppFermo } from "../_shared/allarmeWhatsApp.ts";
+import { canaleFermo } from "../_shared/whatsappCanaleFermo.ts";
 import { WhatsAppReservationError } from "./reservationError.ts";
 
 interface MetaStatus {
@@ -253,12 +256,23 @@ async function aggiornaEsitoMessaggio(
   if (status.status === "read") valori.read_at = isoTs;
   if (status.status === "failed") valori.delivery_error = motivoMancataConsegna(status.errors);
 
-  const { error } = await supabase
+  const { data: aggiornati, error } = await supabase
     .from("whatsapp_messages")
     .update(valori)
     .eq("wa_message_id", status.id)
     .eq("direction", "outbound")
-    .or(filtroStatiSuperabili(superabili));
+    .or(filtroStatiSuperabili(superabili))
+    .select("company_id, from_phone");
+
+  // Il canale fermo (pagamento, account bloccato) si dice subito all'azienda e a noi: senza, resta scritto solo
+  // in delivery_error e nessuno se ne accorge per settimane (Il Bagno Group, 26 giorni).
+  if (status.status === "failed" && aggiornati?.length) {
+    const codice = codiceMancataConsegna(status.errors);
+    const riga = aggiornati[0] as { company_id: string | null; from_phone: string | null };
+    if (canaleFermo(codice) && riga.company_id) {
+      await segnalaCanaleWhatsAppFermo(supabase, { companyId: riga.company_id, codice: codice!, numero: riga.from_phone });
+    }
+  }
   if (error) {
     console.error(JSON.stringify({
       level: "error",
