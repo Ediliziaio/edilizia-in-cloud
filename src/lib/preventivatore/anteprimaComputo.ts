@@ -36,8 +36,10 @@ export interface VoceComputoAnteprima {
   sconto_pct: number;
   costo_materiali: number;
   costo_manodopera: number;
-  /** Solo la Ristrutturazione: il vano in cui si lavora. */
+  /** Il vano in cui si lavora. */
   ambiente?: string | null;
+  /** Proposta al cliente ma non inclusa nel totale. */
+  opzionale?: boolean | null;
   /** Se la voce è un prodotto del listino prodotti: la sua foto e la sua descrizione (copiate alla scelta). */
   immagine_url?: string | null;
   descrizione_estesa?: string | null;
@@ -146,6 +148,7 @@ export function anteprimaComputo(
       sconto_pct: v.sconto_pct,
       costo_materiali: v.costo_materiali,
       costo_manodopera: v.costo_manodopera,
+      opzionale: v.opzionale,
     })),
     { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: prezzoManuale },
   );
@@ -161,7 +164,7 @@ export function anteprimaComputo(
     perCapitolo.get(capitolo)!.push({
       id: v.id,
       titolo: v.descrizione?.trim() || "Voce senza descrizione",
-      dettaglio: [v.ambiente?.trim(), numero(v.sconto_pct) > 0 ? `sconto ${percentuale(numero(v.sconto_pct))}%` : null]
+      dettaglio: [v.ambiente?.trim(), v.opzionale === true ? "opzionale, non nel totale" : null, numero(v.sconto_pct) > 0 ? `sconto ${percentuale(numero(v.sconto_pct))}%` : null]
         .filter(Boolean).join(" · ") || null,
       quantita: numero(v.quantita),
       unita: v.unita_misura,

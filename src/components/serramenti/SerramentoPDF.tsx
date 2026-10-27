@@ -62,6 +62,7 @@ import type { DisegnoConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import {
   ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, PERCORSO_AMPIO, UTILE_PAGINA, altezzaGrafico, altezzaPercorsoAmpio, carteDelPercorsoPerRiga, domandeCompatte, paddingCartaPercorso, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
@@ -2452,7 +2453,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     detail.serramenti,
     detail.accessori,
     {
-      iva_percentuale: p.iva_percentuale ?? 10,
+      iva_percentuale: p.iva_percentuale ?? IVA_PREDEFINITA_PCT,
       sconto_percentuale: p.sconto_percentuale ?? 0,
       sconto_importo: p.sconto_importo ?? 0,
       // Il prezzo scritto a mano in Economia: senza, un preventivo con le voci

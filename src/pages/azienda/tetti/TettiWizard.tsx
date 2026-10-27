@@ -67,6 +67,7 @@ import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
 import { TETTI_TEMPLATE_MODULES, findTettiTemplateModule, type TettiTemplateModuleId } from "@/lib/moduli-vendita/tettiTemplateModules";
 import { makeTetQuoteModel, readTetQuoteModel } from "@/lib/tetti/quoteModel";
 import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const STEP_ICONS: Record<TetWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -326,7 +327,7 @@ export default function TettiWizard() {
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliTet, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
       titolo: model?.title ?? null,
-      ivaDefault: 10,
+      ivaDefault: IVA_PREDEFINITA_PCT,
     }),
     [vociAnteprima, detail?.progetto, form, templatePdf?.ragione_sociale, effectiveCompany?.name, model],
   );

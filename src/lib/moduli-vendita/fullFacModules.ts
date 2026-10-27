@@ -6,6 +6,7 @@ import type { DocEdileDati } from "@/components/preventivi/pdf/documentoEdileTip
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/ristrutturazione/calcoli";
 import { FAC_EDITORIAL, type FacEditorialContent, type FacPair } from "./facEditorialContent";
 import type { ContenutoBlocco, VoceBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 export const FULL_FAC_MODULES = ["cappotto", "rifacimento", "balconi", "tinteggiatura", "interno", "riparazioni"] as const;
 export type FullFacModuleId = typeof FULL_FAC_MODULES[number];
@@ -168,7 +169,7 @@ export function buildFacModulePreview(companyId: string, template: FullFacTempla
   if (!isFullFacModuleId(id) || template.company_id !== companyId || template.id !== `local-facciate-${id}`) throw new Error("Azienda o modulo della bozza non corrispondente.");
   const rows = options.rows ?? facPriceFixture(id);
   const discount = Math.min(100, Math.max(0, options.discountPct ?? 0));
-  const ivaPct = template.default_iva_pct ?? 22;
+  const ivaPct = template.default_iva_pct ?? IVA_PREDEFINITA_PCT;
   const totals = calcTotaliComputo(rows, { sconto_pct: discount, iva_pct: ivaPct, prezzo_manuale: options.manualPrice });
   const chapters = [...new Set(rows.map(row => row.capitolo_nome))].map(nome => {
     const voci = rows.filter(row => row.capitolo_nome === nome);

@@ -9,6 +9,7 @@ import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import { readSrQuoteModelSnapshot, srModelProjectDefaults } from "./quoteModel";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   SrProgettoRow,
   SrSerramentoRow,
@@ -67,7 +68,7 @@ export async function createProgetto(
     .select("iva_percentuale_default, valido_giorni_default, anticipo_pct_default")
     .eq("company_id", companyId)
     .maybeSingle();
-  const ivaDefault = Number(templateRow?.iva_percentuale_default ?? 10);
+  const ivaDefault = Number(templateRow?.iva_percentuale_default ?? IVA_PREDEFINITA_PCT);
   const validoGiorniDefault = Number(templateRow?.valido_giorni_default ?? 15);
   const anticipoPctDefault = Number(templateRow?.anticipo_pct_default ?? 40);
 

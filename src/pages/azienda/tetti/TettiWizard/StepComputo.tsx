@@ -31,6 +31,7 @@ import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/tetti/ComputoEditor/ComputoEditor";
 import type { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateModules";
 import type { StatoSalvataggio } from "@/components/preventivatore";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 
 interface Props {
   aiContext?: NativeComputoAiContext;
@@ -120,6 +121,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       famiglia_id: v.famiglia_id ?? null,
       immagine_url: v.immagine_url ?? null,
       descrizione_estesa: v.descrizione_estesa ?? null,
+      ...dettagliPerSalvataggio(v),
       ordine: v.ordine ?? i,
     }));
 

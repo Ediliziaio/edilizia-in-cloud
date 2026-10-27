@@ -22,10 +22,12 @@ import type { BgnFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
 import { PianoPagamentoCard } from "@/components/moduli/PianoPagamentoCard";
 import { ObiettivoETempiCard } from "@/components/moduli/ObiettivoETempiCard";
+import { RiepilogoAmbienti } from "@/components/computo/RiepilogoAmbienti";
 import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useBgnTemplatePdf } from "@/hooks/useBagniProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 interface Props {
   form: Partial<BgnProgetto>;
@@ -48,7 +50,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useBgnTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 10);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -61,6 +63,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          opzionale: v.opzionale,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
         { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: form.prezzo_manuale ?? null },
@@ -138,7 +141,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <PctField
                 id="bgn-iva"
                 label="IVA"
-                value={form.iva_pct ?? 10}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (bagni) o 4% (prima casa)."
               />
@@ -222,6 +225,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
             </div>
           </CardContent>
         </Card>
+        <RiepilogoAmbienti righe={computo} />
         <ObiettivoETempiCard righe={computo} base={totali} />
       </div>
     </div>

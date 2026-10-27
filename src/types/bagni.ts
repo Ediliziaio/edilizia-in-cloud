@@ -1,4 +1,5 @@
 import type { GalleryLavoroItem } from "./gallery";
+import type { DettagliVoce } from "@/lib/computo/vociDettagli";
 
 export type BgnUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type BgnStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
@@ -10,7 +11,7 @@ export interface BgnListinoVoce {
   costo_materiali: number; costo_manodopera: number; ricarico_pct: number; prezzo_unitario: number;
   articolo_id: string | null; tariffa_id: string | null; note: string | null; ordine: number;
 }
-export interface BgnComputoVoce {
+export interface BgnComputoVoce extends DettagliVoce {
   id: string; progetto_id: string; company_id: string; capitolo_nome: string;
   descrizione: string; unita_misura: BgnUnitaMisura; quantita: number;
   prezzo_unitario: number; costo_materiali: number; costo_manodopera: number;

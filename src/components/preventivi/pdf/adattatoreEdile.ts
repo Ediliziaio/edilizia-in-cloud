@@ -62,6 +62,9 @@ import type {
 type Grezzo = Record<string, unknown>;
 
 const stringa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+/** Ambiente e materiale davanti al dettaglio del listino, su un'unica riga di testo (così l'altezza della riga del PDF resta quella misurata). */
+const conEtichetta = (etichetta: string, base: string | null | undefined): string | null =>
+  etichetta ? (base ? `${etichetta} — ${base}` : etichetta) : (base ?? null);
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const unoDi = <T extends string>(v: unknown, ammessi: readonly T[], ripiego: T): T =>
   typeof v === "string" && (ammessi as readonly string[]).includes(v) ? (v as T) : ripiego;
@@ -124,6 +127,12 @@ export interface VoceComune {
   /** Prodotto scelto dal listino prodotti: la sua foto (già incorporata nel PDF) e la sua descrizione. */
   immagine_url?: string | null;
   descrizione_estesa?: string | null;
+  /** Dove si lavora e che materiale: vanno al cliente, sotto il nome della voce. La nota interna NON è qui: non esce mai. */
+  ambiente?: string | null;
+  marca?: string | null;
+  modello?: string | null;
+  /** Voce proposta ma non inclusa nel totale: nel PDF si dice, così il cliente non somma a mente. */
+  opzionale?: boolean | null;
 }
 
 export interface AziendaComune {
@@ -413,7 +422,7 @@ export function costruisciDatiEdile(input: {
       const costo = ((Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0)) * (Number(v.quantita) || 0);
       return {
         id: v.id,
-        descrizione: v.descrizione || "—",
+        descrizione: `${v.descrizione || "—"}${v.opzionale === true ? " (opzionale, non incluso nel totale)" : ""}`,
         unitaMisura: unitaInParole(v.unita_misura),
         quantita: Number(v.quantita) || 0,
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
@@ -424,9 +433,12 @@ export function costruisciDatiEdile(input: {
         // Una stima accettata porta anche ipotesi ed esclusioni: accorciarle
         // trasformerebbe il perimetro economico del documento. Le normali
         // schede prodotto mantengono invece la sintesi già prevista.
-        dettaglio: /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
-          ? testoDelListino(v.descrizione_estesa)
-          : descrizioneBreve(v.descrizione_estesa),
+        dettaglio: conEtichetta(
+          [stringa(v.ambiente), [stringa(v.marca), stringa(v.modello)].filter(Boolean).join(" ") || null].filter(Boolean).join(" · "),
+          /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
+            ? testoDelListino(v.descrizione_estesa)
+            : descrizioneBreve(v.descrizione_estesa),
+        ),
         // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
         margineEur: importo > 0 && costo <= 0 ? null : importo - costo,
       };

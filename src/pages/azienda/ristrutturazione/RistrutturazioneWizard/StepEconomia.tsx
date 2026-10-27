@@ -27,6 +27,7 @@ import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useRstTemplatePdf } from "@/hooks/useRistrutturazioneProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 interface Props {
   form: Partial<RstProgetto>;
@@ -49,7 +50,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useRstTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 22);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -63,6 +64,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
           bene_significativo: v.bene_significativo === true,
+          opzionale: v.opzionale,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
         {
@@ -161,7 +163,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <PctField
                 id="rst-iva"
                 label="IVA"
-                value={form.iva_pct ?? 22}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (ristrutturazione) o 4% (prima casa)."
               />

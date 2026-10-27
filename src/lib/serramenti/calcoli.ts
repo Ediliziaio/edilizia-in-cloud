@@ -7,6 +7,7 @@
  * - IVA standard (0/4/10/22) + IVA Mista (Beni Significativi DM 29.12.99)
  */
 import type { SrSerramentoRow, SrAccessorioRow, SrServizioRow } from "@/types/serramenti";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 /** Breakdown IVA mista per regola Beni Significativi (DM 29.12.99). */
 export interface MistaBreakdown {
@@ -162,7 +163,7 @@ export function calcolaTotale(
   servizi: SrServizioRow[] = [],
 ): CalcoloTotale {
   // IVA mancante o illeggibile: il 10% di serie. Una negativa (solo -1 vale, ed è la mista) non esiste.
-  const ivaLetta = Number(opts.iva_percentuale ?? 10);
+  const ivaLetta = Number(opts.iva_percentuale ?? IVA_PREDEFINITA_PCT);
   const ivaRaw = Number.isFinite(ivaLetta) && (ivaLetta >= 0 || ivaLetta === IVA_MISTA_SENTINEL) ? ivaLetta : 10;
   const isMista = ivaRaw === IVA_MISTA_SENTINEL;
   // Lo sconto sta fra 0 e il 100%: oltre, o negativo, darebbe un totale sotto zero o un rincaro.

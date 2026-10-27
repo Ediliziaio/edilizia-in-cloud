@@ -90,6 +90,7 @@ import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage"
 import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
 import { clmCopyChoices } from "@/lib/moduli-vendita/clmInterventionCopy";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -252,7 +253,7 @@ function templateToForm(t: ClmTemplatePdf): FormState {
     show_percorso: t.show_percorso ?? true,
     cover_title_size: t.cover_title_size ?? 30,
     cover_text_align: t.cover_text_align ?? "left",
-    default_iva_pct: t.default_iva_pct ?? 22,
+    default_iva_pct: t.default_iva_pct ?? IVA_PREDEFINITA_PCT,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
     gallery_lavori: t.gallery_lavori ?? null,
@@ -1154,7 +1155,7 @@ if (field === "eyebrow") { set("pdf_cover_eyebrow", (value ?? "") || null); } }}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">IVA predefinita (%)</Label>
-                    <Input type="number" min={0} max={99} value={form.default_iva_pct ?? 22} onChange={(e) => set("default_iva_pct", Number(e.target.value))} />
+                    <Input type="number" min={0} max={99} value={form.default_iva_pct ?? IVA_PREDEFINITA_PCT} onChange={(e) => set("default_iva_pct", Number(e.target.value))} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Detrazione fiscale (%)</Label>

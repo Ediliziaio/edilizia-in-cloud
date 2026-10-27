@@ -11,6 +11,7 @@ import { zonaDocciaContent } from "./fullZonaDoccia";
 import { sanitariContent } from "./fullSanitari";
 import { bagnoAccessibileContent } from "./fullBagnoAccessibile";
 import { rinnovoBagnoContent } from "./fullRinnovoBagno";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 export const FULL_BGN_MODULES = ["completo", "vasca-doccia", "doccia", "sanitari", "accessibilita", "rinnovo"] as const;
 export type FullBgnModuleId = typeof FULL_BGN_MODULES[number];
 export type FullBgnTemplate = BgnTemplatePdf;
@@ -46,7 +47,7 @@ export function createFullBgnTemplate(base: BgnTemplatePdf, id: FullBgnModuleId)
     color_primary: base.color_primary || "#563e32", color_accent: base.color_accent || "#b0794e",
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_cronoprogramma: true, show_percorso: true, show_garanzie: true,
     ...ereditaCondizioniModello(base),
-    default_detrazione_pct: 0, default_iva_pct: base.default_iva_pct ?? 22,
+    default_detrazione_pct: 0, default_iva_pct: base.default_iva_pct ?? IVA_PREDEFINITA_PCT,
     testimonianze: [], gallery_lavori: [], finanziamento_promo: null, pdf_pagine_libere: [],
     esigenze: items(c.needs), soluzione: items(c.solution), usp: items(c.usp), percorso: items(c.journey), garanzie: items(c.guarantees),
     cronoprogramma: c.schedule.map(([fase, descrizione]) => ({ fase, descrizione, durata: "Da concordare" })),
@@ -125,7 +126,7 @@ export function buildBgnModulePreview(companyId: string, template: BgnTemplatePd
     id: `preview-${i}`, progetto_id: "preview", company_id: companyId, capitolo_nome, descrizione, unita_misura, quantita, prezzo_unitario,
     costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0, importo: quantita * prezzo_unitario, margine_eur: 0, margine_pct: 0, listino_voce_id: null, ordine: i,
   }));
-  const imponibile = computo.reduce((sum, r) => sum + r.importo, 0), iva = template.default_iva_pct ?? 22;
+  const imponibile = computo.reduce((sum, r) => sum + r.importo, 0), iva = template.default_iva_pct ?? IVA_PREDEFINITA_PCT;
   const progetto: BgnProgetto = {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza", tipo_intervento: BGN_MODULE_TITLES[id], numero_bagni: 1,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,

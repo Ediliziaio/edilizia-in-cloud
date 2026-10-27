@@ -40,6 +40,7 @@ import VoceRow from "./VoceRow";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
 import { useComputoReview } from './ComputoReviewContext';
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 
 /** Palette accent ciclica per i capitoli (bordo · pallino · pill subtotale). */
 const ACCENTS = [
@@ -91,7 +92,7 @@ export default function CapitoloSection({
 
   // Subtotale live del capitolo (somma importi righe).
   const subtotale = useMemo(
-    () => voci.reduce((acc, v) => acc + (!review || review.included.has(v.id) ? calcRigaImporto(v) : 0), 0),
+    () => voci.reduce((acc, v) => acc + (!review || review.included.has(v.id) ? (v.opzionale ? 0 : calcRigaImporto(v)) : 0), 0),
     [voci, review],
   );
 
@@ -127,6 +128,7 @@ export default function CapitoloSection({
         famiglia_id: voci[idx].famiglia_id,
         immagine_url: voci[idx].immagine_url,
         descrizione_estesa: voci[idx].descrizione_estesa,
+        ...dettagliPerSalvataggio(voci[idx]),
       },
       { progetto_id: progettoId, company_id: companyId, capitolo_nome: nome, ordine: idx + 1 },
     );

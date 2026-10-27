@@ -40,6 +40,8 @@ export function stimaSuperficiVani(
 export interface ComputoRigaInput {
   capitolo_nome: string; quantita: number; prezzo_unitario: number; sconto_pct: number;
   costo_materiali: number; costo_manodopera: number;
+  /** Voce proposta ma non inclusa nel totale (alternativa o extra a scelta del cliente). */
+  opzionale?: boolean | null;
   /** Bene significativo (DM 29/12/1999): infissi, caldaie, sanitari e rubinetteria, climatizzatori… */
   bene_significativo?: boolean | null;
 }
@@ -102,6 +104,7 @@ export function calcTotaliComputo(
   const prezzoManuale = manuale > 0;
   let sommaC = 0, costoTot = 0, righeSenzaCosto = 0, beniC = 0;
   for (const r of righe) {
+    if (r.opzionale === true) continue; // proposta al cliente, non nel totale
     const impC = centesimi(importoGrezzo(r));
     if (r.bene_significativo) beniC += impC;
     const costoUnit = costoUnitario(r);

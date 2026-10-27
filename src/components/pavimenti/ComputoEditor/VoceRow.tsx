@@ -37,6 +37,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import { calcRigaImporto } from "@/lib/pavimenti/calcoli";
 import type { PavComputoVoce, PavUnitaMisura } from "@/types/pavimenti";
+import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `PavUnitaMisura`). */
 const UM_OPTIONS: PavUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -322,6 +323,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               </CollapsibleContent>
             </Collapsible>
           )}
+          <VoceDettagli voce={voce} onChange={onChange} idBase={`voce-${voce.id}`} />
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

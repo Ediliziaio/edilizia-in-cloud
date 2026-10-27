@@ -177,6 +177,34 @@ describe("dal modulo al documento", () => {
     expect(dati.cantiere).toBe("Via Roma 1, 20100 Milano, MI");
   });
 
+  it("ambiente, marca e modello vanno al cliente sotto il nome della voce; la nota interna non esce mai", () => {
+    const dati = costruisciDatiEdile({
+      modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Sanitari", subtotale: 500, voci: [
+        { id: "1", descrizione: "Miscelatore", unita_misura: "cad", quantita: 1, prezzo_unitario: 200, importo: 200, ambiente: "Bagno", marca: "Grohe", modello: "Eurosmart", note_interne: "chiedere sconto al fornitore" } as never,
+        { id: "2", descrizione: "Piatto doccia", unita_misura: "cad", quantita: 1, prezzo_unitario: 300, importo: 300, descrizione_estesa: "Resina 120x80.", ambiente: "Bagno" },
+        { id: "3", descrizione: "Posa", unita_misura: "ore", quantita: 3, prezzo_unitario: 0, importo: 0 },
+      ] }],
+    });
+    const [a, b, c] = dati.capitoli[0].voci;
+    expect(a.dettaglio).toBe("Bagno · Grohe Eurosmart");
+    expect(b.dettaglio).toBe("Bagno — Resina 120x80.");
+    expect(c.dettaglio).toBeNull();
+    expect(JSON.stringify(dati)).not.toContain("chiedere sconto");
+  });
+
+  it("una voce opzionale si dice nel PDF: il cliente non deve sommarla a mente", () => {
+    const dati = costruisciDatiEdile({
+      modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Rubinetteria", subtotale: 200, voci: [
+        { id: "1", descrizione: "Miscelatore base", unita_misura: "cad", quantita: 1, prezzo_unitario: 200, importo: 200 },
+        { id: "2", descrizione: "Miscelatore di pregio", unita_misura: "cad", quantita: 1, prezzo_unitario: 450, importo: 450, opzionale: true },
+      ] }],
+    });
+    expect(dati.capitoli[0].voci[0].descrizione).toBe("Miscelatore base");
+    expect(dati.capitoli[0].voci[1].descrizione).toBe("Miscelatore di pregio (opzionale, non incluso nel totale)");
+  });
+
   it("il margine della voce si calcola sui costi per quantità (documento interno)", () => {
     const dati = costruisciDatiEdile({
       modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],

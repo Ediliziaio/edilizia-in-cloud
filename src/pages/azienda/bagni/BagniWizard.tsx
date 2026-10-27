@@ -65,6 +65,7 @@ import StepPdf from "./BagniWizard/StepPdf";
 import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const STEP_ICONS: Record<BgnWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -340,7 +341,7 @@ export default function BagniWizard() {
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliBgn, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
       titolo: model?.title ?? null,
-      ivaDefault: 10,
+      ivaDefault: IVA_PREDEFINITA_PCT,
     }),
     [vociAnteprima, detail?.progetto, form, templatePdf?.ragione_sociale, effectiveCompany?.name, model],
   );

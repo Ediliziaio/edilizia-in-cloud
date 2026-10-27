@@ -25,6 +25,8 @@ import {
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { readTetQuoteModel } from "@/lib/tetti/quoteModel";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   TetProgetto,
   TetComputoVoce,
@@ -141,7 +143,7 @@ function totaliDaRighe(
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
-    iva_pct: Number(parametri.iva_pct ?? 10),
+    iva_pct: Number(parametri.iva_pct ?? IVA_PREDEFINITA_PCT),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
@@ -161,7 +163,7 @@ async function totaliConParametri(
   const [voci, progetto] = await Promise.all([
     sb()
       .from("tet_computo_voci")
-      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera")
+      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera, opzionale")
       .eq("progetto_id", progettoId)
       .eq("company_id", companyId),
     serveProgetto
@@ -358,6 +360,7 @@ export function useClonaProgetto() {
           famiglia_id: v.famiglia_id ?? null,
           immagine_url: v.immagine_url ?? null,
           descrizione_estesa: v.descrizione_estesa ?? null,
+          ...dettagliPerSalvataggio(v),
           ordine: v.ordine ?? idx,
         }));
         const { error: iErr } = await sb().from("tet_computo_voci").insert(rows);
@@ -444,6 +447,7 @@ export function useSaveComputo(progettoId: string | undefined) {
             famiglia_id: r.famiglia_id ?? null,
             immagine_url: r.immagine_url ?? null,
             descrizione_estesa: r.descrizione_estesa ?? null,
+            ...dettagliPerSalvataggio(r),
             ordine: r.ordine ?? idx,
           };
         });
