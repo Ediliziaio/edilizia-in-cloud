@@ -30,7 +30,7 @@ Il canale diretto AdE rimane disabilitato nell'interfaccia finché hosting, accr
 
 ## Distribuzione e riscontri del 27 ottobre 2026
 
-Nel progetto Supabase Edilizia In Cloud è stata applicata la migrazione `20261027103542_itala_collegamento_iva` e sono state pubblicate `billing-connect`, `billing-import`, `billing-sync`, `billing-massive`. Le funzioni verificano autenticazione e azienda; il recupero massivo richiede un amministratore. L'RPC di importazione è riservata a `service_role`; la vista IVA non è accessibile ad `anon` e rispetta RLS.
+Nel progetto Supabase Edilizia In Cloud sono state applicate le migrazioni `20261027103542_itala_collegamento_iva` e `20261027110730_itala_duplicati_documenti_nativi` e sono state pubblicate `billing-connect`, `billing-import`, `billing-sync`, `billing-massive`. Le funzioni verificano autenticazione e azienda; il recupero massivo richiede un amministratore. L'RPC di importazione è riservata a `service_role`; la vista IVA non è accessibile ad `anon` e rispetta RLS.
 
 Le credenziali di produzione sono state generate dopo conferma del titolare e salvate nei segreti del backend. Il collaudo reale di sola lettura ha verificato autenticazione, piano, lista aziende e fatture filtrate. L'account multisoggetto ha un'azienda e **zero fatture disponibili** al collaudo. Nessuna società fittizia è stata collegata a un tenant dell'applicazione. Non si dichiara completato un recupero di fatture reali assenti dal conto.
 
@@ -48,3 +48,5 @@ npm run typecheck:ci
 I test PostgreSQL usano PGlite isolato e lo schema necessario fotografato senza dati dal database. Verificano rollback, incassi, duplicati, lotti, periodi chiusi, liquidazione IVA e accessi. I test UI verificano consenso aziendale e conferma dei crediti senza chiamate reali. La suite è inclusa in `test:critical`. Il build e il controllo generale dei tipi vanno valutati separatamente dai test mirati; non considerarli superati in assenza del loro esito.
 
 Documentazione provider: [REST 2.0](https://www.fattura-elettronica-api.it/documentazione/) e [richieste massive](https://www.fattura-elettronica-api.it/documentazione/richieste-massive/).
+
+Riscontri finali locali: 51 test ITALA, 108 test sulle fatture importate, 314 controlli di accesso e 8 test SMTS superati, oltre al controllo Deno delle quattro funzioni. La compilazione dell’ultima interfaccia è terminata con codice 0 (Node con heap 6144 MB, cartella di uscita isolata); la revisione precedente del controllo TypeScript in CI è verde. Le credenziali locali temporanee sono state eliminate. Il conto ITALA mostra credito ricaricato pari a zero: lo storico a pagamento resta subordinato alla disponibilità dei crediti. Nessun addebito è stato effettuato.

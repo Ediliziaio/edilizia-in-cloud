@@ -10,6 +10,7 @@ const save = async (id:string, doc:object = document, rows:object[] = lines, com
 beforeAll(async () => {
   await db.exec(readFileSync('src/test/fixtures/itala/schema.sql','utf8'));
   await db.exec(readFileSync('supabase/migrations/20261027103542_itala_collegamento_iva.sql','utf8'));
+  await db.exec(readFileSync('supabase/migrations/20261027110730_itala_duplicati_documenti_nativi.sql','utf8'));
 },30_000);
 afterAll(() => db.close());
 describe('Import ITALA atomico sul database',()=>{
@@ -65,6 +66,19 @@ describe('Import ITALA atomico sul database',()=>{
     await db.query("select set_config('test.company',$1,false)",[fiscalCompany]);
     const r=(await db.query<{result:Record<string,unknown>}>("select liquidazione_iva_periodo($1,'mensile',2026,10) as result",[fiscalCompany])).rows[0].result;
     expect(r).toMatchObject({iva_vendite:22,iva_acquisti:0,saldo:22,escluso:{split_payment:5},documenti:{vendite:1},calcolabile:true});
+  });
+  it('una proforma con stessi importi non nasconde la fattura elettronica',async()=>{
+    await db.query("insert into documenti_fiscali(company_id,tipo,numero,data_emissione,anno,numero_progressivo,stato,cliente_snapshot,imponibile_totale,iva_totale,totale_documento) values($1,'proforma','PF','2026-10-01',2026,2,'emessa',$2,100,22,124)",[company,JSON.stringify({partita_iva:'12345678901'})]);
+    expect((await save('777',{...document,invoice_number:'PF'})).duplicate).not.toBe(true);
+    expect((await db.query("select count(*)::int as n from fatture_vendite_iva where numero='PF' and origine='importata'")).rows[0]).toEqual({n:1});
+  });
+  it('un documento fiscale nativo discordante viene segnalato senza creare una seconda fattura',async()=>{
+    await expect(save('778',{...document,total:125})).rejects.toThrow('Documento nativo');
+    expect((await db.query("select count(*)::int as n from invoices where external_id='778'")).rows[0]).toEqual({n:0});
+  });
+  it('riconosce la partita IVA anche col prefisso IT e senza duplicare per un CF aggiuntivo',async()=>{
+    await db.query("insert into documenti_fiscali(company_id,tipo,numero,data_emissione,anno,numero_progressivo,stato,cliente_snapshot,imponibile_totale,iva_totale,totale_documento) values($1,'fattura','VAT','2026-10-01',2026,3,'emessa',$2,100,22,124)",[company,JSON.stringify({partita_iva:'IT12345678901'})]);
+    expect((await save('779',{...document,invoice_number:'VAT',client_fiscal_code:'CF-AGGIUNTIVO'})).duplicate).toBe(true);
   });
   it('l’import non è invocabile dal browser ed il registro rispetta RLS',async()=>{
     const privileges = (await db.query("select has_function_privilege('authenticated','public.billing_import_itala_issued(uuid,text,jsonb,jsonb)','execute') as browser, has_function_privilege('service_role','public.billing_import_itala_issued(uuid,text,jsonb,jsonb)','execute') as server")).rows[0];
