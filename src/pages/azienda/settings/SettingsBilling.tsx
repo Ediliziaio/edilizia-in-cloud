@@ -1,3 +1,5 @@
+import { ItalaPlatformConnection } from "@/components/billing/ItalaPlatformConnection";
+import { MassiveImportPanel } from "@/components/billing/MassiveImportPanel";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,14 +27,14 @@ const PROVIDERS = [
   { value: "fattura24", label: "Fattura24", authType: "api_key", icon: "📄" },
   { value: "aruba", label: "Aruba Fatturazione", authType: "userpass", icon: "🅰️" },
   { value: "invoicetronic", label: "Invoicetronic", authType: "api_key", icon: "⚡" },
-  { value: "itala", label: "ITALA (SDI)", authType: "bearer", icon: "🧾" },
+  { value: "itala", label: "Fattura Elettronica API (ITALA)", authType: "itala", icon: "🧾" },
   { value: "acube", label: "A-Cube (SDI) · beta", authType: "userpass", icon: "🧊" },
   { value: "zucchetti", label: "Zucchetti Digital Hub · beta", authType: "zucchetti", icon: "🟧" },
 ] as const;
 
 // Provider che importano anche le fatture RICEVUTE (il "cassetto fiscale" di fatto:
 // le fatture del cassetto AdE passano tutte dallo SDI, e questi provider le espongono).
-const IMPORTA_RICEVUTE = new Set(["fattureincloud", "aruba", "zucchetti"]);
+const IMPORTA_RICEVUTE = new Set(["fattureincloud", "aruba", "zucchetti", "itala"]);
 
 // URL di default del web service FatelWeb (Digital Hub prod). L'azienda lo trova
 // nel pannello «Accesso Web Services Digital Hub»; può essere digitalhub2/3.
@@ -58,7 +60,7 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     warn: "Servono le credenziali di un utente abilitato ai Web Service Aruba: verifica nel pannello Aruba che l'accesso alle API sia attivo.",
   },
   itala: {
-    text: "Registrati su fattura-elettronica-api.it (intermediario SDI accreditato) e usa come chiave il Bearer token del tuo account. Importa fatture e stato SDI (non lo stato di pagamento).",
+    text: "Il servizio centrale di Edilizia in Cloud legge emesse, ricevute e stato SdI per la partita IVA della tua azienda. Non servono chiavi API personali. Per lo storico AdE usa la scheda Recupera da AdE: richiede abilitazione del provider e firma della richiesta.",
     link: "https://www.fattura-elettronica-api.it/documentazione/",
     linkLabel: "Doc ITALA REST 2.0",
   },
@@ -93,7 +95,7 @@ export default function SettingsBilling() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("billing_integrations")
-        .select("*")
+        .select("id, company_id, provider, is_active, is_primary, auto_sync, company_external_id, provider_company_name, provider_vat_number, last_sync_at, last_sync_status, last_sync_error, received_scope_missing, created_at, updated_at, sync_direction")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -313,28 +315,32 @@ export default function SettingsBilling() {
         <TabsList>
           <TabsTrigger value="integrations">Programma collegato</TabsTrigger>
           <TabsTrigger value="logs">Sincronizzazioni</TabsTrigger>
+          <TabsTrigger value="massive">Recupera da AdE</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="massive" className="mt-4">
+          <MassiveImportPanel companyId={companyId} italaConnected={integrations.some(i => i.provider === "itala" && i.is_active)} />
+        </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">
           {/* ── Cassetto fiscale (fatture ricevute) ─────────────────────
-              L'Agenzia delle Entrate non espone API pubbliche per il cassetto
-              fiscale (solo SPID/CIE/Entratel). Le stesse fatture però passano
-              tutte dallo SDI: collegando un provider che le espone, emesse e
-              ricevute arrivano qui in automatico. */}
+              Provider e recupero dello storico sono due percorsi distinti.
+              I servizi ufficiali SMTS richiedono canale accreditato e abilitazione. */}
           <Card className="border-blue-100 bg-blue-50/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 🗄️ Cassetto fiscale — fatture emesse e ricevute
               </CardTitle>
               <CardDescription>
-                Le fatture del cassetto fiscale AdE passano tutte dallo SDI. L'Agenzia delle
-                Entrate non offre un collegamento diretto (si entra solo con SPID/CIE): collega
+                Le fatture del cassetto fiscale AdE passano tutte dallo SDI. Per importarle collega
                 un provider con il bollino <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[10px] align-middle">Emesse + Ricevute</Badge>{" "}
                 e le trovi in <strong>Fatturazione → Fatture ricevute</strong>, senza inserirle a mano.
                 Con gli altri provider vengono importate solo le emesse.
               </CardDescription>
             </CardHeader>
           </Card>
+
+          <ItalaPlatformConnection companyId={companyId} connected={integrations.some(i => i.provider === "itala" && i.is_active)} hasDirect={integrations.some(i => i.provider !== "itala" && i.is_active)} />
 
           {/* Connected providers */}
           {isLoading ? (
@@ -475,7 +481,7 @@ export default function SettingsBilling() {
                   <Select value={newProvider} onValueChange={setNewProvider}>
                     <SelectTrigger><SelectValue placeholder="Seleziona provider..." /></SelectTrigger>
                     <SelectContent>
-                      {PROVIDERS.map((p) => (
+                      {PROVIDERS.filter(p => p.value !== "itala").map((p) => (
                         <SelectItem key={p.value} value={p.value}>
                           {p.icon} {p.label}{IMPORTA_RICEVUTE.has(p.value) ? " · Emesse + Ricevute" : ""}
                         </SelectItem>
@@ -565,18 +571,19 @@ export default function SettingsBilling() {
                             autoComplete="new-password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
+                            aria-label="Password provider"
                             placeholder={newProvider === "acube" ? "Password account A-Cube" : "Password account Aruba FE"}
                           />
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <Label>{newProvider === "itala" ? "Bearer Token" : "API Key"}</Label>
+                        <Label>API Key</Label>
                         <Input
                           type="password"
                           value={newApiKey}
                           onChange={(e) => setNewApiKey(e.target.value)}
-                          placeholder={newProvider === "itala" ? "Bearer token ITALA" : "Inserisci la chiave API"}
+                          placeholder="Inserisci la chiave API"
                         />
                       </div>
                     )}

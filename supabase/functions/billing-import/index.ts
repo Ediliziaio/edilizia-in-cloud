@@ -1,4 +1,5 @@
 // Adattatori dei provider in _shared/billingAdapter.ts (anche Zucchetti Digital Hub, 23/10/2026).
+import { importItala } from "../_shared/importItala.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -55,6 +56,8 @@ Deno.serve(async (req) => {
       if (!token) return json({ error: "Unauthorized" }, 401);
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) return json({ error: "Unauthorized" }, 401);
+      const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",user.id).maybeSingle();
+      if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
       createdBy = user.id;
 
       // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal
@@ -77,6 +80,8 @@ Deno.serve(async (req) => {
       .eq("company_id", companyId).eq("provider", provider!).eq("is_active", true).single();
     if (!integ) return json({ error: "Provider non connesso" }, 404);
     integId = integ.id;
+
+    if (provider === "itala") return json(await importItala(supabase, integ, body.source === "pg_cron_recupero"));
 
     const adapter = createAdapter(integ);
 
@@ -150,6 +155,7 @@ Deno.serve(async (req) => {
     type OrdCache = {
       id: string; code: string | null;
       cf: string | null;
+      piva: string | null;
       rate: { id: string; amount: number; invoice_id: string | null }[];
     };
     let ordersCache: OrdCache[] | null = null;
@@ -297,7 +303,6 @@ Deno.serve(async (req) => {
       // Il collegamento al contatto si scrive solo se c'è: un aggiornamento non
       // stacca la fattura dal contatto a cui era già legata.
       if (clientId) invoiceData.client_id = clientId;
-
       // Nota di credito: la fattura che storna, come la riporta il gestionale.
       // Il collegamento vero lo fa applica_note_di_credito a fine blocco.
       if (inv.rifFatturaNumero) {
@@ -699,7 +704,6 @@ async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   if (provider === "fattura24") return await fetchFattura24Invoices(integ);
   if (provider === "aruba") return await fetchArubaInvoices(integ);
   if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
-  if (provider === "itala") return await fetchItalaInvoices(integ);
   if (provider === "acube") return await fetchAcubeInvoices(integ);
 
   return [];
@@ -1197,46 +1201,6 @@ async function fetchInvoicetronicInvoices(integ: any): Promise<any[]> {
     total: doc.importo_totale || 0,
     subtotal: 0,
     taxAmount: 0,
-    lines: [],
-  }));
-}
-
-// ITALA (fattura-elettronica-api.it) — intermediario SDI. Bearer token per-account.
-// GET /fatture paginato (per_page max 1000). Stato SDI in sdi_stato.
-// NOTA: i nomi esatti dei campi della risposta non sono stati verificati su un
-// account reale → mapping difensivo. Da validare al primo collegamento vero.
-async function fetchItalaInvoices(integ: any): Promise<any[]> {
-  const base = "https://fattura-elettronica-api.it/ws2.0/prod";
-  const h = { Authorization: `Bearer ${integ.api_key}`, "Content-Type": "application/json" };
-  const all: any[] = [];
-  let page = 1;
-  while (true) {
-    const r = await fetch(`${base}/fatture?per_page=100&page=${page}`, { headers: h });
-    if (r.status === 401) throw new Error("Token ITALA non valido. Verifica la chiave in Impostazioni → Provider esterni.");
-    if (!r.ok) throw new Error(`ITALA API error: ${r.status}`);
-    const d = await r.json();
-    const docs = d.fatture || d.data || (Array.isArray(d) ? d : []);
-    all.push(...docs);
-    if (docs.length < 100) break;
-    page++;
-    if (page > 20) break; // safety cap
-  }
-  const statusMap: Record<string, string> = {
-    INVI: "sent", PREN: "sent", CONS: "delivered", ERRO: "issued", NONC: "issued",
-    ACCE: "delivered", RIFI: "issued", DECO: "delivered",
-  };
-  return all.map((doc: any) => ({
-    externalId: (doc.id ?? doc.sdi_id ?? doc.sdi_identificativo)?.toString(),
-    documentType: "invoice",
-    number: doc.numero ?? doc.number,
-    status: statusMap[doc.sdi_stato] || "issued",
-    clientName: doc.cliente?.denominazione ?? doc.denominazione ?? "",
-    clientVat: doc.cliente?.partita_iva ?? doc.partita_iva,
-    issueDate: doc.data ?? doc.data_documento,
-    dueDate: doc.data_scadenza,
-    total: doc.totale ?? doc.importo_totale ?? 0,
-    subtotal: doc.imponibile ?? 0,
-    taxAmount: doc.imposta ?? 0,
     lines: [],
   }));
 }

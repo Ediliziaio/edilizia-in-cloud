@@ -34,6 +34,8 @@ interface IntegrazioneFatture {
   last_sync_status: string | null;
   import_stato: {
     in_corso?: boolean;
+    provider?: string;
+    elaborati?: number;
     tipo?: "completo" | "aggiornamento";
     flussi?: Record<string, { elaborati?: number; totale?: number | null; fatto?: boolean }>;
   } | null;
@@ -41,7 +43,9 @@ interface IntegrazioneFatture {
 
 /** Documenti elaborati / dichiarati da FIC nel giro di import in corso. */
 function avanzamentoImport(st: IntegrazioneFatture["import_stato"]): { elaborati: number; totale: number | null } | null {
-  if (!st?.in_corso || !st.flussi) return null;
+  if (!st?.in_corso) return null;
+  if (st.provider === "itala") return { elaborati: st.elaborati ?? 0, totale: null };
+  if (!st.flussi) return null;
   let elaborati = 0;
   let totale = 0;
   let noto = true;
@@ -153,6 +157,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   fattura24: "Fattura24",
   aruba: "Aruba",
   invoicetronic: "Invoicetronic",
+  itala: "ITALA · Edilizia in Cloud",
 };
 
 export default function InvoicesList() {
@@ -245,6 +250,8 @@ export default function InvoicesList() {
         .select("id, last_sync_at, provider, last_sync_status, import_stato")
         .eq("company_id", companyId!)
         .eq("is_active", true)
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       // L'errore non va ingoiato: se la lettura fallisce la pagina mostrava
@@ -605,7 +612,7 @@ export default function InvoicesList() {
           <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm dark:border-sky-900 dark:bg-sky-950/40" role="status" aria-live="polite">
             <div className="flex items-center gap-2 font-medium text-sky-900 dark:text-sky-100">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              {integration?.import_stato?.tipo === "aggiornamento" ? "Aggiornamento da Fatture in Cloud in corso" : "Import da Fatture in Cloud in corso"}
+              {integration?.import_stato?.tipo === "aggiornamento" ? "Aggiornamento" : "Import"} da {PROVIDER_LABELS[integration?.provider ?? ""] || integration?.provider} in corso
             </div>
             <p className="mt-1 text-sky-800 dark:text-sky-200">
               {av.elaborati.toLocaleString("it-IT")}

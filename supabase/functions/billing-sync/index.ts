@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter } from "../_shared/billingAdapter.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -24,6 +25,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",userId).maybeSingle();
+    if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
     const { invoice_id, provider: preferredProvider } = await req.json();
 
     // Recupera fattura
@@ -33,25 +36,21 @@ Deno.serve(async (req) => {
     if (!invoice.external_id) return json({ error: "Invoice not synced yet" }, 400);
 
     // Verifica ownership: l'utente deve appartenere all'azienda della fattura (SEC-013)
-    const { data: callerRoles } = await supabaseAdmin
-      .from("user_roles").select("role").eq("user_id", userId);
-    const isSuperAdmin = (callerRoles || []).some((r: { role: string }) => r.role === "super_admin");
-    if (!isSuperAdmin) {
-      const { data: callerProfile } = await supabaseAdmin
-        .from("profiles").select("company_id").eq("id", userId).maybeSingle();
-      if (!callerProfile || callerProfile.company_id !== invoice.company_id) {
-        return json({ error: "Non autorizzato" }, 403);
-      }
+    if (!await canAccessCompany(supabaseAdmin, userId, invoice.company_id)) return json({ error: "Non autorizzato" }, 403);
+
+    if (preferredProvider && invoice.external_provider && preferredProvider !== invoice.external_provider) {
+      return json({ error: "Lo stato va verificato con il provider di questa fattura." }, 400);
     }
+    const sourceProvider = invoice.external_provider || preferredProvider;
 
     // Recupera integrazione attiva
     let query = supabase.from("billing_integrations").select("*")
       .eq("company_id", invoice.company_id).eq("is_active", true);
-    if (preferredProvider) query = query.eq("provider", preferredProvider);
+    if (sourceProvider) query = query.eq("provider", sourceProvider);
     else query = query.eq("is_primary", true);
 
     let { data: integration } = await query.maybeSingle();
-    if (!integration && !preferredProvider) {
+    if (!integration && !sourceProvider) {
       // Fix #9: Deterministic fallback — oldest integration first
       const { data: fallback } = await supabase
         .from("billing_integrations").select("*")
@@ -151,12 +150,13 @@ Deno.serve(async (req) => {
     });
 
     if (result.success) {
-      await supabase.from("invoices").update({
+      const { error: saveError } = await supabase.from("invoices").update({
         external_status: result.externalStatus,
-        status: result.internalStatus,
+        status: ["paid", "partially_paid", "credited"].includes(invoice.status) ? invoice.status : result.internalStatus,
         external_sdi_id: result.sdiId,
         last_synced_at: new Date().toISOString(),
       }).eq("id", invoice.id);
+      if (saveError) return json({ error: "Stato letto dal provider, ma aggiornamento locale non riuscito." }, 500);
     }
 
     return json(result);
