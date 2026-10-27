@@ -49,7 +49,7 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
     const { data, error: err } = await supabase.functions.invoke("billing-massive", { body: { ...values, action, company_id: companyId, provider } });
     if (err) {
       const response = (err as { context?: Response }).context;
-      const details = response instanceof Response ? await response.clone().json().catch(() => null) : null;
+      const details = response instanceof Response ? await response.clone().json().catch((): null => null) : null;
       throw new Error(details?.error ?? "Servizio di recupero non disponibile. Verifica che la funzione billing-massive sia pubblicata.");
     }
     if (data?.error) throw new Error(data.error);

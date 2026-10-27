@@ -24,7 +24,7 @@ export function ItalaPlatformConnection({ companyId, connected, hasDirect }: { c
       const { data, error } = await supabase.functions.invoke("billing-connect", { body: { action: "connect_platform_itala", company_id: companyId, consent_provider: true } });
       if (error) {
         const response = (error as { context?: Response }).context;
-        const details = response instanceof Response ? await response.clone().json().catch(() => null) : null;
+        const details = response instanceof Response ? await response.clone().json().catch((): null => null) : null;
         throw new Error(details?.error || "Collegamento non riuscito.");
       }
       if (data?.error) throw new Error(data.error);

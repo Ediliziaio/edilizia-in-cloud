@@ -8,7 +8,7 @@ function backend(initial:Record<string,unknown>|null=null,locked=false){
  let lease:string|null=null;
  const from=(table:string)=>{
   let patch:Record<string,unknown>|null=null;
-  const result=()=>{
+  const result=(): {data:null;error:null}=>{
    if(table==='billing_integrations' && patch){
     if('import_stato' in patch) state=patch.import_stato as Record<string,unknown>;
     if('import_in_corso_da' in patch) lease=patch.import_in_corso_da as string|null;
@@ -18,20 +18,20 @@ function backend(initial:Record<string,unknown>|null=null,locked=false){
   const builder={
    update:(p:Record<string,unknown>)=>{patch=p;return builder;},
    eq:()=>builder,or:()=>builder,select:()=>builder,insert:()=>builder,
-   maybeSingle:async()=>{
-    if(table==='anagrafica_azienda') return {data:{partita_iva:'02010390439'},error:null};
+   maybeSingle:async(): Promise<{data:Record<string,string>|null;error:null}>=>{
+    if(table==='anagrafica_azienda') return {data:{partita_iva:'02010390439'},error:null as null};
     if(table==='companies') return {data:{vat_number:'02010390439'},error:null};
-    if(locked) return {data:null,error:null};
+    if(locked) return {data:null as null,error:null as null};
     result();return {data:{id:integration.id},error:null};
    },
-   single:async()=>({data:{import_stato:state},error:null}),
+   single:async()=>({data:{import_stato:state},error:null as null}),
    then:(resolve:(v:unknown)=>unknown)=>Promise.resolve(result()).then(resolve),
   };
   return builder;
  };
  return {client:{from},state:()=>state,lease:()=>lease};
 }
-const running=(extra:Record<string,unknown>={})=>({provider:'itala',in_corso:true,pagina:8,avviato_il:'2026-10-27T09:00:00Z',da:'2026-10-25',aggiornato_fino_a:'2026-10-26T09:00:00Z',elaborati:70,importati:70,aggiornati:0,falliti:0,errori:[],errori_consecutivi:0,...extra});
+const running=(extra:Record<string,unknown>={})=>({provider:'itala',in_corso:true,pagina:8,avviato_il:'2026-10-27T09:00:00Z',da:'2026-10-25',aggiornato_fino_a:'2026-10-26T09:00:00Z',elaborati:70,importati:70,aggiornati:0,falliti:0,errori:[] as string[],errori_consecutivi:0,...extra});
 beforeEach(()=>{invoicePage.mockReset();invoicePage.mockResolvedValue([]);});
 describe('Recupero ITALA persistente',()=>{
  it('un giro già preso in carico non avvia chiamate duplicate',async()=>{

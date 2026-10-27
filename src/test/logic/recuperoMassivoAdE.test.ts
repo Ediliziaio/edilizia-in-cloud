@@ -120,4 +120,8 @@ describe("Importazione ITALA: i ricavi vengono dalle emesse", () => {
     expect(italaIssued({ ...row, sdi_fattura_xml: xml.replace("TD01", "TD04") }, "02010390439").documentType).toBe("credit_note");
     expect(italaIssued({ ...row, sdi_stato: "ERRO" }, "02010390439").status).toBe("draft");
   });
+  it("blocca riepiloghi mancanti o importi illeggibili anche quando il totale è presente", () => {
+    expect(()=>italaIssued({...row,sdi_fattura_xml:xml.replace(/<DatiRiepilogo>[\s\S]*?<\/DatiRiepilogo>/,"")},"02010390439")).toThrow("riepilogo IVA incompleti");
+    expect(()=>italaIssued({...row,sdi_fattura_xml:xml.replace("<Imposta>22.00</Imposta>","<Imposta>non leggibile</Imposta>")},"02010390439")).toThrow("riepilogo IVA incompleti");
+  });
 });

@@ -19,9 +19,17 @@ export function italaDocument(row: ItalaInvoice, vat: string, indiceCorpo = 0) {
   const parser = new LettoreXmlMinimo();
   const read = leggiFatturaPA(xml, parser, indiceCorpo), received = leggiFatturaRicevuta(xml, parser, indiceCorpo);
   if (!read || !received || !read.numero || !read.data) throw new Error(`Fattura ${row.id}: XML incompleto o non leggibile.`);
+  const body = parser.parseFromString(xml,"text/xml")?.getElementsByTagName("FatturaElettronicaBody")[indiceCorpo];
+  const summaries = Array.from(body?.getElementsByTagName("DatiRiepilogo") ?? []);
+  const lines = Array.from(body?.getElementsByTagName("DettaglioLinee") ?? []);
+  const numeric = (element: typeof summaries[number], tag: string) => /^-?\d+(?:[.,]\d+)?$/.test(element.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "");
+  if (!summaries.length || !lines.length || summaries.some(s=>!["AliquotaIVA","ImponibileImporto","Imposta"].every(t=>numeric(s,t))) || lines.some(l=>!["PrezzoUnitario","PrezzoTotale","AliquotaIVA"].every(t=>numeric(l,t)))) {
+    throw new Error(`Fattura ${row.id}: righe o riepilogo IVA incompleti. Nessun importo è stato inventato.`);
+  }
 
   const incoming = row.ricezione === 1;
-  const party = incoming ? received.cessionario_piva : read.cedentePiva;
+  const integration = ["TD16","TD17","TD18","TD19"].includes(read.tipoDocumentoSdi ?? "");
+  const party = incoming || integration ? received.cessionario_piva : read.cedentePiva;
   if (normalizzaPiva(party) !== normalizzaPiva(vat)) throw new Error(`Fattura ${row.id}: la direzione non corrisponde alla partita IVA dell'azienda.`);
   return { incoming, indiceCorpo, xml, original: original ?? new TextEncoder().encode(xml), read, received };
 }
@@ -30,7 +38,7 @@ export function italaIssued(row: ItalaInvoice, vat: string, indiceCorpo = 0) {
   if (doc.incoming) throw new Error("Una fattura ricevuta non può diventare un ricavo.");
   const r = doc.read;
   // Autofatture e integrazioni non sono ricavi dell'azienda.
-  const documentType = ["TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD22", "TD23", "TD26", "TD27", "TD28", "TD29"].includes(r.tipoDocumentoSdi ?? "") ? r.tipoDocumentoSdi! : r.documentType;
+  const documentType = ["TD16", "TD17", "TD18", "TD19"].includes(r.tipoDocumentoSdi ?? "") ? r.tipoDocumentoSdi! : r.documentType;
   return {
     externalId: doc.received.fatture_nel_file > 1 ? `${row.id}_${indiceCorpo + 1}` : String(row.id), documentType, number: r.numero,
     externalStatus: row.sdi_stato, sdiId: row.sdi_identificativo?.toString(),

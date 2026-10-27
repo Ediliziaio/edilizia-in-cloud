@@ -66,7 +66,7 @@ export async function importItala(admin: SupabaseClient, integration: { id: stri
     await admin.from("billing_sync_log").insert({ company_id: integration.company_id, provider: "itala", direction: "pull", action: "import", status,
       response_payload: { imported, updated: duplicates, failed: errors.length, received, page: state.pagina - (errors.length ? 0 : 1), errors: state.errori } });
     return { success: true, imported, updated: duplicates, duplicates, failed: errors.length, errors: state.errori,
-      in_corso: state.in_corso, next_page: state.in_corso ? state.pagina : null, avanzamento: { elaborati: state.elaborati, totale: null } };
+      in_corso: state.in_corso, next_page: state.in_corso ? state.pagina : null, avanzamento: { elaborati: state.elaborati, totale: null as number | null } };
   } catch (e) {
     if (state) {
       state.errori_consecutivi++; state.errori = [e instanceof Error ? e.message : "Importazione interrotta."];
