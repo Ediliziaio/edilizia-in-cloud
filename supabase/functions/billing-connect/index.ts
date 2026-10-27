@@ -41,6 +41,8 @@ serveConMetriche("billing-connect", async (req) => {
   if (!token) return json({ error: "Non autenticato" }, 401);
   const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return json({ error: "Sessione non valida" }, 401);
+  const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",user.id).maybeSingle();
+  if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
 
   // Fix #1: Parse body once and read action from body as fallback
   let body: Record<string, unknown> = {};

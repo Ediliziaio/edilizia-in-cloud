@@ -56,6 +56,8 @@ Deno.serve(async (req) => {
       if (!token) return json({ error: "Unauthorized" }, 401);
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) return json({ error: "Unauthorized" }, 401);
+      const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",user.id).maybeSingle();
+      if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
       createdBy = user.id;
 
       // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal

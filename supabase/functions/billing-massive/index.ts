@@ -25,8 +25,8 @@ Deno.serve(async req => {
     const roles = await ruoliNellAzienda(admin, user.id, companyId);
     const isAdmin = roles.includes("company_admin") || (roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email));
     if (!isAdmin) return json({ error: "Solo l'amministratore può gestire le richieste massive." }, 403);
-    const { data: profile } = await admin.from("profiles").select("is_blocked").eq("id", user.id).maybeSingle();
-    if (profile?.is_blocked) return json({ error: "Utente bloccato." }, 403);
+    const { data: profile, error: profileError } = await admin.from("profiles").select("is_blocked,deleted_at").eq("id", user.id).maybeSingle();
+    if (profileError || !profile || profile.is_blocked || profile.deleted_at) return json({ error: "Utente non abilitato." }, 403);
     const [{ data: an }, { data: co }] = await Promise.all([
       admin.from("anagrafica_azienda").select("partita_iva").eq("company_id", companyId).maybeSingle(),
       admin.from("companies").select("vat_number").eq("id", companyId).maybeSingle(),

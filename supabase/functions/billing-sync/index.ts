@@ -25,6 +25,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",userId).maybeSingle();
+    if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
     const { invoice_id, provider: preferredProvider } = await req.json();
 
     // Recupera fattura

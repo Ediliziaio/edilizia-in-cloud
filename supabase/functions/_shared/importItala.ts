@@ -13,7 +13,7 @@ export async function importItala(admin: SupabaseClient, integration: { id: stri
     .eq("id", integration.id).or(`import_in_corso_da.is.null,import_in_corso_da.lt.${new Date(now.getTime() - 240_000).toISOString()}`).select("id").maybeSingle();
   if (takeError) throw new Error("Impossibile avviare la sincronizzazione ITALA.");
   if (!taken) return { success: true, gia_in_corso: true, in_corso: true, messaggio: "Importazione già in corso: prosegue automaticamente." };
-  const release = () => admin.from("billing_integrations").update({ import_in_corso_da: null }).eq("id", integration.id);
+  const release = () => admin.from("billing_integrations").update({ import_in_corso_da: null }).eq("id", integration.id).eq("import_in_corso_da", now.toISOString());
   let state: State | null = null;
   try {
     const { data: current, error } = await admin.from("billing_integrations").select("import_stato").eq("id", integration.id).single();
@@ -61,8 +61,8 @@ export async function importItala(admin: SupabaseClient, integration: { id: stri
       if (state.errori_consecutivi >= 3) state.sospeso_fino_a = new Date(Date.now() + 3_600_000).toISOString();
     }
     const status = errors.length ? "partial" : state.in_corso ? "in_progress" : "success";
-    const { error: saveError } = await admin.from("billing_integrations").update({ import_stato: state, last_sync_at: now.toISOString(), last_sync_status: status, last_sync_error: errors.join(" | ") || null }).eq("id", integration.id);
-    if (saveError) throw new Error("Documenti salvati, ma avanzamento non registrato: il giro verrà ripetuto senza creare copie.");
+    const { data: saved, error: saveError } = await admin.from("billing_integrations").update({ import_stato: state, last_sync_at: now.toISOString(), last_sync_status: status, last_sync_error: errors.join(" | ") || null }).eq("id", integration.id).eq("import_in_corso_da", now.toISOString()).select("id").maybeSingle();
+    if (saveError || !saved) throw new Error("Documenti salvati, ma avanzamento non registrato: il giro verrà ripetuto senza creare copie.");
     await admin.from("billing_sync_log").insert({ company_id: integration.company_id, provider: "itala", direction: "pull", action: "import", status,
       response_payload: { imported, updated: duplicates, failed: errors.length, received, page: state.pagina - (errors.length ? 0 : 1), errors: state.errori } });
     return { success: true, imported, updated: duplicates, duplicates, failed: errors.length, errors: state.errori,
@@ -71,7 +71,7 @@ export async function importItala(admin: SupabaseClient, integration: { id: stri
     if (state) {
       state.errori_consecutivi++; state.errori = [e instanceof Error ? e.message : "Importazione interrotta."];
       if (state.errori_consecutivi >= 3) state.sospeso_fino_a = new Date(Date.now() + 3_600_000).toISOString();
-      await admin.from("billing_integrations").update({ import_stato: state }).eq("id", integration.id);
+      await admin.from("billing_integrations").update({ import_stato: state }).eq("id", integration.id).eq("import_in_corso_da", now.toISOString());
     }
     throw e;
   } finally { await release(); }
