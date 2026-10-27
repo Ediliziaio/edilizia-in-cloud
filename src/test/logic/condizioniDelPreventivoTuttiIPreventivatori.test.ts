@@ -68,7 +68,7 @@ describe("preventivo classico", () => {
     // L'interruttore di prima era lo stesso: ora è dentro la scheda, non c'è due volte.
     expect(builder).not.toContain('l: "Stampa condizioni contrattuali"');
     // Il testo proprio si salva sul preventivo e si rilegge riaprendolo.
-    expect(builder).toContain("condizioni_testo: condizioniTesto,");
+    expect(builder).toContain("(quoteData as Record<string, unknown>).condizioni_testo = condizioniTesto;");
     expect(builder).toContain("setCondizioniTesto((q.condizioni_testo as string | null) || null)");
   });
 });

@@ -59,6 +59,8 @@ export const quoteDraftSchema = z.object({
   pdfPrezziRiga: flag, pdfSoloTotale: flag, pdfSconti: flag, pdfImmagini: flag,
   pdfSchedeTecniche: flag, pdfFirma: flag, pdfMisure: flag, pdfAttributi: flag,
   pdfNoteCliente: flag, pdfCondizioni: flag, pdfWatermarkText: text, pdfCopiaDestinatario: text,
+  // Le condizioni contrattuali riscritte per questo preventivo (27/10/2026): la bozza del browser le riporta.
+  condizioniTesto: nullableText,
 }).partial();
 
 export type QuoteDraft = Omit<z.infer<typeof quoteDraftSchema>,

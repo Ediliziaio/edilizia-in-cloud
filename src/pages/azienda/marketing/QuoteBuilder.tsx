@@ -2045,7 +2045,6 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         pdf_mostra_attributi: pdfAttributi,
         pdf_mostra_note_cliente: pdfNoteCliente,
         pdf_mostra_condizioni: pdfCondizioni,
-        condizioni_testo: condizioniTesto,
         pdf_watermark_text: pdfWatermarkText || null,
         pdf_copia_destinatario: pdfCopiaDestinatario || null,
         // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
@@ -2069,6 +2068,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         financing_total_due: financingProposal?.total_due ?? null,
         financing_calculation_json: financingProposal ? JSON.parse(JSON.stringify(financingProposal.calculation)) as Json : null,
       };
+      // Le condizioni riscritte per questo preventivo: colonna del 27/10/2026, che i tipi generati non conoscono
+      // ancora. Si scrive qui, fuori dal corpo tipizzato, invece di aspettare la rigenerazione dei tipi.
+      (quoteData as Record<string, unknown>).condizioni_testo = condizioniTesto;
 
       let quoteId = id;
 
