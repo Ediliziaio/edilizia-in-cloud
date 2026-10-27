@@ -38,6 +38,7 @@ import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto
 import { calcRigaImporto } from "@/lib/bagni/calcoli";
 import type { BgnComputoVoce, BgnUnitaMisura } from "@/types/bagni";
 import { useComputoReview } from './ComputoReviewContext';
+import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `BgnUnitaMisura`). */
 const UM_OPTIONS: BgnUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -340,6 +341,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               </CollapsibleContent>
             </Collapsible>
           )}
+          <VoceDettagli voce={voce} onChange={onChange} idBase={`voce-${voce.id}`} />
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

@@ -39,6 +39,7 @@ import type { ClmComputoVoce } from "@/types/climatizzazione";
 import VoceRow from "./VoceRow";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 
 /** Palette accent ciclica per i capitoli (bordo · pallino · pill subtotale). */
 const ACCENTS = [
@@ -89,7 +90,7 @@ export default function CapitoloSection({
 
   // Subtotale live del capitolo (somma importi righe).
   const subtotale = useMemo(
-    () => voci.reduce((acc, v) => acc + calcRigaImporto(v), 0),
+    () => voci.reduce((acc, v) => acc + (v.opzionale ? 0 : calcRigaImporto(v)), 0),
     [voci],
   );
 
@@ -125,6 +126,7 @@ export default function CapitoloSection({
         famiglia_id: voci[idx].famiglia_id,
         immagine_url: voci[idx].immagine_url,
         descrizione_estesa: voci[idx].descrizione_estesa,
+        ...dettagliPerSalvataggio(voci[idx]),
       },
       { progetto_id: progettoId, company_id: companyId, capitolo_nome: nome, ordine: idx + 1 },
     );

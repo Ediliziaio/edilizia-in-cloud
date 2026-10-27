@@ -6,6 +6,7 @@ import { quoteBudgetOverlaps } from '@/lib/preventivi/quoteBudgetQuality';
 import { emptyQuoteTax, readQuoteTax, quoteTaxItems, quoteTaxTotals, quoteTaxCommand, quoteTaxFromEditor, type QuoteTaxSettings } from '@/lib/preventivi/quoteTax';
 import { quoteScheduleIntent, quoteScheduleReply, quoteScheduleEvidence, quoteScheduleScope, quoteScheduleDocumentText, readLocalQuoteSchedule } from '@/lib/preventivi/quoteSchedule';
 import { planningChatIntent } from '@/lib/preventivi/quotePlanningChat';
+import { margineChatIntent, margineChatReply } from '@/lib/preventivi/margineChat';
 import { useQuoteChatScroll } from './useQuoteChatScroll';
 const QuotePlanningChat = lazy(() => import('./QuotePlanningChat'));
 import { QuoteTaxPanel } from './QuoteTaxPanel';
@@ -318,6 +319,9 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       changeTax(taxCommand.line == null ? { ...tax, defaultRate: taxCommand.rate } : { ...tax, lineRates: [...tax.lineRates.filter(r => r.id !== active[taxCommand.line! - 1].id), { id: active[taxCommand.line - 1].id, rate: taxCommand.rate }] });
       setTaxOpen(true); clearSubmittedInput(text); appendDiagnostic({ role: 'user', text }); appendDiagnostic({ role: 'assistant', text: `Aliquota ${taxCommand.rate}% dichiarata da te ${taxCommand.line == null ? 'come predefinita per le voci senza aliquota' : `per la voce ${taxCommand.line}`}. Prezzi netti e quantità invariati. Requisiti fiscali e regimi speciali restano da verificare; nessuna scelta fiscale automatica dell’AI.` }); return;
     }
+    // Domanda di margine a ritroso («a 18.000 € col 25%»): la risposta è aritmetica e la dà il programma, senza AI.
+    const margineDomanda = margineChatIntent(text);
+    if (margineDomanda) { clearSubmittedInput(text); appendDiagnostic({ role: 'user', text }); appendDiagnostic({ role: 'assistant', text: margineChatReply(margineDomanda) }); return; }
     if (/^(mostra (?:documenti|dossier)|fonti del progetto)$/i.test(text)) { setDossierOpen(true); clearSubmittedInput(text); return; }
     if (text === 'Mostra controlli preventivo') { setPane('chat'); setProjectTools(true); clearSubmittedInput(text); return; }
     if (text === 'Prepara proposta indicativa dal budget') {

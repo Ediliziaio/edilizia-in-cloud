@@ -10,6 +10,9 @@ import { render, screen, within } from "@testing-library/react";
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 
 vi.mock("@/hooks/useBagniProgetto", () => ({ useBgnTemplatePdf: () => ({ data: undefined as unknown }) }));
+vi.mock("@/hooks/useModelliPagamento", () => ({
+  useModelliPagamento: () => ({ modelli: [] as unknown[], predefinito: null as string | null, isLoading: false }),
+}));
 vi.mock("@/hooks/useTabelleFinanziamento", () => ({
   useTabelleFinanziamentoAttive: () => ({ data: [] as unknown[], isLoading: false }),
   useTabellaFinanziamentoRighe: () => ({ data: [] as unknown[], isLoading: false }),

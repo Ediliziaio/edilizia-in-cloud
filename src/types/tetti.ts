@@ -1,4 +1,5 @@
 import type { GalleryLavoroItem } from "./gallery";
+import type { DettagliVoce } from "@/lib/computo/vociDettagli";
 
 export type TetUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type TetStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
@@ -10,7 +11,7 @@ export interface TetListinoVoce {
   costo_materiali: number; costo_manodopera: number; ricarico_pct: number; prezzo_unitario: number;
   articolo_id: string | null; tariffa_id: string | null; note: string | null; ordine: number;
 }
-export interface TetComputoVoce {
+export interface TetComputoVoce extends DettagliVoce {
   id: string; progetto_id: string; company_id: string; capitolo_nome: string;
   descrizione: string; unita_misura: TetUnitaMisura; quantita: number;
   prezzo_unitario: number; costo_materiali: number; costo_manodopera: number;
@@ -43,6 +44,14 @@ export interface TetProgetto {
   mostra_finanziamento?: boolean | null;
   /** Numero di rate scelto per questo preventivo (rata nel PDF): null = quello del modello (finanziamento_promo.rate); il TAN è quello del modello. */
   finanziamento_rate?: number | null;
+  /** Il piano di pagamento di questo preventivo: { modo, righe, note }. Null = vale il testo del modello. */
+  piano_pagamento?: unknown;
+  /** Le fasi del cantiere per questo preventivo. Null = quelle del modello. */
+  cronoprogramma?: unknown;
+  /** false = il PDF esce senza la parte contrattuale (in firma ci sono comunque). */
+  condizioni_nel_pdf?: boolean | null;
+  /** Condizioni scritte per questo preventivo. Null = quelle del modello. */
+  condizioni_testo?: string | null;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
   finanziamento_tabella_id?: string | null;
   finanziamento_tan_pct?: number | null;

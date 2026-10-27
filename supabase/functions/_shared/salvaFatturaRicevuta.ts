@@ -21,11 +21,14 @@ import { percorsoOriginale } from "./ricevuteOpenapi.ts";
 
 export interface FatturaDaSalvare {
   companyId: string;
+  /** Same SdI ID can contain several invoice bodies. */
+  indiceCorpo?: number;
   /** L'XML in chiaro: se il file era firmato, il suo contenuto. */
   xml: string; // vuoto se del file non si è letto niente
   letta: FatturaRicevutaLetta;
   /** Il file ricevuto, byte per byte. Se manca si salva l'XML in chiaro. */
   originale?: Uint8Array | null;
+  originaleObbligatorio?: boolean;
   /** Il nome che lo SDI ha dato al file, se si conosce. */
   nomeFileSdi?: string | null;
   openapiId?: string | null;
@@ -59,8 +62,10 @@ async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: strin
     if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
   }
   if (idSdi) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
-      .eq("company_id", f.companyId).eq("sdi_id_trasmissione", idSdi).limit(1).maybeSingle();
+    let query = supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
+      .eq("company_id", f.companyId).eq("sdi_id_trasmissione", idSdi);
+    if (f.indiceCorpo !== undefined) query = query.eq("numero_fattura", f.letta.numero_fattura).eq("data_fattura", f.letta.data_fattura);
+    const { data } = await query.limit(1).maybeSingle();
     if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
   }
   const l = f.letta;
@@ -118,11 +123,12 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     // permette di scriverlo una volta sola, mai di cambiarlo) si completa col file
     // originale. Così lo zip del portale, importato dopo un caricamento dei dati,
     // aggiunge i file veri senza creare doppioni.
-    if (!doppione.xml_raw) {
+    if (!doppione.xml_raw || f.originaleObbligatorio) {
       const { error: erroreArchivio } = await supabase.storage
         .from("fatture-xml")
         .upload(percorso, new Blob([new Uint8Array(contenuto)], { type: firmata ? "application/pkcs7-mime" : "application/xml" }), { upsert: true });
-      const campi: Record<string, unknown> = { xml_raw: f.xml, xml_url: erroreArchivio ? null : percorso };
+      if (erroreArchivio && f.originaleObbligatorio) return { id: doppione.id, doppione: true, errore: "File originale non archiviato: riprova la sincronizzazione." };
+      const campi: Record<string, unknown> = { ...(!doppione.xml_raw ? { xml_raw: f.xml } : {}), xml_url: erroreArchivio ? null : percorso };
       if (/^Dati caricati dallo zip/.test(doppione.note ?? "")) campi.note = null;
       const { error: erroreAggiornamento } = await supabase.from("fatture_ricevute").update(campi).eq("id", doppione.id);
       if (!erroreAggiornamento) return { id: doppione.id, doppione: true, completata: true, percorso };
@@ -137,6 +143,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       upsert: true,
     });
   if (erroreFile) {
+    if (f.originaleObbligatorio) return { id: null, doppione: false, errore: "File originale non archiviato: riprova la sincronizzazione.", percorso };
     // Senza il file originale la riga c'è lo stesso: l'XML è in xml_raw.
     console.warn(`[salvaFatturaRicevuta] storage ${percorso}: ${erroreFile.message}`);
   }
@@ -145,6 +152,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     .from("fatture_ricevute")
     .insert({
       company_id: f.companyId,
+      ...(f.indiceCorpo !== undefined ? { indice_corpo: f.indiceCorpo } : {}),
       sdi_id_trasmissione: idSdi,
       sdi_progressivo: l.sdi_progressivo || null,
       cedente_piva: l.cedente_piva,
@@ -167,7 +175,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       xml_url: erroreFile ? null : percorso,
       openapi_id: f.openapiId ?? null,
       data_ricezione_sdi: f.ricevutaIl ?? null,
-      note: l.note_import ?? (l.fatture_nel_file > 1
+      note: l.note_import ?? (l.fatture_nel_file > 1 && f.indiceCorpo === undefined
         ? `Il file contiene ${l.fatture_nel_file} fatture (un lotto): qui c'è la prima. Le altre vanno registrate a mano dal file originale.`
         : null),
       stato: "non_letta",

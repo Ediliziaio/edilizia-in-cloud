@@ -260,6 +260,8 @@ export interface DocEdileDati {
   mostraFinanziamento: boolean;
   /** Le rate scelte per questo preventivo; senza, vale il numero del modello. */
   finanziamentoRate?: number | null;
+  /** Le rate di questo preventivo (piano di pagamento). Vuoto: nel PDF resta la frase del modello. */
+  pianoPagamento?: { righe: Array<{ nome: string; quando: string; percent: number; importo: number }>; note: string | null } | null;
   /** La finanziaria scelta per questo preventivo (TAN, rata e importo della sua tabella); senza, vale la promo del modello. */
   finanziamentoScelta?: { tanPct: number | null; rata: number | null; importo: number | null } | null;
 }

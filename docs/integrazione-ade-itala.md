@@ -1,54 +1,52 @@
-# Recupero fatture AdE e Fattura Elettronica API
+# ITALA centrale e recupero storico AdE
 
-## Modifiche del 27 ottobre 2026
+## Collegamento cliente
 
-La copia aggiornata del progetto è `/Users/florinandriciuc/edilizia-in-cloud`. La copia in `Documents/New project/edilizia-in-cloud` è precedente: non è stata aggiornata da questa implementazione.
+In Impostazioni → Fatturazione → Con un altro programma, il cliente collega il proprio gestionale quando disponibile. Un collegamento diretto già scelto resta principale; in assenza di un primario diretto, Fatture in Cloud precede ITALA. ITALA è il servizio centrale alternativo di Edilizia in Cloud: i clienti non inseriscono chiavi personali.
 
-In **Impostazioni → Fatturazione → Con un altro programma**:
+La scheda «Recupero fatture con Edilizia in Cloud» legge la partita IVA dall'anagrafica aziendale, con fallback ai dati della società. Solo un amministratore autorizzato può confermare la trasmissione dell'anagrafica a ITALA. Il server verifica/censisce la società sull'account multisoggetto e salva nell'integrazione solo il riferimento `platform:itala`. Un cambio di partita IVA richiede un nuovo collegamento.
 
-1. Il provider Fattura Elettronica API (ITALA) si configura con **Client ID e Client Secret API**, distinti dalle credenziali del portale. L'ambiente è esplicito (predefinito: test).
-2. Il server verifica il collegamento con una lettura di `/credito`, associa la partita IVA dell'azienda e cifra le credenziali con AES-GCM usando il modulo di cifratura già presente nel progetto. La lista delle integrazioni non seleziona più i campi contenenti segreti. I vecchi Bearer continuano a essere letti.
-3. La sincronizzazione automatica resta disattivata al primo collegamento per consentire il collaudo. Usa il comando di sincronizzazione esistente solo dopo aver verificato i primi documenti.
-4. Nella nuova scheda **Recupera da AdE**, scegli ITALA oppure il canale diretto, date, emesse/ricevute e criterio data. Il server ricava la partita IVA dall'azienda autorizzata: il browser non può sostituirla.
-5. Per ITALA la creazione richiede conferma di **1 credito**. Il file restituito si scarica e si firma in CAdES `.p7m`; il file firmato viene caricato e inoltrato al provider.
-6. Quando lo stato è PRONTO, la conferma del recupero mostra i crediti richiesti per il numero attuale dei documenti. Il server rilegge il conteggio prima di richiedere l'addebito. Nessuna ricarica o acquisto di firme viene eseguito dal codice.
-7. Quando i documenti sono disponibili, l'importazione esplicita procede a pagine di 10. Non avanza il cursore se la pagina ha errori; i documenti già salvati vengono riconosciuti al nuovo tentativo. Al termine riparte dalla prima pagina per un successivo giro. Se si chiude la pagina si può ripartire dalla prima senza duplicare intenzionalmente lo storico.
+Le credenziali centrali sono esclusivamente nei segreti Edge Functions `ITALA_CLIENT_ID`, `ITALA_CLIENT_SECRET`, `ITALA_ENVIRONMENT=prod`. Non inserirle nel frontend, in `platform_settings`, nei log o nel repository. Le vecchie integrazioni con credenziali proprie restano leggibili con il modulo di cifratura esistente.
 
-Prima delle richieste ITALA, l'azienda deve essere presente nel suo account e deve aver abilitato **Itala Tecnologia Informatica S.r.l. → Scarico Fatture** nella funzione AdE Censimento canali per forniture massive. Il piano acquistato non sostituisce questa abilitazione e non sostituisce la firma richiesta.
+## Fatture, originali e contabilità
 
-## Correzione dell'importatore ITALA esistente
+- Il recupero filtra per partita IVA e verifica anche cedente/cessionario nell'XML. Le emesse entrano in `invoices`; le passive in `fatture_ricevute` con il salvataggio condiviso. Autofatture e integrazioni mantengono il tipo TD e non diventano ricavi.
+- Ogni corpo di un lotto ha un'identità distinta; l'originale completo rimane nello storage privato. Gli indici per le ricevute distinguono azienda e corpo senza perdere la protezione contro i duplicati.
+- L'import delle emesse è atomico: un errore sulle righe annulla l'intera registrazione. Gli importi del riepilogo XML e `ImportoTotaleDocumento` rimangono quelli originali, anche con bollo/ritenute/arrotondamenti.
+- Non si azzerano incassi, collegamenti o stati di pagamento. Le copie identiche già importate da un altro programma vengono riconosciute; le discordanti sono segnalate.
+- Aliquote, natura N2/N4/N6 ecc. ed esigibilità vengono conservate. La vista `fatture_vendite_iva`, con `security_invoker=true`, alimenta registro e liquidazione insieme ai documenti nativi, eliminando copie native identiche. Il registro legge tutte le pagine e mostra il riepilogo per aliquota/natura. La liquidazione mantiene le ipotesi e le regole già esistenti, inclusi reverse charge e split payment.
+- La data di aggiornamento ITALA non viene inventata come data di ricezione SdI. Se la consegna effettiva non è disponibile, il campo resta vuoto e la liquidazione conserva l'avvertenza già prevista.
+- I periodi fiscali chiusi non possono ricevere nuovi documenti emessi o modifiche fiscali tramite l'RPC di importazione.
 
-Prima l'elenco veniva scaricato senza filtro partita IVA e veniva trattato interamente come fatture emesse, con campi ipotizzati e importi mancanti trasformati in zero. Ora:
+L'importazione procede a pagine di 10 con cursore persistente, controllo di esecuzione concorrente e retry. Non esiste il vecchio troncamento silenzioso a 2000 documenti. Una pagina con errori non avanza; dopo tre errori consecutivi il recupero automatico sospende i tentativi per un'ora. Il cron esistente `billing-import-recupero` continua ogni due minuti, anche a pagina chiusa. I normali giri automatici avviano gli aggiornamenti due volte al giorno. Le letture usano `unread=false` per non consumare lo stato di altri client.
 
-- richieste filtrate per partita IVA e verifica dell'intestatario e della direzione di ogni documento;
-- emesse lette dall'XML e salvate in `invoices`, con righe e originale privato;
-- ricevute salvate con il componente condiviso `salvaFatturaRicevuta` in `fatture_ricevute`;
-- una ricevuta non può diventare un ricavo; una fattura senza XML/direzione verificabile causa un errore esplicito;
-- un documento emesso già presente da altra fonte non viene duplicato se i dati coincidono; se i dati differiscono viene segnalato;
-- gli incassi già registrati non vengono azzerati dagli aggiornamenti SdI ITALA;
-- il normale import automatico ha ancora un limite esplicito di 2000 documenti: oltre il limite segnala di usare l'importazione manuale a pagine, invece di dichiarare completato un import troncato;
-- i file con più corpi vengono segnalati come non supportati in questo connettore, evitando la perdita silenziosa dei corpi successivi. Vanno controllati nel percorso XML esistente; non considerarli automaticamente completati.
+## Storico AdE
 
-## Backend e distribuzione
+Nella scheda «Recupera da AdE» si preparano periodi massimi di tre mesi. Il cliente deve abilitare **Itala Tecnologia Informatica S.r.l. → Scarico Fatture** in Fatture e Corrispettivi. Ogni richiesta XML va firmata dal soggetto ammesso in CAdES `.p7m`.
 
-Funzioni cambiate: `billing-connect`, `billing-import`; funzione nuova: `billing-massive`. La configurazione di quest'ultima usa `verify_jwt=false` perché la funzione verifica esplicitamente JWT, stato utente, accesso all'azienda e ruolo amministrativo. Nessuna modifica allo schema del database è necessaria.
+Creazione: conferma esplicita di 1 credito. Recupero: conferma dei crediti sul conteggio riletto dal server. Nessun acquisto, firma o recupero a pagamento è stato eseguito nel collaudo. Il piano mensile non sostituisce abilitazione, firma o credito ricaricato per lo storico.
 
-Le nuove credenziali ITALA usano `GOOGLE_TOKEN_ENCRYPTION_KEY` tramite il modulo esistente; rimane il fallback server già previsto alla service-role. Non cambiare questa chiave senza ricifrare i dati. Le credenziali non vanno aggiunte a variabili VITE o documentazione.
+Il canale diretto AdE rimane disabilitato nell'interfaccia finché hosting, accreditamento e certificati non sono completati. Il servizio preparato in [services/smts](../services/smts/README.md) usa mTLS, verifica CMS, isolamento azienda e limiti di interrogazione; il codice non costituisce accreditamento.
 
-Il codice locale non costituisce una distribuzione. Per attivare ITALA occorre pubblicare insieme backend e frontend, configurare le credenziali sul backend dell'azienda corretta e fare un collaudo di lettura. Non è stato ancora fatto un collaudo sul conto reale, un addebito o un recupero fiscale reale.
+## Distribuzione e riscontri del 27 ottobre 2026
 
-Per il canale diretto, vedi [README SMTS](../services/smts/README.md). Il suo hosting deve essere predisposto e collegato con i segreti `SMTS_GATEWAY_URL` e `SMTS_GATEWAY_SECRET`. Il canale non può essere dichiarato accreditato dal solo codice.
+Nel progetto Supabase Edilizia In Cloud sono state applicate le migrazioni `20261027103542_itala_collegamento_iva` e `20261027110730_itala_duplicati_documenti_nativi` e sono state pubblicate `billing-connect`, `billing-import`, `billing-sync`, `billing-massive`. Le funzioni verificano autenticazione e azienda; il recupero massivo richiede un amministratore. L'RPC di importazione è riservata a `service_role`; la vista IVA non è accessibile ad `anon` e rispetta RLS.
+
+Le credenziali di produzione sono state generate dopo conferma del titolare e salvate nei segreti del backend. Il collaudo reale di sola lettura ha verificato autenticazione, piano, lista aziende e fatture filtrate. L'account multisoggetto ha un'azienda e **zero fatture disponibili** al collaudo. Nessuna società fittizia è stata collegata a un tenant dell'applicazione. Non si dichiara completato un recupero di fatture reali assenti dal conto.
 
 ## Verifiche riproducibili
 
 ```sh
-npx vitest run src/test/logic/recuperoMassivoAdE.test.ts src/test/ui/recuperoMassivoAdE.test.tsx
+npm run test:billing-itala
+npm run test:imported-invoices
 npm --prefix services/smts test
-npx deno check --no-config supabase/functions/billing-massive/index.ts supabase/functions/billing-connect/index.ts supabase/functions/billing-import/index.ts
+npx deno check --no-config supabase/functions/billing-massive/index.ts supabase/functions/billing-connect/index.ts supabase/functions/billing-import/index.ts supabase/functions/billing-sync/index.ts
+npm run build:fast
+npm run typecheck:ci
 ```
 
-Verificati anche gli XML emesse/ricevute per i criteri di emissione, ricezione e accoglienza SdI con `xmllint --schema services/smts/contracts/InputMassivo_v1.5.xsd`. I test locali non usano le credenziali del cliente e non consumano crediti.
+I test PostgreSQL usano PGlite isolato e lo schema necessario fotografato senza dati dal database. Verificano rollback, incassi, duplicati, lotti, periodi chiusi, liquidazione IVA e accessi. I test UI verificano consenso aziendale e conferma dei crediti senza chiamate reali. La suite è inclusa in `test:critical`. Il build e il controllo generale dei tipi vanno valutati separatamente dai test mirati; non considerarli superati in assenza del loro esito.
 
-Esito della verifica locale: 92 test Vitest nei cinque file finali selezionati e 8 test Node del servizio SMTS superati; controlli Deno delle tre funzioni e del servizio superati; lint dei nuovi componenti/test frontend senza errori. La schermata è stata verificata anche nel browser su un'anteprima con dati simulati, inclusa la conferma dei crediti.
+Documentazione provider: [REST 2.0](https://www.fattura-elettronica-api.it/documentazione/) e [richieste massive](https://www.fattura-elettronica-api.it/documentazione/richieste-massive/).
 
-Il controllo TypeScript dell'intera applicazione è stato interrotto dopo oltre 16 minuti senza risultato: non è dichiarato superato. Prima della distribuzione frontend completare il normale controllo/build del repository; i controlli mirati non sostituiscono il controllo completo. Non sono stati modificati o pubblicati i cambiamenti preesistenti relativi a preventivi/PDF presenti nella stessa copia di lavoro.
+Riscontri finali locali: 51 test ITALA, 108 test sulle fatture importate, 314 controlli di accesso e 8 test SMTS superati, oltre al controllo Deno delle quattro funzioni. La compilazione dell’ultima interfaccia è terminata con codice 0 (Node con heap 6144 MB, cartella di uscita isolata); la revisione precedente del controllo TypeScript in CI è verde. Le credenziali locali temporanee sono state eliminate. Il conto ITALA mostra credito ricaricato pari a zero: lo storico a pagamento resta subordinato alla disponibilità dei crediti. Nessun addebito è stato effettuato.

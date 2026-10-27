@@ -2,7 +2,7 @@
 // Sistema di sola integrazione/monitoraggio — nessuna logica di creazione fatture
 
 import { italaClientFromStored } from "./italaSecrets.ts";
-import { ITALA_STATUS_MAP } from "./italaFatture.ts";
+import { ITALA_STATUS_MAP, italaDocument } from "./italaFatture.ts";
 
 import {
   type FatelwCred,
@@ -402,7 +402,7 @@ export class InvoicetronicAdapter implements BillingProviderAdapter {
 
 export class ItalaAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "itala";
-  constructor(private secret: string) {}
+  constructor(private secret: string, private vat?: string | null) {}
   async testConnection() {
     try {
       await (await italaClientFromStored(this.secret)).request("/credito");
@@ -411,9 +411,14 @@ export class ItalaAdapter implements BillingProviderAdapter {
   }
   async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
     try {
-      if (!/^\d+$/.test(externalId)) throw new Error("Identificativo fattura non valido");
-      const d = await (await italaClientFromStored(this.secret)).request<{ sdi_stato: string; sdi_identificativo?: number }>(`/fatture/${externalId}`);
-      return { success: true, internalStatus: ITALA_STATUS_MAP[d.sdi_stato] ?? "issued", externalStatus: d.sdi_stato, sdiId: d.sdi_identificativo?.toString() };
+      const providerId = externalId.split("_")[0];
+      if (!/^\d+$/.test(providerId)) throw new Error("Identificativo fattura non valido");
+      if (!this.vat) throw new Error("Ricollega ITALA per verificare la partita IVA dell'azienda.");
+      const d = await (await italaClientFromStored(this.secret)).ownedInvoice(providerId, this.vat);
+      d.ricezione = Number(d.ricezione);
+      if (d.ricezione !== 0) throw new Error("Il documento non è una fattura emessa.");
+      italaDocument(d, this.vat);
+      return { success: true, internalStatus: ITALA_STATUS_MAP[d.sdi_stato ?? ""] ?? "issued", externalStatus: d.sdi_stato, sdiId: d.sdi_identificativo?.toString() };
     } catch (e) { return { success: false, internalStatus: "issued", error: e instanceof Error ? e.message : "Stato non disponibile" }; }
   }
 }
@@ -584,6 +589,7 @@ export function createAdapter(integration: {
   company_external_id?: string | null;
   provider_username?: string | null;
   provider_base_url?: string | null;
+  provider_vat_number?: string | null;
 }): BillingProviderAdapter {
   switch (integration.provider as BillingProvider) {
     case "fattureincloud":
@@ -604,8 +610,8 @@ export function createAdapter(integration: {
       if (!integration.api_key) throw new Error("Invoicetronic: api_key richiesta");
       return new InvoicetronicAdapter(integration.api_key);
     case "itala":
-      if (!integration.api_key) throw new Error("ITALA: bearer token richiesto");
-      return new ItalaAdapter(integration.api_key);
+      if (!integration.api_key) throw new Error("ITALA: collegamento richiesto");
+      return new ItalaAdapter(integration.api_key, integration.provider_vat_number);
     case "acube":
       // A-Cube: company_external_id = email, api_key = password.
       if (!integration.company_external_id || !integration.api_key)

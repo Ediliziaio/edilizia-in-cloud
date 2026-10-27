@@ -37,6 +37,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import { calcRigaImporto } from "@/lib/elettrico/calcoli";
 import type { EleComputoVoce, EleUnitaMisura } from "@/types/elettrico";
+import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `EleUnitaMisura`). */
 const UM_OPTIONS: EleUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -322,6 +323,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               </CollapsibleContent>
             </Collapsible>
           )}
+          <VoceDettagli voce={voce} onChange={onChange} idBase={`voce-${voce.id}`} />
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

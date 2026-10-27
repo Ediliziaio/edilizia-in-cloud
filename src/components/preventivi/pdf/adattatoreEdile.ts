@@ -26,6 +26,32 @@ import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
+import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti } from "@/lib/preventivi/pianoPagamento";
+import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
+import { haTesto, testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
+
+/**
+ * Le fasi del cantiere nel PDF: quelle scritte su QUESTO preventivo, se ci sono; altrimenti quelle del modello.
+ * Un bagno e una ristrutturazione non durano uguale, e prima raccontavano gli stessi tempi.
+ */
+function cronoprogrammaDelDocumento(delPreventivo: unknown, delModello: unknown): DocEdileFase[] {
+  const proprie = fasiDaStampare(leggiCronoprogramma(delPreventivo));
+  if (proprie.length > 0) return proprie.map((f) => ({ fase: f.fase, durata: f.durata, descrizione: f.descrizione }));
+  return elenco<DocEdileFase>(delModello).filter((x) => stringa(x?.fase));
+}
+
+/**
+ * Le rate del preventivo come le stampa il PDF. Un piano che non copre il prezzo non esce: il cliente vedrebbe un
+ * piano che non torna, e la frase del modello è meno sbagliata di una tabella incompleta.
+ */
+function pianoDelDocumento(raw: unknown, totale: number) {
+  const piano = leggiPianoPagamento(raw);
+  if (!pianoCompleto(piano)) return null;
+  return {
+    righe: rateConImporti(piano, totale).map((r) => ({ nome: r.nome, quando: quandoSiPaga(r), percent: r.percent, importo: r.importo })),
+    note: piano!.note,
+  };
+}
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
@@ -36,6 +62,9 @@ import type {
 type Grezzo = Record<string, unknown>;
 
 const stringa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+/** Ambiente e materiale davanti al dettaglio del listino, su un'unica riga di testo (così l'altezza della riga del PDF resta quella misurata). */
+const conEtichetta = (etichetta: string, base: string | null | undefined): string | null =>
+  etichetta ? (base ? `${etichetta} — ${base}` : etichetta) : (base ?? null);
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const unoDi = <T extends string>(v: unknown, ammessi: readonly T[], ripiego: T): T =>
   typeof v === "string" && (ammessi as readonly string[]).includes(v) ? (v as T) : ripiego;
@@ -67,6 +96,14 @@ export interface ProgettoComune {
   mostra_finanziamento?: boolean | null;
   /** Le rate scelte per questo preventivo (null = quelle del modello). */
   finanziamento_rate?: number | null;
+  /** Il piano di pagamento di questo preventivo. */
+  piano_pagamento?: unknown;
+  /** false = questo PDF esce senza la parte contrattuale (vale fuori dalla firma). */
+  condizioni_nel_pdf?: boolean | null;
+  /** Le condizioni riscritte per questo preventivo. Vuoto = quelle del modello. */
+  condizioni_testo?: string | null;
+  /** Le fasi del cantiere scritte su questo preventivo. */
+  cronoprogramma?: unknown;
   /** La finanziaria scelta: la tabella, il suo TAN, la rata e l'importo su cui è calcolata. */
   finanziamento_tabella_id?: string | null;
   finanziamento_tan_pct?: number | null;
@@ -90,6 +127,12 @@ export interface VoceComune {
   /** Prodotto scelto dal listino prodotti: la sua foto (già incorporata nel PDF) e la sua descrizione. */
   immagine_url?: string | null;
   descrizione_estesa?: string | null;
+  /** Dove si lavora e che materiale: vanno al cliente, sotto il nome della voce. La nota interna NON è qui: non esce mai. */
+  ambiente?: string | null;
+  marca?: string | null;
+  modello?: string | null;
+  /** Voce proposta ma non inclusa nel totale: nel PDF si dice, così il cliente non somma a mente. */
+  opzionale?: boolean | null;
 }
 
 export interface AziendaComune {
@@ -151,9 +194,12 @@ export function leggiModello(
   // Un preventivo firmato è il contratto: se l'azienda non ha scritto le proprie
   // condizioni, il documento esce con quelle di base del suo settore invece che
   // senza niente. L'editor le mostra e le fa adattare; l'interruttore le toglie.
-  const testoCondizioni = String(t.condizioni_legali_testo ?? "").trim()
+  const delModello = String(t.condizioni_legali_testo ?? "").trim()
     || condizioniStandard(contesto.settore ?? "generico");
-  const condizioniLegali = !condizioniAttive
+  // Il singolo preventivo può uscire senza la parte contrattuale (primo invio) o averne una sua, scritta per quel
+  // cliente. Chi manda in FIRMA passa il progetto da `perLaFirma()`, che rimette le condizioni: il firmato è il contratto.
+  const testoCondizioni = testoCondizioniDelPdf(contesto.progetto, delModello);
+  const condizioniLegali = !condizioniAttive || !haTesto(testoCondizioni)
     ? []
     : separaFirmeContratto(leggiTestoRiccoContratto(applicaMergeTagModulo(testoCondizioni, {
         companyName: azienda?.ragione_sociale ?? azienda?.name ?? null,
@@ -228,7 +274,7 @@ export function leggiModello(
       .filter((x) => stringa(x?.testo))
       // Le stelle solo se l'azienda le ha riportate, da 1 a 5: mai di serie.
       .map((x) => ({ ...x, voto: typeof x.voto === "number" && x.voto >= 1 && x.voto <= 5 ? Math.round(x.voto) : null })),
-    cronoprogramma: elenco<DocEdileFase>(t.cronoprogramma).filter((x) => stringa(x?.fase)),
+    cronoprogramma: cronoprogrammaDelDocumento(contesto.progetto.cronoprogramma, t.cronoprogramma),
     mostraCronoprogramma: t.show_cronoprogramma !== false,
     galleriaLavori: elenco<DocEdileFoto>(t.gallery_lavori).filter((x) => stringa(x?.url)),
     // Come nelle pagine libere, i segnaposto ({cliente_nome}, {citta}…) si espandono.
@@ -377,7 +423,7 @@ export function costruisciDatiEdile(input: {
       const costo = ((Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0)) * (Number(v.quantita) || 0);
       return {
         id: v.id,
-        descrizione: v.descrizione || "—",
+        descrizione: `${v.descrizione || "—"}${v.opzionale === true ? " (opzionale, non incluso nel totale)" : ""}`,
         unitaMisura: unitaInParole(v.unita_misura),
         quantita: Number(v.quantita) || 0,
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
@@ -388,9 +434,12 @@ export function costruisciDatiEdile(input: {
         // Una stima accettata porta anche ipotesi ed esclusioni: accorciarle
         // trasformerebbe il perimetro economico del documento. Le normali
         // schede prodotto mantengono invece la sintesi già prevista.
-        dettaglio: /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
-          ? testoDelListino(v.descrizione_estesa)
-          : descrizioneBreve(v.descrizione_estesa),
+        dettaglio: conEtichetta(
+          [stringa(v.ambiente), [stringa(v.marca), stringa(v.modello)].filter(Boolean).join(" ") || null].filter(Boolean).join(" · "),
+          /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
+            ? testoDelListino(v.descrizione_estesa)
+            : descrizioneBreve(v.descrizione_estesa),
+        ),
         // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
         margineEur: importo > 0 && costo <= 0 ? null : importo - costo,
       };
@@ -446,5 +495,6 @@ export function costruisciDatiEdile(input: {
     mostraFinanziamento: p.mostra_finanziamento !== false,
     finanziamentoRate: rateDelPreventivo(p.finanziamento_rate),
     finanziamentoScelta: sceltaFinanziariaDelPreventivo(p),
+    pianoPagamento: pianoDelDocumento(p.piano_pagamento, Number(input.totali.totale) || 0),
   });
 }

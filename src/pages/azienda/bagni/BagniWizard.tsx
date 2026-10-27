@@ -41,6 +41,7 @@ import {
 } from "@/hooks/useBagniProgetto";
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
+import { CopiaConAltroModello } from "@/components/preventivatore/CopiaConAltroModello";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
@@ -64,6 +65,7 @@ import StepPdf from "./BagniWizard/StepPdf";
 import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const STEP_ICONS: Record<BgnWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -339,7 +341,7 @@ export default function BagniWizard() {
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliBgn, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
       titolo: model?.title ?? null,
-      ivaDefault: 10,
+      ivaDefault: IVA_PREDEFINITA_PCT,
     }),
     [vociAnteprima, detail?.progetto, form, templatePdf?.ragione_sociale, effectiveCompany?.name, model],
   );
@@ -555,7 +557,10 @@ export default function BagniWizard() {
               <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
             </div>
             {!isNew && detail && (
-              <ModelloDelPreventivo modulo="bagni" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+              <div className="flex flex-wrap items-center gap-2">
+                <ModelloDelPreventivo modulo="bagni" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+                <CopiaConAltroModello modulo="bagni" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} />
+              </div>
             )}
             {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
           </section>
@@ -614,6 +619,7 @@ export default function BagniWizard() {
             media={detail.media}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
+            onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof typeof form, v as never); }}
           />
           </PdfDatiSalvatiGuard>
         )}

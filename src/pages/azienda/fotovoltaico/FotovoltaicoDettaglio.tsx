@@ -53,6 +53,7 @@ import { pdfFirmatoPreventivo, scaricaCopiaPdf } from "@/lib/preventivi/pdfFirma
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FV_ARCHETIPI_LABEL, type FvArchetipo } from "@/lib/fotovoltaico/tipi";
+import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -91,6 +92,30 @@ export default function FotovoltaicoDettaglio() {
   const handleSendFirma = async (params: SendSignatureParams): Promise<SendSignatureResult> => {
     if (!progetto) throw new Error("Progetto non disponibile");
     if (!canManagePreventivo) throw new Error("Non hai il permesso di inviare il preventivo per la firma.");
+    // In firma le condizioni contrattuali ci sono sempre: il preventivo firmato è il contratto. Il fotovoltaico
+    // congela la pagina già emessa, quindi se quella è la versione «senza» si rigenera adesso con le condizioni
+    // dentro — ed è questa che il cliente legge e firma.
+    if ((progetto as { pdf_vendita_con_condizioni?: boolean | null }).pdf_vendita_con_condizioni === false) {
+      // Il disegno dei pannelli sul tetto, l'orientamento e l'inclinazione arrivano dalla chiamata, non dal
+      // progetto: senza, il documento rigenerato perderebbe la vista dall'alto che il cliente ha già visto.
+      const tetto = progetto as {
+        layout_tetto?: unknown; azimut_tetto?: number | string | null; inclinazione_tetto?: number | null;
+      };
+      const { error } = await supabase.functions.invoke("fv-genera-pdf", {
+        body: {
+          progetto_id: progetto.id,
+          tipo: "vendita",
+          con_condizioni: true,
+          layout_pannelli: Array.isArray(tetto.layout_tetto) ? tetto.layout_tetto : null,
+          azimut: tetto.azimut_tetto != null ? etichettaAzimut(Number(tetto.azimut_tetto)) : null,
+          inclinazione_tetto: tetto.inclinazione_tetto ?? null,
+        },
+      });
+      if (error) {
+        throw new Error("Il preventivo da firmare va rigenerato con le condizioni contrattuali, e la generazione non è riuscita. Riprova.");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["fv", "progetto"] });
+    }
     const res = await richiediFirma.mutateAsync({
       tipo_documento: "fv",
       documento_id: progetto.id,

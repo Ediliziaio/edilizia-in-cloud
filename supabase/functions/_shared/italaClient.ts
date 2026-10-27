@@ -38,11 +38,17 @@ export class ItalaClient {
     if (!r.ok || (data && !Array.isArray(data) && data.error)) throw new Error(`Fattura Elettronica API: operazione non riuscita (HTTP ${r.status}). Controlla l'esito sul portale del provider.`);
     return data as T;
   }
-  async invoicePage(vat: string, page: number, perPage = 100): Promise<ItalaInvoice[]> {
+  async invoicePage(vat: string, page: number, perPage = 100, dates?: { date_from?: string; date_to?: string }): Promise<ItalaInvoice[]> {
     const q = new URLSearchParams({ partita_iva: vat, page: String(page), per_page: String(perPage), unread: "false" });
+    if (dates?.date_from) q.set("date_from", dates.date_from);
+    if (dates?.date_to) q.set("date_to", dates.date_to);
     const rows = await this.request<ItalaInvoice[]>(`/fatture?${q}`);
     if (!Array.isArray(rows)) throw new Error("Elenco fatture del provider non valido.");
-    if (rows.some(r => !r || !r.id || (r.ricezione !== 0 && r.ricezione !== 1) || r.partita_iva?.replace(/^IT/i, "") !== vat)) {
+    for (const row of rows) {
+      if (!row) throw new Error("Elenco fatture del provider non valido.");
+      if (String(row.ricezione) === "0") row.ricezione = 0; else if (String(row.ricezione) === "1") row.ricezione = 1;
+    }
+    if (rows.some(r => !r || !r.id || (r.ricezione !== 0 && r.ricezione !== 1) || (r.partita_iva && r.partita_iva.replace(/^IT/i, "") !== vat))) {
       throw new Error("Il provider ha restituito documenti senza direzione o partita IVA verificabile. Importazione interrotta.");
     }
     return rows;
@@ -51,6 +57,13 @@ export class ItalaClient {
     const rows = await this.request<MassiveRequest[]>(`/richieste-massive?partita_iva=${vat}&per_page=100&page=${page}`);
     if (!Array.isArray(rows)) throw new Error("Elenco richieste del provider non valido.");
     return rows.filter(r => r.partita_iva?.replace(/^IT/i, "") === vat);
+  }
+  async ownedInvoice(id: unknown, vat: string): Promise<ItalaInvoice> {
+    const number = providerId(id);
+    const q = new URLSearchParams({ partita_iva: vat, id_from: String(number), id_to: String(number), unread: "false" });
+    const rows = await this.request<ItalaInvoice[]>(`/fatture?${q}`);
+    if (!Array.isArray(rows) || rows.length !== 1 || String(rows[0]?.id) !== String(number)) throw new Error("Fattura non appartenente a questa azienda.");
+    return rows[0];
   }
   async ownedRequest(id: unknown, vat: string): Promise<MassiveRequest> {
     const result = await this.request<MassiveRequest>(`/richieste-massive/${providerId(id)}`);

@@ -1,0 +1,361 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
+-- Preserve the existing authorization and audit; no balances are recalculated by this migration.
+alter table public.hr_richieste add column if not exists consumo_ferie numeric,
+  add column if not exists consumo_permessi numeric, add column if not exists consumo_rol numeric,
+  add column if not exists consumo_calendario date[];
+CREATE OR REPLACE FUNCTION public.hr_update_richiesta_stato(p_richiesta_id uuid, p_stato text, p_note_risposta text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+  v_actor uuid := auth.uid();
+  v_req public.hr_richieste%ROWTYPE;
+  v_profilo public.hr_profili%ROWTYPE;
+  v_was_approved boolean;
+  v_will_be_approved boolean;
+  v_days integer;
+  v_work_dates date[];
+  v_hours numeric;
+  v_daily_hours numeric;
+  v_delta_ferie numeric := 0;
+  v_delta_permessi numeric := 0;
+  v_delta_rol numeric := 0;
+  v_blocking_types text[] := ARRAY[
+    'ferie',
+    'permesso',
+    'malattia',
+    'rol',
+    'infortunio',
+    'maternita',
+    'paternita',
+    'lutto',
+    'smart_working',
+    'trasferta'
+  ];
+  v_giornata_stato text;
+  v_date date;
+  v_existing public.hr_giornate%ROWTYPE;
+  v_requested_today numeric;
+  v_remaining_permission_hours numeric;
+  v_note text;
+  v_before jsonb;
+  v_after jsonb;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Utente non autenticato';
+  END IF;
+
+  IF p_stato NOT IN ('in_attesa', 'approvata', 'rifiutata', 'annullata', 'revocata') THEN
+    RAISE EXCEPTION 'Stato richiesta non valido: %', p_stato;
+  END IF;
+
+  SELECT *
+  INTO v_req
+  FROM public.hr_richieste
+  WHERE id = p_richiesta_id
+    AND (
+      company_id IN (
+        SELECT company_id FROM public.profiles WHERE id = v_actor
+        UNION
+        SELECT company_id FROM public.multi_company_access WHERE user_id = v_actor
+          AND status = 'active' AND (expires_at IS NULL OR expires_at > now())
+      )
+      OR public.has_role(v_actor, 'super_admin'::public.app_role)
+    )
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Richiesta HR non trovata o non accessibile';
+  END IF;
+
+  IF NOT (
+    public.e_amministratore_di(v_req.company_id)
+    OR public.has_role(v_actor, 'super_admin'::public.app_role)
+  ) THEN
+    RAISE EXCEPTION 'Permessi insufficienti per approvare richieste HR';
+  END IF;
+
+  if public.utente_sola_lettura(v_req.company_id) then raise exception 'Accesso in sola lettura'; end if;
+
+  IF v_req.profilo_id IS NULL THEN
+    RAISE EXCEPTION 'Richiesta non collegata a un profilo HR';
+  END IF;
+
+  SELECT *
+  INTO v_profilo
+  FROM public.hr_profili
+  WHERE id = v_req.profilo_id
+    AND company_id = v_req.company_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profilo HR non valido per questa azienda';
+  END IF;
+
+  v_before := to_jsonb(v_req);
+  v_was_approved := coalesce(v_req.stato, 'in_attesa') = 'approvata';
+  v_will_be_approved := p_stato = 'approvata';
+  v_days := greatest(1, (v_req.data_fine - v_req.data_inizio) + 1);
+  if v_req.data_fine - v_req.data_inizio > 3660 then raise exception 'Periodo troppo esteso'; end if;
+  select array_agg(d::date order by d) into v_work_dates
+    from generate_series(v_req.data_inizio, v_req.data_fine, interval '1 day') d;
+  if v_will_be_approved and not v_was_approved and v_req.tipo in ('ferie','permesso','rol') then
+    if coalesce(cardinality(v_profilo.giorni_lavorativi),0)=0
+      or exists(select 1 from unnest(v_profilo.giorni_lavorativi) x where x not in ('Lun','Mar','Mer','Gio','Ven','Sab','Dom')) then
+      raise exception 'Calendario lavorativo da configurare sul profilo HR';
+    end if;
+    select array_agg(d::date order by d) into v_work_dates
+    from generate_series(v_req.data_inizio, v_req.data_fine, interval '1 day') d
+    where (array['Dom','Lun','Mar','Mer','Gio','Ven','Sab'])[extract(dow from d)::integer+1]=any(v_profilo.giorni_lavorativi)
+      and not exists(select 1 from public.hr_festivita h where h.company_id=v_req.company_id
+        and (h.data=d::date or (h.ricorrente and to_char(h.data,'MM-DD')=to_char(d,'MM-DD'))));
+    v_days := coalesce(cardinality(v_work_dates),0);
+    if v_days=0 then raise exception 'Nessun giorno lavorativo nel periodo selezionato'; end if;
+    if coalesce(v_profilo.ore_giornaliere,0)<=0 then raise exception 'Ore giornaliere da configurare'; end if;
+    if v_req.tipo in ('permesso','rol') and coalesce(v_req.ore_richieste,v_days*v_profilo.ore_giornaliere)>v_days*v_profilo.ore_giornaliere then
+      raise exception 'Le ore richieste superano quelle previste nel periodo';
+    end if;
+  end if;
+  v_daily_hours := coalesce(v_profilo.ore_giornaliere, 8);
+  v_hours := coalesce(v_req.ore_richieste, v_days * v_daily_hours);
+
+  IF v_req.data_fine < v_req.data_inizio THEN
+    RAISE EXCEPTION 'Periodo richiesta non valido';
+  END IF;
+
+  IF v_req.tipo = 'ferie' THEN
+    v_delta_ferie := v_days;
+  ELSIF v_req.tipo = 'permesso' THEN
+    v_delta_permessi := v_hours;
+  ELSIF v_req.tipo = 'rol' THEN
+    v_delta_rol := v_hours;
+  END IF;
+
+  -- Restore the amount actually consumed, even if the workweek/holidays changed later.
+  if v_was_approved and v_req.consumo_ferie is not null then
+    v_delta_ferie:=v_req.consumo_ferie;
+    v_delta_permessi:=v_req.consumo_permessi;
+    v_delta_rol:=v_req.consumo_rol;
+  end if;
+
+  IF v_will_be_approved AND NOT v_was_approved THEN
+    IF v_delta_ferie > coalesce(v_profilo.ferie_residue, 0) THEN
+      RAISE EXCEPTION 'Ferie residue insufficienti: richiesta % gg, disponibili % gg',
+        v_delta_ferie, coalesce(v_profilo.ferie_residue, 0);
+    END IF;
+
+    IF v_delta_permessi > coalesce(v_profilo.permessi_residui_ore, 0) THEN
+      RAISE EXCEPTION 'Permessi insufficienti: richiesta %h, disponibili %h',
+        v_delta_permessi, coalesce(v_profilo.permessi_residui_ore, 0);
+    END IF;
+
+    IF v_delta_rol > coalesce(v_profilo.rol_residuo_ore, 0) THEN
+      RAISE EXCEPTION 'ROL insufficienti: richiesta %h, disponibili %h',
+        v_delta_rol, coalesce(v_profilo.rol_residuo_ore, 0);
+    END IF;
+
+    IF v_req.tipo = ANY(v_blocking_types) AND EXISTS (
+      SELECT 1
+      FROM public.hr_richieste r
+      WHERE r.company_id = v_req.company_id
+        AND r.profilo_id = v_req.profilo_id
+        AND r.id <> v_req.id
+        AND r.stato = 'approvata'
+        AND r.tipo = ANY(v_blocking_types)
+        AND r.data_inizio <= v_req.data_fine
+        AND r.data_fine >= v_req.data_inizio
+    ) THEN
+      RAISE EXCEPTION 'Esiste già una richiesta assenza approvata sovrapposta per questo dipendente';
+    END IF;
+
+    UPDATE public.hr_profili
+    SET ferie_residue = coalesce(ferie_residue, 0) - v_delta_ferie,
+        permessi_residui_ore = coalesce(permessi_residui_ore, 0) - v_delta_permessi,
+        rol_residuo_ore = coalesce(rol_residuo_ore, 0) - v_delta_rol,
+        updated_at = now()
+    WHERE id = v_profilo.id
+      AND company_id = v_req.company_id;
+
+    v_giornata_stato := CASE v_req.tipo
+      WHEN 'ferie' THEN 'ferie'
+      WHEN 'permesso' THEN 'permesso'
+      WHEN 'rol' THEN 'rol'
+      WHEN 'malattia' THEN 'malattia'
+      WHEN 'smart_working' THEN 'smart_working'
+      WHEN 'trasferta' THEN 'trasferta'
+      WHEN 'infortunio' THEN 'infortunio'
+      WHEN 'maternita' THEN 'maternita'
+      WHEN 'paternita' THEN 'paternita'
+      WHEN 'lutto' THEN 'lutto'
+      ELSE NULL
+    END;
+
+    IF v_giornata_stato IS NOT NULL THEN
+      v_remaining_permission_hours := CASE
+        WHEN v_req.tipo IN ('permesso', 'rol') THEN v_hours
+        ELSE 0
+      END;
+      v_note := 'Richiesta ' || v_req.tipo || ' approvata'
+        || CASE WHEN v_req.ore_richieste IS NULL THEN '' ELSE ' · ' || v_req.ore_richieste::text || 'h' END
+        || ' · ' || v_req.id::text;
+
+      FOR v_date IN
+        SELECT unnest(v_work_dates)
+      LOOP
+        if v_req.tipo in ('permesso','rol') and v_remaining_permission_hours <= 0 then exit; end if;
+        v_requested_today := CASE
+          WHEN v_remaining_permission_hours > 0 THEN least(v_daily_hours, v_remaining_permission_hours)
+          ELSE v_daily_hours
+        END;
+
+        IF v_remaining_permission_hours > 0 THEN
+          v_remaining_permission_hours := greatest(0, v_remaining_permission_hours - v_requested_today);
+        END IF;
+
+        SELECT *
+        INTO v_existing
+        FROM public.hr_giornate
+        WHERE company_id = v_req.company_id
+          AND profilo_id = v_req.profilo_id
+          AND data = v_date
+        FOR UPDATE;
+
+        IF FOUND THEN
+          UPDATE public.hr_giornate
+          SET stato = v_giornata_stato,
+              note = CASE
+                WHEN coalesce(note, '') LIKE '%' || v_req.id::text || '%' THEN note
+                ELSE concat_ws(E'\n', nullif(note, ''), v_note)
+              END,
+              bloccata = true,
+              anomalia = CASE
+                WHEN coalesce(ore_lavorate, 0) > 0 OR prima_entrata IS NOT NULL OR ultima_uscita IS NOT NULL
+                THEN true
+                ELSE anomalia
+              END,
+              anomalia_motivo = CASE
+                WHEN coalesce(ore_lavorate, 0) > 0 OR prima_entrata IS NOT NULL OR ultima_uscita IS NOT NULL
+                THEN 'Timbrature presenti su giornata con richiesta HR approvata'
+                ELSE anomalia_motivo
+              END,
+              source = coalesce(source, 'hr_richiesta'),
+              updated_at = now()
+          WHERE id = v_existing.id;
+        ELSE
+          INSERT INTO public.hr_giornate (
+            company_id,
+            profilo_id,
+            data,
+            stato,
+            ore_previste,
+            ore_lavorate,
+            ore_pausa,
+            note,
+            bloccata,
+            source,
+            updated_at
+          ) VALUES (
+            v_req.company_id,
+            v_req.profilo_id,
+            v_date,
+            v_giornata_stato,
+            v_daily_hours,
+            0, -- Approved leave never proves that any remaining hours were worked.
+            0,
+            v_note,
+            true,
+            'hr_richiesta',
+            now()
+          );
+        END IF;
+      END LOOP;
+    END IF;
+  END IF;
+
+  IF v_was_approved AND NOT v_will_be_approved THEN
+    UPDATE public.hr_profili
+    SET ferie_residue = coalesce(ferie_residue, 0) + v_delta_ferie,
+        permessi_residui_ore = coalesce(permessi_residui_ore, 0) + v_delta_permessi,
+        rol_residuo_ore = coalesce(rol_residuo_ore, 0) + v_delta_rol,
+        updated_at = now()
+    WHERE id = v_profilo.id
+      AND company_id = v_req.company_id;
+
+    DELETE FROM public.hr_giornate
+    WHERE company_id = v_req.company_id
+      AND profilo_id = v_req.profilo_id
+      AND source = 'hr_richiesta'
+      AND coalesce(note, '') LIKE '%' || v_req.id::text || '%'
+      AND coalesce(ore_lavorate, 0) = 0
+      AND prima_entrata IS NULL
+      AND ultima_uscita IS NULL;
+  END IF;
+
+  UPDATE public.hr_richieste
+  SET stato = p_stato,
+      consumo_ferie = case when v_will_be_approved and not v_was_approved then v_delta_ferie else consumo_ferie end,
+      consumo_permessi = case when v_will_be_approved and not v_was_approved then v_delta_permessi else consumo_permessi end,
+      consumo_rol = case when v_will_be_approved and not v_was_approved then v_delta_rol else consumo_rol end,
+      consumo_calendario = case when v_will_be_approved and not v_was_approved then v_work_dates else consumo_calendario end,
+      note_risposta = p_note_risposta,
+      approvata_il = CASE
+        WHEN v_will_be_approved THEN coalesce(approvata_il, now())
+        ELSE NULL
+      END,
+      approvata_da = CASE
+        WHEN v_will_be_approved THEN coalesce(approvata_da, v_actor)
+        ELSE NULL
+      END,
+      updated_at = now()
+  WHERE id = v_req.id
+  RETURNING * INTO v_req;
+
+  v_after := to_jsonb(v_req);
+
+  PERFORM public.log_activity(
+    v_req.company_id,
+    'modification',
+    'hr.request.status_changed',
+    v_actor,
+    'hr_richieste',
+    v_req.id::text,
+    v_profilo.nome || ' ' || v_profilo.cognome,
+    'Richiesta HR ' || v_req.tipo || ' impostata a ' || p_stato,
+    jsonb_build_object(
+      'stato', jsonb_build_object('before', v_before->>'stato', 'after', p_stato),
+      'ferie_delta', CASE WHEN v_will_be_approved AND NOT v_was_approved THEN -v_delta_ferie WHEN v_was_approved AND NOT v_will_be_approved THEN v_delta_ferie ELSE 0 END,
+      'permessi_delta', CASE WHEN v_will_be_approved AND NOT v_was_approved THEN -v_delta_permessi WHEN v_was_approved AND NOT v_will_be_approved THEN v_delta_permessi ELSE 0 END,
+      'rol_delta', CASE WHEN v_will_be_approved AND NOT v_was_approved THEN -v_delta_rol WHEN v_was_approved AND NOT v_will_be_approved THEN v_delta_rol ELSE 0 END
+    ),
+    v_before,
+    v_after,
+    CASE WHEN p_stato = 'approvata' THEN 'high' ELSE 'normal' END,
+    jsonb_build_object(
+      'profilo_id', v_req.profilo_id,
+      'tipo', v_req.tipo,
+      'data_inizio', v_req.data_inizio,
+      'data_fine', v_req.data_fine,
+      'ore_richieste', v_req.ore_richieste
+    ),
+    'rpc:hr_update_richiesta_stato',
+    NULL
+  );
+
+  RETURN jsonb_build_object(
+    'id', v_req.id,
+    'stato', v_req.stato,
+    'company_id', v_req.company_id,
+    'profilo_id', v_req.profilo_id,
+    'updated_at', v_req.updated_at
+  );
+END;
+$function$;
+
+revoke all on function public.hr_update_richiesta_stato(uuid,text,text) from public,anon;
+grant execute on function public.hr_update_richiesta_stato(uuid,text,text) to authenticated;

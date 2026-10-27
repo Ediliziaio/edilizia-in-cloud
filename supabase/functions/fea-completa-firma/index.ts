@@ -1,3 +1,6 @@
+// Tocco del 27/10/2026: il documento congelato del fotovoltaico non accetta piu' la versione senza condizioni
+// contrattuali (_shared/documentoCongelato.ts). Il job di deploy guarda solo i file cambiati sotto la cartella
+// della funzione: senza questa riga la funzione resterebbe quella di prima.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";

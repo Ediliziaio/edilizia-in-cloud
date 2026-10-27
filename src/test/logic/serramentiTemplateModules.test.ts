@@ -8,7 +8,7 @@ vi.mock("@/lib/storage/immaginiModelloPdf", () => ({ CAMPI_IMMAGINE_SERRAMENTI: 
 vi.mock("@/lib/serramenti/pdfImageUtils", () => ({ toDataUrl: async (): Promise<null> => null }));
 vi.mock("@/lib/pdf/fotoBlocchi", () => ({ blocchiAccesi: (): never[] => [], fotoDeiBlocchi: async () => ({}), fotoDellePagine: async () => ({}) }));
 vi.mock("@/lib/pdf/votiOnline", () => ({ votiOnlineAzienda: vi.fn(() => { throw new Error("No reviews in local preview"); }) }));
-const base = { company_id: "company-a", ragione_sociale: "Azienda test", pdf_cover_hero: "Vecchio", logo_url: "/logo.png", condizioni_legali_testo: "Condizioni generali da non copiare" };
+const base = { company_id: "company-a", ragione_sociale: "Azienda test", pdf_cover_hero: "Vecchio", logo_url: "/logo.png", condizioni_legali_testo: "Condizioni generali dell'azienda" };
 const seed = () => createSerramentiModuleTemplate(base, "zanzariere");
 beforeEach(() => localStorage.clear());
 describe("sette moduli PDF Serramenti indipendenti", () => {
@@ -17,6 +17,7 @@ describe("sette moduli PDF Serramenti indipendenti", () => {
     const payload = await buildMockPdfData({ template: t, moduleId: m.id });
     expect(t.logo_url).toBe(base.logo_url);
     expect(t.pdf_cover_hero).toBe(m.title);
+    // Le condizioni scritte dall'azienda restano nel modulo: un layout d'intervento non le cancella.
     expect(t.condizioni_legali_attivo).toBe(true);
     expect(t.condizioni_legali_testo).toBe(base.condizioni_legali_testo);
     expect(payload.detail.progetto.intervento_titolo).toBe(m.title);

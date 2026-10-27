@@ -177,6 +177,14 @@ export interface SrProgettoRow {
    */
   pagamento_milestones: Array<{ label: string; percentuale: number; when?: string | null }> | null;
   /**
+   * Le condizioni contrattuali di QUESTO preventivo (27/10/2026).
+   * `condizioni_nel_pdf = false` lo fa uscire senza la parte contrattuale (il primo invio, quello in cui si
+   * mostra il prezzo); `condizioni_testo` sono le condizioni riscritte per questo cliente, al posto di quelle
+   * del modello. Il documento mandato in firma le ha sempre: il preventivo firmato è il contratto.
+   */
+  condizioni_nel_pdf?: boolean | null;
+  condizioni_testo?: string | null;
+  /**
    * Schema pagamento di alto livello: guida i template default per le
    * milestone e mostra/nasconde la sezione finanziaria.
    * - tutto_finanziato:       100% via finanziaria (no milestone)

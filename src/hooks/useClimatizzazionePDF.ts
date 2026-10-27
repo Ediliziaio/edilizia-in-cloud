@@ -33,6 +33,7 @@ import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocument
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/climatizzazione/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   ClmProgetto, ClmComputoVoce, ClmProgettoMedia, ClmTemplatePdf,
 } from "@/types/climatizzazione";
@@ -204,6 +205,7 @@ export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<Clm
       sconto_pct: v.sconto_pct,
       costo_materiali: v.costo_materiali,
       costo_manodopera: v.costo_manodopera,
+      opzionale: v.opzionale,
     }));
     const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 0 });
     return { ...cap, subtotale: t.imponibile, costo: t.costoTot };
@@ -211,7 +213,7 @@ export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<Clm
 
   // 4) Totali complessivi (single source of truth = calcTotaliComputo).
   const scontoPct = Number(progetto.sconto_pct) || 0;
-  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
   const detrazionePct = Number(progetto.detrazione_pct) || 0;
   const allRows: ComputoRigaInput[] = computo.map((v) => ({
     capitolo_nome: v.capitolo_nome,
@@ -220,6 +222,7 @@ export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<Clm
     sconto_pct: v.sconto_pct,
     costo_materiali: v.costo_materiali,
     costo_manodopera: v.costo_manodopera,
+    opzionale: v.opzionale,
   }));
   const agg = calcTotaliComputo(allRows, {
     sconto_pct: scontoPct,

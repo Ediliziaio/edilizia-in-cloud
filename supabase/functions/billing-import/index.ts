@@ -1,9 +1,5 @@
 // Adattatori dei provider in _shared/billingAdapter.ts (anche Zucchetti Digital Hub, 23/10/2026).
-import type { ItalaInvoice } from "../_shared/italaClient.ts";
-import { italaClientFromStored } from "../_shared/italaSecrets.ts";
-import { italaDocument, italaIssued } from "../_shared/italaFatture.ts";
-import { vatNumber } from "../_shared/billingMassive.ts";
-import { salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
+import { importItala } from "../_shared/importItala.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -60,6 +56,8 @@ Deno.serve(async (req) => {
       if (!token) return json({ error: "Unauthorized" }, 401);
       const { data: { user } } = await supabase.auth.getUser(token);
       if (!user) return json({ error: "Unauthorized" }, 401);
+      const { data: callerProfile, error: profileError } = await supabase.from("profiles").select("is_blocked,deleted_at").eq("id",user.id).maybeSingle();
+      if (profileError || !callerProfile || callerProfile.is_blocked || callerProfile.deleted_at) return json({ error: "Utente non abilitato." },403);
       createdBy = user.id;
 
       // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal
@@ -82,6 +80,8 @@ Deno.serve(async (req) => {
       .eq("company_id", companyId).eq("provider", provider!).eq("is_active", true).single();
     if (!integ) return json({ error: "Provider non connesso" }, 404);
     integId = integ.id;
+
+    if (provider === "itala") return json(await importItala(supabase, integ, body.source === "pg_cron_recupero"));
 
     const adapter = createAdapter(integ);
 
@@ -268,21 +268,6 @@ Deno.serve(async (req) => {
       const externalId = inv.externalId;
       const existing = esistenti.get(String(externalId)) ?? null;
 
-      if (provider === "itala" && !existing) {
-        const { data: other, error: otherError } = await supabase.from("invoices")
-          .select("id, total, document_type, client_vat_number, deleted_at").eq("company_id", companyId)
-          .eq("invoice_number", inv.number).eq("issue_date", inv.issueDate)
-          .or("external_provider.neq.itala,external_provider.is.null").limit(2);
-        if (otherError) throw new Error("Impossibile verificare i duplicati dello storico ITALA.");
-        if (other?.length) {
-          const same = other.length === 1 && !other[0].deleted_at &&
-            other[0].document_type === inv.documentType && Math.abs(Number(other[0].total) - inv.total) < 0.005 &&
-            soloCifre(other[0].client_vat_number) === soloCifre(inv.clientVat);
-          if (same) { updated++; continue; }
-          failed++; importErrors.push(`Fattura ${inv.number}: esiste un documento dello stesso numero e data con dati diversi. Nessuna copia creata.`); continue;
-        }
-      }
-
       const clientId = await resolveClientId(inv);
       const match = await resolveOrderId(inv);
 
@@ -318,13 +303,6 @@ Deno.serve(async (req) => {
       // Il collegamento al contatto si scrive solo se c'è: un aggiornamento non
       // stacca la fattura dal contatto a cui era già legata.
       if (clientId) invoiceData.client_id = clientId;
-      if (provider === "itala" && inv.externalXmlUrl) invoiceData.external_xml_url = inv.externalXmlUrl;
-      if (provider === "itala" && existing) {
-        // ITALA reports SdI status, not bank reconciliation or customer payments.
-        delete invoiceData.paid_amount;
-        if (["paid", "partially_paid"].includes(existing.status ?? "")) delete invoiceData.status;
-      }
-
       // Nota di credito: la fattura che storna, come la riporta il gestionale.
       // Il collegamento vero lo fa applica_note_di_credito a fine blocco.
       if (inv.rifFatturaNumero) {
@@ -569,8 +547,7 @@ Deno.serve(async (req) => {
     }
 
     // Altri provider: scaricano tutto e salvano in un colpo (volumi piccoli).
-    const italaBatch = provider === "itala" ? await allItalaInvoices(integ, body.itala_page) : null;
-    const invoices = italaBatch ? await issuedItalaBatch(italaBatch, companyId!) : await fetchProviderInvoices(adapter, integ);
+    const invoices = await fetchProviderInvoices(adapter, integ);
     await salvaFatture(invoices);
 
     // FATTURE PASSIVE (cassetto SDI): Aruba qui, FIC nel giro a blocchi
@@ -579,10 +556,6 @@ Deno.serve(async (req) => {
     // endpoint ricevute non è validato su account reale.
     let received: { imported: number; updated: number; failed: number; noPermission?: boolean } =
       { imported: 0, updated: 0, failed: 0 };
-    if (provider === "itala") {
-      received = await importItalaReceived(integ, companyId!, italaBatch!);
-      if (received.failed > 0) importErrors.push(`${received.failed} fatture ITALA ricevute non importate: verifica direzione, XML e formato del documento.`);
-    }
     if (provider === "aruba") {
       try {
         received = await importArubaReceived(integ, companyId!);
@@ -621,7 +594,7 @@ Deno.serve(async (req) => {
       response_payload: { imported, updated, failed, total: invoices.length, received, errors: importErrors },
     });
 
-    return json({ success: true, imported, updated, failed, total: invoices.length, received, errors: importErrors, ...(italaBatch ? { next_page: italaBatch.next_page } : {}) });
+    return json({ success: true, imported, updated, failed, total: invoices.length, received, errors: importErrors });
   } catch (e) {
     console.error("billing-import error:", e);
 
@@ -731,7 +704,6 @@ async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   if (provider === "fattura24") return await fetchFattura24Invoices(integ);
   if (provider === "aruba") return await fetchArubaInvoices(integ);
   if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
-  if (provider === "itala") return await fetchItalaInvoices(integ);
   if (provider === "acube") return await fetchAcubeInvoices(integ);
 
   return [];
@@ -1231,68 +1203,4 @@ async function fetchInvoicetronicInvoices(integ: any): Promise<any[]> {
     taxAmount: 0,
     lines: [],
   }));
-}
-
-// ITALA REST 2.0: filter the multi-company account BEFORE importing, and
-// validate each XML's issuer/recipient. Never turn supplier invoices into revenue.
-async function italaVat(integ: { company_id: string; provider_vat_number?: string | null }): Promise<string> {
-  const [{ data: an }, { data: co }] = await Promise.all([
-    supabase.from("anagrafica_azienda").select("partita_iva").eq("company_id", integ.company_id).maybeSingle(),
-    supabase.from("companies").select("vat_number").eq("id", integ.company_id).maybeSingle(),
-  ]);
-  const vat = vatNumber(an?.partita_iva || co?.vat_number);
-  if (integ.provider_vat_number && vatNumber(integ.provider_vat_number) !== vat) throw new Error("La partita IVA è cambiata: riconnetti ITALA.");
-  return vat;
-}
-interface ItalaBatch { rows: ItalaInvoice[]; vat: string; next_page: number | null }
-async function allItalaInvoices(integ: { api_key: string; company_id: string; provider_vat_number?: string | null }, requestedPage?: unknown): Promise<ItalaBatch> {
-  const vat = await italaVat(integ);
-  const client = await italaClientFromStored(integ.api_key);
-  if (requestedPage !== undefined) {
-    const page = Number(requestedPage);
-    if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("Pagina ITALA non valida.");
-    const rows = await client.invoicePage(vat, page, 10);
-    return { rows, vat, next_page: rows.length === 10 ? page + 1 : null };
-  }
-  const rows: ItalaInvoice[] = [];
-  for (let page = 1; page <= 20; page++) {
-    const batch = await client.invoicePage(vat, page);
-    rows.push(...batch);
-    if (batch.length < 100) return { rows, vat, next_page: null };
-  }
-  // Explicit failure: no silently truncated history reported as a successful sync.
-  throw new Error("Storico ITALA superiore a 2000 documenti: usa l'importazione a pagine nella scheda Recupera da AdE.");
-}
-async function fetchItalaInvoices(integ: { api_key: string; company_id: string; provider_vat_number?: string | null }) {
-  return issuedItalaBatch(await allItalaInvoices(integ), integ.company_id);
-}
-async function importItalaReceived(integ: { api_key: string; company_id: string; provider_vat_number?: string | null }, companyId: string, batch?: ItalaBatch) {
-  const { rows, vat } = batch ?? await allItalaInvoices(integ);
-  const counts = { imported: 0, updated: 0, failed: 0 };
-  for (const row of rows.filter(r => r.ricezione === 1)) {
-    try {
-      const doc = italaDocument(row, vat);
-      const result = await salvaFatturaRicevuta(supabase, {
-        companyId, xml: doc.xml, originale: doc.original, letta: doc.received,
-        nomeFileSdi: row.sdi_nome_file, identificativoSdi: row.sdi_identificativo?.toString(),
-      });
-      if (result.errore) counts.failed++;
-      else if (result.doppione) counts.updated++;
-      else counts.imported++;
-    } catch { counts.failed++; }
-  }
-  return counts;
-}
-
-async function issuedItalaBatch({ rows, vat }: ItalaBatch, companyId: string) {
-  const invoices = [];
-  for (const row of rows.filter(r => r.ricezione === 0)) {
-    const doc = italaDocument(row, vat);
-    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(doc.original)))).map(b => b.toString(16).padStart(2, "0")).join("");
-    const path = `${companyId}/itala/${row.id}_${hash}.${doc.original[0] === 0x30 ? "xml.p7m" : "xml"}`;
-    const { error } = await supabase.storage.from("fatture-xml").upload(path, new Blob([new Uint8Array(doc.original)]), { upsert: false });
-    if (error && String(error.statusCode) !== "409" && !/already exists|duplicate/i.test(error.message)) throw new Error(`Impossibile archiviare l'originale della fattura ITALA ${row.id}.`);
-    invoices.push({ ...italaIssued(row, vat), externalXmlUrl: `fatture-xml/${path}` });
-  }
-  return invoices;
 }

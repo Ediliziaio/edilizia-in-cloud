@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { preventivoModificabile, preventivoVisibile, type ClienteDiChiChiama, type ClienteRpcDiChiChiama } from "../_shared/preventivoVisibile.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { verificaCreditiEmail } from "../_shared/emailCredits.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -122,6 +123,32 @@ Deno.serve(async (req) => {
       if (coEmail.toLowerCase() === String(finalEmail).trim().toLowerCase()) {
         return errorResponse("Il cointestatario deve avere un indirizzo email diverso da quello del cliente.", 400, corsH);
       }
+    }
+
+    // I crediti email si controllano PRIMA di toccare il preventivo (27/10/2026): senza, il preventivo diventava
+    // «inviata», le firme aperte si annullavano e l'email veniva respinta (402) con un errore in JSON.
+    const crediti = await verificaCreditiEmail(quote.company_id, conCointestatario ? 2 : 1, supabaseAdmin);
+    if (!crediti.ok) {
+      await supabaseAdmin.rpc("avvisa_crediti_email_esauriti", {
+        p_company_id: quote.company_id,
+        p_dettaglio: "invio preventivo al cliente",
+      }).then(
+        () => {},
+        (e: unknown) => console.warn("[send-quote-signature] avviso crediti fallito:", e),
+      );
+      // Con `code` e `wallet` il browser apre il popup «credito esaurito» (saldo e «Ricarica ora»), come per ogni
+      // altro strumento a consumo; `error` è la frase che legge chi ha premuto «Invia».
+      return jsonResponse(
+        {
+          error: "I crediti email dell'azienda sono finiti: l'email al cliente non può partire. Il preventivo non è stato cambiato. "
+            + "Ricarica i crediti per riprovare.",
+          code: "insufficient_credits",
+          wallet: "email",
+          balance_eur: crediti.saldoEur,
+        },
+        402,
+        corsH,
+      );
     }
 
     // Calculate expires_at
@@ -246,7 +273,9 @@ Deno.serve(async (req) => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKeyFirma}` },
-          body: JSON.stringify({ quote_id }),
+          // Il documento che si firma ha sempre le condizioni contrattuali, anche se il preventivo è impostato
+          // per uscire senza: il preventivo firmato è il contratto (27/10/2026).
+          body: JSON.stringify({ quote_id, per_firma: true }),
           timeoutMs: 60_000,
         },
       );
@@ -414,6 +443,7 @@ Deno.serve(async (req) => {
 
     // Il secondo invito, al cointestatario, col suo link.
     let linkCointestatario: string | null = null;
+    let invitoCointestatarioInviato: boolean | null = null;
     if (richiestaCointestatario) {
       linkCointestatario = `${appUrl}/firma-fea/${richiestaCointestatario.token}`;
       const invitoCo = emailInvitoFirma(await brandingFirma(supabaseAdmin, quote.company_id), {
@@ -435,6 +465,7 @@ Deno.serve(async (req) => {
         templateName: "quote_signature", skipCredits: false, adminClient: supabaseAdmin,
         metadata: { quote_id: quote.id, quote_number: quote.quote_number, cointestatario: true },
       });
+      invitoCointestatarioInviato = esitoCo.ok;
       if (esitoCo.ok) {
         await supabaseAdmin.from("fea_audit_log").insert({
           request_id: richiestaCointestatario.id, company_id: quote.company_id, evento: "link_inviato",
@@ -447,7 +478,13 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
-      message: richiestaCointestatario ? "Offerta inviata ai due intestatari" : "Offerta inviata con successo",
+      message: !richiestaCointestatario
+        ? "Offerta inviata con successo"
+        : invitoCointestatarioInviato === false
+          ? "Offerta inviata al cliente, ma l'invito al cointestatario non è partito: mandagli il suo link"
+          : "Offerta inviata ai due intestatari",
+      // false = la richiesta del cointestatario esiste ma la sua email no (per esempio credito finito dopo la prima).
+      invito_cointestatario_inviato: invitoCointestatarioInviato,
       signature_link: signatureLink,
       signature_request_id: signatureRequest.id,
       // Preventivo cointestato: un link per firmatario.

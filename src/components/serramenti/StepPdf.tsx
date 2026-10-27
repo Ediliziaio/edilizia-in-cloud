@@ -23,6 +23,9 @@ import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { importiDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { motivoPreventivoDeciso, type MotivoDeciso } from "@/lib/serramenti/preventivoDeciso";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
+import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
+import { quoteModelTemplate } from "@/lib/serramenti/quoteModel";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 /** Di chi è il piano di un preventivo già deciso: «resta quello firmato / accettato / della commessa». */
@@ -35,6 +38,8 @@ interface Props {
   onIndietro?: () => void;
   /** Telefono: le voci di «Da completare» portano al passo in cui si completano. */
   onVaiAlPasso?: (passo: SrWizardStep) => void;
+  /** Scrive sul preventivo la scelta sulle condizioni contrattuali. */
+  onCondizioni?: (patch: { condizioni_nel_pdf?: boolean | null; condizioni_testo?: string | null }) => void;
 }
 
 interface ChecklistItem {
@@ -48,7 +53,7 @@ interface ChecklistItem {
   passo?: SrWizardStep;
 }
 
-export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props) {
+export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
   const isMobile = useIsMobile();
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
@@ -63,6 +68,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
   // PDF nativo A4 client-side (@react-pdf/renderer, code-split via dynamic import)
   const { downloadPDF, previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
   const { data: template } = useTemplatePdf();
+  // Il modello del documento: quello congelato nel preventivo, se è stato fatto con un modello della libreria,
+  // altrimenti quello dell'azienda — lo stesso che userà il PDF (resolveSrDocumentTemplate).
+  const modelloDelDocumento = quoteModelTemplate(p) ?? template ?? null;
   // L'anagrafica dell'azienda del preventivo, anche per un super admin entrato in un'altra.
   const { data: company } = useAziendaPerPdf(detail.progetto.company_id);
   const handleDownloadNative = () => {
@@ -197,6 +205,15 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
         </div>
       )}
 
+      {onCondizioni && (
+        <CondizioniDelPreventivoCard
+          progetto={p}
+          onChange={onCondizioni}
+          testoDelModello={modelloDelDocumento?.condizioni_legali_testo}
+          spenteNelModello={modelloDelDocumento?.condizioni_legali_attivo === false}
+        />
+      )}
+
       {/* Ciclo di chiusura come negli altri preventivatori: invio tracciato, anteprima
           e codice di firma via email, reminder di scadenza (quoteBridge, moduleKey «sr»). */}
       {p.company_id && (
@@ -217,7 +234,8 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
           onIndietro={onIndietro}
           disabled={!ready || motiviSoloInvio.length > 0}
           disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
-          generaPdfBlob={() => renderSerramentoBlob({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
+          // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
+          generaPdfBlob={() => renderSerramentoBlob({ detail: { ...detail, progetto: perLaFirma(p) }, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
         />
       )}
 

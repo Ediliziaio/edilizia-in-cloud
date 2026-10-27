@@ -30,6 +30,7 @@ import { EmailSignatureEditor } from "./EmailSignatureEditor";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { JSX } from "react";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
+import { GoogleEmailPrivacyNotice } from "./GoogleEmailPrivacyNotice";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {
@@ -386,6 +387,8 @@ export function EmailOAuthConnectionsCard() {
             </button>
           </div>
         )}
+
+        <GoogleEmailPrivacyNotice />
 
         {/* Bottoni connect — disabilita i provider OAuth con secrets mancanti.
             IMAP è sempre disponibile perché usa pgsodium, niente env var. */}

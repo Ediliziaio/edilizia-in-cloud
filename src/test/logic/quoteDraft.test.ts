@@ -28,6 +28,7 @@ describe("bozza completa preventivo classico", () => {
     pdfPrezziRiga: false, pdfSoloTotale: true, pdfSconti: false, pdfImmagini: true,
     pdfSchedeTecniche: true, pdfFirma: false, pdfMisure: false, pdfAttributi: false,
     pdfNoteCliente: false, pdfCondizioni: false, pdfWatermarkText: "BOZZA", pdfCopiaDestinatario: "cliente",
+    condizioniTesto: null,
   };
 
   it("mantiene TUTTI i campi, compresi false, zero e null", () => {

@@ -52,6 +52,7 @@ import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizion
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
+import { testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
@@ -67,6 +68,7 @@ import type { DisegnoConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import {
   ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, PERCORSO_AMPIO, UTILE_PAGINA, altezzaDomanda, altezzaGrafico, altezzaPercorsoAmpio, carteDelPercorsoPerRiga, domandeCompatte, paddingCartaPercorso, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
@@ -2480,7 +2482,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     detail.serramenti,
     detail.accessori,
     {
-      iva_percentuale: p.iva_percentuale ?? 10,
+      iva_percentuale: p.iva_percentuale ?? IVA_PREDEFINITA_PCT,
       sconto_percentuale: p.sconto_percentuale ?? 0,
       sconto_importo: p.sconto_importo ?? 0,
       // Il prezzo scritto a mano in Economia: senza, un preventivo con le voci
@@ -2524,9 +2526,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Il luogo dei lavori: lo stesso che si legge nel riepilogo della pagina della firma e in anagrafica.
   const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
-  // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
+  // Senza condizioni scritte dall'azienda valgono quelle di base del settore. Il preventivo può averne di sue,
+  // scritte per questo cliente, o uscire senza la parte contrattuale: chi lo manda in FIRMA passa il progetto da
+  // `perLaFirma()`, che le rimette, perché il preventivo firmato è il contratto.
   const condizioniLegaliTesto = applicaMergeTagModulo(
-    String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
+    testoCondizioniDelPdf(p, String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti")),
     {
     companyName,
     companyVat: tpl.partita_iva ?? company?.partita_iva ?? null,

@@ -33,6 +33,7 @@ import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocument
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/tetti/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   TetProgetto, TetComputoVoce, TetProgettoMedia, TetTemplatePdf,
 } from "@/types/tetti";
@@ -200,6 +201,7 @@ export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriche
       sconto_pct: v.sconto_pct,
       costo_materiali: v.costo_materiali,
       costo_manodopera: v.costo_manodopera,
+      opzionale: v.opzionale,
     }));
     const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 0 });
     return { ...cap, subtotale: t.imponibile, costo: t.costoTot };
@@ -207,7 +209,7 @@ export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriche
 
   // 4) Totali complessivi (single source of truth = calcTotaliComputo).
   const scontoPct = Number(progetto.sconto_pct) || 0;
-  const ivaPct = Number(progetto.iva_pct ?? 10);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
   const detrazionePct = Number(progetto.detrazione_pct) || 0;
   const allRows: ComputoRigaInput[] = computo.map((v) => ({
     capitolo_nome: v.capitolo_nome,
@@ -216,6 +218,7 @@ export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriche
     sconto_pct: v.sconto_pct,
     costo_materiali: v.costo_materiali,
     costo_manodopera: v.costo_manodopera,
+    opzionale: v.opzionale,
   }));
   const agg = calcTotaliComputo(allRows, {
     sconto_pct: scontoPct,

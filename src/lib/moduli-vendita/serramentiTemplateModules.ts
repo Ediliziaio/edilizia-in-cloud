@@ -1,5 +1,6 @@
 import { ereditaCondizioniModello } from "./condizioniModello";
 import { SR_PDF_PAGES_META, type SrTemplatePdfRow, type SrProgettoDetail } from "@/types/serramenti";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 /** Independent PDF models. Quote-builder workflows remain a separate feature. */
 export const SERRAMENTI_TEMPLATE_MODULES = [
@@ -129,7 +130,7 @@ export function applySerramentiModulePreview(detail: SrProgettoDetail, template:
       esigenze: template.esigenze_default ?? [], soluzione: template.soluzione_default ?? [],
       perche_noi: template.perche_noi_default ?? [], incluso_investimento: template.incluso_default ?? [],
       prossimi_passi: template.prossimi_passi_default ?? [], testimonianze: [],
-      totale_min: total, totale_max: total, iva_percentuale: template.iva_percentuale_default ?? 22, iva_inclusa: false,
+      totale_min: total, totale_max: total, iva_percentuale: template.iva_percentuale_default ?? IVA_PREDEFINITA_PCT, iva_inclusa: false,
       fin_anticipo_pct: 0, fin_piani: [], pagamento_milestones: [], schema_pagamento: null,
       risparmio_calcolato: false, risparmio_eur_anno: 0, detrazione_aliquota: 0, detrazione_eur_totale: 0,
       detrazione_eur_anno: 0, payback_anni: null, consulenza_at: null, consulenza_luogo: null,

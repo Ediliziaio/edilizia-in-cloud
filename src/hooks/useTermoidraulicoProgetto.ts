@@ -25,6 +25,8 @@ import {
   type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   IdrProgetto,
   IdrComputoVoce,
@@ -142,7 +144,7 @@ function totaliDaRighe(
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
     // Come il default della colonna iva_pct (22): prima qui c'era 10 (05/10/2026).
-    iva_pct: Number(parametri.iva_pct ?? 22),
+    iva_pct: Number(parametri.iva_pct ?? IVA_PREDEFINITA_PCT),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
@@ -162,7 +164,7 @@ async function totaliConParametri(
   const [voci, progetto] = await Promise.all([
     sb()
       .from("idr_computo_voci")
-      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera")
+      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera, opzionale")
       .eq("progetto_id", progettoId)
       .eq("company_id", companyId),
     serveProgetto
@@ -321,6 +323,10 @@ export function useClonaProgetto() {
           // La rata nel PDF (rate scelte, rata nascosta) fa parte delle condizioni: senza, la copia riparte dal modello.
           mostra_finanziamento: src.mostra_finanziamento ?? null,
           finanziamento_rate: src.finanziamento_rate ?? null,
+          piano_pagamento: src.piano_pagamento ?? null,
+          cronoprogramma: src.cronoprogramma ?? null,
+          condizioni_nel_pdf: src.condizioni_nel_pdf ?? null,
+          condizioni_testo: src.condizioni_testo ?? null,
           finanziamento_tabella_id: src.finanziamento_tabella_id ?? null,
           finanziamento_tan_pct: src.finanziamento_tan_pct ?? null,
           finanziamento_rata: src.finanziamento_rata ?? null,
@@ -358,6 +364,7 @@ export function useClonaProgetto() {
           famiglia_id: v.famiglia_id ?? null,
           immagine_url: v.immagine_url ?? null,
           descrizione_estesa: v.descrizione_estesa ?? null,
+          ...dettagliPerSalvataggio(v),
           ordine: v.ordine ?? idx,
         }));
         const { error: iErr } = await sb().from("idr_computo_voci").insert(rows);
@@ -444,6 +451,7 @@ export function useSaveComputo(progettoId: string | undefined) {
             famiglia_id: r.famiglia_id ?? null,
             immagine_url: r.immagine_url ?? null,
             descrizione_estesa: r.descrizione_estesa ?? null,
+            ...dettagliPerSalvataggio(r),
             ordine: r.ordine ?? idx,
           };
         });

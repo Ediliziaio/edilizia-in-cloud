@@ -40,16 +40,20 @@ const toPct = (raw: string): number => {
 // l'Ecobonus 65% era rimasto alle aliquote pre-riforma).
 import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
-import { AvvisoModalitaPagamento } from "@/components/moduli/AvvisoModalitaPagamento";
+import { PianoPagamentoCard } from "@/components/moduli/PianoPagamentoCard";
+import { ObiettivoETempiCard } from "@/components/moduli/ObiettivoETempiCard";
+import { RiepilogoAmbienti } from "@/components/computo/RiepilogoAmbienti";
+import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useTetTemplatePdf } from "@/hooks/useTettiProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: Props) {
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useTetTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 10);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -62,6 +66,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          opzionale: v.opzionale,
         })),
         // Il prezzo scritto a mano prende il posto della somma delle righe.
         { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: form.prezzo_manuale ?? null },
@@ -139,7 +144,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <PctField
                 id="tet-iva"
                 label="IVA"
-                value={form.iva_pct ?? 10}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (tetti) o 4% (prima casa)."
               />
@@ -167,7 +172,19 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 onChange("finanziamento_importo", s.importo);
               }}
             />
-            <AvvisoModalitaPagamento testo={(template as unknown as { payment_terms_text?: string | null } | undefined)?.payment_terms_text} caricato={!!template} />
+            <PianoPagamentoCard
+              piano={form.piano_pagamento}
+              onChange={(p) => onChange("piano_pagamento", p)}
+              totale={totali.totale}
+              testoDelModello={(template as unknown as { payment_terms_text?: string | null } | undefined)?.payment_terms_text}
+              modulo="tetti"
+            />
+            <CronoprogrammaCard
+              fasi={form.cronoprogramma}
+              onChange={(fasi) => onChange("cronoprogramma", fasi)}
+              fasiDelModello={(template as unknown as { cronoprogramma?: unknown } | undefined)?.cronoprogramma}
+              modulo="tetti"
+            />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
               <PctField
@@ -211,6 +228,8 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
             </div>
           </CardContent>
         </Card>
+        <RiepilogoAmbienti righe={computo} />
+        <ObiettivoETempiCard righe={computo} base={totali} />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import { providerId, validateMassiveInput, vatNumber } from "../_shared/billingMassive.ts";
-import { italaClientFromStored } from "../_shared/italaSecrets.ts";
+import { italaClientFromStored, ITALA_PLATFORM_REFERENCE } from "../_shared/italaSecrets.ts";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 Deno.serve(async req => {
@@ -25,8 +25,8 @@ Deno.serve(async req => {
     const roles = await ruoliNellAzienda(admin, user.id, companyId);
     const isAdmin = roles.includes("company_admin") || (roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email));
     if (!isAdmin) return json({ error: "Solo l'amministratore può gestire le richieste massive." }, 403);
-    const { data: profile } = await admin.from("profiles").select("is_blocked").eq("id", user.id).maybeSingle();
-    if (profile?.is_blocked) return json({ error: "Utente bloccato." }, 403);
+    const { data: profile, error: profileError } = await admin.from("profiles").select("is_blocked,deleted_at").eq("id", user.id).maybeSingle();
+    if (profileError || !profile || profile.is_blocked || profile.deleted_at) return json({ error: "Utente non abilitato." }, 403);
     const [{ data: an }, { data: co }] = await Promise.all([
       admin.from("anagrafica_azienda").select("partita_iva").eq("company_id", companyId).maybeSingle(),
       admin.from("companies").select("vat_number").eq("id", companyId).maybeSingle(),
@@ -52,14 +52,17 @@ Deno.serve(async req => {
     if (body.provider !== "itala") return json({ error: "Provider non valido." }, 400);
     const { data: integration, error: intError } = await admin.from("billing_integrations")
       .select("api_key, provider_vat_number").eq("company_id", companyId).eq("provider", "itala").eq("is_active", true).maybeSingle();
-    if (intError || !integration?.api_key) return json({ error: "Collega prima Fattura Elettronica API con le credenziali API della scheda personale." }, 409);
+    if (intError || !integration?.api_key) return json({ error: "Attiva prima il recupero fatture con Edilizia in Cloud dalle impostazioni di fatturazione." }, 409);
     if (integration.provider_vat_number && vatNumber(integration.provider_vat_number) !== vat) return json({ error: "La partita IVA è cambiata: riconnetti il provider." }, 409);
     const client = await italaClientFromStored(integration.api_key);
     if (action === "list") {
       const page = Math.max(1, Math.min(1000, Number(body.page) || 1));
       return json({ requests: await client.listRequests(vat, page), environment: client.environment, page });
     }
-    if (action === "credit") return json({ credit: await client.request("/credito"), environment: client.environment });
+    if (action === "credit") {
+      if (integration.api_key === ITALA_PLATFORM_REFERENCE && !(roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email))) return json({ error: "Il credito del servizio centrale è gestito dalla piattaforma." }, 403);
+      return json({ credit: await client.request("/credito"), environment: client.environment });
+    }
     if (action === "create") {
       if (body.confirm_create_credit !== true) return json({ error: "La creazione costa 1 credito: conferma il costo prima di procedere." }, 409);
       const created = await client.create(input!);

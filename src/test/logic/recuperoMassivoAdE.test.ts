@@ -55,6 +55,14 @@ describe("ITALA REST 2.0", () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ id: 123, partita_iva: "11111111111" })));
     await expect(new ItalaClient("token", fetcher).ownedRequest(123, "02010390439")).rejects.toThrow("non appartenente");
   });
+  it("verifica anche lo stato di una singola fattura entro la partita IVA autorizzata", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("[]"));
+    await expect(new ItalaClient("token", fetcher).ownedInvoice(123,"02010390439")).rejects.toThrow("non appartenente");
+    const url = new URL(String(fetcher.mock.calls[0][0]));
+    expect(url.searchParams.get("partita_iva")).toBe("02010390439");
+    expect(url.searchParams.get("id_from")).toBe("123");
+    expect(url.searchParams.get("id_to")).toBe("123");
+  });
   it("nessuna richiesta può deviare le credenziali verso URL arbitrari", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const client = new ItalaClient("token", fetcher);
@@ -89,9 +97,31 @@ describe("Importazione ITALA: i ricavi vengono dalle emesse", () => {
     expect(italaDocument(incoming, "11111111111").incoming).toBe(true);
     expect(() => italaIssued(incoming, "11111111111")).toThrow("ricavo");
   });
-  it("rifiuta fatture senza XML e lotti invece di perdere corpi in silenzio", () => {
+  it("rifiuta fatture senza XML e conserva ogni corpo di un lotto", () => {
     expect(() => italaDocument({ ...row, sdi_fattura_xml: undefined }, "02010390439")).toThrow("XML");
     const body = xml.match(/<FatturaElettronicaBody>[\s\S]*<\/FatturaElettronicaBody>/)![0];
-    expect(() => italaDocument({ ...row, sdi_fattura_xml: xml.replace("</p:FatturaElettronica>", body + "</p:FatturaElettronica>") }, "02010390439")).toThrow("più corpi");
+    const lot = { ...row, sdi_fattura_xml: xml.replace("</p:FatturaElettronica>", body.replace("<Numero>1</Numero>", "<Numero>2</Numero>") + "</p:FatturaElettronica>") };
+    expect(italaDocument(lot, "02010390439").received.fatture_nel_file).toBe(2);
+    expect(italaIssued(lot, "02010390439")).toMatchObject({ externalId: "123_1", number: "1" });
+    expect(italaIssued(lot, "02010390439", 1)).toMatchObject({ externalId: "123_2", number: "2" });
+    expect(() => italaIssued(lot, "02010390439", 2)).toThrow("XML incompleto");
+  });
+  it("mantiene aliquote, nature e split payment senza dedurli dalle righe", () => {
+    const tax = [["22", "", "100", "22", "I"], ["10", "", "50", "5", "S"], ["0", "N4", "30", "0", "I"], ["0", "N2.2", "40", "0", "I"], ["0", "N6.3", "80", "0", "I"]];
+    const summary = tax.map(([rate, nature, net, vat, timing]) => `<DatiRiepilogo><AliquotaIVA>${rate}</AliquotaIVA>${nature ? `<Natura>${nature}</Natura>` : ""}<ImponibileImporto>${net}</ImponibileImporto><Imposta>${vat}</Imposta><EsigibilitaIVA>${timing}</EsigibilitaIVA></DatiRiepilogo>`).join("");
+    const mixed = { ...row, sdi_fattura_xml: xml.replace(/<DatiRiepilogo>[\s\S]*?<\/DatiRiepilogo>/, summary).replace("122.00", "329.00") };
+    const issued = italaIssued(mixed, "02010390439");
+    expect(issued).toMatchObject({ subtotal: 300, taxAmount: 27, total: 329, externalDocumentType: "TD01" });
+    expect(issued.externalTaxSummary).toHaveLength(5);
+    expect(issued.externalTaxSummary?.[1]).toMatchObject({ aliquota: "10", esigibilita: "S", imposta: 5 });
+    expect(issued.externalTaxSummary?.[4]).toMatchObject({ natura: "N6.3", imponibile: 80, imposta: 0 });
+  });
+  it("note di credito e trasmissioni scartate conservano il tipo e lo stato", () => {
+    expect(italaIssued({ ...row, sdi_fattura_xml: xml.replace("TD01", "TD04") }, "02010390439").documentType).toBe("credit_note");
+    expect(italaIssued({ ...row, sdi_stato: "ERRO" }, "02010390439").status).toBe("draft");
+  });
+  it("blocca riepiloghi mancanti o importi illeggibili anche quando il totale è presente", () => {
+    expect(()=>italaIssued({...row,sdi_fattura_xml:xml.replace(/<DatiRiepilogo>[\s\S]*?<\/DatiRiepilogo>/,"")},"02010390439")).toThrow("riepilogo IVA incompleti");
+    expect(()=>italaIssued({...row,sdi_fattura_xml:xml.replace("<Imposta>22.00</Imposta>","<Imposta>non leggibile</Imposta>")},"02010390439")).toThrow("riepilogo IVA incompleti");
   });
 });

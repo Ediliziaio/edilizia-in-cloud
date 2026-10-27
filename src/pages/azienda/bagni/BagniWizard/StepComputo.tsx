@@ -33,6 +33,7 @@ import { PACCHETTI_BAGNO, buildPacchettoRows, type Pacchetto } from "@/lib/bagni
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
 import type { StatoSalvataggio } from "@/components/preventivatore";
+import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
 
 interface Props {
   aiContext?: NativeComputoAiContext;
@@ -133,6 +134,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       famiglia_id: v.famiglia_id ?? null,
       immagine_url: v.immagine_url ?? null,
       descrizione_estesa: v.descrizione_estesa ?? null,
+      ...dettagliPerSalvataggio(v),
       ordine: v.ordine ?? i,
     }));
 

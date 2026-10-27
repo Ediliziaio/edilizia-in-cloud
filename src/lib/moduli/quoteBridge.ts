@@ -179,7 +179,7 @@ export async function sendModuleQuoteSignature(
   recipientPhone?: string,
   /** Preventivo cointestato: firma anche il secondo intestatario, con un suo link. */
   cointestatario?: { nome: string; email: string; telefono?: string | null } | null,
-): Promise<void> {
+): Promise<{ invitoCointestatarioInviato: boolean | null }> {
   const { data, error } = await supabase.functions.invoke("send-quote-signature", {
     body: {
       quote_id: quoteId,
@@ -192,10 +192,11 @@ export async function sendModuleQuoteSignature(
   });
   // La frase vera del rifiuto sta nel corpo della risposta: `error.message` è il generico «non-2xx».
   if (error) throw new Error(await messaggioDaErroreFirma(error, "Riprova tra qualche istante."));
-  const payload = data as { success?: boolean; error?: string } | null;
+  const payload = data as { success?: boolean; error?: string; invito_cointestatario_inviato?: boolean | null } | null;
   if (payload && payload.success === false) {
     throw new Error(payload.error || "Invio non riuscito");
   }
+  return { invitoCointestatarioInviato: payload?.invito_cointestatario_inviato ?? null };
 }
 
 /** Link pubblico di firma (stessa route dell'email). `quotes.signature_token` è

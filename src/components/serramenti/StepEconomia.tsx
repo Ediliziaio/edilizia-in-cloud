@@ -77,6 +77,7 @@ import type {
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { SrCard, SrKpi, SrCallout } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatPct, formatNumero } from "@/lib/serramenti/format";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 // Recharts per il nuovo grafico ROI (sostituisce il vecchio SVG inline)
 import {
   ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -190,7 +191,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
         // Default IVA = 10% (aliquota ristrutturazione edilizia, caso piu'
         // comune per serramenti). Le altre aliquote standard sono 0, 4, 22.
         // Sentinel -1 = "IVA mista" (calcolo riga-per-riga, vedi commento sotto).
-        iva_percentuale: form.iva_percentuale ?? 10,
+        iva_percentuale: form.iva_percentuale ?? IVA_PREDEFINITA_PCT,
         sconto_percentuale: form.sconto_percentuale ?? 0,
         sconto_importo: form.sconto_importo ?? 0,
         // Prezzo pieno scritto a mano: prende il posto della somma delle voci.
@@ -504,7 +505,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     : 0;
   // Con l'IVA mista l'aliquota cambia con lo sconto (la regola dei beni significativi ripartisce l'imponibile): il
   // conto «a ritroso» di «Arriva a €» non vale, restano i tasti.
-  const ivaPerArrivaA = form.iva_percentuale === IVA_MISTA_SENTINEL ? undefined : Number(form.iva_percentuale ?? 10);
+  const ivaPerArrivaA = form.iva_percentuale === IVA_MISTA_SENTINEL ? undefined : Number(form.iva_percentuale ?? IVA_PREDEFINITA_PCT);
   const applicaScontoVeloce = ({ pct }: { pct: number; importo: number }) => {
     if (!isAdmin) return; // i tasti sono spenti, ma la regola vale anche qui: lo sconto lo scrive chi può approvarlo
     scrivi("sconto_percentuale", pct);

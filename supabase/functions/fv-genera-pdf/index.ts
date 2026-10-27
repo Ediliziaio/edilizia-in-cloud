@@ -53,6 +53,7 @@ import { eFotoDiSerie } from "../_shared/blocchiPreventivo.ts";
 import { calcolaEnergyFlows, finanziatoConAnticipo, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
+import { haTesto, perLaFirma, testoCondizioniDelPdf } from "../_shared/condizioniDelPreventivo.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 import {
@@ -75,6 +76,11 @@ interface Payload {
   /** Orientamento prevalente reale (etichetta "SE 152°") + inclinazione falda. */
   azimut?: string | null;
   inclinazione_tetto?: number | null;
+  /**
+   * Le condizioni contrattuali ci vanno comunque, qualunque cosa dica il preventivo: lo chiede chi prepara il
+   * documento da mandare in FIRMA, perché il preventivo firmato è il contratto (27/10/2026).
+   */
+  con_condizioni?: boolean;
 }
 
 type FvListinoMacroForPdf =
@@ -128,7 +134,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -718,6 +724,12 @@ Deno.serve(async (req: Request) => {
     const cointestatario = [prog.cointestatario_nome, prog.cointestatario_cognome]
       .map((s: string | null) => String(s ?? "").trim()).filter(Boolean).join(" ") || null;
 
+    // Le condizioni contrattuali di questo preventivo: può averne di sue, o uscire senza la parte contrattuale.
+    // `con_condizioni` le rimette comunque: lo chiede chi prepara il documento da mandare in firma.
+    const condizioniDelPreventivo = p.con_condizioni === true
+      ? perLaFirma({ condizioni_nel_pdf: prog.condizioni_nel_pdf, condizioni_testo: prog.condizioni_testo })
+      : { condizioni_nel_pdf: prog.condizioni_nel_pdf, condizioni_testo: prog.condizioni_testo };
+
     // ── Costruzione data context ──────────────────────────────────────────
     const data: FvPdfTemplateData = {
       azienda: {
@@ -912,8 +924,13 @@ Deno.serve(async (req: Request) => {
         modulo_recesso_attivo: template.modulo_recesso_attivo === true,
         // Merge tag dei blocchi importati dalla libreria Template offerte → dati del progetto
         condizioni_legali_testo: substituteMergeTags(
-          // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
-          String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
+          // Senza condizioni scritte dall'azienda valgono quelle di base del settore. Il preventivo può averne di
+          // sue, scritte per questo cliente, o uscire senza la parte contrattuale (la scelta dell'ultima fase):
+          // senza testo la pagina non esce. Chi prepara il documento da firmare chiede `con_condizioni`.
+          testoCondizioniDelPdf(
+            condizioniDelPreventivo,
+            String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
+          ),
           buildMergeContext({
               quote: {
                 quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
@@ -978,9 +995,19 @@ Deno.serve(async (req: Request) => {
     // ── Aggiorna progetto + log ────────────────────────────────────────────
     const fieldUrl =
       payloadTipo === "vendita" ? "pdf_vendita_url" : payloadTipo === "tecnico" ? "pdf_tecnico_url" : "pdf_mobile_url";
+    // Il fotovoltaico non impagina al momento della firma: congela la pagina già emessa. Si registra quindi se
+    // QUESTA pagina contiene le condizioni, perché fea-richiedi-firma non manda in firma un contratto muto.
+    const conCondizioniDentro = template.condizioni_legali_attivo !== false
+      && haTesto(testoCondizioniDelPdf(
+        condizioniDelPreventivo,
+        String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
+      ));
     const { error: updateErr } = await supabaseAdmin
       .from("fv_progetti")
-      .update({ [fieldUrl]: path } as Record<string, unknown>)
+      .update({
+        [fieldUrl]: path,
+        ...(payloadTipo === "vendita" ? { pdf_vendita_con_condizioni: conCondizioniDentro } : {}),
+      } as Record<string, unknown>)
       .eq("id", p.progetto_id);
     if (updateErr) throw new Error(`Aggiornamento progetto fallito: ${updateErr.message}`);
     const { error: logErr } = await supabaseAdmin.from("fv_pdf_generation_log").insert({

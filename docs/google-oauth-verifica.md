@@ -1,131 +1,134 @@
-# Verifica dell'app OAuth Google — Edilizia in Cloud
+# Verifica OAuth Google — Edilizia in Cloud
 
-Obiettivo: far sparire la schermata «Google non ha verificato questa app» quando un cliente collega
-Google Calendar, Google Ads o Google Business Profile.
+Aggiornamento tecnico: 26 ottobre 2026. Progetto `edilizia-in-cloud` (232959366283).
+Il branding è verificato; l'accesso ai dati non è approvato. La nuova richiesta
+richiede motivazioni e video. Nessuna approvazione Google è implicita in queste modifiche.
 
-Progetto Google Cloud principale: **edilizia-in-cloud** (numero 232959366283). Al 15/09/2026 ci
-stanno tutti e quattro i collegamenti: Gmail, Calendar, Google Ads, Business Profile. Controllato
-leggendo i link di consenso reali generati dall'app.
+## Permessi da presentare
 
-## Decisione presa: Gmail in un progetto separato
+| Integrazione | Ambiti | Funzioni da dimostrare |
+| --- | --- | --- |
+| Identità | openid, userinfo.email, userinfo.profile, secondo il client | Identificare l'account collegato; accesso Google se usato |
+| Calendar | calendar.readonly, calendar.events | Calendari, disponibilità, importazione abilitata e sincronizzazione appuntamenti |
+| Gmail CRM | gmail.readonly, gmail.send, userinfo.email | Leggere messaggi/allegati e inviare/rispondere |
+| Ads | adwords | Selezione account, campagne, budget e report letti da Google |
+| Business Profile | business.manage | Selezione sede, recensioni e risposte già pubblicate lette da Google |
 
-Google verifica il **progetto**, non il singolo collegamento. Gli scope Gmail (`gmail.readonly`,
-`gmail.modify`, `gmail.send`) sono **restricted**: con quelli dentro servirebbe anche la valutazione di
-sicurezza CASA di un laboratorio esterno, a pagamento e da rinnovare ogni anno. Calendar, Ads e
-Business Profile sono solo **sensitive**: verifica gratuita.
+Non dichiarare pubblicazione live Ads, invio conversioni o pubblicazione risposte
+Business Profile sulla base del solo UI: nel codice controllato la pubblicazione
+Ads è bloccata e gli altri percorsi di scrittura non sono stati verificati.
 
-Quindi Gmail esce dal progetto principale e va in uno suo, che **non** si manda in verifica. Chi
-collega Gmail continua a vedere l'avviso, fino a 100 utenti. Oggi le caselle Gmail collegate stanno
-tutte su Demo Azienda: una attiva, `f.andriciuc@overthemol.com`, e due scadute. Nessun cliente vero
-usa Gmail via Google; chi vuole Gmail senza avviso può collegarlo come casella IMAP con una password
-per le app.
+## Compatibilità dei collegamenti Gmail
 
-## Cosa è già pronto nel codice
+- Non cambiare client ID, segreti o progetto; non revocare token o modificare righe
+  di connessione per ridurre i nuovi consensi.
+- `email-oauth-start` richiede solo lettura/invio e non aggrega intenzionalmente
+  grant precedenti (`include_granted_scopes=false`). Google può comunque restituire
+  autorizzazioni già presenti: questa modifica non è una revoca retroattiva.
+- Le connessioni precedenti conservano i propri grant. Il warm-up cambia etichette
+  solo se il token dichiara gmail.modify o l'accesso completo storico; con i nuovi
+  grant l'engagement sulle etichette viene omesso senza richieste 403.
+- Audit aggregato del 26 ottobre: tre Gmail active, due expired; nessuna casella
+  Gmail in outreach_sender_accounts. Nessun grant memorizzato contiene mail.google.com.
+- La riduzione è distribuita (email-oauth-start v60, outreach-warmup v94).
+  Nella console sono stati rimossi gmail.modify e mail.google.com e salvate
+  le motivazioni, senza revocare i vecchi grant.
+  La rimozione riguarda i consensi del percorso corrente, non una migrazione.
+- Non separare Gmail in un nuovo progetto senza una migrazione esplicita: i token
+  sono legati al client che li ha emessi. La vecchia procedura di settembre che
+  ipotizzava soltanto una casella demo è superata.
 
-1. **Privacy policy**, sezione 15 «Dati degli account Google»: dati letti per ogni collegamento, uso
-   dell'AI senza addestramento, cosa non si fa, revoca, dichiarazione Limited Use in inglese.
-   https://www.ediliziaincloud.com/privacy-policy/#dati-account-google
-2. **Ritorno da Google sul nostro dominio.** Calendar, Ads e Business Profile tornavano su
-   `rsbrguhkodgnqfomrevo.supabase.co`, un dominio che non possiamo verificare. Ora possono tornare su
-   `app.ediliziaincloud.com/oauth/...`. Il cambio è **spento** finché non si fa il passo 7.
-3. **Credenziali proprie per Gmail**: `GOOGLE_GMAIL_CLIENT_ID` e `GOOGLE_GMAIL_CLIENT_SECRET`.
-   Finché mancano, Gmail usa quelle di sempre.
+Gmail readonly è un ambito con restrizioni; gmail.send è sensibile. Anche riducendo
+il consenso, per i dati Gmail trattati sui server resta applicabile la verifica
+con restrizioni e la valutazione di sicurezza richiesta da Google. Non usare
+l'aggiunta di tester o un nuovo progetto per eludere questi requisiti.
 
-## Procedura, in ordine
+## Testo inglese: motivazione ambiti sensibili (campo da 1000 caratteri)
 
-### A. Spostare Gmail
+Edilizia in Cloud is a CRM for construction companies. calendar.readonly lists calendars and reads events to show availability, avoid scheduling conflicts and import appointments when enabled. calendar.events creates, updates and deletes events for appointment synchronization. Read-only access cannot perform these writes; free/busy alone lacks event details needed for import. gmail.send lets users send messages and replies from their connected mailbox inside the CRM. adwords lets users select their Google Ads account and view synchronized campaigns, budgets and performance reports; Google Ads API requires this scope for these calls. Identity scopes identify the connected account. Each integration is connected by the user. This submission does not claim live Google Ads campaign publishing.
 
-1. **Crea un nuovo progetto** su Google Cloud, per esempio «edilizia-in-cloud-gmail».
-2. **Abilita la Gmail API** nel progetto nuovo.
-3. **Schermata di consenso** del progetto nuovo: tipo Esterno, nome «Edilizia in Cloud», stesso logo,
-   stessa privacy e termini. Pubblicala **in produzione**, non lasciarla in test: in test i
-   collegamenti scadono dopo 7 giorni. **Non inviarla per la verifica.**
-4. **Scope** del progetto nuovo: `gmail.readonly`, `gmail.send`, `userinfo.email`. `gmail.modify` non
-   serve alla posta: lo usa solo il riscaldamento delle caselle outreach collegate via Google, e oggi
-   non ce n'è nessuna.
-5. **Crea un client OAuth** di tipo «Applicazione web» con questi indirizzi di reindirizzamento:
-   - `https://admin.ediliziaincloud.com/admin/impostazioni/integrazioni/email-callback`
-   - `https://app.ediliziaincloud.com/admin/impostazioni/integrazioni/email-callback`
-   - `https://app.ediliziaincloud.com/azienda/impostazioni/integrazioni/email-callback`
-6. **Su Supabase**, nei segreti delle Edge Functions, aggiungi `GOOGLE_GMAIL_CLIENT_ID` e
-   `GOOGLE_GMAIL_CLIENT_SECRET` con i valori del client appena creato. **Non toccare**
-   `GOOGLE_OAUTH_CLIENT_ID` e `GOOGLE_OAUTH_CLIENT_SECRET`: le usa anche Google Ads.
-7. **Ricollega** la casella `f.andriciuc@overthemol.com` dalla posta dell'app: il vecchio collegamento
-   non si può rinnovare con il client nuovo.
-8. **Nel progetto principale**, scheda «Accesso ai dati»: togli `gmail.readonly`, `gmail.modify` e
-   `gmail.send`.
+## Testo inglese: motivazione ambiti Gmail con restrizioni
 
-### B. Ritorno sul nostro dominio
+Edilizia in Cloud provides an email client inside its CRM. gmail.readonly retrieves messages, message bodies and attachments from the user's connected Gmail mailbox to display incoming conversations and associate them with CRM records. Metadata-only access is insufficient because users need the message body and attachments. Sending and replying use gmail.send. The current connection flow does not request full mailbox access, permanent deletion or label modification. Existing connections may retain permissions granted previously; their tokens are not revoked by this change.
 
-1. **Search Console:** verifica la proprietà del dominio `ediliziaincloud.com` con lo stesso account
-   Google proprietario del progetto principale.
-2. **Client OAuth** di Calendar, Ads e Business Profile: **aggiungi** questi indirizzi di
-   reindirizzamento, senza togliere i vecchi:
-   - `https://app.ediliziaincloud.com/oauth/google-calendar-auth?action=callback`
-   - `https://app.ediliziaincloud.com/oauth/google-ads-oauth?action=callback`
-   - `https://app.ediliziaincloud.com/oauth/gbp-oauth?action=callback`
-3. **Accendi il cambio**: in `platform_settings` la chiave `google_oauth_callback_base` con valore
-   `https://app.ediliziaincloud.com/oauth`.
-4. **Prova** un collegamento di Calendar, Ads e Business Profile dall'app.
-5. **Togli** dai client i vecchi indirizzi su `supabase.co`.
+Categoria: scegliere l'opzione della console corrispondente a un client di posta
+che legge e invia messaggi per conto dell'utente. Non selezionare attestazioni
+su certificazioni o valutazioni non ottenute.
 
-I collegamenti già attivi non si interrompono: l'indirizzo di ritorno serve solo a chi collega un
-account nuovo.
+## Testo inglese Google Business Profile / Google My Business
 
-### C. Invio della richiesta
+Users connect their Google Business Profile, choose a business location they manage and view its reviews and existing owner replies inside Edilizia in Cloud. The business.manage scope is required by the Business Profile APIs used to list the user's accounts, locations and reviews. The demonstrated integration reads business information and reviews; it does not claim automatic review-reply publication or edits to the business listing.
 
-Schermata di consenso del progetto principale, poi «Invia per la verifica». Dati e testi qui sotto.
+Nel progetto la console classifica business.manage tra gli ambiti non sensibili.
+Usare questo testo nelle informazioni aggiuntive o nella descrizione del video,
+non spostare arbitrariamente il permesso in un'altra categoria.
 
-## Dati per la schermata di consenso
+## Informazioni aggiuntive (bozza per il riepilogo, 1000 caratteri)
 
-| Campo | Valore |
-|---|---|
-| Nome app | Edilizia in Cloud |
-| Email assistenza | un indirizzo del dominio, per esempio supporto@ediliziaincloud.com |
-| Home page | https://www.ediliziaincloud.com/ |
-| Privacy policy | https://www.ediliziaincloud.com/privacy-policy/ |
-| Termini di servizio | https://www.ediliziaincloud.com/termini-e-condizioni/ |
-| Domini autorizzati | ediliziaincloud.com |
-| Logo | 120×120 px, lo stesso che si vede sul sito |
+Edilizia in Cloud is a business CRM at https://app.ediliziaincloud.com. The demo covers Google Calendar, Gmail, Google Ads, Google Business Profile and Google Sign-In where used. Each integration is connected by the user and access is limited by the granted permissions and available settings. New Gmail connections request reading and sending only. Older connections are preserved without client changes or token revocation. Our Google data disclosure is at https://www.ediliziaincloud.com/privacy-policy/#dati-account-google and describes access, AI processing, sharing, retention and revocation. The demonstration shows the actual production functionality using test data. No claim of completed third-party security assessment is made in this submission.
 
-La home page collega già privacy e termini: Google lo controlla.
+Inserire il link del video nel campo YouTube dedicato. Non inviare prima che il
+video mostri realmente tutti i percorsi elencati; non inserire credenziali reali
+nel testo. Eventuali accessi di revisione vanno predisposti separatamente.
 
-## Giustificazioni degli scope, da incollare in inglese
+## Registrazione video
 
-**calendar.readonly** — Edilizia in Cloud is a management platform for Italian construction
-companies. When a user connects Google Calendar, we read their existing events only to show busy
-times and avoid booking customer appointments or site visits that overlap with them.
+Durata consigliata 8-12 minuti, non un requisito Google. Schermo 1080p leggibile,
+barra URL visibile, consenso Google completo in inglese. Voce non indispensabile:
+aggiungere didascalie inglesi. Registrare dati di prova, mai password, OTP,
+client_secret, token, codici di autorizzazione o dati dei clienti.
 
-**calendar.events** — Appointments and site visits created in Edilizia in Cloud are written to the
-user's Google Calendar as events, and updated or deleted when the appointment changes, so the
-user's calendar always matches their schedule in the app. We only create, edit or delete events
-that our app created.
+1. Home e privacy, poi accesso alla demo; mostrare anche Google Sign-In se usato.
+2. Calendar: clic su Collega, consenso completo, ritorno e scelta calendario.
+3. Google -> CRM: creare un sopralluogo nel calendario di prova e mostrarne
+   l'importazione quando abilitata. CRM -> Google: creare un appuntamento,
+   cambiarne l'orario e mostrare l'aggiornamento. Dimostrare disponibilità occupata.
+   Se si dichiara cancellazione, eliminare solo l'evento di prova creato dall'app.
+4. Gmail: consenso con lettura/invio, ricezione di un messaggio con allegato da
+   una seconda casella, apertura nell'app, risposta e ricezione effettiva sull'altra
+   casella. Se si mostrano funzioni AI, documentarne anche l'elaborazione dichiarata.
+5. Ads: consenso, selezione account, report con periodo, campagne, clic e spesa;
+   confrontare lo stesso account/periodo in Google Ads. Nessuna attivazione a pagamento.
+6. Business Profile: consenso, selezione sede, recensioni e risposte già pubblicate;
+   confrontare con Google. Non pubblicare risposte su recensioni reali per il video.
+7. Disconnessione dei soli account di prova e stato aggiornato. Non dichiarare
+   cancellazione automatica di copie CRM: la privacy distingue le due operazioni.
 
-**adwords** — Users connect their own Google Ads account to see campaigns, spend and results inside
-the CRM, next to the leads those campaigns produced, and to send offline conversions (deals marked
-as won in the CRM) back to Google Ads so they can measure return on ad spend.
+La schermata app non verificata può comparire durante la demo e deve essere
+visibile. Il titolare completa manualmente eventuali passaggi di sicurezza e
+concessione dei permessi. Non revocare connessioni operative solo per registrare.
+Per mostrare il nuovo consenso usare preferibilmente un account di prova mai
+collegato: un account già autorizzato può conservare il proprio grant precedente.
+Caricare su YouTube come Non in elenco, accessibile senza richieste di accesso.
+Titolo suggerito: Edilizia in Cloud - Google OAuth verification demo.
+Aggiungere nella descrizione i timestamp reali dei capitoli.
 
-**business.manage** — Users connect their Google Business Profile to read the reviews of their
-business in one place and to publish the replies they write or approve in the app.
+## Verifiche completate
 
-**openid, email, profile** — Used only to show which Google account is connected.
+- Funzioni distribuite riletture e confrontate con i file previsti; autenticazione
+  non modificata, chiamate prive di credenziali ancora rifiutate con 401.
+- Flusso Gmail online osservato fino alla scelta account: stesso client
+  232959366283-p5nl7pis2basl3p32mi3p3do26vrp6um.apps.googleusercontent.com,
+  callback /azienda/impostazioni/integrazioni/email-callback e soltanto
+  gmail.readonly, gmail.send, userinfo.email; include_granted_scopes=false.
+- Nessun nuovo consenso concesso. Stato aggregato invariato: 3 active, 2 expired.
+- Configurazione Google riletta dopo reload: permessi ridotti e motivazioni
+  salvati. Nessuna richiesta di verifica inviata; video ancora da registrare.
+- Privacy HTML e PDF v1.2 del 26 ottobre 2026 allineati. PDF di 12 pagine
+  renderizzato e controllato, inclusa la sezione Google sulle pagine 11-12.
 
-## Video dimostrativo
+## Invio e prova finale
 
-Google chiede un video, anche non in elenco su YouTube, in inglese o con sottotitoli. Deve mostrare:
+Confrontare sempre ambiti nel codice distribuito, console, video e privacy.
+Accesso ai dati -> Save -> Centro di verifica -> Prepare for verification.
+Controllare il riepilogo; solo dopo inviare e seguire le email di Google.
+La verifica OAuth non sostituisce l'accesso API/Developer Token di Google Ads.
+Dopo l'approvazione provare anche con un account esterno e verificare i rinnovi.
 
-1. la pagina di accesso di Edilizia in Cloud e l'indirizzo nella barra del browser;
-2. il clic su «Collega Google Calendar» e la schermata di consenso di Google, con il **nome dell'app**
-   e il **client ID** visibili nella barra degli indirizzi;
-3. l'autorizzazione e il ritorno nell'app;
-4. l'uso di ogni scope: gli impegni occupati che bloccano un orario, e un appuntamento creato in app
-   che compare su Google Calendar;
-5. lo stesso giro per Google Ads, con campagne e risultati nel CRM, e per Business Profile, con una
-   recensione e la risposta pubblicata;
-6. lo scollegamento dalle impostazioni.
+## Fonti ufficiali
 
-## Tempi indicativi
-
-La verifica del marchio, cioè nome, logo e dominio, richiede di solito pochi giorni lavorativi. Quella
-degli scope sensitive qualche settimana. Google può scrivere all'email di assistenza per chiedere
-chiarimenti o un video nuovo: conviene tenerla d'occhio.
+- https://support.google.com/cloud/answer/13464321?hl=en
+- https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification
+- https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
+- https://developers.google.com/workspace/gmail/api/auth/scopes
+- https://developers.google.com/terms/api-services-user-data-policy

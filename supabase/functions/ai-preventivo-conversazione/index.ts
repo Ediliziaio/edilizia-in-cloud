@@ -204,7 +204,7 @@ Deno.serve(async req => {
     // I crediti dell'AZIENDA finiti sono un 402 con le chiavi che la finestra di ricarica riconosce: prima
     // arrivavano come «risposta non verificabile» (502) e nessuno capiva che doveva ricaricare.
     if (failure.code === 'AI_COMPANY_CREDIT') return companyCreditResponse(QUOTE_COMPANY_CREDIT_MESSAGE, headers);
-    const status = failure.code === 'AI_PROVIDER_CREDIT' ? 503
+    const status = failure.code === 'AI_PROVIDER_CREDIT' || failure.code === 'AI_BILLING_UNAVAILABLE' ? 503
       : failure.code === 'AI_REQUEST_UNCERTAIN' || failure.code === 'AI_TIMEOUT' ? 504
       : failure.code === 'AI_TURN_LIMIT' ? 429 : 502;
     const demoDetail = (e as { demoDetail?: unknown } | null)?.demoDetail;

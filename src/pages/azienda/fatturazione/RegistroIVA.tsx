@@ -15,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, TrendingUp, TrendingDown, Scale } from "lucide-react";
 import { toast } from "sonner";
+import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
+import { riepilogoPerTrattamentoIva, type RigaRiepilogo } from "@/lib/fatturazione/riepilogoIva";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 const MESI = [
@@ -115,16 +117,15 @@ export default function RegistroIVA() {
     queryKey: ["registro-iva-vendite", companyId, anno],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("documenti_fiscali" as never)
+      const data = await tutteLePagine((from, to) => supabase
+        .from("fatture_vendite_iva" as never)
         .select("id, tipo, numero, data_emissione, cliente_snapshot, imponibile_totale, iva_totale, totale_documento, riepilogo_iva, stato")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("anno", anno)
         .in("tipo", TIPI_VENDITE)
         .not("stato", "in", '("bozza","annullata")')
-        .order("data_emissione", { ascending: true });
-      if (error) throw error;
+        .order("data_emissione", { ascending: true }).order("id").range(from, to));
       return data as any[];
     },
   });
@@ -140,15 +141,14 @@ export default function RegistroIVA() {
       // 1 DPR 100/1998). La regola sta nel database (data_detrazione_iva), la
       // stessa della liquidazione; senza data di ricezione vale la data della
       // fattura, come prima. Esclusione: lo stato 'rifiutata'.
-      const { data, error } = await supabase
+      const data = await tutteLePagine((from, to) => supabase
         .from("fatture_ricevute_periodo_iva" as never)
         .select("id, numero_fattura, data_fattura, data_ricezione_sdi, data_detrazione, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva, aliquota_reverse_charge")
         .eq("company_id", companyId!)
         .gte("data_detrazione", `${anno}-01-01`)
         .lte("data_detrazione", `${anno}-12-31`)
         .in("stato", ["non_letta", "letta", "contabilizzata"])
-        .order("data_detrazione", { ascending: true });
-      if (error) throw error;
+        .order("data_detrazione", { ascending: true }).order("id").range(from, to));
       return data as any[];
     },
   });
@@ -459,6 +459,7 @@ export default function RegistroIVA() {
         </div>
 
         <TabsContent value="vendite">
+          <RiepilogoTrattamenti rows={righeVendite} />
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -514,6 +515,7 @@ export default function RegistroIVA() {
         </TabsContent>
 
         <TabsContent value="acquisti">
+          <RiepilogoTrattamenti rows={righeAcquisti} />
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -589,4 +591,14 @@ export default function RegistroIVA() {
       </p>
     </div>
   );
+}
+
+function RiepilogoTrattamenti({ rows }: { rows: RigaRiepilogo[] }) {
+  const groups = riepilogoPerTrattamentoIva(rows);
+  if (!groups.length) return null;
+  return <Card className="mb-3"><CardHeader className="pb-2"><CardTitle className="text-sm">Riepilogo per aliquota e natura IVA</CardTitle></CardHeader><CardContent>
+    <Table><TableHeader><TableRow><TableHead>Trattamento</TableHead><TableHead className="text-right">Imponibile</TableHead><TableHead className="text-right">Imposta</TableHead></TableRow></TableHeader><TableBody>
+      {groups.map(g => <TableRow key={JSON.stringify([g.aliquota,g.natura])}><TableCell>{g.natura || `${g.aliquota}%`}{/^N\d/.test(g.natura) && <span className="ml-2 text-xs text-muted-foreground">Senza addebito IVA nel documento</span>}</TableCell><TableCell className="text-right">{formatCurrency(g.imponibile)}</TableCell><TableCell className="text-right">{formatCurrency(g.iva)}</TableCell></TableRow>)}
+    </TableBody></Table>
+  </CardContent></Card>;
 }

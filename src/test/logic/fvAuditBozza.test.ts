@@ -33,6 +33,8 @@ const COMPILATO: WizardData = {
   servizi_righe: [{ tipo: "pratiche", descrizione: "Pratica GSE", quantita: 1, prezzo_netto: 200, prezzo_vendita: 350, note_operative: "entro marzo" }],
   finanziamento_modalita: "zero", sconto_tipo: "importo", sconto_valore: 500, tabella_finanziamento_id: "f-1", durata_mesi_scelta: 60,
   modalita_pagamento: { tranche: [{ label: "Acconto", pct: 50 }, { label: "Saldo", pct: 50 }], note: "bonifico", anticipo_pct: 20 },
+  // Le condizioni contrattuali decise per questo preventivo (ultima fase).
+  condizioni_nel_pdf: false, condizioni_testo: "<p>Condizioni scritte per questo cliente</p>",
 };
 
 const salvaERilegge = (data: WizardData, step = 5): WizardData | undefined => {

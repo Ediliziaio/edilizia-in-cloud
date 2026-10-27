@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { gmailMailboxAuthorizationUrl } from "../../../supabase/functions/_shared/gmailMailboxScopes";
 
 const leggi = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -16,14 +17,17 @@ const leggi = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 describe("Il collegamento chiede i permessi giusti", () => {
   const avvio = leggi("supabase/functions/email-oauth-start/index.ts");
 
-  it("Gmail: leggere, marcare letto, inviare — e il consenso che dà il refresh", () => {
-    expect(avvio).toContain("gmail.readonly");
-    expect(avvio).toContain("gmail.modify");
-    expect(avvio).toContain("gmail.send");
-    // Senza questi due Google non restituisce il refresh token, e la casella
-    // si scollega dopo un'ora.
-    expect(avvio).toContain('access_type: "offline"');
-    expect(avvio).toContain('prompt: "consent"');
+  it("Gmail: lettura e invio senza gestione completa della casella", () => {
+    const url = new URL(gmailMailboxAuthorizationUrl("client.apps.googleusercontent.com", "https://app.example/callback", "stato-firmato"));
+    expect(url.searchParams.get("scope")?.split(" ")).toEqual([
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/userinfo.email",
+    ]);
+    expect(url.searchParams.get("access_type")).toBe("offline");
+    expect(url.searchParams.get("prompt")).toBe("consent");
+    expect(url.searchParams.get("include_granted_scopes")).toBe("false");
+    expect(avvio).toContain("gmailMailboxAuthorizationUrl(clientId, body.redirect_uri, state)");
   });
 
   it("Outlook: leggere, inviare, e restare collegati", () => {

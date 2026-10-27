@@ -4,13 +4,14 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
-import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";
+import { preventivoVisibile, type ClienteDiChiChiama } from "../_shared/preventivoVisibile.ts";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, TemplateCompositionError, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { formatoImmagine, leggiLogo } from "../_shared/logoAzienda.ts";
 import { colorePreventivo, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
 import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventivo.ts";
+import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 const DEFAULT_T = {
@@ -75,6 +76,11 @@ Deno.serve(async (req) => {
       }
       : await requireAuth(req, corsH);
     const { quote_id, preview_mode, template_data, company_name, preview_signature } = body;
+    // Il PDF che va in FIRMA ha sempre le condizioni contrattuali, anche se il preventivo è impostato per uscire
+    // senza (lo step «Documenti e PDF»): il preventivo firmato è il contratto, e senza condizioni non dice niente
+    // su tempi, varianti, garanzie e recesso. Lo chiede send-quote-signature: la regola sta qui, nel server, così
+    // nessuna strada la salta.
+    const perFirma = body?.per_firma === true;
 
     // ─── PREVIEW MODE ───
     const isPreview = preview_mode === true && template_data;
@@ -95,6 +101,7 @@ Deno.serve(async (req) => {
     // Erano esposte in interfaccia e ignorate qui: l'utente spuntava «mostra
     // misure» e il PDF usciva identico. Default = attivo, come nella UI.
     const opzione = (chiave: string, predefinito = true): boolean => {
+      if (perFirma && chiave === "pdf_mostra_condizioni") return true;
       const v = quote?.[chiave];
       return v == null ? predefinito : v !== false;
     };
@@ -208,7 +215,8 @@ Deno.serve(async (req) => {
       });
       // Dal bot non c'è il token dell'utente: la RLS non si può leggere, e il bot
       // manda il PDF solo a chi l'ha chiesto e solo per preventivi della sua azienda.
-      if (!interna && !(await preventivoVisibile(comeChiChiama, quote.id))) {
+      // Il contratto minimo evita l'espansione ricorsiva dei generici del client in Deno.
+      if (!interna && !(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {
         return errorResponse("Preventivo non trovato", 404, corsH);
       }
 
@@ -348,6 +356,13 @@ Deno.serve(async (req) => {
           t.legal_terms_text = t.composed_legal.body_html;
           t.show_legal_terms = true;
         }
+      }
+      // Le condizioni riscritte per QUESTO preventivo (27/10/2026): vincono su quelle del modello e sui blocchi
+      // collegati, perché sono state scritte per questo cliente. Le riscrive solo chi ha il permesso dei modelli.
+      // L'interruttore «stampa condizioni contrattuali» resta sopra: a PDF senza condizioni non esce nulla.
+      if (haTesto(quote?.condizioni_testo)) {
+        t.contractual_terms_text = String(quote.condizioni_testo);
+        t.show_contractual_terms = true;
       }
       try {
         // Contact già prefetchato nel batch parallelo

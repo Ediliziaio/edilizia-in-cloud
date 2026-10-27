@@ -48,22 +48,22 @@ describe("calcolaTotale — scenari calcolati a mano", () => {
     expect(t.metri_quadri).toBeCloseTo(4.36, 9);
   });
 
-  it("2. sconto del 10% e IVA 22%: netto 3.861,45, IVA 849,519, totale 4.710,969", () => {
-    // sconto = 4.290,50 × 10% = 429,05; netto = 3.861,45; IVA = 3.861,45 × 22% = 849,519.
+  it("2. sconto del 10% e IVA 22%: netto 3.861,45, IVA 849,52, totale 4.710,97", () => {
+    // sconto = 4.290,50 × 10% = 429,05; netto = 3.861,45; totale = 3.861,45 × 1,22 = 4.710,969 → 4.710,97; IVA per differenza 849,52.
     const t = calcolaTotale(finestre, complementi, { iva_percentuale: 22, sconto_percentuale: 10 }, servizi);
     expect(cent(t.sconto)).toBe(42905);
     expect(cent(t.imponibile_netto)).toBe(386145);
-    expect(t.iva_importo).toBeCloseTo(849.519, 6);
-    expect(t.totale_iva_inclusa).toBeCloseTo(4710.969, 6);
+    expect(cent(t.iva_importo)).toBe(84952);
+    expect(cent(t.totale_iva_inclusa)).toBe(471097);
   });
 
-  it("3. sconto fisso e poi percentuale: (4.290,50 − 150) × 95% = 3.933,475; IVA 4%", () => {
+  it("3. sconto fisso e poi percentuale: (4.290,50 − 150) × 95% = 3.933,475 → 3.933,48; IVA 4%", () => {
     // Prima il fisso, poi il %: dopo il fisso 4.140,50; il 5% ne toglie 207,025; sconto totale 357,025.
     const t = calcolaTotale(finestre, complementi, { iva_percentuale: 4, sconto_importo: 150, sconto_percentuale: 5 }, servizi);
-    expect(t.imponibile_netto).toBeCloseTo(3933.475, 6);
-    expect(t.sconto).toBeCloseTo(357.025, 6);
-    expect(t.iva_importo).toBeCloseTo(157.339, 6); // 3.933,475 × 4%
-    expect(t.totale_iva_inclusa).toBeCloseTo(4090.814, 6);
+    expect(cent(t.imponibile_netto)).toBe(393348); // 3.933,475 al centesimo
+    expect(cent(t.sconto)).toBe(35702); // 4.290,50 − 3.933,48
+    expect(cent(t.iva_importo)).toBe(15733); // totale 4.090,81 − netto 3.933,48
+    expect(cent(t.totale_iva_inclusa)).toBe(409081);
   });
 
   it("4. IVA 0%: il totale è l'imponibile", () => {
@@ -85,7 +85,7 @@ describe("calcolaTotale — scenari calcolati a mano", () => {
       [], [accessorio({ prezzo_unitario: 33.33, quantita: 3 }), accessorio({ prezzo_unitario: 1234.56, quantita: 0.5 })], { iva_percentuale: 10 },
     );
     expect(cent(t.imponibile_lordo)).toBe(71727);
-    expect(t.totale_iva_inclusa).toBeCloseTo(788.997, 6);
+    expect(cent(t.totale_iva_inclusa)).toBe(78900); // 788,997 al centesimo
   });
 
   it("7. la voce a 0 € (omaggio) non pesa, il computo vuoto fa 0 senza NaN", () => {
@@ -178,10 +178,10 @@ describe("IVA mista (beni significativi, DM 29.12.99)", () => {
   });
 
   it("prezzo scritto a mano 9.000 su voci da 7.000: stessa aliquota effettiva (1.060 / 7.000)", () => {
-    // IVA = 9.000 × 1.060 / 7.000 = 1.362,857…; totale 10.362,857…
+    // IVA = 9.000 × 1.060 / 7.000 = 1.362,857… → 1.362,86; totale 10.362,86
     const t = calcolaTotale(voci.s, voci.a, { iva_percentuale: IVA_MISTA_SENTINEL, prezzo_manuale: 9000 }, voci.m);
-    expect(t.iva_importo).toBeCloseTo(1362.857142857, 6);
-    expect(t.totale_iva_inclusa).toBeCloseTo(10362.857142857, 6);
+    expect(cent(t.iva_importo)).toBe(136286);
+    expect(cent(t.totale_iva_inclusa)).toBe(1036286);
   });
 
   it("solo serramenti (la posa è nel loro prezzo): non ci sono altre prestazioni e tutto va al 22%", () => {

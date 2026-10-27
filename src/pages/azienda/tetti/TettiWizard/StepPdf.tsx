@@ -1,4 +1,5 @@
 import { readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
 /**
  * StepPdf — step "PDF" del wizard Tetti (Task 22).
  *
@@ -38,8 +39,10 @@ import {
   type TetPdfCompany, renderTetPreviewBlobUrl } from "@/hooks/useTettiPDF";
 import type { TetProgetto, TetComputoVoce, TetProgettoMedia } from "@/types/tetti";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 interface Props {
   progetto: TetProgetto;
   computo: TetComputoVoce[];
@@ -48,6 +51,8 @@ interface Props {
   onIndietro?: () => void;
   /** Telefono: le voci di «Da completare» portano al passo in cui si completano. */
   onVaiAlPasso?: (passo: PassoDaCompletare) => void;
+  /** Scrive sul preventivo la scelta sulle condizioni contrattuali. */
+  onCondizioni?: (patch: { condizioni_nel_pdf?: boolean | null; condizioni_testo?: string | null }) => void;
 }
 
 type PassoDaCompletare = "cliente" | "immobile" | "computo";
@@ -58,7 +63,7 @@ interface ChecklistItem {
   hint?: string;
 }
 
-export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso }: Props) {
+export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const { data: template } = useTetTemplatePdf();
@@ -119,10 +124,11 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           sconto_pct: v.sconto_pct,
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
+          opzionale: v.opzionale,
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,
-          iva_pct: Number(progetto.iva_pct ?? 10),
+          iva_pct: Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT),
           // Il prezzo scritto a mano in Economia: senza, anteprima e firma
           // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
           prezzo_manuale: progetto.prezzo_manuale ?? null,
@@ -136,7 +142,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
-  const ivaPct = Number(progetto.iva_pct ?? 10);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
@@ -197,6 +203,15 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts).
           Il PDF che va in firma è generaPdfBlob: lo stesso A4, col modello
           dell'intervento se il preventivo ne ha uno (resolveTetQuoteTemplate). */}
+      {onCondizioni && (
+        <CondizioniDelPreventivoCard
+          progetto={progetto}
+          onChange={onCondizioni}
+          testoDelModello={(template as unknown as { condizioni_legali_testo?: string | null } | undefined)?.condizioni_legali_testo}
+          spenteNelModello={(template as unknown as { condizioni_legali_attivo?: boolean | null } | undefined)?.condizioni_legali_attivo === false}
+        />
+      )}
+
       {progetto.id && progetto.company_id && (
         <InviaFirmaCard
           companyId={progetto.company_id}
@@ -216,7 +231,8 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           disabled={computoVuoto}
           disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
           generaPdfBlob={async () => {
-            const url = await renderTetPreviewBlobUrl(payload);
+            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
+            const url = await renderTetPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
             const blob = await readPdfPreviewBlob(url);
             revokePdfPreviewUrl(url);
             return blob;

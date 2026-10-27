@@ -43,14 +43,13 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<{ create: true } | { pay: Request } | null>(null);
-  const [importPage, setImportPage] = useState(1);
   const [lastCreated, setLastCreated] = useState<Request | null>(null);
   const [progress, setProgress] = useState("");
   async function invoke<T>(action: string, values: Record<string, unknown> = {}): Promise<T> {
     const { data, error: err } = await supabase.functions.invoke("billing-massive", { body: { ...values, action, company_id: companyId, provider } });
     if (err) {
       const response = (err as { context?: Response }).context;
-      const details = response instanceof Response ? await response.clone().json().catch(() => null) : null;
+      const details = response instanceof Response ? await response.clone().json().catch((): null => null) : null;
       throw new Error(details?.error ?? "Servizio di recupero non disponibile. Verifica che la funzione billing-massive sia pubblicata.");
     }
     if (data?.error) throw new Error(data.error);
@@ -80,13 +79,11 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
     toast.success("Richiesta firmata inoltrata.");
   }
   async function importInvoices() {
-    // One bounded page per click. Cursor only advances when every document was processed.
-    const result = await invoke<{ imported: number; duplicates: number; failed: number; errors: string[]; next_page: number | null }>("import_page", { page: importPage });
-    setProgress(`Pagina ${importPage}: ${result.imported} importate, ${result.duplicates} già presenti, ${result.failed} non importate.`);
+    const result = await invoke<{ imported: number; duplicates: number; failed: number; errors: string[]; next_page: number | null }>("import_page");
+    setProgress(`${result.imported} importate, ${result.duplicates} già presenti, ${result.failed} non importate. ${result.next_page ? "Il recupero prosegue automaticamente ogni due minuti." : "Giro di importazione completato."}`);
     if (result.failed) throw new Error(result.errors.slice(0, 3).join(" ") || "Alcune fatture non sono state importate. Controlla il registro delle sincronizzazioni prima di proseguire.");
-    setImportPage(result.next_page ?? 1);
     await Promise.all([queryClient.invalidateQueries({ queryKey: ["invoices"] }), queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] })]);
-    toast.success(result.next_page ? "Pagina importata. Premi ancora per continuare." : "Importazione completata.");
+    toast.success(result.next_page ? "Importazione avviata: prosegue automaticamente." : "Importazione completata.");
   }
   const rows = [...(listing.data?.requests ?? [])];
   if (lastCreated && !rows.some(r => String(r.id) === String(lastCreated.id))) rows.unshift(lastCreated);
@@ -97,13 +94,13 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
     </CardDescription></CardHeader>
     <CardContent className="space-y-5">
       <div className="space-y-2"><Label htmlFor="massive-provider">Collegamento</Label>
-        <Select value={provider} disabled={busy} onValueChange={v => { setProvider(v); setEnabled(false); setLastCreated(null); setImportPage(1); setProgress(""); setError(""); }}>
+        <Select value={provider} disabled={busy} onValueChange={v => { setProvider(v); setEnabled(false); setLastCreated(null); setProgress(""); setError(""); }}>
           <SelectTrigger id="massive-provider"><SelectValue /></SelectTrigger><SelectContent>
-            <SelectItem value="itala">Fattura Elettronica API (ITALA)</SelectItem><SelectItem value="ade_direct">Canale diretto AdE (SdICoop / SMTS)</SelectItem>
+            <SelectItem value="itala">Fattura Elettronica API (ITALA)</SelectItem><SelectItem value="ade_direct" disabled>Canale diretto AdE · in preparazione</SelectItem>
           </SelectContent></Select>
       </div>
-      {provider === "itala" && !italaConnected && <Alert><AlertDescription>Collega prima Fattura Elettronica API in «Programma collegato», con Client ID e Client Secret della tua scheda personale.</AlertDescription></Alert>}
-      {provider === "itala" && <p className="text-sm text-muted-foreground">In Fatture e Corrispettivi → Consultazione → Censimento canali per forniture massive, abilita «Itala Tecnologia Informatica S.r.l.» per Scarico Fatture. L'azienda deve essere censita anche nel tuo account ITALA.</p>}
+      {provider === "itala" && !italaConnected && <Alert><AlertDescription>Attiva prima «Recupero fatture con Edilizia in Cloud» in «Programma collegato». La partita IVA viene letta dall’anagrafica aziendale.</AlertDescription></Alert>}
+      {provider === "itala" && <p className="text-sm text-muted-foreground">In Fatture e Corrispettivi → Consultazione → Censimento canali per forniture massive, abilita «Itala Tecnologia Informatica S.r.l.» per Scarico Fatture. Il collegamento dalle impostazioni registra l'azienda nel servizio centrale.</p>}
       {listing.data?.missing?.length ? <Alert><AlertDescription>Canale diretto da completare: {listing.data.missing.join("; ")}. Puoi già preparare il file da firmare.</AlertDescription></Alert> : null}
       {listing.data?.environment && <Badge variant="outline">Ambiente {listing.data.environment === "test" ? "di test" : "di produzione"}</Badge>}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -119,7 +116,7 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
       <div className="flex flex-wrap gap-2">
         <Button disabled={disabled || !from || !to || !enabled} onClick={() => setConfirmation({ create: true })}>{busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}Prepara richiesta {provider === "itala" ? "· 1 credito" : ""}</Button>
         <Button variant="outline" disabled={disabled} onClick={() => void run(async () => { await listing.refetch(); })}><RefreshCw className="h-4 w-4 mr-2" />Aggiorna elenco</Button>
-        {provider === "itala" && <Button variant="outline" disabled={disabled} onClick={() => void run(importInvoices)}>Importa fatture disponibili · pagina {importPage}</Button>}
+        {provider === "itala" && <Button variant="outline" disabled={disabled} onClick={() => void run(importInvoices)}>Importa fatture disponibili</Button>}
       </div>
       {progress && <p role="status" className="text-sm">{progress}</p>}
       {(error || listing.error) && <Alert variant="destructive"><AlertDescription>{error || textError(listing.error)}</AlertDescription></Alert>}

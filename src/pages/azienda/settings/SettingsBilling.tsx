@@ -1,3 +1,4 @@
+import { ItalaPlatformConnection } from "@/components/billing/ItalaPlatformConnection";
 import { MassiveImportPanel } from "@/components/billing/MassiveImportPanel";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +60,7 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     warn: "Servono le credenziali di un utente abilitato ai Web Service Aruba: verifica nel pannello Aruba che l'accesso alle API sia attivo.",
   },
   itala: {
-    text: "Nella scheda personale di fattura-elettronica-api.it apri Credenziali API e copia Client ID e Client Secret (non la password del portale). Il collegamento legge emesse, ricevute e stato SDI. Per lo storico AdE usa la scheda Recupera da AdE: richiede abilitazione del provider e firma della richiesta.",
+    text: "Il servizio centrale di Edilizia in Cloud legge emesse, ricevute e stato SdI per la partita IVA della tua azienda. Non servono chiavi API personali. Per lo storico AdE usa la scheda Recupera da AdE: richiede abilitazione del provider e firma della richiesta.",
     link: "https://www.fattura-elettronica-api.it/documentazione/",
     linkLabel: "Doc ITALA REST 2.0",
   },
@@ -125,7 +126,6 @@ export default function SettingsBilling() {
   const [newApiKey, setNewApiKey] = useState("");
   const [newUsername, setNewUsername] = useState(""); // Aruba (e futuri provider user/password)
   const [newPassword, setNewPassword] = useState("");
-  const [italaEnvironment, setItalaEnvironment] = useState("test");
   const [newZucUrl, setNewZucUrl] = useState(ZUCCHETTI_URL_DEFAULT); // Zucchetti: URL servizio
   const [newCompany, setNewCompany] = useState(""); // Zucchetti: company (es. 001)
   const [testing, setTesting] = useState<string | null>(null);
@@ -182,15 +182,12 @@ export default function SettingsBilling() {
       const authType = cfg?.authType;
       const isUserPass = authType === "userpass";
       const isZucchetti = authType === "zucchetti";
-      const isItala = authType === "itala";
-      const action = isItala ? "configure_itala" : isUserPass
+      const action = isUserPass
         ? `configure_${newProvider}`
         : isZucchetti
           ? "configure_zucchetti"
           : "configure_apikey";
-      const bodyPayload = isItala
-        ? { client_id: newUsername.trim(), client_secret: newPassword, environment: italaEnvironment }
-        : isZucchetti
+      const bodyPayload = isZucchetti
         ? { url: newZucUrl.trim(), utente: newUsername.trim(), password: newPassword, company: newCompany.trim() }
         : isUserPass
           ? (newProvider === "acube"
@@ -343,6 +340,8 @@ export default function SettingsBilling() {
             </CardHeader>
           </Card>
 
+          <ItalaPlatformConnection companyId={companyId} connected={integrations.some(i => i.provider === "itala" && i.is_active)} hasDirect={integrations.some(i => i.provider !== "itala" && i.is_active)} />
+
           {/* Connected providers */}
           {isLoading ? (
             <div className="space-y-2">
@@ -482,7 +481,7 @@ export default function SettingsBilling() {
                   <Select value={newProvider} onValueChange={setNewProvider}>
                     <SelectTrigger><SelectValue placeholder="Seleziona provider..." /></SelectTrigger>
                     <SelectContent>
-                      {PROVIDERS.map((p) => (
+                      {PROVIDERS.filter(p => p.value !== "itala").map((p) => (
                         <SelectItem key={p.value} value={p.value}>
                           {p.icon} {p.label}{IMPORTA_RICEVUTE.has(p.value) ? " · Emesse + Ricevute" : ""}
                         </SelectItem>
@@ -553,50 +552,43 @@ export default function SettingsBilling() {
                           />
                         </div>
                       </div>
-                    ) : (providerConfig(newProvider)?.authType === "userpass" || providerConfig(newProvider)?.authType === "itala") ? (
+                    ) : providerConfig(newProvider)?.authType === "userpass" ? (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <Label>{newProvider === "itala" ? "Client ID API" : newProvider === "acube" ? "Email A-Cube" : "Username Aruba"}</Label>
+                          <Label>{newProvider === "acube" ? "Email A-Cube" : "Username Aruba"}</Label>
                           <Input
                             type={newProvider === "acube" ? "email" : "text"}
                             autoComplete="off"
                             value={newUsername}
                             onChange={(e) => setNewUsername(e.target.value)}
-                            placeholder={newProvider === "itala" ? "Client ID della scheda personale" : newProvider === "acube" ? "Email dell'account A-Cube" : "Username account Aruba FE"}
+                            placeholder={newProvider === "acube" ? "Email dell'account A-Cube" : "Username account Aruba FE"}
                           />
                         </div>
                         <div>
-                          <Label>{newProvider === "itala" ? "Client Secret API" : "Password"}</Label>
+                          <Label>Password</Label>
                           <Input
                             type="password"
                             autoComplete="new-password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            aria-label={newProvider === "itala" ? "Client Secret API" : "Password provider"}
-                            placeholder={newProvider === "itala" ? "Client Secret API" : newProvider === "acube" ? "Password account A-Cube" : "Password account Aruba FE"}
+                            aria-label="Password provider"
+                            placeholder={newProvider === "acube" ? "Password account A-Cube" : "Password account Aruba FE"}
                           />
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <Label>{newProvider === "itala" ? "Bearer Token" : "API Key"}</Label>
+                        <Label>API Key</Label>
                         <Input
                           type="password"
                           value={newApiKey}
                           onChange={(e) => setNewApiKey(e.target.value)}
-                          placeholder={newProvider === "itala" ? "Bearer token ITALA" : "Inserisci la chiave API"}
+                          placeholder="Inserisci la chiave API"
                         />
                       </div>
                     )}
                   </div>
                 )}
-
-                {newProvider === "itala" && <div className="space-y-2">
-                  <Label>Ambiente Fattura Elettronica API</Label>
-                  <Select value={italaEnvironment} onValueChange={setItalaEnvironment}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
-                    <SelectItem value="test">Test</SelectItem><SelectItem value="prod">Produzione</SelectItem>
-                  </SelectContent></Select>
-                </div>}
 
                 {newProvider === "fattureincloud" && (
                   <div className="bg-blue-50 dark:bg-blue-950/40 rounded-md p-3 text-sm text-muted-foreground space-y-1">
@@ -620,7 +612,7 @@ export default function SettingsBilling() {
                       !newProvider ||
                       (providerConfig(newProvider)?.authType === "zucchetti"
                         ? (!newZucUrl || !newUsername || !newPassword || !newCompany)
-                        : (providerConfig(newProvider)?.authType === "userpass" || providerConfig(newProvider)?.authType === "itala")
+                        : providerConfig(newProvider)?.authType === "userpass"
                           ? (!newUsername || !newPassword)
                           : newProvider !== "fattureincloud" && !newApiKey) ||
                       addMutation.isPending
