@@ -105,6 +105,36 @@ export async function getEmailBalance(
 }
 
 /**
+ * Prima di mandare email che costano: i crediti ci sono? (27/10/2026)
+ *
+ * Il preventivo in firma cambia lo stato, annulla le firme aperte e congela il PDF PRIMA di mandare l'email: se poi
+ * l'invio veniva respinto per credito finito (402), il preventivo risultava «inviata», il cliente non riceveva niente
+ * e chi aveva mandato leggeva un errore in JSON. Il controllo si fa prima di toccare qualunque cosa, con la stessa
+ * regola dell'invio vero (`sendEmailUnified`): quota gratuita, poi saldo contro prezzo × destinatari. Se il database
+ * non risponde non si blocca nessuno: decide l'invio.
+ */
+export async function verificaCreditiEmail(
+  companyId: string,
+  destinatari: number,
+  adminClient?: SupabaseClient
+): Promise<{ ok: true } | { ok: false; saldoEur: number; serveEur: number }> {
+  const client = adminClient || getAdminClient();
+  try {
+    const { data, error } = await client.rpc("get_company_email_quota", { p_company_id: companyId });
+    if (error || !data) return { ok: true };
+    const q = data as Record<string, unknown>;
+    const prezzo = Number(q.effective_price_eur ?? 0);
+    if (q.is_free || !q.over_quota || !(prezzo > 0)) return { ok: true };
+    const { balanceEur } = await getEmailBalance(companyId, client);
+    const serveEur = prezzo * Math.max(1, destinatari);
+    if (Number(balanceEur) + 1e-9 >= serveEur) return { ok: true };
+    return { ok: false, saldoEur: Number(balanceEur), serveEur };
+  } catch {
+    return { ok: true };
+  }
+}
+
+/**
  * Check if a company needs auto-topup and return config if enabled.
  */
 export async function checkAutoTopup(

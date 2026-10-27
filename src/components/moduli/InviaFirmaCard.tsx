@@ -120,13 +120,20 @@ export function InviaFirmaCard(props: Props) {
         validityDays: props.validityDays ?? 30,
         pdfBlob,
       });
-      await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined,
+      const esitoInvio = await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined,
         co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null);
-      toast.success("Preventivo inviato per firma", {
-        description: co
-          ? `Email a ${email.trim()} e a ${coEmail.trim()}: è accettato quando firmano tutti e due.`
-          : `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
-      });
+      if (co && esitoInvio.invitoCointestatarioInviato === false) {
+        // La richiesta del cointestatario c'è, la sua email no: serve dirlo, non fingere che siano partite due email.
+        toast.warning("Inviato al cliente, ma non al cointestatario", {
+          description: `L'email a ${coEmail.trim()} non è partita. Copia il link di ${co.nome} da qui sotto e mandaglielo tu.`,
+        });
+      } else {
+        toast.success("Preventivo inviato per firma", {
+          description: co
+            ? `Email a ${email.trim()} e a ${coEmail.trim()}: è accettato quando firmano tutti e due.`
+            : `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
+        });
+      }
       setDialogOpen(false);
       await refresh();
     } catch (e) {

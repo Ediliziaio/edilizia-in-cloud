@@ -44,10 +44,10 @@ describe("send-quote-signature: vedere non basta, serve poter modificare", () =>
     expect(i, testo).toBeGreaterThan(-1);
     return i;
   };
-  const CONTROLLO = "if (!(await preventivoModificabile(comeChiChiama, quote.id))) {";
+  const CONTROLLO = "if (!(await preventivoModificabile(comeChiChiama as unknown as ClienteRpcDiChiChiama, quote.id))) {";
 
   it("col client di chi chiama, e un 403 che dice il motivo", () => {
-    expect(invio).toContain('import { preventivoModificabile, preventivoVisibile } from "../_shared/preventivoVisibile.ts";');
+    expect(invio).toMatch(/import \{ preventivoModificabile, preventivoVisibile[^}]*\} from "\.\.\/_shared\/preventivoVisibile\.ts";/);
     expect(invio).toContain(
       `${CONTROLLO}\n      return errorResponse("Per mandare il preventivo al cliente serve il permesso di modificare i preventivi.", 403, corsH);`,
     );
@@ -55,7 +55,7 @@ describe("send-quote-signature: vedere non basta, serve poter modificare", () =>
 
   it("dopo il controllo di visibilità e prima di ogni scrittura, del PDF e dell'email", () => {
     const controllo = posizione(CONTROLLO);
-    expect(posizione("if (!(await preventivoVisibile(comeChiChiama, quote.id))) {")).toBeLessThan(controllo);
+    expect(posizione("if (!(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {")).toBeLessThan(controllo);
     for (const dopo of [
       'if (mode === "solo_pdf")',
       '.from("signature_requests")',
