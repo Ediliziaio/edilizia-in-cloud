@@ -1,8 +1,8 @@
 # Server dedicato al canale AdE
 
-Configurazione predisposta per una **nuova VPS**, distinta dal server WhatsApp. Nessuna risorsa a pagamento è creata da questi file. Dominio, DNS, certificati e accreditamento non sono ancora attivati.
+VPS dedicata **creata il 27 ottobre 2026**, distinta dal server WhatsApp: `eic-ade-fra1-01`, DigitalOcean ID `613146862`, IP `164.90.222.101`, regione `fra1`. Il gateway privato è installato e risponde correttamente a `/health`; il firewall Cloud è associato solo a questa VPS. DNS, certificati e accreditamento restano da completare. Le notifiche HTTPS sono disabilitate fino alla configurazione dei certificati effettivi. Questi file non creano risorse a pagamento automaticamente.
 
-Proposta: DigitalOcean Basic Regular, 1 vCPU / 2 GiB / 50 GiB, **12 USD/mese**, imposte ed extra esclusi ([listino ufficiale](https://www.digitalocean.com/pricing/droplets), verificato il 27 ottobre 2026). Backup esterni e relativi costi vanno configurati prima dell'esercizio. Non riutilizzare il server WhatsApp né modificarne DNS, proxy o container.
+Piano attivato: DigitalOcean Basic Regular, 1 vCPU / 2 GiB / 50 GiB, **12 USD/mese**, imposte ed extra esclusi ([listino ufficiale](https://www.digitalocean.com/pricing/droplets), verificato il 27 ottobre 2026). Backup esterni e relativi costi vanno configurati prima dell'esercizio. Non riutilizzare il server WhatsApp né modificarne DNS, proxy o container.
 
 | Ambiente | URL proposto, ancora da pubblicare | API amministrativa sulla VPS |
 | --- | --- | --- |
@@ -12,6 +12,8 @@ Proposta: DigitalOcean Basic Regular, 1 vCPU / 2 GiB / 50 GiB, **12 USD/mese**, 
 I nomi vanno verificati contro i requisiti del portale prima di generare le CSR. Il proxy instrada per SNI e passa TLS integro al servizio Node: la CA e il certificato client SdI vengono verificati dal listener mTLS. Serve anche verificare nel collaudo ufficiale l'invio SNI da parte del client SdI. Nessun certificato o segreto entra nell'immagine Docker. Database e directory certificati sono distinti per ambiente. La produzione resta disattivata finché non è esplicitamente avviato il relativo profilo.
 
 ## Preparazione sulla nuova VPS
+
+Il bootstrap effettivamente utilizzato è in `cloud-init.yaml`: Ubuntu 24.04, Docker, Compose, SSH senza password e firewall locale. Il firewall DigitalOcean limita ulteriormente SSH al solo indirizzo amministrativo.
 
 Richiede Docker Engine, Buildx e Docker Compose >= 2.24. Installare gli aggiornamenti del sistema. Configurare il firewall dell'hosting per consentire TCP 443 e SSH solo dagli indirizzi amministrativi; non aprire 3098, 3099 o 3100. Puntare i due record DNS al nuovo IP, senza un proxy HTTP/CDN. Il servizio usa una sola replica per ambiente.
 
@@ -33,7 +35,7 @@ docker compose -f deploy/ade/compose.yaml ps
 curl --fail http://127.0.0.1:3098/health
 ```
 
-Non avviare con certificati inventati o vuoti. Prima di inserire l'URL nel portale verificare dall'esterno DNS, catena server, hostname, handshake mTLS e persistenza della notifica dopo il riavvio. Un semplice HTTP 200 su `/health` non collauda il canale. I test sintetici locali non sostituiscono il collaudo AdE.
+Il bootstrap corrente avvia soltanto `test`, con `SMTS_SERVER_CERT` e `SMTS_SERVER_KEY` non impostati: funziona esclusivamente il gateway privato su loopback, senza listener HTTPS e senza ingress pubblico. Non registrare questo stato nel portale come endpoint pronto. Per attivare il listener servono certificati effettivi; non usare certificati inventati o vuoti. Prima di inserire l'URL nel portale verificare dall'esterno DNS, catena server, hostname, handshake mTLS e persistenza della notifica dopo il riavvio. Un semplice HTTP 200 su `/health` non collauda il canale. I test sintetici locali non sostituiscono il collaudo AdE.
 
 Per la produzione ripetere con **certificati, segreto e dati separati**, creando `production.env`; quindi avviare `docker compose -f deploy/ade/compose.yaml --profile production up -d`. Mantenere `SMTS_ACCREDITED=false` fino al completamento dell'accreditamento e dell'abilitazione SMTS. Il flag blocca le operazioni massive in uscita, mentre il listener delle notifiche permette il collaudo.
 

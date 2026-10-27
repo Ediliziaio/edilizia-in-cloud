@@ -1,0 +1,29 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+  - openssl
+write_files:
+  - path: /etc/ssh/sshd_config.d/00-eic-ade.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+  - path: /etc/docker/daemon.json
+    owner: root:root
+    permissions: '0644'
+    content: |
+      {"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [systemctl, reload, ssh]
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, limit, 22/tcp]
+  - [ufw, allow, 443/tcp]
+  - [ufw, --force, enable]
+  - [install, -d, -m, '0700', /opt/eic-ade]
