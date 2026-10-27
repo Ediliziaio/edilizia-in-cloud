@@ -14,6 +14,7 @@ import { tinteggiaturaInternaContent, cartaDaParatiContent, cartongessoContent, 
 import { pergolaBioclimaticaContent, pergolaTeloContent, tendeSoleContent, vetrateChiusureContent, carportContent } from "./fullPergole";
 import { cucinaContent, sottotettoContent, aperturePortantiContent, condominioContent, montascaleContent } from "./fullRistrutturazioneExtra";
 import { facciataCappottoContent, facciataRifacimentoContent, facciataBalconiContent, facciataTinteggiaturaContent, facciataInternoContent, facciataRiparazioniContent, facciataVentilataContent, facciataPietraContent, facciataPuliziaContent } from "./fullFacciate";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo", "cucina", "sottotetto", "aperture-portanti", "condominio", "montascale"] as const;
 /** Facciate collegate al motore Ristrutturazioni (Lotto 10, Ricetta B): 6 modelli portati + 3 nuovi. */
@@ -55,7 +56,7 @@ export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId)
     color_primary: base.color_primary || "#563e32", color_accent: base.color_accent || "#b0794e",
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_cronoprogramma: true, show_percorso: true, show_garanzie: true,
     ...ereditaCondizioniModello(base),
-    default_detrazione_pct: 0, default_iva_pct: base.default_iva_pct ?? 22,
+    default_detrazione_pct: 0, default_iva_pct: base.default_iva_pct ?? IVA_PREDEFINITA_PCT,
     testimonianze: [], gallery_lavori: [], finanziamento_promo: null, pdf_pagine_libere: [],
     esigenze: items(c.needs), soluzione: items(c.solution), usp: items(c.usp), percorso: items(c.journey), garanzie: items(c.guarantees),
     cronoprogramma: c.schedule.map(([fase, descrizione]) => ({ fase, descrizione, durata: "Da concordare" })),
@@ -318,7 +319,7 @@ export function buildRstModulePreview(companyId: string, template: RstTemplatePd
     costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0, importo: quantita * prezzo_unitario,
     margine_eur: 0, margine_pct: 0, listino_voce_id: null, ordine: i,
   }));
-  const imponibile = computo.reduce((s, r) => s + r.importo, 0), iva = template.default_iva_pct ?? 22;
+  const imponibile = computo.reduce((s, r) => s + r.importo, 0), iva = template.default_iva_pct ?? IVA_PREDEFINITA_PCT;
   const progetto: RstProgetto = {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza", tipo_intervento: RST_MODULE_TITLES[id],
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,

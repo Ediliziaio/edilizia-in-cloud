@@ -26,6 +26,7 @@ import {
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   RstProgetto,
   RstComputoVoce,
@@ -143,7 +144,7 @@ function totaliDaRighe(
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
-    iva_pct: Number(parametri.iva_pct ?? 22),
+    iva_pct: Number(parametri.iva_pct ?? IVA_PREDEFINITA_PCT),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
     iva_beni_significativi: parametri.iva_beni_significativi === true,
   });

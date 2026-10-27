@@ -2566,7 +2566,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               </div>
             </div>
 
-            {/* Blocco 3b: Modalità e fasi di pagamento (firmate dal cliente, riportate in commessa) */}
+            {/* Blocco 3b: Come paga il cliente (firmate dal cliente, riportate in commessa) */}
 
             {/* Blocco 3c: ripartizione tra bonus edilizi (opt-in azienda). Si decide
                 qui perché è quello che il cliente firma; la commessa la eredita. */}

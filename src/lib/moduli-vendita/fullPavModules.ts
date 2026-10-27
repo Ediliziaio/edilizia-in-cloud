@@ -3,6 +3,7 @@ import type { PavTemplatePdf, PavProgetto, PavComputoVoce, PavProgettoMedia } fr
 import type { CoverPresetPatch } from "@/components/pavimenti/coverPresets";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { PAV_EDITORIAL, PAV_OPERATIONAL_IMAGES, type PavEditorialPair } from "./pavEditorialContent";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 export { PAV_EDITORIAL } from "./pavEditorialContent";
 
 export const FULL_PAV_MODULES = ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni", "posa-parquet", "scale", "levigatura"] as const;
@@ -78,7 +79,7 @@ export function buildPavModulePreview(companyId: string, template: PavTemplatePd
     tipo_materiale: c.material, numero_ambienti: null, cliente_nome: "Cliente", cliente_cognome: "dimostrativo", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: null, cantiere_citta: null, cantiere_cap: null, cantiere_provincia: null,
     immobile_tipo: null, immobile_superficie_mq: null, immobile_anno: null, immobile_piani: null, massimale_detrazione: null,
-    opportunita_id: null, cliente_id: null, template_id: null, sconto_pct: 0, iva_pct: template.default_iva_pct ?? 22, detrazione_pct: 0, totale_imponibile: 0, totale: 0,
+    opportunita_id: null, cliente_id: null, template_id: null, sconto_pct: 0, iva_pct: template.default_iva_pct ?? IVA_PREDEFINITA_PCT, detrazione_pct: 0, totale_imponibile: 0, totale: 0,
     note: "ANTEPRIMA DIMOSTRATIVA: quantità, materiali, prezzi e IVA sono esempi da confermare. Non è un'offerta da inviare." };
   const computo = c.rows.map(([capitolo_nome, descrizione, unita_misura, quantita, prezzo_unitario], i): PavComputoVoce => ({ id: `demo-${i}`, progetto_id: "preview", company_id: companyId, ordine: i, capitolo_nome, descrizione, unita_misura, quantita, prezzo_unitario, costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0, importo: quantita * prezzo_unitario, margine_eur: 0, margine_pct: 0, listino_voce_id: null }));
   return { progetto, computo, media: [] as PavProgettoMedia[],

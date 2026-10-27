@@ -27,6 +27,7 @@ import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { usePavTemplatePdf } from "@/hooks/usePavimentiProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 interface Props {
   form: Partial<PavProgetto>;
@@ -50,7 +51,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
   const { data: template } = usePavTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
   // IVA di riserva = default della colonna iva_pct del modulo (22), non 10 (05/10/2026).
-  const ivaPct = Number(form.iva_pct ?? 22);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -141,7 +142,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <PctField
                 id="pav-iva"
                 label="IVA"
-                value={form.iva_pct ?? 22}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (pavimenti) o 4% (prima casa)."
               />

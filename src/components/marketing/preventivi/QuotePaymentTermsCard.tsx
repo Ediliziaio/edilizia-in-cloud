@@ -64,7 +64,7 @@ export function QuotePaymentTermsCard({
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-orange-600" />
-          Modalità e fasi di pagamento
+          Come paga il cliente
         </CardTitle>
         {/* Telefono no: spiegazioni sotto il titolo e in fondo alla carta. */}
         <p className="text-xs text-muted-foreground max-sm:hidden">

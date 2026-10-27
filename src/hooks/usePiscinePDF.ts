@@ -32,6 +32,7 @@ import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocument
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/piscine/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import type {
   PisProgetto, PisComputoVoce, PisProgettoMedia, PisTemplatePdf,
 } from "@/types/piscine";
@@ -211,7 +212,7 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
 
   // 4) Totali complessivi (single source of truth = calcTotaliComputo).
   const scontoPct = Number(progetto.sconto_pct) || 0;
-  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
   const detrazionePct = Number(progetto.detrazione_pct) || 0;
   const allRows: ComputoRigaInput[] = computo.map((v) => ({
     capitolo_nome: v.capitolo_nome,

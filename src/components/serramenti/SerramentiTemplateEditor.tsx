@@ -111,6 +111,7 @@ import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 import { findSerramentiTemplateModule, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -2821,7 +2822,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             <Label className="text-xs">IVA % default</Label>
             <Input
               type="number"
-              value={form.iva_percentuale_default ?? 22}
+              value={form.iva_percentuale_default ?? IVA_PREDEFINITA_PCT}
               onChange={(e) => update("iva_percentuale_default", e.target.value === "" ? 22 : Number(e.target.value))}
               className="h-9 text-xs"
             />

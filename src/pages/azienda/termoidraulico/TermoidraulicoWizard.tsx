@@ -68,6 +68,7 @@ import StepPdf from "./TermoidraulicoWizard/StepPdf";
 import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const STEP_ICONS: Record<IdrWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -341,7 +342,7 @@ export default function TermoidraulicoWizard() {
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliIdr, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
       titolo: model?.title ?? null,
-      ivaDefault: 22,
+      ivaDefault: IVA_PREDEFINITA_PCT,
       // Conto Termico e Casa Full Electric: gli incentivi stanno nei loro dati.
       senzaDetrazione: model?.id === "conto-termico" || model?.id === "full-electric",
     }),

@@ -5,6 +5,7 @@
 import { calcolaTotale } from "@/lib/serramenti/calcoli";
 import { calcolaEcobonus } from "@/lib/serramenti/ecobonus";
 import type { SrProgettoDetail, SrProgettoRow } from "@/types/serramenti";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 /**
  * Una misura in millimetri scritta nel campo: vuoto toglie la misura,
@@ -55,7 +56,7 @@ function calcoloDelPreventivo(detail: DettaglioPerITotali, economia: EconomiaPer
     detail.serramenti,
     detail.accessori,
     {
-      iva_percentuale: economia.iva_percentuale ?? 10,
+      iva_percentuale: economia.iva_percentuale ?? IVA_PREDEFINITA_PCT,
       sconto_percentuale: economia.sconto_percentuale ?? 0,
       sconto_importo: economia.sconto_importo ?? 0,
       prezzo_manuale: economia.prezzo_manuale ?? null,

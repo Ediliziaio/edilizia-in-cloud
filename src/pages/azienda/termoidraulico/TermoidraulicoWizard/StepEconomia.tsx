@@ -31,6 +31,7 @@ import { ContoTermicoEconomia } from "@/components/termoidraulico/contoTermico/C
 import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
 import { FullElectricEconomia } from "@/components/termoidraulico/fullElectric/FullElectricEconomia";
 import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 interface Props {
   form: Partial<IdrProgetto>;
@@ -60,7 +61,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
   const { data: template } = useIdrTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
   // IVA di riserva = default della colonna iva_pct del modulo (22), non 10 (05/10/2026).
-  const ivaPct = Number(form.iva_pct ?? 22);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -152,7 +153,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
               <PctField
                 id="idr-iva"
                 label="IVA"
-                value={form.iva_pct ?? 22}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
               />

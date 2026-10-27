@@ -46,6 +46,7 @@ import { MODELLO_FULL_ELECTRIC } from "@/lib/fullElectric/pdfDelPreventivo";
 import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 interface Props {
   progetto: IdrProgetto;
   computo: IdrComputoVoce[];
@@ -131,7 +132,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,
-          iva_pct: Number(progetto.iva_pct ?? 22),
+          iva_pct: Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT),
           // Il prezzo scritto a mano in Economia: senza, anteprima e firma
           // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
           prezzo_manuale: progetto.prezzo_manuale ?? null,
@@ -145,7 +146,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
-  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
   // Il Conto Termico ha il suo documento: oltre alle pagine di ogni preventivo
   // servono il contributo e le spese annue, senza i quali i conti restano vuoti.
   const contoTermico = progetto.modello_snapshot?.modelId === MODELLO_CONTO_TERMICO;

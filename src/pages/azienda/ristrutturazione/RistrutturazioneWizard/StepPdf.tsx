@@ -43,6 +43,7 @@ import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPr
 import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 interface Props {
   progetto: RstProgetto;
   computo: RstComputoVoce[];
@@ -129,7 +130,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,
-          iva_pct: Number(progetto.iva_pct ?? 22),
+          iva_pct: Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT),
           iva_beni_significativi: progetto.iva_beni_significativi === true,
           // Il prezzo scritto a mano in Economia: senza, anteprima e firma
           // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
@@ -144,7 +145,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
-  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const ivaPct = Number(progetto.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [

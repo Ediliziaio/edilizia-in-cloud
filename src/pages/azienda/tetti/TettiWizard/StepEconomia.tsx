@@ -47,12 +47,13 @@ import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useTetTemplatePdf } from "@/hooks/useTettiProgetto";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: Props) {
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useTetTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 10);
+  const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
   const totali = useMemo(
@@ -143,7 +144,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               <PctField
                 id="tet-iva"
                 label="IVA"
-                value={form.iva_pct ?? 10}
+                value={form.iva_pct ?? IVA_PREDEFINITA_PCT}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (tetti) o 4% (prima casa)."
               />

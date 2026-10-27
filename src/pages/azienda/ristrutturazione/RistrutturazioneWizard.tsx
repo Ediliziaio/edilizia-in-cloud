@@ -66,6 +66,7 @@ import StepPdf from "./RistrutturazioneWizard/StepPdf";
 import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 const STEP_ICONS: Record<RstWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -327,7 +328,7 @@ export default function RistrutturazioneWizard() {
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliRst, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
       titolo: model?.title ?? null,
-      ivaDefault: 22,
+      ivaDefault: IVA_PREDEFINITA_PCT,
     }),
     [vociAnteprima, detail?.progetto, form, templatePdf?.ragione_sociale, effectiveCompany?.name, model],
   );

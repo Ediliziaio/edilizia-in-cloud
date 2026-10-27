@@ -1,6 +1,7 @@
 import type { TetComputoVoce, TetProgetto, TetTemplatePdf, TetListItem, TetCronoFase, TetProgettoMedia } from "@/types/tetti";
 import type { ContenutoBlocco, VoceBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 
 /** These are editable PDF models, not yet quote-builder configurations. */
 export const TETTI_TEMPLATE_MODULES = [
@@ -155,7 +156,7 @@ export function buildTettiTemplatePreview(companyId: string, template: TetTempla
     margine_eur: 0, margine_pct: 0, listino_voce_id: null, ordine: i,
   }));
   const imponibile = computo.reduce((total, row) => total + row.importo, 0);
-  const iva = template.default_iva_pct ?? 22;
+  const iva = template.default_iva_pct ?? IVA_PREDEFINITA_PCT;
   const progetto: TetProgetto = {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza", tipo_intervento: module.title,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,

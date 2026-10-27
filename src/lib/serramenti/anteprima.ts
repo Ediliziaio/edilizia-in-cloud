@@ -11,6 +11,7 @@ import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import { calcolaMargine, type RigaCostoListino } from "@/lib/serramenti/margine";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { lavoriDiversiDalCliente } from "@/lib/preventivatore/indirizzoLavori";
+import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import {
   type AnteprimaPreventivo,
   type GruppoAnteprima,
@@ -149,7 +150,7 @@ export function anteprimaSerramenti(
   const servizi = detail ? perPosizione(detail.servizi ?? []) : [];
 
   const economia = {
-    iva_percentuale: progetto.iva_percentuale ?? 10,
+    iva_percentuale: progetto.iva_percentuale ?? IVA_PREDEFINITA_PCT,
     sconto_percentuale: progetto.sconto_percentuale ?? 0,
     sconto_importo: progetto.sconto_importo ?? 0,
     prezzo_manuale: progetto.prezzo_manuale ?? null,
