@@ -1,0 +1,12 @@
+# Copy separately to test.env and production.env. These files are ignored.
+SMTS_GATEWAY_SECRET=REPLACE_WITH_A_DIFFERENT_RANDOM_SECRET_FOR_EACH_ENVIRONMENT
+SMTS_ACCREDITED=false
+SMTS_PROVIDER_ENABLED_VATS=
+SMTS_CLIENT_CERT=/certs/client.pem
+SMTS_CLIENT_KEY=/certs/client-key.pem
+SMTS_CA=/certs/ca.pem
+SMTS_KEY_PASSPHRASE=
+SMTS_SERVER_CERT=/certs/server.pem
+SMTS_SERVER_KEY=/certs/server-key.pem
+SMTS_SERVER_KEY_PASSPHRASE=
+SMTS_SDI_CLIENT_CERTS=/certs/sdi-client.pem
