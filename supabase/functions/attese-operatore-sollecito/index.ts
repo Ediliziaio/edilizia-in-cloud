@@ -8,6 +8,8 @@
  * Questo giro, una volta al giorno, elenca chi aspetta da più di qualche ora senza aver ricevuto risposta e lo
  * dice a chi amministra l'azienda: campanella ed email, con nomi, telefoni e da quanti giorni aspettano.
  * Si può invocare per una sola azienda (`{"company_id": "..."}`) e con una soglia diversa (`{"ore": 4}`).
+ *
+ * Pubblicata con verify_jwt = false (vedi supabase/config.toml): chi la chiama porta x-cron-secret, non un JWT.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

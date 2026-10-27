@@ -7,6 +7,7 @@
  * guasto del CANALE (pagamento, account bloccato, numero non registrato, limite per spam) e non è stata avvisata
  * nelle ultime 24 ore, la avvisa — azienda e noi.
  *
+ * Pubblicata con verify_jwt = false (vedi supabase/config.toml): chi la chiama porta x-cron-secret, non un JWT.
  * Lo chiama un cron ogni ora, oppure si invoca a mano per una sola azienda (`{"company_id": "..."}`) quando si vuole
  * avvisare subito. La guardia delle 24 ore sta nel database, quindi due giri in parallelo non mandano due email.
  */

@@ -291,6 +291,18 @@ verify_jwt = false
 [functions.ai-conversations-sweeper]
 verify_jwt = false
 
+# attese-operatore-sollecito: la chiama un cron una volta al giorno con
+# x-cron-secret, e la si invoca a mano per una sola azienda. Nessun JWT:
+# senza questa voce il gateway risponde 401 prima del codice e il cron resta
+# morto in silenzio, perche' net.http_post considera riuscito l'aver spedito.
+[functions.attese-operatore-sollecito]
+verify_jwt = false
+
+# whatsapp-canale-controllo: stesso motivo. Il segreto lo controlla la funzione
+# con cronSecretValido.
+[functions.whatsapp-canale-controllo]
+verify_jwt = false
+
 # Queue worker: only internal service calls or the Vault cron secret.
 [functions.voice-campaign-dispatch]
 verify_jwt = false
