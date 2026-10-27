@@ -17,7 +17,7 @@ export async function caricaImmaginiCatalogo(companyId: string, ownerId: string,
   }
   const caricati: string[] = [];
   const annulla = async () => {
-    if (caricati.length) await supabase.storage.from("article-images").remove(caricati).catch(() => undefined);
+    if (caricati.length) await supabase.storage.from("article-images").remove(caricati).catch((): void => undefined);
   };
   try {
     const immagini: ImmagineCatalogo[] = [];

@@ -6,6 +6,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DbMinimo, denoFinto } from "../helpers/edgeFinto";
+import type { ClausolaFirma } from "../../../supabase/functions/_shared/clausoleFirma";
 import { createFullFvTemplate } from "@/lib/moduli-vendita/fullFvModules";
 import { buildFvPreviewBase } from "@/lib/moduli-vendita/fvPreviewData";
 import { renderFvPdfHtml } from "../../../supabase/functions/_shared/fvHtmlTemplate";
@@ -13,11 +14,11 @@ import { renderFvPdfHtml } from "../../../supabase/functions/_shared/fvHtmlTempl
 const state = vi.hoisted(() => ({ db: null as unknown as DbMinimo, otp: "", email: vi.fn(), storageError: false }));
 vi.mock("https://esm.sh/pdf-lib@1.17.1", async () => await import("pdf-lib"));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => state.db }));
-vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({ requireAuth: async () => ({ userId: "u1", supabaseAdmin: state.db }), requireCompanyAccess: async () => undefined, aziendaAccessibile: async () => true }));
+vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({ requireAuth: async () => ({ userId: "u1", supabaseAdmin: state.db }), requireCompanyAccess: async (): Promise<void> => undefined, aziendaAccessibile: async () => true }));
 vi.mock("../../../supabase/functions/_shared/requirePaymentMethod.ts", () => ({ checkPaymentMethod: async () => ({ allowed: true }) }));
 vi.mock("../../../supabase/functions/_shared/getBranding.ts", () => ({ getBrandingForCompany: async () => ({ siteUrl: "https://example.test", platformName: "Impresa QA" }) }));
-vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async () => [], informativaPrivacyDellaFirma: async () => null }));
-vi.mock("../../../supabase/functions/_shared/proveFirma.ts", () => ({ conservaProveFirma: async () => undefined }));
+vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async (): Promise<ClausolaFirma[]> => [], informativaPrivacyDellaFirma: async (): Promise<string | null> => null }));
+vi.mock("../../../supabase/functions/_shared/proveFirma.ts", () => ({ conservaProveFirma: async (): Promise<void> => undefined }));
 vi.mock("../../../supabase/functions/_shared/inviaSmsFirma.ts", () => ({ inviaSmsCodiceFirma: async () => ({ inviato: false }) }));
 vi.mock("../../../supabase/functions/_shared/sendEmailUnified.ts", () => ({ sendEmailUnified: async (args: { templateName?: string; text?: string }) => {
   state.email(args);
@@ -25,7 +26,8 @@ vi.mock("../../../supabase/functions/_shared/sendEmailUnified.ts", () => ({ send
   return { ok: true, status: 200 };
 } }));
 
-const handlers: Record<string, (r: Request) => Promise<Response>> = {};
+// Lo stesso tipo che `Deno.serve` accetta: `denoFinto` consegna il gestore vero cosi' com'e'.
+const handlers: Record<string, (r: Request) => Promise<Response> | Response> = {};
 const files = new Map<string, Uint8Array>();
 const env: Record<string, string> = {
   PREVENTIVI_PDF_RENDER_URL: process.env.PREVENTIVI_PDF_RENDER_URL ?? "",
@@ -74,7 +76,7 @@ beforeEach(() => {
       if (state.storageError) return { error: { message: "Storage QA non disponibile" } };
       files.set(`${bucket}/${file}`, new Uint8Array(bytes)); return { error: null };
     },
-    createSignedUrl: async (file: string) => ({ data: { signedUrl: `https://storage.example.test/${bucket}/${file}` }, error: null }),
+    createSignedUrl: async (file: string) => ({ data: { signedUrl: `https://storage.example.test/${bucket}/${file}` }, error: null as null }),
   }) } });
 });
 async function call(name: string, body: Record<string, unknown>) {
@@ -233,7 +235,8 @@ describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii 
     const requestId = crypto.randomUUID();
     const token = crypto.randomUUID().replace(/-/g, "");
     const original = files.get(`fv-progetti/c1/${id}/vendita.html`)!;
-    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", original))).map(b => b.toString(16).padStart(2, "0")).join("");
+    // `BufferSource` esclude i buffer condivisi: i byte della mappa sono sempre su un ArrayBuffer normale.
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", original as Uint8Array<ArrayBuffer>))).map(b => b.toString(16).padStart(2, "0")).join("");
     const frozenPath = `c1/richieste/${requestId}.html`;
     files.set(`quote-pdfs/${frozenPath}`, original);
     const oldPath = `c1/firmati/${requestId}.pdf`;

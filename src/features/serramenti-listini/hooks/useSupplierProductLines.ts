@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import type {
   MaterialeProfilo,
   SupplierProductLine,
@@ -111,7 +112,11 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        .insert({ ...payload, company_id: companyId })
+        // `immagini` non è ancora una colonna della tabella: arriverà con la
+        // migrazione della galleria di catalogo. Fino a quel momento il payload
+        // la porta e il database risponde 42703/PGRST204, che `erroreGalleria`
+        // traduce in «La galleria richiede l'aggiornamento del database».
+        .insert({ ...payload, company_id: companyId } as TablesInsert<"supplier_product_lines">)
         .select("*")
         .single();
       if (error) throw Object.assign(new Error(error.message), { code: error.code });
@@ -135,7 +140,8 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        .update(args.patch)
+        // Stesso motivo dell'insert: `immagini` non esiste ancora come colonna.
+        .update(args.patch as TablesUpdate<"supplier_product_lines">)
         .eq("id", args.id)
         .eq("company_id", companyId)
         .select("*")

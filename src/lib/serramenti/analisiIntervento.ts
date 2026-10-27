@@ -10,7 +10,7 @@ export const SCENARI_ESISTENTI = {
   pvc: { nome: "PVC esistente", immagine: "/pdf-stock/serramenti/esistente-pvc-v1.png",
     titolo: "Non basta cambiare PVC: serve una configurazione migliore.",
     descrizione: "Due finestre in PVC possono avere prestazioni diverse. Il confronto riguarda vetro, profilo, guarnizioni, ferramenta e posa: un prodotto piu recente non e' automaticamente migliore." },
-  altro: { nome: "Altro / da rilevare", immagine: null,
+  altro: { nome: "Altro / da rilevare", immagine: null as string | null,
     titolo: "Il punto di partenza si verifica, non si presume.", descrizione: "Materiale, vetro e condizioni dell'infisso devono essere identificati prima di attribuire prestazioni o vantaggi numerici alla sostituzione." },
 } as const;
 export const PROBLEMI_INFISSI = { freddo: "Freddo vicino alla finestra", spifferi: "Spifferi rilevati", rumore: "Rumore percepito", manutenzione: "Manutenzione frequente", apertura: "Difficolta di apertura" } as const;

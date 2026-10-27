@@ -17,7 +17,8 @@ describe("FV: conversione del PDF originale prima della firma", () => {
   it("usa il servizio server autenticato e restituisce un PDF leggibile", async () => {
     const pdf = await PDFDocument.create(); pdf.addPage([595, 842]);
     const bytes = await pdf.save();
-    const fetcher = vi.fn(async () => new Response(bytes, { headers: { "Content-Type": "application/pdf" } }));
+    // `BodyInit` esclude i buffer condivisi: pdf-lib restituisce sempre un ArrayBuffer normale.
+    const fetcher = vi.fn(async () => new Response(bytes as Uint8Array<ArrayBuffer>, { headers: { "Content-Type": "application/pdf" } }));
     vi.stubGlobal("fetch", fetcher);
     const result = await fotovoltaicoPdfOriginale(html);
     expect((await PDFDocument.load(result)).getPageCount()).toBe(1);

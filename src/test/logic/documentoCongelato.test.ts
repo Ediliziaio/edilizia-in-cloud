@@ -21,7 +21,7 @@ function sbFinto(file: string, righe: Record<string, Record<string, unknown>>) {
   const caricati: Array<{ path: string; tipo: string }> = [];
   const sb = {
     from: (t: string) => t === "fv_componenti_progetto"
-      ? { select: () => ({ eq: () => ({ order: async () => ({ data: [], error: null }) }) }) }
+      ? { select: () => ({ eq: () => ({ order: async () => ({ data: [] as Record<string, unknown>[], error: null as null }) }) }) }
       : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: righe[t] ?? null }) }) }) },
     storage: { from: () => ({
       download: async () => ({ data: new Blob([file]), error: null as null }),

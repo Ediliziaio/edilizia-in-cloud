@@ -11,7 +11,7 @@
 export type Riga = Record<string, unknown>;
 
 type Filtro = (r: Riga) => boolean;
-type Esito = { data: unknown; error: { message: string; code?: string } | null };
+export type Esito = { data: unknown; error: { message: string; code?: string } | null };
 
 export class DbMinimo {
   tabelle: Record<string, Riga[]> = {};

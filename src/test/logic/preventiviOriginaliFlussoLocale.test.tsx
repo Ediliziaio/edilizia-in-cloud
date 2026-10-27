@@ -22,6 +22,7 @@ import { nuovaAnalisiIntervento, SCENARI_ESISTENTI } from "@/lib/serramenti/anal
 import { calcolaRisparmio } from "@/lib/serramenti/risparmio";
 import { DbMinimo } from "../helpers/edgeFinto";
 import type { NativeOperation } from "../../../supabase/functions/_shared/quoteNative";
+import type { SrProgettoDetail } from "@/types/serramenti";
 
 vi.setConfig({ testTimeout: 120_000 });
 // pdfkit's Node streams receive Node Buffers: jsdom's separate Uint8Array realm
@@ -33,7 +34,7 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 vi.mock("https://esm.sh/pdf-lib@1.17.1", async () => await import("pdf-lib"));
 vi.mock("@/lib/storage/immaginiModelloPdf", () => ({ CAMPI_IMMAGINE_SERRAMENTI: [], firmaImmagine: async (v: unknown) => v, firmaImmaginiModello: async (v: unknown) => v }));
-vi.mock("@/lib/pdf/votiOnline", () => ({ votiOnlineAzienda: async () => null }));
+vi.mock("@/lib/pdf/votiOnline", () => ({ votiOnlineAzienda: async (): Promise<unknown> => null }));
 vi.mock("@/lib/serramenti/rasterizzaDisegno", () => ({ rasterizzaDisegno: async (element: import("react").ReactElement) => {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { default: sharp } = await import("sharp");
@@ -93,7 +94,7 @@ async function firmaLocale(bytes: Uint8Array, type: "fv" | "quote", id: string) 
       const b = files.get(`${bucket}/${file}`);
       return { data: b ? { arrayBuffer: async () => new Uint8Array(b).buffer } : null, error: b ? null : { message: "File assente" } };
     },
-    upload: async (file: string, b: Uint8Array) => { files.set(`${bucket}/${file}`, new Uint8Array(b)); return { error: null }; },
+    upload: async (file: string, b: Uint8Array) => { files.set(`${bucket}/${file}`, new Uint8Array(b)); return { error: null as null }; },
   }) } });
   const snapshot = await congelaDocumento(sb, { tipo: type, documentoId: id, companyId: "qa", aziendaNome: "Impresa QA", firmatario: "Cliente QA" }, id);
   const frozen = files.get(`quote-pdfs/${snapshot.path}`)!;
@@ -124,7 +125,7 @@ describe("Flusso locale, risposte AI sintetiche e renderer originali", () => {
   it.each(FULL_SERRAMENTI_MODULES)("Serramenti %s: proposta confermata, riapertura, copia, PDF e file firmato", async moduleId => {
     const template = createFullSerramentiTemplate({ company_id: "qa", ragione_sociale: "Impresa QA" }, moduleId);
     const enriched = await buildMockPdfData({ moduleId, template, companyName: "Impresa QA" });
-    const base = { ...enriched.detail, serramenti: [], accessori: [], servizi: [] };
+    const base: SrProgettoDetail = { ...enriched.detail, serramenti: [], accessori: [], servizi: [] };
     const proposed = await applySrNativeTurn(base, { module: "serramenti", operations: [
       op("window", "serramento", { title: "Finestra QA soggiorno", catalogueId: "window", quantity: 2, width: 1200, height: 1400, room: "Soggiorno QA" }),
       op("labour", "servizio", { title: "Posa QA controllata", quantity: 4, unit: "h" }),

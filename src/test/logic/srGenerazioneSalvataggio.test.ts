@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DbMinimo, denoFinto } from "../helpers/edgeFinto";
+import { DbMinimo, denoFinto, type Esito } from "../helpers/edgeFinto";
 
 const state = vi.hoisted(() => ({ db: null as unknown as DbMinimo, failure: "", upload: vi.fn() }));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => state.db }));
 vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({ requireAuth: async () => ({ userId: "u1", supabaseAdmin: state.db }) }));
-vi.mock("../../../supabase/functions/_shared/companyAuth.ts", () => ({ verifyCompanyAccess: async () => undefined }));
+vi.mock("../../../supabase/functions/_shared/companyAuth.ts", () => ({ verifyCompanyAccess: async (): Promise<void> => undefined }));
 vi.mock("../../../supabase/functions/_shared/preventivoFirmaAttiva.ts", () => ({ preventivoFirmaAttiva: async () => false }));
 vi.mock("../../../supabase/functions/_shared/srHtmlTemplate.ts", () => ({ renderSrPdfHtml: () => "<!doctype html><html>QA</html>", countSrPdfPages: () => 1 }));
 vi.mock("../../../supabase/functions/_shared/immaginiModelloPdf.ts", () => ({ CAMPI_IMMAGINE_SERRAMENTI: [], firmaImmaginiModello: async (v: unknown) => v, firmatarioStorage: () => async (v: unknown) => v }));
 
-let handler: (r: Request) => Promise<Response>;
+// Lo stesso tipo che `Deno.serve` accetta: `denoFinto` consegna il gestore vero cosi' com'e'.
+let handler: (r: Request) => Promise<Response> | Response;
 beforeEach(async () => {
   state.failure = "";
   state.upload.mockReset();
@@ -21,7 +22,7 @@ beforeEach(async () => {
     const q = from(table);
     let update = false;
     const proxy: typeof q = new Proxy(q, { get(target, prop) {
-      if (prop === "then") return (resolve: (r: unknown) => unknown) => target.then(result => resolve(
+      if (prop === "then") return (resolve: (r: unknown) => unknown) => target.then((result: Esito) => resolve(
         state.failure === table || (state.failure === "save" && table === "sr_progetti" && update)
           ? { data: null, error: { message: "Errore QA" } } : result,
       ));
@@ -32,8 +33,9 @@ beforeEach(async () => {
     return proxy;
   }) as typeof state.db.from;
   Object.assign(state.db, { storage: { from: () => ({
-    upload: async (...args: unknown[]) => { state.upload(...args); return { error: null }; },
-    createSignedUrl: async () => state.failure === "url" ? { data: null, error: { message: "URL QA" } } : { data: { signedUrl: "https://example.test/qa.html" }, error: null },
+    upload: async (...args: unknown[]) => { state.upload(...args); return { error: null as null }; },
+    createSignedUrl: async (): Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }> =>
+      state.failure === "url" ? { data: null, error: { message: "URL QA" } } : { data: { signedUrl: "https://example.test/qa.html" }, error: null },
   }) } });
   if (!handler) {
     const deno = denoFinto();

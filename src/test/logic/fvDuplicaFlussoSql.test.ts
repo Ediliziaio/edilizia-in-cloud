@@ -56,7 +56,7 @@ describe("Il pulsante Duplica FV: RPC reale su PostgreSQL locale", () => {
     const a = (await db.query<{ id: string }>("select public.fv_duplica_progetto($1) as id", [project])).rows[0].id;
     const b = (await db.query<{ id: string }>("select public.fv_duplica_progetto($1) as id", [project])).rows[0].id;
     expect(a).not.toBe(b);
-    const rows = (await db.query("select numero,firmato_il,pdf_vendita_url from public.fv_progetti where id in ($1,$2)", [a,b])).rows;
+    const rows = (await db.query<{ numero: string; firmato_il: string | null; pdf_vendita_url: string | null }>("select numero,firmato_il,pdf_vendita_url from public.fv_progetti where id in ($1,$2)", [a,b])).rows;
     expect(rows[0].numero).not.toBe(rows[1].numero);
     rows.forEach(r => { expect(r.firmato_il).toBeNull(); expect(r.pdf_vendita_url).toBeNull(); });
   });

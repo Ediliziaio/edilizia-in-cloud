@@ -5,7 +5,7 @@ export async function immaginiCatalogoPdf(raw: unknown, legacy?: string | null):
   const visibili = immaginiPerPdf(leggiImmaginiCatalogo(raw, legacy));
   const result: ImmagineCatalogo[] = [];
   for (const image of visibili) {
-    const url = await toDataUrl(image.url).catch(() => null);
+    const url = await toDataUrl(image.url).catch((): string | null => null);
     if (url) result.push({ ...image, url });
   }
   return result;

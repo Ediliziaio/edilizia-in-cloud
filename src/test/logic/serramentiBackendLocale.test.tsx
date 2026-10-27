@@ -4,6 +4,7 @@ import path from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { clientSerramentiLocali, sqlSerramentiLocale, tabellaDaFixture } from "../helpers/supabaseSerramentiLocale";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SrSerramentoRow } from "@/types/serramenti";
 
 const attivo = process.env.EIC_SR_BACKEND_LOCALE === "1";
 const stato = vi.hoisted(() => ({ client: null as SupabaseClient | null }));
@@ -116,7 +117,7 @@ describe.runIf(attivo)("Serramenti: API vere, Supabase locale, Storage reale e P
     const a = nuovaAnalisiIntervento(); a.esistente = esistente; a.problemi = ["freddo", "spifferi"];
     const p = await createProgetto({ cliente_nome: "Cliente test locale", cliente_email: "cliente@example.test", modello_snapshot: makeSrQuoteModelSnapshot(companyId, "finestre", template), analisi_intervento: a }, companyId);
     ids.push(p.id);
-    const row = { ...fixture.detail.serramenti[0], id: crypto.randomUUID(), progetto_id: p.id, family_id: null, supplier_product_line_id: lineId, supplier_catalog_id: supplierId, materiale: "pvc", disegno_config: null };
+    const row: SrSerramentoRow = { ...fixture.detail.serramenti[0], id: crypto.randomUUID(), progetto_id: p.id, family_id: null, supplier_product_line_id: lineId, supplier_catalog_id: supplierId, materiale: "pvc", disegno_config: null };
     const ins = await stato.client!.from("sr_serramenti_progetto").insert(row); if (ins.error) throw ins.error;
     await updateProgetto(p.id, { analisi_intervento: a, tipo_intervento: "sostituzione", schema_pagamento: "tre_step", pagamento_milestones: [{ label: "Saldo", percentuale: 100 }], detrazione_aliquota: 0 });
     expect((await getProgetto(p.id)).progetto.analisi_intervento).toEqual(a);

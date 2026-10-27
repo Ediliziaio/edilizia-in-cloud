@@ -13,7 +13,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   storage: { from: () => ({ upload: m.upload, remove: m.remove,
     getPublicUrl: (path: string) => ({ data: { publicUrl: `https://storage.test/${path}` } }) }) },
 } }));
-const old = { id: "scheda", company_id: "azienda", nome: "Linea QA", chiave: "linea qa", macrocategoria_id: null,
+const old = { id: "scheda", company_id: "azienda", nome: "Linea QA", chiave: "linea qa", macrocategoria_id: null as string | null,
   immagine_url: "https://storage.test/vecchia.jpg" };
 const input = (): SalvaSchedaLinea => ({ esistente: comeSchedaLinea(old), macrocategoriaId: null, nomeLinea: "Linea QA",
   foto: null, pdf: null, togliFoto: false, togliPdf: false, descrizione: "Descrizione aggiornata", profondita_mm: null,

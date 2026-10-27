@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { FvComponente, FvManodopera, FvServizio } from "@/lib/fotovoltaico/tipi";
 const state = vi.hoisted(() => ({ progetto: {} as Record<string, unknown>, edit: true, invoke: vi.fn(), signed: vi.fn(), download: vi.fn(), error: vi.fn() }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditPreventivi: state.edit, canViewMargins: false, canViewCosts: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/fotovoltaico/queries", () => ({
-  useProgetto: () => ({ data: state.progetto, isLoading: false }), useComponentiProgetto: () => ({ data: [] }),
-  useManodoperaProgetto: () => ({ data: [] }), useServiziProgetto: () => ({ data: [] }), useEliminaProgetto: () => ({}),
+  useProgetto: () => ({ data: state.progetto, isLoading: false }), useComponentiProgetto: () => ({ data: [] as FvComponente[] }),
+  useManodoperaProgetto: () => ({ data: [] as FvManodopera[] }), useServiziProgetto: () => ({ data: [] as FvServizio[] }), useEliminaProgetto: () => ({}),
 }));
-vi.mock("@/components/moduli/ConvertiInCommessaCard", () => ({ ConvertiInCommessaCard: () => null }));
+vi.mock("@/components/moduli/ConvertiInCommessaCard", () => ({ ConvertiInCommessaCard: (): null => null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: state.invoke } } }));
 vi.mock("@/lib/preventivi/pdfFirmatoPreventivo", () => ({ pdfFirmatoPreventivo: state.signed, scaricaCopiaPdf: state.download }));
 vi.mock("sonner", () => ({ toast: { error: state.error, loading: vi.fn(), success: vi.fn() } }));

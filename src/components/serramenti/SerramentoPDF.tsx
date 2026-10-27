@@ -87,6 +87,13 @@ ensurePdfBufferCompatibility();
 // Il PDF usa Helvetica, incluso in react-pdf: nessun font da scaricare.
 const FF = "Helvetica";
 
+// react-pdf disegna i segnalibri anche sulle View, ma i suoi ViewProps pubblicati
+// non dichiarano `bookmark` (lo fanno solo i PageProps). Stesso rimedio usato in
+// `src/test/logic/srSemanticPdfAnchors.test.tsx`.
+const ViewConSegnalibro = View as React.ComponentType<
+  React.ComponentProps<typeof View> & { bookmark?: string }
+>;
+
 // Disabilita hyphenation built-in di react-pdf: tagliava parole italiane
 // in modo brutto (es. "cal-do" invece di "caldo") sul titolo cover quando
 // la riga era stretta. Restituendo `[word]` impediamo qualsiasi spezzamento
@@ -2646,7 +2653,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // only families actually used in this quote, never unrelated catalogue stock.
   const prodottiPresentati: SerramentoPdfLineaPagina[] = lineeDedicate.length > 0
     ? [...new Map(lineeDedicate.map(linea => [linea.id, linea])).values()]
-    : [...new Set(detail.serramenti.map(r => r.family_id).filter(Boolean))].flatMap(id => {
+    : [...new Set(detail.serramenti.map(r => r.family_id).filter(Boolean))].flatMap<SerramentoPdfLineaPagina>(id => {
       const family = id ? familiesById[id] : null;
       if (!family) return [];
       const dati = (family.macrocategoria_id ? fieldsByMacro[family.macrocategoria_id] ?? [] : [])
@@ -5136,7 +5143,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   mai una domanda spezzata a metà o un titolo solo in fondo. La
                   galleria può scorrere su più pagine, le altre stanno in una. */}
               {ids.map((id, i) => (
-                <View key={id} bookmark={srSectionAnchor(id)} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
+                <ViewConSegnalibro key={id} bookmark={srSectionAnchor(id)} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</ViewConSegnalibro>
               ))}
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
