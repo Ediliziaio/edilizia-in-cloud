@@ -56,7 +56,7 @@ Un `ESITO_INCERTO` richiede riconciliazione con AdE/assistenza: non cancellare l
 
 La configurazione per una nuova VPS dedicata, con collaudo e produzione separati e TLS passthrough, è in [deploy/ade](../../deploy/ade/README.md). Non modifica il server WhatsApp e non crea risorse hosting automaticamente.
 
-Restano da completare dominio/hosting, CSR e certificati effettivi, contratto e collaudo SdICoop, eventuale invio delle fatture di test previste dall'AdE, attivazione SMTS e abilitazione delle partite IVA. I test locali non attestano il superamento del collaudo ufficiale. Il servizio non contiene una firma qualificata automatica dei clienti: il percorso implementato usa il caricamento manuale della richiesta firmata.
+Hosting e DNS dedicati sono configurati e il gateway privato è avviato. Le bozze CSR preparate sulla VPS e i requisiti ancora da verificare sono descritti in [accreditamento.md](../../deploy/ade/accreditamento.md). Restano certificati effettivi, contratto e collaudo SdICoop, eventuale invio delle fatture di test previste dall'AdE, attivazione SMTS e abilitazione delle partite IVA. I test locali non attestano il superamento del collaudo ufficiale. Il servizio non contiene una firma qualificata automatica dei clienti: il percorso implementato usa il caricamento manuale della richiesta firmata.
 
 ## Contratti ufficiali verificati
 

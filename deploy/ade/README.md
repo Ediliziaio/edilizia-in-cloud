@@ -9,7 +9,9 @@ Piano attivato: DigitalOcean Basic Regular, 1 vCPU / 2 GiB / 50 GiB, **12 USD/me
 | Collaudo | `https://sdi-test.ediliziaincloud.com/sdi/trasmissione` | `127.0.0.1:3098` |
 | Produzione | `https://sdi.ediliziaincloud.com/sdi/trasmissione` | `127.0.0.1:3099` |
 
-Prima di generare le CSR verificare i requisiti effettivi della guida ufficiale del portale AdE. La guida `Nota per la generazione delle CSR_IT.pdf` è protetta da autenticazione: una risposta HTML di login non costituisce una copia della guida. Non generare CSR con soggetto o parametri ipotizzati. Il proxy instrada per SNI e passa TLS integro al servizio Node: la CA e il certificato client SdI vengono verificati dal listener mTLS. Serve anche verificare nel collaudo ufficiale l'invio SNI da parte del client SdI. Nessun certificato o segreto entra nell'immagine Docker. Database e directory certificati sono distinti per ambiente. La produzione resta disattivata finché non è esplicitamente avviato il relativo profilo.
+Sono state preparate sulla VPS quattro bozze CSR seguendo l'esempio pubblico ufficiale AdE, con identificativo proposto da verificare nel portale. Chiavi, verifiche e passaggi ancora necessari sono descritti in [accreditamento.md](accreditamento.md). La guida completa del portale resta da leggere prima del caricamento: l'esempio pubblico non ne dimostra l'equivalenza. Le bozze non sono certificati emessi né richieste inviate.
+
+Il proxy instrada per SNI e passa TLS integro al servizio Node: la CA e il certificato client SdI vengono verificati dal listener mTLS. Serve anche verificare nel collaudo ufficiale l'invio SNI da parte del client SdI. Nessun certificato o segreto entra nell'immagine Docker. Database e directory certificati sono distinti per ambiente. La produzione resta disattivata finché non è esplicitamente avviato il relativo profilo.
 
 ## Preparazione sulla nuova VPS
 
