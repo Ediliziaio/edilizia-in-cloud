@@ -8,6 +8,7 @@
  */
 import type { SrSerramentoRow, SrAccessorioRow, SrServizioRow } from "@/types/serramenti";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { centesimi, euroDaCentesimi } from "@/lib/preventivi/arrotondamento";
 
 /** Breakdown IVA mista per regola Beni Significativi (DM 29.12.99). */
 export interface MistaBreakdown {
@@ -171,34 +172,36 @@ export function calcolaTotale(
   const scontoEur = Math.max(0, numero(opts.sconto_importo));
   const prestazioni_professionali = Math.max(0, numero(opts.prestazioni_professionali));
 
+  // Ogni riga al centesimo, come si stampa (27/10/2026): subtotali, sconto, IVA e totale sono somme e differenze di
+  // quei centesimi, così i numeri del PDF si sommano come negli altri preventivatori.
   // Serramenti: prezzo già comprende eventuale posa configurata sul prodotto
-  const imponibile_serramenti = serramenti.reduce(
-    (acc, s) => acc + importoRiga(s.prezzo_totale, s.prezzo_unitario, s.quantita),
-    0,
+  const sommaC = (righe: number[]) => righe.reduce((acc, v) => acc + centesimi(v), 0);
+  const imponibile_serramenti = euroDaCentesimi(
+    sommaC(serramenti.map((s) => importoRiga(s.prezzo_totale, s.prezzo_unitario, s.quantita))),
   );
-  const imponibile_accessori = accessori.reduce(
-    (acc, a) => acc + importoRiga(a.prezzo_totale, a.prezzo_unitario, a.quantita),
-    0,
+  const imponibile_accessori = euroDaCentesimi(
+    sommaC(accessori.map((a) => importoRiga(a.prezzo_totale, a.prezzo_unitario, a.quantita))),
   );
   // Servizi aggiuntivi (trasporto, ENEA, smaltimento, posa esterna…)
-  const imponibile_servizi = servizi.reduce(
-    (acc, s) => acc + importoRiga(s.prezzo_totale_vendita, s.prezzo_unitario_vendita, s.quantita),
-    0,
+  const imponibile_servizi = euroDaCentesimi(
+    sommaC(servizi.map((s) => importoRiga(s.prezzo_totale_vendita, s.prezzo_unitario_vendita, s.quantita))),
   );
-  const somma_voci = imponibile_serramenti + imponibile_accessori + imponibile_servizi;
+  const somma_voci = euroDaCentesimi(centesimi(imponibile_serramenti) + centesimi(imponibile_accessori) + centesimi(imponibile_servizi));
   const manuale = Number(opts.prezzo_manuale ?? 0);
   const prezzo_manuale = Number.isFinite(manuale) && manuale > 0;
-  const imponibile_lordo = prezzo_manuale ? manuale : somma_voci;
+  const imponibile_lordo = prezzo_manuale ? euroDaCentesimi(centesimi(manuale)) : somma_voci;
 
-  // Sconto: prima il fisso, poi il %
+  // Sconto: prima il fisso, poi il %. Il netto è il lordo scontato, al centesimo; lo sconto è la differenza.
   const dopoFisso = Math.max(0, imponibile_lordo - scontoEur);
-  const scontoPctEur = dopoFisso * (scontoPct / 100);
-  const imponibile_netto = dopoFisso - scontoPctEur;
-  const sconto = imponibile_lordo - imponibile_netto;
+  const nettoEsatto = dopoFisso - dopoFisso * (scontoPct / 100);
+  const nettoC = centesimi(nettoEsatto);
+  const imponibile_netto = euroDaCentesimi(nettoC);
+  const sconto = euroDaCentesimi(centesimi(imponibile_lordo) - nettoC);
 
   // ─── Calcolo IVA ──────────────────────────────────────────────────────────
   let iva_pct_applicata: number;
   let iva_importo: number;
+  let ivaC: number;
   let mista_breakdown: MistaBreakdown | null = null;
 
   if (isMista) {
@@ -217,18 +220,25 @@ export function calcolaTotale(
     const bsScontato = soloPrezzo ? imponibile_netto : imponibile_serramenti * ratio;
     const accScontati = soloPrezzo ? 0 : imponibile_accessori * ratio;
     const servScontati = soloPrezzo ? 0 : imponibile_servizi * ratio;
-    mista_breakdown = calcolaIvaMista(bsScontato, accScontati, servScontati, prestazioni_professionali);
-    iva_importo = mista_breakdown.iva_10 + mista_breakdown.iva_22;
+    const esatto = calcolaIvaMista(bsScontato, accScontati, servScontati, prestazioni_professionali);
+    // Ogni aliquota al centesimo, poi la somma: l'IVA si arrotonda per aliquota, come nel PDF.
+    const iva10C = centesimi(esatto.iva_10);
+    const iva22C = centesimi(esatto.iva_22);
+    mista_breakdown = { ...esatto, iva_10: euroDaCentesimi(iva10C), iva_22: euroDaCentesimi(iva22C) };
+    ivaC = iva10C + iva22C;
+    iva_importo = euroDaCentesimi(ivaC);
     // Aliquota "effettiva" media (informativa): IVA / imponibile.
     iva_pct_applicata = imponibile_netto > 0
       ? Math.round((iva_importo / imponibile_netto) * 10000) / 100
       : 10;
   } else {
     iva_pct_applicata = ivaRaw;
-    iva_importo = imponibile_netto * (ivaRaw / 100);
+    // Il totale è il netto esatto con l'IVA, arrotondato; l'IVA è la differenza (stessa regola degli edili).
+    ivaC = centesimi(nettoEsatto * (1 + ivaRaw / 100)) - nettoC;
+    iva_importo = euroDaCentesimi(ivaC);
   }
 
-  const totale_iva_inclusa = imponibile_netto + iva_importo;
+  const totale_iva_inclusa = euroDaCentesimi(nettoC + ivaC);
 
   const metri_quadri = serramenti.reduce((acc, s) => {
     const mq = s.metri_quadri ??
