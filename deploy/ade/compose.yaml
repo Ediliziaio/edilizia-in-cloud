@@ -1,0 +1,66 @@
+name: eic-ade
+
+x-gateway: &gateway
+  image: eic-smts:local
+  build:
+    context: ../..
+    dockerfile: services/smts/Dockerfile
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,mode=1777"]
+  mem_limit: 512m
+  cpus: 1
+  pids_limit: 64
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  test:
+    <<: *gateway
+    env_file: ./test.env
+    ports: ["127.0.0.1:3098:3098"]
+    volumes:
+      - test-data:/data
+      - type: bind
+        source: ./certs/test
+        target: /certs
+        read_only: true
+        bind: {create_host_path: false}
+
+  production:
+    <<: *gateway
+    profiles: [production]
+    env_file:
+      - path: ./production.env
+        required: false
+    ports: ["127.0.0.1:3099:3098"]
+    volumes:
+      - production-data:/data
+      - type: bind
+        source: ./certs/production
+        target: /certs
+        read_only: true
+        bind: {create_host_path: false}
+
+  ingress:
+    image: haproxy:3.2-alpine@sha256:5893840576071e6217cd52ebdcc14f454c6f7a631056fa6f4e0f40d3cac4215b
+    restart: unless-stopped
+    user: "99:99"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 32
+    ports: ["443:8443"]
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+volumes:
+  test-data:
+  production-data:
