@@ -150,15 +150,31 @@ describe("righeRiepilogoIva: contro il database (aritmetica esatta)", () => {
   });
 });
 
-describe("generate-quote-pdf usa il riepilogo sulle righe giuste", () => {
+describe("il riepilogo IVA del PDF gira su TUTTE le righe", () => {
+  // Il PDF del preventivo classico è passato al pacchetto precompilato
+  // (`_shared/preventivoRenderer.mjs`, costruito da `scripts/preventivi-render/build.mjs`):
+  // il conto dell'IVA non sta più nella edge function, ma la catena deve restare questa —
+  // tutte le righe raccolte dalla edge, passate al pacchetto, sommate dall'adattatore.
+  // Chi ne spezza un anello stampa l'IVA delle sole righe visibili in tabella.
   const pdf = readFileSync("supabase/functions/generate-quote-pdf/index.ts", "utf8");
+  const adattatore = readFileSync("src/components/preventivi/pdf/adattatoreGenerico.ts", "utf8");
+  const pacchetto = readFileSync("supabase/functions/_shared/preventivoRenderer.mjs", "utf8");
 
-  it("passa TUTTE le righe (anche quelle nascoste nel PDF), non solo quelle in tabella", () => {
-    expect(pdf).toContain('import { righeRiepilogoIva } from "../_shared/riepilogoIvaPreventivo.ts";');
+  it("la edge function raccoglie tutte le righe e le passa a parte da quelle in tabella", () => {
     expect(pdf).toContain("righePerIva = itemsRes.data ?? [];");
-    expect(pdf).toMatch(/righeRiepilogoIva\(\{\s+righe: righePerIva,/);
-    // Le righe IVA stampate sono quelle del riepilogo, non un conto rifatto in pagina.
-    expect(pdf).toContain("for (const r of riepilogoIva.righeIva)");
-    expect(pdf).not.toMatch(/ivaBreakdown\[rate\]/);
+    expect(pdf).toContain("items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);");
+    expect(pdf).toMatch(/renderGenerico\(\{\s+quote,\s+righePerIva,/);
+  });
+
+  it("l'adattatore somma quelle righe col riepilogo condiviso, senza rifare il conto", () => {
+    expect(adattatore).toContain("righeRiepilogoIva({ righe: input.righePerIva ?? items,");
+    expect(adattatore).toContain("aliquoteIva: iva.righeIva");
+    expect(adattatore).not.toMatch(/ivaBreakdown\[/);
+  });
+
+  it("il pacchetto precompilato non è rimasto a prima di righePerIva", () => {
+    // La trappola dei pacchetti: il sorgente cambia, il .mjs committato resta quello di ieri.
+    expect(pacchetto).toContain("righePerIva");
+    expect(pacchetto).toContain("subTotShown");
   });
 });
