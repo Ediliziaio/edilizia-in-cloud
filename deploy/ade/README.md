@@ -1,15 +1,15 @@
 # Server dedicato al canale AdE
 
-VPS dedicata **creata il 27 ottobre 2026**, distinta dal server WhatsApp: `eic-ade-fra1-01`, DigitalOcean ID `613146862`, IP `164.90.222.101`, regione `fra1`. Il gateway privato è installato e risponde correttamente a `/health`; il firewall Cloud è associato solo a questa VPS. DNS, certificati e accreditamento restano da completare. Le notifiche HTTPS sono disabilitate fino alla configurazione dei certificati effettivi. Questi file non creano risorse a pagamento automaticamente.
+VPS dedicata **creata il 27 ottobre 2026**, distinta dal server WhatsApp: `eic-ade-fra1-01`, DigitalOcean ID `613146862`, IP `164.90.222.101`, regione `fra1`. Il gateway privato è installato e risponde correttamente a `/health`; il firewall Cloud è associato solo a questa VPS. I record DNS A `sdi-test.ediliziaincloud.com` e `sdi.ediliziaincloud.com` sono stati creati su Cloudflare verso `164.90.222.101`, con TTL automatico e proxy disattivato. La risoluzione è stata verificata sui nameserver autoritativi, su 1.1.1.1 e su 8.8.8.8. Certificati e accreditamento restano da completare. Le notifiche HTTPS sono disabilitate fino alla configurazione dei certificati effettivi. Questi file non creano risorse a pagamento automaticamente.
 
 Piano attivato: DigitalOcean Basic Regular, 1 vCPU / 2 GiB / 50 GiB, **12 USD/mese**, imposte ed extra esclusi ([listino ufficiale](https://www.digitalocean.com/pricing/droplets), verificato il 27 ottobre 2026). Backup esterni e relativi costi vanno configurati prima dell'esercizio. Non riutilizzare il server WhatsApp né modificarne DNS, proxy o container.
 
-| Ambiente | URL proposto, ancora da pubblicare | API amministrativa sulla VPS |
+| Ambiente | DNS pubblicato; endpoint HTTPS ancora da attivare | API amministrativa sulla VPS |
 | --- | --- | --- |
 | Collaudo | `https://sdi-test.ediliziaincloud.com/sdi/trasmissione` | `127.0.0.1:3098` |
 | Produzione | `https://sdi.ediliziaincloud.com/sdi/trasmissione` | `127.0.0.1:3099` |
 
-I nomi vanno verificati contro i requisiti del portale prima di generare le CSR. Il proxy instrada per SNI e passa TLS integro al servizio Node: la CA e il certificato client SdI vengono verificati dal listener mTLS. Serve anche verificare nel collaudo ufficiale l'invio SNI da parte del client SdI. Nessun certificato o segreto entra nell'immagine Docker. Database e directory certificati sono distinti per ambiente. La produzione resta disattivata finché non è esplicitamente avviato il relativo profilo.
+Prima di generare le CSR verificare i requisiti effettivi della guida ufficiale del portale AdE. La guida `Nota per la generazione delle CSR_IT.pdf` è protetta da autenticazione: una risposta HTML di login non costituisce una copia della guida. Non generare CSR con soggetto o parametri ipotizzati. Il proxy instrada per SNI e passa TLS integro al servizio Node: la CA e il certificato client SdI vengono verificati dal listener mTLS. Serve anche verificare nel collaudo ufficiale l'invio SNI da parte del client SdI. Nessun certificato o segreto entra nell'immagine Docker. Database e directory certificati sono distinti per ambiente. La produzione resta disattivata finché non è esplicitamente avviato il relativo profilo.
 
 ## Preparazione sulla nuova VPS
 
