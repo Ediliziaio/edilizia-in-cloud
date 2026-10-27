@@ -1,0 +1,40 @@
+VERIFICA SERRAMENTI SU BACKEND REALE LOCALE
+
+Questo ambiente e' separato dall'app 127.0.0.1:8080 e da Supabase remoto.
+Non cambia .env, credenziali, migrazioni o dati dell'ambiente di produzione.
+Non e' una copia completa del database aziendale: prepara uno schema di test
+per i contratti delle API serramenti e applica la vera migrazione prima/dopo.
+
+Dalla radice del repository, con Docker attivo:
+
+npx supabase start --workdir services/serramenti-test-locale -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+EIC_SR_BACKEND_LOCALE=1 EIC_QA_PDF_DIR=/tmp/eic-sr-backend-reale npx vitest run --config services/serramenti-test-locale/vitest.config.ts
+
+Il test usa davvero:
+- Supabase Auth locale per creare e autenticare un utente di prova;
+- il client Supabase e le funzioni createProgetto/getProgetto/updateProgetto;
+- duplicaProgetto per copia indipendente e revisione;
+- renderSerramentoBlob, lo stesso callback dello StepPdf dell'app;
+- upsertModuleQuote, Storage privato e congelamento con impronta;
+- generazione, conservazione e download del documento firmato completo;
+- download dall'app della copia conservata, verificando la sua impronta;
+- protezioni dopo la firma e separazione fra aziende.
+
+Il gesto di firma dell'utente e' simulato aggiornando una richiesta DI TEST:
+non vengono inviati OTP, email, SMS o richieste di firma a persone reali.
+Non si certifica in questo modo una firma legale o il flusso di recapito.
+Solo il decoder immagini canvas e' sostituito dall'equivalente Node (Sharp).
+Database, autenticazione, API, copie, renderer e Storage non sono simulati.
+
+Sono generati nove documenti: originale, revisione e copia per alluminio,
+legno e PVC, senza Uw esistente e senza percentuali energetiche inventate.
+Le esclusioni personalizzate della revisione non alterano l'originale.
+Le chiavi sono lette da supabase status del SOLO progetto locale, mai salvate
+o stampate dal test. L'HTTP del client e' limitato a 127.0.0.1:54321.
+
+L'app principale su 8080 conserva il backend gia configurato: non puntarla
+a questo schema parziale per lavorare sulle altre aree dell'app.
+
+Per arrestare questo backend senza cancellare i volumi dei dati di test:
+npx supabase stop --workdir services/serramenti-test-locale

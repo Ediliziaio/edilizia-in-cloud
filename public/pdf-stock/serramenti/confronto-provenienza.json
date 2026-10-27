@@ -1,0 +1,11 @@
+{
+  "strumento": "image_gen integrato",
+  "uso": "Illustrazioni AI di categorie generiche, non fotografie del cliente ne schede tecniche del produttore. Le immagini non dimostrano trasmittanza, composizione del vetro o presenza di taglio termico.",
+  "riferimenti_testi": ["https://www.energy.gov/energysaver/window-types-and-technologies"],
+  "prompt_comune": "Use case: product-mockup. A single photorealistic editorial catalogue illustration of an older Italian two-leaf casement window. Entire closed rectangular window straight-on front view, centered on a near-white studio background, soft studio lighting, light contact shadow and generous margins. No people, room, labels, text, logos, watermark, cutaway, arrows, numbers or performance diagram. Premium restrained building supplier catalogue photographic style. Generic AI category illustration, not the customer's actual window or a certified manufacturer product.",
+  "varianti": [
+    {"file": "esistente-alluminio-v1.png", "prompt_soggetto": "Old aluminum window without thermal break from the 1970s-1980s, slim bare silver-grey metal frame, simple single clear pane glazing, utilitarian black small latch, credible modest wear and aged gaskets. No exaggerated destruction or invented insulation layers."},
+    {"file": "esistente-legno-v1.png", "prompt_soggetto": "Old Italian timber window from the 1970s-1980s, authentic slim dark honey-brown wood frame, simple single clear glazing, modest age and slightly faded varnish, period-appropriate brass lever handle, small visible hinges. Sensible rectangular joinery, no arched shapes, shutters, exaggerated rot or broken glass."},
+    {"file": "esistente-pvc-v1.png", "prompt_soggetto": "Older Italian PVC window from the 1990s, modestly aged ivory-white slim uPVC frame, basic clear double glazing, practical white lever handle and correct hinges. Slight discoloration and wear around gaskets, otherwise maintained and functional. Not broken or filthy; do not imply all older PVC is bad. No decorative heat rays."}
+  ]
+}

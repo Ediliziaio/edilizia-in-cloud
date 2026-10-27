@@ -30,6 +30,7 @@ export type SupplierProductLineInsert = Omit<
   SupplierProductLine,
   "id" | "company_id" | "created_at" | "updated_at" | "materiale"
 > & {
+  id?: string;
   materiale?: MaterialeProfilo;
 };
 
@@ -72,7 +73,7 @@ export function useSupplierProductLines(
       if (supplierCatalogId) q = q.eq("supplier_catalog_id", supplierCatalogId);
       if (!includeInactive) q = q.eq("attivo", true);
       const { data, error } = await q;
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return (data ?? []) as SupplierProductLine[];
     },
     staleTime: 5 * 60 * 1000,
@@ -113,7 +114,7 @@ export function useSupplierProductLineMutations() {
         .insert({ ...payload, company_id: companyId })
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return data as SupplierProductLine;
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),
@@ -139,7 +140,7 @@ export function useSupplierProductLineMutations() {
         .eq("company_id", companyId)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return data as SupplierProductLine;
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),

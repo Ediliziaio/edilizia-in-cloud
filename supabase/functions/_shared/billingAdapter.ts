@@ -1,6 +1,9 @@
 // supabase/functions/_shared/billingAdapter.ts
 // Sistema di sola integrazione/monitoraggio — nessuna logica di creazione fatture
 
+import { italaClientFromStored } from "./italaSecrets.ts";
+import { ITALA_STATUS_MAP } from "./italaFatture.ts";
+
 import {
   type FatelwCred,
   connect as fatelwConnect,
@@ -399,36 +402,19 @@ export class InvoicetronicAdapter implements BillingProviderAdapter {
 
 export class ItalaAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "itala";
-  private token: string;
-  private base = "https://fattura-elettronica-api.it/ws2.0/prod";
-
-  constructor(bearerToken: string) { this.token = bearerToken; }
-  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
-
+  constructor(private secret: string) {}
   async testConnection() {
     try {
-      const r = await fetch(`${this.base}/fatture?per_page=1`, { headers: this.h });
-      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
-      return { success: true, companyName: "Account ITALA" };
-    } catch (e) { return { success: false, error: String(e) }; }
+      await (await italaClientFromStored(this.secret)).request("/credito");
+      return { success: true, companyName: "Fattura Elettronica API" };
+    } catch (e) { return { success: false, error: e instanceof Error ? e.message : "Collegamento non riuscito" }; }
   }
-
   async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
-    const r = await fetch(`${this.base}/fatture/${externalId}`, { headers: this.h });
-    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
-    const d = await r.json();
-    // Enum sdi_stato (privati): INVI/PREN inviata, CONS consegnata, ERRO/NONC scartata.
-    // PA: ACCE accettata, RIFI rifiutata, DECO decorrenza termini.
-    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
-      INVI: "sent", PREN: "sent", CONS: "delivered", ERRO: "issued", NONC: "issued",
-      ACCE: "delivered", RIFI: "issued", DECO: "delivered",
-    };
-    return {
-      success: true,
-      internalStatus: map[d.sdi_stato] || "issued",
-      externalStatus: d.sdi_stato,
-      sdiId: d.sdi_identificativo?.toString(),
-    };
+    try {
+      if (!/^\d+$/.test(externalId)) throw new Error("Identificativo fattura non valido");
+      const d = await (await italaClientFromStored(this.secret)).request<{ sdi_stato: string; sdi_identificativo?: number }>(`/fatture/${externalId}`);
+      return { success: true, internalStatus: ITALA_STATUS_MAP[d.sdi_stato] ?? "issued", externalStatus: d.sdi_stato, sdiId: d.sdi_identificativo?.toString() };
+    } catch (e) { return { success: false, internalStatus: "issued", error: e instanceof Error ? e.message : "Stato non disponibile" }; }
   }
 }
 

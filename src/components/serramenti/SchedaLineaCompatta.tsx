@@ -6,15 +6,17 @@
 import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { datiTecniciScheda, type SchedaLinea } from "@/lib/listino/schedeLinea";
+import { immaginePrincipale, leggiImmaginiCatalogo } from "@/lib/listino/immaginiCatalogo";
 
 export function SchedaLineaCompatta({ scheda, className }: { scheda: SchedaLinea; className?: string }) {
   const dati = datiTecniciScheda(scheda);
+  const immagine = immaginePrincipale(leggiImmaginiCatalogo(scheda.immagini, scheda.immagine_url))?.url;
   return (
     <div className={cn("flex gap-3 rounded-md border border-slate-200 bg-white p-2.5", className)}>
-      {scheda.immagine_url && (
+      {immagine && (
         <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded border border-slate-100 bg-slate-50">
           <img
-            src={scheda.immagine_url}
+            src={immagine}
             alt={`Profilo ${scheda.nome}`}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-contain p-1"

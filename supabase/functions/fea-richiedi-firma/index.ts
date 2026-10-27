@@ -9,6 +9,7 @@ import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
 import { brandingFirma, emailInvitoFirma } from "../_shared/emailFirma.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { titoloDelDocumento } from "../_shared/pdfFirmato.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -136,6 +137,13 @@ Deno.serve(async (req: Request) => {
     }
     // Azienda principale, accesso multi-azienda o super admin; altrimenti 403.
     await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
+    if (tipo_documento === "fv") {
+      try {
+        await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_preventivi"], "inviare il preventivo fotovoltaico per la firma");
+      } catch {
+        return new Response(JSON.stringify({ error: "Non hai il permesso di inviare il preventivo per la firma." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+    }
 
     // Gate "carta obbligatoria": la firma digitale (FEA + OTP SMS/email) ha un costo.
     const pmCheck = await checkPaymentMethod(supabaseAdmin, company_id);

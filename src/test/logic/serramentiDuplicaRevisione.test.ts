@@ -27,7 +27,7 @@ vi.mock("@/integrations/supabase/client", () => {
         }
         return { data: null as null, error: null as null };
       }
-      if (op === "update") return { data: null as null, error: null as null };
+      if (op === "update") return { data: uno ? { id: filtri.id } : null, error: null as null };
       const righe = db.tabelle[tabella] ?? [];
       if (conOr) return { data: righe, error: null as null };
       const trovate = righe.filter((r) => Object.entries(filtri).every(([k, v]) => r[k] === v));
@@ -48,9 +48,11 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: costruttore } };
 });
 
-import { duplicaProgetto } from "@/lib/serramenti/api";
+import { duplicaProgetto, updateProgetto } from "@/lib/serramenti/api";
+import { nuovaAnalisiIntervento } from "@/lib/serramenti/analisiIntervento";
 
 const ORIGINALE = {
+  analisi_intervento: { ...nuovaAnalisiIntervento(), esistente: "alluminio_freddo" as const, motivo: "Comfort del cliente" },
   id: "p-1", company_id: "c1", code: "SR-2026-0001", created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-02T10:00:00Z", updated_by: "u1",
   deleted_at: null as string | null, parent_id: null as string | null, revision_number: 1, stato: "consegnato",
   cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_indirizzo: "Via Tortona 33", cliente_citta: "Milano", cliente_cap: "20121", cliente_provincia: "MI",
@@ -92,6 +94,14 @@ beforeEach(() => {
 const scrittura = (tabella: string, op = "insert") => db.scritture.filter((s) => s.tabella === tabella && s.op === op);
 
 describe("nuova revisione", () => {
+  it.each([true, false])("conserva valutazione e posa anche nella copia (revisione: %s)", async comeRevisione => {
+    await duplicaProgetto("p-1", { comeRevisione });
+    expect((scrittura("sr_progetti")[0].payload as Record<string, unknown>).analisi_intervento).toEqual(ORIGINALE.analisi_intervento);
+  });
+  it("non scarta la valutazione dalla lista dei campi salvabili", async () => {
+    await updateProgetto("p-1", { analisi_intervento: ORIGINALE.analisi_intervento });
+    expect(scrittura("sr_progetti", "update")[0].payload).toEqual({ analisi_intervento: ORIGINALE.analisi_intervento });
+  });
   it("porta con sé sconto, IVA, prezzo a mano, rate, finanziamento, detrazione, indirizzo dei lavori e modello del PDF", async () => {
     const esito = await duplicaProgetto("p-1");
     expect(esito).toEqual({ newId: "nuova-rev", newCode: "SR-2026-0001-r3", revision_number: 3 });

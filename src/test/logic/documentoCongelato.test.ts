@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PDFDocument } from "pdf-lib";
+const render = vi.hoisted(() => vi.fn());
+vi.mock("../../../supabase/functions/_shared/fotovoltaicoPdfOriginale.ts", () => ({ fotovoltaicoPdfOriginale: render }));
+vi.mock("https://esm.sh/pdf-lib@1.17.1", async () => await import("pdf-lib"));
+beforeEach(async () => {
+  const pdf = await PDFDocument.create(); pdf.addPage([595, 842]);
+  render.mockReset(); render.mockResolvedValue(await pdf.save());
+});
 // Import dinamico: il controllo dei tipi dell'app non deve seguire il modulo Deno (pdf-lib da esm.sh).
 type Fonte = { tipo: string; documentoId: string; companyId: string; aziendaNome: string; firmatario: string };
 type Modulo = {
@@ -12,7 +20,9 @@ const { congelaDocumento, DocumentoNonPronto } = (await import(/* @vite-ignore *
 function sbFinto(file: string, righe: Record<string, Record<string, unknown>>) {
   const caricati: Array<{ path: string; tipo: string }> = [];
   const sb = {
-    from: (t: string) => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: righe[t] ?? null }) }) }) }),
+    from: (t: string) => t === "fv_componenti_progetto"
+      ? { select: () => ({ eq: () => ({ order: async () => ({ data: [], error: null }) }) }) }
+      : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: righe[t] ?? null }) }) }) },
     storage: { from: () => ({
       download: async () => ({ data: new Blob([file]), error: null as null }),
       upload: async (path: string, _b: unknown, o: { contentType: string }) => { caricati.push({ path, tipo: o.contentType }); return { error: null as null }; },
@@ -30,11 +40,23 @@ describe("Documento congelato all'invio", () => {
     expect(esito.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(caricati).toEqual([{ path: "c-1/richieste/r-1.pdf", tipo: "application/pdf" }]);
   });
-  it("il preventivo fotovoltaico è una pagina HTML: si congela com'è, non si blocca", async () => {
+  it("il fotovoltaico HTML viene convertito prima di congelare e firmare il PDF completo", async () => {
     const { sb, caricati } = sbFinto("<!DOCTYPE html><html>preventivo</html>", { fv_progetti: { pdf_vendita_url: "c-1/p/vendita.html" } });
     const esito = await congelaDocumento(sb, { ...base, tipo: "fv", documentoId: "p" }, "r-2");
-    expect(esito.path).toBe("c-1/richieste/r-2.html");
-    expect(caricati[0].tipo).toBe("text/html");
+    expect(esito.path).toBe("c-1/richieste/r-2.pdf");
+    expect(caricati[0].tipo).toBe("application/pdf");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+  it("se la conversione fallisce non salva né congela un documento incompleto", async () => {
+    render.mockRejectedValueOnce(new Error("Conversione non disponibile"));
+    const { sb, caricati } = sbFinto("<!doctype html><html>QA</html>", { fv_progetti: { pdf_vendita_url: "c-1/p/vendita.html" } });
+    await expect(congelaDocumento(sb, { ...base, tipo: "fv", documentoId: "p" }, "r-2")).rejects.toThrow("Conversione non disponibile");
+    expect(caricati).toHaveLength(0);
+  });
+  it("un file con intestazione PDF ma corrotto non viene mandato in firma", async () => {
+    const { sb, caricati } = sbFinto("%PDF-1.4 corrotto", { fv_progetti: { pdf_vendita_url: "c-1/p/vendita.pdf" } });
+    await expect(congelaDocumento(sb, { ...base, tipo: "fv", documentoId: "p" }, "r-2")).rejects.toThrow("non è leggibile");
+    expect(caricati).toHaveLength(0);
   });
   it("senza documento l'invio si ferma con una frase chiara", async () => {
     const { sb } = sbFinto("", { fv_progetti: { pdf_vendita_url: null } });

@@ -17,6 +17,10 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { GalleriaImmaginiCatalogo } from "@/components/listino/GalleriaImmaginiCatalogo";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { leggiImmaginiCatalogo, type BozzaImmagineCatalogo } from "@/lib/listino/immaginiCatalogo";
+import { caricaImmaginiCatalogo, erroreGalleria } from "@/lib/listino/salvaImmaginiCatalogo";
 import {
   Dialog,
   DialogContent,
@@ -101,19 +105,25 @@ export function SupplierProductLineFormDialog({
   onSaved,
 }: SupplierProductLineFormDialogProps) {
   const mutations = useSupplierProductLineMutations();
+  const companyId = useEffectiveCompanyId();
+  const [immagini, setImmagini] = useState<BozzaImmagineCatalogo[]>([]);
+  const [uploading, setUploading] = useState(false);
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   useEffect(() => {
     if (open) {
       setForm(initial ? formFromLine(initial) : EMPTY_FORM);
+      setImmagini(leggiImmaginiCatalogo(initial?.immagini));
     }
   }, [open, initial]);
 
-  const isPending = mutations.create.isPending || mutations.update.isPending;
+  const isPending = uploading || mutations.create.isPending || mutations.update.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPending) return;
+    if (!companyId) { toast.error("Azienda non identificata"); return; }
     const nome = form.nome.trim();
     if (nome.length < 2) {
       toast.error("Il nome della linea deve avere almeno 2 caratteri");
@@ -151,24 +161,35 @@ export function SupplierProductLineFormDialog({
       attivo: form.attivo,
     };
 
+    let galleria: Awaited<ReturnType<typeof caricaImmaginiCatalogo>> | undefined;
+    let salvata = false;
+    setUploading(true);
     try {
+      const id = initial?.id ?? crypto.randomUUID();
+      const cambiata = immagini.some(i => i.file) || JSON.stringify(immagini) !== JSON.stringify(leggiImmaginiCatalogo(initial?.immagini));
+      if (cambiata) galleria = await caricaImmaginiCatalogo(companyId, id, immagini);
+      const completo = { ...payload, ...(galleria ? { immagini: galleria.immagini } : {}) };
       const saved = isEdit
         ? await mutations.update.mutateAsync({
             id: initial!.id,
             supplierCatalogId,
-            patch: payload,
+            patch: completo,
           })
-        : await mutations.create.mutateAsync(payload);
+        : await mutations.create.mutateAsync({ ...completo, id });
+      salvata = true;
       toast.success(
         isEdit ? "Linea prodotto aggiornata" : "Linea prodotto creata",
       );
       onSaved?.(saved);
       onOpenChange(false);
     } catch (err) {
+      if (!salvata) await galleria?.annulla();
       toast.error(
         isEdit ? "Errore aggiornamento linea" : "Errore creazione linea",
-        { description: err instanceof Error ? err.message : undefined },
+        { description: err instanceof Error ? erroreGalleria(err).message : undefined },
       );
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -179,7 +200,7 @@ export function SupplierProductLineFormDialog({
         if (!isPending) onOpenChange(o);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -192,6 +213,7 @@ export function SupplierProductLineFormDialog({
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            <GalleriaImmaginiCatalogo value={immagini} onChange={setImmagini} disabled={isPending} />
             <div className="grid gap-2">
               <Label htmlFor="nome">
                 Nome linea <span className="text-destructive">*</span>

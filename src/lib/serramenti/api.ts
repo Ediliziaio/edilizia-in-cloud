@@ -9,6 +9,7 @@ import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import { readSrQuoteModelSnapshot, srModelProjectDefaults } from "./quoteModel";
+import { schemaAnalisiIntervento } from "./analisiIntervento";
 import type {
   SrProgettoRow,
   SrSerramentoRow,
@@ -99,6 +100,7 @@ export async function createProgetto(
     intervento_titolo: input.intervento_titolo ?? null,
     intervento_sintesi: input.intervento_sintesi ?? null,
     materiale_principale: input.materiale_principale ?? null,
+    ...(input.analisi_intervento != null ? { analisi_intervento: schemaAnalisiIntervento.parse(input.analisi_intervento) } : {}),
     esigenze: input.esigenze ?? [],
     soluzione: input.soluzione ?? [],
     perche_noi: input.perche_noi ?? null,
@@ -302,7 +304,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   // Intervento
   "tipo_intervento", "intervento_titolo", "intervento_sintesi",
   "materiale_principale", "totale_serramenti", "totale_accessori",
-  "metri_quadri_totali",
+  "metri_quadri_totali", "analisi_intervento",
   // Copy preventivo
   "esigenze", "soluzione", "perche_noi", "incluso_investimento",
   "testimonianze", "prossimi_passi",
@@ -337,6 +339,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
 ]);
 
 export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>): Promise<void> {
+  if (patch.analisi_intervento != null) schemaAnalisiIntervento.parse(patch.analisi_intervento);
   // Allowlist: scarta silenziosamente le chiavi non in whitelist.
   // Protegge da:
   //   - campi virtuali (calcolati lato client, non esistono in DB)
@@ -354,11 +357,17 @@ export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>):
   }
   if (Object.keys(safePatch).length === 0) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("sr_progetti").update(safePatch).eq("id", id);
+  const query = (supabase as any).from("sr_progetti").update(safePatch).eq("id", id);
+  const verificaValutazione = Object.prototype.hasOwnProperty.call(safePatch, "analisi_intervento");
+  const { data, error } = await (verificaValutazione ? query.select("id").single() : query);
   if (error) {
     console.error("[serramenti] updateProgetto failed", error);
+    if (verificaValutazione && error.code === "PGRST116") throw new Error("Valutazione non salvata: preventivo non disponibile o accesso negato.");
+    if (["42703", "PGRST204"].includes(error.code) && /analisi_intervento/.test(error.message))
+      throw new Error("La valutazione prima/dopo richiede l'aggiornamento del database. La bozza resta disponibile localmente.");
     throw new Error("Salvataggio progetto fallito");
   }
+  if (verificaValutazione && !data?.id) throw new Error("Valutazione non salvata: preventivo non disponibile o accesso negato.");
 }
 
 export async function deleteProgetto(id: string): Promise<void> {

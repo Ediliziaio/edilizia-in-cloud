@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useBagniPDF — download/preview del PDF cliente del preventivo
@@ -290,13 +291,12 @@ export async function enrichBagniPdf(opts: BgnPdfPayload): Promise<BgnPdfEnriche
  */
 export async function renderBgnPreviewBlobUrl(opts: BgnPdfPayload): Promise<string> {
   const enriched = await enrichBagniPdf(opts);
-  const [{ pdf }, { BagniPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ BagniPDF }, React] = await Promise.all([
     import("@/components/bagni/BagniPDF"),
     import("react"),
   ]);
   const element = React.createElement(BagniPDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -319,13 +319,12 @@ export function useBagniPDF() {
         return { ok: false };
       }
       const enriched = await enrichBagniPdf(opts);
-      const [{ pdf }, { BagniPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ BagniPDF }, React] = await Promise.all([
         import("@/components/bagni/BagniPDF"),
         import("react"),
       ]);
       const element = React.createElement(BagniPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -359,13 +358,12 @@ export function useBagniPDF() {
         return;
       }
       const enriched = await enrichBagniPdf(opts);
-      const [{ pdf }, { BagniPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ BagniPDF }, React] = await Promise.all([
         import("@/components/bagni/BagniPDF"),
         import("react"),
       ]);
       const element = React.createElement(BagniPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

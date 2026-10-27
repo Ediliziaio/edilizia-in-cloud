@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useRistrutturazionePDF — download/preview del PDF cliente del preventivo
@@ -295,13 +296,12 @@ export async function enrichRistrutturazionePdf(opts: RstPdfPayload): Promise<Rs
  */
 export async function renderRstPreviewBlobUrl(opts: RstPdfPayload): Promise<string> {
   const enriched = await enrichRistrutturazionePdf(opts);
-  const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ RistrutturazionePDF }, React] = await Promise.all([
     import("@/components/ristrutturazione/RistrutturazionePDF"),
     import("react"),
   ]);
   const element = React.createElement(RistrutturazionePDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -324,13 +324,12 @@ export function useRistrutturazionePDF() {
         return { ok: false };
       }
       const enriched = await enrichRistrutturazionePdf(opts);
-      const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ RistrutturazionePDF }, React] = await Promise.all([
         import("@/components/ristrutturazione/RistrutturazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(RistrutturazionePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -364,13 +363,12 @@ export function useRistrutturazionePDF() {
         return;
       }
       const enriched = await enrichRistrutturazionePdf(opts);
-      const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ RistrutturazionePDF }, React] = await Promise.all([
         import("@/components/ristrutturazione/RistrutturazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(RistrutturazionePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

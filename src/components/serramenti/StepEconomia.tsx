@@ -43,6 +43,7 @@ import {
 } from "@/lib/serramenti/pianoFinanziamento";
 import { anticipoDaRate, rateConAnticipo, schemaDopoAnticipo } from "@/lib/serramenti/ratePagamento";
 import { campiRisparmio, paybackAtteso } from "@/lib/serramenti/risparmioPreventivo";
+import { leggiAnalisiIntervento, nuovaAnalisiIntervento } from "@/lib/serramenti/analisiIntervento";
 import { valoriDiversi } from "@/lib/serramenti/scritturaCampi";
 import { motivoPreventivoDeciso } from "@/lib/serramenti/preventivoDeciso";
 import { evaluateDiscountRules, classifyDiscount, type DiscountEvalResult } from "@/lib/serramenti/discountRules";
@@ -741,10 +742,21 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
   // Gli extra (risparmio, recupero in 10 anni) stanno chiusi di serie; aprirli o chiuderli non tocca i dati:
   // interruttore, Uw, m² e bolletta sono qui, non nella scheda.
   const [extraAperti, setExtraAperti] = useState({ risparmio: false, recupero: false });
-  const [m2Casa, setM2Casa] = useState(100);
-  const [uwAttuale, setUwAttuale] = useState(2.8);
-  const [uwNuovo, setUwNuovo] = useState(1.1);
-  const [bollettaAttuale, setBollettaAttuale] = useState<number>(0);
+  const analisiSalvata = leggiAnalisiIntervento(form.analisi_intervento);
+  const ipotesiSalvate = analisiSalvata?.risparmio;
+  const [m2Casa, setM2Casa] = useState(ipotesiSalvate?.m2Casa ?? 100);
+  const [uwAttuale, setUwAttuale] = useState(ipotesiSalvate?.uwAttuale ?? analisiSalvata?.uwPrima ?? 2.8);
+  const [uwNuovo, setUwNuovo] = useState(ipotesiSalvate?.uwNuovo ?? analisiSalvata?.uwDopo ?? 1.1);
+  const [bollettaAttuale, setBollettaAttuale] = useState<number>(ipotesiSalvate?.bolletta ?? 0);
+  const [fonteBolletta, setFonteBolletta] = useState<"cliente" | "stimata">(ipotesiSalvate?.fonteBolletta ?? "stimata");
+  const ipotesiKey = JSON.stringify(ipotesiSalvate ?? null);
+  useEffect(() => {
+    if (!ipotesiSalvate) return;
+    setM2Casa(ipotesiSalvate.m2Casa); setUwAttuale(ipotesiSalvate.uwAttuale ?? 0); setUwNuovo(ipotesiSalvate.uwNuovo ?? 0);
+    setBollettaAttuale(ipotesiSalvate.bolletta); setFonteBolletta(ipotesiSalvate.fonteBolletta);
+    // The serialized inputs, not the wizard callback identity, drive rehydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ipotesiKey]);
 
   const zonaClimatica: ZonaClimatica = useMemo(() => {
     const cap = form.cantiere_cap || form.cliente_cap;
@@ -785,11 +797,20 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     prossimo: Partial<{ attivo: boolean; uwAttuale: number; uwNuovo: number; m2Casa: number; bolletta: number }>,
   ) => {
     const dati = { attivo: risparmioAttivo, uwAttuale, uwNuovo, bolletta: bollettaAttuale, ...prossimo };
+    const fonte = prossimo.bolletta !== undefined ? "cliente" : fonteBolletta;
+    if (prossimo.m2Casa !== undefined && fonte === "stimata" && prossimo.bolletta === undefined)
+      dati.bolletta = bollettaMediaRiscaldamento(zonaClimatica, prossimo.m2Casa);
     if (prossimo.attivo !== undefined) setRisparmioAttivo(prossimo.attivo);
     if (prossimo.uwAttuale !== undefined) setUwAttuale(prossimo.uwAttuale);
     if (prossimo.uwNuovo !== undefined) setUwNuovo(prossimo.uwNuovo);
     if (prossimo.m2Casa !== undefined) setM2Casa(prossimo.m2Casa);
-    if (prossimo.bolletta !== undefined) setBollettaAttuale(prossimo.bolletta);
+    setBollettaAttuale(dati.bolletta); setFonteBolletta(fonte);
+    scrivi("analisi_intervento", { ...(analisiSalvata ?? { ...nuovaAnalisiIntervento(), attiva: false }), risparmio: {
+      uwAttuale: Number.isFinite(dati.uwAttuale) ? Math.max(0, dati.uwAttuale) : null,
+      uwNuovo: Number.isFinite(dati.uwNuovo) ? Math.max(0, dati.uwNuovo) : null,
+      bolletta: Math.max(0, dati.bolletta), m2Casa: prossimo.m2Casa ?? m2Casa,
+      zona: zonaClimatica, superficie: totaleCalc.metri_quadri, fonteBolletta: fonte,
+    } });
     const campi = campiRisparmio(
       calcolaRisparmioPreventivo(dati.attivo, totaleCalc.metri_quadri, zonaClimatica, dati.uwAttuale, dati.uwNuovo, dati.bolletta),
       { totale: forbice.media, detrazioneEurAnno: ecobonusCalc ? ecobonusCalc.rata_annuale : null },
@@ -800,6 +821,14 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     if (campi.cantiere_zona_climatica !== undefined) scrivi("cantiere_zona_climatica", campi.cantiere_zona_climatica);
     if (campi.payback_anni !== undefined) scrivi("payback_anni", campi.payback_anni);
   };
+
+  useEffect(() => {
+    if (deciso || !risparmioAttivo || !ipotesiSalvate) return;
+    if (Math.abs(ipotesiSalvate.superficie - totaleCalc.metri_quadri) < 0.01 && ipotesiSalvate.zona === zonaClimatica) return;
+    aggiornaRisparmio({});
+    // Recompute only when a saved calculation no longer matches its scope.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deciso, risparmioAttivo, ipotesiKey, totaleCalc.metri_quadri, zonaClimatica]);
 
   // Il piano di finanziamento nel preventivo segue il totale: se i prezzi cambiano in un altro passo, la rata
   // scritta non resta quella di prima. Solo un piano che c'è già (non ne nasce uno da solo), solo con uno schema che
@@ -1458,7 +1487,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 m² serramenti: {formatNumero(totaleCalc.metri_quadri, 2)}
               </p>
             </div>
-            <Switch checked={risparmioAttivo} onCheckedChange={(attivo) => aggiornaRisparmio({ attivo })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
+            <Switch aria-label="Calcola risparmio in bolletta" checked={risparmioAttivo} onCheckedChange={(attivo) => aggiornaRisparmio({ attivo })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
           </div>
           {risparmioAttivo && (
             <>
@@ -1475,21 +1504,16 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p className="text-xs font-semibold mb-1">Uw — Trasmittanza termica del serramento</p>
-                        <p className="text-[11px]">Quanto calore disperde il serramento attuale (W per m² per °C di differenza). Più basso = meglio isola. Riferimenti tipici:</p>
-                        <ul className="text-[11px] mt-1 space-y-0.5">
-                          <li>• <strong>5.0</strong>: singolo vetro anni '70-'80</li>
-                          <li>• <strong>2.8</strong>: vetrocamera vecchia (anni '90)</li>
-                          <li>• <strong>2.0</strong>: PVC standard senza taglio termico</li>
-                        </ul>
+                        <p className="text-[11px]">Trasmittanza del serramento completo. Usa una valutazione documentata: materiale, eta e numero di vetri da soli non identificano un valore Uw.</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
                   <Input
-                    type="number" step={0.1} value={uwAttuale}
+                    aria-label="Uw attuale per la stima" type="number" step={0.1} value={uwAttuale}
                     onChange={(e) => aggiornaRisparmio({ uwAttuale: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Singolo vetro: ~5.0 · Vecchia vetrocamera: ~2.8</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Ipotesi di calcolo da confermare</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs flex items-center gap-1">
@@ -1502,27 +1526,21 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p className="text-xs font-semibold mb-1">Uw del nuovo serramento</p>
-                        <p className="text-[11px]">Valore dichiarato dal produttore (lo trovi in scheda tecnica). Riferimenti:</p>
-                        <ul className="text-[11px] mt-1 space-y-0.5">
-                          <li>• <strong>1.4</strong>: PVC standard con vetrocamera basso-em.</li>
-                          <li>• <strong>1.1</strong>: PVC/Alluminio premium</li>
-                          <li>• <strong>0.8</strong>: triplo vetro con argon e warm-edge</li>
-                          <li>• Soglia minima Ecobonus zona E: <strong>≤ 1.4</strong></li>
-                        </ul>
+                        <p className="text-[11px]">Valore del serramento completo nella configurazione proposta. Non confondere Uw con Ug del solo vetro o con un valore limite di catalogo.</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
                   <Input
-                    type="number" step={0.1} value={uwNuovo}
+                    aria-label="Uw nuovo per la stima" type="number" step={0.1} value={uwNuovo}
                     onChange={(e) => aggiornaRisparmio({ uwNuovo: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Standard: 1.4 · Performante: 1.1 · Triplo vetro: 0.8</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Dato della configurazione proposta</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs">m² casa</Label>
                   <Input
-                    type="number" value={m2Casa}
+                    aria-label="Superficie casa per la stima" type="number" min={1} value={m2Casa}
                     onChange={(e) => aggiornaRisparmio({ m2Casa: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
@@ -1530,7 +1548,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs"><span className="max-md:hidden">Bolletta riscaldamento attuale (€/anno)</span><span className="md:hidden">Bolletta (€/anno)</span></Label>
                   <Input
-                    type="number" value={bollettaAttuale}
+                    aria-label="Spesa annua riscaldamento" type="number" min={0} value={bollettaAttuale}
                     onChange={(e) => aggiornaRisparmio({ bolletta: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />

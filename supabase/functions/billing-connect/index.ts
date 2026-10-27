@@ -1,3 +1,8 @@
+import { sealItalaCredentials } from "../_shared/italaSecrets.ts";
+import { ItalaClient } from "../_shared/italaClient.ts";
+import { vatNumber } from "../_shared/billingMassive.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, ArubaAdapter, AcubeAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -181,6 +186,31 @@ serveConMetriche("billing-connect", async (req) => {
     }).eq("id", integ.id);
     if (error) return json({ error: `Salvataggio non riuscito: ${error.message}` }, 500);
     return json({ success: true, company_name: ficCo.name, vat_number: ficCo.vat_number });
+  }
+
+  // Permanent REST 2.0 API credentials, scoped to the current company's VAT.
+  if (action === "configure_itala" && req.method === "POST") {
+    const roles = await ruoliNellAzienda(supabase, user.id, companyId);
+    if (!roles.includes("company_admin") && !(roles.includes("super_admin") && isSuperAdminEmailAllowed(user.email))) {
+      return json({ error: "Solo l'amministratore può configurare le credenziali del provider." }, 403);
+    }
+    const client_id = typeof body.client_id === "string" ? body.client_id.trim() : "";
+    const client_secret = typeof body.client_secret === "string" ? body.client_secret : "";
+    const environment = body.environment === "test" ? "test" : "prod";
+    if (!client_id || !client_secret) return json({ error: "Client ID e Client Secret richiesti." }, 400);
+    const codes = await codiciFiscaliAzienda(companyId);
+    const vat = vatNumber(codes[2] || codes[0]);
+    const secret = JSON.stringify({ client_id, client_secret, environment });
+    const client = new ItalaClient(secret);
+    // This endpoint is read-only; do not consume invoices with unread=true.
+    await client.request("/credito");
+    const { error } = await supabase.from("billing_integrations").upsert({
+      company_id: companyId, provider: "itala", is_active: true, api_key: await sealItalaCredentials(secret),
+      provider_vat_number: vat, provider_company_name: "Fattura Elettronica API",
+      auto_sync: false, updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+    if (error) return json({ error: "Impossibile salvare il collegamento." }, 500);
+    return json({ success: true, company_name: "Fattura Elettronica API", vat_number: vat, environment });
   }
 
   // ── Configura provider con API key

@@ -389,8 +389,8 @@ describe("fotovoltaico PDF template", () => {
 
     // L'occhiello non porta più «Pagina N ·»: si riconosce la pagina dalla sua etichetta.
     const occhiello = (testo: string) => html.indexOf(`<div class="eyebrow">${testo}</div>`);
-    expect(occhiello("I componenti")).toBeGreaterThan(-1);
-    expect(occhiello("I componenti")).toBeLessThan(occhiello("L'investimento"));
+    expect(occhiello("La fornitura")).toBeGreaterThan(-1);
+    expect(occhiello("La fornitura")).toBeLessThan(occhiello("L'investimento"));
     expect(html).not.toMatch(/class="eyebrow">[^<]*Pagina \d/);
     expect(html).toContain("Batteria dinamica dal preventivo");
     expect(html).toContain("Pagina dedicata letta dal listino");
@@ -492,7 +492,7 @@ describe("fotovoltaico PDF — elenco componenti e foto prodotti", () => {
     expect(html).toContain("MAX-540");
     expect(html).toContain("Huawei");
     // Quantità e chip specs
-    expect(html).toContain("16 pezzi");
+    expect(html).toContain('class="forn-qta">16<span');
     expect(html).toContain("540 Wp");
     expect(html).toContain("25 anni");
   });
@@ -501,12 +501,12 @@ describe("fotovoltaico PDF — elenco componenti e foto prodotti", () => {
     const d = basePdfData();
     const html = renderFvPdfHtml(d);
     // La pagina componenti c'è con le card dei 2 componenti fixture
-    expect(html).toContain("I componenti");
+    expect(html).toContain("La fornitura");
     expect(html).toContain("PV500");
     expect(html).toContain("INV6");
     // Nessuna immagine articolo → fallback vettoriale nella card prodotto
-    expect(html).toContain('class="product-img"');
-    expect(html.match(/product-card/g)!.length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain('class="forn-thumb"><div class="ph"><svg');
+    expect(html.match(/class="forn-thumb"/g)!.length).toBeGreaterThanOrEqual(2);
   });
 
   it("le voci del kit/bundle mostrano descrizione, quantità e foto", () => {

@@ -10,14 +10,15 @@
  *    come è stato verificato (codice monouso via email), l'impronta SHA-256
  *    del documento, le clausole approvate a parte (art. 1341 c.c.) e il codice
  *    di verifica;
- *  - se il documento non è un PDF (il preventivo fotovoltaico è una pagina HTML)
- *    resta il solo certificato, con l'impronta del documento.
+ *  - i vecchi preventivi FV congelati in HTML vengono stampati integralmente,
+ *    conservando l'HTML e la sua impronta originali come prova della firma.
  * Il file sta in `quote-pdfs/<azienda>/firmati/<richiesta>.pdf`.
  *
  * `assicuraPdfFirmato` è idempotente: se il file c'è già lo restituisce.
  */
 import { clausoleDellaFirma } from "./clausoleFirma.ts";
 import { mascheraTelefono } from "./telefonoE164.ts";
+import { fotovoltaicoPdfOriginale } from "./fotovoltaicoPdfOriginale.ts";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 
 const BUCKET = "quote-pdfs";
@@ -384,16 +385,29 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
       path = `${r.company_id}/firmati/gruppo-${r.gruppo_firma_id}.pdf`;
     }
   }
+  // Do not reuse a historical FV file containing only its certificate. Keep it
+  // untouched and save the complete representation at a versioned path instead.
+  if (r.tipo_documento === "fv") path = path.replace(/\.pdf$/, "-completo.pdf");
   if (r.signed_pdf_path === path && r.codice_verifica) {
     return { path: r.signed_pdf_path, codiceVerifica: r.codice_verifica, hash: r.signed_pdf_hash ?? "", creato: false };
   }
 
   const { data: azienda } = await sb.from("companies").select("name").eq("id", r.company_id).maybeSingle();
   const { bytes, titolo } = await scaricaOriginale(sb, r);
-  const originale = bytes && eUnPdf(bytes) ? bytes : null;
   const hashDocumento = bytes ? await sha256Hex(bytes) : (r.documento_hash ?? null);
   const impronteDiverse = !!(bytes && r.documento_hash && r.documento_hash !== hashDocumento);
   if (impronteDiverse) throw new Error("Il documento originale è cambiato rispetto a quello inviato per la firma. La copia firmata non viene generata su un documento diverso.");
+  let originale = bytes && eUnPdf(bytes) ? bytes : null;
+  if (r.tipo_documento === "fv") {
+    // Legacy requests signed the frozen HTML. Preserve its hash and source;
+    // only produce the complete printable representation from those same bytes.
+    if (!originale && bytes && new TextDecoder().decode(bytes.subarray(0, 512)).replace(/^\uFEFF/, "").trimStart().startsWith("<")) {
+      originale = await fotovoltaicoPdfOriginale(bytes);
+    }
+    if (!originale) throw new Error("Manca il PDF completo del fotovoltaico. Prepara il documento completo prima di richiedere la firma.");
+    const documento = await PDFDocument.load(originale);
+    if (!documento.getPageCount()) throw new Error("Il PDF del fotovoltaico non contiene pagine.");
+  }
 
   const aziendaNome = azienda?.name ?? "Edilizia in Cloud";
   const dati: DatiCertificato[] = [];

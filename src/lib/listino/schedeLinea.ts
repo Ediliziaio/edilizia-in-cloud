@@ -14,8 +14,10 @@
  * scelto»).
  */
 import { chiaveTesto } from "./areeStandard";
+import { immaginiPerPdf, leggiImmaginiCatalogo, type ImmagineCatalogo } from "./immaginiCatalogo";
 
 export interface SchedaLinea {
+  immagini?: ImmagineCatalogo[];
   id: string;
   company_id: string;
   /** La tipologia (macrocategoria) della linea; null per i prodotti senza tipologia. */
@@ -71,7 +73,7 @@ export function trovaSchedaLinea(
 export function schedaVuota(scheda: SchedaLinea | null | undefined): boolean {
   if (!scheda) return true;
   return (
-    !scheda.immagine_url &&
+    immaginiPerPdf(leggiImmaginiCatalogo(scheda.immagini, scheda.immagine_url)).length === 0 &&
     !(scheda.descrizione ?? "").trim() &&
     scheda.profondita_mm == null &&
     scheda.camere == null &&

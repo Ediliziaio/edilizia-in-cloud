@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * usePiscinePDF — download/preview del PDF cliente del preventivo
@@ -295,13 +296,12 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
  */
 export async function renderPisPreviewBlobUrl(opts: PisPdfPayload): Promise<string> {
   const enriched = await enrichPiscinePdf(opts);
-  const [{ pdf }, { PiscinePDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ PiscinePDF }, React] = await Promise.all([
     import("@/components/piscine/PiscinePDF"),
     import("react"),
   ]);
   const element = React.createElement(PiscinePDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -324,13 +324,12 @@ export function usePiscinePDF() {
         return { ok: false };
       }
       const enriched = await enrichPiscinePdf(opts);
-      const [{ pdf }, { PiscinePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ PiscinePDF }, React] = await Promise.all([
         import("@/components/piscine/PiscinePDF"),
         import("react"),
       ]);
       const element = React.createElement(PiscinePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -364,13 +363,12 @@ export function usePiscinePDF() {
         return;
       }
       const enriched = await enrichPiscinePdf(opts);
-      const [{ pdf }, { PiscinePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ PiscinePDF }, React] = await Promise.all([
         import("@/components/piscine/PiscinePDF"),
         import("react"),
       ]);
       const element = React.createElement(PiscinePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

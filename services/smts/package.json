@@ -1,0 +1,4 @@
+{
+  "name": "edilizia-smts", "private": true, "type": "module", "engines": { "node": ">=24" },
+  "scripts": { "start": "node --experimental-transform-types --env-file-if-exists=.env server.ts", "test": "node --experimental-transform-types --test smts.test.ts server.test.mjs signature.test.ts" }
+}

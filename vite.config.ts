@@ -13,6 +13,7 @@ import { localCadPlugin } from "./dev/preventivatore-ai/cadPlugin.mts";
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
+let buildFailed = false;
 export default defineConfig(({ command, mode }) => ({
   // Multiple local terminals/previews otherwise delete chunks still used by
   // another Vite server, producing 504 Outdated Optimize Dep and reload loops.
@@ -105,7 +106,10 @@ export default defineConfig(({ command, mode }) => ({
       name: "beasties-critical-css",
       apply: "build",
       enforce: "post" as const,
+      buildStart() { buildFailed = false; },
+      buildEnd(error) { buildFailed = Boolean(error); },
       async closeBundle() {
+        if (buildFailed) return;
         try {
           // v8.6.126 — Beasties tuning più aggressivo per prerendered routes
           // /prezzi /funzionalita /blog. Prima inlinava ~50-60KB di critical CSS
@@ -381,6 +385,9 @@ export default defineConfig(({ command, mode }) => ({
     drop: process.env.NODE_ENV === "production" ? ["debugger"] : [],
   },
   build: {
+    // The app has thousands of chunks: gzip reporting compresses them all
+    // without affecting the output served by Cloudflare.
+    reportCompressedSize: false,
     // Move generated bundles away from previously poisoned immutable cache
     // namespaces. Cloudflare Pages SPA fallback has served index.html for JS
     // asset URLs during deploy races; a new assets directory gives every

@@ -110,6 +110,15 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
   const existing = await getModuleQuote(input.companyId, input.moduleKey, input.progettoId);
   const esito = esitoOffertaModulo(existing);
   if (esito) throw new Error(FRASI_OFFERTA_MODULO[esito]);
+  let quoteNumber = existing?.quote_number ?? "";
+  if (!existing) {
+    const { data: numero, error: numberError } = await supabase.rpc("generate_quote_number", {
+      p_company_id: input.companyId,
+    } as never);
+    if (numberError) throw new Error(`Numerazione del preventivo non disponibile: ${numberError.message}`);
+    if (typeof numero !== "string" || !numero.trim()) throw new Error("Il numero del preventivo non è stato generato. Riprova prima dell'invio.");
+    quoteNumber = numero;
+  }
 
   // 1. PDF su storage (path stabile per-progetto, upsert).
   const pdfPath = `${input.companyId}/moduli/${input.moduleKey}-${input.progettoId}.pdf`;
@@ -144,11 +153,6 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
     if (error) throw new Error(error.message);
     return data as ModuleQuoteRow;
   }
-
-  const { data: numData } = await supabase.rpc("generate_quote_number", {
-    p_company_id: input.companyId,
-  } as never);
-  const quoteNumber = (numData as string | null) || `OFF-${new Date().getFullYear()}-${Date.now() % 100000}`;
 
   const { data, error } = await supabase
     .from("quotes")

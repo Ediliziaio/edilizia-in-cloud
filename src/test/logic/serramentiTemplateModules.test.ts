@@ -17,8 +17,8 @@ describe("sette moduli PDF Serramenti indipendenti", () => {
     const payload = await buildMockPdfData({ template: t, moduleId: m.id });
     expect(t.logo_url).toBe(base.logo_url);
     expect(t.pdf_cover_hero).toBe(m.title);
-    expect(t.condizioni_legali_attivo).toBe(false);
-    expect(t.condizioni_legali_testo).toBe("");
+    expect(t.condizioni_legali_attivo).toBe(true);
+    expect(t.condizioni_legali_testo).toBe(base.condizioni_legali_testo);
     expect(payload.detail.progetto.intervento_titolo).toBe(m.title);
     expect(payload.detail.progetto.esigenze).toEqual(t.esigenze_default);
     expect(payload.detail.serramenti[0].tipologia_label).toBe(m.sample);

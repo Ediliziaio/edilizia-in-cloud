@@ -103,9 +103,19 @@ Deno.serve(async (req: Request) => {
     // Già firmato: non esporre l'intero flusso, solo i dati per la conferma
     if (sigReq.status === "signed") {
       let pdfFirmatoUrl: string | null = null;
-      if (sigReq.signed_pdf_path?.startsWith(`${sigReq.company_id}/`)) {
+      let signedPath = sigReq.signed_pdf_path;
+      if (sigReq.tipo_documento === "fv" && !signedPath?.endsWith("-completo.pdf")) {
+        try {
+          const { assicuraPdfFirmato } = await import("../_shared/pdfFirmato.ts");
+          signedPath = (await assicuraPdfFirmato(supabaseAdmin, sigReq.id)).path;
+        } catch {
+          // Never offer the old certificate alone as the complete FV document.
+          signedPath = null;
+        }
+      }
+      if (signedPath?.startsWith(`${sigReq.company_id}/`)) {
         const { data: file } = await supabaseAdmin.storage.from("quote-pdfs")
-          .createSignedUrl(sigReq.signed_pdf_path, 3600, { download: "documento-firmato.pdf" });
+          .createSignedUrl(signedPath, 3600, { download: "documento-firmato.pdf" });
         pdfFirmatoUrl = file?.signedUrl ?? null;
       }
       return new Response(

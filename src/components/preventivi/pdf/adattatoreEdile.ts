@@ -339,7 +339,7 @@ export function costruisciDatiEdile(input: {
   progetto: ProgettoComune;
   template: Grezzo;
   azienda: AziendaComune | null;
-  capitoli: Array<{ nome: string; voci: VoceComune[]; subtotale: number }>;
+  capitoli: Array<{ nome: string; voci: VoceComune[]; subtotale: number; fuoriTotale?: boolean }>;
   totali: DocEdileTotali;
   media: Array<{ id: string; url: string; caption?: string | null }>;
   opzioniComputo?: Partial<DocEdileOpzioniComputo> | null;
@@ -370,6 +370,7 @@ export function costruisciDatiEdile(input: {
   const nomeAzienda = stringa(t.ragione_sociale) || azienda?.ragione_sociale || azienda?.name || "La tua azienda";
   const capitoli: DocEdileCapitolo[] = input.capitoli.map((c) => ({
     nome: c.nome,
+    fuoriTotale: c.fuoriTotale,
     subtotale: Number(c.subtotale) || 0,
     voci: c.voci.map((v) => {
       const importo = Number(v.importo) || 0;

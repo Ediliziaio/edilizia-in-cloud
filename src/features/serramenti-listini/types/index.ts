@@ -35,6 +35,7 @@ export interface SupplierCatalog {
  * Tipicamente 2-5 linee per fornitore.
  */
 export interface SupplierProductLine {
+  immagini?: import("@/lib/listino/immaginiCatalogo").ImmagineCatalogo[];
   id: string;
   company_id: string;
   supplier_catalog_id: string;

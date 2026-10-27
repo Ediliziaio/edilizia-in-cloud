@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * usePavimentiPDF — download/preview del PDF cliente del preventivo
@@ -305,13 +306,12 @@ export async function enrichPavimentiPdf(opts: PavPdfPayload): Promise<PavPdfEnr
  */
 export async function renderPavPreviewBlobUrl(opts: PavPdfPayload): Promise<string> {
   const enriched = await enrichPavimentiPdf(opts);
-  const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ PavimentiPDF }, React] = await Promise.all([
     import("@/components/pavimenti/PavimentiPDF"),
     import("react"),
   ]);
   const element = React.createElement(PavimentiPDF, enriched);
-  const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -334,13 +334,12 @@ export function usePavimentiPDF() {
         return { ok: false };
       }
       const enriched = await enrichPavimentiPdf(opts);
-      const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ PavimentiPDF }, React] = await Promise.all([
         import("@/components/pavimenti/PavimentiPDF"),
         import("react"),
       ]);
       const element = React.createElement(PavimentiPDF, enriched);
-      const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -374,13 +373,12 @@ export function usePavimentiPDF() {
         return;
       }
       const enriched = await enrichPavimentiPdf(opts);
-      const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ PavimentiPDF }, React] = await Promise.all([
         import("@/components/pavimenti/PavimentiPDF"),
         import("react"),
       ]);
       const element = React.createElement(PavimentiPDF, enriched);
-      const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

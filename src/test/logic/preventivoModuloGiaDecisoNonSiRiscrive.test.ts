@@ -14,6 +14,7 @@ const stato = vi.hoisted(() => ({
   upload: [] as unknown[][],
   update: [] as unknown[],
   insert: [] as unknown[],
+  numero: { data: "OFF-2026-001" as string | null, error: null as { message: string } | null },
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -32,7 +33,7 @@ vi.mock("@/integrations/supabase/client", () => {
         insert: (dati: unknown) => { stato.insert.push(dati); return catena(() => ({ id: "nuovo", ...(dati as object) })); },
       }),
       storage: { from: () => ({ upload: async (...args: unknown[]) => { stato.upload.push(args); return { error: null as { message: string } | null }; } }) },
-      rpc: async () => ({ data: "OFF-2026-001", error: null as { message: string } | null }),
+      rpc: async () => stato.numero,
       functions: { invoke: vi.fn() },
     },
   };
@@ -50,9 +51,15 @@ const riga = (extra: Record<string, unknown>) => ({
   viewed_at: null as string | null, signed_at: null as string | null, expires_at: "2026-10-20T10:00:00Z", ...extra,
 });
 
-beforeEach(() => { stato.esistente = null; stato.upload = []; stato.update = []; stato.insert = []; });
+beforeEach(() => { stato.esistente = null; stato.upload = []; stato.update = []; stato.insert = []; stato.numero = { data: "OFF-2026-001", error: null }; });
 
 describe("upsertModuleQuote: l'offerta già decisa non si tocca", () => {
+  it.each([null, { message: "Numerazione non disponibile" }])("senza numero valido non inventa un numero e non carica PDF orfani (%s)", async error => {
+    stato.numero = { data: null, error };
+    await expect(upsertModuleQuote(input)).rejects.toThrow(/numero|Numerazione/);
+    expect(stato.upload).toHaveLength(0);
+    expect(stato.insert).toHaveLength(0);
+  });
   it.each([
     ["rifiutata dal cliente", { status: "rifiutata", viewed_at: "2026-09-21T10:00:00Z" }],
     ["firmata (con data)", { status: "accettata", signed_at: "2026-09-22T10:00:00Z" }],

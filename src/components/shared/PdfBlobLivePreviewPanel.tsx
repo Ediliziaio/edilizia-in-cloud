@@ -112,7 +112,7 @@ export function PdfBlobLivePreviewPanel({
   showDownloadOnMobile = false,
 }: Props) {
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
-  // condiviso, così ogni pannello (compreso il Fotovoltaico, che è HTML) eredita
+  // condiviso, così ogni pannello (compreso il Fotovoltaico) eredita
   // le stesse protezioni invece di riscriverle — o dimenticarle.
   const scartaBlob = useCallback((u: string) => {
     revokePdfPreviewUrl(u);

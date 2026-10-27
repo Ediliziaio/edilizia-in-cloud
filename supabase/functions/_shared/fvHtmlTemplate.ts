@@ -1516,12 +1516,12 @@ function righeFornitura(d: FvPdfTemplateData): RigaFornitura[] {
         if (c.potenza_w) specs.push(`${fmtNum(c.potenza_w, 0)} Wp`);
         if (c.capacita_kwh) specs.push(`${fmtNum(c.capacita_kwh, 1)} kWh`);
         if (c.garanzia_anni) specs.push(`Garanzia ${c.garanzia_anni} anni`);
-        const estesa = plainText(c.articolo_descrizione_estesa);
+        const estesa = plainText(c.articolo_descrizione_estesa) || media.description;
         if (estesa && specs.length < 3) specs.push(estesa);
         return {
-          foto: imageHref(c.image_url) ?? null,
+          foto: imageHref(c.image_url) ?? media.imageUrl,
           cat: media.label || c.categoria,
-          titolo: [c.marca, c.modello ?? c.descrizione].filter(Boolean).join(" ") || c.descrizione,
+          titolo: [c.marca, c.modello, c.descrizione !== c.modello ? c.descrizione : null].filter(Boolean).join(" ") || c.descrizione,
           specs: specs.slice(0, 3),
           qta: c.quantita,
         };

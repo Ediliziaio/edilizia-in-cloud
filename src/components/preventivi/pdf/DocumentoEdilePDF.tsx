@@ -18,8 +18,9 @@
  * recensioni compaiono solo se l'azienda le ha scritte nel suo modello.
  */
 import * as React from "react";
+import { GraficoPreventivo } from "./GraficoPreventivo";
 import {
-  Document, Page, Text, View, Image, Svg, Rect, Path, Circle, Line, G, Defs, LinearGradient, RadialGradient, Stop, Font,
+  Document, Page, Text, View, Image, Link, Svg, Rect, Path, Circle, Line, G, Defs, LinearGradient, RadialGradient, Stop, Font, Polygon,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import { percentualeIt } from "@/lib/preventivi/percentuale";
@@ -70,7 +71,8 @@ const quantita = (q: number): string => {
 const percento = (v: number): string => percentualeIt(v);
 /** «IVA 10% inclusa», oppure «IVA 10% e 22% inclusa» quando i beni significativi superano il resto dei lavori. */
 const etichettaIvaInclusa = (t: DocEdileTotali): string =>
-  t.ivaRipartita && t.ivaRipartita.imponibile22 > 0 ? "IVA 10% e 22% inclusa" : `IVA ${percento(t.ivaPct)} inclusa`;
+  t.aliquoteIva && t.aliquoteIva.length > 1 ? `IVA ${t.aliquoteIva.map(r => r.aliquota == null ? "" : percento(r.aliquota)).filter(Boolean).join(" e ")} inclusa`
+    : t.ivaRipartita && t.ivaRipartita.imponibile22 > 0 ? "IVA 10% e 22% inclusa" : t.iva === 0 ? "IVA non applicata" : `IVA ${percento(t.ivaPct)} inclusa`;
 
 // ─── Quanto occupa un capitolo, prima di disegnarlo ──────────────────────────
 // react-pdf non dice dove finisce una pagina. Per riempire con una foto le pagine
@@ -341,7 +343,10 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
     <View fixed style={{ position: "absolute", top: 30, left: MARGINE, right: MARGINE }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 26 }}>
         {azienda.logoUrl ? (
-          <Image src={azienda.logoUrl} style={{ height: 24, maxWidth: 130, objectFit: "contain", objectPositionX: 0 }} />
+          <View style={{ maxWidth: UTILE - 215 }}>
+            <Image src={azienda.logoUrl} style={{ height: 17, maxWidth: 110, objectFit: "contain", objectPositionX: 0 }} />
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.inchiostro, maxLines: 1, textOverflow: "ellipsis" }}>{azienda.nome}</Text>
+          </View>
         ) : (
           // Una riga sola, e mai sopra il blocco a destra: con «Costruzioni Edili
           // Generali Fratelli Bianchi & Figli S.r.l. Unipersonale» ci finiva sopra.
@@ -351,7 +356,7 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
             {`PIANO DEI LAVORI · ${modulo.etichetta.toUpperCase()}`}
           </Text>
-          {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2 }}>{`N. ${codice} · ${oggi()}`}</Text> : null}
+          {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2 }}>{`PREVENTIVO N. ${codice} · ${oggi()}`}</Text> : null}
         </View>
       </View>
       <View style={{ marginTop: 8 }}><BarraSegmenti colore={tema.fondo} larghezza={UTILE} /></View>
@@ -491,30 +496,32 @@ function Schede({ tema, voci, colonne }: { tema: TemaDocumento; voci: DocEdileVo
 }
 
 // ─── Fotografie: la prima grande, le altre a coppie ──────────────────────────
-function Galleria({ tema, foto }: { tema: TemaDocumento; foto: DocEdileFoto[] }) {
-  if (!foto.length) return null;
-  const [prima, ...altre] = foto;
-  const coppie: DocEdileFoto[][] = [];
-  for (let i = 0; i < altre.length; i += 2) coppie.push(altre.slice(i, i + 2));
-  const Didascalia = ({ f }: { f: DocEdileFoto }) =>
-    f.didascalia || f.luogo ? (
+function DidascaliaFoto({ tema, f }: { tema: TemaDocumento; f: DocEdileFoto }) {
+  return f.didascalia || f.luogo ? (
       <View style={{ flexDirection: "row", marginTop: 5 }}>
         {f.didascalia ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9, color: tema.inchiostro }}>{f.didascalia}</Text> : null}
         {f.luogo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigioChiaro }}>{`${f.didascalia ? "  ·  " : ""}${f.luogo}`}</Text> : null}
       </View>
     ) : null;
+}
+
+function Galleria({ tema, foto }: { tema: TemaDocumento; foto: DocEdileFoto[] }) {
+  if (!foto.length) return null;
+  const [prima, ...altre] = foto;
+  const coppie: DocEdileFoto[][] = [];
+  for (let i = 0; i < altre.length; i += 2) coppie.push(altre.slice(i, i + 2));
   return (
     <View>
       <View wrap={false} style={{ marginBottom: 14 }}>
         <Image src={prima.url} style={{ width: UTILE, height: 246, objectFit: "cover" }} />
-        <Didascalia f={prima} />
+        <DidascaliaFoto tema={tema} f={prima} />
       </View>
       {coppie.map((coppia, r) => (
         <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: 14 }}>
           {coppia.map((f, i) => (
             <View key={f.id ?? i} style={{ width: (UTILE - 12) / 2, marginLeft: i === 0 ? 0 : 12 }}>
               <Image src={f.url} style={{ width: (UTILE - 12) / 2, height: 150, objectFit: "cover" }} />
-              <Didascalia f={f} />
+              <DidascaliaFoto tema={tema} f={f} />
             </View>
           ))}
         </View>
@@ -530,13 +537,11 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
   const pesi = misurabile ? (giorni as number[]) : fasi.map(() => 1);
   const totale = pesi.reduce((s, g) => s + g, 0) || 1;
   const pista = 250;
-  let inizio = 0;
   return (
     <View>
       {fasi.map((f, i) => {
-        const x = (inizio / totale) * pista;
+        const x = (pesi.slice(0, i).reduce((somma, peso) => somma + peso, 0) / totale) * pista;
         const w = Math.max(10, (pesi[i] / totale) * pista);
-        inizio += pesi[i];
         return (
           <View key={i} wrap={false} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostroMarca, width: 24 }}>{dueCifre(i + 1)}</Text>
@@ -664,7 +669,7 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 // ─── Copertina ───────────────────────────────────────────────────────────────
 export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita"> & {
   modello: Pick<DocEdileDati["modello"], "copertina">;
-  azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl">;
+  azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl"> & { indirizzo?: string | null };
   modulo: Pick<DocEdileDati["modulo"], "titoloCopertina" | "sottotitoloCopertina">;
 };
 
@@ -777,7 +782,10 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
       <View style={{ position: "absolute", top: 0, left: 0, width: LARGHEZZA, height: ALTEZZA, paddingHorizontal: MARGINE, paddingTop: 46, paddingBottom: 44 }}>
         <View style={{ height: Math.max(62, 50 * c.scalaLogo), flexDirection: "row", justifyContent: giustificaLogo, alignItems: "flex-start" }}>
           {c.posizioneLogo === "hidden" ? null : logo ? (
-            <Image src={logo} style={{ height: 50 * c.scalaLogo, maxWidth: 190 * c.scalaLogo, objectFit: "contain" }} />
+            <View>
+              <Image src={logo} style={{ height: 50 * c.scalaLogo, maxWidth: 190 * c.scalaLogo, objectFit: "contain" }} />
+              {dati.azienda.indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: testo, marginTop: 5 }}>{dati.azienda.indirizzo}</Text> : null}
+            </View>
           ) : (
             <View>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 13, color: testo, letterSpacing: 2.2 }}>{dati.azienda.nome.toUpperCase()}</Text>
@@ -1031,7 +1039,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // L'ordine e la visibilità scelti dall'azienda (completati con quelli di serie).
   const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);
-  const visibile = (k: string) => ordine.some((v) => v.chiave === k && v.visibile);
+  const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && ordine.some((v) => v.chiave === k && v.visibile);
 
   const haChiSiamo = modello.mostraChiSiamo && Boolean(modello.chiSiamoHtml);
   const haUsp = modello.usp.length > 0;
@@ -1080,7 +1088,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     ...Object.fromEntries(BLOCCHI.map(({ chiave }) => [chiave, modello.blocchi[chiave].voci.length > 0 || modello.blocchi[chiave].foto.length > 0])),
   };
   const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
-  const sequenza = ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
+  const tecniche = new Map((dati.sezioniTecniche ?? []).map(s => [s.id, s]));
+  const capitoliVisibili = dati.bozzaLocale?.soloConfigurazione ? [] : ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
+  const tutteSezioni = [...capitoliVisibili, ...[...tecniche.keys()].map(chiave => ({ chiave, visibile: true }))];
+  const posizioni = new Map((dati.ordineDocumento ?? []).map((chiave, i) => [chiave, i]));
+  const sequenza = tutteSezioni.sort((a, b) => (posizioni.get(a.chiave) ?? posizioni.size) - (posizioni.get(b.chiave) ?? posizioni.size));
   // I numeri seguono i capitoli che escono davvero, nell'ordine scelto: nessun salto da 02 a 05.
   const numeroDi = new Map(sequenza.map((v, i) => [v.chiave, i + 1]));
   const numeroPassi = sequenza.length + 1;
@@ -1094,7 +1106,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const sommario: Array<{ numero: number; titolo: string }> = [
     ...sequenza.map((v) => ({
       numero: numeroDi.get(v.chiave) ?? 0,
-      titolo: libere.get(v.chiave)?.titolo.replace(/\*/g, "") || TITOLI[v.chiave] || "",
+      titolo: libere.get(v.chiave)?.titolo.replace(/\*/g, "") || tecniche.get(v.chiave)?.titolo || TITOLI[v.chiave] || "",
     })),
     { numero: numeroPassi, titolo: "I prossimi passi" },
   ];
@@ -1129,6 +1141,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // I segmenti: un blocco con le foto ha una pagina sua, il resto scorre.
   const conPaginaPropria = (chiave: string) => {
+    if (tecniche.has(chiave)) return true;
     const b = BLOCCHI.find((x) => x.chiave === chiave);
     return Boolean(b && modello.blocchi[b.chiave].foto.length > 0);
   };
@@ -1148,7 +1161,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const passiChiusura = dati.bozzaLocale ? [
     { titolo: "Verifica della bozza", descrizione: "Confermare misure, lavorazioni, prezzi, imposte e fattibilità prima di preparare un’offerta definitiva." },
     { titolo: "Nessun invio eseguito", descrizione: "Documento generato soltanto in locale. Non contiene accettazione o firma e non certifica i dati tecnici." },
-  ] : [
+  ] : dati.passiChiusura?.length ? dati.passiChiusura : [
     { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
     { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
   ];
@@ -1157,7 +1170,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // capitolo, e un capitolo che ci stava a filo, col margine, saltava intero alla pagina dopo.
   const chiusura = (altezzaFoto: number | null, inCoda = false) => (
     <View wrap={false} style={inCoda ? { marginTop: STACCO } : undefined}>
-      <Capitolo sectionKey="chiusura" tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo={dati.bozzaLocale ? 'Da *verificare* insieme.' : 'Pronti a *partire*?'} sommario={sommarioChiusura} />
+      <Capitolo sectionKey="chiusura" tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo={dati.bozzaLocale ? 'Da *verificare* insieme.' : dati.titoloChiusura || 'Pronti a *partire*?'} sommario={sommarioChiusura} />
+      {!dati.bozzaLocale && dati.firmaOnlineUrl ? <Link src={dati.firmaOnlineUrl} style={{ fontSize: 10, color: tema.inchiostroMarca, marginBottom: 12 }}>Apri la proposta e firma online</Link> : null}
       {fotoChiusura && altezzaFoto ? (
         <Image src={fotoChiusura.src} style={{ width: UTILE, height: altezzaFoto, objectFit: "cover", marginBottom: 18 }} />
       ) : null}
@@ -1215,12 +1229,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const prezzoManuale = totali.prezzoManuale === true;
   const importoLordo = prezzoManuale
     ? Number(totali.imponibileLordo) || 0
-    : capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
+    : capitoli.filter(c => !c.fuoriTotale).reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const corpoTesto = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55 } as const;
   // paddingBottom: il piè di pagina può arrivare a cinque righe (nome, recapiti, dati
   // fiscali, testo libero, versione). Sotto i 90 punti il testo gli finiva sopra.
   const pagina = { paddingTop: 96, paddingBottom: 96, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
-  const cornice = (<><Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
+  const cornice = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
   // Dopo il capitolo precedente, sulla stessa pagina: quelli di altezza limitata
   // (se ci stanno interi) e il piano dei lavori, che si spezza da sé. Il computo
@@ -1237,7 +1251,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     return h;
   };
   const stimaCapitolo = (chiave: string): number | null => {
-    let h: number | null = null;
+    let h: number | null;
     switch (chiave) {
       case "chiSiamo": {
         const conFoto = Boolean(modello.chiSiamoFotoUrl);
@@ -1505,10 +1519,36 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       riempimento.delete(ultimi[ultimi.length - 1]);
     }
   }
-  const chiusuraInCoda = !fotoChiusura || fotoChiusuraInCoda != null;
+  const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
 
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
+  const contenutoTecnico = (sezione: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => (<>
+          <View minPresenceAhead={72}>
+            <Text id={edileSectionDestination(sezione.id)} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, marginBottom: 8 }}>DETTAGLIO DELLA PROPOSTA</Text>
+            <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+          </View>
+          {sezione.testo ? <View style={{ marginTop: 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
+          {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} /> : null}
+          {sezione.righe?.map((riga, i) => (
+            <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: tema.filetto }}>
+              <Text style={[corpoTesto, { width: "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
+              <Text style={[corpoTesto, { width: "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
+            </View>
+          ))}
+          {sezione.immagine ? sezione.sovrapposizione ? (
+            <View wrap={false} style={{ width: UTILE, height: UTILE * sezione.sovrapposizione.altezza / sezione.sovrapposizione.larghezza, marginTop: 18 }}>
+              <Image src={sezione.immagine} style={{ position: "absolute", width: "100%", height: "100%" }} />
+              <Svg viewBox={`0 0 ${sezione.sovrapposizione.larghezza} ${sezione.sovrapposizione.altezza}`} style={{ width: "100%", height: "100%" }}>
+                {sezione.sovrapposizione.poligoni.map((points, i) => <Polygon key={i} points={points} fill="#2563EB" fillOpacity={0.7} stroke="#E0F2FE" strokeWidth={0.8} />)}
+              </Svg>
+            </View>
+          ) : <Image src={sezione.immagine} style={{ width: UTILE, height: 280, objectFit: "contain", marginTop: 18 }} /> : null}
+          {sezione.nota ? <Text style={[corpoTesto, { fontSize: 8, marginTop: 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
+  </>);
+
   const contenutoCapitolo = (chiave: string, numero: number, riempi = false, altezzaFoto?: number): React.ReactNode => {
+    const tecnica = tecniche.get(chiave);
+    if (tecnica) return contenutoTecnico(tecnica);
     const libera = libere.get(chiave);
     if (libera) {
       return (
@@ -1653,13 +1693,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
           <View style={{ width: 250 }}>
             {[
-              { e: "Imponibile lavori", v: formatCurrency(totali.imponibileLordo) },
-              ...(totali.scontoPct > 0 ? [
-                { e: `Sconto ${percento(totali.scontoPct)}`, v: `- ${formatCurrency(totali.scontoEur)}` },
+              { e: "Imponibile lavori", v: formatCurrency(totali.mostraSconti === false ? totali.imponibile : totali.imponibileLordo) },
+              ...(totali.mostraSconti !== false && totali.scontoEur > 0 ? [
+                { e: totali.scontoPct > 0 ? `Sconto ${percento(totali.scontoPct)}` : "Sconto", v: `- ${formatCurrency(totali.scontoEur)}` },
                 { e: "Imponibile netto", v: formatCurrency(totali.imponibile) },
               ] : []),
               // Beni significativi (DM 29/12/1999): l'IVA in due righe, 10% e 22%, ognuna con la sua base.
-              ...(dati.bozzaLocale?.ivaDaDefinire ? [{ e: 'IVA', v: 'Da definire' }] : totali.ivaRipartita && totali.ivaRipartita.imponibile22 > 0 ? [
+              ...(dati.bozzaLocale?.ivaDaDefinire ? [{ e: 'IVA', v: 'Da definire' }] : totali.aliquoteIva ? totali.aliquoteIva.map(r => ({ e: r.aliquota == null ? "IVA" : `IVA ${percento(r.aliquota)}`, v: formatCurrency(r.valore) })) : totali.ivaRipartita && totali.ivaRipartita.imponibile22 > 0 ? [
                 { e: `IVA 10% su ${formatCurrency(totali.ivaRipartita.imponibile10)}`, v: formatCurrency(totali.ivaRipartita.iva10) },
                 { e: `IVA 22% su ${formatCurrency(totali.ivaRipartita.imponibile22)} (beni significativi)`, v: formatCurrency(totali.ivaRipartita.iva22) },
               ] : [
@@ -1706,7 +1746,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 1 }}>recuperabili, a norma vigente</Text>
             </View>
             <Text style={{ flex: 1, fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.45 }}>
-              Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.
+              Importo indicativo, ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.
             </Text>
           </View>
         ) : null}
@@ -1745,7 +1785,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   return (
     <Document
-      title={`Piano dei lavori ${dati.codice ?? ""} - ${dati.cliente}`}
+      title={dati.titoloDocumento || `Piano dei lavori ${dati.codice ?? ""} - ${dati.cliente}`}
       author={dati.azienda.nome}
       subject={`${modulo.etichetta} per ${dati.cliente}`}
     >
@@ -1869,11 +1909,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </Page>
       ))}
 
+
       {/* ─── I prossimi passi: con la foto del lavoro finito, una pagina sua ───
           La foto è alta quanto lasciano titolo, passi e contatti (649 punti utili,
           ~270 per il resto, con margine per un indirizzo lungo). Senza foto la
           chiusura segue l'ultimo capitolo; dopo un blocco con pagina sua, ha la sua. */}
-      {!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria ? (
+      {dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && (!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria) ? (
         <Page size="A4" style={pagina}>
           {cornice}
           {chiusura(fotoChiusura ? 330 : null)}

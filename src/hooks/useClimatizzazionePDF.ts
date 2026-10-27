@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useClimatizzazionePDF — download/preview del PDF cliente del preventivo
@@ -293,13 +294,12 @@ export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<Clm
  */
 export async function renderClmPreviewBlobUrl(opts: ClmPdfPayload): Promise<string> {
   const enriched = await enrichClimatizzazionePdf(opts);
-  const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ ClimatizzazionePDF }, React] = await Promise.all([
     import("@/components/climatizzazione/ClimatizzazionePDF"),
     import("react"),
   ]);
   const element = React.createElement(ClimatizzazionePDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -322,13 +322,12 @@ export function useClimatizzazionePDF() {
         return { ok: false };
       }
       const enriched = await enrichClimatizzazionePdf(opts);
-      const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ ClimatizzazionePDF }, React] = await Promise.all([
         import("@/components/climatizzazione/ClimatizzazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(ClimatizzazionePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -362,13 +361,12 @@ export function useClimatizzazionePDF() {
         return;
       }
       const enriched = await enrichClimatizzazionePdf(opts);
-      const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ ClimatizzazionePDF }, React] = await Promise.all([
         import("@/components/climatizzazione/ClimatizzazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(ClimatizzazionePDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

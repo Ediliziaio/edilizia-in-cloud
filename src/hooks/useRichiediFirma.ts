@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 
 export interface RichiediFirmaInput {
   tipo_documento: "order" | "quote" | "sessione" | "odv" | "fv" | "subappalto";
@@ -11,6 +12,7 @@ export interface RichiediFirmaInput {
   /** Cellulare del firmatario: il codice arriva anche via SMS (se l'azienda ha credito). */
   signer_phone?: string;
   scadenza_giorni?: number;
+  note?: string;
 }
 
 export interface RichiediFirmaResult {
@@ -38,11 +40,12 @@ export function useRichiediFirma() {
       // Ri-lancio l'errore originale (FunctionsHttpError) invece di trasformarlo:
       // così l'handler globale può rilevare lo status 402 (gate "carta obbligatoria").
       if (error) throw error;
+      if (data?.error || data?.success === false) throw new Error(data.error || "Invio della richiesta di firma non riuscito");
       if (!data?.token) throw new Error("Risposta server non valida (token mancante)");
       const origin = window.location.origin;
       return {
         token: data.token,
-        firma_link: `${origin}/firma-fea/${data.token}`,
+        firma_link: data.firmatari?.[0]?.link || data.firma_link || `${origin}/firma-fea/${data.token}`,
         request_id: data.request_id ?? data.id ?? "",
         otp_inviato: data.otp_inviato ?? data.otp_sent ?? false,
       };
@@ -51,6 +54,6 @@ export function useRichiediFirma() {
       qc.invalidateQueries({ queryKey: ["documento-sessioni"] });
       qc.invalidateQueries({ queryKey: ["signature-requests"] });
     },
-    onError: (e: Error) => toast.error(`Errore invio richiesta firma: ${e.message}`),
+    onError: async (e: Error) => toast.error(`Errore invio richiesta firma: ${await edgeErrorMessage(e, "Richiesta non inviata. Riprova.")}`),
   });
 }

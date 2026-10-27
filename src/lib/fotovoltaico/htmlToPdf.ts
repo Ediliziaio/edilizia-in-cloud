@@ -42,6 +42,7 @@ export async function stampaPreventivoNativo(
   const cleanup = () => {
     if (iframe.parentNode) document.body.removeChild(iframe);
   };
+  let attesa: ReturnType<typeof setTimeout> | undefined;
 
   try {
     const doc = iframe.contentDocument;
@@ -52,37 +53,36 @@ export async function stampaPreventivoNativo(
     doc.write(html);
     doc.close();
 
-    await new Promise<void>((resolve) => {
-      if (doc.readyState === "complete") resolve();
-      else iframe.addEventListener("load", () => resolve(), { once: true });
-    });
-
-    // Nome file suggerito nel dialog "Salva come PDF".
-    doc.title = titolo.replace(/[^\w.\- ]+/g, "_");
-
-    // Aspetta font (Google Fonts via <link> caricano normalmente nell'iframe
-    // nativo) e immagini prima di stampare, per non stampare placeholder.
-    // Leggere un'altezza fa impaginare subito il documento: i caratteri usati
-    // partono adesso e `fonts.ready` li aspetta tutti.
-    void doc.body?.offsetHeight;
-    try {
-      await doc.fonts?.ready;
-    } catch {
-      /* Fonts API non disponibile */
-    }
-    const imgs = Array.from(doc.images ?? []);
-    await Promise.allSettled(
-      imgs
-        .filter((img) => !img.complete)
-        .map(
-          (img) =>
-            new Promise<void>((res) => {
-              img.addEventListener("load", () => res(), { once: true });
-              img.addEventListener("error", () => res(), { once: true });
-            }),
+    const prepara = async () => {
+      await new Promise<void>((resolve) => {
+        if (doc.readyState === "complete") resolve();
+        else iframe.addEventListener("load", () => resolve(), { once: true });
+      });
+      doc.title = titolo.replace(/[^\w.\- ]+/g, "_");
+      // Avvia il layout e attendi i caratteri e le immagini prima della stampa.
+      void doc.body?.offsetHeight;
+      try {
+        await doc.fonts?.ready;
+      } catch {
+        /* Fonts API non disponibile */
+      }
+      await Promise.allSettled(
+        Array.from(doc.images ?? []).filter((img) => !img.complete).map((img) =>
+          new Promise<void>((res) => {
+            img.addEventListener("load", () => res(), { once: true });
+            img.addEventListener("error", () => res(), { once: true });
+          }),
         ),
-    );
-    await wait(150);
+      );
+      await wait(150);
+    };
+    await Promise.race([
+      prepara(),
+      new Promise<never>((_, reject) => {
+        attesa = setTimeout(() => reject(new Error("Le immagini o i caratteri del preventivo non si caricano. Riprova la stampa.")), 30_000);
+      }),
+    ]);
+    clearTimeout(attesa);
 
     win.addEventListener("afterprint", cleanup, { once: true });
     win.focus();
@@ -93,5 +93,7 @@ export async function stampaPreventivoNativo(
   } catch (e) {
     cleanup();
     throw e;
+  } finally {
+    clearTimeout(attesa);
   }
 }
