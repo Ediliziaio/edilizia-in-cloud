@@ -108,6 +108,9 @@ export const INITIAL: WizardData = {
     note: null,
     anticipo_pct: 0,
   },
+  // Condizioni contrattuali: come il modello dell'azienda, finché non si decide diversamente per questo preventivo.
+  condizioni_nel_pdf: null,
+  condizioni_testo: null,
 };
 
 /** Preset rapidi per la modalità di pagamento diretto (Fase 6). */

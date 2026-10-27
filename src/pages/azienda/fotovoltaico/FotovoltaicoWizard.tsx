@@ -115,6 +115,7 @@ import {
 import { toast } from "sonner";
 // Refactor 2026-05-10: CassaCumulataChart estratto in
 // src/components/fotovoltaico/CassaCumulataChart.tsx (-142 righe)
+import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 import { CassaCumulataChart } from "@/components/fotovoltaico/CassaCumulataChart";
 import { FvConfrontoVarianti } from "@/components/fotovoltaico/FvConfrontoVarianti";
 import { FvLayoutTetto } from "@/components/fotovoltaico/FvLayoutTetto";
@@ -430,6 +431,10 @@ function FotovoltaicoWizard() {
     catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
   }, [progettoEsistente]);
   const intervento = progettoId ? interventoDelModulo("fotovoltaico", modelloSalvato.snapshot?.modelId) : modelloRichiesto;
+  // Il modello del documento: quello congelato nel preventivo, se è nato da un intervento della libreria,
+  // altrimenti quello aziendale di oggi — lo stesso che userà fv-genera-pdf.
+  const modelloDelDocumento = (modelloSalvato.snapshot?.template as { condizioni_legali_testo?: string | null; condizioni_legali_attivo?: boolean | null } | undefined)
+    ?? fvTemplate ?? null;
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
   const { data: serviziEsistente } = useServiziProgetto(progettoId ?? undefined);
   // Componenti già salvati: servono per ri-idratare i "Prodotti extra"
@@ -580,6 +585,9 @@ function FotovoltaicoWizard() {
       modalita_pagamento:
         (progettoEsistente as { modalita_pagamento?: WizardData["modalita_pagamento"] })
           .modalita_pagamento ?? INITIAL.modalita_pagamento,
+      // Le condizioni contrattuali decise per questo preventivo (ultima fase).
+      condizioni_nel_pdf: (progettoEsistente as { condizioni_nel_pdf?: boolean | null }).condizioni_nel_pdf ?? null,
+      condizioni_testo: (progettoEsistente as { condizioni_testo?: string | null }).condizioni_testo ?? null,
       // Sconto commerciale persistito (Step 6): ri-idrata tipo + valore.
       sconto_tipo:
         ((progettoEsistente as { sconto_tipo?: "pct" | "importo" | null }).sconto_tipo ?? "pct"),
@@ -1538,6 +1546,16 @@ function FotovoltaicoWizard() {
         goTo(6);
         return;
       }
+      // Le condizioni contrattuali decise qui valgono per il documento che si emette adesso: si scrivono prima
+      // di generarlo, perché la funzione le legge dal progetto.
+      await aggiornaProgetto.mutateAsync({
+        id: progettoId,
+        patch: {
+          condizioni_nel_pdf: data.condizioni_nel_pdf,
+          condizioni_testo: data.condizioni_testo,
+        } as never,
+      });
+      if (!mountedRef.current) return;
       const { data: result, error } = await supabase.functions.invoke(
         "fv-genera-pdf",
         {
@@ -1674,6 +1692,9 @@ function FotovoltaicoWizard() {
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
+          // condizioni contrattuali di questo preventivo (ultima fase)
+          condizioni_nel_pdf: data.condizioni_nel_pdf,
+          condizioni_testo: data.condizioni_testo,
           // immobile
           tipologia_immobile: data.tipologia_immobile,
           superficie_immobile_mq: data.superficie_immobile_mq,
@@ -2169,6 +2190,10 @@ function FotovoltaicoWizard() {
               onEmetti={() => void handleGeneraEdEmetti()}
               salvando={salvando}
               readOnly={readOnlyMode}
+              data={data}
+              update={update}
+              condizioniDelModello={modelloDelDocumento?.condizioni_legali_testo ?? null}
+              condizioniSpenteNelModello={modelloDelDocumento?.condizioni_legali_attivo === false}
             />
           )}
         </FvTabPane>
@@ -6169,10 +6194,19 @@ function Step8Genera({
   onEmetti,
   salvando,
   readOnly = false,
+  data,
+  update,
+  condizioniDelModello,
+  condizioniSpenteNelModello,
 }: {
   onEmetti: () => void;
   salvando: boolean;
   readOnly?: boolean;
+  data: WizardData;
+  update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
+  /** Le condizioni del modello dell'azienda: quelle che valgono se il preventivo non ne ha di sue. */
+  condizioniDelModello: string | null;
+  condizioniSpenteNelModello: boolean;
 }) {
   return (
     <>
@@ -6189,6 +6223,23 @@ function Step8Genera({
           </>
         }
       />
+
+      {/* Il documento con o senza la parte contrattuale, e le condizioni riscritte per questo cliente: la stessa
+          scheda degli altri preventivatori. Il documento che va in firma le ha sempre — chi lo prepara chiede a
+          fv-genera-pdf di rimetterle. */}
+      {!readOnly && (
+        <div className="mb-3">
+          <CondizioniDelPreventivoCard
+            progetto={{ condizioni_nel_pdf: data.condizioni_nel_pdf, condizioni_testo: data.condizioni_testo }}
+            onChange={(patch) => {
+              if ("condizioni_nel_pdf" in patch) update("condizioni_nel_pdf", patch.condizioni_nel_pdf ?? null);
+              if ("condizioni_testo" in patch) update("condizioni_testo", patch.condizioni_testo ?? null);
+            }}
+            testoDelModello={condizioniDelModello}
+            spenteNelModello={condizioniSpenteNelModello}
+          />
+        </div>
+      )}
 
       <FvCard>
         {/* Telefono: titolo e bottone, senza icona grande né spiegazione. */}

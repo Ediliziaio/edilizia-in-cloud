@@ -46,6 +46,7 @@ import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizion
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
+import { testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
@@ -2495,9 +2496,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Il luogo dei lavori: lo stesso che si legge nel riepilogo della pagina della firma e in anagrafica.
   const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
-  // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
+  // Senza condizioni scritte dall'azienda valgono quelle di base del settore. Il preventivo può averne di sue,
+  // scritte per questo cliente, o uscire senza la parte contrattuale: chi lo manda in FIRMA passa il progetto da
+  // `perLaFirma()`, che le rimette, perché il preventivo firmato è il contratto.
   const condizioniLegaliTesto = applicaMergeTagModulo(
-    String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
+    testoCondizioniDelPdf(p, String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti")),
     {
     companyName,
     companyVat: tpl.partita_iva ?? company?.partita_iva ?? null,

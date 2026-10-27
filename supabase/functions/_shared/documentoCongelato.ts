@@ -144,8 +144,14 @@ export async function bytesDelDocumento(sb: any, f: FonteDocumento): Promise<Uin
       return await scaricaDaStorage(sb, BUCKET_RICHIESTE, data.pdf_storage_path);
     }
     case "fv": {
-      const { data } = await sb.from("fv_progetti").select("pdf_vendita_url").eq("id", f.documentoId).maybeSingle();
+      const { data } = await sb.from("fv_progetti").select("pdf_vendita_url, pdf_vendita_con_condizioni").eq("id", f.documentoId).maybeSingle();
       if (!data?.pdf_vendita_url) throw new DocumentoNonPronto("Genera prima il preventivo (ultimo passo, «Genera ed emetti preventivo»): è il documento che il cliente firma.");
+      // Il preventivo firmato è il contratto: la versione senza condizioni contrattuali — quella del primo
+      // invio, in cui si mostra solo il prezzo — non si manda in firma. L'applicazione la rigenera da sé con
+      // le condizioni dentro; se non ci è riuscita, lo si dice invece di far firmare un contratto muto.
+      if (data.pdf_vendita_con_condizioni === false) {
+        throw new DocumentoNonPronto("Il preventivo emesso è senza condizioni contrattuali: rimettile e rigeneralo (ultimo passo, «Genera ed emetti preventivo») prima di mandarlo in firma.");
+      }
       return await scaricaDaStorage(sb, "fv-progetti", data.pdf_vendita_url);
     }
     case "sessione": {

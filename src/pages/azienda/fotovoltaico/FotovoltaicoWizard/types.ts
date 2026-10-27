@@ -158,6 +158,14 @@ export interface WizardData {
      *  il resto è il capitale finanziato. Ignorato in modalità cash/noleggio. */
     anticipo_pct?: number;
   } | null;
+  /**
+   * Le condizioni contrattuali di QUESTO preventivo (27/10/2026).
+   * `condizioni_nel_pdf = false` emette il documento senza la parte contrattuale (il primo invio, quello in cui
+   * si mostra il prezzo); `condizioni_testo` sono le condizioni riscritte per questo cliente, al posto di quelle
+   * del modello. Il documento che va in firma le ha sempre: il preventivo firmato è il contratto.
+   */
+  condizioni_nel_pdf: boolean | null;
+  condizioni_testo: string | null;
 }
 
 export interface PersistedDraft {

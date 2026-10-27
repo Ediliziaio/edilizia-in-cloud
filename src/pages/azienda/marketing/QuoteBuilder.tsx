@@ -85,6 +85,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
+import { haTesto } from "@/lib/preventivi/condizioniDelPreventivo";
 import {
   Select,
   SelectContent,
@@ -543,6 +545,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const [pdfAttributi, setPdfAttributi] = useState(true);
   const [pdfNoteCliente, setPdfNoteCliente] = useState(true);
   const [pdfCondizioni, setPdfCondizioni] = useState(true);
+  // Le condizioni contrattuali riscritte per QUESTO preventivo (27/10/2026): null = quelle del modello.
+  const [condizioniTesto, setCondizioniTesto] = useState<string | null>(null);
   const [pdfWatermarkText, setPdfWatermarkText] = useState<string>("");
   const [pdfCopiaDestinatario, setPdfCopiaDestinatario] = useState<string>("cliente");
 
@@ -581,7 +585,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const effectiveTemplate = resolveQuoteTemplatePreview(layoutOverride
     ? { ...selectedTemplate, layout: layoutOverride }
     : (selectedTemplate ?? {}), templates, effectiveCompany?.brand_primary_color);
-  const contractFields = pdfCondizioni ? campiContratto(effectiveTemplate.contractual_terms_text, effectiveTemplate.legal_terms_text) : [];
+  // Le condizioni che il cliente leggerà: quelle riscritte per questo preventivo, se ci sono, altrimenti quelle
+  // del modello. Da qui passano l'anteprima e i campi da compilare ({{…}}), così dicono quello che dirà il PDF.
+  const condizioniEffettive = haTesto(condizioniTesto) ? condizioniTesto : effectiveTemplate.contractual_terms_text;
+  const contractFields = pdfCondizioni ? campiContratto(condizioniEffettive, effectiveTemplate.legal_terms_text) : [];
   const contractErrors = erroriCampiContratto(contractFields, templateValues);
   const formattedContractValues = formattaValoriContratto(templateValues);
   const contractPreviewValues = Object.fromEntries(contractFields.map(f => [f.nome, formattedContractValues[f.nome] || '[Da compilare]']));
@@ -850,6 +857,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (q.pdf_mostra_attributi != null) setPdfAttributi(q.pdf_mostra_attributi as boolean);
     if (q.pdf_mostra_note_cliente != null) setPdfNoteCliente(q.pdf_mostra_note_cliente as boolean);
     if (q.pdf_mostra_condizioni != null) setPdfCondizioni(q.pdf_mostra_condizioni as boolean);
+    if (typeof q.condizioni_testo === "string" || q.condizioni_testo === null) setCondizioniTesto((q.condizioni_testo as string | null) || null);
     if (typeof q.pdf_watermark_text === "string") setPdfWatermarkText(q.pdf_watermark_text);
     if (typeof q.pdf_copia_destinatario === "string") setPdfCopiaDestinatario(q.pdf_copia_destinatario);
     if (typeof q.render_url === "string" && q.render_url) {
@@ -1727,6 +1735,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, templateValues, layoutOverride, financingProposal,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini, pdfSchedeTecniche, pdfFirma,
     pdfMisure, pdfAttributi, pdfNoteCliente, pdfCondizioni, pdfWatermarkText, pdfCopiaDestinatario,
+    condizioniTesto,
   };
   const draftSerialized = JSON.stringify(draftSnapshot);
   const previewNotes = [...new Set([notes, localEditor?.projectContext?.generatedNotes].filter(Boolean))].join('\n\n');
@@ -1829,6 +1838,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.pdfAttributi !== undefined) setPdfAttributi(d.pdfAttributi);
     if (d.pdfNoteCliente !== undefined) setPdfNoteCliente(d.pdfNoteCliente);
     if (d.pdfCondizioni !== undefined) setPdfCondizioni(d.pdfCondizioni);
+    if (d.condizioniTesto !== undefined) setCondizioniTesto(d.condizioniTesto);
     if (d.pdfWatermarkText !== undefined) setPdfWatermarkText(d.pdfWatermarkText);
     if (d.pdfCopiaDestinatario !== undefined) setPdfCopiaDestinatario(d.pdfCopiaDestinatario);
     setRecoverableDraft(null);
@@ -1904,7 +1914,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // media per stimare il lordo dei bonifici, non un dato fiscale.
   const imponibilePreventivo = totaliPro.subtotale_netto;
   const livePreviewProps: QuoteLivePreviewProps = {
-    ...localPreviewProps, template: effectiveTemplate, mergeContext: { contratto: contractPreviewValues },
+    ...localPreviewProps,
+    template: haTesto(condizioniTesto)
+      ? { ...effectiveTemplate, contractual_terms_text: condizioniTesto, show_contractual_terms: true }
+      : effectiveTemplate,
+    mergeContext: { contratto: contractPreviewValues },
     companyName: effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda",
     clientName, clientAddress, title, description, siteAddress: indirizzoLavori, validityDays, items,
     showImages: pdfImmagini, imageForItem: resolveItemImage, showMeasurements: pdfMisure,
@@ -2031,6 +2045,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         pdf_mostra_attributi: pdfAttributi,
         pdf_mostra_note_cliente: pdfNoteCliente,
         pdf_mostra_condizioni: pdfCondizioni,
+        condizioni_testo: condizioniTesto,
         pdf_watermark_text: pdfWatermarkText || null,
         pdf_copia_destinatario: pdfCopiaDestinatario || null,
         // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
@@ -3646,7 +3661,6 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Note & condizioni</h4>
                 {[
                   { k: "pdfNoteCliente", v: pdfNoteCliente, s: setPdfNoteCliente, l: "Stampa note cliente", h: "Le note compilate nello Step 0 (visibili al cliente)." },
-                  { k: "pdfCondizioni", v: pdfCondizioni, s: setPdfCondizioni, l: "Stampa condizioni contrattuali", h: "Termini e condizioni in pagina finale." },
                 ].map(({ k, v, s, l, h }) => (
                   <div key={k} className="flex items-start justify-between gap-4 py-1.5">
                     <div className="flex-1">
@@ -3656,6 +3670,18 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                     <Switch checked={v} onCheckedChange={s} />
                   </div>
                 ))}
+                {/* Il PDF con o senza la parte contrattuale, e le condizioni riscritte per questo cliente: la
+                    stessa scheda dei preventivatori edili. In firma le condizioni ci sono sempre, le rimette
+                    generate-quote-pdf. */}
+                <CondizioniDelPreventivoCard
+                  progetto={{ condizioni_nel_pdf: pdfCondizioni ? null : false, condizioni_testo: condizioniTesto }}
+                  onChange={(patch) => {
+                    if ("condizioni_nel_pdf" in patch) setPdfCondizioni(patch.condizioni_nel_pdf !== false);
+                    if ("condizioni_testo" in patch) setCondizioniTesto(patch.condizioni_testo ?? null);
+                  }}
+                  testoDelModello={effectiveTemplate.contractual_terms_text}
+                  spenteNelModello={effectiveTemplate.show_contractual_terms === false}
+                />
               </div>
 
               <div className="space-y-2 border-t pt-3">

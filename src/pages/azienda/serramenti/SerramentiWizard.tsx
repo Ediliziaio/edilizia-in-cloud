@@ -1121,6 +1121,7 @@ export default function SerramentiWizard() {
                   detail={detailSulloSchermo ?? detail}
                   onIndietro={handleBack}
                   onVaiAlPasso={(passo) => void handleStepClick(passo)}
+                  onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof SrProgettoRow, v as never); }}
                 />
               </div>
             )}

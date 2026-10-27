@@ -87,6 +87,13 @@ const NULLABLE_STRING_FIELDS: Array<keyof WizardData> = [
   "azimut_tetto",
   "kit_bundle_id",
   "kit_nome",
+  // Le condizioni contrattuali riscritte per questo preventivo (27/10/2026).
+  "condizioni_testo",
+];
+
+/** Campi «sì / no / come il modello»: il nullo è un valore, e vale «come il modello». */
+const NULLABLE_BOOLEAN_FIELDS: Array<keyof WizardData> = [
+  "condizioni_nel_pdf",
 ];
 
 const ALLOWED_VALUES: Partial<Record<keyof WizardData, readonly string[]>> = {
@@ -304,6 +311,8 @@ function normalizeWizardData(value: unknown): WizardData | null {
       } else if (NULLABLE_NUMBER_FIELDS.includes(key) && isFiniteNumber(candidate)) {
         (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
       } else if (NULLABLE_STRING_FIELDS.includes(key) && typeof candidate === "string") {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      } else if (NULLABLE_BOOLEAN_FIELDS.includes(key) && typeof candidate === "boolean") {
         (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
       }
     }

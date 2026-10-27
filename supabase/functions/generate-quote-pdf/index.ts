@@ -7,6 +7,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex, testoSopra } from "../_shared/temaColori.ts";
+import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, TemplateCompositionError, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
@@ -157,6 +158,11 @@ Deno.serve(async (req) => {
       }
       : await requireAuth(req, corsH);
     const { quote_id, preview_mode, template_data, company_name, preview_signature } = body;
+    // Il PDF che va in FIRMA ha sempre le condizioni contrattuali, anche se il preventivo è impostato per uscire
+    // senza (lo step «Documenti e PDF»): il preventivo firmato è il contratto, e senza condizioni non dice niente
+    // su tempi, varianti, garanzie e recesso. Lo chiede send-quote-signature: la regola sta qui, nel server, così
+    // nessuna strada la salta.
+    const perFirma = body?.per_firma === true;
 
     // ─── PREVIEW MODE ───
     const isPreview = preview_mode === true && template_data;
@@ -179,6 +185,7 @@ Deno.serve(async (req) => {
     // Erano esposte in interfaccia e ignorate qui: l'utente spuntava «mostra
     // misure» e il PDF usciva identico. Default = attivo, come nella UI.
     const opzione = (chiave: string, predefinito = true): boolean => {
+      if (perFirma && chiave === "pdf_mostra_condizioni") return true;
       const v = quote?.[chiave];
       return v == null ? predefinito : v !== false;
     };
@@ -436,6 +443,13 @@ Deno.serve(async (req) => {
           t.legal_terms_text = t.composed_legal.body_html;
           t.show_legal_terms = true;
         }
+      }
+      // Le condizioni riscritte per QUESTO preventivo (27/10/2026): vincono su quelle del modello e sui blocchi
+      // collegati, perché sono state scritte per questo cliente. Le riscrive solo chi ha il permesso dei modelli.
+      // L'interruttore «stampa condizioni contrattuali» resta sopra: a PDF senza condizioni non esce nulla.
+      if (haTesto(quote?.condizioni_testo)) {
+        t.contractual_terms_text = String(quote.condizioni_testo);
+        t.show_contractual_terms = true;
       }
       try {
         // Contact già prefetchato nel batch parallelo

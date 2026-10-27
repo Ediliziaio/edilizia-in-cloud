@@ -246,7 +246,9 @@ Deno.serve(async (req) => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKeyFirma}` },
-          body: JSON.stringify({ quote_id }),
+          // Il documento che si firma ha sempre le condizioni contrattuali, anche se il preventivo è impostato
+          // per uscire senza: il preventivo firmato è il contratto (27/10/2026).
+          body: JSON.stringify({ quote_id, per_firma: true }),
           timeoutMs: 60_000,
         },
       );
