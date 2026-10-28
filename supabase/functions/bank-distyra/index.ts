@@ -29,6 +29,8 @@ const RITORNO = "https://app.ediliziaincloud.com/azienda/tesoreria";
 const ritornoCon = (rif: string) => `${RITORNO}?bank_provider=distyra&dy=${encodeURIComponent(rif)}`;
 /** Quanti giorni si rileggono all'indietro a ogni giro: le banche registrano in ritardo. */
 const GIORNI_DI_SICUREZZA = 7;
+/** Finche' il cliente non ha scelto la banca non ne conosciamo il codice. */
+const ISTITUTO_IGNOTO = "distyra-da-scegliere";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -128,6 +130,11 @@ Deno.serve(async (req) => {
       });
       const { data: riga, error } = await admin.from("bank_connections").insert({
         company_id: companyId, provider_slug: PROVIDER, status: "pending",
+        // La tabella e' nata per GoCardless, dove la banca si sceglie PRIMA: institution_id e
+        // institution_name sono obbligatorie. Col link ospitato la banca la sceglie il cliente
+        // dopo, quindi qui restano due segnaposto, scritti in italiano perche' l'elenco delle
+        // connessioni in attesa li mostra; `finalize` li sostituisce con la banca vera.
+        institution_id: ISTITUTO_IGNOTO, institution_name: "Banca da scegliere",
         auth_state: nostroRif, requisition_link: testo(link.url),
         expires_at: testo(link.expires_at), created_by: userId,
       }).select("id").single();
@@ -166,10 +173,16 @@ Deno.serve(async (req) => {
         }, { onConflict: "company_id,external_account_id" });
         if (!error) quanti++;
       }
+      const nomeBanca = testo(mia.aspsp_name);
       await admin.from("bank_connections").update({
         status: quanti > 0 ? "linked" : "error",
         error_message: quanti > 0 ? null : "La banca non ha dato nessun conto",
-        provider_connection_id: String(mia.id), institution_name: testo(mia.aspsp_name) ?? testo(mia.bank_name),
+        provider_connection_id: String(mia.id),
+        // institution_id e institution_name sono NOT NULL. Distyra non espone un codice
+        // dell'istituto nell'elenco delle connessioni: si ricava dal nome, e se manca anche
+        // quello restano i segnaposto.
+        institution_id: nomeBanca ? `distyra:${nomeBanca.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : ISTITUTO_IGNOTO,
+        institution_name: nomeBanca ?? "Banca collegata",
         institution_country: testo(mia.country), accounts_count: quanti, last_sync_at: new Date().toISOString(),
       }).eq("id", conn.id);
       return jsonResponse({ ok: true, conti: quanti, connection_id: conn.id }, 200, corsH);
@@ -222,6 +235,7 @@ Deno.serve(async (req) => {
         continuazione = r.complete === false ? (r.continuation ?? null) : null;
       } while (continuazione && ++giri < 20);
 
+      const nomeBanca = testo(mia.aspsp_name);
       await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("id", conn.id);
       return jsonResponse({ ok: true, movimenti: scritti }, 200, corsH);
     }
