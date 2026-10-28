@@ -399,3 +399,22 @@ per primo.
   `conMetriche` — ed è il buco del punto 4.
 - `ai_allarmi`: zero allarmi aperti. Gli ultimi, del 24–25/10, sono
   `credito_esaurito` su OpenRouter, aperti e richiusi da sé entro i 15 minuti.
+
+---
+
+## Verifiche eseguite
+
+- `npx vitest run` sui cinque file di prova nuovi più
+  `emailTriagePersistenza.test.ts`: **29 verdi**.
+- `npx vitest run` sui sette test esistenti che toccano le funzioni cambiate
+  (`allarmeAIAgganci`, `funzioniChiamateSenzaJwt`, `silvioMemoryWorker`,
+  `silvioContextHardening`, `censimentoEdgeAccessi20260926`,
+  `platformAutomationServices`, `cronMancantiCampagneNotifiche`): **179 verdi**.
+- `npm run typecheck:ci` (col cricchetto): **640 errori, soglia 703, nessuno
+  nuovo** — 27 file migliorati rispetto all'istantanea. Il primo giro aveva
+  trovato due TS7018 nel test del logger (`details` e `hint` a `null` senza
+  tipo): corretti e rifatto il giro.
+- Le due migrazioni sono state applicate con `apply_migration` e la versione del
+  registro riallineata al nome del file, come da CLAUDE.md. Entrambe provate
+  prima in una transazione annullata da sé, e riverificate dopo l'applicazione.
+- **Nessun push, nessuna PR.**

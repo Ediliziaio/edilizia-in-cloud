@@ -8,7 +8,8 @@ import { messaggioErrore } from "../../../supabase/functions/_shared/messaggioEr
 
 describe("messaggioErrore", () => {
   it("l'errore di PostgREST non è più [object Object]", () => {
-    const errorePostgrest = { message: "Actor unavailable", code: "42501", details: null, hint: null };
+    const errorePostgrest: { message: string; code: string; details: string | null; hint: string | null } =
+      { message: "Actor unavailable", code: "42501", details: null, hint: null };
     expect(String(errorePostgrest)).toBe("[object Object]"); // il comportamento di prima
     expect(messaggioErrore(errorePostgrest)).toBe("[42501] Actor unavailable");
   });
