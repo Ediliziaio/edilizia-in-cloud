@@ -78,6 +78,12 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run computo persistence, tenant isolation and PDF regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/computo*.test.ts
+          src/test/ui/computo*.test.tsx
+
       - name: Run conversational quote and native wizard regressions
         run: |
           bun run test:preventivatore-ai
