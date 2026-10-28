@@ -6,7 +6,7 @@
 // l'upsert in scraped_companies. Avanza il cursore → copre tutto a rotazione.
 // Auth: header x-cron-secret == PROACTIVE_CRON_SECRET (cron) oppure super_admin.
 // ============================================================================
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// Deno provides the runtime types; avoid a network-only type import at deployment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";

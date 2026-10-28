@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// Deno provides the runtime types; avoid a network-only type import at deployment.
 import { getCorsHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { changeCompanyPlan } from "../_shared/changeCompanyPlan.ts";

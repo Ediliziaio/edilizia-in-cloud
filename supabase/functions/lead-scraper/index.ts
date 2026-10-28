@@ -28,7 +28,7 @@
 //
 // Sicurezza: requireAuth + requireRole super_admin. CORS centralizzato.
 // ============================================================================
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// Deno provides the runtime types; avoid a network-only type import at deployment.
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
