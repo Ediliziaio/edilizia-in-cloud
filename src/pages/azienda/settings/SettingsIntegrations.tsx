@@ -156,7 +156,9 @@ export default function SettingsIntegrations() {
   const canViewTesoreria = permissions.canViewTesoreria && !permissions.isLoading;
   // Una scheda che manca non ha nemmeno il popup: niente conti né Stripe senza piano e permesso.
   const visibile: Record<string, boolean> = {
-    banca: mostraContiCorrenti && canViewTesoreria,
+    // I conti correnti sono usciti da qui: ora stanno in Impostazioni → Fatturazione → Banca,
+    // vicino a fatture e incassi invece che in mezzo a Meta, Google e Stripe.
+    banca: false,
     stripe: mostraPagamentiCarta && canViewTesoreria,
   };
   const catalogo = INTEGRATIONS_CATALOG.filter((i) => visibile[i.id] ?? true);

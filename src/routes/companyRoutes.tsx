@@ -234,6 +234,7 @@ const SettingsEmailPreferences = lazy(() => import("@/pages/azienda/settings/Set
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 // v8.6.57 — Wrapper unificato Fatturazione (tab provider esterni + nativa SDI)
 const SettingsFatturazioneUnified = lazy(() => import("@/pages/azienda/settings/SettingsFatturazioneUnified"));
+const SettingsBanca = lazy(() => import("@/pages/azienda/settings/SettingsBanca"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
 // Apple Guideline 3.1.1 — su iOS native (Capacitor) nascondiamo upgrade/billing
 // e mostriamo schermata che reindirizza al sito web.
@@ -1336,6 +1337,8 @@ export default function CompanyRoutesContainer() {
               Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
               per backward-compat (link diretti, bookmark utenti). */}
           <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsFatturazioneUnified />)} />
+          {/* La banca sta con la fatturazione, non fra le integrazioni: e' il conto dell'azienda. */}
+          <Route path="banca" element={withCompanyPermission("canViewTesoreria", <SettingsBanca />)} />
           <Route path="fatturazione-nativa" element={<Navigate to="/azienda/impostazioni/fatturazione?tab=nativa" replace />} />
           {/* Apple Guideline 3.1.1 — su iOS native nascondiamo la gestione abbonamento Stripe */}
           <Route

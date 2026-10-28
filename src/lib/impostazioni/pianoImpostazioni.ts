@@ -49,6 +49,8 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   // Scadenzario e fatture: avvisi di scadenza, incassi riconciliati
   "automazioni-finanza": { funzioni: ["fatturazione", "documenti", "tesoreria"] },
   fatturazione: FATTURE,
+  /** Fatturazione → Banca: i conti correnti collegati (Open Banking). */
+  banca: { funzioni: ["tesoreria", "prima_nota"] },
   "fatturazione-nativa": FATTURE,
   // Preventivi. Il listino serve anche a commesse e magazzino; manodopera e
   // servizi anche alla manutenzione; i finanziamenti anche al simulatore.

@@ -29,6 +29,7 @@ import { formatTreasuryCurrency } from "@/lib/treasury";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invokeSaltEdge, validSaltWidgetUrl, BANKING_QUERY_KEYS } from "@/lib/banking/saltedge";
+import { invokeDistyra, validDistyraUrl, distyraAbilitato } from "@/lib/banking/distyra";
 import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
 
 interface BankConnection {
@@ -227,10 +228,29 @@ export default function BankConnectionsCard({
   if (permsLoading) return null;
   if (!canViewTesoreria) return null;
 
+  // Distyra: strada separata da Salt Edge, accesa solo nelle aziende di prova.
+  // Il server crea il link ospitato; qui si controlla solo che l'indirizzo sia davvero suo.
+  async function collegaConDistyra() {
+    try {
+      const data = await invokeDistyra(companyId, { action: "start-link" });
+      if (!validDistyraUrl(data?.url)) throw new Error("Il servizio non ha restituito un indirizzo di collegamento valido.");
+      window.location.href = data.url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Collegamento non avviato");
+    }
+  }
+
   const pulsanteCollega = (
-    <Button size="sm" onClick={() => openConnect()} disabled={!canEditSettingsIntegrations} className="shrink-0">
-      <Plus className="h-4 w-4 mr-1" /> Collega conto
-    </Button>
+    <div className="flex shrink-0 gap-2">
+      <Button size="sm" onClick={() => openConnect()} disabled={!canEditSettingsIntegrations} className="shrink-0">
+        <Plus className="h-4 w-4 mr-1" /> Collega conto
+      </Button>
+      {distyraAbilitato(companyId) && (
+        <Button size="sm" variant="outline" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations} className="shrink-0">
+          <Plus className="h-4 w-4 mr-1" /> Collega conto (prova)
+        </Button>
+      )}
+    </div>
   );
 
   const elenco = connections.length === 0 ? (
