@@ -41,7 +41,9 @@ describe.each(families)('%s: actual computo step → actual AI dialog → native
   it('opening, editing inside chat and cancelling never invoke native persistence', async () => {
     mount(module); fireEvent.click(screen.getByRole('button', { name: /Apri Silvio AI/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Cambia prezzo nella chat di prova' }, { timeout: 25_000 }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]); fireEvent.click(screen.getByRole('button', { name: 'Scarta e chiudi' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }));
     expect(state.save).not.toHaveBeenCalled();
   }, 30_000); // il primo carica a freddo i pezzi del dialogo AI: sulla CI sfiorava i 5 s
   it('only explicit confirmation reaches the native autosave, keeping all existing metadata', async () => {

@@ -21,7 +21,15 @@ export default function ClassicWizardAiEntry(props: Props) {
 function ClassicWizardAiSession(props: Props & { open: boolean; onOpenChange: (open: boolean) => void }) {
   // Manual rows can still lack a temp ID in the native builder. Assign only
   // inside this draft; cancelling must not dirty or persist the parent quote.
-  const [base] = useState(() => cloneWizardDraft({ ...props.draft, items: props.draft.items?.map(item => ({ ...item, client_temp_id: item.client_temp_id || item.id || crypto.randomUUID() })) }));
+  const [base] = useState(() => {
+    const ids = new Set(props.draft.items?.flatMap(item => [item.client_temp_id, item.id].filter(Boolean)));
+    return cloneWizardDraft({ ...props.draft, items: props.draft.items?.map((item, index) => {
+      let id = `wizard-ai-original-${index}`;
+      while (ids.has(id)) id += '-local';
+      ids.add(id);
+      return { ...item, client_temp_id: item.client_temp_id || item.id || id };
+    }) });
+  });
   const [prepared] = useState(() => { try { return { document: classicChatDocument(base), error: '' }; } catch (e) { return { document: { revision: 0, title: '', lines: [] } as ReturnType<typeof classicChatDocument>, error: (e as Error).message }; } });
   const seed = prepared.document;
   const [preview] = useState(() => ({ ...props.preview, template: cloneWizardDraft(props.preview.template) }));

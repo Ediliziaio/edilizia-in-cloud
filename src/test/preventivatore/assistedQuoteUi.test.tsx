@@ -6,8 +6,40 @@ import type { QuoteChatResult, QuoteChatRequest } from "../../../supabase/functi
 import type { QuoteChatTransport } from "@/lib/preventivi/quoteChatDocument";
 vi.mock("@/lib/prezzario/queries", () => ({ usePrezzarioFonti: () => ({ data: [source], isFetching: false, error: null as Error | null, refetch: vi.fn() }) }));
 import Workspace from "@/components/quotes/dev/QuoteAssistedWorkspace";
+import { localSnapshot } from './localPlanFixtures';
+import { emptyQuoteProject } from '@/lib/preventivi/quoteProject';
 const companyId = "d2000000-0000-4000-a000-000000000002";
 afterEach(cleanup);
+it('impedisce di salvare e chiudere mentre l’allegato viene ancora preparato', async () => {
+  const onChange = vi.fn(), onSnapshot = vi.fn();
+  let finishRead!: (buffer: ArrayBuffer) => void;
+  const file = { name: 'pianta.jpg', size: 3, slice: () => ({ arrayBuffer: () => new Promise<ArrayBuffer>(resolve => { finishRead = resolve; }) }), arrayBuffer: async () => new Uint8Array([0, 0, 0]).buffer };
+  render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false}
+    embedded={{ title: 'Preventivo', document: { revision: 0, title: 'Originale', lines: [] }, project: emptyQuoteProject(), onChange, onSnapshot, preview: () => null }} />);
+  fireEvent.change(screen.getByLabelText('File planimetria'), { target: { files: [file] } });
+  expect(onChange).toHaveBeenLastCalledWith(expect.anything(), true);
+  expect(onSnapshot.mock.calls.at(-1)?.[0].snapshot.interrupted).toBe(true);
+  await act(async () => finishRead(new Uint8Array([0, 0, 0]).buffer));
+  expect(onChange).toHaveBeenLastCalledWith(expect.anything(), false);
+  expect(onSnapshot.mock.calls.at(-1)?.[0].snapshot.plan).toBeNull();
+});
+it('riprende la bozza AI embedded completa e pubblica le modifiche senza chiamare il provider', async () => {
+  const snapshot = localSnapshot(); snapshot.plan = null; snapshot.rectangle = null;
+  const call = vi.fn<QuoteChatTransport>(), onChange = vi.fn(), onSnapshot = vi.fn();
+  render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call}
+    embedded={{ title: 'Preventivo', document: { revision: 0, title: 'Originale', lines: [] }, project: emptyQuoteProject(),
+      initial: { snapshot, blob: null }, onChange, onSnapshot, savedLocally: true, preview: () => <p>Anteprima originale</p> }} />);
+  expect(screen.getByRole('textbox', { name: 'Messaggio all’assistente preventivi' })).toHaveValue(snapshot.input);
+  expect(screen.getByRole('log')).toHaveTextContent('Il mio progetto');
+  expect(screen.getByRole('log')).toHaveTextContent('Misure da confermare');
+  expect(onChange).toHaveBeenLastCalledWith(snapshot.document, false);
+  expect(onSnapshot.mock.calls.at(-1)?.[0].snapshot.sessionId).toBe(snapshot.sessionId);
+  openLines();
+  expect(screen.getByRole('textbox', { name: 'Titolo voce 1' })).toHaveValue(snapshot.document.lines[0].title);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Titolo voce 1' }), { target: { value: 'Riga ripresa e modificata' } });
+  expect(onSnapshot.mock.calls.at(-1)?.[0].snapshot.document.lines[0].title).toBe('Riga ripresa e modificata');
+  expect(call).not.toHaveBeenCalled();
+});
 it('un’ipotesi sulla squadra non vieta il programma idrico preliminare né include voci nel computo', async () => {
   const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => ({ ...response(r), turn: { ...response(r).turn, proposals: [], questions: [], message: 'Solo ipotesi temporali, nessuna autorizzazione economica', scheduleProposal: { title: 'Programma da verificare', assumptions: ['Impiantista da confermare'], tasks: [{ id: 'idrico', title: 'Impianto idrico', kind: 'work', minDays: 2, maxDays: 4, after: [], basis: 'Disponibilità da verificare' }] } } }));
   render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);

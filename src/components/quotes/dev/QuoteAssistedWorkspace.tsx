@@ -77,6 +77,7 @@ import { latestQuoteConversationAssistant } from '@/lib/preventivi/quoteChoiceSt
 import { quoteBenchmarkCases, QUOTE_BENCHMARK_MODELS, assessQuoteBenchmarkTurn } from "../../../../supabase/functions/_shared/quoteModelBenchmark";
 import { quoteSimulationScenario, quoteSimulationTarget, type QuoteSimulationId } from "@/lib/preventivi/quoteSimulationScenarios";
 import { isEmbeddedWizardContextCommand } from '@/lib/preventivi/embeddedWizardCommands';
+import type { WizardAiSnapshot } from '@/lib/preventivi/wizardAiMemory';
 import { quoteOpeningMeasures, quoteOpeningMeasureText } from "@/lib/preventivi/quoteOpeningMeasures";
 import { readLocalQuoteCatalogue, catalogueIndicativeEstimate, type LocalCatalogueRead } from "@/lib/preventivi/quoteLocalCatalogue";
 import { assessCatalogueMatch, explicitCatalogueCodes } from "../../../../supabase/functions/_shared/quoteCatalogue";
@@ -112,6 +113,9 @@ type WorkspaceProps = {
     title: string; document: ChatDocument; project: QuoteProject;
     commercial?: { draft: QuoteDraft; defaultVat: number | null; module?: import('@/lib/preventivi/wizardAiDraft').NativeComputoModule };
     onChange: (document: ChatDocument, busy: boolean) => void;
+    initial?: WizardAiSnapshot;
+    onSnapshot?: (state: WizardAiSnapshot) => void;
+    savedLocally?: boolean;
     preview: (document: ChatDocument) => ReactNode;
     /** Fonte di prezzi fissa fin dall'apertura (es. il listino aziendale del computo). */
     fixedSourceId?: string;
@@ -133,9 +137,9 @@ function LocalPlanPreview({ blob, name, reading, selected }: { blob: Blob; name:
   return blob.type.startsWith("image/") ? <div className="quote-plan-image" style={{ aspectRatio: reading ? `${reading.width}/${reading.height}` : undefined }}><img ref={image} alt={`Planimetria locale: ${name}`} />{selected && <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="Posizione del testo dell’ambiente selezionato"><rect x={selected.bbox[0]} y={selected.bbox[1]} width={selected.bbox[2]} height={selected.bbox[3]} fill="#fb923c44" stroke="#e65e13" strokeWidth=".004" /></svg>}</div> : <p>PDF conservato solo nel browser. Scegli una pagina scrivendo «pagina 2». Le posizioni dei testi sono riportate sotto, senza anteprima grafica del PDF.</p>;
 }
 function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", ownerId, localTrialId, onBack, transport, simulated = true, memory, scenarioId, onScenario, templateLibrary, transcribeAudio, cadReader, flow, embedded }: WorkspaceProps & { memory?: MemoryProps }) {
-  const initial = memory?.initial.snapshot;
+  const initial = embedded?.initial?.snapshot ?? memory?.initial.snapshot;
   const scenario = quoteSimulationScenario(scenarioId);
-  const [document, setDocument] = useState<ChatDocument>(() => embedded ? structuredClone(embedded.document) : initial?.document ?? { ...emptyChatDocument(), ...(scenario ? { title: scenario.title } : {}) });
+  const [document, setDocument] = useState<ChatDocument>(() => initial?.document ?? (embedded ? structuredClone(embedded.document) : { ...emptyChatDocument(), ...(scenario ? { title: scenario.title } : {}) }));
   const current = useRef(document);
   const undo = useRef<ChatDocument[]>([]);
   const [undoDepth, setUndoDepth] = useState(0);
@@ -145,7 +149,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   const [bagniDraft, setBagniDraft] = useState<LocalBagniDraft | undefined>(initial?.bagniDraft);
   const nativeBagniDraft: LocalBagniDraft | undefined = bagniModel ? bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } : undefined;
   const [editorOpen, setEditorOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(() => embedded ? [{ role: 'assistant', text: `Lavoriamo su **${embedded.title}**, con il modello già scelto nel preventivo. Descrivi cosa vuoi aggiungere o cambiare, oppure allega la planimetria. Le righe esistenti restano protette; applicherò le modifiche al wizard solo dopo la tua conferma.` }] : initial ? [...initial.messages.map(m => {
+  const [messages, setMessages] = useState<Message[]>(() => embedded && !initial ? [{ role: 'assistant', text: `Lavoriamo su **${embedded.title}**, con il modello già scelto nel preventivo. Descrivi cosa vuoi aggiungere o cambiare, oppure allega la planimetria. Le righe esistenti restano protette; applicherò le modifiche al wizard solo dopo la tua conferma.` }] : initial ? [...initial.messages.map(m => {
     const choices = m.role === "assistant" && m.choices == null ? legacyQuoteChoices(m.text) : [];
     return choices.length ? { ...m, choices, choiceRevision: initial.document.revision } : m;
   }), ...(initial.interrupted ? [{ role: "assistant" as const, text: "Ho ripreso la bozza. L’ultima operazione è stata interrotta dalla ricarica e non viene rilanciata automaticamente. Per la planimetria scrivi «leggi planimetria»." }] : [])].slice(-50) : scenario ? [{ role: "assistant", text: `**Simulazione: ${scenario.label}.**\n\nQuesta è una bozza locale separata dal progetto principale. Il testo di partenza è pronto nel campo messaggio: puoi cambiarlo prima di inviarlo all’AI. Tutte le voci restano modificabili; prezzi senza riferimento verificato restano da definire. Nessuna chiamata è stata avviata automaticamente, nessun invio ai clienti.`, actions: ["Mostra prezzari", "Mostra simulazioni", "Torna al progetto principale"] }] : newIntro(simulated, flow));
@@ -165,7 +169,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   const [planningSession, setPlanningSession] = useState(initial?.sessionId ?? '');
   const [planningRequest, setPlanningRequest] = useState<{ id: number; text: string } | null>(null);
   const planningSequence = useRef(0);
-  const [project, setProject] = useState(() => structuredClone(embedded?.project ?? initial?.project ?? emptyQuoteProject()));
+  const [project, setProject] = useState(() => structuredClone(initial?.project ?? embedded?.project ?? emptyQuoteProject()));
   const [pendingEdits, setPendingEdits] = useState<LocalQuoteSnapshot['pendingEdits']>(initial?.pendingEdits ?? null);
   const [calculationTool, setCalculationTool] = useState<'quantity' | 'estimate' | null>(null);
   const [model, setModel] = useState<string | null>(initial?.model ?? null);
@@ -183,13 +187,14 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   const [componentDecisions, setComponentDecisions] = useState<QuoteComponentDecision[]>(() => initial?.componentDecisions ?? (initial?.messages ?? []).filter(m => m.role === 'user').reduce((facts, m) => updateQuoteComponentDecisions(facts, m.text), [] as QuoteComponentDecision[]));
   const [plan, setPlan] = useState<PlanAttachment | null>(initial?.plan ?? null);
   const [cad, setCad] = useState<QuoteCadState | null>(initial?.cad ?? null);
-  const [planBlob, setPlanBlob] = useState<Blob | null>(memory?.initial.blob ?? null);
+  const [planBlob, setPlanBlob] = useState<Blob | null>(embedded?.initial?.blob ?? memory?.initial.blob ?? null);
   const [rooms, setRooms] = useState<PlanRoom[]>(initial?.rooms ?? []);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(initial?.selectedRoom ?? null);
   const [rectangle, setRectangle] = useState<PlanRectangle | null>(initial?.rectangle ?? null);
   const [operation, setOperation] = useState<"chat" | "ocr" | "cad" | "catalogue">("chat");
+  const [preparingAttachment, setPreparingAttachment] = useState(false);
   const embeddedChange = embedded?.onChange;
-  useEffect(() => { embeddedChange?.(document, busy); }, [document, busy, embeddedChange]);
+  useEffect(() => { embeddedChange?.(document, busy || preparingAttachment); }, [document, busy, preparingAttachment, embeddedChange]);
   const fileInput = useRef<HTMLInputElement>(null);
   const composer = useRef<HTMLDivElement>(null);
   const choosing = useRef(false);
@@ -220,10 +225,12 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     return () => clearInterval(timer);
   }, [busy]);
   const save = memory?.save;
+  const snapshotChange = embedded?.onSnapshot;
   useEffect(() => {
-    const snapshot: LocalQuoteSnapshot = { version: 1, document, messages, input, project, pendingEdits, sessionId: session.current, sourceId, model, preferredModel, budgetFollowUp, savedBudget, interrupted: busy, plan, rooms, selectedRoom, rectangle, scopeFacts, roomDecisions, ...(templateId === undefined ? {} : { templateId }), ...(classicDraft ? { classicDraft: aiEditorDraft(document, classicDraft, project) } : {}), ...(bagniModel ? { bagniDraft: bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } } : {}), ...(brief == null ? {} : { brief }) };
+    const snapshot: LocalQuoteSnapshot = { version: 1, document, messages, input, project, pendingEdits, sessionId: session.current, sourceId, model, preferredModel, budgetFollowUp, savedBudget, interrupted: busy || preparingAttachment, plan, rooms, selectedRoom, rectangle, scopeFacts, roomDecisions, ...(templateId === undefined ? {} : { templateId }), ...(classicDraft ? { classicDraft: aiEditorDraft(document, classicDraft, project) } : {}), ...(bagniModel ? { bagniDraft: bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } } : {}), ...(brief == null ? {} : { brief }) };
     save?.({ ...snapshot, componentDecisions, dossier, cad }, planBlob);
-  }, [save, document, messages, input, project, pendingEdits, sourceId, model, preferredModel, budgetFollowUp, savedBudget, busy, plan, rooms, selectedRoom, rectangle, planBlob, brief, scopeFacts, roomDecisions, componentDecisions, dossier, cad, templateId, classicDraft, bagniModel, bagniDraft]);
+    snapshotChange?.({ snapshot: { ...snapshot, componentDecisions, dossier, cad }, blob: planBlob });
+  }, [save, snapshotChange, document, messages, input, project, pendingEdits, sourceId, model, preferredModel, budgetFollowUp, savedBudget, busy, preparingAttachment, plan, rooms, selectedRoom, rectangle, planBlob, brief, scopeFacts, roomDecisions, componentDecisions, dossier, cad, templateId, classicDraft, bagniModel, bagniDraft]);
   useEffect(() => {
     if (!needSources || simulated || sources.isFetching || sourceNotice.current || !sources.data && !sources.error) return;
     sourceNotice.current = true;
@@ -257,7 +264,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   };
   const attach = async (file: File) => {
     if (controller.current || attaching.current || memory?.blocked) return;
-    attaching.current = true; const ownerGeneration = generation.current;
+    attaching.current = true; setPreparingAttachment(true); const ownerGeneration = generation.current;
     try {
       const isCad = /\.dwg$/i.test(file.name) || cadSignature(new Uint8Array(await file.slice(0, 6).arrayBuffer()));
       if (ownerGeneration !== generation.current) return;
@@ -288,9 +295,10 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       const asset: PlanAttachment = { id, name: [...file.name].filter(c => c.charCodeAt(0) >= 32).join("").slice(0, 180), mime, size: blob.size, reading: plan?.reading ?? null };
       setPlan(asset); setPlanBlob(blob); await readPlan(asset, blob);
     } catch (e) { if (ownerGeneration === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Allegato non valido." }); }
-    finally { attaching.current = false; }
+    finally { attaching.current = false; setPreparingAttachment(false); }
   };
   const send = async (text = input, intent?: 'budget' | 'vision' | 'schedule') => {
+    if (attaching.current) return;
     if (embedded && isEmbeddedWizardContextCommand(text)) {
       appendDiagnostic({ role: 'assistant', text: 'Il modello, il cliente e le impostazioni fiscali vengono dal wizard aperto. Puoi cambiarli lì dopo aver chiuso questa finestra.' }); return;
     }
@@ -847,7 +855,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
         <TabsTrigger value="lines">Voci del preventivo <span className="quote-tab-count" aria-hidden="true">{document.lines.filter(l => !l.supersededBy?.length).length}</span></TabsTrigger>
       </TabsList>
       <TabsContent value="chat" forceMount hidden={pane !== "chat"} className="quote-workbench-panel">
-      <section className="quote-lab-chat" aria-label="Chat unica preventivo"><header className="chat-workspace-header"><div className="quote-chat-identity"><span><i aria-hidden="true">✦</i>Silvio AI</span><small role="status">{memory?.status ?? "Conversazione non salvata"}</small></div><div className="quote-chat-header-meta"><details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details><span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? operation === "ocr" ? "Lettura" : "Elaborazione" : "Pronto"}</span></div></header>
+      <section className="quote-lab-chat" aria-label="Chat unica preventivo"><header className="chat-workspace-header"><div className="quote-chat-identity"><span><i aria-hidden="true">✦</i>Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta"><details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details><span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? operation === "ocr" ? "Lettura" : "Elaborazione" : "Pronto"}</span></div></header>
         {memory?.issue && <div role="alert" className="quote-memory-warning"><p>{memory.issue}</p>{memory.blocked ? <button onClick={memory.reload}>Riprendi versione salvata (scarta modifiche di questa scheda)</button> : <button onClick={memory.retry}>Riprova salvataggio</button>}</div>}
         <div className="quote-lab-messages" role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{messages.map((m, i) => isQuoteProviderNotice(m) ? null : <article className={`quote-lab-message ${m.role}`} key={i}><small>{m.role === "user" ? "Tu" : simulated ? plan ? "Assistente · locale" : "Assistente · caso preparato" : "Assistente"}</small>{m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
           {simulated && !plan && i === 0 && <details className="quote-chat-attachment"><summary>Immagine del precedente caso preparato (non OCR)</summary><img src={planImage} alt="Planimetria del caso preparato; superficie totale non verificata" loading="lazy" /></details>}
@@ -907,7 +915,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
         {plan?.localFileMissing && <p role="status" className="mx-4 my-2 text-xs text-orange-800">Dossier ripreso, originale non presente su questo dispositivo. Riallega «{plan.name}» per vedere o analizzare di nuovo l’immagine.</p>}
         <input ref={fileInput} type="file" accept="image/png,image/jpeg,application/pdf,.dwg" aria-label="File planimetria" hidden onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (file) void attach(file); }} />
         <div ref={composer} className="quote-chat-compose-region"><QuoteChatComposer value={input} onValueChange={setInput} onSubmit={() => void send()} onStop={stop} busy={busy} disabled={memory?.blocked} real={!simulated} hasPlan={!!plan} hasLines={!!document.lines.length} planningEnabled={planningEnabled} onAttachPlan={() => fileInput.current?.click()} onAction={composerAction} transcribe={transcribeAudio} onEvidence={page => { try { setDossier(upsertQuoteDossier(dossier, page)); return true; } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); return false; } }} /></div>
-        <details className="quote-chat-privacy"><summary>Scelte e importi da confermare <span>· Dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier a OpenRouter. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
+        <details className="quote-chat-privacy"><summary>Scelte e importi da confermare <span>· Dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier a OpenRouter. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : embedded ? 'Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
       </section>
       </TabsContent>
       <TabsContent value="lines" forceMount hidden={pane !== "lines"} className="quote-workbench-panel quote-lines-panel">

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatDocument } from '@/lib/preventivi/quoteChatDocument';
@@ -7,13 +7,18 @@ import { emptyQuoteProject } from '@/lib/preventivi/quoteProject';
 import QuoteWizardAiDialog from '@/components/quotes/QuoteWizardAiDialog';
 import NativeComputoAiDialog, { type NativeComputoAiContext } from '@/components/quotes/NativeComputoAiDialog';
 import type { NativeComputoModule } from '@/lib/preventivi/wizardAiDraft';
-const state = vi.hoisted(() => ({ company: 'd2000000-0000-4000-a000-000000000002', owner: 'user', renders: vi.fn() }));
+const state = vi.hoisted(() => ({ company: 'd2000000-0000-4000-a000-000000000002', owner: 'user', renders: vi.fn(), load: vi.fn(async () => null), save: vi.fn(async () => ({ revision: 'saved' })), remove: vi.fn(async () => {}) }));
+vi.mock('@/lib/preventivi/wizardAiMemory', () => ({ createWizardAiMemory: () => ({ load: state.load, save: state.save, remove: state.remove }) }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ effectiveCompany: { id: state.company, name: 'Demo Azienda 2' }, user: { id: state.owner } }) }));
-vi.mock('@/components/quotes/dev/QuoteAssistedWorkspace', () => ({ default: function Workspace({ embedded }: { embedded: { document: ChatDocument; onChange: (doc: ChatDocument, busy: boolean) => void; preview: (doc: ChatDocument) => React.ReactNode } }) {
-  useEffect(() => { embedded.onChange(embedded.document, false); }, [embedded.onChange, embedded.document]);
+vi.mock('@/components/quotes/dev/QuoteAssistedWorkspace', () => ({ default: function Workspace({ embedded }: { embedded: { document: ChatDocument; initial?: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot; onSnapshot: (state: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot) => void; onChange: (doc: ChatDocument, busy: boolean) => void; preview: (doc: ChatDocument) => React.ReactNode } }) {
+  const [current, setCurrent] = useState(embedded.initial?.snapshot.document ?? embedded.document);
+  useEffect(() => {
+    embedded.onChange(current, false);
+    embedded.onSnapshot({ snapshot: { version: 1, document: current, messages: [{ role: 'user', text: 'Demolizione pavimento' }], input: 'Nota non inviata', sessionId: 'c2000000-0000-4000-a000-000000000002', sourceId: null, model: null, interrupted: false, plan: null, rooms: [], selectedRoom: null, rectangle: null }, blob: null });
+  }, [embedded.onChange, embedded.onSnapshot, current]);
   const document: ChatDocument = { ...embedded.document, revision: 1, lines: [...embedded.document.lines, { id: 'new', title: 'Demolizione pavimento', description: 'Rimozione controllata', quantity: 12, unit: 'mq', quantityBasis: 'Misura confermata', referenceId: null, price: 18, included: true, manual: true, reference: null,
     original: { id: 'new', title: 'Demolizione pavimento', description: '', quantity: 12, unit: 'mq', quantityBasis: 'Misura confermata', referenceId: null } }] };
-  return <><button onClick={() => embedded.onChange(document, false)}>Proponi voce confermata</button><button onClick={() => embedded.onChange(document, true)}>Richiesta in corso</button>{embedded.preview(document)}</>;
+  return <><button onClick={() => setCurrent(document)}>Proponi voce confermata</button><button onClick={() => embedded.onChange(document, true)}>Richiesta in corso</button>{embedded.preview(document)}</>;
 } }));
 vi.mock('@/components/shared/PdfBlobLivePreviewPanel', () => ({ PdfBlobLivePreviewPanel: function Preview({ renderBlobUrl, depsKey }: { renderBlobUrl: () => Promise<string>; depsKey: string }) {
   useEffect(() => { void renderBlobUrl(); }, [depsKey]); return <div>PDF nativo</div>;
@@ -26,7 +31,7 @@ vi.mock('@/hooks/usePavimentiPDF', () => ({ renderPavPreviewBlobUrl: state.rende
 vi.mock('@/hooks/usePiscinePDF', () => ({ renderPisPreviewBlobUrl: state.renders }));
 vi.mock('@/hooks/useRistrutturazionePDF', () => ({ renderRstPreviewBlobUrl: state.renders }));
 vi.mock('@/hooks/useTettiPDF', () => ({ renderTetPreviewBlobUrl: state.renders }));
-afterEach(() => { cleanup(); state.company = 'd2000000-0000-4000-a000-000000000002'; state.owner = 'user'; vi.clearAllMocks(); });
+afterEach(() => { cleanup(); state.company = 'd2000000-0000-4000-a000-000000000002'; state.owner = 'user'; vi.clearAllMocks(); state.load.mockReset(); state.load.mockResolvedValue(null); state.save.mockReset(); state.save.mockResolvedValue({ revision: 'saved' }); state.remove.mockReset(); state.remove.mockResolvedValue(undefined); });
 const props = () => ({ companyId: state.company, open: true, onOpenChange: vi.fn(), title: 'Modello scelto', document: emptyChatDocument(), project: emptyQuoteProject(), fingerprint: 'original',
   preview: () => <div>Anteprima del modello selezionato</div>, review: (doc: ChatDocument) => ({ changes: doc.lines.map(row => ({ id: row.id, title: row.title, chapter: 'Demolizioni', kind: 'aggiunta' as const })), pending: 0 }), onApply: vi.fn() });
 
@@ -36,7 +41,107 @@ describe('wizard AI isolated modal', () => {
     await screen.findByRole('button', { name: 'Proponi voce confermata' }); fireEvent.click(screen.getByRole('button', { name: 'Proponi voce confermata' }));
     fireEvent.click(screen.getByRole('button', { name: 'Rivedi e applica' })); expect(screen.getByRole('region', { name: 'Riepilogo modifiche prima di applicare' })).toBeInTheDocument();
     expect(p.onApply).not.toHaveBeenCalled(); fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Scarta e chiudi' })); expect(p.onOpenChange).toHaveBeenCalledWith(false); expect(p.onApply).not.toHaveBeenCalled(); expect(p.document.lines).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' })); await waitFor(() => expect(p.onOpenChange).toHaveBeenCalledWith(false)); expect(p.onApply).not.toHaveBeenCalled(); expect(p.document.lines).toHaveLength(0);
+  });
+  it('opens a real confirmation above the workspace from the top X, even with no changes', async () => {
+    const p = props(); render(<QuoteWizardAiDialog {...p} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' }).at(-1)!);
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Vuoi salvare il lavoro');
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Continua a lavorare' })).toHaveFocus();
+    expect(p.onOpenChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continua a lavorare' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(p.onOpenChange).not.toHaveBeenCalled(); expect(state.save).not.toHaveBeenCalled();
+  });
+  it('opens the same confirmation with Escape', async () => {
+    render(<QuoteWizardAiDialog {...props()} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape' });
+    await screen.findByRole('alertdialog');
+  });
+  it('saves chat and draft locally, closes only on success, and resumes without applying', async () => {
+    const p = props(), view = render(<QuoteWizardAiDialog {...p} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Proponi voce confermata' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Salva e chiudi' }));
+    await waitFor(() => expect(p.onOpenChange).toHaveBeenCalledWith(false));
+    expect(state.save).toHaveBeenCalledTimes(1); expect(p.onApply).not.toHaveBeenCalled();
+    const args = state.save.mock.calls[0] as unknown as [unknown, unknown, string, import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot, Record<string, string>];
+    expect(args[3].snapshot.document.lines).toHaveLength(1);
+    expect(args[3].snapshot.input).toBe('Nota non inviata');
+    view.unmount();
+    state.load.mockResolvedValueOnce({ ...args[3], fingerprint: args[2], chapters: args[4], version: 1, revision: 'saved' } as never);
+    render(<QuoteWizardAiDialog {...p} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    expect(screen.getByRole('button', { name: 'Rivedi e applica' })).toBeEnabled();
+    expect(p.onApply).not.toHaveBeenCalled();
+  });
+  it('keeps the confirmation and conversation open if saving fails', async () => {
+    state.save.mockRejectedValueOnce(new Error('Spazio esaurito nel browser'));
+    const p = props(); render(<QuoteWizardAiDialog {...p} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Salva e chiudi' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Spazio esaurito');
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(p.onOpenChange).not.toHaveBeenCalled(); expect(p.onApply).not.toHaveBeenCalled();
+  });
+  it('closing without saving preserves the last saved copy and discards only this session’s edits', async () => {
+    const p = props();
+    state.load.mockResolvedValueOnce({ snapshot: { document: p.document }, fingerprint: p.fingerprint, chapters: {}, version: 1, revision: 'previous-copy', blob: null } as never);
+    render(<QuoteWizardAiDialog {...p} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Proponi voce confermata' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }));
+    await waitFor(() => expect(p.onOpenChange).toHaveBeenCalledWith(false));
+    expect(state.save).not.toHaveBeenCalled(); expect(state.remove).not.toHaveBeenCalled(); expect(p.onApply).not.toHaveBeenCalled();
+  });
+  it('does not save across accounts and still allows discarding', async () => {
+    const p = props(), view = render(<QuoteWizardAiDialog {...p} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    state.owner = 'someone-else'; view.rerender(<QuoteWizardAiDialog {...p} />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }));
+    await waitFor(() => expect(p.onOpenChange).toHaveBeenCalledWith(false));
+    expect(state.save).not.toHaveBeenCalled();
+  });
+  it('does not retarget a saved draft if company and quote change while memory is loading', async () => {
+    let finish!: (saved: null) => void;
+    state.load.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const p = props(), view = render(<QuoteWizardAiDialog {...p} />);
+    state.company = 'b2000000-0000-4000-a000-000000000002';
+    view.rerender(<QuoteWizardAiDialog {...p} companyId={state.company} fingerprint="other-quote" />);
+    await act(async () => finish(null));
+    expect(screen.getByRole('alert')).toHaveTextContent('azienda attiva');
+    expect(screen.queryByRole('button', { name: 'Proponi voce confermata' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rivedi e applica' })).toBeDisabled();
+  });
+  it('waits for a running request before saving but permits closing without saving', async () => {
+    const p = props(); render(<QuoteWizardAiDialog {...p} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Richiesta in corso' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }));
+    await waitFor(() => expect(p.onOpenChange).toHaveBeenCalledWith(false));
+    expect(state.save).not.toHaveBeenCalled();
+  });
+  it('blocks double saves and dismissing while the local transaction is pending', async () => {
+    let finish!: (saved: { revision: string }) => void;
+    state.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const p = props(); render(<QuoteWizardAiDialog {...p} />);
+    await screen.findByRole('button', { name: 'Proponi voce confermata' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chiudi' })[0]);
+    const save = screen.getByRole('button', { name: 'Salva e chiudi' });
+    act(() => { save.click(); save.click(); });
+    expect(state.save).toHaveBeenCalledTimes(1); expect(p.onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continua a lavorare' })).toBeDisabled();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await act(async () => finish({ revision: 'saved' }));
+    expect(p.onOpenChange).toHaveBeenCalledWith(false);
   });
   it('applies only after the second explicit confirmation and passes edited chapters', async () => {
     const p = props(); render(<QuoteWizardAiDialog {...p} chapters />);
