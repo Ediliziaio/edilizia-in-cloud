@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- L'archivio delle ricevute non è anagrafiche_native: collegamento separato,
 -- esplicito e tracciato, senza modificare importi, XML o costi contabilizzati.
 set local lock_timeout='3s';

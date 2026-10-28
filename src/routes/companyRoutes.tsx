@@ -234,6 +234,7 @@ const SettingsEmailPreferences = lazy(() => import("@/pages/azienda/settings/Set
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 // v8.6.57 — Wrapper unificato Fatturazione (tab provider esterni + nativa SDI)
 const SettingsFatturazioneUnified = lazy(() => import("@/pages/azienda/settings/SettingsFatturazioneUnified"));
+const SettingsBanca = lazy(() => import("@/pages/azienda/settings/SettingsBanca"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
 // Apple Guideline 3.1.1 — su iOS native (Capacitor) nascondiamo upgrade/billing
 // e mostriamo schermata che reindirizza al sito web.
@@ -436,6 +437,7 @@ const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const SimulatoreIndex = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreIndex"));
 const SimulatoreEditor = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreEditor"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
+const ComputoPreventivo = lazy(() => import("@/pages/azienda/marketing/ComputoPreventivo"));
 const QuoteAiSimulationPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/marketing/QuoteAiSimulationPage")) : null;
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini"));
@@ -1200,6 +1202,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
         <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
+        {ComputoPreventivo && <Route path="marketing/preventivi/computo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><ComputoPreventivo /></FeatureRoute>)} />}
         {QuoteAiSimulationPage && <Route path="marketing/preventivi/simulazione-ai" element={withCompanyPermission("canEditPreventivi", <QuoteAiSimulationPage />)} />}
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
@@ -1336,6 +1339,8 @@ export default function CompanyRoutesContainer() {
               Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
               per backward-compat (link diretti, bookmark utenti). */}
           <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsFatturazioneUnified />)} />
+          {/* La banca sta con la fatturazione, non fra le integrazioni: e' il conto dell'azienda. */}
+          <Route path="banca" element={withCompanyPermission("canViewTesoreria", <SettingsBanca />)} />
           <Route path="fatturazione-nativa" element={<Navigate to="/azienda/impostazioni/fatturazione?tab=nativa" replace />} />
           {/* Apple Guideline 3.1.1 — su iOS native nascondiamo la gestione abbonamento Stripe */}
           <Route

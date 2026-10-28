@@ -106,7 +106,7 @@ export function motivoNonLeggibile(xml: string, parser: LettoreXml): string {
   return `data non valida: «${testo(dgd, "Data")}»`;
 }
 
-export function leggiFatturaRicevuta(xml: string, parser: LettoreXml): FatturaRicevutaLetta | null {
+export function leggiFatturaRicevuta(xml: string, parser: LettoreXml, indiceCorpo = 0): FatturaRicevutaLetta | null {
   xml = senzaPrefissi(xml);
   let doc: DocumentoXml | null;
   try {
@@ -118,7 +118,7 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml): FatturaRi
 
   const header = primo(doc, "FatturaElettronicaHeader");
   const corpi = doc.getElementsByTagName("FatturaElettronicaBody");
-  const body = corpi.length > 0 ? corpi[0] : null;
+  const body = corpi.length > indiceCorpo ? corpi[indiceCorpo] : null;
   if (!header || !body) return null;
 
   const ced = primo(header, "CedentePrestatore");
@@ -164,6 +164,7 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml): FatturaRi
       natura: testo(r, "Natura") || null,
       imponibile: imp,
       imposta: iva,
+      esigibilita: testo(r, "EsigibilitaIVA") || "I",
     });
   }
   // Senza riepilogo (file malformato) resta la somma delle righe.

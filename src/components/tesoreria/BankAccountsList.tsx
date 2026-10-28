@@ -11,9 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
-
-const formatEur = (val: unknown) => formatTreasuryCurrency(val);
+import { formatTreasuryCurrency, sumTreasuryByCurrency } from "@/lib/treasury";
 
 function maskIban(iban: string | null) {
   if (!iban || iban.length < 8) return iban || "—";
@@ -98,7 +96,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
     }
   }
 
-  const totalBalance = accounts.reduce((sum, a) => sum + toFiniteAmount(a.current_balance), 0);
+  const totals = sumTreasuryByCurrency(accounts, a => a.current_balance);
   const bankCount = new Set(accounts.map((a) => a.connection_id)).size;
 
   if (loading) {
@@ -139,7 +137,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       {/* Header — mobile: totale 18px, via «Mostra IBAN». */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatEur(totalBalance)}</p>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">{totals.map(t => <p key={t.currency} className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatTreasuryCurrency(t.total, "—", t.currency)}</p>)}</div>
           <p className="text-sm text-muted-foreground max-sm:text-[11px]">
             {accounts.length} conti su {bankCount} banche
           </p>
@@ -169,7 +167,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                   {account.balance_updated_at ? ` · ${formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: it })}` : ""}
                 </p>
               </div>
-              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{formatEur(account.available_balance ?? account.current_balance)}</p>
+              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency)}</p>
             </div>
           );
         })}
@@ -263,11 +261,11 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                 {/* Balances */}
                 <div>
                   <p className="text-2xl font-bold">
-                    {formatEur(account.available_balance ?? account.current_balance)}
+                    {formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency)}
                   </p>
                   {account.available_balance != null && account.current_balance != null && account.available_balance !== account.current_balance && (
                     <p className="text-xs text-muted-foreground">
-                      Saldo corrente: {formatEur(account.current_balance)}
+                      Saldo corrente: {formatTreasuryCurrency(account.current_balance, "—", account.currency)}
                     </p>
                   )}
                 </div>

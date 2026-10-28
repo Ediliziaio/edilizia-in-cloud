@@ -64,6 +64,14 @@ const MOTIVI: Record<number, string> = {
   132016: "il modello è disattivato",
 };
 
+/** Il codice d'errore di Meta, per distinguere il canale fermo dal singolo destinatario. */
+export function codiceMancataConsegna(errori: unknown): number | null {
+  const primo = Array.isArray(errori) ? errori[0] : null;
+  if (!primo || typeof primo !== "object") return null;
+  const codice = Number((primo as { code?: unknown }).code);
+  return Number.isFinite(codice) ? codice : null;
+}
+
 /** Perché Meta non ha consegnato il messaggio, in italiano e breve. */
 export function motivoMancataConsegna(errori: unknown): string {
   const primo = Array.isArray(errori) ? errori[0] : null;

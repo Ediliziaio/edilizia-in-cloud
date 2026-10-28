@@ -30,7 +30,7 @@ const aperte = new Set(funzioniSenzaJwt(config));
 const DAL_CRON_COL_SOLO_SEGRETO = [
   "ai-conversations-sweeper", "ai-proactive-proposals-daily", "ai-voice-outbound-leads",
   "appuntamenti-notifiche", "appuntamenti-promemoria", "auto-genera-giornale-cantiere",
-  "automation-bulk-scheduler-runner", "bank-auto-reconcile", "bank-eb-cron", "beatrice-cfo-daily",
+  "automation-bulk-scheduler-runner", "bank-auto-reconcile", "beatrice-cfo-daily",
   "billing-import", "check-api-health", "check-scheduled-triggers", "cleanup-capture-orphans",
   "cliente-notifica", "company-backup", "compute-health-scores", "credit-low-balance-alert",
   "elena-cs-health-daily", "email-ai-embed-backfill", "email-ai-estrai-allegato", "email-ai-l1-classify",

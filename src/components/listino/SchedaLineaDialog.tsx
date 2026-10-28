@@ -5,8 +5,10 @@
  * Il modulo parte dalla scheda salvata quando si apre (il contenitore lo monta
  * a ogni apertura); foto e PDF scelti restano in attesa finché non si salva.
  */
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { FileText, ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { GalleriaImmaginiCatalogo } from "./GalleriaImmaginiCatalogo";
+import { leggiImmaginiCatalogo, type BozzaImmagineCatalogo } from "@/lib/listino/immaginiCatalogo";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,22 +36,11 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
   const salva = useSalvaSchedaLinea();
   const [bozza, setBozza] = useState<BozzaScheda>(() => bozzaDaScheda(scheda));
   const [errori, setErrori] = useState<Partial<Record<keyof BozzaScheda, string>>>({});
-  const [foto, setFoto] = useState<File | null>(null);
-  const [anteprima, setAnteprima] = useState<string | null>(null);
-  const [togliFoto, setTogliFoto] = useState(false);
+  const [immagini, setImmagini] = useState<BozzaImmagineCatalogo[]>(() => leggiImmaginiCatalogo(scheda?.immagini, scheda?.immagine_url));
   const [pdf, setPdf] = useState<File | null>(null);
   const [togliPdf, setTogliPdf] = useState(false);
-  const inputFoto = useRef<HTMLInputElement>(null);
   const inputPdf = useRef<HTMLInputElement>(null);
 
-  // L'anteprima della foto scelta vive finché non se ne sceglie un'altra o si chiude.
-  useEffect(() => {
-    return () => {
-      if (anteprima) URL.revokeObjectURL(anteprima);
-    };
-  }, [anteprima]);
-
-  const fotoVisibile = anteprima ?? (togliFoto ? null : (scheda?.immagine_url ?? null));
   const pdfSalvato = togliPdf ? null : (scheda?.scheda_tecnica_url ?? null);
   const pdfNome = pdf?.name ?? (pdfSalvato ? scheda?.scheda_tecnica_nome || "Scheda del produttore" : null);
 
@@ -57,18 +48,6 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
     const valore = e.target.value;
     setBozza((prima) => ({ ...prima, [chiave]: valore }));
     if (errori[chiave]) setErrori((prima) => ({ ...prima, [chiave]: undefined }));
-  };
-
-  const scegliFoto = (file: File | undefined) => {
-    if (!file) return;
-    const errore = controllaFileScheda("foto", file);
-    if (errore) {
-      toast.error(errore);
-      return;
-    }
-    setFoto(file);
-    setTogliFoto(false);
-    setAnteprima(URL.createObjectURL(file));
   };
 
   const scegliPdf = (file: File | undefined) => {
@@ -95,8 +74,9 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
         macrocategoriaId: tipologia.macrocategoriaId,
         nomeLinea: linea.nome,
         ...esito.valori,
-        foto,
-        togliFoto,
+        immagini,
+        foto: null,
+        togliFoto: false,
         pdf,
         togliPdf,
       });
@@ -128,69 +108,8 @@ export function SchedaLineaDialog({ tipologia, linea, scheda, onChiudi }: Props)
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 sm:grid-cols-[13rem_minmax(0,1fr)]">
-          <div className="space-y-2">
-            <Label>Foto del profilo</Label>
-            <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-white">
-              {fotoVisibile ? (
-                <img
-                  src={fotoVisibile}
-                  alt={`Profilo ${linea.nome}`}
-                  className="absolute inset-0 h-full w-full object-contain p-2"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => inputFoto.current?.click()}
-                  className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-                >
-                  <ImagePlus className="h-6 w-6" aria-hidden="true" />
-                  Carica la foto
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => inputFoto.current?.click()}
-              >
-                <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                {fotoVisibile ? "Cambia" : "Carica"}
-              </Button>
-              {fotoVisibile && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 text-muted-foreground"
-                  onClick={() => {
-                    setFoto(null);
-                    setAnteprima(null);
-                    setTogliFoto(true);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Togli
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              PNG o JPG fino a 3 MB. Meglio la sezione del profilo su sfondo chiaro.
-            </p>
-            <input
-              ref={inputFoto}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                scegliFoto(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-          </div>
+        <div className="space-y-5">
+          <GalleriaImmaginiCatalogo value={immagini} onChange={setImmagini} disabled={salva.isPending} />
 
           <div className="min-w-0 space-y-4">
             <div className="space-y-1.5">

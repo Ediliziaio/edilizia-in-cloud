@@ -49,6 +49,7 @@ import {
 import { useRichiediFirma } from "@/hooks/useRichiediFirma";
 import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 import { toast } from "sonner";
+import { pdfFirmatoPreventivo, scaricaCopiaPdf } from "@/lib/preventivi/pdfFirmatoPreventivo";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FV_ARCHETIPI_LABEL, type FvArchetipo } from "@/lib/fotovoltaico/tipi";
@@ -90,6 +91,7 @@ export default function FotovoltaicoDettaglio() {
   // Riusa la firma elettronica (FEA) esistente — stesso flusso del preventivo.
   const handleSendFirma = async (params: SendSignatureParams): Promise<SendSignatureResult> => {
     if (!progetto) throw new Error("Progetto non disponibile");
+    if (!canManagePreventivo) throw new Error("Non hai il permesso di inviare il preventivo per la firma.");
     // In firma le condizioni contrattuali ci sono sempre: il preventivo firmato è il contratto. Il fotovoltaico
     // congela la pagina già emessa, quindi se quella è la versione «senza» si rigenera adesso con le condizioni
     // dentro — ed è questa che il cliente legge e firma.
@@ -122,6 +124,7 @@ export default function FotovoltaicoDettaglio() {
       signer_name: params.recipientName,
       signer_phone: params.recipientPhone,
       scadenza_giorni: params.expiresDays,
+      note: params.customMessage,
     });
     return { signature_link: res.firma_link };
   };
@@ -175,6 +178,12 @@ export default function FotovoltaicoDettaglio() {
     }
     setScaricando(tipo);
     try {
+      if (progetto.stato === "firmato" && tipo === "vendita") {
+        const file = await pdfFirmatoPreventivo({ companyId: progetto.company_id, progettoId: progetto.id, tipo: "fv" });
+        if (!file) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
+        scaricaCopiaPdf(file);
+        return;
+      }
       const { data, error } = await supabase.storage
         .from("fv-progetti")
         .createSignedUrl(path, 300);
@@ -227,6 +236,13 @@ export default function FotovoltaicoDettaglio() {
     setScaricando(tipo);
     const tid = toast.loading("Preparazione stampa…");
     try {
+      if (progetto.stato === "firmato") {
+        const file = await pdfFirmatoPreventivo({ companyId: progetto.company_id, progettoId: progetto.id, tipo: "fv" });
+        if (!file) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
+        scaricaCopiaPdf(file);
+        toast.success("Copia firmata scaricata", { id: tid });
+        return;
+      }
       const { data, error } = await supabase.storage
         .from("fv-progetti")
         .createSignedUrl(path, 300);
@@ -347,7 +363,7 @@ export default function FotovoltaicoDettaglio() {
                   <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">Annulla</span>
                 </Button>
               )}
-              {progetto.stato === "emesso" && (
+              {canManagePreventivo && progetto.stato === "emesso" && (
                 <Button
                   onClick={() => setFirmaOpen(true)}
                   className="bg-white text-orange-700 hover:bg-orange-50 shadow border-0 max-sm:flex-1"
@@ -358,9 +374,11 @@ export default function FotovoltaicoDettaglio() {
               <SendSignatureDialog
                 open={firmaOpen}
                 onOpenChange={setFirmaOpen}
-                clientEmail={null}
-                clientName={null}
+                clientEmail={progetto.cliente_email ?? null}
+                clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
+                clientPhone={progetto.cliente_telefono}
                 quoteNumber={progetto.numero}
+                validityDays={Number(progetto.modello_snapshot?.template?.scadenza_validita_preventivo_giorni) || 30}
                 onSend={handleSendFirma}
                 isSending={richiediFirma.isPending}
               />
@@ -381,7 +399,7 @@ export default function FotovoltaicoDettaglio() {
                   ? "Il preventivo non ha ancora un prezzo di vendita."
                   : null
             }
-            onConvertito={() => queryClient.invalidateQueries({ queryKey: ["fv-progetto", progetto.id] })}
+            onConvertito={() => queryClient.invalidateQueries({ queryKey: ["fv", "progetto", progetto.company_id, progetto.id] })}
           />
         )}
       </div>

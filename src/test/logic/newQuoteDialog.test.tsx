@@ -9,13 +9,13 @@ import Preventivi from "@/pages/azienda/marketing/Preventivi";
 import type { SalesArea } from "@/lib/moduli-vendita/areas";
 
 const state = vi.hoisted(() => ({ views: [] as ModuloVenditaView[], hidden: new Set<string>(), loading: false, error: false, visibleLoading: false,
-  support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true } }));
+  company: "A", support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true } }));
 vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: state.views, isLoading: state.loading, isError: state.error }), useModuliVisibilita: () => ({ isAreaVisibile: (area: SalesArea) => !state.hidden.has(`area:${area.id}`) && !state.hidden.has(area.sourceModule), isLoading: state.visibleLoading }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useSerramentiModelSupport", () => ({ useSerramentiModelSupport: () => state.support }));
 vi.mock("@/hooks/useTettiModelSupport", () => ({ useTettiModelSupport: () => state.support }));
 vi.mock("@/hooks/useSupportoModelliPreventivo", () => ({ useSupportoModelliPreventivo: () => ({ supportato: () => state.support.supported, isLoading: state.support.isLoading, isError: state.support.isError }) }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "A" } }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: state.company } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: 0 }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -32,8 +32,35 @@ function Harness({ initial = "", ai = false }: { initial?: string; ai?: boolean 
   const location = useLocation();
   return <><p>Lista Preventivi</p><NewQuoteDialog ai={ai} open={open} onOpenChange={setOpen} params={new URLSearchParams(initial)} trigger={<button>Nuovo preventivo</button>} /><output data-testid="route">{location.pathname}{location.search}</output></>;
 }
+
+describe("ingresso locale computo nei Preventivi", () => {
+  it("in produzione mostra il nuovo computo solo a Demo Azienda 2", () => {
+    vi.stubEnv("DEV", false); state.company = "d2000000-0000-4000-a000-000000000002";
+    try {
+      render(<MemoryRouter><Harness /></MemoryRouter>);
+      fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
+      expect(screen.getByRole("link", { name: /^Computo metrico/ })).toBeInTheDocument();
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it("in produzione non propone il nuovo computo ad altre aziende", () => {
+    vi.stubEnv("DEV", false);
+    try {
+      render(<MemoryRouter><Harness /></MemoryRouter>);
+      fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
+      expect(screen.queryByRole("link", { name: /^Computo metrico/ })).not.toBeInTheDocument();
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it("propone il computo indipendente dalla commessa e conserva il classico", () => {
+    state.permissions.canEditPreventivi = true;
+    render(<MemoryRouter><Harness /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
+    expect(screen.getByRole("link", { name: /^Computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/computo");
+    expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
+  });
+});
 const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Harness initial={initial} /></MemoryRouter>); fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" })); };
 beforeEach(() => {
+  state.company = "A";
   state.views = MODULI_VENDITA.map(modulo => ({ modulo, stato: deriveModuloStato(modulo, true), isEnabled: true, isLoading: false, isError: false, errorMessage: null as null, source: "plan" }));
   state.hidden.clear(); state.loading = false; state.visibleLoading = false; state.error = false;
   state.permissions = { canEditPreventivi: true, canEditMarketingOpportunities: true };

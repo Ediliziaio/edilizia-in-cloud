@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark } from "lucide-react";
 
 /** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
 function parametriDa(url: string): URLSearchParams {
@@ -237,6 +237,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       label: "Fatturazione",
       items: [
         { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin || permissions.canViewBilling },
+        { to: "/azienda/impostazioni/banca", label: "Banca", icon: <Landmark className="h-4 w-4" />, visible: isAdmin || permissions.canViewTesoreria },
       ],
     },
   ];

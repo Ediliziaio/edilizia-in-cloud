@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import type {
   MaterialeProfilo,
   SupplierProductLine,
@@ -30,6 +31,7 @@ export type SupplierProductLineInsert = Omit<
   SupplierProductLine,
   "id" | "company_id" | "created_at" | "updated_at" | "materiale"
 > & {
+  id?: string;
   materiale?: MaterialeProfilo;
 };
 
@@ -72,7 +74,7 @@ export function useSupplierProductLines(
       if (supplierCatalogId) q = q.eq("supplier_catalog_id", supplierCatalogId);
       if (!includeInactive) q = q.eq("attivo", true);
       const { data, error } = await q;
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return (data ?? []) as SupplierProductLine[];
     },
     staleTime: 5 * 60 * 1000,
@@ -110,10 +112,13 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        .insert({ ...payload, company_id: companyId })
+        // `immagini` esiste dal 27/10/2026 (migrazione 20281027210000), ma non è
+        // ancora nei tipi generati di Supabase: il cast serve solo finché
+        // `integrations/supabase/types.ts` non viene rigenerato.
+        .insert({ ...payload, company_id: companyId } as TablesInsert<"supplier_product_lines">)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return data as SupplierProductLine;
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),
@@ -134,12 +139,13 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        .update(args.patch)
+        // Stesso motivo dell'insert: la colonna c'è, i tipi generati no ancora.
+        .update(args.patch as TablesUpdate<"supplier_product_lines">)
         .eq("id", args.id)
         .eq("company_id", companyId)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw Object.assign(new Error(error.message), { code: error.code });
       return data as SupplierProductLine;
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),

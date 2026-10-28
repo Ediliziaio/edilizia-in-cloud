@@ -35,6 +35,9 @@ export interface VoceComputo {
   a_corpo: boolean;
   warnings: string[] | null;
   misure: MisuraComputo[];
+  fonte_prezzo?: string | null;
+  note_misure?: string | null;
+  descrizione_comune?: string | null;
   /** Lavori o somme a disposizione (null = proposta automatica). */
   quadro_voce?: "lavori" | "somme_a_disposizione" | null;
   /** Variante: la voce del contratto originario. */

@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- No existing month is closed by this migration. All state changes require an admin action.
 create schema if not exists private;
 create table public.hr_chiusure_mensili (

@@ -187,6 +187,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
     handlePick({
       descrizione: p.nome,
       unita_misura: mapUnitaMisura(p.unita),
+      unita_originale: p.unita,
       ...prodottoInRiga(p),
       capitolo_nome: targetCapitolo,
       // La riga porta una copia di foto e descrizione del listino: il preventivo non cambia se poi si ritocca il listino.
@@ -395,11 +396,13 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: v.descrizione,
                     unita_misura: v.unita_misura,
+                    unita_originale: v.unita_misura,
                     prezzo_unitario: v.prezzo_unitario,
                     costo_materiali: v.costo_materiali,
                     costo_manodopera: v.costo_manodopera,
                     capitolo_nome: v.capitolo_nome ?? targetCapitolo,
                     listino_voce_id: v.id,
+                    codice_tariffa: v.codice,
                     // Porta avanti la citazione fonte se la voce di listino l'aveva.
                     fonte: v.fonte,
                   })
@@ -436,6 +439,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: p.name,
                     unita_misura: mapUnitaMisura(p.unita),
+                    unita_originale: p.unita,
                     // Prezzo di partenza = vendita listino (fallback costo).
                     prezzo_unitario: p.prezzo_vendita || p.costo,
                     costo_materiali: p.costo,
@@ -463,6 +467,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                   handlePick({
                     descrizione: m.nome,
                     unita_misura: mapUnitaMisura(m.unita),
+                    unita_originale: m.unita,
                     prezzo_unitario: m.prezzo_vendita || m.costo,
                     costo_materiali: 0,
                     costo_manodopera: m.costo,
@@ -499,12 +504,14 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                     handlePick({
                       descrizione: v.descrizione,
                       unita_misura: mapUnitaMisura(v.unita_misura),
+                      unita_originale: v.unita_misura,
                       prezzo_unitario: prezzo,
                       costo_materiali: costoMat,
                       costo_manodopera: costoMano,
                       capitolo_nome: targetCapitolo,
                       // Citazione fonte per riga: "Regione Anno" della fonte del prezzario.
                       fonte: v.fonteLabel,
+                      codice_tariffa: v.codice,
                     })
                   }
                 />

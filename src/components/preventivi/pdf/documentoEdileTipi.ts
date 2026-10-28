@@ -33,18 +33,21 @@ export interface DocEdileVoce {
 }
 
 export interface DocEdileCapitolo {
+  fuoriTotale?: boolean;
   nome: string;
   voci: DocEdileVoce[];
   subtotale: number;
 }
 
 export interface DocEdileTotali {
+  mostraSconti?: boolean;
   imponibileLordo: number;
   scontoEur: number;
   scontoPct: number;
   imponibile: number;
   iva: number;
   ivaPct: number;
+  aliquoteIva?: Array<{ aliquota: number | null; valore: number }>;
   totale: number;
   detrazionePct: number;
   detrazioneEur: number;
@@ -212,8 +215,27 @@ export interface DocEdileModello {
 }
 
 export interface DocEdileDati {
+  titoloDocumento?: string;
+  filigrana?: string | null;
+  firmaOnlineUrl?: string | null;
+  titoloChiusura?: string | null;
+  passiChiusura?: DocEdileVoceElenco[];
+  mostraChiusura?: boolean;
+  /** Ordine unificato dei capitoli standard e delle sezioni tecniche. */
+  ordineDocumento?: string[];
+  /** Allegati del settore, impaginati dallo stesso motore del documento. */
+  sezioniTecniche?: Array<{
+    id: string;
+    titolo: string;
+    testo?: string | null;
+    righe?: Array<{ etichetta: string; valore: string }>;
+    immagine?: string | null;
+    sovrapposizione?: { larghezza: number; altezza: number; poligoni: string[] };
+    nota?: string | null;
+    grafico?: { etichette: string[]; serie: Array<{ nome: string; valori: number[] }> };
+  }>;
   /** Opt-in only for browser-local drafts; never implies issuance or acceptance. */
-  bozzaLocale?: { ivaDaDefinire: boolean };
+  bozzaLocale?: { ivaDaDefinire: boolean; soloConfigurazione?: boolean };
   modulo: DocEdileModulo;
   codice: string | null;
   /** «Mario Rossi» */

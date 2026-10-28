@@ -229,6 +229,9 @@ describe("Casa Full Electric: il modello nel preventivatore Termoidraulico", () 
 
   it("il documento carica il tema del racconto (Buffer e parole intere nel browser)", () => {
     const documento = readFileSync(resolve("src/components/termoidraulico/fullElectric/FullElectricPDF.tsx"), "utf8");
-    expect(documento).toContain('from "@/components/preventivi/pdf/racconto/temaRacconto"');
+    expect(documento).toContain('from "@/components/preventivi/pdf/DocumentoEdilePDF"');
+    const comune = readFileSync(resolve("src/components/preventivi/pdf/DocumentoEdilePDF.tsx"), "utf8");
+    expect(comune).toContain("ensurePdfBufferCompatibility();");
+    expect(comune).toContain("Font.registerHyphenationCallback((word) => [word]);");
   });
 });

@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- Preserve the existing authorization and audit; no balances are recalculated by this migration.
 alter table public.hr_richieste add column if not exists consumo_ferie numeric,
   add column if not exists consumo_permessi numeric, add column if not exists consumo_rol numeric,
@@ -354,4 +359,3 @@ $function$;
 
 revoke all on function public.hr_update_richiesta_stato(uuid,text,text) from public,anon;
 grant execute on function public.hr_update_richiesta_stato(uuid,text,text) to authenticated;
-

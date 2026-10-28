@@ -54,7 +54,7 @@ function RegistroContent() {
     queryFn: async ({ signal }) =>
       (await readAllPages((from, to) =>
         supabase
-          .from("documenti_fiscali")
+          .from("fatture_vendite_iva" as never)
           .select(
             "id,tipo,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,esigibilita_iva,sdi_stato",
           )

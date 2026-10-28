@@ -17,6 +17,7 @@
  * Pipeline: @react-pdf/renderer → blob → pdfjs → render pagina-per-pagina su
  * <canvas> (niente iframe → nessun blocco browser).
  */
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { useEffect, useState, useRef, useMemo, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { Loader2, RefreshCw, Download, AlertCircle, ExternalLink, Eye, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
@@ -88,8 +89,7 @@ export function SerramentiLivePreviewPanel({
     setStatus((s) => (s === "ready" ? s : "loading"));
     setIsRefreshing(true);
     try {
-      const [{ pdf }, { SerramentoPDF }, React, pdfjsLib] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ SerramentoPDF }, React, pdfjsLib] = await Promise.all([
         import("@/components/serramenti/SerramentoPDF"),
         import("react"),
         import("pdfjs-dist"),
@@ -105,7 +105,7 @@ export function SerramentiLivePreviewPanel({
       // SerramentoPDF returns a Document; react-pdf's API only types the root props.
       const element = React.createElement(SerramentoPDF, enriched) as unknown as ReactElement<DocumentProps>;
       const blob = await Promise.race([
-        pdf(element).toBlob(),
+        generaPdfDocumento(element),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(
             "Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica.",

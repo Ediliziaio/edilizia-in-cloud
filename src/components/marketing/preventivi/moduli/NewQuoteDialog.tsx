@@ -14,6 +14,8 @@ import { MODULI_CON_MODELLI, eModuloConModelloPreventivo } from "@/lib/moduli/mo
 import { SALES_AREAS, type SalesArea } from "@/lib/moduli-vendita/areas";
 import { hasAreaAccess, matchesIntervention, pilotHref, quoteCreationHref } from "./salesSelector";
 import { quoteAiWorkflow } from '@/lib/moduli-vendita/quoteAiWorkflow';
+import { useAuth } from "@/contexts/AuthContext";
+import { computoCloudAttivo } from "@/lib/computo/cloudComputo";
 
 interface Props {
   open: boolean;
@@ -49,6 +51,7 @@ function InterventionImage({ area, modelId }: { area: SalesArea; modelId: string
 
 function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSelect: () => void; ai: boolean }) {
   const permissions = usePermissions();
+  const { effectiveCompany } = useAuth();
   const classicHref = quoteCreationHref('/azienda/marketing/preventivi/nuovo', params);
   const aiClassicHref = `${classicHref}${classicHref.includes('?') ? '&' : '?'}ai=1`;
   const { moduli, isLoading, isError } = useModuliVendita();
@@ -108,6 +111,14 @@ function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSel
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 
+      {(import.meta.env.DEV || computoCloudAttivo(effectiveCompany?.id)) && !area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect}
+        to={quoteCreationHref("/azienda/marketing/preventivi/computo", params)}
+        className="mb-5 flex min-h-20 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:gap-3 max-sm:p-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><FileText aria-hidden="true" className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Computo metrico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">Lavorazioni, misure, prezzi e allegati del preventivo.</span></span>
+        <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
+      </Link>}
+
       {!ricercaInutile && <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-sm max-sm:h-9" /></div>}
 
       {ai && area && <p role="note" className="mb-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{area.sourceModule === 'fotovoltaico'
@@ -156,6 +167,6 @@ function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSel
         </>}
     </div>
     {/* Telefono no: una frase di contorno in fondo al foglio. */}
-    <footer className="shrink-0 border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:px-6 max-sm:hidden">{ai ? 'Il modello si sceglie qui, le lavorazioni si compongono nel suo wizard. Chat AI e anteprima restano una bozza separata fino alla conferma. Il normale salvataggio del wizard non cambia; nessun invio automatico ai clienti.' : <>Ritrovi ogni offerta nella <span className="font-medium text-foreground">Lista Preventivi</span>, anche quelle dei moduli specifici.</>}</footer>
+    <footer className="shrink-0 border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:px-6 max-sm:hidden">{ai ? 'Il modello si sceglie qui, le lavorazioni si compongono nel suo wizard. Chat AI e anteprima restano una bozza separata fino alla conferma. Il normale salvataggio del wizard non cambia; nessun invio automatico ai clienti.' : <>Le offerte salvate nel gestionale sono nella <span className="font-medium text-foreground">Lista Preventivi</span>, anche quelle dei moduli specifici.</>}</footer>
   </DialogContent>;
 }

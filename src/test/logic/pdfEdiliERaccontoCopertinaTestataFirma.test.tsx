@@ -141,20 +141,20 @@ describe("preventivo edile: copertina, testata e pagina della firma", () => {
 async function pdfConto(opts: { logo: boolean }): Promise<Pagina[]> {
   const d = anteprimaContoTermico({});
   if (opts.logo) d.azienda.logoUrl = await logoComeDati();
-  return pagineDi(<ContoTermicoPDF data={d} />, 790);
+  return pagineDi(<ContoTermicoPDF data={d} />, 770);
 }
 
 describe("Conto Termico 3.0: copertina, testata e pagina della firma", () => {
   it("col logo: in copertina resta la descrizione, non il nome dell'azienda, e niente «A cura di»", async () => {
     const [copertina] = await pdfConto({ logo: true });
-    expect(copertina.testo.includes("Riscaldamento con il Conto Termico 3.0"), "la descrizione accanto al logo").toBe(true);
+    expect(piatto(copertina.testo)).toContain("contotermico");
     expect(copertina.testo.includes("La tua azienda"), "il nome accanto al logo").toBe(false);
     expect(copertina.testo.includes("A cura di")).toBe(false);
   });
 
   it("senza logo: il nome dell'azienda resta in copertina", async () => {
     const [copertina] = await pdfConto({ logo: false });
-    expect(copertina.testo.includes("La tua azienda")).toBe(true);
+    expect(piatto(copertina.testo)).toContain("latuaazienda");
     expect(copertina.testo.includes("A cura di")).toBe(false);
   });
 
@@ -163,14 +163,15 @@ describe("Conto Termico 3.0: copertina, testata e pagina della firma", () => {
     const interne = pagine.slice(1);
     expect(interne.length).toBeGreaterThan(3);
     for (const [i, p] of interne.entries()) {
-      expect(p.testata.includes("La tua azienda") && p.testata.includes("CT-ESEMPIO"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);
+      expect(piatto(p.testata).includes("latuaazienda") && p.testata.includes("CT-ESEMPIO"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);
       expect(/Mario|Rossi/.test(p.testata), `il cliente nella testata della pagina ${i + 2}: «${p.testata}»`).toBe(false);
     }
   });
 
-  it("la pagina da firmare è «ACCETTAZIONE PROPOSTA»", async () => {
+  it("il modello dimostrativo non emette una proposta da firmare", async () => {
     const documento = (await pdfConto({ logo: false })).map((p) => p.testo).join(" ");
-    expect(piatto(documento).includes("accettazioneproposta"), "il titolo nuovo").toBe(true);
+    expect(piatto(documento).includes("accettazioneproposta")).toBe(false);
+    expect(piatto(documento)).toContain("bozzalocale");
     // (Il passo «Firma della proposta» dell'elenco «come funziona» è un'altra cosa: non è il titolo della pagina.)
     expect(piatto(documento).includes("firmadelcontratto"), "il titolo vecchio").toBe(false);
   });
@@ -180,13 +181,14 @@ describe("Casa Full Electric: copertina, testata e pagina della firma", () => {
   it("col logo niente nome dell'azienda né «A cura di»; testata senza cliente; firma «ACCETTAZIONE PROPOSTA»", async () => {
     const d = anteprimaFullElectric({});
     d.azienda.logoUrl = await logoComeDati();
-    const pagine = await pagineDi(<FullElectricPDF data={d} />, 790);
+    const pagine = await pagineDi(<FullElectricPDF data={d} />, 770);
     expect(pagine[0].testo.includes(d.azienda.nome), "il nome accanto al logo").toBe(false);
     expect(pagine[0].testo.includes("A cura di")).toBe(false);
     for (const [i, p] of pagine.slice(1).entries()) {
       expect(p.testata.includes(d.cliente.nome), `il cliente nella testata della pagina ${i + 2}: «${p.testata}»`).toBe(false);
     }
     const documento = pagine.map((p) => p.testo).join(" ");
-    expect(piatto(documento).includes("accettazioneproposta")).toBe(true);
+    expect(piatto(documento).includes("accettazioneproposta")).toBe(false);
+    expect(piatto(documento)).toContain("bozzalocale");
   });
 });

@@ -58,6 +58,7 @@ import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
+import { AnalisiInterventoEditor } from "@/components/serramenti/AnalisiInterventoEditor";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
@@ -1099,6 +1100,7 @@ export default function SerramentiWizard() {
                   massimoNelPdf={ESIGENZE_NEL_PDF_SERRAMENTI}
                 />
                 <StepImmobile form={form} onChange={onChange} />
+                {form.tipo_intervento !== "nuova_costruzione" && (modelId === "finestre" || modelId === "combinato" || !modelId) && <AnalisiInterventoEditor value={form.analisi_intervento} disabled={Boolean(form.firmato_il || form.stato === "accettato")} onChange={v => onChange("analisi_intervento", v)} />}
                 {/* "Contenuti PDF" (soluzione, perché noi…) accorpato qui; le esigenze sono nella card in cima. */}
                 <StepContenuti form={form} onChange={onChange} senzaEsigenze />
               </div>

@@ -10,13 +10,31 @@ export function toFiniteAmount(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export function formatTreasuryCurrency(value: unknown, fallback = "—"): string {
+export function formatTreasuryCurrency(value: unknown, fallback = "—", currency: string | null = "EUR"): string {
   const amount = toFiniteAmount(value, Number.NaN);
   if (!Number.isFinite(amount)) return fallback;
   // useGrouping "always": il CLDR italiano omette il punto delle migliaia
   // sotto le 5 cifre (8597,21 accanto a 52.941,81 sembrava un refuso) —
   // stessa scelta di lib/formatters.ts.
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(amount);
+  const code = currency && /^[A-Z]{3}$/.test(currency) ? currency : "EUR";
+  const precision = ["BTC", "ETH"].includes(code) ? { minimumFractionDigits: 2, maximumFractionDigits: 8 } : {};
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: code, useGrouping: "always", ...precision }).format(amount);
+}
+
+export function treasuryTransactionAmount(row: { amount?: unknown; currency?: string; metadata?: { provider?: string; currency_code?: string; amount?: unknown } | null }): number {
+  if (row.metadata?.provider === "saltedge" && row.metadata.currency_code === row.currency && typeof row.metadata.amount === "number" && Number.isFinite(row.metadata.amount)) {
+    return row.metadata.amount;
+  }
+  return toFiniteAmount(row.amount);
+}
+
+export function sumTreasuryByCurrency<T extends { currency?: string | null }>(rows: T[], amount: (row: T) => unknown) {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const currency = row.currency || "EUR";
+    totals.set(currency, (totals.get(currency) ?? 0) + toFiniteAmount(amount(row)));
+  }
+  return [...totals].map(([currency, total]) => ({ currency, total }));
 }
 
 export function parsePositiveAmount(value: string): number | null {

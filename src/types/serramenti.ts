@@ -89,6 +89,7 @@ export interface SrCashflowRiga {
 }
 
 export interface SrProgettoRow {
+  analisi_intervento?: import("@/lib/serramenti/analisiIntervento").AnalisiIntervento | null;
   /** Optional for legacy projects; immutable document configuration captured at creation. */
   modello_snapshot?: import("@/lib/serramenti/quoteModel").SrQuoteModelSnapshot | null;
   id: string;
@@ -565,12 +566,16 @@ export interface SrTemplatePdfRow {
 
 /** Pagina "Il tuo percorso" del PDF preventivo. Fasi + step editabili. */
 export interface SrPercorsoCliente {
+  immagini_illustrative?: boolean;
   attivo: boolean;
   titolo: string;
   sottotitolo: string;
   fasi: SrPercorsoFase[];
 }
 export interface SrPercorsoFase {
+  attivita_azienda?: string;
+  conferma_cliente?: string;
+  tempistiche?: string;
   /** Nome della fase, mostrato in maiuscolo (es. "CONSULENZA"). */
   nome: string;
   /** Icona key: chiamata | proposta | produzione | montaggio | custom. */
@@ -702,9 +707,9 @@ export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
 export const SR_CONFRONTO_DEFAULT: SrConfrontoRiga[] = [
   // Il meno è quello della tastiera: il segno tipografico «−» non esiste in
   // Helvetica e nel PDF spariva, così «−68%» usciva come un aumento del 68%.
-  { parametro: "Trasmittanza termica Uw", prima: "~3,5 W/m²K", dopo: "1,1 W/m²K", delta: "-68%" },
-  { parametro: "Abbattimento acustico", prima: "~26 dB", dopo: "38 dB", delta: "+46%" },
-  { parametro: "Tenuta aria", prima: "Classe 1", dopo: "Classe 4", delta: "4×" },
+  { parametro: "Trasmittanza termica Uw", prima: "Da rilevare", dopo: "Da scheda prodotto", delta: "Da verificare" },
+  { parametro: "Prestazione acustica", prima: "Non documentata", dopo: "Da scheda della configurazione", delta: "Non deducibile dal materiale" },
+  { parametro: "Tenuta aria", prima: "Da verificare", dopo: "Classe documentata del prodotto", delta: "Posa da verificare" },
   // Tolta il 22/09/2026 la riga «Bolletta gas stimata/anno: € 1.450 → € 1.310»: esce
   // nel PDF di chi non ha scritto le sue righe, con cifre fisse uguali per tutti i
   // clienti, lette come la bolletta di casa propria.

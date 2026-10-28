@@ -1,3 +1,6 @@
+-- Ricostruita dal registro Supabase: già applicata in produzione da un altro terminale.
+-- Copia dello SQL eseguito, per allineare lo storico del repository senza rieseguirlo.
+
 -- Registro operativo. Nessuna scrittura in costi, rimborsi, presenze o contatore del mezzo.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';

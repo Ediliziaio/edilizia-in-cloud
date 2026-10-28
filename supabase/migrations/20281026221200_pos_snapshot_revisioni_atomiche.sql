@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- Preserve original structured content before any approved POS is revised.
 -- This is a content snapshot, not a claim to preserve signed PDF bytes.
 set local lock_timeout='3s';

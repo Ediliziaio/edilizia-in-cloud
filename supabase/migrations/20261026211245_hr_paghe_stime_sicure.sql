@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- Safety patch only: no historical payroll values are recalculated.
 -- Sources and limitations: docs/paghe-benefit-piano-20261026.md
 -- Missing imported employer contributions remain unknown, not an artificial zero.
@@ -209,5 +214,3 @@ begin
 end;
 $function$;
 revoke all on function public.paghe_scrivi_cedolino(uuid,boolean) from public,anon,authenticated;
-
-

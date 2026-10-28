@@ -9,14 +9,15 @@
  * (preventivo, progetto, modulo): rigenerarlo dopo l'invio cambiava quello che
  * il cliente firmava, e per gli ordini dell'app operai non c'era alcun documento.
  *
- * Il documento è un PDF, oppure una pagina HTML per il preventivo fotovoltaico
- * (`vendita.html`): si congela com'è, e il PDF firmato avrà il solo certificato
- * con l'impronta della pagina.
+ * Il fotovoltaico conserva l'HTML originale per l'anteprima: prima dell'invio
+ * lo stampa con Chromium e congela il PDF completo, non il solo certificato.
  *
  * Per gli ordini il documento è un verbale costruito qui, con i dati della
  * commessa, il tipo di documento e le note scritte da chi lo manda.
  */
 
+import { fotovoltaicoPdfOriginale } from "./fotovoltaicoPdfOriginale.ts";
+import { fvSchedeFirma } from "./fvSchedeFirma.ts";
 export const BUCKET_RICHIESTE = "quote-pdfs";
 const MAX_DOCUMENTO = 25 * 1024 * 1024;
 
@@ -186,7 +187,23 @@ export async function bytesDelDocumento(sb: any, f: FonteDocumento): Promise<Uin
  */
 // deno-lint-ignore no-explicit-any
 export async function congelaDocumento(sb: any, f: FonteDocumento, richiestaId: string): Promise<{ path: string; hash: string }> {
-  const bytes = await bytesDelDocumento(sb, f);
+  let bytes = await bytesDelDocumento(sb, f);
+  if (f.tipo === "fv" && !eUnPdf(bytes)) {
+    if (!eUnaPaginaHtml(bytes)) throw new DocumentoNonPronto("Il preventivo fotovoltaico non contiene un documento valido.");
+    try {
+      bytes = await fotovoltaicoPdfOriginale(bytes, await fvSchedeFirma(sb, f.companyId, f.documentoId));
+    } catch (error) {
+      throw new DocumentoNonPronto(error instanceof Error ? error.message : "PDF completo non disponibile. Riprova prima di inviare per la firma.");
+    }
+  }
+  if (f.tipo === "fv") {
+    try {
+      const { PDFDocument } = await import("https://esm.sh/pdf-lib@1.17.1");
+      if (!(await PDFDocument.load(bytes)).getPageCount()) throw new Error("PDF vuoto");
+    } catch {
+      throw new DocumentoNonPronto("Il PDF del fotovoltaico non è leggibile. Rigenera il preventivo prima di inviare la firma.");
+    }
+  }
   const pdf = eUnPdf(bytes);
   if (!pdf && !eUnaPaginaHtml(bytes)) throw new DocumentoNonPronto("Il documento da firmare deve essere un PDF.");
   const path = pathDocumentoCongelato(f.companyId, richiestaId, pdf ? "pdf" : "html");

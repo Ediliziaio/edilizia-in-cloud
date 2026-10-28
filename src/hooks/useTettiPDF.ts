@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useTettiPDF — download/preview del PDF cliente del preventivo
@@ -293,13 +294,12 @@ export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriche
  */
 export async function renderTetPreviewBlobUrl(opts: TetPdfPayload): Promise<string> {
   const enriched = await enrichTettiPdf(opts);
-  const [{ pdf }, { TettiPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ TettiPDF }, React] = await Promise.all([
     import("@/components/tetti/TettiPDF"),
     import("react"),
   ]);
   const element = React.createElement(TettiPDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -322,13 +322,12 @@ export function useTettiPDF() {
         return { ok: false };
       }
       const enriched = await enrichTettiPdf(opts);
-      const [{ pdf }, { TettiPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ TettiPDF }, React] = await Promise.all([
         import("@/components/tetti/TettiPDF"),
         import("react"),
       ]);
       const element = React.createElement(TettiPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -362,13 +361,12 @@ export function useTettiPDF() {
         return;
       }
       const enriched = await enrichTettiPdf(opts);
-      const [{ pdf }, { TettiPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ TettiPDF }, React] = await Promise.all([
         import("@/components/tetti/TettiPDF"),
         import("react"),
       ]);
       const element = React.createElement(TettiPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

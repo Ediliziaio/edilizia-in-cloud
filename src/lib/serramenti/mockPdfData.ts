@@ -25,6 +25,7 @@ import type {
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
+import { caricaFotoPianoLavori } from "@/lib/serramenti/fotoPianoLavoriPdf";
 import { votiOnlineAzienda } from "@/lib/pdf/votiOnline";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 import { applySerramentiModulePreview, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
@@ -404,6 +405,7 @@ export async function buildMockPdfData(opts: {
 
   return {
     // Dalla copia firmata anche i testi di esempio: il modello non firmato serve solo a firmarlo.
+    fotoPianoLavori: await caricaFotoPianoLavori(tpl),
     detail: opts.moduleId ? applySerramentiModulePreview(detail, tpl ?? {}, opts.moduleId) : detail,
     template: inlinedTemplate as SrTemplatePdfRow | null,
     company: {

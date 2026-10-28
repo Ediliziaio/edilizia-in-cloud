@@ -39,6 +39,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { preventivoFirmaAttiva } from "../_shared/preventivoFirmaAttiva.ts";
 import {
   BADGE_GARANZIE_FV,
   getFvPdfRenderedPagesCount,
@@ -148,6 +149,12 @@ Deno.serve(async (req: Request) => {
     // primario e multi_company_access esclusi). Il throw viene intercettato dal
     // catch sottostante che ri-emette la Response.
     await requireCompanyAccess(supabaseAdmin, userId, prog.company_id, corsHeaders);
+    const { data: firmaProgetto, error: firmaError } = await supabaseAdmin.from("fv_progetti")
+      .select("stato, firmato_il").eq("id", prog.id).eq("company_id", prog.company_id).single();
+    if (firmaError) throw new Error("Impossibile verificare lo stato del preventivo.");
+    if (firmaProgetto.firmato_il || firmaProgetto.stato === "firmato" || await preventivoFirmaAttiva(supabaseAdmin, prog.company_id, "fv", prog.id)) {
+      return errorResponse("Il preventivo firmato o in firma non si rigenera. Crea una revisione per modificarlo.", 409, corsHeaders);
+    }
 
     // Step 2: dati correlati in parallelo (filtrati per company_id corretto)
     const [calcRes, compRes, manodRes, servRes, companyRes, templateRes, macroRes, profiliRes] = await Promise.all([

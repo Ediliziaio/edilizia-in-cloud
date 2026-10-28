@@ -18,6 +18,7 @@
  *  - Bottoni "Aggiorna" (force regen) + "Scarica" + "Apri in nuova scheda"
  *  - Cleanup automatico dei blob URL al cambio o alla chiusura
  */
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Loader2, RefreshCw, Download, AlertCircle, ExternalLink, FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,8 @@ export function SerramentiTemplatePreviewDialog({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBlobUrlRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfDocRef = useRef<any>(null);
 
   // M15 · Selettore data-source: null = mock demo, string = id preventivo reale.
   const [selectedProgettoId, setSelectedProgettoId] = useState<string | null>(() => {
@@ -94,8 +97,7 @@ export function SerramentiTemplatePreviewDialog({
     try {
       // Dynamic import per code-splitting (vendor-pdf chunk ~740 KB +
       // pdfjs ~300 KB caricati solo al primo click "Anteprima PDF").
-      const [{ pdf }, { SerramentoPDF }, React, pdfjsLib] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ SerramentoPDF }, React, pdfjsLib] = await Promise.all([
         import("@/components/serramenti/SerramentoPDF"),
         import("react"),
         import("pdfjs-dist"),
@@ -150,7 +152,7 @@ export function SerramentiTemplatePreviewDialog({
       // non si risolve MAI e lo spinner gira a vuoto. Con la race mostriamo un errore
       // chiaro invece di restare appesi. 45s è generoso anche su connessioni lente.
       const blob = await Promise.race([
-        pdf(element as unknown as React.ReactElement<DocumentProps>).toBlob(),
+        generaPdfDocumento(element as unknown as React.ReactElement<DocumentProps>),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(
             "Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica. Riprova; se persiste, ricarica/sostituisci quell'immagine.",
@@ -185,10 +187,6 @@ export function SerramentiTemplatePreviewDialog({
       setState({ status: "error", message: msg });
     }
   };
-
-  // Ref al documento pdfjs caricato (per render pages dopo il setState ready)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfDocRef = useRef<any>(null);
 
   // Render delle pagine quando lo state diventa "ready"
   useEffect(() => {

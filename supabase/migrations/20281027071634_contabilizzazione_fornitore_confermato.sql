@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 -- Mantiene integralmente controlli, gestione NC, SAL/importi e privilegi della
 -- funzione esistente. Cambia SOLO la risoluzione dell'anagrafica del fornitore.
 -- Nessuna contabilizzazione o modifica di costi eseguita dalla migrazione.

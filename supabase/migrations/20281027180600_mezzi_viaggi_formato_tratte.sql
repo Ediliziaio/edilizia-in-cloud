@@ -1,3 +1,6 @@
+-- Ricostruita dal registro Supabase: già applicata in produzione da un altro terminale.
+-- Copia dello SQL eseguito, per allineare lo storico del repository senza rieseguirlo.
+
 set local lock_timeout='3s';
 set local statement_timeout='60s';
 -- Shape guard at the storage boundary: RPC callers cannot persist JSON strings

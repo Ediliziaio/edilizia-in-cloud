@@ -61,57 +61,26 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
   });
 
   describe("generate-quote-pdf", () => {
+    // Dal 27/10/2026 questa funzione non disegna più niente a mano: compone il documento
+    // React condiviso (`_shared/preventivoRenderer.mjs`, costruito da scripts/preventivi-render)
+    // e gli passa i dati. Le guardie di impaginazione che stavano qui — fondo pagina, colonna
+    // prezzo, box finanziamento, intestazione orfana — riguardavano codice che non c'è più; le
+    // regole dell'IVA vivono in `_shared/riepilogoIvaPreventivo.ts` e sono provate col
+    // comportamento in riepilogoIvaPreventivo.test.ts (riga nascosta nel suo scaglione, riga
+    // omaggio a zero, residuo sull'aliquota maggiore, 6.000 preventivi contro il database).
+    // Qui resta l'unica cosa che quel cambio può far tornare indietro: una seconda strada di
+    // disegno dentro la edge, che uscirebbe diversa dal documento di tutti gli altri preventivi.
     const source = read("supabase/functions/generate-quote-pdf/index.ts");
 
-    it("sanitizza i campi utente/AI con winAnsiSafe (drawText e widthOfTextAtSize)", () => {
-      expect(source).toContain("winAnsiSafe");
-      // wrapper unico su addPage: ogni pagina esce con drawText sanitizzato
-      expect(source).toContain("rawAddPage");
-      // anche la misura del testo lancia sugli stessi caratteri
-      expect(source).toContain("f.widthOfTextAtSize(winAnsiSafe(s), size)");
-    });
-
-    it("guardia fondo pagina prima del box finanziamento; il QR della firma non si stampa più", () => {
-      expect(source).toContain("newPageIfNeeded(80)");
-      // Dal 25/09/2026 il QR della firma online nel PDF non c'è (deciso da Florin):
-      // il cliente firma dal link che riceve.
+    it("non disegna il PDF a mano: lo compone il documento condiviso", () => {
+      expect(source).toContain('import { renderGenerico } from "../_shared/preventivoRenderer.mjs";');
+      expect(source).toMatch(/renderGenerico\(\{\s+quote,\s+righePerIva,/);
+      // Niente pdf-lib per scrivere testo o righe: la pagina la fa il documento React.
+      expect(source).not.toContain("drawText");
+      expect(source).not.toContain("drawRectangle");
+      expect(source).not.toContain("StandardFonts");
+      // Il QR della firma online non si stampa (deciso il 25/09/2026): si firma dal link.
       expect(source).not.toContain("qrcode(");
-    });
-
-    it("footing IVA: totale derivato + residuo sull'aliquota maggiore (mai negativa)", () => {
-      // Il conto sta in _shared/riepilogoIvaPreventivo.ts (provato in riepilogoIvaPreventivo.test.ts):
-      // il PDF lo chiama e ne stampa le righe.
-      const riepilogo = read("supabase/functions/_shared/riepilogoIvaPreventivo.ts");
-      expect(source).toContain("ivaToShow");
-      expect(source).toContain("subTotShown - scontoShown");
-      expect(source).toContain("righeRiepilogoIva({");
-      // il residuo di arrotondamento va sulla riga di valore massimo
-      expect(riepilogo).toContain("righe[max].valore = arrotondaComePostgres(righe[max].valore + residuo)");
-      // clamp IVA ≥ 0: lo scarto ≤1 cent (esente+sconto) è assorbito nello sconto
-      expect(riepilogo).toContain("scontoShown = arrotondaComePostgres(scontoShown - ivaToShow)");
-    });
-
-    it("colonna prezzo con bordo sinistro garantito (no collisione con U.M.)", () => {
-      expect(source).toContain("priceLeftBound");
-      expect(source).toContain("priceRight - textW(withDisc, sz(8.5)) >= priceLeftBound");
-    });
-
-    it("box finanziamento allineato al contenuto (non sfora la pagina)", () => {
-      expect(source).toContain("const finBoxW = (itemLeftX + itemWidth) - finBoxX");
-      expect(source).not.toContain("(totValX + 50) - finBoxX + 10");
-    });
-
-    it("totali/firme renderizzati anche con 0 righe visibili (header guardato, blocco no)", () => {
-      // L'intestazione esce solo se sotto ci sono righe: con «solo totale» le righe non
-      // si disegnano, e l'intestazione restava orfana sopra i totali (076ac6259).
-      expect(source).toContain("if (items.length > 0 && !soloTotale) drawTableHeader()");
-      expect(source).toContain("if (!soloTotale) {\n        for (let idx = 0; idx < items.length; idx++) {");
-      // Il blocco di tabella, totali e firme invece resta sempre eseguito.
-      expect(source).toContain("// Blocco SEMPRE eseguito: header e righe della tabella sono guardati da");
-    });
-
-    it("line_total nullo-sicuro: uno 0 legittimo non ricade sul calcolo qtà×prezzo", () => {
-      expect(source).toContain('ltRaw != null && ltRaw !== ""');
     });
   });
 

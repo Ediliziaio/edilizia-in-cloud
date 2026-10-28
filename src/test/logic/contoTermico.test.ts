@@ -191,6 +191,9 @@ describe("Conto Termico: il documento si genera anche da solo", () => {
     expect(tema).toContain("\nensurePdfBufferCompatibility();");
     expect(tema).toContain("Font.registerHyphenationCallback((word) => [word]);");
     const documento = readFileSync(resolve("src/components/termoidraulico/contoTermico/ContoTermicoPDF.tsx"), "utf8");
-    expect(documento).toContain('from "@/components/preventivi/pdf/racconto/temaRacconto"');
+    expect(documento).toContain('from "@/components/preventivi/pdf/DocumentoEdilePDF"');
+    const comune = readFileSync(resolve("src/components/preventivi/pdf/DocumentoEdilePDF.tsx"), "utf8");
+    expect(comune).toContain("ensurePdfBufferCompatibility();");
+    expect(comune).toContain("Font.registerHyphenationCallback((word) => [word]);");
   });
 });

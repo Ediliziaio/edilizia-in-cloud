@@ -85,12 +85,12 @@ interface Modulo {
 const MODULI: Modulo[] = [
   { slug: "bagni", sigla: "bgn", ivaDiRiserva: 10, calcoli: calcoliBagni, funzione: "enrichBagniPdf", hook: () => import("@/hooks/useBagniProgetto"), pdf: () => import("@/hooks/useBagniPDF") },
   { slug: "tetti", sigla: "tet", ivaDiRiserva: 10, calcoli: calcoliTetti, funzione: "enrichTettiPdf", hook: () => import("@/hooks/useTettiProgetto"), pdf: () => import("@/hooks/useTettiPDF") },
-  { slug: "climatizzazione", sigla: "clm", ivaDiRiserva: 22, calcoli: calcoliClm, funzione: "enrichClimatizzazionePdf", hook: () => import("@/hooks/useClimatizzazioneProgetto"), pdf: () => import("@/hooks/useClimatizzazionePDF") },
-  { slug: "elettrico", sigla: "ele", ivaDiRiserva: 22, calcoli: calcoliEle, funzione: "enrichElettricoPdf", hook: () => import("@/hooks/useElettricoProgetto"), pdf: () => import("@/hooks/useElettricoPDF") },
-  { slug: "termoidraulico", sigla: "idr", ivaDiRiserva: 22, calcoli: calcoliIdr, funzione: "enrichTermoidraulicoPdf", hook: () => import("@/hooks/useTermoidraulicoProgetto"), pdf: () => import("@/hooks/useTermoidraulicoPDF") },
-  { slug: "pavimenti", sigla: "pav", ivaDiRiserva: 22, calcoli: calcoliPav, funzione: "enrichPavimentiPdf", hook: () => import("@/hooks/usePavimentiProgetto"), pdf: () => import("@/hooks/usePavimentiPDF") },
-  { slug: "piscine", sigla: "pis", ivaDiRiserva: 22, calcoli: calcoliPis, funzione: "enrichPiscinePdf", hook: () => import("@/hooks/usePiscineProgetto"), pdf: () => import("@/hooks/usePiscinePDF") },
-  { slug: "ristrutturazione", sigla: "rst", ivaDiRiserva: 22, calcoli: calcoliRst, funzione: "enrichRistrutturazionePdf", hook: () => import("@/hooks/useRistrutturazioneProgetto"), pdf: () => import("@/hooks/useRistrutturazionePDF") },
+  { slug: "climatizzazione", sigla: "clm", ivaDiRiserva: 10, calcoli: calcoliClm, funzione: "enrichClimatizzazionePdf", hook: () => import("@/hooks/useClimatizzazioneProgetto"), pdf: () => import("@/hooks/useClimatizzazionePDF") },
+  { slug: "elettrico", sigla: "ele", ivaDiRiserva: 10, calcoli: calcoliEle, funzione: "enrichElettricoPdf", hook: () => import("@/hooks/useElettricoProgetto"), pdf: () => import("@/hooks/useElettricoPDF") },
+  { slug: "termoidraulico", sigla: "idr", ivaDiRiserva: 10, calcoli: calcoliIdr, funzione: "enrichTermoidraulicoPdf", hook: () => import("@/hooks/useTermoidraulicoProgetto"), pdf: () => import("@/hooks/useTermoidraulicoPDF") },
+  { slug: "pavimenti", sigla: "pav", ivaDiRiserva: 10, calcoli: calcoliPav, funzione: "enrichPavimentiPdf", hook: () => import("@/hooks/usePavimentiProgetto"), pdf: () => import("@/hooks/usePavimentiPDF") },
+  { slug: "piscine", sigla: "pis", ivaDiRiserva: 10, calcoli: calcoliPis, funzione: "enrichPiscinePdf", hook: () => import("@/hooks/usePiscineProgetto"), pdf: () => import("@/hooks/usePiscinePDF") },
+  { slug: "ristrutturazione", sigla: "rst", ivaDiRiserva: 10, calcoli: calcoliRst, funzione: "enrichRistrutturazionePdf", hook: () => import("@/hooks/useRistrutturazioneProgetto"), pdf: () => import("@/hooks/useRistrutturazionePDF") },
 ];
 
 const voce = (id: string, capitolo: string, q: number, p: number, sc = 0, costi: [number, number] = [0, 0]) => ({
@@ -107,7 +107,7 @@ interface Scenario {
   nome: string;
   voci: typeof VOCI;
   progetto: { sconto_pct?: number | null; iva_pct?: number | null; prezzo_manuale?: number | null };
-  /** Imponibile e totale attesi, fatti a mano (dipendono dall'IVA di riserva del modulo se il progetto non ne ha una). */
+  /** Imponibile e totale attesi, fatti a mano (dipendono dall'IVA di riserva se il progetto non ne ha una). */
   atteso?: (ivaRiserva: number) => { imponibile: number; totale: number };
 }
 const SCENARI: Scenario[] = [
@@ -118,7 +118,8 @@ const SCENARI: Scenario[] = [
   { nome: "prezzo a mano 9.800 + sconto 5% + IVA 4%", voci: VOCI, progetto: { sconto_pct: 5, iva_pct: 4, prezzo_manuale: 9800 }, atteso: () => ({ imponibile: 9310, totale: 9682.4 }) },
   { nome: "sconto 100%", voci: VOCI, progetto: { sconto_pct: 100, iva_pct: 22, prezzo_manuale: null }, atteso: () => ({ imponibile: 0, totale: 0 }) },
   { nome: "IVA 0%", voci: VOCI, progetto: { sconto_pct: 0, iva_pct: 0, prezzo_manuale: null }, atteso: () => ({ imponibile: 4549.94, totale: 4549.94 }) },
-  // IVA di riserva 10% (bagni, tetti): 454,994 → 454,99, totale 5.004,93 · 22% (gli altri): 1.000,99, totale 5.550,93
+  // Dal 27/10/2026 l'IVA di riserva e' il 10% in tutti gli otto moduli (IVA_PREDEFINITA_PCT):
+  // 4.549,94 × 10% = 454,994 → 454,99, totale 5.004,93. L'azienda puo' sempre scegliere 0, 4, 22 o mista.
   { nome: "IVA e sconto assenti: vale l'IVA di riserva del modulo", voci: VOCI, progetto: { sconto_pct: null, iva_pct: null, prezzo_manuale: null }, atteso: (iva) => ({ imponibile: 4549.94, totale: iva === 10 ? 5004.93 : 5550.93 }) },
   { nome: "computo vuoto col prezzo a mano 5.000, IVA 22%", voci: [], progetto: { sconto_pct: 0, iva_pct: 22, prezzo_manuale: 5000 }, atteso: () => ({ imponibile: 5000, totale: 6100 }) },
 ];

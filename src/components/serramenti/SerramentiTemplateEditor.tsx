@@ -2257,6 +2257,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             const totalStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
             return (
               <TabsContent value="percorso" className="mt-4 space-y-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={percorso.immagini_illustrative !== false && (percorso.immagini_illustrative === true || percorso.fasi.some(f => f.attivita_azienda?.trim() || f.conferma_cliente?.trim() || f.tempistiche?.trim()))}
+                  onChange={e => updatePercorso({ ...percorso, immagini_illustrative: e.target.checked })}
+                  className="h-4 w-4" />
+                Immagini illustrative nelle fasi personalizzate
+              </label>
               {/* Toggle attivo + titolo + sottotitolo + counter */}
               <div className="flex items-center justify-between gap-2 pb-3 border-b">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -2340,6 +2346,19 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 pl-9 md:grid-cols-3">
+                          {([
+                            ["attivita_azienda", "Attività dell'azienda"],
+                            ["conferma_cliente", "Conferma del cliente"],
+                            ["tempistiche", "Tempi e condizioni"],
+                          ] as const).map(([campo, label]) => <label key={campo} className="space-y-1 text-xs text-muted-foreground">
+                            <span>{label}</span>
+                            <Input value={fase[campo] ?? ""} onChange={e => {
+                              const fasi = percorso.fasi.map((f, i) => i === fi ? { ...f, [campo]: e.target.value } : f);
+                              updatePercorso({ ...percorso, fasi });
+                            }} className="h-8 text-xs" />
+                          </label>)}
                         </div>
                         {/* Step della fase */}
                         <div className="space-y-1 pl-9">

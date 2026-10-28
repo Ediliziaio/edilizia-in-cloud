@@ -11,10 +11,6 @@ verify_jwt = false
 [functions.create-customer]
 verify_jwt = false
 
-# Sync notturno Open Banking (Enable Banking). Auth via x-cron-secret == INTERNAL_CRON_SECRET.
-[functions.bank-eb-cron]
-verify_jwt = false
-
 # Fleet-wide cron (itera tutte le aziende): auth via x-cron-secret in-code, quindi
 # verify_jwt=false. Vedi gate INTERNAL_CRON_SECRET nella funzione (fix audit tesoreria).
 [functions.ai-cashflow-forecast-builder]
@@ -289,6 +285,18 @@ verify_jwt = false
 
 # Sweeper cron: riconcilia le chiamate rimaste appese. Auth x-cron-secret.
 [functions.ai-conversations-sweeper]
+verify_jwt = false
+
+# attese-operatore-sollecito: la chiama un cron una volta al giorno con
+# x-cron-secret, e la si invoca a mano per una sola azienda. Nessun JWT:
+# senza questa voce il gateway risponde 401 prima del codice e il cron resta
+# morto in silenzio, perche' net.http_post considera riuscito l'aver spedito.
+[functions.attese-operatore-sollecito]
+verify_jwt = false
+
+# whatsapp-canale-controllo: stesso motivo. Il segreto lo controlla la funzione
+# con cronSecretValido.
+[functions.whatsapp-canale-controllo]
 verify_jwt = false
 
 # Queue worker: only internal service calls or the Vault cron secret.
@@ -1156,3 +1164,14 @@ verify_jwt = true
 
 [functions.genera-verbale-sal-sub]
 verify_jwt = true
+# Authenticated company administrator; application verifies JWT and VAT scope.
+[functions.billing-massive]
+verify_jwt = false
+
+# Authenticated user + effective company permission checks inside the handler.
+[functions.bank-saltedge]
+verify_jwt = false
+
+# Salt Edge V6 RSA signature, version, timestamp and tenant binding are verified.
+[functions.bank-saltedge-webhook]
+verify_jwt = false

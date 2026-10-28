@@ -62,6 +62,7 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
+import { nuovaAnalisiIntervento } from "@/lib/serramenti/analisiIntervento";
 import { StepPdf } from "@/components/serramenti/StepPdf";
 
 /** Quattro finestre da 2.500 €: 10.000 + IVA 10% = 11.000. */
@@ -99,6 +100,7 @@ const RIGHE = (id: string): RigaFinanziamento[] =>
     })));
 
 type Passo = "economia" | "pdf";
+let formDelWizard: Partial<SrProgettoRow> = {};
 
 /**
  * Il wizard in piccolo: UN preventivo (`form`, con le scritture dello step), un passo alla volta. Il passo PDF riceve le
@@ -106,6 +108,7 @@ type Passo = "economia" | "pdf";
  */
 function Wizard({ iniziale, passoIniziale = "economia", posizioni }: { iniziale: Partial<SrProgettoRow>; passoIniziale?: Passo; posizioni: number }) {
   const [form, setForm] = useState<Partial<SrProgettoRow>>({ ...PROGETTO(10_000), ...iniziale });
+  formDelWizard = form;
   const [passo, setPasso] = useState<Passo>(passoIniziale);
   // Le posizioni sono quelle di Composizione (qui, il prezzo delle finestre), il totale salvato lo scrive il wizard in ogni passo.
   const detail: SrProgettoDetail = { ...dettaglio(posizioni), progetto: { ...PROGETTO(posizioni), ...form } as SrProgettoRow };
@@ -215,6 +218,20 @@ describe("un preventivo scritto dalla scheda Economia parte per firma", () => {
 });
 
 describe("i controlli di «Invia per firma» e il salvataggio automatico di Economia", () => {
+  it("conserva ipotesi, Uw e bolletta passando al PDF e riaprendo il preventivo", () => {
+    const a = nuovaAnalisiIntervento(); a.esistente = "legno"; a.uwPrima = 4; a.uwDopo = 1.2;
+    monta({ analisi_intervento: a });
+    scegli(/Risparmio energetico/);
+    fireEvent.click(screen.getByRole("switch", { name: "Calcola risparmio in bolletta" }));
+    fireEvent.change(screen.getByLabelText("Uw attuale per la stima"), { target: { value: "4.2" } });
+    fireEvent.change(screen.getByLabelText("Spesa annua riscaldamento"), { target: { value: "1350" } });
+    expect(formDelWizard.analisi_intervento?.esistente).toBe("legno");
+    expect(formDelWizard.analisi_intervento?.risparmio).toMatchObject({ uwAttuale: 4.2, uwNuovo: 1.2, bolletta: 1350, fonteBolletta: "cliente" });
+    vaiAlPdf(); vaiAEconomia(); scegli(/Risparmio energetico/);
+    expect(screen.getByLabelText("Uw attuale per la stima")).toHaveValue(4.2);
+    const salvato = JSON.parse(JSON.stringify(formDelWizard)); cleanup(); monta(salvato); scegli(/Risparmio energetico/);
+    expect(screen.getByLabelText("Spesa annua riscaldamento")).toHaveValue(1350);
+  });
   it("rate che non fanno 100% (scritte a mano): l'invio si ferma; «Dividi in parti uguali» le rimette a posto e si manda", () => {
     monta();
     scegli("Bonifico");

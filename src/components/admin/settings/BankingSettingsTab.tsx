@@ -6,10 +6,8 @@ import CompanyTesoreriaCard from "./banking/CompanyTesoreriaCard";
 /**
  * Tab Banking (admin): gestione globale del modulo Tesoreria per le aziende.
  *
- * NB: il collegamento dei conti correnti usa **Enable Banking** (Open Banking
- * PSD2/AIS), configurato via secret Supabase (ENABLE_BANKING_APP_ID /
- * ENABLE_BANKING_PRIVATE_KEY), non da questa schermata. La vecchia integrazione
- * GoCardless è stata rimossa (provider dismesso: signup chiusi da lug-2025).
+ * Il collegamento Salt Edge AIS beta e' configurato nei segreti del backend,
+ * non da questa schermata.
  */
 export default function BankingSettingsTab() {
   return (
@@ -17,7 +15,7 @@ export default function BankingSettingsTab() {
       <Alert>
         <Landmark className="h-4 w-4" />
         <AlertDescription>
-          Il collegamento dei conti correnti usa <strong>Enable Banking</strong> (Open Banking PSD2):
+          Il collegamento dei conti correnti usa <strong>Salt Edge</strong> (Open Banking PSD2, beta):
           le credenziali sono configurate nei secret del progetto, non da qui. Le aziende collegano i
           conti da <em>Impostazioni → Integrazioni</em>.
         </AlertDescription>

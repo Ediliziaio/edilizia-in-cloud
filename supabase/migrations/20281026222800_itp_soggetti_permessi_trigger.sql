@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 set local lock_timeout='3s';set local statement_timeout='60s';
 create or replace function public.sicurezza_soggetti_serializza() returns trigger language plpgsql security invoker set search_path=public as $$declare a uuid;b uuid;k uuid;begin
  perform set_config('lock_timeout','3s',true);
@@ -17,4 +22,3 @@ returns jsonb language plpgsql security invoker set search_path=public as $$decl
 end$$;
 revoke all on function public.sicurezza_itp_soggetti(uuid,uuid,uuid) from public,anon;
 grant execute on function public.sicurezza_itp_soggetti(uuid,uuid,uuid) to authenticated;
-

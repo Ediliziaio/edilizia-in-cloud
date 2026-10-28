@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 set local lock_timeout='3s';set local statement_timeout='60s';
 alter table public.subappaltatori_dpi_consegne add column if not exists evidenza_impronta text;
 
@@ -146,4 +151,3 @@ returns text language plpgsql security definer set search_path=public as $$decla
 end$$;
 revoke all on function public.sub_dpi_apri_verbale(uuid,uuid,uuid,uuid,uuid,date,uuid,text) from public,anon;
 grant execute on function public.sub_dpi_apri_verbale(uuid,uuid,uuid,uuid,uuid,date,uuid,text) to authenticated;
-

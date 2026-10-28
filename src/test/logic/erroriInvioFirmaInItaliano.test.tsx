@@ -89,7 +89,15 @@ describe("sendModuleQuoteSignature (preventivi dei moduli)", () => {
     invoke.mockResolvedValueOnce({ data: { success: false, error: "Indirizzo non valido" }, error: null });
     await expect(sendModuleQuoteSignature("q-1", "x", "Mario")).rejects.toThrow("Indirizzo non valido");
     invoke.mockResolvedValueOnce({ data: { success: true }, error: null });
-    await expect(sendModuleQuoteSignature("q-1", "a@b.it", "Mario")).resolves.toBeUndefined();
+    await expect(sendModuleQuoteSignature("q-1", "a@b.it", "Mario")).resolves.toEqual({ invitoCointestatarioInviato: null });
+  });
+  it("dice se l'invito al cointestatario non è partito (credito finito dopo la prima email)", async () => {
+    invoke.mockResolvedValueOnce({ data: { success: true, invito_cointestatario_inviato: false }, error: null });
+    await expect(sendModuleQuoteSignature("q-1", "a@b.it", "Mario", undefined, undefined, { nome: "Lia", email: "l@b.it" }))
+      .resolves.toEqual({ invitoCointestatarioInviato: false });
+    invoke.mockResolvedValueOnce({ data: { success: true, invito_cointestatario_inviato: true }, error: null });
+    await expect(sendModuleQuoteSignature("q-1", "a@b.it", "Mario", undefined, undefined, { nome: "Lia", email: "l@b.it" }))
+      .resolves.toEqual({ invitoCointestatarioInviato: true });
   });
 });
 

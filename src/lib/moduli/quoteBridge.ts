@@ -110,6 +110,15 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
   const existing = await getModuleQuote(input.companyId, input.moduleKey, input.progettoId);
   const esito = esitoOffertaModulo(existing);
   if (esito) throw new Error(FRASI_OFFERTA_MODULO[esito]);
+  let quoteNumber = existing?.quote_number ?? "";
+  if (!existing) {
+    const { data: numero, error: numberError } = await supabase.rpc("generate_quote_number", {
+      p_company_id: input.companyId,
+    } as never);
+    if (numberError) throw new Error(`Numerazione del preventivo non disponibile: ${numberError.message}`);
+    if (typeof numero !== "string" || !numero.trim()) throw new Error("Il numero del preventivo non è stato generato. Riprova prima dell'invio.");
+    quoteNumber = numero;
+  }
 
   // 1. PDF su storage (path stabile per-progetto, upsert).
   const pdfPath = `${input.companyId}/moduli/${input.moduleKey}-${input.progettoId}.pdf`;
@@ -145,11 +154,6 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
     return data as ModuleQuoteRow;
   }
 
-  const { data: numData } = await supabase.rpc("generate_quote_number", {
-    p_company_id: input.companyId,
-  } as never);
-  const quoteNumber = (numData as string | null) || `OFF-${new Date().getFullYear()}-${Date.now() % 100000}`;
-
   const { data, error } = await supabase
     .from("quotes")
     .insert({
@@ -175,7 +179,7 @@ export async function sendModuleQuoteSignature(
   recipientPhone?: string,
   /** Preventivo cointestato: firma anche il secondo intestatario, con un suo link. */
   cointestatario?: { nome: string; email: string; telefono?: string | null } | null,
-): Promise<void> {
+): Promise<{ invitoCointestatarioInviato: boolean | null }> {
   const { data, error } = await supabase.functions.invoke("send-quote-signature", {
     body: {
       quote_id: quoteId,
@@ -188,10 +192,11 @@ export async function sendModuleQuoteSignature(
   });
   // La frase vera del rifiuto sta nel corpo della risposta: `error.message` è il generico «non-2xx».
   if (error) throw new Error(await messaggioDaErroreFirma(error, "Riprova tra qualche istante."));
-  const payload = data as { success?: boolean; error?: string } | null;
+  const payload = data as { success?: boolean; error?: string; invito_cointestatario_inviato?: boolean | null } | null;
   if (payload && payload.success === false) {
     throw new Error(payload.error || "Invio non riuscito");
   }
+  return { invitoCointestatarioInviato: payload?.invito_cointestatario_inviato ?? null };
 }
 
 /** Link pubblico di firma (stessa route dell'email). `quotes.signature_token` è

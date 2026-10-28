@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { formatCurrencyCompact, formatDateIt } from "@/lib/formatters";
 import { toast } from "sonner";
-import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
+import { formatTreasuryCurrency, toFiniteAmount, sumTreasuryByCurrency, treasuryTransactionAmount } from "@/lib/treasury";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { prettyTxDesc } from "./txLabel";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
@@ -69,8 +69,12 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
   const [saldoTrend, setSaldoTrend] = useState<SaldoPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nativeBalances, setNativeBalances] = useState<{ currency: string; total: number }[]>([]);
+  const [multiCurrency, setMultiCurrency] = useState(false);
+  const [balancesUnavailable, setBalancesUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -80,15 +84,20 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   useEffect(() => {
     if (companyId) void loadData();
     else {
+      requestSeqRef.current++;
       setSummary(null);
       setCashFlow([]);
       setRecentTxs([]);
       setSaldoTrend([]);
+      setNativeBalances([]);
+      setMultiCurrency(false);
+      setBalancesUnavailable(false);
       setLoading(false);
     }
   }, [companyId, refreshKey]);
 
   async function loadData() {
+    const requestId = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -96,13 +105,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       since.setDate(since.getDate() - 90);
       const sinceStr = since.toISOString().slice(0, 10);
 
-      const [summaryRes, cashFlowRes, catRes, txRes, trendRes] = await Promise.all([
+      const [summaryRes, cashFlowRes, catRes, txRes, trendRes, accountsRes] = await Promise.all([
         supabase.rpc("get_treasury_summary", { p_company_id: companyId }),
         supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6 }),
         supabase.rpc("get_expenses_by_category", { p_company_id: companyId, p_months: 3 }),
         supabase
           .from("bank_transactions")
-          .select("id, booking_date, description, amount, transaction_type, category, creditor_name, debtor_name")
+          .select("id, booking_date, description, amount, currency, metadata, transaction_type, category, creditor_name, debtor_name")
           .eq("company_id", companyId)
           .order("booking_date", { ascending: false })
           .limit(5),
@@ -115,9 +124,16 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           .gte("booking_date", sinceStr)
           .order("booking_date", { ascending: true })
           .limit(5000),
+        supabase.from("bank_accounts").select("*").eq("company_id", companyId),
       ]);
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestId !== requestSeqRef.current) return;
+      setBalancesUnavailable(!!accountsRes.error);
+      if (accountsRes.error) setError("Impossibile verificare le valute dei conti. Riprova.");
+      else {
+        setMultiCurrency((accountsRes.data || []).some(a => a.currency !== "EUR"));
+        setNativeBalances(sumTreasuryByCurrency((accountsRes.data || []).filter(a => a.is_active), a => a.current_balance));
+      }
 
       let hasBlockingError = false;
       let totalBalance = 0;
@@ -190,11 +206,11 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         toast.error("Errore nel caricamento della tesoreria. Riprova tra qualche secondo.");
       }
     } catch (e: any) {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestId !== requestSeqRef.current) return;
       toast.error("Problema temporaneo. Riprova tra qualche secondo.");
       setError(e.message || "Errore sconosciuto");
     } finally {
-      if (isMountedRef.current) setLoading(false);
+      if (isMountedRef.current && requestId === requestSeqRef.current) setLoading(false);
     }
   }
 
@@ -211,6 +227,18 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   }
 
   // Delta mese corrente vs precedente dal cash flow mensile (serie ascendente).
+  if (balancesUnavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Button variant="outline" onClick={() => void loadData()}>Riprova</Button></div>;
+  if (multiCurrency) return (
+    <div className="space-y-6">
+      <div><h2 className="text-lg font-semibold">Liquidità per valuta</h2><p className="text-sm text-muted-foreground">Saldi separati, senza conversioni valutarie.</p></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {nativeBalances.map(b => <Card key={b.currency}><CardHeader className="pb-2"><CardTitle className="text-sm">{b.currency}</CardTitle></CardHeader><CardContent className="text-xl font-semibold tabular-nums">{formatTreasuryCurrency(b.total, "—", b.currency)}</CardContent></Card>)}
+      </div>
+      <div className="flex items-center justify-between"><h3 className="font-semibold">Ultime transazioni</h3><Button variant="outline" size="sm" onClick={onNavigateToTransactions}>Vedi tutte</Button></div>
+      <div className="divide-y">{recentTxs.map(tx => <div key={tx.id} className="flex items-start justify-between gap-4 py-3"><div className="min-w-0"><p className="text-sm break-words">{prettyTxDesc(tx)}</p><p className="text-xs text-muted-foreground">{tx.booking_date}</p></div><span className="shrink-0 text-sm font-semibold tabular-nums">{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}</span></div>)}</div>
+    </div>
+  );
+
   const cur = cashFlow.length >= 1 ? cashFlow[cashFlow.length - 1] : null;
   const prev = cashFlow.length >= 2 ? cashFlow[cashFlow.length - 2] : null;
   const deltaIncome = cur && prev ? pctDelta(toFiniteAmount(cur.income), toFiniteAmount(prev.income)) : null;
@@ -520,7 +548,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                       </div>
                     </div>
                     <span className={`shrink-0 font-semibold text-sm tabular-nums ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                      {isCredit ? "+" : ""}{formatEur(tx.amount)}
+                      {isCredit ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
                     </span>
                   </div>
                 );

@@ -16,6 +16,10 @@ const EDITOR_CHAPTERS: Record<string, readonly string[]> = {
   // attachment is disabled, the payment terms still belong to the investment.
   page_condizioni: ["condizioni", "investimento"],
   page_firma: ["firma"], page_recesso: ["recesso"],
+  page_componenti: ["piano"], page_anteprima: ["anteprima"], page_piano_tetto: ["piano_tetto"],
+  page_produzione: ["produzione"], page_flussi: ["flussi"], page_risparmio: ["risparmio"],
+  page_cassa_25: ["cassa_25"], page_piano_pagamento: ["finanziamento"], page_iter: ["tempi"],
+  page_costi_futuri: ["costi_futuri"], page_co2: ["co2"],
 };
 const CHAPTERS = new Set(Object.values(EDITOR_CHAPTERS).flat());
 

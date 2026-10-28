@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 set local lock_timeout='3s';set local statement_timeout='60s';
 create or replace function public.sicurezza_snapshot_verbale_dpi(e public.sicurezza_fascicolo) returns jsonb language sql stable security invoker set search_path=public as $$
  select jsonb_build_object('impronta',public.sicurezza_impronta_verbale_dpi(e),'id',e.id,'operaio_id',e.operaio_id,'titolo',e.titolo,'revisione',e.revisione,'file_name',e.file_name,'catalogo_id',e.catalogo_id,'catalogo_versione',e.catalogo_versione,'order_id',e.order_id,'fase_id',e.fase_id,'applicabile_dal',e.applicabile_dal,'applicabile_al',e.applicabile_al,'stato',e.stato,'data_rilascio',e.data_rilascio,'data_scadenza',e.data_scadenza,'updated_at',e.updated_at);
@@ -30,5 +35,3 @@ returns jsonb language plpgsql security definer set search_path=public as $$decl
 end$$;
 revoke all on function public.sub_dpi_quadro(uuid,uuid,uuid,date,uuid,uuid) from public,anon;
 grant execute on function public.sub_dpi_quadro(uuid,uuid,uuid,date,uuid,uuid) to authenticated;
-
-

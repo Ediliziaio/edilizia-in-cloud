@@ -21,6 +21,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
+import { preventivoFirmaAttiva } from "../_shared/preventivoFirmaAttiva.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
@@ -204,6 +205,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (prog.firmato_il || prog.stato === "accettato" || await preventivoFirmaAttiva(supabaseAdmin, prog.company_id, "sr", prog.id)) {
+      return errorResponse("Il preventivo firmato o in firma non si rigenera. Crea una revisione per modificarlo.", 409, corsHeaders);
+    }
+
     // Preventivo fatto con un modello della libreria (finestre, persiane, porte,
     // zanzariere…): il modello è congelato nel preventivo (modello_snapshot, forma
     // garantita dal vincolo sr_quote_model_snapshot_valid). La pagina di firma usa
@@ -217,14 +222,18 @@ Deno.serve(async (req: Request) => {
         : null;
 
     // 2. Load BOM
-    const [{ data: serramenti }, { data: accessori }, { data: media }, { data: template }, { data: company }] =
-      await Promise.all([
+    const caricati = await Promise.all([
         supabaseAdmin.from("sr_serramenti_progetto").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_accessori_progetto").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_progetti_media").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_template_pdf").select("*").eq("company_id", prog.company_id).maybeSingle(),
         supabaseAdmin.from("companies").select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_primary_color").eq("id", prog.company_id).maybeSingle(),
       ]);
+    const nomiDati = ["serramenti", "accessori", "foto", "modello", "azienda"];
+    caricati.forEach((esito, i) => {
+      if (esito.error) throw new Error(`Caricamento ${nomiDati[i]} fallito: ${esito.error.message}`);
+    });
+    const [{ data: serramenti }, { data: accessori }, { data: media }, { data: template }, { data: company }] = caricati;
 
     // 2b. Scheda tecnica dinamica: per ogni serramento → family_id →
     // article_families. Usiamo macrocategoria_id diretto quando presente;
@@ -674,18 +683,20 @@ Deno.serve(async (req: Request) => {
     if (uploadErr) throw new Error(`Errore upload HTML: ${uploadErr.message}`);
 
     // 8. URL firmato (7 giorni)
-    const { data: signed } = await supabaseAdmin.storage
+    const { data: signed, error: signedErr } = await supabaseAdmin.storage
       .from("sr-progetti")
       .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-    const htmlUrl = signed?.signedUrl ?? "";
+    if (signedErr || !signed?.signedUrl) throw new Error(`Anteprima non disponibile: ${signedErr?.message ?? "URL mancante"}`);
+    const htmlUrl = signed.signedUrl;
 
     // 9. Aggiorna progetto
-    await supabaseAdmin.from("sr_progetti").update({
+    const { error: updateErr } = await supabaseAdmin.from("sr_progetti").update({
       pdf_html_url: htmlUrl,
       pdf_generated_at: new Date().toISOString(),
       public_url: publicUrl,
       stato: prog.stato === "bozza" ? "da_consegnare" : prog.stato,
     }).eq("id", prog.id);
+    if (updateErr) throw new Error(`Salvataggio anteprima fallito: ${updateErr.message}`);
 
     // 10. Log
     const duration_ms = Date.now() - t0;

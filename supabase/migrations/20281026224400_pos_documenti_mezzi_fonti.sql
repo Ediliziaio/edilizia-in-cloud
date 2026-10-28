@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 set local lock_timeout='3s';set local statement_timeout='60s';
 -- Metadata only. Original paths are resolved by the service, not accepted from POS JSON.
 create or replace function public.pos_documento_mezzo_foto(_d public.mezzi_documenti) returns jsonb language plpgsql stable security invoker set search_path=public set timezone='UTC' as $$

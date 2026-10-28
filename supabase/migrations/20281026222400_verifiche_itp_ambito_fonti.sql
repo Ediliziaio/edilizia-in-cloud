@@ -1,3 +1,8 @@
+-- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
+-- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
+-- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
+-- Sotto c'è l'SQL esattamente come applicato.
+
 set local lock_timeout='3s';set local statement_timeout='60s';
 create or replace function public.sicurezza_registra_itp(_id uuid,_company uuid,_ordine uuid,_sub uuid,_precedente uuid,_dati jsonb)
 returns public.sicurezza_verifiche_itp language plpgsql security definer set search_path=public as $$

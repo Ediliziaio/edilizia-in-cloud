@@ -14,14 +14,20 @@
  * Il pre-fetch garantisce che il componente PDF abbia tutti i dati pronti
  * (no race condition, no immagini mancanti per signed URL scaduti).
  */
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
+import { pdfFirmatoPreventivo } from "@/lib/preventivi/pdfFirmatoPreventivo";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { resolveSrDocumentTemplate } from "@/lib/serramenti/quoteModel";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { leggiAnalisiIntervento, SCENARI_ESISTENTI } from "@/lib/serramenti/analisiIntervento";
 import { disegniDelPreventivo, type DisegnoPdf, type RigaPerDisegno } from "@/lib/serramenti/disegniPerPdf";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
+import { caricaFotoPianoLavori, type FotoPianoLavoriPdf } from "@/lib/serramenti/fotoPianoLavoriPdf";
+import { immaginiCatalogoPdf } from "@/lib/serramenti/immaginiCatalogoPdf";
+import { immaginePrincipale, type ImmagineCatalogo } from "@/lib/listino/immaginiCatalogo";
 import { normalizePdfPagesOrder } from "@/types/serramenti";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { COLONNE_SCHEDA_LINEA, comeSchedaLinea } from "@/hooks/useSchedeLinea";
@@ -83,6 +89,7 @@ export interface SerramentoPdfSupplierLine {
 
 /** Una pagina «Il sistema scelto»: la scheda di una linea usata nel preventivo. */
 export interface SerramentoPdfLineaPagina {
+  immagini?: ImmagineCatalogo[];
   id: string;
   nome: string;
   /** La tipologia della linea: «Serramenti». */
@@ -97,6 +104,8 @@ export interface SerramentoPdfLineaPagina {
 }
 
 export interface SerramentoPdfEnriched {
+  fotoConfrontoStandard?: string | null;
+  fotoPianoLavori?: FotoPianoLavoriPdf | null;
   detail: SrProgettoDetail;
   template?: SrTemplatePdfRow | null;
   company?: {
@@ -197,13 +206,18 @@ export async function enrichForPdfPublic(opts: SerramentoPdfPayload): Promise<Se
 
 /** Il PDF A4 come file: dal telefono si manda col foglio di condivisione. */
 export async function renderSerramentoBlob(opts: SerramentoPdfPayload): Promise<Blob> {
+  const p = opts.detail.progetto;
+  if (p.firmato_il || p.stato === "accettato") {
+    const firmato = await pdfFirmatoPreventivo({ companyId: p.company_id, progettoId: p.id, tipo: "sr" });
+    if (firmato) return firmato.blob;
+    if (p.firmato_il) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
+  }
   const enriched = await enrichForPdf(opts);
-  const [{ pdf }, { SerramentoPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ SerramentoPDF }, React] = await Promise.all([
     import("@/components/serramenti/SerramentoPDF"),
     import("react"),
   ]);
-  return pdf(React.createElement(SerramentoPDF, enriched) as unknown as Parameters<typeof pdf>[0]).toBlob();
+  return generaPdfDocumento(React.createElement(SerramentoPDF, enriched));
 }
 
 function getPublicAppOrigin(): string {
@@ -258,15 +272,43 @@ async function mapWithConcurrency<T, R>(
  * sull'asse Linea, altrimenti la categoria del prodotto. Se qualcosa non si
  * carica, il PDF esce senza queste pagine invece di non uscire.
  */
-async function caricaLineeDedicate(
+export async function caricaLineeDedicate(
   companyId: string | null | undefined,
   detail: SrProgettoDetail,
 ): Promise<SerramentoPdfLineaPagina[]> {
-  const righeBom = [
-    ...detail.serramenti.map((s) => ({ family_id: s.family_id, valori_assi: s.valori_assi })),
-    ...detail.accessori.map((a) => ({ family_id: a.family_id, valori_assi: a.valori_assi })),
-  ].filter((r): r is { family_id: string; valori_assi: Record<string, string> | null } => !!r.family_id);
-  if (!companyId || righeBom.length === 0) return [];
+  if (!companyId) return [];
+  const fisiche: SerramentoPdfLineaPagina[] = [];
+  const lineeLegacy = new Map<string, string>();
+  const righeFornitore = [
+    ...detail.serramenti.map(r => ({ id: r.supplier_product_line_id, prodotto: r.tipologia })),
+    ...detail.accessori.map(r => ({ id: r.supplier_product_line_id, prodotto: r.descrizione || r.tipo })),
+  ].filter(r => !!r.id);
+  if (righeFornitore.length) {
+    try {
+    const { data, error } = await supabase.from("supplier_product_lines").select("*").eq("company_id", companyId)
+      .in("id", [...new Set(righeFornitore.map(r => r.id!))]);
+    const perId = new Map(((data ?? []) as Array<{ id: string; nome: string; materiale: string; immagini?: unknown }>).map(line => [line.id, line]));
+    if (!error) for (const id of new Set(righeFornitore.map(r => r.id!))) {
+      const line = perId.get(id);
+      if (!line) continue;
+      if (line.immagini == null || (Array.isArray(line.immagini) && line.immagini.length === 0)) lineeLegacy.set(line.id, line.nome);
+      const immagini = await immaginiCatalogoPdf(line.immagini);
+      if (!immagini.length) continue;
+      fisiche.push({ id: `fornitore:${line.id}`, nome: line.nome, tipologia: null, descrizione: null,
+        immagine_url: immaginePrincipale(immagini)?.url ?? null, immagini,
+        dati: line.materiale ? [{ etichetta: "Materiale", valore: line.materiale.replaceAll("_", " ") }] : [],
+        scheda_tecnica_url: null, scheda_tecnica_nome: null,
+        prodotti: elencoProdotti([...new Set(righeFornitore.filter(r => r.id === line.id).map(r => r.prodotto))]),
+      });
+    }
+    } catch (err) { console.warn("Immagini delle linee fornitore non disponibili:", err); }
+  }
+  const righeBom = [...detail.serramenti, ...detail.accessori].flatMap(r => {
+    if (!r.family_id || (r.supplier_product_line_id && !lineeLegacy.has(r.supplier_product_line_id))) return [];
+    return [{ family_id: r.family_id, valori_assi: r.valori_assi,
+      lineaFornitore: r.supplier_product_line_id ? lineeLegacy.get(r.supplier_product_line_id) : null }];
+  });
+  if (righeBom.length === 0) return fisiche;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,7 +318,7 @@ async function caricaLineeDedicate(
       .select(COLONNE_SCHEDA_LINEA)
       .eq("company_id", companyId);
     if (error) throw error;
-    if (!righeSchede?.length) return [];
+    if (!righeSchede?.length) return fisiche;
     const schede = (righeSchede as Record<string, unknown>[]).map(comeSchedaLinea);
 
     type Famiglia = { id: string; nome: string | null; categoria_id: string | null; macrocategoria_id: string | null };
@@ -326,7 +368,7 @@ async function caricaLineeDedicate(
       const categoria = famiglia?.categoria_id ? categoriaPerId.get(famiglia.categoria_id) : undefined;
       return {
         macrocategoriaId: famiglia?.macrocategoria_id ?? categoria?.macrocategoria_id ?? null,
-        linea: lineaDellaRiga({
+        linea: r.lineaFornitore ?? lineaDellaRiga({
           assi: assiPerFamiglia.get(r.family_id),
           valoriAssi: r.valori_assi,
           categoria: categoria?.nome,
@@ -335,21 +377,25 @@ async function caricaLineeDedicate(
       };
     });
 
-    return await mapWithConcurrency(schedeUsate(righe, indiceSchede(schede)), 3, async ({ scheda, prodotti }) => ({
+    const logiche = await mapWithConcurrency(schedeUsate(righe, indiceSchede(schede)), 3, async ({ scheda, prodotti }) => {
+      const immagini = await immaginiCatalogoPdf(scheda.immagini, scheda.immagine_url);
+      return {
       id: scheda.id,
       nome: scheda.nome,
       tipologia: scheda.macrocategoria_id ? (nomeTipologia.get(scheda.macrocategoria_id) ?? null) : null,
       descrizione: scheda.descrizione,
       // Foto già dentro il PDF: react-pdf non legge il webp e inciampa negli URL lunghi.
-      immagine_url: (await toDataUrl(scheda.immagine_url)) ?? scheda.immagine_url,
+      immagine_url: immaginePrincipale(immagini)?.url ?? null,
+      immagini,
       dati: datiTecniciScheda(scheda).map(({ etichetta, valore }) => ({ etichetta, valore })),
       scheda_tecnica_url: scheda.scheda_tecnica_url,
       scheda_tecnica_nome: scheda.scheda_tecnica_nome,
       prodotti: elencoProdotti(prodotti),
-    }));
+    }; });
+    return [...fisiche, ...logiche];
   } catch (err) {
     console.error("Schede delle linee non caricate per il PDF:", err);
-    return [];
+    return fisiche;
   }
 }
 
@@ -763,7 +809,9 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     : {};
   return {
     detail,
+    fotoConfrontoStandard: await toDataUrl(SCENARI_ESISTENTI[leggiAnalisiIntervento(prog.analisi_intervento)?.esistente ?? "altro"].immagine),
     disegni,
+    fotoPianoLavori: await caricaFotoPianoLavori(template),
     accessoriFamilies,
     template: inlinedTemplate,
     company: inlinedCompany,
@@ -789,14 +837,7 @@ export function useSerramentoPDF() {
   const downloadPDF = async (opts: SerramentoPdfPayload): Promise<{ ok: boolean }> => {
     setIsGenerating(true);
     try {
-      const enriched = await enrichForPdf(opts);
-      const [{ pdf }, { SerramentoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/serramenti/SerramentoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(SerramentoPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await renderSerramentoBlob(opts);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = `Preventivo-${opts.detail.progetto.code ?? "stima"}-${
@@ -825,14 +866,7 @@ export function useSerramentoPDF() {
   const previewPDF = async (opts: SerramentoPdfPayload): Promise<void> => {
     setIsGenerating(true);
     try {
-      const enriched = await enrichForPdf(opts);
-      const [{ pdf }, { SerramentoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/serramenti/SerramentoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(SerramentoPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await renderSerramentoBlob(opts);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       // Cleanup blob URL: schedulato a 60s (sufficiente perche' il tab

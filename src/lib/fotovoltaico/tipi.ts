@@ -119,6 +119,10 @@ export interface FvProgetto {
   id: string;
   company_id: string;
   cliente_id: string | null;
+  cliente_nome?: string | null;
+  cliente_cognome?: string | null;
+  cliente_email?: string | null;
+  cliente_telefono?: string | null;
   /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
   cointestatario_nome?: string | null;
   cointestatario_cognome?: string | null;

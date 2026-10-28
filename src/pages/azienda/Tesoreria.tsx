@@ -8,6 +8,9 @@ import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, Ref
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeSaltEdge } from "@/lib/banking/saltedge";
+import { useSaltEdgeReturn } from "@/hooks/useSaltEdgeReturn";
+import { useDistyraReturn } from "@/hooks/useDistyraReturn";
 import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
@@ -66,8 +69,6 @@ export default function Tesoreria() {
   const { accounts: manualAccounts, isLoading: manualLoading } = useManualTreasury();
   const hasManualAccounts = manualAccounts.length > 0;
 
-  const bankCallback = searchParams.get("bank_callback");
-
   const handleTabChange = useCallback((value: string) => {
     if (!TREASURY_TABS.has(value)) return;
     setActiveTab(value);
@@ -104,6 +105,10 @@ export default function Tesoreria() {
     await checkConnections();
     setRefreshKey((value) => value + 1);
   }, [checkConnections]);
+  const bankFinalizing = useSaltEdgeReturn(effectiveCompany?.id, handleConnectionChanged);
+  // Distyra torna sulla stessa pagina con ?bank_provider=distyra&dy=<rif>: i due ritorni
+  // si riconoscono dal provider e non si pestano i piedi.
+  const distyraFinalizing = useDistyraReturn(effectiveCompany?.id, handleConnectionChanged);
 
   useEffect(() => {
     if (effectiveCompany?.id) {
@@ -120,12 +125,6 @@ export default function Tesoreria() {
     setActiveTab((current) => (current === safeTab ? current : safeTab));
   }, [searchParams]);
 
-  useEffect(() => {
-    if (bankCallback !== "1") return;
-    handleTabChange("connessioni");
-    void handleConnectionChanged();
-  }, [bankCallback, handleConnectionChanged, handleTabChange]);
-
   async function handleSync() {
     if (!effectiveCompany?.id) {
       toast.error("Azienda non disponibile");
@@ -134,22 +133,9 @@ export default function Tesoreria() {
 
     setSyncing(true);
     try {
-      // bank-eb sincronizza tutti i conti dell'azienda (Enable Banking / Open Banking).
-      const { data, error } = await supabase.functions.invoke("bank-eb", {
-        body: { action: "sync" },
-      });
-      if (error || data?.error) {
-        let errMsg = data?.error || error?.message || "Errore";
-        try {
-          const ctx = (error as { context?: unknown })?.context;
-          if (ctx instanceof Response) {
-            const body = await ctx.json();
-            errMsg = body?.error ?? body?.message ?? errMsg;
-          }
-        } catch { /* mantieni errMsg */ }
-        throw new Error(errMsg);
-      }
-      toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`);
+      const data = await invokeSaltEdge(effectiveCompany.id, { action: "sync" });
+      if (data?.processing) toast.info("La banca sta preparando i dati. Riprova fra poco.");
+      else toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`);
       await handleConnectionChanged();
     } catch (e: unknown) {
       toast.error("Errore: " + getErrorMessage(e));
@@ -172,7 +158,7 @@ export default function Tesoreria() {
     );
   }
 
-  if (hasConnections === null || manualLoading) {
+  if (hasConnections === null || manualLoading || bankFinalizing) {
     return (
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
@@ -361,7 +347,7 @@ export default function Tesoreria() {
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="connessioni">
-          <BankConnectionsCard onChanged={handleConnectionChanged} />
+          <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
         </TabsContent>
         <TabsContent value="riconciliazione">
           <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />

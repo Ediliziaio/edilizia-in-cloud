@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useTermoidraulicoPDF — download/preview del PDF cliente del preventivo
@@ -329,9 +330,8 @@ export async function elementoPdf(enriched: IdrPdfEnriched): Promise<ReactElemen
  */
 export async function renderIdrPreviewBlobUrl(opts: IdrPdfPayload): Promise<string> {
   const enriched = await enrichTermoidraulicoPdf(opts);
-  const { pdf } = await import("@react-pdf/renderer");
   const element = await elementoPdf(enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -354,9 +354,8 @@ export function useTermoidraulicoPDF() {
         return { ok: false };
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const { pdf } = await import("@react-pdf/renderer");
       const element = await elementoPdf(enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -390,9 +389,8 @@ export function useTermoidraulicoPDF() {
         return;
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const { pdf } = await import("@react-pdf/renderer");
       const element = await elementoPdf(enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

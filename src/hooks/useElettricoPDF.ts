@@ -1,3 +1,4 @@
+import { generaPdfDocumento } from "@/lib/pdf/generaPdfDocumento";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useElettricoPDF — download/preview del PDF cliente del preventivo
@@ -321,13 +322,12 @@ export async function enrichElettricoPdf(opts: ElePdfPayload): Promise<ElePdfEnr
  */
 export async function renderElePreviewBlobUrl(opts: ElePdfPayload): Promise<string> {
   const enriched = await enrichElettricoPdf(opts);
-  const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
+  const [{ ElettricoPDF }, React] = await Promise.all([
     import("@/components/elettrico/ElettricoPDF"),
     import("react"),
   ]);
   const element = React.createElement(ElettricoPDF, enriched);
-  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+  const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
   return createPdfPreviewUrl(blob);
 }
 
@@ -350,13 +350,12 @@ export function useElettricoPDF() {
         return { ok: false };
       }
       const enriched = await enrichElettricoPdf(opts);
-      const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ ElettricoPDF }, React] = await Promise.all([
         import("@/components/elettrico/ElettricoPDF"),
         import("react"),
       ]);
       const element = React.createElement(ElettricoPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -390,13 +389,12 @@ export function useElettricoPDF() {
         return;
       }
       const enriched = await enrichElettricoPdf(opts);
-      const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
+      const [{ ElettricoPDF }, React] = await Promise.all([
         import("@/components/elettrico/ElettricoPDF"),
         import("react"),
       ]);
       const element = React.createElement(ElettricoPDF, enriched);
-      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
+      const blob = await generaPdfDocumento(element as unknown as ReactElement<DocumentProps>);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };
