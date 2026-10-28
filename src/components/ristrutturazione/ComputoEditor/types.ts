@@ -15,6 +15,8 @@ import type { RstComputoVoce, RstUnitaMisura } from "@/types/ristrutturazione";
 export interface PickedVoce {
   descrizione: string;
   unita_misura: RstUnitaMisura;
+  /** Unità della sorgente, prima dell'adattamento ai moduli legacy. */
+  unita_originale?: string | null;
   prezzo_unitario: number;
   costo_materiali: number;
   costo_manodopera: number;
@@ -24,6 +26,7 @@ export interface PickedVoce {
   listino_voce_id?: string | null;
   /** Prezzario regionale d'origine (citazione base d'asta). NULL/assente = voce libera. */
   fonte?: string | null;
+  codice_tariffa?: string | null;
   /** Prodotto del listino prodotti da cui viene la riga (article_families.id). Assente = voce di lavorazione, manodopera o libera. */
   famiglia_id?: string | null;
   /** Foto del prodotto, copiata dal listino alla scelta. Assente = niente foto. */

@@ -32,6 +32,16 @@ function Harness({ initial = "", ai = false }: { initial?: string; ai?: boolean 
   const location = useLocation();
   return <><p>Lista Preventivi</p><NewQuoteDialog ai={ai} open={open} onOpenChange={setOpen} params={new URLSearchParams(initial)} trigger={<button>Nuovo preventivo</button>} /><output data-testid="route">{location.pathname}{location.search}</output></>;
 }
+
+describe("ingresso locale computo nei Preventivi", () => {
+  it("propone il computo indipendente dalla commessa e conserva il classico", () => {
+    state.permissions.canEditPreventivi = true;
+    render(<MemoryRouter><Harness /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
+    expect(screen.getByRole("link", { name: /^Computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/computo");
+    expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
+  });
+});
 const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Harness initial={initial} /></MemoryRouter>); fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" })); };
 beforeEach(() => {
   state.views = MODULI_VENDITA.map(modulo => ({ modulo, stato: deriveModuloStato(modulo, true), isEnabled: true, isLoading: false, isError: false, errorMessage: null as null, source: "plan" }));

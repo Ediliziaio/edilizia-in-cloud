@@ -7,6 +7,8 @@ import { neutralizeCsvFormula } from "@/lib/csvExport";
 import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import type { QuadroEconomico } from "./quadroEconomico";
 import { formatEuro } from "./computoStrutturato";
+import type { AllegatoPdfComputo } from "./allegatiLocali";
+import type { ImpostazioniIvaComputo } from "./ivaComputo";
 
 export type RigaStampa =
   | { tipo: "capitolo"; livello: number; testo: string }
@@ -16,7 +18,7 @@ export type RigaStampa =
   | { tipo: "subtotale"; livello: number; testo: string; importo: number }
   | { tipo: "totale"; testo: string; importo: number };
 
-export interface IntestazioneComputo {
+export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   titolo: string;
   commessa?: string | null;
   stazioneAppaltante?: string | null;
@@ -24,6 +26,34 @@ export interface IntestazioneComputo {
   cup?: string | null;
   stato?: string | null;
   quadro?: QuadroEconomico | null;
+  committente?: string | null;
+  oggetto?: string | null;
+  senzaPrezzi?: boolean;
+  presentazione?: "tecnico" | "preventivo";
+  azienda?: string;
+  dettagliAzienda?: string;
+  colore?: string;
+  numero?: string;
+  indirizzoIntervento?: string;
+  condizioni?: string;
+  senzaPiede?: boolean;
+  parziale?: string;
+  nascondiCliente?: boolean;
+  impaginazione?: "editoriale";
+  dettaglioMisure?: boolean;
+  dataDocumento?: string;
+  revisione?: string;
+  tecnico?: string;
+  riferimentoPrezzi?: string;
+  inclusioni?: string;
+  esclusioni?: string;
+  tempi?: string;
+  pagamenti?: string;
+  mostraPrezziUnitari?: boolean;
+  mostraImporti?: boolean;
+  mostraCodici?: boolean;
+  mostraFonti?: boolean;
+  soloRiepilogo?: boolean;
 }
 
 /** Le righe della stampa, nell'ordine: utile anche per i test. */
@@ -34,7 +64,8 @@ export function righeComputoClassico(voci: VoceComputo[]): RigaStampa[] {
     righe.push({ tipo: "capitolo", livello: n.livello, testo: n.nome });
     n.figli.forEach(visita);
     for (const v of n.voci) {
-      righe.push({ tipo: "voce", numero: numeroVoce(v), tariffa: tariffaVoce(v), testo: v.descrizione_estesa || v.descrizione_breve });
+      righe.push({ tipo: "voce", numero: numeroVoce(v), tariffa: tariffaVoce(v), testo: [v.descrizione_estesa || v.descrizione_breve,
+        v.a_corpo ? "Lavorazione a corpo" : "", v.is_sicurezza ? "Oneri della sicurezza" : ""].filter(Boolean).join("\n") });
       for (const m of [...v.misure].sort((a, b) => a.ordine - b.ordine)) {
         righe.push({ tipo: "misura", testo: [m.descrizione, m.formula ? `(${m.formula})` : ""].filter(Boolean).join(" "),
           pu: m.parti_uguali, lu: m.lunghezza, la: m.larghezza, h: m.altezza_peso, q: m.quantita });
@@ -72,10 +103,10 @@ function scarica(dati: BlobPart, tipo: string, nomeFile: string) {
 
 const testo = (s: string) => neutralizeCsvFormula(s);
 const euro = (n: number | null | undefined) => n == null ? "" : formatEuro(n);
-/** «2.407,80», «0,030»: punto delle migliaia sempre, da 2 a 3 decimali. */
+/** Punto delle migliaia, da 2 a 6 decimali per non perdere precisione nelle misure. */
 const num = (n: number | null | undefined, dec = 2) => {
   if (n == null) return "";
-  const [intera, decimali] = Math.abs(n).toFixed(Math.max(dec, 3)).split(".");
+  const [intera, decimali] = Math.abs(n).toFixed(Math.max(dec, 6)).split(".");
   const tagliati = decimali.replace(/0+$/, "").padEnd(dec, "0");
   return `${n < 0 ? "-" : ""}${intera.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}${tagliati ? `,${tagliati}` : ""}`;
 };
@@ -143,12 +174,25 @@ export async function esportaComputoXlsx(voci: VoceComputo[], intestazione: Inte
 }
 
 /** PDF orizzontale con le colonne classiche, «Riporto / A riportare» a ogni pagina e riepilogo finale. */
-export async function esportaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo): Promise<void> {
+export async function generaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo) {
   const mod = await import("jspdf");
   const JsPDF = mod.default ?? (mod as typeof mod & { jsPDF?: typeof mod.default }).jsPDF;
+  if (intestazione.presentazione === "preventivo" || intestazione.impaginazione === "editoriale") {
+    const { disegnaPreventivoComputo } = await import("./preventivoComputoPdf");
+    return disegnaPreventivoComputo(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+  }
   const doc = new JsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight();
   const m = 28;
+  const completa = () => {
+    if (intestazione.senzaPiede) return doc;
+    const pagine = doc.getNumberOfPages();
+    for (let p = 1; p <= pagine; p++) {
+      doc.setPage(p); doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+      doc.text(`Pagina ${p} di ${pagine}`, W - m, H - 12, { align: "right" });
+    }
+    return doc;
+  };
   // x di destra di ogni colonna numerica, larghezza della designazione.
   const col = { n: m, t: m + 34, d: m + 110, pu: 520, lu: 565, la: 610, h: 655, q: 715, u: 770, i: W - m };
   const larghezzaDesc = col.pu - 40 - col.d;
@@ -156,83 +200,127 @@ export async function esportaComputoPdf(voci: VoceComputo[], intestazione: Intes
   const intestazionePagina = (riporto: boolean) => {
     pagina++;
     y = m;
+    if (intestazione.azienda) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      const nome = doc.splitTextToSize(intestazione.azienda, W - 2 * m - 65) as string[];
+      doc.text(nome, m, y + 8); y += nome.length * 11 + 7;
+    }
     doc.setFont("helvetica", "bold"); doc.setFontSize(11);
-    doc.text(intestazione.titolo, m, y + 8);
+    const titolo = doc.splitTextToSize(intestazione.titolo, W - 2 * m - 65) as string[];
+    doc.text(titolo, m, y + 8);
+    y += Math.max(0, titolo.length - 1) * 13;
     doc.setFont("helvetica", "normal"); doc.setFontSize(8);
     const dettagli = [intestazione.commessa, intestazione.stazioneAppaltante && `Stazione appaltante: ${intestazione.stazioneAppaltante}`,
-      intestazione.cig && `CIG ${intestazione.cig}`, intestazione.cup && `CUP ${intestazione.cup}`, intestazione.stato].filter(Boolean).join(" · ");
-    if (dettagli) doc.text(dettagli, m, y + 20);
+      intestazione.cig && `CIG ${intestazione.cig}`, intestazione.cup && `CUP ${intestazione.cup}`, intestazione.stato,
+      intestazione.committente && `Committente: ${intestazione.committente}`, intestazione.oggetto,
+      intestazione.numero && `Preventivo ${intestazione.numero}`, intestazione.indirizzoIntervento, intestazione.parziale].filter(Boolean).join(" · ");
+    const metadati = dettagli ? doc.splitTextToSize(dettagli, W - 2 * m) as string[] : [];
+    if (metadati.length) doc.text(metadati, m, y + 20);
     doc.text(`pag. ${pagina}`, W - m, y + 8, { align: "right" });
-    y += 32;
+    y += 32 + Math.max(0, metadati.length - 1) * 10;
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
     doc.text("N.ord", col.n, y); doc.text("Tariffa", col.t, y); doc.text("DESIGNAZIONE DEI LAVORI", col.d, y);
-    for (const [k, l] of [["pu", "par.ug."], ["lu", "lung."], ["la", "larg."], ["h", "H/peso"], ["q", "Quantità"], ["u", "Unitario"], ["i", "TOTALE"]] as const) doc.text(l, col[k], y, { align: "right" });
+    for (const [k, l] of [["pu", "par.ug."], ["lu", "lung."], ["la", "larg."], ["h", "H/peso"], ["q", "Quantità"], ["u", "Unitario"], ["i", "TOTALE"]] as const) {
+      if (intestazione.senzaPrezzi && (k === "u" || k === "i")) continue;
+      doc.text(l, col[k], y, { align: "right" });
+    }
     y += 4; doc.setLineWidth(0.5); doc.line(m, y, W - m, y); y += 10;
     doc.setFont("helvetica", "normal");
-    if (riporto) { doc.setFont("helvetica", "bold"); doc.text("RIPORTO", col.d + 200, y); doc.text(euro(progressivo), col.i, y, { align: "right" }); doc.setFont("helvetica", "normal"); y += 12; }
+    if (riporto && !intestazione.senzaPrezzi) { doc.setFont("helvetica", "bold"); doc.text("RIPORTO", col.d + 200, y); doc.text(euro(progressivo), col.i, y, { align: "right" }); doc.setFont("helvetica", "normal"); y += 12; }
   };
   const spazio = (h: number) => {
     if (y + h <= H - m - 16) return;
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
-    doc.text("A RIPORTARE", col.d + 200, H - m - 4); doc.text(euro(progressivo), col.i, H - m - 4, { align: "right" });
+    if (!intestazione.senzaPrezzi) { doc.text("A RIPORTARE", col.d + 200, H - m - 4); doc.text(euro(progressivo), col.i, H - m - 4, { align: "right" }); }
     doc.addPage(); intestazionePagina(true);
+  };
+  const note = () => {
+    if (!intestazione.condizioni?.trim()) return;
+    if (y + 45 > H - m - 20) { doc.addPage(); pagina++; y = m + 10; }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.text("Note e condizioni", m, y + 10); y += 25;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(intestazione.condizioni.trim(), W - 2 * m) as string[];
+    for (const text of lines) {
+      if (y + 12 > H - m - 20) { doc.addPage(); pagina++; y = m + 10; }
+      doc.text(text, m, y); y += 12;
+    }
   };
   intestazionePagina(false);
   doc.setFontSize(7.5);
   for (const r of righeComputoClassico(voci)) {
     if (r.tipo === "capitolo") {
-      spazio(16); doc.setFont("helvetica", "bold"); doc.setFontSize(r.livello === 0 ? 9 : 8);
-      doc.text(r.testo, col.d + r.livello * 10, y + 4); y += 14; doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(r.livello === 0 ? 9 : 8);
+      const linee = doc.splitTextToSize(r.testo, larghezzaDesc - r.livello * 10) as string[];
+      for (const linea of linee) { spazio(14); doc.text(linea, col.d + r.livello * 10, y + 4); y += 14; }
+      doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
     } else if (r.tipo === "voce") {
       const linee = doc.splitTextToSize(r.testo, larghezzaDesc) as string[];
       const tariffe = doc.splitTextToSize(r.tariffa, col.d - col.t - 6) as string[];
       const h = Math.max(linee.length, tariffe.length) * 9 + 2;
       spazio(Math.min(h, 120)); y += 2;
       doc.setFont("helvetica", "bold"); doc.text(r.numero, col.n, y); doc.setFont("helvetica", "normal");
-      tariffe.forEach((t, i) => doc.text(t, col.t, y + i * 9));
-      const inizio = y;
-      linee.forEach((l, i) => {
-        if (i) { y += 9; if (y > H - m - 16) spazio(9); }
-        doc.text(l, col.d, y);
-      });
-      y = Math.max(y, inizio + (tariffe.length - 1) * 9) + 9;
+      for (let i = 0; i < Math.max(linee.length, tariffe.length); i++) {
+        spazio(10); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+        if (tariffe[i]) doc.text(tariffe[i], col.t, y);
+        if (linee[i]) doc.text(linee[i], col.d, y);
+        y += 9;
+      }
     } else if (r.tipo === "misura") {
       const linee = doc.splitTextToSize(r.testo || "", larghezzaDesc) as string[];
-      spazio(linee.length * 9);
-      doc.setFont("helvetica", "italic");
-      linee.forEach((l, i) => doc.text(l, col.d + 6, y + i * 9));
-      const yNum = y + (linee.length - 1) * 9;
+      let yNum = y;
+      for (const l of linee.length ? linee : [""]) {
+        spazio(10); doc.setFont("helvetica", "italic"); doc.setFontSize(7.5);
+        doc.text(l, col.d + 6, y); yNum = y; y += 9;
+      }
       for (const [k, v] of [["pu", r.pu], ["lu", r.lu], ["la", r.la], ["h", r.h], ["q", r.q]] as const) if (v != null) doc.text(num(v), col[k], yNum, { align: "right" });
       doc.setFont("helvetica", "normal");
-      y += Math.max(1, linee.length) * 9;
     } else if (r.tipo === "sommano") {
       spazio(14); y += 2;
       doc.setFont("helvetica", "bold");
       doc.text(r.testo, col.pu - 40, y, { align: "right" });
-      doc.text(num(r.q), col.q, y, { align: "right" }); doc.text(euro(r.unitario), col.u, y, { align: "right" }); doc.text(euro(r.importo), col.i, y, { align: "right" });
+      doc.text(num(r.q), col.q, y, { align: "right" });
+      if (!intestazione.senzaPrezzi) { doc.text(num(r.unitario), col.u, y, { align: "right" }); doc.text(euro(r.importo), col.i, y, { align: "right" }); }
       doc.setFont("helvetica", "normal");
       progressivo += r.importo ?? 0;
       y += 14;
     } else {
+      if (intestazione.senzaPrezzi) continue;
+      if (intestazione.azienda && r.tipo === "totale") continue;
       spazio(14);
       doc.setFont("helvetica", "bold");
-      doc.text(r.testo, col.pu - 40, y, { align: "right" }); doc.text(euro(r.importo), col.i, y, { align: "right" });
+      const linee = doc.splitTextToSize(r.testo, col.pu - 40 - m) as string[];
+      for (const l of linee) { spazio(12); doc.text(l, col.pu - 40, y, { align: "right" }); y += 10; }
+      doc.text(euro(r.importo), col.i, y - 10, { align: "right" });
       doc.setFont("helvetica", "normal"); y += r.tipo === "totale" ? 16 : 14;
     }
   }
+  if (intestazione.senzaPrezzi) { note(); return completa(); }
   // Riepilogo per capitoli (e quadro economico).
-  doc.addPage(); pagina++; y = m;
+  if (!intestazione.azienda || y > H - m - 130) { doc.addPage(); pagina++; y = m; }
+  else y += 20;
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text("Riepilogo per capitoli", m, y + 8); y += 26;
   doc.setFontSize(8);
-  doc.text("Capitolo", m, y); doc.text("Importo", W - m - 70, y, { align: "right" }); doc.text("Incid. %", W - m, y, { align: "right" }); y += 12;
+  const headerRiepilogo = () => {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+    doc.text("Capitolo", m, y); doc.text("Importo", W - m - 70, y, { align: "right" }); doc.text("Incid. %", W - m, y, { align: "right" }); y += 12;
+  };
+  const spazioRiepilogo = (h: number) => {
+    if (y + h <= H - m - 20) return;
+    doc.addPage(); pagina++; y = m + 10;
+    headerRiepilogo();
+  };
+  headerRiepilogo();
   for (const c of riepilogoCapitoli(voci)) {
-    if (y > H - m - 20) { doc.addPage(); pagina++; y = m + 10; }
     doc.setFont("helvetica", c.livello === 0 ? "bold" : "normal");
-    doc.text(c.nome, m + c.livello * 14, y); doc.text(euro(c.importo), W - m - 70, y, { align: "right" }); doc.text(num(c.percentuale, 3), W - m, y, { align: "right" });
-    y += 11;
+    const linee = doc.splitTextToSize(c.nome, W - 2 * m - 160 - c.livello * 14) as string[];
+    for (let i = 0; i < linee.length; i++) {
+      spazioRiepilogo(12); doc.text(linee[i], m + c.livello * 14, y);
+      if (i === 0) { doc.text(euro(c.importo), W - m - 70, y, { align: "right" }); doc.text(num(c.percentuale, 3), W - m, y, { align: "right" }); }
+      y += 11;
+    }
   }
   const totale = voci.reduce((s, v) => s + (Number(v.importo_computo) || 0), 0);
-  doc.setFont("helvetica", "bold"); y += 4; doc.text("TOTALE", m, y); doc.text(euro(totale), W - m - 70, y, { align: "right" }); y += 18;
+  spazioRiepilogo(25); doc.setFont("helvetica", "bold"); y += 4; doc.text(intestazione.parziale ? "PARZIALE" : "TOTALE", m, y); doc.text(euro(totale), W - m - 70, y, { align: "right" }); y += 18;
   if (intestazione.quadro) {
     if (y > H - m - 90) { doc.addPage(); y = m + 10; }
     doc.setFontSize(10); doc.text("Quadro economico", m, y); y += 14; doc.setFontSize(8);
@@ -241,5 +329,17 @@ export async function esportaComputoPdf(voci: VoceComputo[], intestazione: Intes
       doc.text(etichetta, m, y); doc.text(euro(valore), W - m - 70, y, { align: "right" }); y += 11;
     }
   }
-  scarica(doc.output("arraybuffer"), "application/pdf", nomeFileComputo(intestazione.titolo, "pdf"));
+  note(); return completa();
+}
+
+export async function generaDocumentoComputo(voci: VoceComputo[], intestazione: IntestazioneComputo, allegati: AllegatoPdfComputo[] = []): Promise<Blob> {
+  const doc = await generaComputoPdf(voci, { ...intestazione, senzaPiede: !!allegati.length });
+  if (!allegati.length) return doc.output("blob");
+  const { appendiAllegatiPdf } = await import("./appendiAllegatiPdf");
+  return appendiAllegatiPdf(doc.output("arraybuffer"), allegati);
+}
+
+export async function esportaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo, allegati: AllegatoPdfComputo[] = []): Promise<void> {
+  const blob = await generaDocumentoComputo(voci, intestazione, allegati);
+  scarica(blob, "application/pdf", nomeFileComputo(intestazione.titolo, "pdf"));
 }

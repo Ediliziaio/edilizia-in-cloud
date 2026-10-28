@@ -60,6 +60,8 @@ import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentIm
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
+import ComputiPreventivoLocali from "@/components/computo/ComputiPreventivoLocali";
+import { computoCloudAttivo } from "@/lib/computo/cloudComputo";
 import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
 
 import AnalisiPreventivi from "./AnalisiPreventivi";
@@ -332,6 +334,7 @@ export default function Preventivi() {
             }
           />
 
+          {(import.meta.env.DEV || computoCloudAttivo(companyId)) && permissions.canEditPreventivi && <ComputiPreventivoLocali />}
           <UnifiedPreventiviList />
         </>
       )}

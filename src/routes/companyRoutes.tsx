@@ -436,6 +436,7 @@ const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const SimulatoreIndex = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreIndex"));
 const SimulatoreEditor = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreEditor"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
+const ComputoPreventivo = lazy(() => import("@/pages/azienda/marketing/ComputoPreventivo"));
 const QuoteAiSimulationPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/marketing/QuoteAiSimulationPage")) : null;
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini"));
@@ -1200,6 +1201,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
         <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
+        {ComputoPreventivo && <Route path="marketing/preventivi/computo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><ComputoPreventivo /></FeatureRoute>)} />}
         {QuoteAiSimulationPage && <Route path="marketing/preventivi/simulazione-ai" element={withCompanyPermission("canEditPreventivi", <QuoteAiSimulationPage />)} />}
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
