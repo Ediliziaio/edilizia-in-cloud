@@ -22,6 +22,7 @@ import { allegatiDaIncludere } from "@/lib/computo/allegatiLocali";
 import { creaBackupComputo, MAX_BACKUP_COMPUTO, ripristinaBackupComputo } from "@/lib/computo/backupComputo";
 import { applicaVarianteComputo } from "@/lib/computo/variantiPdf";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import {
   bozzaVuota, calcolaVoce, leggiBozzaComputo, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima, ConflittoBozzaComputo,
   type BozzaComputo, type VoceEditor,
@@ -76,7 +77,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const [anteprimaParziale, setAnteprimaParziale] = useState(false);
   const renderAnteprima = useCallback(async () => {
     if (!anteprima) throw new Error("Anteprima non disponibile.");
-    return URL.createObjectURL(anteprima);
+    return createPdfPreviewUrl(anteprima);
   }, [anteprima]);
   const precedente = useRef(iniziale.raw);
   const importInput = useRef<HTMLInputElement>(null);
@@ -112,7 +113,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const allegati = await allegatiDaIncludere(storageKey, bozza.allegati ?? []);
     const parziale = anteprima.incomplete ? `Bozza parziale: ${anteprima.incomplete} lavorazioni da completare. Importi mancanti non inclusi nel parziale.` : !bozza.voci.length ? "Bozza in compilazione - nessuna lavorazione inserita." : undefined;
     const blob = await generaDocumentoComputo(anteprima.voci, { ...intestazione, titolo: bozza.titolo.trim() || "Preventivo in compilazione", parziale }, allegati);
-    return URL.createObjectURL(blob);
+    return createPdfPreviewUrl(blob);
   }, [bozza, senzaPrezzi, storageKey, intestazione]);
   const cambia = (nuova: BozzaComputo) => {
     if (conflitto) return;
