@@ -1,5 +1,5 @@
 // Deno provides the runtime types; avoid a network-only type import at deployment.
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.106.2";
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
