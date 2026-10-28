@@ -60,6 +60,12 @@ const testo = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : nu
  * NB: counterparty_name e counterparty_iban sono colonne GENERATE dal database
  * (COALESCE di creditor/debtor): scriverle fa fallire l'upsert.
  */
+/** Il riferimento della banca, reso unico per conto: vedi il commento nell'upsert. */
+function rifMovimento(t: Record<string, any>, accountId: string) {
+  const rif = String(t.entry_reference ?? t.id ?? t.transaction_id ?? "").trim();
+  return rif ? `${accountId}:${rif}`.slice(0, 200) : "";
+}
+
 function mappaMovimento(t: Record<string, any>, companyId: string, accountId: string) {
   const uscita = String(t.credit_debit ?? "").toUpperCase() === "DBIT";
   const importo = Math.abs(Number(t.amount ?? 0));
@@ -72,7 +78,10 @@ function mappaMovimento(t: Record<string, any>, companyId: string, accountId: st
     company_id: companyId,
     account_id: accountId,
     // `entry_reference` è il riferimento stabile della banca; `id` è il ripiego che Distyra sceglie da sé.
-    external_transaction_id: String(t.entry_reference ?? t.id ?? t.transaction_id ?? "").slice(0, 200),
+    // Non è unico FRA CONTI diversi (lo dice la specifica), mentre il vincolo del database è
+    // UNIQUE (company_id, external_transaction_id): senza il conto davanti, due movimenti di
+    // due conti della stessa banca si sovrascriverebbero a vicenda.
+    external_transaction_id: rifMovimento(t, accountId),
     booking_date: t.booking_date ?? t.date ?? null,
     value_date: t.value_date ?? null,
     amount: uscita ? -importo : importo,

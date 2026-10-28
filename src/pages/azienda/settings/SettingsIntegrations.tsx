@@ -151,7 +151,6 @@ export default function SettingsIntegrations() {
   // fatture: col piano Marketing non compaiono (21/09/2026). E solo a chi ha
   // il permesso Tesoreria, come prima i loro pannelli.
   const { stato: piano } = useStatoPiano();
-  const mostraContiCorrenti = requisitoSoddisfatto(REQUISITI_SEZIONI.conti_correnti, piano);
   const mostraPagamentiCarta = requisitoSoddisfatto(REQUISITI_SEZIONI.pagamenti_carta, piano);
   const canViewTesoreria = permissions.canViewTesoreria && !permissions.isLoading;
   // Una scheda che manca non ha nemmeno il popup: niente conti né Stripe senza piano e permesso.
