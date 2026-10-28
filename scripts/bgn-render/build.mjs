@@ -55,6 +55,12 @@ await esbuild.build({
     js: [
       'import {Buffer as __bgnBuffer} from "node:buffer"; if(!globalThis.Buffer) globalThis.Buffer=__bgnBuffer;',
       'import __bgnProcess from "node:process"; if(!globalThis.process) globalThis.process=__bgnProcess;',
+      // js-md5 (dipendenza di @react-pdf) legge `global` appena vede un
+      // `process` con `versions.node`: lo shim qui sopra lo fa scattare, e in
+      // Deno `global` non esiste. Senza questa riga la generazione del PDF muore
+      // con «ReferenceError: global is not defined» (visto il 27/10/2026 su
+      // generate-quote-pdf).
+      'if(!globalThis.global) globalThis.global=globalThis;',
       'import {createRequire as __bgnCreateRequire} from "node:module"; if(!globalThis.require) globalThis.require=__bgnCreateRequire(import.meta.url);',
     ].join("\n"),
   },

@@ -25,6 +25,7 @@ import { generateEmbedding, contentHash } from "../_shared/brainEmbed.ts";
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { memoryBatch, parseExtractedMemory } from "../_shared/silvioMemoryValidation.ts";
+import { messaggioErrore } from "../_shared/messaggioErrore.ts";
 
 interface ExtractPayload {
   mode?: "all" | "user";
@@ -173,7 +174,7 @@ serve(async (req: Request) => {
         processed++;
         factsTotal += result.facts_added;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = messaggioErrore(e);
         errors.push(`${t.user_id}: ${msg}`);
         console.error(`[silvio-memory-extract] user ${t.user_id} failed:`, msg);
       }

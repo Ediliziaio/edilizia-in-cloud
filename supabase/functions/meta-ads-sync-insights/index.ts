@@ -18,6 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sincronizzaStatisticheSocial, type EsitoStatisticheSocial } from "../_shared/statisticheSocialMeta.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -77,7 +78,13 @@ export function periodiSpesaAccount(adesso = new Date()): Array<{ since: string;
   return periodi;
 }
 
-Deno.serve(async (req) => {
+// Un giro completo supera i due minuti (p50 66 s il 20/09/2026, e il 28/10/2026
+// due timeout da 120 s alle 16:13 e alle 20:13): pg_net ha un solo worker e
+// finché questa non risponde la coda di TUTTI i cron resta ferma. Con la
+// risposta rapida pg_net riceve 202 entro 5 secondi e il lavoro finisce sotto
+// EdgeRuntime.waitUntil; «Aggiorna ora» dall'interfaccia continua a ricevere
+// l'esito completo. Vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("meta-ads-sync-insights", async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405, corsHeaders);
