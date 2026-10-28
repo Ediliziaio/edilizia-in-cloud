@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, Plus, User, Users, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -6,11 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAssignmentHourlyCost } from "@/hooks/useAssignmentHourlyCost";
+import { useAssignmentCompanies } from "@/hooks/useAssignmentCompanies";
+import { parseAssignmentAmount, formatAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import type { ExecutorOption, ExecutorType, PhaseAssignment, AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 import { oggiRoma, useSquadre, useSquadreCommessa, useSquadraSuCommessa, messaggioErroreOperai } from "@/hooks/useOperai";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { parseWorkAmount, validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
+import { validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,7 +70,7 @@ export function AddAssignmentDialog({
   orderId,
   phaseId,
   employees,
-  externalTeams,
+  externalTeams: _externalTeams,
   phases,
   existingAssignments = [],
   triggerLabel = "Assegna",
@@ -84,11 +86,14 @@ export function AddAssignmentDialog({
   const puoSquadra = (!!canEditOrders || !!canEditOperai) && !solaLettura;
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const context = useRef({ companyId, orderId });
 
   const [openInterno, setOpenInterno] = useState(false);
   const controllato = aperto !== undefined;
   const open = controllato ? aperto : openInterno;
   const setOpen = (o: boolean) => (controllato ? onAperto?.(o) : setOpenInterno(o));
+  useEffect(() => { if (!open) context.current = { companyId, orderId }; }, [open, companyId, orderId]);
+  const contextChanged = context.current.companyId !== companyId || context.current.orderId !== orderId;
   const [tipo, setTipo] = useState<ExecutorType | "squadra">(puoPersona ? "interno" : "squadra");
   const [executorId, setExecutorId] = useState<string>("");
   const [selectedPhase, setSelectedPhase] = useState(phaseId ?? "");
@@ -97,6 +102,7 @@ export function AddAssignmentDialog({
   const [plannedHours, setPlannedHours] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [costsOpen, setCostsOpen] = useState(false);
   const [dal, setDal] = useState(oggiRoma);
   const [al, setAl] = useState("");
@@ -107,12 +113,13 @@ export function AddAssignmentDialog({
   const squadra = squadreQuery.data?.find(s => s.id === executorId);
   const rate = useAssignmentHourlyCost(open && tipo === "interno" && executorId ? executorId : undefined);
   const currentRate = rate.allowed && !rate.isError && !rate.isLoading ? rate.data?.amount : null;
-  const hoursPlan = parseWorkAmount(plannedHours);
+  const hoursPlan = parseAssignmentAmount(plannedHours, 6);
   const plannedCost = plannedHours.trim() && hoursPlan != null && currentRate != null
     ? plannedLaborCost(hoursPlan, currentRate) : null;
   // Prefill dal listino manodopera (facoltativo)
   const [tariffaId, setTariffaId] = useState("");
   const [tariffaQty, setTariffaQty] = useState("1");
+  const ditteQuery = useAssignmentCompanies(companyId, open && tipo === 'esterno' && puoPersona && !contextChanged);
 
   // Listino manodopera aziendale — caricato solo a dialog aperto.
   const { data: tariffe = [], isError: tariffeError } = useQuery({
@@ -184,10 +191,11 @@ export function AddAssignmentDialog({
   // modificabile: il listino è un prefill, non un vincolo.
   const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string, costoUnit?: number | null) => {
     if (!t) return;
-    const qty = Math.max(0, parseFloat(qtyRaw) || 0);
+    const qty = parseAssignmentAmount(qtyRaw, 6);
+    if (qty == null || !qtyRaw.trim()) return;
     const unit = costoUnit ?? costoUnitarioEffettivo ?? (Number(t.prezzo_costo) || 0);
     const costo = (Number(unit) || 0) * qty;
-    setPrev(costo.toFixed(2));
+    setPrev(formatAssignmentAmount(costo.toFixed(2)));
     setNotes((n) =>
       n.trim() === "" || /^Listino: /.test(n)
         ? `Listino: ${t.nome} × ${qtyRaw || "1"}${t.unita ? ` ${t.unita}` : ""}`
@@ -195,7 +203,10 @@ export function AddAssignmentDialog({
     );
   };
 
-  const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : externalTeams.filter(t => t.kind !== "interna");
+  const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
+  const selectedCompany = tipo === 'esterno' ? ditteQuery.data?.find(option => option.id === executorId) : undefined;
+  const companiesUnavailable = tipo === 'esterno' && (ditteQuery.isLoading || ditteQuery.isFetching || ditteQuery.isError);
+  const invalidQuantity = !!tariffaSel && (!tariffaQty.trim() || parseAssignmentAmount(tariffaQty, 6) == null);
 
   const reset = () => {
     setTipo(puoPersona ? "interno" : "squadra");
@@ -205,6 +216,7 @@ export function AddAssignmentDialog({
     setPlannedHours("");
     setNotes("");
     setSubmitting(false);
+    submittingRef.current = false;
     setCostsOpen(false);
     setTariffaId("");
     setTariffaQty("1");
@@ -214,12 +226,11 @@ export function AddAssignmentDialog({
   };
 
   const num = (raw: string) => {
-    const parsed = parseFloat(raw);
-    return Number.isNaN(parsed) ? 0 : parsed;
+    return parseAssignmentAmount(raw) ?? 0;
   };
 
   const handleSubmit = () => {
-    if (submitting || (tipo === "squadra" ? !puoSquadra : !puoPersona)) return;
+    if (submittingRef.current || submitting || contextChanged || companiesUnavailable || selectedCompany?.unavailableReason || (tipo === "squadra" ? !puoSquadra : !puoPersona)) return;
     if (selectedPhase && !phases.some(p => p.id === selectedPhase)) { toast.error("La lavorazione non è più disponibile. Ricontrolla la selezione."); return; }
     if (!executorId) {
       toast.error("Seleziona un esecutore");
@@ -235,10 +246,10 @@ export function AddAssignmentDialog({
         toast.error("Squadra già assegnata qui. Modifica l'assegnazione esistente."); return;
       }
       if (!selectedPhase && !validCrewDates(dal, al)) { toast.error("Controlla le date della squadra."); return; }
-      setSubmitting(true);
+      submittingRef.current = true; setSubmitting(true);
       mettiSquadra.mutate({orderId, squadraId: executorId, phaseId: selectedPhase || null, dal: selectedPhase ? null : dal || null, al: selectedPhase ? null : al || null, capocantiere: !!squadra?.responsabile && capo}, {
         onSuccess: () => { toast.success("Squadra assegnata"); reset(); setOpen(false); },
-        onError: err => { setSubmitting(false); toast.error(messaggioErroreOperai(err, "Assegnazione non riuscita. Riprova.")); },
+        onError: err => { submittingRef.current = false; setSubmitting(false); toast.error(messaggioErroreOperai(err, "Assegnazione non riuscita. Riprova.")); },
       });
       return;
     }
@@ -247,9 +258,9 @@ export function AddAssignmentDialog({
       toast.error("Esecutore già assegnato a questa lavorazione. Modifica la riga esistente.");
       return;
     }
-    const budget = !canViewCosts ? 0 : tipo === "interno" ? (plannedHours.trim() ? plannedCost : 0) : parseWorkAmount(prev);
-    const cost = tipo === "esterno" && canViewCosts ? parseWorkAmount(cons) : 0;
-    if (budget === null || cost === null) {
+    const budget = !canViewCosts ? 0 : tipo === "interno" ? (plannedHours.trim() ? plannedCost : 0) : parseAssignmentAmount(prev);
+    const cost = tipo === "esterno" && canViewCosts ? parseAssignmentAmount(cons) : 0;
+    if (budget === null || cost === null || invalidQuantity) {
       toast.error("Importi e ore devono essere numeri validi, maggiori o uguali a zero.");
       return;
     }
@@ -259,7 +270,8 @@ export function AddAssignmentDialog({
       planned_hours: tipo === "interno" && plannedHours.trim() ? hoursPlan : null,
       planned_hourly_rate: tipo === "interno" && plannedHours.trim() ? currentRate : null,
       employee_id: tipo === "interno" ? executorId : null,
-      external_team_id: tipo === "esterno" ? executorId : null,
+      external_team_id: tipo === "esterno" && !selectedCompany?.subappaltatoreId ? executorId : null,
+      ...(selectedCompany?.subappaltatoreId ? { subappaltatore_id: selectedCompany.subappaltatoreId } : {}),
       cost_preventivo: budget,
       cost_consuntivo: cost,
       hours: null,
@@ -267,22 +279,25 @@ export function AddAssignmentDialog({
       paid_date: null,
       notes: notes.trim() === "" ? null : notes.trim(),
     };
-    setSubmitting(true);
-    onAdd(payload, {
+    submittingRef.current = true; setSubmitting(true);
+    try { onAdd(payload, {
       onSuccess: () => {
         reset();
         setOpen(false);
       },
       // Senza questo, un errore lasciava il bottone in spinner per sempre.
-      onError: () => setSubmitting(false),
-    });
+      onError: () => { submittingRef.current = false; setSubmitting(false); },
+    }); } catch (error) {
+      submittingRef.current = false; setSubmitting(false);
+      toast.error(messaggioErroreOperai(error, 'Assegnazione non riuscita. Riprova.'));
+    }
   };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (submitting) return;
+        if (submittingRef.current) return;
         setOpen(o);
         if (!o) reset();
       }}
@@ -299,7 +314,9 @@ export function AddAssignmentDialog({
           <DialogDescription>Scegli chi e dove. I dettagli facoltativi restano in fondo.</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={submitting} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div data-testid="assignment-dialog-scroll" role="region" aria-label="Dati assegnazione" className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <fieldset disabled={submitting || contextChanged} className="min-w-0 space-y-4">
+          {contextChanged && <p role="alert" className="text-sm text-rose-700">Azienda o commessa cambiata. Chiudi e riapri questa finestra prima di assegnare.</p>}
           {/* Tipo toggle */}
           <div className="space-y-1.5">
             <Label>Chi assegni</Label>
@@ -319,7 +336,7 @@ export function AddAssignmentDialog({
           {/* Executor picker */}
           <div className="space-y-1.5">
             <Label>{tipo === "squadra" ? "Squadra interna" : tipo === "interno" ? "Persona" : "Ditta / subappaltatore"}</Label>
-            <Select value={executorId} onValueChange={(v) => {
+            <Select value={executorId} disabled={!!companiesUnavailable} onValueChange={(v) => {
               setExecutorId(v);
               setPlannedHours("");
               setCapo(false);
@@ -341,7 +358,7 @@ export function AddAssignmentDialog({
               <SelectTrigger aria-label="Scegli chi">
                 <SelectValue
                   placeholder={
-                    options.length === 0
+                    companiesUnavailable ? ditteQuery.isError ? 'Elenco ditte non disponibile' : 'Caricamento ditte…' : options.length === 0
                       ? tipo === "interno"
                         ? "Nessun operaio disponibile"
                         : tipo === "squadra" ? "Nessuna squadra disponibile" : "Nessuna ditta disponibile"
@@ -351,12 +368,16 @@ export function AddAssignmentDialog({
               </SelectTrigger>
               <SelectContent>
                 {options.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
+                  <SelectItem key={o.id} value={o.id} disabled={'unavailableReason' in o && !!o.unavailableReason}>
                     {o.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {tipo === 'esterno' && (ditteQuery.isError ? <div role="alert" className="text-sm text-rose-700">Non riesco a caricare ditte e subappaltatori. Non è un elenco vuoto. <Button type="button" size="sm" variant="outline" onClick={() => void ditteQuery.refetch()}>Riprova ditte</Button></div>
+              : ditteQuery.isLoading || ditteQuery.isFetching ? <p role="status" className="text-xs text-muted-foreground">Caricamento ditte e subappaltatori…</p>
+              : options.length === 0 ? <p className="text-xs text-muted-foreground">Non risultano ditte o subappaltatori attivi per questa azienda.</p> : <p className="text-xs text-muted-foreground">Ditte e subappaltatori della tua azienda. I collegamenti già presenti non vengono duplicati.</p>)}
+            {selectedCompany?.unavailableReason && <p role="alert" className="text-sm text-amber-800">{selectedCompany.unavailableReason}</p>}
           </div>
           <label className="block space-y-1.5 text-sm font-medium">Dove lavora
             <select aria-label="Fase" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
@@ -398,7 +419,7 @@ export function AddAssignmentDialog({
           </div>}
           {tipo === "interno" && canViewCosts && <details className="rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">Prevedi le ore (facoltativo)</summary>
-            <div className="mt-3 space-y-2"><Label htmlFor="assign-planned-hours">Ore previste</Label><Input id="assign-planned-hours" type="number" min="0" step="0.5" value={plannedHours} disabled={currentRate == null} onChange={e => setPlannedHours(e.target.value)} placeholder="Es. 16" />
+            <div className="mt-3 space-y-2"><Label htmlFor="assign-planned-hours">Ore previste</Label><Input id="assign-planned-hours" type="text" inputMode="decimal" autoComplete="off" value={plannedHours} disabled={currentRate == null} onChange={e => setPlannedHours(e.target.value)} placeholder="Es. 16 oppure 1,5" />
               <p className="text-xs text-muted-foreground">{currentRate == null ? "Imposta prima il costo orario. Puoi comunque assegnare senza budget." : `Budget previsto: ${plannedCost == null ? "—" : eur.format(plannedCost)}. Non aggiunge ore al consuntivo.`}</p>
             </div>
           </details>}
@@ -430,7 +451,7 @@ export function AddAssignmentDialog({
                     applyTariffa(t, tariffaQty, vs[0]?.costo ?? t?.prezzo_costo ?? null);
                   }}
                 >
-                  <SelectTrigger className="h-9 flex-1">
+                  <SelectTrigger aria-label="Parti dal listino manodopera" className="h-9 flex-1">
                     <SelectValue placeholder="Cerca una voce di listino…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -443,9 +464,9 @@ export function AddAssignmentDialog({
                   </SelectContent>
                 </Select>
                 <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={tariffaQty}
                   onChange={(e) => {
                     setTariffaQty(e.target.value);
@@ -453,8 +474,10 @@ export function AddAssignmentDialog({
                   }}
                   className="h-9 w-20"
                   aria-label="Quantità"
+                  aria-invalid={invalidQuantity}
                 />
               </div>
+              {invalidQuantity && <p role="alert" className="text-xs text-rose-700">Completa la quantità con un numero valido, per esempio 1,5. Il budget precedente non verrà salvato.</p>}
               {/* La squadra ha piu' varianti di questa lavorazione (es. su
                   nuovo / con smontaggio): la scelta e' esplicita. Con una sola
                   variante si applica da sola. */}
@@ -492,7 +515,7 @@ export function AddAssignmentDialog({
                       {" "}· vendita consigliata{" "}
                       {eur.format(
                         (Number(tariffaSel.prezzo_vendita) || 0) *
-                          Math.max(0, parseFloat(tariffaQty) || 0),
+                          (parseAssignmentAmount(tariffaQty, 6) ?? 0),
                       )}{" "}
                       <span className="text-emerald-600">
                         (ricarico{" "}
@@ -519,25 +542,30 @@ export function AddAssignmentDialog({
               <Label htmlFor="assign-prev">Costo previsto ditta · IVA inclusa €</Label>
               <Input
                 id="assign-prev"
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={prev}
                 onChange={(e) => setPrev(e.target.value)}
+                onBlur={() => setPrev(formatAssignmentAmount(prev))}
+                aria-invalid={parseAssignmentAmount(prev) == null}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="assign-cons">Costo ditta già registrato · IVA inclusa €</Label>
               <Input
                 id="assign-cons"
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={cons}
                 onChange={(e) => setCons(e.target.value)}
+                onBlur={() => setCons(formatAssignmentAmount(cons))}
+                aria-invalid={parseAssignmentAmount(cons) == null}
               />
             </div>
           </div>}
+          {(parseAssignmentAmount(prev) == null || parseAssignmentAmount(cons) == null) && <p role="alert" className="text-xs text-rose-700">Controlla gli importi: usa per esempio 1.234,56. Importi negativi o testi incompleti non vengono salvati.</p>}
           <p className="text-xs text-muted-foreground">Non inserire qui un importo già imputato da fatture o altri costi. Un pagamento o un contratto non è automaticamente un nuovo costo.</p>
 
             </div>
@@ -555,12 +583,13 @@ export function AddAssignmentDialog({
             />
           </div></details>}
         </fieldset>
+        </div>
 
         <DialogFooter className="shrink-0 border-t pt-3">
           <Button variant="outline" disabled={submitting} onClick={() => { reset(); setOpen(false); }}>
             Annulla
           </Button>
-          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : !puoPersona)}>
+          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || contextChanged || companiesUnavailable || !!selectedCompany?.unavailableReason || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : !puoPersona)}>
             {submitting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (

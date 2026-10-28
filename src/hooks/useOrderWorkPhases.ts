@@ -8,6 +8,7 @@ import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import type { FaseModello } from "@/lib/orders/modelliFasi";
 import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
+import { invalidaSquadreCollegate } from '@/lib/manodopera/cacheSquadre';
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -282,6 +283,8 @@ export interface AddAssignmentPayload {
   planned_hourly_rate?: number | null;
   employee_id: string | null;
   external_team_id: string | null;
+  /** Anagrafica reale senza squadra collegata: la RPC crea il ponte e assegna insieme. */
+  subappaltatore_id?: string;
   cost_preventivo: number;
   cost_consuntivo: number;
   hours: number | null;
@@ -579,6 +582,17 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           });
         }
       } else {
+        if (a.subappaltatore_id) {
+          if (!orderId || !companyId || a.external_team_id) throw new Error('Contesto della ditta non valido.');
+          const { error } = await db.rpc('commessa_assegna_subappaltatore', {
+            p_order_id: orderId, p_subappaltatore_id: a.subappaltatore_id, p_phase_id: a.phase_id,
+            p_cost_preventivo: a.cost_preventivo, p_cost_consuntivo: a.cost_consuntivo, p_notes: a.notes,
+          });
+          if (error) throw error;
+          void qc.invalidateQueries({ queryKey: ['assignment-companies', companyId] });
+          void invalidaSquadreCollegate(qc);
+          return;
+        }
         const { data: team, error: teamError } = await db.from("external_teams")
           .select("id, kind, is_active")
           .eq("id", a.external_team_id)

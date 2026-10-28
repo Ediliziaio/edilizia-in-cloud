@@ -124,6 +124,18 @@ jobs:
           src/test/logic/creaCommessaFasi.test.ts
           src/test/logic/creaCommessaPagamenti.test.ts
 
+      - name: Run subcontractor assignment, amounts and atomic bridge regressions
+        run: >-
+          bunx vitest run --maxWorkers=2 --testTimeout=15000
+          src/test/logic/assignmentAmounts.test.ts
+          src/test/logic/assignmentCompanies.test.ts
+          src/test/logic/assignmentCompanyAtomicSql.test.ts
+          src/test/ui/assignmentCompaniesQuery.test.tsx
+          src/test/ui/unifiedWorkAssignment.test.tsx
+          src/test/ui/workAssignmentMutation.test.tsx
+          src/test/ui/teamWorkReadScope.test.tsx
+          src/test/ui/orderWorkPlanning.test.tsx
+
       - name: Run quote to worksite classification regression tests
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000

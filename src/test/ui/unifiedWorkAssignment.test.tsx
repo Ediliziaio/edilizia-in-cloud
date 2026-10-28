@@ -9,18 +9,21 @@ const m = vi.hoisted(() => ({
   add: vi.fn(), crew: vi.fn(), close: vi.fn(), refetch: vi.fn(),
   costReads: [] as boolean[],
   rate: 26 as number | null, rateError: false, rateLoading: false,
+  companiesError:false, companiesLoading:false,
+  tariffe:[] as unknown[],
 }));
+vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'supplier',label:'Edil Alfa',kind:'esterna'},{id:'subappaltatore:sub',label:'Solo anagrafica subappaltatore',kind:'esterna',subappaltatoreId:'sub'}],isError:m.companiesError,isLoading:m.companiesLoading,isFetching:false,refetch:m.refetch})}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders: m.editOrders, canEditOperai: m.editCrew, solaLettura: m.readOnly, canViewCosts: m.costs})}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany: {id: "company"}})}));
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: m.costs, data: {amount: m.rate}, isError: m.rateError, isLoading: m.rateLoading, refetch: m.refetch})}));
-vi.mock("@tanstack/react-query", () => ({useQuery: ({enabled}: {enabled: boolean}) => {m.costReads.push(enabled); return {data: [] as unknown[]};}}));
+vi.mock("@tanstack/react-query", () => ({useQuery: ({enabled,queryKey}: {enabled: boolean;queryKey:unknown[]}) => {m.costReads.push(enabled); return {data: queryKey[0]==='tariffe-manodopera'?m.tariffe:[] as unknown[]};}}));
 vi.mock("@/hooks/useOperai", () => ({
   oggiRoma: () => "2026-10-14", messaggioErroreOperai: () => "Salvataggio non riuscito",
   useSquadre: (enabled: boolean) => {m.reads.push(enabled); return {isError: m.crewError, isLoading: m.crewLoading, refetch: m.refetch, data: [{id: "crew1", nome: "Muratori", responsabile: {nome: "Mario", cognome: "Rossi"}, componenti: [{id: "worker", nome: "Luca", cognome: "Bianchi"}]}]};},
   useSquadreCommessa: () => ({data: m.assignments, isError: false, isLoading: false, refetch: m.refetch}),
   useSquadraSuCommessa: () => ({mutate: m.crew}),
 }));
-beforeEach(() => {vi.clearAllMocks(); Object.assign(m, {editOrders: true, editCrew: true, readOnly: false, costs: true, crewError: false, crewLoading: false, assignments: [], reads: [], costReads: [], rate: 26, rateError: false, rateLoading: false}); HTMLElement.prototype.scrollIntoView = vi.fn();});
+beforeEach(() => {vi.clearAllMocks(); Object.assign(m, {editOrders: true, editCrew: true, readOnly: false, costs: true, crewError: false, crewLoading: false, assignments: [], reads: [], costReads: [], rate: 26, rateError: false, rateLoading: false,companiesError:false,companiesLoading:false,tariffe:[]}); HTMLElement.prototype.scrollIntoView = vi.fn();});
 afterEach(cleanup);
 const draw = (extra = {}) => render(<AddAssignmentDialog orderId="order" phaseId={null} employees={[{id: "worker", label: "Luca Bianchi", campoUserId: "user"}]} externalTeams={[{id: "supplier", label: "Edil Alfa", kind: "esterna"}, {id: "legacy", label: "Squadra legacy", kind: "interna"}]} phases={[{id: "p1", name: "Demolizioni"}, {id: "p2", name: "Posa"}]} aperto onAperto={m.close} onAdd={m.add} {...extra} />);
 const select = (name: string) => {fireEvent.keyDown(screen.getByRole("combobox", {name: "Scegli chi"}), {key: "ArrowDown"}); fireEvent.click(screen.getByRole("option", {name}));};
@@ -136,4 +139,33 @@ it("dopo errore di salvataggio consente il tentativo successivo senza bloccarsi"
 it("annullare non crea né rimuove dati", () => {
   draw(); chooseCrew(); fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", {name: "Annulla"}));
   expect(m.close).toHaveBeenCalledWith(false); expect(m.crew).not.toHaveBeenCalled(); expect(m.add).not.toHaveBeenCalled();
+});
+it('seleziona l’anagrafica del subappaltatore senza usare il suo ID come ID squadra',()=>{
+  draw();fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Solo anagrafica subappaltatore');confirm();
+  expect(m.add).toHaveBeenCalledWith(expect.objectContaining({subappaltatore_id:'sub',external_team_id:null}),expect.any(Object));
+});
+it.each(['companiesError','companiesLoading'] as const)('non scambia %s per un elenco ditte vuoto',key=>{
+  m[key]=true;draw();fireEvent.click(screen.getByRole('button',{name:'Ditta'}));expect(screen.getByRole('combobox',{name:'Scegli chi'})).toBeDisabled();expect(screen.getByRole('button',{name:'Conferma assegnazione'})).toBeDisabled();
+  if(key==='companiesError'){fireEvent.click(screen.getByRole('button',{name:'Riprova ditte'}));expect(m.refetch).toHaveBeenCalled();}
+});
+it('conserva virgole e raggruppamenti durante la digitazione, poi salva numeri corretti',()=>{
+  draw();fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');fireEvent.click(screen.getByText('Budget ditta e listino (facoltativo)'));
+  const input=screen.getByLabelText('Costo previsto ditta · IVA inclusa €');
+  for(const value of ['12','12,','12,50','1.234,56']){fireEvent.change(input,{target:{value}});expect(input).toHaveValue(value);}
+  fireEvent.blur(input);expect(input).toHaveValue('1.234,56');confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:1234.56}),expect.any(Object));
+});
+it('il contenitore scorrevole è un div indipendente dal fieldset',()=>{
+  draw();const scroll=screen.getByTestId('assignment-dialog-scroll');expect(scroll.tagName).toBe('DIV');expect(scroll).toHaveClass('overflow-y-auto','min-h-0');expect(scroll.querySelector('fieldset')).not.toHaveClass('overflow-y-auto');
+});
+it('quantità 1,5 da listino genera 150 euro, non 100, e una quantità invalida non salva il budget vecchio',()=>{
+  m.tariffe=[{id:'tariffa',nome:'Posa sintetica',unita:'h',prezzo_costo:100,prezzo_vendita:120,attiva:true,external_team_id:null}];
+  draw();fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');fireEvent.click(screen.getByText('Budget ditta e listino (facoltativo)'));
+  const picker=screen.getByRole('combobox',{name:'Parti dal listino manodopera'});
+  fireEvent.keyDown(picker,{key:'ArrowDown'});fireEvent.click(screen.getByRole('option',{name:/Posa sintetica/}));
+  fireEvent.change(screen.getByLabelText('Quantità'),{target:{value:'1,5'}});expect(screen.getByLabelText('Costo previsto ditta · IVA inclusa €')).toHaveValue('150,00');
+  fireEvent.change(screen.getByLabelText('Quantità'),{target:{value:'1,5abc'}});confirm();expect(m.add).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText('Quantità'),{target:{value:'1,5'}});confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:150}),expect.any(Object));
+});
+it('blocca il doppio click anche prima del successivo rendering',()=>{
+  draw();select('Luca Bianchi');const button=screen.getByRole('button',{name:'Conferma assegnazione'});act(()=>{button.click();button.click();});expect(m.add).toHaveBeenCalledTimes(1);
 });

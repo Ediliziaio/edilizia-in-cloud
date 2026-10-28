@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: true, data: {amount: 26}, isLoading: false, isError: false})}));
+vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'s1',label:'Edil Alfa',kind:'esterna'}],isError:false,isLoading:false,isFetching:false,refetch:vi.fn()})}));
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));

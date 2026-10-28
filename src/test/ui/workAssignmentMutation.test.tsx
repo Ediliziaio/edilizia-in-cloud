@@ -2,8 +2,8 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrderWorkPhases, type AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn(), employees: undefined as unknown, fasi: undefined as unknown }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc:vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn(), employees: undefined as unknown, fasi: undefined as unknown }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc:mocks.rpc } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("sonner", () => ({ toast: { warning: mocks.warning, error: mocks.error } }));
 vi.mock("@tanstack/react-query", () => ({
@@ -58,6 +58,17 @@ describe("Chiusura di una fase dall'ufficio (06/10/2026)", () => {
 });
 
 describe("Collegamento assegnazione e app Campo (API simulate)", () => {
+  it('assegna un’anagrafica priva di squadra con una sola RPC, non con due scritture parziali',async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:'assignment',error:null});const {result}=renderHook(()=>useOrderWorkPhases('order'));
+    await result.current.addAssignment.mutateAsync({...payload,executor_type:'esterno',employee_id:null,external_team_id:null,subappaltatore_id:'sub'});
+    expect(mocks.rpc).toHaveBeenCalledWith('commessa_assegna_subappaltatore',{p_order_id:'order',p_subappaltatore_id:'sub',p_phase_id:'phase',p_cost_preventivo:100,p_cost_consuntivo:0,p_notes:null});
+    expect(mocks.from).not.toHaveBeenCalled();expect(mocks.invalidate).toHaveBeenCalledWith({queryKey:['assignment-companies','company']});
+  });
+  it('un errore del collegamento atomico non tenta un inserimento legacy né segnala successo',async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:null,error:new Error('Collegamento non riuscito')});const {result}=renderHook(()=>useOrderWorkPhases('order'));
+    await expect(result.current.addAssignment.mutateAsync({...payload,executor_type:'esterno',employee_id:null,external_team_id:null,subappaltatore_id:'sub'})).rejects.toThrow('Collegamento non riuscito');
+    expect(mocks.from).not.toHaveBeenCalled();expect(mocks.invalidate).not.toHaveBeenCalled();
+  });
   it.each([{hours: 8}, {cost_consuntivo: 208}])("assegnare un dipendente non può inserire un consuntivo %s", async patch => {
     const {result} = renderHook(() => useOrderWorkPhases("order"));
     await expect(result.current.addAssignment.mutateAsync({...payload, ...patch})).rejects.toThrow(/rapportini/);

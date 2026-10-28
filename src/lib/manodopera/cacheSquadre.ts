@@ -13,6 +13,7 @@ export function invalidaSquadreCollegate(
       ["external-teams-filter"],
       ["external-teams-list"],
       ["external_teams_active"],
+      ["assignment-companies"],
       ["gcal-busy-slots"],
     ].map((queryKey) => qc.invalidateQueries({ queryKey })),
   );
