@@ -131,9 +131,14 @@ describe("tutte le porte d'ingresso guardano il piano", () => {
     ]) {
       expect(leggi(porta), porta).toContain("useVociImpostazioni");
     }
-    // Dal 05/10/2026 conti e incassi sono schede della griglia: senza piano la scheda non c'è (e con lei il popup).
-    expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("banca: mostraContiCorrenti && canViewTesoreria");
+    // Gli incassi con carta restano una scheda della griglia: senza piano la scheda non c'è (e con lei il popup).
     expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("stripe: mostraPagamentiCarta && canViewTesoreria");
+    // Dal 28/10/2026 la banca non è più una scheda di Integrazioni: è una pagina sua,
+    // Fatturazione → Banca. La porta è cambiata, la guardia del piano la segue:
+    // la voce non c'è più nella griglia, e la pagina nuova ha il suo requisito di piano.
+    expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("banca: false");
+    expect(leggi("src/lib/impostazioni/pianoImpostazioni.ts")).toMatch(/banca: \{ funzioni: \["tesoreria", "prima_nota"\] \}/);
+    expect(leggi("src/lib/impostazioni/navigazioneImpostazioni.tsx")).toContain('to: "/azienda/impostazioni/banca"');
   });
 
   it("il menu principale e le impostazioni leggono le stesse regole (useStatoPiano)", () => {

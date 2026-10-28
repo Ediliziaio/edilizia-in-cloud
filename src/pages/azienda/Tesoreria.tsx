@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeSaltEdge } from "@/lib/banking/saltedge";
 import { useSaltEdgeReturn } from "@/hooks/useSaltEdgeReturn";
+import { useDistyraReturn } from "@/hooks/useDistyraReturn";
 import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
@@ -105,6 +106,9 @@ export default function Tesoreria() {
     setRefreshKey((value) => value + 1);
   }, [checkConnections]);
   const bankFinalizing = useSaltEdgeReturn(effectiveCompany?.id, handleConnectionChanged);
+  // Distyra torna sulla stessa pagina con ?bank_provider=distyra&dy=<rif>: i due ritorni
+  // si riconoscono dal provider e non si pestano i piedi.
+  const distyraFinalizing = useDistyraReturn(effectiveCompany?.id, handleConnectionChanged);
 
   useEffect(() => {
     if (effectiveCompany?.id) {
