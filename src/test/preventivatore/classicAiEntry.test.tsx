@@ -13,7 +13,9 @@ const props = { companyId: 'demo', draft, defaultVat: 22, preview: { template: {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('classic AI entry uses the already selected native wizard', () => {
   it('keeps local-only original row identities stable when reopening the same quote', () => {
-    const withoutId = { ...draft, items: draft.items!.map(item => ({ ...item, client_temp_id: undefined, id: undefined })) };
+    const items = structuredClone(draft.items!);
+    items.forEach(item => { delete item.client_temp_id; delete item.id; });
+    const withoutId = { ...draft, items };
     render(<ClassicWizardAiEntry {...props} draft={withoutId} autoOpen />);
     const first = state.seed.mock.calls.at(-1)![0];
     fireEvent.click(screen.getByRole('button', { name: 'Scarta prova' }));
