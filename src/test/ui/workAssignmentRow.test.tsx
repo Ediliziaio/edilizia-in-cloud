@@ -82,4 +82,20 @@ describe("Assegnazione manodopera", () => {
     render(<WorkAssignmentRow {...props()} />); edit(); fireEvent.click(screen.getByRole("button", { name: "Rimuovi" }));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument(); expect(remove).not.toHaveBeenCalled();
   });
+  it("accetta costi italiani con migliaia senza troncare le cifre", async () => {
+    render(<WorkAssignmentRow {...props()} />); edit(); fireEvent.click(screen.getByText("Costi e registrazione pagamento"));
+    const budget=screen.getByLabelText("Costo previsto €"); const cost=screen.getByLabelText("Costo consuntivo €");
+    expect(budget).toHaveAttribute("inputmode","decimal");
+    for(const value of ["12","12,","12,50","1.234,56"]){fireEvent.change(budget,{target:{value}});expect(budget).toHaveValue(value);}
+    fireEvent.blur(budget);expect(budget).toHaveValue("1.234,56");fireEvent.change(cost,{target:{value:"9.876,54"}});save();
+    await waitFor(()=>expect(update).toHaveBeenCalledWith({cost_preventivo:1234.56,cost_consuntivo:9876.54}));
+  });
+  it("accetta ore con virgola senza confonderle con le migliaia", async () => {
+    render(<WorkAssignmentRow {...props()} />); edit();fireEvent.change(screen.getByLabelText("Ore registrate"),{target:{value:"1,500"}});save();
+    await waitFor(()=>expect(update).toHaveBeenCalledWith({hours:1.5}));
+  });
+  it.each(["1e3","1,5abc","10.000.000.000,00"])("non salva il costo invalido %s", value => {
+    render(<WorkAssignmentRow {...props()} />);edit();fireEvent.click(screen.getByText("Costi e registrazione pagamento"));fireEvent.change(screen.getByLabelText("Costo previsto €"),{target:{value}});save();
+    expect(update).not.toHaveBeenCalled();expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
 });

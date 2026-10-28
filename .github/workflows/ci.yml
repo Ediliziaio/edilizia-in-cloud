@@ -132,6 +132,8 @@ jobs:
           src/test/logic/assignmentCompanyAtomicSql.test.ts
           src/test/ui/assignmentCompaniesQuery.test.tsx
           src/test/ui/unifiedWorkAssignment.test.tsx
+          src/test/ui/workAssignmentRow.test.tsx
+          src/test/ui/teamAssignmentPlan.test.tsx
           src/test/ui/workAssignmentMutation.test.tsx
           src/test/ui/teamWorkReadScope.test.tsx
           src/test/ui/orderWorkPlanning.test.tsx

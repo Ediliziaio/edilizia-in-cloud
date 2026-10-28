@@ -10,22 +10,23 @@ const m = vi.hoisted(() => ({
   costReads: [] as boolean[],
   rate: 26 as number | null, rateError: false, rateLoading: false,
   companiesError:false, companiesLoading:false,
-  tariffe:[] as unknown[],
+  tariffe:[] as unknown[], varianti:[] as unknown[], tariffLoading:false, variantLoading:false, variantError:false,
 }));
 vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'supplier',label:'Edil Alfa',kind:'esterna'},{id:'subappaltatore:sub',label:'Solo anagrafica subappaltatore',kind:'esterna',subappaltatoreId:'sub'}],isError:m.companiesError,isLoading:m.companiesLoading,isFetching:false,refetch:m.refetch})}));
-vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders: m.editOrders, canEditOperai: m.editCrew, solaLettura: m.readOnly, canViewCosts: m.costs})}));
+vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders: m.editOrders, canEditOperai: m.editCrew, solaLettura: m.readOnly, canViewCosts: m.costs, canViewMargins:m.costs})}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany: {id: "company"}})}));
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: m.costs, data: {amount: m.rate}, isError: m.rateError, isLoading: m.rateLoading, refetch: m.refetch})}));
-vi.mock("@tanstack/react-query", () => ({useQuery: ({enabled,queryKey}: {enabled: boolean;queryKey:unknown[]}) => {m.costReads.push(enabled); return {data: queryKey[0]==='tariffe-manodopera'?m.tariffe:[] as unknown[]};}}));
+vi.mock("@tanstack/react-query", () => ({useQuery: ({enabled,queryKey}: {enabled: boolean;queryKey:unknown[]}) => {m.costReads.push(enabled); const tariff=queryKey[0]==='tariffe-manodopera';return {data:tariff?m.tariffe:m.varianti,isLoading:tariff?m.tariffLoading:m.variantLoading,isFetching:tariff?m.tariffLoading:m.variantLoading,isError:!tariff&&m.variantError,refetch:m.refetch};}}));
 vi.mock("@/hooks/useOperai", () => ({
   oggiRoma: () => "2026-10-14", messaggioErroreOperai: () => "Salvataggio non riuscito",
   useSquadre: (enabled: boolean) => {m.reads.push(enabled); return {isError: m.crewError, isLoading: m.crewLoading, refetch: m.refetch, data: [{id: "crew1", nome: "Muratori", responsabile: {nome: "Mario", cognome: "Rossi"}, componenti: [{id: "worker", nome: "Luca", cognome: "Bianchi"}]}]};},
   useSquadreCommessa: () => ({data: m.assignments, isError: false, isLoading: false, refetch: m.refetch}),
   useSquadraSuCommessa: () => ({mutate: m.crew}),
 }));
-beforeEach(() => {vi.clearAllMocks(); Object.assign(m, {editOrders: true, editCrew: true, readOnly: false, costs: true, crewError: false, crewLoading: false, assignments: [], reads: [], costReads: [], rate: 26, rateError: false, rateLoading: false,companiesError:false,companiesLoading:false,tariffe:[]}); HTMLElement.prototype.scrollIntoView = vi.fn();});
+beforeEach(() => {vi.clearAllMocks(); Object.assign(m, {editOrders: true, editCrew: true, readOnly: false, costs: true, crewError: false, crewLoading: false, assignments: [], reads: [], costReads: [], rate: 26, rateError: false, rateLoading: false,companiesError:false,companiesLoading:false,tariffe:[],varianti:[],tariffLoading:false,variantLoading:false,variantError:false}); HTMLElement.prototype.scrollIntoView = vi.fn();});
 afterEach(cleanup);
-const draw = (extra = {}) => render(<AddAssignmentDialog orderId="order" phaseId={null} employees={[{id: "worker", label: "Luca Bianchi", campoUserId: "user"}]} externalTeams={[{id: "supplier", label: "Edil Alfa", kind: "esterna"}, {id: "legacy", label: "Squadra legacy", kind: "interna"}]} phases={[{id: "p1", name: "Demolizioni"}, {id: "p2", name: "Posa"}]} aperto onAperto={m.close} onAdd={m.add} {...extra} />);
+const dialog = (extra = {}) => <AddAssignmentDialog orderId="order" phaseId={null} employees={[{id: "worker", label: "Luca Bianchi", campoUserId: "user"}]} externalTeams={[{id: "supplier", label: "Edil Alfa", kind: "esterna"}, {id: "legacy", label: "Squadra legacy", kind: "interna"}]} phases={[{id: "p1", name: "Demolizioni"}, {id: "p2", name: "Posa"}]} aperto onAperto={m.close} onAdd={m.add} {...extra} />;
+const draw = (extra = {}) => render(dialog(extra));
 const select = (name: string) => {fireEvent.keyDown(screen.getByRole("combobox", {name: "Scegli chi"}), {key: "ArrowDown"}); fireEvent.click(screen.getByRole("option", {name}));};
 const chooseCrew = () => {fireEvent.click(screen.getByRole("button", {name: "Squadra interna"})); select("Muratori · 1 componenti");};
 const confirm = () => fireEvent.click(screen.getByRole("button", {name: "Conferma assegnazione"}));
@@ -168,4 +169,50 @@ it('quantità 1,5 da listino genera 150 euro, non 100, e una quantità invalida 
 });
 it('blocca il doppio click anche prima del successivo rendering',()=>{
   draw();select('Luca Bianchi');const button=screen.getByRole('button',{name:'Conferma assegnazione'});act(()=>{button.click();button.click();});expect(m.add).toHaveBeenCalledTimes(1);
+});
+
+const tariffFixture = () => {m.tariffe=[{id:'tariffa',nome:'Posa sintetica',unita:'h',prezzo_costo:100,prezzo_vendita:150,attiva:true,external_team_id:null}];};
+const openCosts = () => {fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');fireEvent.click(screen.getByText('Budget ditta e listino (facoltativo)'));};
+const pickTariff = () => {fireEvent.keyDown(screen.getByRole('combobox',{name:'Parti dal listino manodopera'}),{key:'ArrowDown'});fireEvent.click(screen.getByRole('option',{name:/Posa sintetica/}));};
+
+it('cambiando ditta non trasferisce costi manuali, consuntivi e note della ditta precedente',()=>{
+  draw();openCosts();fireEvent.change(screen.getByLabelText('Costo previsto ditta · IVA inclusa €'),{target:{value:'800'}});fireEvent.change(screen.getByLabelText('Costo ditta già registrato · IVA inclusa €'),{target:{value:'500'}});
+  fireEvent.click(screen.getByText('Note (facoltativo)',{selector:'summary'}));fireEvent.change(screen.getByLabelText('Note (facoltativo)'),{target:{value:'Accordo solo Edil Alfa'}});
+  select('Solo anagrafica subappaltatore');confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({subappaltatore_id:'sub',cost_preventivo:0,cost_consuntivo:0,notes:null}),expect.any(Object));
+});
+it('il ricarico usa il costo della variante effettiva e non quello base',()=>{
+  tariffFixture();m.varianti=[{id:'v',tariffa_id:'tariffa',external_team_id:'supplier',nome:'Posa speciale',costo:140,attivo:true,is_default:true}];draw();openCosts();pickTariff();
+  expect(screen.getByLabelText('Costo previsto ditta · IVA inclusa €')).toHaveValue('140,00');expect(screen.getByText(/ricarico/)).toHaveTextContent('ricarico 7%');
+});
+it.each(['variantLoading','tariffLoading'] as const)('con %s non applica un listino incompleto ma permette un costo manuale',key=>{
+  tariffFixture();m[key]=true;draw();openCosts();expect(screen.queryByRole('combobox',{name:'Parti dal listino manodopera'})).not.toBeInTheDocument();expect(screen.getByText(/Caricamento listino e varianti/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Costo previsto ditta · IVA inclusa €'),{target:{value:'210,50'}});confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:210.5}),expect.any(Object));
+});
+it('se una tariffa selezionata sparisce non salva il vecchio budget senza conferma manuale',()=>{
+  tariffFixture();const view=draw();openCosts();pickTariff();m.tariffe=[];view.rerender(dialog());confirm();expect(m.add).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Usa importi manuali'}));confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:100}),expect.any(Object));
+});
+it('un errore varianti dopo la scelta non lascia salvare una tariffa incompleta',()=>{
+  tariffFixture();const view=draw();openCosts();pickTariff();m.variantError=true;view.rerender(dialog());confirm();expect(m.add).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Usa importi manuali'}));confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:100}),expect.any(Object));
+});
+it('la chiusura controllata ripulisce la bozza e la riapertura usa la fase corrente',()=>{
+  const view=draw();openCosts();fireEvent.change(screen.getByLabelText('Costo ditta già registrato · IVA inclusa €'),{target:{value:'250'}});
+  view.rerender(dialog({aperto:false,phaseId:'p2'}));view.rerender(dialog({aperto:true,phaseId:'p2'}));
+  expect(screen.getByLabelText('Fase')).toHaveValue('p2');expect(screen.getByRole('button',{name:'Conferma assegnazione'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({phase_id:'p2',cost_consuntivo:0}),expect.any(Object));
+});
+it('un aggiornamento dei prezzi richiede conferma e non salva un budget stantio',()=>{
+  tariffFixture();const view=draw();openCosts();pickTariff();m.varianti=[{id:'v',tariffa_id:'tariffa',external_team_id:'supplier',nome:'Nuova posa',costo:140,attivo:true}];view.rerender(dialog());
+  expect(screen.getByLabelText('Costo previsto ditta · IVA inclusa €')).toHaveValue('100,00');confirm();expect(m.add).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Aggiorna da listino'}));confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:140}),expect.any(Object));
+});
+it('premere il tipo già selezionato non cancella i dati compilati',()=>{
+  draw();openCosts();fireEvent.change(screen.getByLabelText('Costo previsto ditta · IVA inclusa €'),{target:{value:'210,50'}});fireEvent.click(screen.getByRole('button',{name:'Ditta'}));confirm();
+  expect(m.add).toHaveBeenCalledWith(expect.objectContaining({external_team_id:'supplier',cost_preventivo:210.5}),expect.any(Object));
+});
+it('cambiando ditta ricalcola il listino comune ma non trascina il consuntivo',()=>{
+  tariffFixture();m.varianti=[{id:'v',tariffa_id:'tariffa',external_team_id:'supplier',nome:'Posa speciale',costo:140,attivo:true}];draw();openCosts();pickTariff();
+  fireEvent.change(screen.getByLabelText('Costo ditta già registrato · IVA inclusa €'),{target:{value:'500'}});select('Solo anagrafica subappaltatore');
+  expect(screen.getByLabelText('Costo previsto ditta · IVA inclusa €')).toHaveValue('100,00');confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:100,cost_consuntivo:0,subappaltatore_id:'sub'}),expect.any(Object));
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Plus, User, Users, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -92,7 +92,6 @@ export function AddAssignmentDialog({
   const controllato = aperto !== undefined;
   const open = controllato ? aperto : openInterno;
   const setOpen = (o: boolean) => (controllato ? onAperto?.(o) : setOpenInterno(o));
-  useEffect(() => { if (!open) context.current = { companyId, orderId }; }, [open, companyId, orderId]);
   const contextChanged = context.current.companyId !== companyId || context.current.orderId !== orderId;
   const [tipo, setTipo] = useState<ExecutorType | "squadra">(puoPersona ? "interno" : "squadra");
   const [executorId, setExecutorId] = useState<string>("");
@@ -119,10 +118,11 @@ export function AddAssignmentDialog({
   // Prefill dal listino manodopera (facoltativo)
   const [tariffaId, setTariffaId] = useState("");
   const [tariffaQty, setTariffaQty] = useState("1");
+  const [appliedUnitCost, setAppliedUnitCost] = useState<number | null>(null);
   const ditteQuery = useAssignmentCompanies(companyId, open && tipo === 'esterno' && puoPersona && !contextChanged);
 
   // Listino manodopera aziendale — caricato solo a dialog aperto.
-  const { data: tariffe = [], isError: tariffeError } = useQuery({
+  const { data: tariffe = [], isError: tariffeError, isFetching: tariffeFetching, refetch: refetchTariffe } = useQuery({
     queryKey: ["tariffe-manodopera", companyId],
     enabled: open && costsOpen && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -150,7 +150,7 @@ export function AddAssignmentDialog({
   const squadraSelezionata = tipo === "esterno" ? executorId : "";
   /** Varianti di costo per squadra: "questa lavorazione, fatta da questa
       squadra, costa X". Una sola query per company: la tabella e' piccola. */
-  const { data: varianti = [], isError: variantiError } = useQuery({
+  const { data: varianti = [], isError: variantiError, isFetching: variantiFetching, refetch: refetchVarianti } = useQuery({
     queryKey: ["tariffa-costi-varianti", companyId],
     enabled: open && costsOpen && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -186,15 +186,20 @@ export function AddAssignmentDialog({
   const varianteSel = variantiSquadra.find((v) => v.id === varianteId) ?? variantiSquadra[0] ?? null;
   /** Il costo che vale davvero: variante della squadra se c'e', altrimenti base. */
   const costoUnitarioEffettivo = varianteSel?.costo ?? tariffaSel?.prezzo_costo ?? null;
+  const listinoBusy = !!tariffeFetching || !!variantiFetching;
+  const tariffaAggiornata = !!tariffaSel && appliedUnitCost !== Number(costoUnitarioEffettivo ?? 0);
+  const listinoIncompleto = tipo === 'esterno' && canViewCosts && !!tariffaId &&
+    (listinoBusy || !!tariffeError || !!variantiError || !tariffaSel || tariffaAggiornata);
 
   // Applica costo (e nota, se vuota) da tariffa × quantità. Il campo resta
   // modificabile: il listino è un prefill, non un vincolo.
   const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string, costoUnit?: number | null) => {
-    if (!t) return;
+    if (!t || listinoBusy || tariffeError || variantiError) return;
     const qty = parseAssignmentAmount(qtyRaw, 6);
     if (qty == null || !qtyRaw.trim()) return;
-    const unit = costoUnit ?? costoUnitarioEffettivo ?? (Number(t.prezzo_costo) || 0);
+    const unit = costoUnit ?? (Number(t.prezzo_costo) || 0);
     const costo = (Number(unit) || 0) * qty;
+    setAppliedUnitCost(Number(unit) || 0);
     setPrev(formatAssignmentAmount(costo.toFixed(2)));
     setNotes((n) =>
       n.trim() === "" || /^Listino: /.test(n)
@@ -208,7 +213,7 @@ export function AddAssignmentDialog({
   const companiesUnavailable = tipo === 'esterno' && (ditteQuery.isLoading || ditteQuery.isFetching || ditteQuery.isError);
   const invalidQuantity = !!tariffaSel && (!tariffaQty.trim() || parseAssignmentAmount(tariffaQty, 6) == null);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setTipo(puoPersona ? "interno" : "squadra");
     setExecutorId("");
     setPrev("0");
@@ -220,17 +225,26 @@ export function AddAssignmentDialog({
     setCostsOpen(false);
     setTariffaId("");
     setTariffaQty("1");
+    setAppliedUnitCost(null);
     setVarianteId("");
     setSelectedPhase(phaseId ?? "");
     setDal(oggiRoma()); setAl(""); setCapo(false);
-  };
+  }, [puoPersona, phaseId]);
+  // A controlled parent can close or change the target while this component
+  // stays mounted. Never carry an old executor/cost/phase into the next opening.
+  useEffect(() => {
+    if (!open && !submittingRef.current) {
+      context.current = { companyId, orderId };
+      reset();
+    }
+  }, [open, companyId, orderId, reset]);
 
   const num = (raw: string) => {
     return parseAssignmentAmount(raw) ?? 0;
   };
 
   const handleSubmit = () => {
-    if (submittingRef.current || submitting || contextChanged || companiesUnavailable || selectedCompany?.unavailableReason || (tipo === "squadra" ? !puoSquadra : !puoPersona)) return;
+    if (submittingRef.current || submitting || contextChanged || companiesUnavailable || listinoIncompleto || selectedCompany?.unavailableReason || (tipo === "squadra" ? !puoSquadra : !puoPersona)) return;
     if (selectedPhase && !phases.some(p => p.id === selectedPhase)) { toast.error("La lavorazione non è più disponibile. Ricontrolla la selezione."); return; }
     if (!executorId) {
       toast.error("Seleziona un esecutore");
@@ -327,7 +341,7 @@ export function AddAssignmentDialog({
                 {type: "esterno", label: "Ditta", icon: Users, allowed: puoPersona},
               ] as const).filter(choice => choice.allowed).map(choice => <Button
                 key={choice.type} type="button" variant={tipo === choice.type ? "default" : "outline"} aria-pressed={tipo === choice.type}
-                onClick={() => { setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); setCostsOpen(false); }}
+                onClick={() => { if (tipo === choice.type) return; setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); setCostsOpen(false); }}
                 className="h-auto min-h-11 whitespace-normal px-2 py-2 text-xs sm:text-sm"
               ><choice.icon className="mr-1 h-4 w-4 shrink-0" />{choice.label}</Button>)}
             </div>
@@ -337,6 +351,11 @@ export function AddAssignmentDialog({
           <div className="space-y-1.5">
             <Label>{tipo === "squadra" ? "Squadra interna" : tipo === "interno" ? "Persona" : "Ditta / subappaltatore"}</Label>
             <Select value={executorId} disabled={!!companiesUnavailable} onValueChange={(v) => {
+              if (v === executorId) return;
+              if (executorId) {
+                setPrev("0"); setCons("0"); setNotes("");
+                if (!tariffaSel) setTariffaId("");
+              }
               setExecutorId(v);
               setPlannedHours("");
               setCapo(false);
@@ -428,10 +447,15 @@ export function AddAssignmentDialog({
             <summary className="cursor-pointer text-sm font-medium">Budget ditta e listino (facoltativo)</summary>
             <div className="mt-3 space-y-3">
           {(tariffeError || variantiError) && <p role="alert" className="text-xs text-amber-800">Listino non disponibile. Puoi inserire manualmente il costo; non applico tariffe incomplete.</p>}
+          {listinoBusy && <p role="status" className="text-xs text-muted-foreground">Caricamento listino e varianti… Puoi intanto compilare gli importi manuali.</p>}
+          {listinoIncompleto && <p role="alert" className="text-xs text-amber-800">La tariffa selezionata non è verificata o non è più disponibile. Attendi il caricamento, riprova il listino oppure conferma l’uso di importi manuali.</p>}
+          {tariffaAggiornata && !listinoBusy && !tariffeError && !variantiError && <Button type="button" size="sm" variant="outline" onClick={() => applyTariffa(tariffaSel, tariffaQty, costoUnitarioEffettivo)}>Aggiorna da listino</Button>}
+          {(tariffeError || variantiError) && <Button type="button" size="sm" variant="outline" onClick={() => { void refetchTariffe(); void refetchVarianti(); }}>Riprova listino</Button>}
+          {tariffaId && <Button type="button" size="sm" variant="outline" onClick={() => { setTariffaId(""); setVarianteId(""); setNotes(n => /^Listino: /.test(n) ? "" : n); }}>Usa importi manuali</Button>}
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
               L'azienda può importare il prezziario regionale o caricare il
               proprio listino in Impostazioni → Tariffe. */}
-          {canViewCosts && !tariffeError && !variantiError && tariffeAttive.length > 0 && (
+          {canViewCosts && !listinoBusy && !tariffeError && !variantiError && tariffeAttive.length > 0 && (
             <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
               <Label className="text-xs text-muted-foreground">
                 Parti dal listino manodopera — costo compilato da solo
@@ -519,14 +543,14 @@ export function AddAssignmentDialog({
                       )}{" "}
                       <span className="text-emerald-600">
                         (ricarico{" "}
-                        {Number(tariffaSel.prezzo_costo) > 0
+                        {Number(costoUnitarioEffettivo) > 0
                           ? Math.round(
                               ((Number(tariffaSel.prezzo_vendita) -
-                                Number(tariffaSel.prezzo_costo)) /
-                                Number(tariffaSel.prezzo_costo)) *
+                                Number(costoUnitarioEffettivo)) /
+                                Number(costoUnitarioEffettivo)) *
                                 100,
                             )
-                          : 0}
+                          : "—"}
                         %)
                       </span>
                     </>
@@ -589,7 +613,7 @@ export function AddAssignmentDialog({
           <Button variant="outline" disabled={submitting} onClick={() => { reset(); setOpen(false); }}>
             Annulla
           </Button>
-          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || contextChanged || companiesUnavailable || !!selectedCompany?.unavailableReason || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : !puoPersona)}>
+          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || contextChanged || companiesUnavailable || listinoIncompleto || !!selectedCompany?.unavailableReason || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : !puoPersona)}>
             {submitting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (

@@ -3,7 +3,7 @@ import { Building2, Loader2, Pencil, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { ExecutorOption, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 import { usePermissions } from "@/hooks/usePermissions";
-import { parseWorkAmount } from "@/lib/orders/workPlanning";
+import { parseAssignmentAmount, formatAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import { assignmentName } from "@/lib/orders/teamWorkPlan";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -75,9 +75,9 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
   };
   const save = async () => {
     if (!canEditOrders || busy) return;
-    const budget = parseWorkAmount(draft.budget);
-    const cost = parseWorkAmount(draft.cost);
-    const hours = parseWorkAmount(draft.hours);
+    const budget = parseAssignmentAmount(draft.budget);
+    const cost = parseAssignmentAmount(draft.cost);
+    const hours = parseAssignmentAmount(draft.hours, 6);
     if ((canViewCosts && (budget === null || cost === null)) || (internal && hours === null)) {
       setError("Inserisci importi e ore validi, maggiori o uguali a zero.");
       return;
@@ -148,7 +148,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
             <Textarea id={`notes-${a.id}`} value={draft.notes} disabled={busy} rows={3} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
           </div>
           {internal && <div className="space-y-1.5"><Label htmlFor={`hours-${a.id}`}>Ore registrate</Label>
-            <Input id={`hours-${a.id}`} type="number" min="0" step="0.5" value={draft.hours} disabled={busy} onChange={e => setDraft({ ...draft, hours: e.target.value })} />
+            <Input id={`hours-${a.id}`} type="text" inputMode="decimal" autoComplete="off" value={draft.hours} disabled={busy} onChange={e => setDraft({ ...draft, hours: e.target.value })} />
             <p className="text-xs text-muted-foreground">Rettifica manuale del totale. Non ricalcola automaticamente il costo e non sostituisce i rapportini.</p>
           </div>}
           {canViewCosts && <details className="rounded-lg border p-3">
@@ -156,8 +156,8 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">{internal ? "Il costo imputato alla commessa è distinto dal pagamento dello stipendio." : "Il costo dell'affidamento è distinto dalle ore lavorate e dall'approvazione dei rapportini."}</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div><Label htmlFor={`budget-${a.id}`}>Costo previsto €</Label><Input id={`budget-${a.id}`} type="number" min="0" step="0.01" value={draft.budget} disabled={busy} onChange={e => setDraft({ ...draft, budget: e.target.value })} /></div>
-                <div><Label htmlFor={`cost-${a.id}`}>Costo consuntivo €</Label><Input id={`cost-${a.id}`} type="number" min="0" step="0.01" value={draft.cost} disabled={busy} onChange={e => setDraft({ ...draft, cost: e.target.value })} /></div>
+                <div><Label htmlFor={`budget-${a.id}`}>Costo previsto €</Label><Input id={`budget-${a.id}`} type="text" inputMode="decimal" autoComplete="off" value={draft.budget} disabled={busy} onChange={e => setDraft({ ...draft, budget: e.target.value })} onBlur={() => setDraft(current => ({ ...current, budget: formatAssignmentAmount(current.budget) }))} /></div>
+                <div><Label htmlFor={`cost-${a.id}`}>Costo consuntivo €</Label><Input id={`cost-${a.id}`} type="text" inputMode="decimal" autoComplete="off" value={draft.cost} disabled={busy} onChange={e => setDraft({ ...draft, cost: e.target.value })} onBlur={() => setDraft(current => ({ ...current, cost: formatAssignmentAmount(current.cost) }))} /></div>
               </div>
               {canManagePayments && <label className="flex items-center gap-2 text-sm"><Switch checked={draft.paid} disabled={busy} onCheckedChange={paid => setDraft({ ...draft, paid })} />Pagamento registrato</label>}
               <p className="text-xs text-muted-foreground">Conserva la registrazione economica esistente; non esegue un pagamento bancario.</p>
