@@ -2,6 +2,7 @@ import { cleanup,render,screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach,beforeEach,expect,it,vi } from 'vitest';
 const state=vi.hoisted(()=>({mobile:true,scopri:false}));
+vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=> 'azienda-demo'}));
 vi.mock('@/hooks/use-mobile',()=>({useIsMobile:()=>state.mobile}));
 vi.mock('@/hooks/useFleetTrackAccess',()=>({useFleetTrackAccess:()=>false}));
 vi.mock('@/hooks/useSubscriptionLimits',()=>({useSubscriptionLimits:()=>({isScopriPlan:state.scopri})}));
