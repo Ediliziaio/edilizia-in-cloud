@@ -1,592 +1,500 @@
-// src/pages/azienda/fatturazione/RegistroIVA.tsx
-// GAP-05: Registro IVA acquisti e vendite con liquidazione periodica
-import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { FiscalSourceViewer } from "@/components/fatturazione/FiscalSourceViewer";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
+import { readAllPages } from "@/lib/personale/readAllPages";
+import {
+  fiscalRows,
+  fiscalTotals,
+  fiscalDocumentIssues,
+  SALES_TYPES,
+  type FiscalDocument,
+} from "@/lib/fatturazione/fiscalWorkspace";
 import { formatCurrency } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { FiscalLegacyRedirect } from "@/components/fatturazione/FiscalWorkspace";
+import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
+import {
+  FiscalSectionHeader,
+  FiscalMetric,
+} from "@/components/fatturazione/FiscalSectionLayout";
 import { Button } from "@/components/ui/button";
-import { FiscalitaNavigation } from "@/components/fatturazione/FiscalitaNavigation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, TrendingUp, TrendingDown, Scale } from "lucide-react";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
+import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
+import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
 
-import { useIsMobile } from "@/hooks/use-mobile";
-const MESI = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
-];
-
-// Tipi documento vendite (attive)
-const TIPI_VENDITE = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-  "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
-  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
-  "reverse_charge_interno"];
-
-// Le integrazioni (TD16-TD19): la loro IVA è a debito e insieme detraibile,
-// quindi compaiono anche fra gli acquisti. Stessa regola di liquidazione_iva_periodo.
-const TIPI_INTEGRAZIONE = ["reverse_charge_interno", "integrazione_servizi_estero",
-  "integrazione_beni_ue", "integrazione_beni_extra_ue"];
-
-/**
- * Reverse charge delle fatture ricevute (art. 17 c. 6 DPR 633/72): il
- * subappaltatore fattura con natura N6.x e IVA zero, chi riceve la integra
- * nei due registri con l'aliquota del lavoro (22% se non indicata).
- */
-const ALIQUOTE_RC = [22, 10, 5, 4] as const;
-const eReverseCharge = (natura: unknown) => String(natura || "").toUpperCase().startsWith("N6");
-const ivaIntegrata = (imponibile: number, aliquota: number) => Math.round(imponibile * aliquota) / 100;
-
-// La nota di credito RIDUCE l'IVA del registro: gli importi in tabella sono
-// salvati positivi (stessa convenzione di ReportFatturazione: abs + segno dal
-// tipo). Lato acquisti il tipo arriva dall'SDI (TD04) o dai gestionali
-// esterni ("credit_note" e simili).
-function isNotaCreditoVendita(tipo: string): boolean {
-  return tipo === "nota_credito";
+export default function RegistroIVA({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
+  return embedded ? (
+    <RegistroContent />
+  ) : (
+    <FiscalLegacyRedirect section="iva" />
+  );
 }
-function isNotaCreditoAcquisto(tipoDocumento: string | null): boolean {
-  const td = (tipoDocumento || "").toUpperCase();
-  return td === "TD04" || td.includes("CREDIT");
-}
-const conSegno = (v: number, notaCredito: boolean) =>
-  notaCredito ? -Math.abs(v) : v;
-
-// Le date fiscali sono stringhe ISO "YYYY-MM-DD": il mese si legge dalla
-// stringa, senza passare da new Date() (che in timezone negative sposta il
-// giorno e sfila il documento dal periodo giusto).
-function meseDaISO(dateStr: string): number {
-  const m = parseInt(String(dateStr).slice(5, 7), 10);
-  return Number.isFinite(m) ? m : 0;
-}
-function formatDataIT(dateStr: string): string {
-  const s = String(dateStr).slice(0, 10);
-  const [y, m, d] = s.split("-");
-  return y && m && d ? `${d}/${m}/${y}` : s;
-}
-
-const num = (v: number) => (Number(v) || 0).toFixed(2).replace(".", ",");
-
-/** La consegna dello SDI è un istante: il giorno giusto è quello di Roma, non di Greenwich. */
-function formatRicevutaIT(istante: string | null | undefined): string {
-  if (!istante) return "";
-  const d = new Date(istante);
-  return Number.isNaN(d.getTime())
-    ? formatDataIT(istante)
-    : d.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function exportCSV(rows: any[], filename: string) {
-  const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura", "Ricevuta dallo SDI"];
-  const lines = [
-    headers.join(";"),
-    ...rows.map((r) =>
-      // Virgola decimale: col punto Excel in italiano legge 1234.56 come 123456
-      [formatDataIT(r.data), r.numero, r.controparte, num(r.imponibile), num(r.iva),
-        num(r.totale), r.aliquota, r.natura || "", formatRicevutaIT(r.ricevuta)]
-        .map((v) => escapeCsvCell(v as string | number, ";")).join(";")
-    ),
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-export default function RegistroIVA() {
-  const isMobile = useIsMobile();
-  const companyId = useEffectiveCompanyId();
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-  const [anno, setAnno] = useState(currentYear);
-  const [periodoType, setPeriodoType] = useState<"mensile" | "trimestrale">("mensile");
-  const [mese, setMese] = useState(currentMonth);
-  const [trimestre, setTrimestre] = useState(Math.ceil(currentMonth / 3));
-
-  // Documenti fiscali (vendite/attivo)
-  const { data: documentiVendite = [] } = useQuery({
-    queryKey: ["registro-iva-vendite", companyId, anno],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("id, tipo, numero, data_emissione, cliente_snapshot, imponibile_totale, iva_totale, totale_documento, riepilogo_iva, stato")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .eq("anno", anno)
-        .in("tipo", TIPI_VENDITE)
-        .not("stato", "in", '("bozza","annullata")')
-        .order("data_emissione", { ascending: true });
-      if (error) throw error;
-      return data as any[];
-    },
+function RegistroContent() {
+  const company = useEffectiveCompanyId(),
+    p = useFiscalPeriod();
+  const search = p.params.get("q_iva") ?? "";
+  const [page, setPage] = useState(0);
+  const side =
+    p.params.get("registro") === "tutti"
+      ? "tutti"
+      : p.params.get("registro") === "acquisti"
+        ? "acquisti"
+        : "vendite";
+  const onlyIssues = p.params.get("filtro_iva") === "verificare";
+  const selectedGroup = p.params.get("gruppo_iva") ?? "";
+  const sales = useQuery({
+    queryKey: ["fiscal-sales", company, p.dal, p.al],
+    enabled: !!company,
+    queryFn: async ({ signal }) =>
+      (await readAllPages((from, to) =>
+        supabase
+          .from("documenti_fiscali")
+          .select(
+            "id,tipo,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,esigibilita_iva,sdi_stato",
+          )
+          .eq("company_id", company!)
+          .is("deleted_at", null)
+          .gte("data_emissione", p.dal)
+          .lte("data_emissione", p.al)
+          .in("tipo", SALES_TYPES)
+          .not("stato", "in", '("bozza","annullata")')
+          .order("data_emissione")
+          .order("id")
+          .range(from, to)
+          .abortSignal(signal),
+      )) as unknown as FiscalDocument[],
   });
-
-  // Fatture ricevute (acquisti/passivo)
-  const { data: documentiAcquisti = [] } = useQuery({
-    queryKey: ["registro-iva-acquisti", companyId, anno],
-    enabled: !!companyId,
-    queryFn: async () => {
-      // Gli acquisti stanno nel periodo in cui si DETRAE l'IVA (24/09/2026): il
-      // mese in cui la fattura è stata ricevuta dallo SDI, o quello della
-      // fattura se è arrivata entro il 15 del mese dopo nello stesso anno (art.
-      // 1 DPR 100/1998). La regola sta nel database (data_detrazione_iva), la
-      // stessa della liquidazione; senza data di ricezione vale la data della
-      // fattura, come prima. Esclusione: lo stato 'rifiutata'.
-      const { data, error } = await supabase
-        .from("fatture_ricevute_periodo_iva" as never)
-        .select("id, numero_fattura, data_fattura, data_ricezione_sdi, data_detrazione, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva, aliquota_reverse_charge")
-        .eq("company_id", companyId!)
-        .gte("data_detrazione", `${anno}-01-01`)
-        .lte("data_detrazione", `${anno}-12-31`)
-        .in("stato", ["non_letta", "letta", "contabilizzata"])
-        .order("data_detrazione", { ascending: true });
-      if (error) throw error;
-      return data as any[];
-    },
+  const purchases = useQuery({
+    queryKey: ["fiscal-purchases", company, p.dal, p.al],
+    enabled: !!company,
+    queryFn: async ({ signal }) =>
+      (await readAllPages((from, to) =>
+        supabase
+          .from("fatture_ricevute_periodo_iva" as never)
+          .select(
+            "id,numero_fattura,data_fattura,data_ricezione_sdi,data_detrazione,tipo_documento,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,aliquota_reverse_charge",
+          )
+          .eq("company_id", company!)
+          .gte("data_detrazione", p.dal)
+          .lte("data_detrazione", p.al)
+          .in("stato", ["non_letta", "letta", "contabilizzata"])
+          .order("data_detrazione")
+          .order("id")
+          .range(from, to)
+          .abortSignal(signal),
+      )) as unknown as FiscalDocument[],
   });
-
-  // Filtro per periodo selezionato
-  function inPeriod(dateStr: string): boolean {
-    if (!dateStr) return false;
-    const m = meseDaISO(dateStr);
-    if (!m) return false;
-    if (periodoType === "mensile") return m === mese;
-    return Math.ceil(m / 3) === trimestre;
-  }
-
-  // Espande righe riepilogo IVA per ciascun documento (vendite)
-  const righeVendite = useMemo(() => {
-    const rows: any[] = [];
-    for (const doc of documentiVendite) {
-      if (!inPeriod(doc.data_emissione)) continue;
-      const nc = isNotaCreditoVendita(doc.tipo);
-      const riepilogo = doc.riepilogo_iva || [];
-      if (riepilogo.length > 0) {
-        for (const r of riepilogo) {
-          const imponibile = conSegno(parseFloat(r.imponibile) || 0, nc);
-          const iva = conSegno(parseFloat(r.imposta) || 0, nc);
-          rows.push({
-            data: doc.data_emissione,
-            numero: doc.numero,
-            controparte: doc.cliente_snapshot?.ragione_sociale || "—",
-            imponibile,
-            iva,
-            totale: imponibile + iva,
-            aliquota: r.aliquota || "0",
-            natura: r.natura || "",
-            tipo: doc.tipo,
-            notaCredito: nc,
-          });
-        }
-      } else {
-        // Fallback: usa totali documento
-        rows.push({
-          data: doc.data_emissione,
-          numero: doc.numero,
-          controparte: doc.cliente_snapshot?.ragione_sociale || "—",
-          imponibile: conSegno(doc.imponibile_totale || 0, nc),
-          iva: conSegno(doc.iva_totale || 0, nc),
-          totale: conSegno(doc.totale_documento || 0, nc),
-          aliquota: "—",
-          natura: "",
-          tipo: doc.tipo,
-          notaCredito: nc,
-        });
-      }
-    }
-    // Reverse charge delle ricevute: l'IVA integrata è a debito, nel periodo di detrazione.
-    for (const doc of documentiAcquisti) {
-      if (!inPeriod(doc.data_detrazione ?? doc.data_fattura)) continue;
-      const nc = isNotaCreditoAcquisto(doc.tipo_documento);
-      const aliquota = Number(doc.aliquota_reverse_charge ?? 22);
-      for (const r of doc.riepilogo_iva || []) {
-        if (!eReverseCharge(r.natura)) continue;
-        const imponibile = conSegno(Math.abs(parseFloat(r.imponibile) || 0), nc);
-        const iva = conSegno(ivaIntegrata(Math.abs(parseFloat(r.imponibile) || 0), aliquota), nc);
-        rows.push({
-          data: doc.data_fattura,
-          numero: doc.numero_fattura,
-          controparte: doc.cedente_ragione_sociale || "—",
-          imponibile,
-          iva,
-          totale: imponibile + iva,
-          aliquota: String(aliquota),
-          natura: `Integrazione reverse charge (${r.natura})`,
-          tipo: "integrazione_rc",
-          notaCredito: nc,
-        });
-      }
-    }
-    return rows;
-  }, [documentiVendite, documentiAcquisti, mese, trimestre, periodoType]);
-
-  // Righe acquisti
-  const righeAcquisti = useMemo(() => {
-    const rows: any[] = [];
-    for (const doc of documentiAcquisti) {
-      if (!inPeriod(doc.data_detrazione ?? doc.data_fattura)) continue;
-      const ricevuta = doc.data_ricezione_sdi ? String(doc.data_ricezione_sdi) : null;
-      const nc = isNotaCreditoAcquisto(doc.tipo_documento);
-      const riepilogo = doc.riepilogo_iva || [];
-      if (riepilogo.length > 0) {
-        for (const r of riepilogo) {
-          const imponibile = conSegno(parseFloat(r.imponibile) || 0, nc);
-          // Reverse charge: la riga N6.x porta l'IVA integrata, detraibile.
-          const rc = eReverseCharge(r.natura);
-          const aliquotaRc = Number(doc.aliquota_reverse_charge ?? 22);
-          const iva = rc
-            ? conSegno(ivaIntegrata(Math.abs(parseFloat(r.imponibile) || 0), aliquotaRc), nc)
-            : conSegno(parseFloat(r.imposta) || 0, nc);
-          rows.push({
-            data: doc.data_fattura,
-            ricevuta,
-            numero: doc.numero_fattura,
-            controparte: doc.cedente_ragione_sociale || "—",
-            imponibile,
-            iva,
-            totale: imponibile + iva,
-            aliquota: rc ? String(aliquotaRc) : r.aliquota || "0",
-            natura: rc ? `${r.natura} · IVA integrata` : r.natura || "",
-            notaCredito: nc,
-            fatturaId: rc ? doc.id : undefined,
-            aliquotaRc: rc ? aliquotaRc : undefined,
-          });
-        }
-      } else {
-        rows.push({
-          data: doc.data_fattura,
-          ricevuta,
-          numero: doc.numero_fattura,
-          controparte: doc.cedente_ragione_sociale || "—",
-          imponibile: conSegno(doc.imponibile_totale || 0, nc),
-          iva: conSegno(doc.iva_totale || 0, nc),
-          totale: conSegno(doc.totale_documento || 0, nc),
-          aliquota: "—",
-          natura: "",
-          notaCredito: nc,
-        });
-      }
-    }
-    // Le integrazioni emesse (TD16-TD19): la stessa IVA, detraibile.
-    for (const doc of documentiVendite) {
-      if (!TIPI_INTEGRAZIONE.includes(doc.tipo) || !inPeriod(doc.data_emissione)) continue;
-      const iva = Number(doc.iva_totale) || 0;
-      rows.push({
-        data: doc.data_emissione,
-        ricevuta: null,
-        numero: doc.numero,
-        controparte: doc.cliente_snapshot?.ragione_sociale || "—",
-        imponibile: 0,
-        iva,
-        totale: iva,
-        aliquota: "—",
-        natura: "Integrazione (detrazione)",
-        notaCredito: false,
-      });
-    }
-    return rows;
-  }, [documentiAcquisti, documentiVendite, mese, trimestre, periodoType]);
-
-  const queryClient = useQueryClient();
-  const cambiaAliquotaRc = async (fatturaId: string, aliquota: number) => {
-    const { error } = await supabase
-      .from("fatture_ricevute" as never)
-      .update({ aliquota_reverse_charge: aliquota } as never)
-      .eq("id", fatturaId)
-      .eq("company_id", companyId!);
-    if (error) {
-      toast.error("Aliquota non salvata", { description: error.message });
-      return;
-    }
-    toast.success(`Reverse charge integrato al ${aliquota}%`);
-    await queryClient.invalidateQueries({ queryKey: ["registro-iva-acquisti", companyId, anno] });
+  const rows = useMemo(
+    () => fiscalRows(sales.data || [], purchases.data || []),
+    [sales.data, purchases.data],
+  );
+  const issues = fiscalDocumentIssues(rows);
+  const matching = rows.filter(
+    (r) =>
+      (side === "tutti" || r.side === side) &&
+      (!onlyIssues || r.issues.length > 0) &&
+      `${r.number} ${r.counterparty} ${r.nature}`
+        .toLocaleLowerCase("it")
+        .includes(search.toLocaleLowerCase("it")),
+  );
+  const groups = fiscalVatGroups(matching);
+  const filtered = selectedGroup
+    ? matching.filter(
+        (row) =>
+          JSON.stringify([row.side, row.rate, row.nature, row.exigibility]) ===
+          selectedGroup,
+      )
+    : matching;
+  const totals = fiscalTotals(filtered),
+    documentedRows = filtered.filter((row) => !row.synthetic).length,
+    projectionRows = filtered.length - documentedRows,
+    pages = Math.max(1, Math.ceil(filtered.length / 50)),
+    current = Math.min(page, pages - 1);
+  const iva = useLiquidazioneIVA();
+  if (!company)
+    return <p>Seleziona un’azienda per consultare i dati fiscali.</p>;
+  if (
+    sales.isPending ||
+    purchases.isPending ||
+    sales.isError ||
+    purchases.isError
+  )
+    return (
+      <FiscalQueryState
+        loading={sales.isPending || purchases.isPending}
+        error={sales.isError || purchases.isError}
+        onRetry={() => {
+          void sales.refetch();
+          void purchases.refetch();
+        }}
+      />
+    );
+  const exportCsv = () => {
+    const cells = [
+      [
+        "Data documento",
+        "Data periodo",
+        "Ricezione SDI",
+        "Numero",
+        "Controparte",
+        "Imponibile",
+        "IVA",
+        "Aliquota",
+        "Natura",
+        "Origine",
+        "Da verificare",
+      ],
+      ...filtered.map((r) => [
+        r.date,
+        r.periodDate,
+        r.received || "",
+        r.number,
+        r.counterparty,
+        r.base === null ? "" : (r.base / 100).toFixed(2).replace(".", ","),
+        r.tax === null ? "" : (r.tax / 100).toFixed(2).replace(".", ","),
+        r.rate ?? "",
+        r.nature,
+        r.synthetic ? "Proiezione RC, non registrazione" : r.documentId,
+        r.issues.join(" · "),
+      ]),
+    ];
+    const csv = cells
+      .map((row) => row.map((c) => escapeCsvCell(String(c), ";")).join(";"))
+      .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `registro-documentale-${side}-${p.dal}-${p.al}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-
-  // Totali liquidazione
-  const totaleVendite = useMemo(() => ({
-    imponibile: righeVendite.reduce((s, r) => s + r.imponibile, 0),
-    iva: righeVendite.reduce((s, r) => s + r.iva, 0),
-  }), [righeVendite]);
-
-  const totaleAcquisti = useMemo(() => ({
-    imponibile: righeAcquisti.reduce((s, r) => s + r.imponibile, 0),
-    iva: righeAcquisti.reduce((s, r) => s + r.iva, 0),
-  }), [righeAcquisti]);
-
-  const saldoIVA = totaleVendite.iva - totaleAcquisti.iva;
-
-  const periodoLabel = periodoType === "mensile"
-    ? `${MESI[mese - 1]} ${anno}`
-    : `${trimestre}° trimestre ${anno}`;
-
   return (
-    <div className="space-y-6">
-      <FiscalitaNavigation />
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Registro IVA</h1>
-          <p className="text-sm text-muted-foreground">Liquidazione IVA acquisti e vendite — {periodoLabel}</p>
+    <div className="space-y-4">
+      <FiscalSectionHeader
+        title="Registro IVA documentale"
+        description={
+          <>
+            Dal {fiscalDate(p.dal)} al {fiscalDate(p.al)} · valori delle fatture
+            presenti, non una liquidazione fiscale approvata.
+          </>
+        }
+      />
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(["vendite", "acquisti"] as const).map((s) => {
+          const t = fiscalTotals(rows.filter((r) => r.side === s));
+          return (
+            <FiscalMetric
+              key={s}
+              label={`IVA documenti ${s}`}
+              value={money(t.tax)}
+              onClick={() => {
+                p.set({
+                  registro: s,
+                  filtro_iva: "tutti",
+                  gruppo_iva: "",
+                  q_iva: "",
+                });
+                setPage(0);
+              }}
+              active={side === s && !onlyIssues && !selectedGroup}
+              description={
+                <>
+                  {t.count} {t.count === 1 ? "documento" : "documenti"} ·
+                  imponibile {money(t.base)} · proiezioni RC escluse
+                </>
+              }
+            />
+          );
+        })}
+        <FiscalMetric
+          label="Qualità dei dati"
+          warning
+          onClick={() => {
+            p.set({
+              registro: "tutti",
+              filtro_iva: "verificare",
+              gruppo_iva: "",
+              q_iva: "",
+            });
+            setPage(0);
+          }}
+          active={onlyIssues}
+          value={
+            <>
+              {issues.length} {issues.length === 1 ? "documento" : "documenti"}{" "}
+              da verificare
+            </>
+          }
+          description="Gli importi presenti non attestano detraibilità, esigibilità o adempimento."
+        />
+      </div>
+      {issues.length > 0 && (
+        <details className="rounded-xl border bg-white p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Controlli e dati mancanti
+          </summary>
+          <ul className="mt-3 max-h-56 space-y-2 overflow-auto text-sm">
+            {issues.map((r) => (
+              <li key={r.id}>
+                <FiscalSourceViewer
+                  id={r.documentId}
+                  label={r.number}
+                  type={r.side}
+                />{" "}
+                · {r.side}: {r.issues.join(" · ")}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="Registri IVA" className="flex gap-1">
+          {(["vendite", "acquisti", "tutti"] as const).map((s) => (
+            <Button
+              key={s}
+              role="tab"
+              aria-selected={side === s}
+              variant={side === s ? "default" : "outline"}
+              onClick={() => {
+                p.set({ registro: s, gruppo_iva: "" });
+                setPage(0);
+              }}
+            >
+              {s === "tutti" ? "Tutti i documenti" : `Registro ${s}`}
+            </Button>
+          ))}
         </div>
-        <div className="flex items-center gap-3">
-          {/* Anno */}
-          <Select value={String(anno)} onValueChange={(v) => setAnno(parseInt(v))}>
-            <SelectTrigger className="w-[90px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {/* Tipo periodo */}
-          <Select value={periodoType} onValueChange={(v) => setPeriodoType(v as any)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mensile">Mensile</SelectItem>
-              <SelectItem value="trimestrale">Trimestrale</SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Selezione mese o trimestre */}
-          {periodoType === "mensile" ? (
-            <Select value={String(mese)} onValueChange={(v) => setMese(parseInt(v))}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MESI.map((m, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Select value={String(trimestre)} onValueChange={(v) => setTrimestre(parseInt(v))}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">1° Trimestre</SelectItem>
-                <SelectItem value="2">2° Trimestre</SelectItem>
-                <SelectItem value="3">3° Trimestre</SelectItem>
-                <SelectItem value="4">4° Trimestre</SelectItem>
-              </SelectContent>
-            </Select>
+        <Input
+          className="min-w-40 flex-1"
+          aria-label="Cerca nel registro IVA"
+          placeholder="Numero o controparte…"
+          value={search}
+          onChange={(e) => {
+            p.set({ q_iva: e.target.value }, true);
+            setPage(0);
+          }}
+        />
+        <Button
+          variant="outline"
+          disabled={
+            !filtered.length ||
+            filtered.some((r) => r.tax === null || r.base === null)
+          }
+          onClick={exportCsv}
+        >
+          Esporta CSV
+        </Button>
+      </div>
+      {(search || onlyIssues || selectedGroup) && (
+        <p className="text-xs text-muted-foreground">
+          La ricerca filtra l’elenco; i riepiloghi in alto si riferiscono
+          all’intero periodo.{" "}
+          {onlyIssues ? "Solo righe con verifiche aperte. " : ""}
+          <button
+            className="ml-2 text-blue-700 underline"
+            onClick={() => {
+              p.set({ q_iva: "", filtro_iva: "tutti", gruppo_iva: "" });
+              setPage(0);
+            }}
+          >
+            Azzera filtri del registro
+          </button>
+        </p>
+      )}
+      <details className="rounded-xl border bg-white p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Riepilogo per aliquota e natura · {groups.length}{" "}
+          {groups.length === 1 ? "gruppo" : "gruppi"}
+        </summary>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Righe documentali dei filtri correnti, senza proiezioni RC. Uno stesso
+          documento può contenere più aliquote: non sommare i conteggi dei
+          gruppi.
+        </p>
+        <div className="mt-3 space-y-2">
+          {groups.map((group) => (
+            <button
+              key={group.key}
+              aria-pressed={group.key === selectedGroup}
+              className="flex w-full flex-wrap justify-between gap-2 rounded-lg border p-3 text-left text-sm hover:bg-blue-50"
+              onClick={() => {
+                p.set({ gruppo_iva: group.key });
+                setPage(0);
+              }}
+            >
+              <span>
+                {group.side === "vendite" ? "Vendite" : "Acquisti"} ·{" "}
+                {group.rate === null
+                  ? "Aliquota da verificare"
+                  : `${group.rate}%`}{" "}
+                ·{" "}
+                {group.nature ||
+                  (Number(group.rate) > 0
+                    ? "Operazione imponibile"
+                    : "Natura non indicata")}{" "}
+                · Esigibilità{" "}
+                {group.exigibility === "I"
+                  ? "immediata"
+                  : group.exigibility === "D"
+                    ? "differita"
+                    : group.exigibility === "S"
+                      ? "split payment"
+                      : "da verificare"}
+              </span>
+              <span>
+                {group.count} {group.count === 1 ? "documento" : "documenti"} ·
+                Imponibile {money(group.base)} · IVA {money(group.tax)}
+              </span>
+            </button>
+          ))}
+          {!groups.length && (
+            <p className="text-sm">
+              Nessuna riga documentale nei filtri correnti.
+            </p>
           )}
         </div>
+      </details>
+      <div className="overflow-x-auto rounded-xl border bg-white">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {[
+                "Documento / controparte",
+                "Data / periodo",
+                "Imponibile",
+                "IVA",
+                "Aliquota / natura",
+                "Verifica",
+              ].map((h) => (
+                <th key={h} className="p-3 font-medium">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.slice(current * 50, (current + 1) * 50).map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="p-3">
+                  <FiscalSourceViewer
+                    id={r.documentId}
+                    label={r.number}
+                    type={r.synthetic ? "acquisti" : r.side}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {r.counterparty}
+                  </p>
+                </td>
+                <td className="p-3 whitespace-nowrap">
+                  {fiscalDate(r.date)}
+                  {r.periodDate !== r.date && (
+                    <p className="text-xs text-muted-foreground">
+                      Periodo {fiscalDate(r.periodDate)}
+                    </p>
+                  )}
+                  {r.side === "acquisti" && (
+                    <p className="text-xs text-muted-foreground">
+                      Ricezione {fiscalDate(r.received, "non documentata")}
+                    </p>
+                  )}
+                </td>
+                <td className="p-3 whitespace-nowrap">{money(r.base)}</td>
+                <td className="p-3 whitespace-nowrap">{money(r.tax)}</td>
+                <td className="p-3">
+                  {r.rate === null ? "Da verificare" : r.rate + "%"}
+                  <p className="text-xs text-muted-foreground">
+                    {r.nature || "—"}
+                    {r.exigibility === "S" ? " · Split payment" : ""}
+                  </p>
+                </td>
+                <td className="max-w-xs p-3 text-xs text-muted-foreground">
+                  {r.synthetic
+                    ? "Proiezione RC · non contabilizzata"
+                    : r.issues.length
+                      ? r.issues.join(" · ")
+                      : "Dato presente nel documento"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!filtered.length && (
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            Nessun documento corrisponde al periodo e ai filtri selezionati. Non
+            certifica l’assenza di obblighi fiscali.
+          </p>
+        )}
       </div>
-
-      {/* KPI Liquidazione */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <TrendingUp className="h-4 w-4 text-blue-500" /> IVA a debito (vendite)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{formatCurrency(totaleVendite.iva)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Imponibile: {formatCurrency(totaleVendite.imponibile)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <TrendingDown className="h-4 w-4 text-orange-500" /> IVA a credito (acquisti)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{formatCurrency(totaleAcquisti.iva)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Imponibile: {formatCurrency(totaleAcquisti.imponibile)}</p>
-          </CardContent>
-        </Card>
-        <Card className={saldoIVA > 0 ? "border-destructive/30" : "border-emerald-300/50"}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Scale className="h-4 w-4" />
-              {saldoIVA > 0 ? "IVA da versare" : "IVA a credito"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold tabular-nums ${saldoIVA > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
-              {formatCurrency(Math.abs(saldoIVA))}
-            </div>
-            <Badge variant={saldoIVA > 0 ? "destructive" : "outline"} className="mt-1 text-[10px]">
-              {saldoIVA > 0 ? "Da versare entro scadenza" : "Riporto a credito"}
-            </Badge>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabelle */}
-      <Tabs defaultValue="vendite">
-        <div className="flex items-center justify-between mb-3">
-          <TabsList>
-            <TabsTrigger value="vendite">Registro Vendite ({righeVendite.length})</TabsTrigger>
-            <TabsTrigger value="acquisti">Registro Acquisti ({righeAcquisti.length})</TabsTrigger>
-          </TabsList>
-          <div className="flex gap-2">
-            {/* Niente export su telefono. */}
-            {!isMobile && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const tab = document.querySelector<HTMLButtonElement>('[data-state="active"][role="tab"]');
-                  const isAcquisti = tab?.textContent?.includes("Acquisti");
-                  exportCSV(
-                    isAcquisti ? righeAcquisti : righeVendite,
-                    `registro-iva-${isAcquisti ? "acquisti" : "vendite"}-${periodoLabel.replace(/ /g, "_")}.csv`
-                  );
-                  toast.success("CSV esportato");
-                }}
-              >
-                <Download className="h-3.5 w-3.5 mr-1" /> Esporta CSV
-              </Button>
-            )}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p>
+          {totals.count} {totals.count === 1 ? "documento" : "documenti"}
+          {documentedRows !== totals.count && (
+            <> · {documentedRows} righe IVA</>
+          )}
+          {projectionRows > 0 && (
+            <>
+              {" "}
+              · {projectionRows}{" "}
+              {projectionRows === 1
+                ? "proiezione RC non contabilizzata"
+                : "proiezioni RC non contabilizzate"}
+            </>
+          )}
+          {(search || onlyIssues || selectedGroup) && (
+            <> · IVA dei risultati: {money(totals.tax)}</>
+          )}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={current === 0}
+            onClick={() => setPage(current - 1)}
+          >
+            Precedenti
+          </Button>
+          <span aria-label="Pagina del registro">
+            Pagina {current + 1} di {pages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={current >= pages - 1}
+            onClick={() => setPage(current + 1)}
+          >
+            Successivi
+          </Button>
         </div>
-
-        <TabsContent value="vendite">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Numero</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Imponibile</TableHead>
-                    <TableHead className="text-right">IVA</TableHead>
-                    <TableHead className="text-right">Totale</TableHead>
-                    <TableHead>Aliquota</TableHead>
-                    <TableHead>Natura</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {righeVendite.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        Nessuna operazione nel periodo selezionato
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {righeVendite.map((r, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="text-xs">{formatDataIT(r.data)}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {r.numero}
-                            {r.notaCredito && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">NC</Badge>}
-                          </TableCell>
-                          <TableCell className="text-xs max-w-[200px] truncate">{r.controparte}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.imponibile)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.iva)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(r.totale)}</TableCell>
-                          <TableCell className="text-xs">{r.aliquota !== "—" ? `${r.aliquota}%` : "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{r.natura || "—"}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/30 font-medium">
-                        <TableCell colSpan={3} className="text-xs font-bold">TOTALE</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleVendite.imponibile)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold text-blue-600 dark:text-blue-400">{formatCurrency(totaleVendite.iva)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleVendite.imponibile + totaleVendite.iva)}</TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="acquisti">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead title="Quando lo SDI l'ha consegnata: decide il periodo di detrazione. Vuota = non nota, vale la data della fattura.">Ricevuta</TableHead>
-                    <TableHead>Numero</TableHead>
-                    <TableHead>Fornitore</TableHead>
-                    <TableHead className="text-right">Imponibile</TableHead>
-                    <TableHead className="text-right">IVA</TableHead>
-                    <TableHead className="text-right">Totale</TableHead>
-                    <TableHead>Aliquota</TableHead>
-                    <TableHead>Natura</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {righeAcquisti.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                        Nessuna fattura ricevuta nel periodo selezionato
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {righeAcquisti.map((r, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="text-xs">{formatDataIT(r.data)}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{formatRicevutaIT(r.ricevuta) || "—"}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {r.numero}
-                            {r.notaCredito && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">NC</Badge>}
-                          </TableCell>
-                          <TableCell className="text-xs max-w-[200px] truncate">{r.controparte}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.imponibile)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.iva)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(r.totale)}</TableCell>
-                          <TableCell className="text-xs">
-                            {r.fatturaId ? (
-                              // Reverse charge: l'aliquota dipende dal lavoro (10% manutenzione su abitazioni…).
-                              <select
-                                aria-label={`Aliquota del reverse charge della fattura ${r.numero}`}
-                                className="h-7 rounded-md border bg-background px-1 text-xs"
-                                value={String(r.aliquotaRc)}
-                                onChange={(e) => void cambiaAliquotaRc(r.fatturaId, Number(e.target.value))}
-                              >
-                                {ALIQUOTE_RC.map((a) => <option key={a} value={a}>{a}%</option>)}
-                              </select>
-                            ) : r.aliquota !== "—" ? `${r.aliquota}%` : "—"}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{r.natura || "—"}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/30 font-medium">
-                        <TableCell colSpan={4} className="text-xs font-bold">TOTALE</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleAcquisti.imponibile)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold text-orange-600 dark:text-orange-400">{formatCurrency(totaleAcquisti.iva)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleAcquisti.imponibile + totaleAcquisti.iva)}</TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Nota legale */}
-      <p className="text-xs text-muted-foreground text-center pb-4">
-        Dati a titolo informativo. Verificare con il proprio commercialista prima di procedere alla liquidazione IVA periodica.
-      </p>
+      </div>
+      <details className="rounded-xl border bg-white p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Prospetto IVA preliminare del server
+        </summary>
+        <div className="mt-4">
+          <LiquidazioneIVA
+            {...iva}
+            documental={{
+              vendite: fiscalTotals(
+                rows.filter((row) => row.side === "vendite"),
+              ).tax,
+              acquisti: fiscalTotals(
+                rows.filter((row) => row.side === "acquisti"),
+              ).tax,
+            }}
+          />
+        </div>
+      </details>
     </div>
   );
+}
+function money(cents: number | null) {
+  return cents === null ? "Da verificare" : formatCurrency(cents / 100);
 }

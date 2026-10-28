@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -142,6 +144,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     gcTime: 15 * 60 * 1000,
   });
 
+  const paymentRequest = useRef({signature: "", id: ""});
   const markPaidMutation = useMutation({
     mutationFn: async (params: {
       scadenzaId: string;
@@ -151,7 +154,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       notes?: string;
       accountLabel?: string;
     }) => {
-      const { data, error } = await supabase.rpc("mark_scadenza_paid", {
+      const signature = JSON.stringify(params);
+      if (paymentRequest.current.signature !== signature) paymentRequest.current = {signature, id:crypto.randomUUID()};
+      const { data, error } = await (supabase as any).rpc("mark_scadenza_paid_con_richiesta", {
+        p_request: paymentRequest.current.id,
         p_scadenza_id: params.scadenzaId,
         p_amount: params.amount,
         p_payment_method: params.paymentMethod || "bonifico",
@@ -165,6 +171,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       return result;
     },
     onSuccess: () => {
+      paymentRequest.current = {signature:"",id:""};
+      refreshFinancialQueries(queryClient);
       toast.success("Pagamento registrato");
       queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });

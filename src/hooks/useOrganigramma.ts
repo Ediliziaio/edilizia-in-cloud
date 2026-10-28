@@ -1,66 +1,40 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import type { HrProfilo, OrgTreeNode } from "@/types/hr";
+import type { HrProfilo } from "@/types/hr";
 import { toast } from "sonner";
 
-function buildTree(profili: HrProfilo[]): OrgTreeNode[] {
-  const map = new Map<string, OrgTreeNode>();
-  const roots: OrgTreeNode[] = [];
-
-  profili.forEach((p) => {
-    map.set(p.id, { ...p, children: [], depth: 0 });
-  });
-
-  profili.forEach((p) => {
-    const node = map.get(p.id)!;
-    if (p.responsabile_id && p.responsabile_id !== p.id && map.has(p.responsabile_id)) {
-      const parent = map.get(p.responsabile_id)!;
-      parent.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  });
-
-  const setDepth = (node: OrgTreeNode, depth: number, visited: Set<string>) => {
-    if (visited.has(node.id)) {
-      node.children = [];
-      return;
-    }
-    node.depth = depth;
-    const nextVisited = new Set(visited);
-    nextVisited.add(node.id);
-    node.children.forEach((child) => setDepth(child, depth + 1, nextVisited));
-  };
-
-  roots.forEach((root) => setDepth(root, 0, new Set()));
-
-  return roots;
-}
+import { buildOrgTree } from "@/lib/personale/organizzazione";
 
 export function useOrganigramma() {
   const companyId = useEffectiveCompanyId();
 
   const query = useQuery({
     queryKey: ["hr-organigramma", companyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) throw new Error("companyId required");
-
-      const { data, error } = await supabase
-        .from("hr_profili")
-        .select("*")
-        .eq("company_id", companyId)
-        .eq("attivo", true)
-        .order("posizione_organigramma", { ascending: true })
-        .order("cognome", { ascending: true });
-
-      if (error) throw error;
-
-      const profili = (data || []) as unknown as HrProfilo[];
+      const profili: HrProfilo[] = [];
+      for (let from = 0; ; from += 500) {
+        const { data, error } = await supabase
+          .from("hr_profili")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("attivo", true)
+          .order("posizione_organigramma")
+          .order("cognome")
+          .order("id")
+          .range(from, from + 499)
+          .abortSignal(signal);
+        if (error) throw error;
+        profili.push(...((data || []) as unknown as HrProfilo[]));
+        if (!data || data.length < 500) break;
+      }
       return {
         profili,
-        tree: buildTree(profili),
-        reparti: [...new Set(profili.map((p) => p.reparto).filter(Boolean))] as string[],
+        tree: buildOrgTree(profili),
+        reparti: [
+          ...new Set(profili.map((p) => p.reparto).filter(Boolean)),
+        ] as string[],
       };
     },
     enabled: !!companyId,
@@ -76,17 +50,22 @@ export function useAllHrProfili() {
 
   return useQuery({
     queryKey: ["hr-profili-all", companyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) throw new Error("companyId required");
-
+      const rows: HrProfilo[] = [];
+      for (let from = 0; ; from += 500) {
       const { data, error } = await supabase
         .from("hr_profili")
         .select("*")
         .eq("company_id", companyId)
-        .order("cognome", { ascending: true });
+        .order("cognome", { ascending: true }).order("id")
+        .range(from, from + 499).abortSignal(signal);
 
       if (error) throw error;
-      return (data || []) as unknown as HrProfilo[];
+      rows.push(...((data ?? []) as unknown as HrProfilo[]));
+      if (!data || data.length < 500) break;
+      }
+      return rows;
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -105,19 +84,24 @@ export function useSyncFromEmployees() {
       // Get all active employees
       const { data: employees, error: empError } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, email, phone, user_id, role_type, monthly_hours")
+        .select(
+          "id, first_name, last_name, email, phone, user_id, role_type, monthly_hours",
+        )
         .eq("company_id", companyId)
         .eq("is_active", true);
 
       if (empError) throw empError;
 
       // Get existing hr_profili employee_ids
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("hr_profili")
         .select("employee_id")
         .eq("company_id", companyId);
 
-      const existingIds = new Set((existing || []).map((e: any) => e.employee_id));
+      if (existingError) throw existingError;
+      const existingIds = new Set(
+        (existing || []).map((e: any) => e.employee_id),
+      );
 
       const toCreate = (employees || []).filter((e) => !existingIds.has(e.id));
 
@@ -151,7 +135,10 @@ export function useSyncFromEmployees() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
-      toast.success(`${result.created} profili HR creati da anagrafica dipendenti`);
+      queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
+      toast.success(
+        `${result.created} profili HR creati da anagrafica dipendenti`,
+      );
     },
     onError: (err: any) => {
       toast.error("Errore sincronizzazione: " + err.message);
@@ -164,13 +151,25 @@ export function useUpdateHrProfilo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<HrProfilo> & { id: string }) => {
+    mutationFn: async ({
+      id,
+      ...updates
+    }: Partial<HrProfilo> & { id: string }) => {
       if (!companyId) throw new Error("companyId required");
       // Remove immutable and non-DB fields
       const {
-        created_at, company_id, employee_id, user_id,
-        children, depth, sede, responsabile,
-        employee_first_name, employee_last_name, employee_email, employee_phone,
+        created_at,
+        company_id,
+        employee_id,
+        user_id,
+        children,
+        depth,
+        sede,
+        responsabile,
+        employee_first_name,
+        employee_last_name,
+        employee_email,
+        employee_phone,
         ...safeUpdates
       } = updates as any;
 
@@ -184,7 +183,10 @@ export function useUpdateHrProfilo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });
+      queryClient.invalidateQueries({ queryKey: ["qualifiche-addetto", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["addetti-qualifiche-commessa", companyId] }); queryClient.invalidateQueries({ queryKey: ["pos-riesame-proprio", companyId] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
       toast.success("Profilo HR aggiornato");
     },
     onError: (err: any) => {

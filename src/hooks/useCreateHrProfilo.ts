@@ -63,6 +63,7 @@ export function useCreateHrProfilo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
       toast.success("Profilo HR creato con successo");
     },
     onError: (err: any) => {

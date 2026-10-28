@@ -2,8 +2,11 @@
  * ElementCard — UN elemento (es. UN infisso) con sezioni campi + foto + audio
  */
 import { useMemo } from "react";
-import type { ElementTypeDefinition, SurveyElementRow, SurveyMediaRow } from "@/types/surveys";
-import { SectionRenderer } from "./SectionRenderer";
+import type {
+  ElementTypeDefinition,
+  SurveyElementRow,
+  SurveyMediaRow,
+} from "@/types/surveys";
 import { isVisible } from "./evalConditions";
 import { PhotoChecklist } from "./PhotoChecklist";
 import { FreePhotoUpload } from "./FreePhotoUpload";
@@ -11,10 +14,15 @@ import { AudioRecorder } from "./AudioRecorder";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Copy, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Copy,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  Pencil,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { portoncinoOpeningComplete } from "@/lib/surveys/windowSurvey";
 
 export interface ElementCardProps {
   element: SurveyElementRow;
@@ -22,7 +30,7 @@ export interface ElementCardProps {
   index: number;
   surveyId: string;
   media: SurveyMediaRow[];
-  onChange: (id: string, patch: Partial<SurveyElementRow>) => void;
+  onOpen: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
   onMediaAdded?: (m: SurveyMediaRow) => void;
@@ -30,8 +38,16 @@ export interface ElementCardProps {
 }
 
 export function ElementCard({
-  element, elementType, index, surveyId, media, onChange, onDuplicate, onDelete,
-  onMediaAdded, onMediaDeleted,
+  element,
+  elementType,
+  index,
+  surveyId,
+  media,
+  onOpen,
+  onDuplicate,
+  onDelete,
+  onMediaAdded,
+  onMediaDeleted,
 }: ElementCardProps) {
   const elementMedia = media.filter((m) => m.element_id === element.id);
   const audioMedia = elementMedia.find((m) => m.type === "audio") ?? null;
@@ -54,27 +70,42 @@ export function ElementCard({
 
   const missingFields = useMemo(() => {
     return requiredFields.filter((k) => {
+      if (
+        elementType.key === "portoncino_blindato" &&
+        k === "apertura" &&
+        portoncinoOpeningComplete(element.values)
+      )
+        return false;
       const v = element.values?.[k];
       return v == null || v === "" || (Array.isArray(v) && v.length === 0);
     });
-  }, [element.values, requiredFields]);
+  }, [element.values, elementType.key, requiredFields]);
 
   const missingPhotos = useMemo(() => {
     return (elementType.required_photos ?? [])
       .filter((p) => p.required)
-      .filter((p) => !elementMedia.some((m) => m.checklist_key === p.key && m.type === "photo"));
+      .filter(
+        (p) =>
+          !elementMedia.some(
+            (m) => m.checklist_key === p.key && m.type === "photo",
+          ),
+      );
   }, [elementType, elementMedia]);
 
   const isComplete = missingFields.length === 0 && missingPhotos.length === 0;
 
   return (
-    <Card className={cn(
-      "border-2",
-      isComplete ? "border-emerald-200 bg-emerald-50/20" : "border-amber-200",
-    )}>
+    <Card
+      className={cn(
+        "border-2",
+        isComplete ? "border-emerald-200 bg-emerald-50/20" : "border-amber-200",
+      )}
+    >
       <CardHeader className="p-3 pb-2 flex-row items-center justify-between gap-2 space-y-0">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[10px]">#{index + 1}</Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            #{index + 1}
+          </Badge>
           <p className="font-semibold text-sm">{elementType.label}</p>
           {isComplete ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -84,12 +115,24 @@ export function ElementCard({
         </div>
         <div className="flex gap-1">
           {onDuplicate && (
-            <Button variant="ghost" size="icon" onClick={onDuplicate} className="h-7 w-7" title="Duplica">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDuplicate}
+              className="h-7 w-7"
+              title="Duplica"
+            >
               <Copy className="h-3.5 w-3.5" />
             </Button>
           )}
           {onDelete && (
-            <Button variant="ghost" size="icon" onClick={onDelete} className="h-7 w-7 text-rose-600" title="Elimina">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              className="h-7 w-7 text-rose-600"
+              title="Elimina"
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -99,37 +142,43 @@ export function ElementCard({
         {(missingFields.length > 0 || missingPhotos.length > 0) && (
           <div className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] text-amber-800">
             {missingFields.length > 0 && (
-              <p>Mancano {missingFields.length} {missingFields.length === 1 ? "campo" : "campi"} obbligatori</p>
+              <p>
+                Mancano {missingFields.length}{" "}
+                {missingFields.length === 1 ? "campo" : "campi"} obbligatori
+              </p>
             )}
             {missingPhotos.length > 0 && (
-              <p>Mancano {missingPhotos.length} {missingPhotos.length === 1 ? "foto richiesta" : "foto richieste"}</p>
+              <p>
+                Mancano {missingPhotos.length}{" "}
+                {missingPhotos.length === 1
+                  ? "foto richiesta"
+                  : "foto richieste"}
+              </p>
             )}
           </div>
         )}
 
-        {elementType.allow_quantity !== false && (
-          <div>
-            <Label className="text-xs">Quantità</Label>
-            <Input
-              type="number"
-              min={1}
-              value={element.quantity}
-              onChange={(e) => onChange(element.id, { quantity: parseInt(e.target.value) || 1 })}
-              className="h-9 w-24"
-            />
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {element.element_label || elementType.label} · Quantità{" "}
+              {element.quantity}
+            </p>
+            <p className="text-xs text-slate-500">
+              Scheda visuale con misure, aperture e dettagli. Salvataggio
+              esplicito.
+            </p>
           </div>
-        )}
-
-        {elementType.sections.map((section) => (
-          <SectionRenderer
-            key={section.key}
-            section={section}
-            values={element.values ?? {}}
-            onChange={(k, v) => onChange(element.id, {
-              values: { ...(element.values ?? {}), [k]: v },
-            })}
-          />
-        ))}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpen}
+            className="min-h-11 gap-2 rounded-xl"
+          >
+            <Pencil className="h-4 w-4" />
+            Apri scheda elemento
+          </Button>
+        </div>
 
         {(elementType.required_photos?.length ?? 0) > 0 && (
           <PhotoChecklist

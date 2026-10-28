@@ -16,6 +16,7 @@
  * stessi per la pipeline e per l'elenco, e vivono nell'URL.
  */
 import type { MaterialeFase } from "@/hooks/useMaterialiPerFase";
+import { format, parseISO, subDays } from "date-fns";
 
 export interface MaterialeAcquisti extends MaterialeFase {
   commessa: string;
@@ -38,6 +39,10 @@ export interface OdaPipeline {
   issue_date: string | null;
   expected_delivery_date: string | null;
   actual_delivery_date?: string | null;
+  purchase_order_items?: Array<{
+    quantity: number | null;
+    quantity_received: number | null;
+  }>;
   suppliers?: { name: string } | null;
   orders?: { order_code: string | null } | null;
 }
@@ -64,19 +69,57 @@ export interface ContatoriRfqPipeline {
   fornitori?: string[];
 }
 
-export type ColonnaId = "da_ordinare" | "offerta" | "ordinato" | "in_consegna" | "consegnato";
+export type ColonnaId =
+  | "da_ordinare"
+  | "offerta"
+  | "ordinato"
+  | "in_consegna"
+  | "consegnato";
 
-export const COLONNE: { id: ColonnaId; titolo: string; descrizione: string; colore: string }[] = [
-  { id: "da_ordinare", titolo: "Da ordinare", descrizione: "Materiali validati e ordini in bozza", colore: "#64748b" },
-  { id: "offerta", titolo: "Richiesta d'offerta", descrizione: "In attesa dei prezzi dei fornitori", colore: "#d97706" },
-  { id: "ordinato", titolo: "Ordinato", descrizione: "Inviati o confermati dal fornitore", colore: "#2563eb" },
-  { id: "in_consegna", titolo: "In consegna", descrizione: "Arrivati in parte", colore: "#7c3aed" },
-  { id: "consegnato", titolo: "Consegnato", descrizione: "Merce ricevuta", colore: "#059669" },
+export const COLONNE: {
+  id: ColonnaId;
+  titolo: string;
+  descrizione: string;
+  colore: string;
+}[] = [
+  {
+    id: "da_ordinare",
+    titolo: "Da ordinare",
+    descrizione: "Materiali validati e ordini in bozza",
+    colore: "#64748b",
+  },
+  {
+    id: "offerta",
+    titolo: "Richiesta d'offerta",
+    descrizione: "In attesa dei prezzi dei fornitori",
+    colore: "#d97706",
+  },
+  {
+    id: "ordinato",
+    titolo: "Ordinato",
+    descrizione: "Inviati o confermati dal fornitore",
+    colore: "#2563eb",
+  },
+  {
+    id: "in_consegna",
+    titolo: "In consegna",
+    descrizione: "Arrivati in parte",
+    colore: "#7c3aed",
+  },
+  {
+    id: "consegnato",
+    titolo: "Consegnato",
+    descrizione: "Merce ricevuta",
+    colore: "#059669",
+  },
 ];
 
 export const STATI_RFQ_APERTE = ["bozza", "inviata", "in_valutazione"];
 
 export interface FiltriAcquisti {
+  /** Stato ed emissione filtrano gli OdA, in entrambe le viste. */
+  stato?: "bozze" | "attivi" | "ricevuti" | "annullati";
+  periodo?: "30" | "90" | "anno";
   /** null = tutte; "_nessuna" = senza commessa (scorte, attrezzatura). */
   commessa: string | null;
   /** null = tutti; "_nessuno" = materiali senza fornitore. */
@@ -87,12 +130,20 @@ export interface FiltriAcquisti {
   cerca: string;
 }
 
-export const FILTRI_VUOTI: FiltriAcquisti = { commessa: null, fornitore: null, fase: null, soloRitardo: false, cerca: "" };
+export const FILTRI_VUOTI: FiltriAcquisti = {
+  commessa: null,
+  fornitore: null,
+  fase: null,
+  soloRitardo: false,
+  cerca: "",
+};
 
 export type VistaAcquisti = "pipeline" | "elenco";
 
 /** Filtri e vista dall'URL: chi copia il link ritrova la stessa schermata. */
-export function leggiFiltriAcquisti(params: URLSearchParams): FiltriAcquisti & { vista: VistaAcquisti } {
+export function leggiFiltriAcquisti(
+  params: URLSearchParams,
+): FiltriAcquisti & { vista: VistaAcquisti } {
   return {
     vista: params.get("vista") === "elenco" ? "elenco" : "pipeline",
     commessa: params.get("commessa") || null,
@@ -100,12 +151,37 @@ export function leggiFiltriAcquisti(params: URLSearchParams): FiltriAcquisti & {
     fase: params.get("fase") || null,
     soloRitardo: params.get("ritardo") === "1",
     cerca: params.get("cerca") ?? "",
+    ...(["bozze", "attivi", "ricevuti", "annullati"].includes(
+      params.get("stato") ?? "",
+    )
+      ? { stato: params.get("stato") as FiltriAcquisti["stato"] }
+      : {}),
+    ...(["30", "90", "anno"].includes(params.get("periodo") ?? "")
+      ? { periodo: params.get("periodo") as FiltriAcquisti["periodo"] }
+      : {}),
   };
 }
 
 /** Scrive un filtro nell'URL; i valori vuoti spariscono dall'indirizzo. */
-export function scriviFiltroAcquisti(params: URLSearchParams, chiave: string, valore: string | null | boolean): URLSearchParams {
+export function scriviFiltroAcquisti(
+  params: URLSearchParams,
+  chiave: string,
+  valore: string | null | boolean,
+): URLSearchParams {
   const p = new URLSearchParams(params);
+  if (chiave === "commessa") p.delete("fase");
+  if (
+    [
+      "commessa",
+      "forn",
+      "fase",
+      "ritardo",
+      "cerca",
+      "periodo",
+      "stato",
+    ].includes(chiave)
+  )
+    p.delete("oda_pagina");
   const v = typeof valore === "boolean" ? (valore ? "1" : null) : valore;
   if (v == null || v === "") p.delete(chiave);
   else p.set(chiave, v);
@@ -113,7 +189,9 @@ export function scriviFiltroAcquisti(params: URLSearchParams, chiave: string, va
 }
 
 function giorniTra(da: string, a: string): number {
-  return Math.floor((new Date(a).getTime() - new Date(da).getTime()) / 86400000);
+  return Math.floor(
+    (new Date(a).getTime() - new Date(da).getTime()) / 86400000,
+  );
 }
 
 /**
@@ -121,7 +199,10 @@ function giorniTra(da: string, a: string): number {
  * data di consegna passata, merce non ancora tutta arrivata. Bozze e annullati
  * non possono esserlo: le prime non le ha viste nessuno, i secondi non arrivano.
  */
-export function giorniRitardoOda(o: Pick<OdaPipeline, "status" | "expected_delivery_date">, oggi: string): number | null {
+export function giorniRitardoOda(
+  o: Pick<OdaPipeline, "status" | "expected_delivery_date">,
+  oggi: string,
+): number | null {
   if (!o.expected_delivery_date) return null;
   if (!["inviato", "confermato", "parziale"].includes(o.status)) return null;
   const d = o.expected_delivery_date.slice(0, 10);
@@ -131,7 +212,10 @@ export function giorniRitardoOda(o: Pick<OdaPipeline, "status" | "expected_deliv
 }
 
 /** Una richiesta aperta è in ritardo se la scadenza delle offerte è passata. */
-export function giorniRitardoRfq(r: Pick<RfqPipeline, "status" | "scadenza_offerte">, oggi: string): number | null {
+export function giorniRitardoRfq(
+  r: Pick<RfqPipeline, "status" | "scadenza_offerte">,
+  oggi: string,
+): number | null {
   if (!r.scadenza_offerte || !STATI_RFQ_APERTE.includes(r.status)) return null;
   const d = r.scadenza_offerte.slice(0, 10);
   if (d >= oggi) return null;
@@ -142,12 +226,17 @@ export function giorniRitardoRfq(r: Pick<RfqPipeline, "status" | "scadenza_offer
 /** In quale colonna va un ordine (null = fuori dalla pipeline: annullato). */
 export function colonnaOda(status: string): ColonnaId | null {
   switch (status) {
-    case "bozza": return "da_ordinare";
+    case "bozza":
+      return "da_ordinare";
     case "inviato":
-    case "confermato": return "ordinato";
-    case "parziale": return "in_consegna";
-    case "ricevuto": return "consegnato";
-    default: return null;
+    case "confermato":
+      return "ordinato";
+    case "parziale":
+      return "in_consegna";
+    case "ricevuto":
+      return "consegnato";
+    default:
+      return null;
   }
 }
 
@@ -168,6 +257,7 @@ export interface CartaAcquisto {
   /** Una riga in più: «2/3 risposte», «Bozza da mandare». */
   nota: string | null;
   href: string;
+  ricezione?: { righe: number; complete: number; parziali: number };
 }
 
 export interface ColonnaAcquisti {
@@ -184,10 +274,12 @@ export interface ColonnaAcquisti {
   nascoste: number;
 }
 
-const contiene = (testo: string | null | undefined, q: string) => (testo ?? "").toLowerCase().includes(q);
+const contiene = (testo: string | null | undefined, q: string) =>
+  (testo ?? "").toLowerCase().includes(q);
 
-export const importoMateriale = (m: Pick<MaterialeFase, "purchase_price" | "quantity">) =>
-  (Number(m.purchase_price) || 0) * (Number(m.quantity) || 0);
+export const importoMateriale = (
+  m: Pick<MaterialeFase, "purchase_price" | "quantity">,
+) => (Number(m.purchase_price) || 0) * (Number(m.quantity) || 0);
 
 /** Ordini e richieste che toccano una fase: lo dicono i materiali della fase. */
 function indiciFase(materiali: MaterialeAcquisti[], fase: string | null) {
@@ -202,39 +294,123 @@ function indiciFase(materiali: MaterialeAcquisti[], fase: string | null) {
   return { oda, rfq };
 }
 
-export function materialeVisibile(m: MaterialeAcquisti, f: FiltriAcquisti): boolean {
+export function materialeVisibile(
+  m: MaterialeAcquisti,
+  f: FiltriAcquisti,
+): boolean {
   if (f.soloRitardo) return false; // un materiale da ordinare non ha ancora una data da mancare
   if (f.commessa && m.order_id !== f.commessa) return false;
-  if (f.fornitore === "_nessuno" ? !!m.supplier_id : f.fornitore && m.supplier_id !== f.fornitore) return false;
+  if (
+    f.fornitore === "_nessuno"
+      ? !!m.supplier_id
+      : f.fornitore && m.supplier_id !== f.fornitore
+  )
+    return false;
   if (f.fase && m.phase_id !== f.fase) return false;
   const q = f.cerca.trim().toLowerCase();
-  if (q && !(contiene(m.name, q) || contiene(m.specifiche, q) || contiene(m.commessa, q) || contiene(m.fase, q))) return false;
+  if (
+    q &&
+    !(
+      contiene(m.name, q) ||
+      contiene(m.specifiche, q) ||
+      contiene(m.commessa, q) ||
+      contiene(m.fase, q)
+    )
+  )
+    return false;
   return true;
 }
 
-export function odaVisibile(o: OdaPipeline, f: FiltriAcquisti, oggi: string, faseOda: Set<string> | null): boolean {
-  if (f.commessa === "_nessuna" ? !!o.order_id : f.commessa && o.order_id !== f.commessa) return false;
-  if (f.fornitore === "_nessuno" || (f.fornitore && o.supplier_id !== f.fornitore)) return false;
+export function odaVisibile(
+  o: OdaPipeline,
+  f: FiltriAcquisti,
+  oggi: string,
+  faseOda: Set<string> | null,
+): boolean {
+  if (f.stato === "bozze" && o.status !== "bozza") return false;
+  if (
+    f.stato === "attivi" &&
+    !["inviato", "confermato", "parziale"].includes(o.status)
+  )
+    return false;
+  if (f.stato === "ricevuti" && o.status !== "ricevuto") return false;
+  if (f.stato === "annullati" && o.status !== "annullato") return false;
+  if (f.periodo) {
+    const da =
+      f.periodo === "anno"
+        ? `${oggi.slice(0, 4)}-01-01`
+        : format(subDays(parseISO(oggi), Number(f.periodo)), "yyyy-MM-dd");
+    const data = o.issue_date?.slice(0, 10);
+    if (!data || data < da || data > oggi) return false;
+  }
+  if (
+    f.commessa === "_nessuna"
+      ? !!o.order_id
+      : f.commessa && o.order_id !== f.commessa
+  )
+    return false;
+  if (
+    f.fornitore === "_nessuno" ||
+    (f.fornitore && o.supplier_id !== f.fornitore)
+  )
+    return false;
   if (faseOda && !faseOda.has(o.id)) return false;
   if (f.soloRitardo && giorniRitardoOda(o, oggi) === null) return false;
   const q = f.cerca.trim().toLowerCase();
-  if (q && !(contiene(o.oda_number, q) || contiene(o.suppliers?.name, q) || contiene(o.orders?.order_code, q))) return false;
+  if (
+    q &&
+    !(
+      contiene(o.oda_number, q) ||
+      contiene(o.suppliers?.name, q) ||
+      contiene(o.orders?.order_code, q)
+    )
+  )
+    return false;
   return true;
 }
 
-function rfqVisibile(r: RfqPipeline, c: ContatoriRfqPipeline | undefined, f: FiltriAcquisti, oggi: string, faseRfq: Set<string> | null): boolean {
-  if (f.commessa === "_nessuna" ? !!r.order_id : f.commessa && r.order_id !== f.commessa) return false;
+function rfqVisibile(
+  r: RfqPipeline,
+  c: ContatoriRfqPipeline | undefined,
+  f: FiltriAcquisti,
+  oggi: string,
+  faseRfq: Set<string> | null,
+): boolean {
+  if (
+    f.commessa === "_nessuna"
+      ? !!r.order_id
+      : f.commessa && r.order_id !== f.commessa
+  )
+    return false;
   if (f.fornitore === "_nessuno") return false;
-  if (f.fornitore && r.supplier_id_aggiudicato !== f.fornitore && !(c?.fornitori ?? []).includes(f.fornitore)) return false;
+  if (
+    f.fornitore &&
+    r.supplier_id_aggiudicato !== f.fornitore &&
+    !(c?.fornitori ?? []).includes(f.fornitore)
+  )
+    return false;
   if (faseRfq && !faseRfq.has(r.id)) return false;
   if (f.soloRitardo && giorniRitardoRfq(r, oggi) === null) return false;
   const q = f.cerca.trim().toLowerCase();
-  if (q && !(contiene(r.rfq_number, q) || contiene(r.titolo, q) || contiene(r.orders?.order_code, q))) return false;
+  if (
+    q &&
+    !(
+      contiene(r.rfq_number, q) ||
+      contiene(r.titolo, q) ||
+      contiene(r.orders?.order_code, q)
+    )
+  )
+    return false;
   return true;
 }
 
 /** Gli ordini che passano i filtri comuni: li usa anche la vista elenco. */
-export function filtraOda<T extends OdaPipeline>(oda: T[], materiali: MaterialeAcquisti[], f: FiltriAcquisti, oggi: string): T[] {
+export function filtraOda<T extends OdaPipeline>(
+  oda: T[],
+  materiali: MaterialeAcquisti[],
+  f: FiltriAcquisti,
+  oggi: string,
+): T[] {
   const fase = indiciFase(materiali, f.fase);
   return oda.filter((o) => odaVisibile(o, f, oggi, fase?.oda ?? null));
 }
@@ -248,16 +424,39 @@ function cartaOda(o: OdaPipeline, oggi: string): CartaAcquisto {
     commessa: o.orders?.order_code ?? null,
     orderId: o.order_id,
     importo: Number(o.total) || 0,
-    data: o.status === "ricevuto" ? (o.actual_delivery_date ?? o.expected_delivery_date) : o.expected_delivery_date,
+    data:
+      o.status === "ricevuto"
+        ? (o.actual_delivery_date ?? o.expected_delivery_date)
+        : o.expected_delivery_date,
     etichettaData: o.status === "ricevuto" ? "arrivato" : "consegna",
     ritardo: giorniRitardoOda(o, oggi),
     stato: o.status,
     nota: o.status === "bozza" ? "Bozza da mandare" : null,
+    ricezione: o.purchase_order_items?.some((r) => Number(r.quantity) > 0)
+      ? {
+          righe: o.purchase_order_items.filter((r) => Number(r.quantity) > 0)
+            .length,
+          complete: o.purchase_order_items.filter(
+            (r) =>
+              Number(r.quantity) > 0 &&
+              Number(r.quantity_received) >= Number(r.quantity),
+          ).length,
+          parziali: o.purchase_order_items.filter(
+            (r) =>
+              Number(r.quantity_received) > 0 &&
+              Number(r.quantity_received) < Number(r.quantity),
+          ).length,
+        }
+      : undefined,
     href: `/azienda/ordini-acquisto/${o.id}`,
   };
 }
 
-function cartaRfq(r: RfqPipeline, c: ContatoriRfqPipeline | undefined, oggi: string): CartaAcquisto {
+function cartaRfq(
+  r: RfqPipeline,
+  c: ContatoriRfqPipeline | undefined,
+  oggi: string,
+): CartaAcquisto {
   const invitati = c?.invitati ?? 0;
   const risposte = c?.risposte ?? 0;
   return {
@@ -272,14 +471,18 @@ function cartaRfq(r: RfqPipeline, c: ContatoriRfqPipeline | undefined, oggi: str
     etichettaData: "scadenza",
     ritardo: giorniRitardoRfq(r, oggi),
     stato: r.status,
-    nota: invitati === 0 ? "Nessun fornitore invitato" : `${risposte}/${invitati} risposte`,
+    nota:
+      invitati === 0
+        ? "Nessun fornitore invitato"
+        : `${risposte}/${invitati} risposte`,
     href: `/azienda/richieste-offerta/${r.id}`,
   };
 }
 
 /** Ritardi in cima (dal più grave), poi per data più vicina; senza data in fondo. */
 function ordinaCarte(a: CartaAcquisto, b: CartaAcquisto): number {
-  if ((b.ritardo ?? 0) !== (a.ritardo ?? 0)) return (b.ritardo ?? 0) - (a.ritardo ?? 0);
+  if ((b.ritardo ?? 0) !== (a.ritardo ?? 0))
+    return (b.ritardo ?? 0) - (a.ritardo ?? 0);
   if (a.data && b.data) return a.data.localeCompare(b.data);
   if (a.data) return -1;
   if (b.data) return 1;
@@ -299,11 +502,22 @@ export function costruisciPipeline(input: {
 }): ColonnaAcquisti[] {
   const { materiali, rfqs, contatori, oda, filtri, oggi } = input;
   const colonne = new Map<ColonnaId, ColonnaAcquisti>(
-    COLONNE.map((c) => [c.id, { ...c, carte: [] as CartaAcquisto[], materiali: [] as MaterialeAcquisti[], conteggio: 0, importo: 0, nascoste: 0 }]),
+    COLONNE.map((c) => [
+      c.id,
+      {
+        ...c,
+        carte: [] as CartaAcquisto[],
+        materiali: [] as MaterialeAcquisti[],
+        conteggio: 0,
+        importo: 0,
+        nascoste: 0,
+      },
+    ]),
   );
   const fase = indiciFase(materiali, filtri.fase);
 
   for (const m of materiali) {
+    if (filtri.stato || filtri.periodo) continue;
     if (m.stato !== "da_ordinare" || !materialeVisibile(m, filtri)) continue;
     const col = colonne.get("da_ordinare")!;
     col.materiali.push(m);
@@ -312,8 +526,10 @@ export function costruisciPipeline(input: {
   }
 
   for (const r of rfqs) {
+    if (filtri.stato || filtri.periodo) continue;
     if (!STATI_RFQ_APERTE.includes(r.status)) continue;
-    if (!rfqVisibile(r, contatori[r.id], filtri, oggi, fase?.rfq ?? null)) continue;
+    if (!rfqVisibile(r, contatori[r.id], filtri, oggi, fase?.rfq ?? null))
+      continue;
     const col = colonne.get("offerta")!;
     const carta = cartaRfq(r, contatori[r.id], oggi);
     col.carte.push(carta);
@@ -346,16 +562,88 @@ export function costruisciPipeline(input: {
 
 /** Materiali raggruppati per commessa › fase (le fasi nell'ordine della commessa). */
 export function raggruppaMateriali(materiali: MaterialeAcquisti[]) {
-  const m = new Map<string, { orderId: string; commessa: string; fasi: Map<string, { id: string; nome: string; posizione: number; materiali: MaterialeAcquisti[] }> }>();
+  const m = new Map<
+    string,
+    {
+      orderId: string;
+      commessa: string;
+      fasi: Map<
+        string,
+        {
+          id: string;
+          nome: string;
+          posizione: number;
+          materiali: MaterialeAcquisti[];
+        }
+      >;
+    }
+  >();
   for (const x of materiali) {
-    const c = m.get(x.order_id) ?? { orderId: x.order_id, commessa: x.commessa, fasi: new Map() };
+    const c = m.get(x.order_id) ?? {
+      orderId: x.order_id,
+      commessa: x.commessa,
+      fasi: new Map(),
+    };
     const chiave = x.phase_id ?? "_senza";
-    const f = c.fasi.get(chiave) ?? { id: chiave, nome: x.fase, posizione: x.posizioneFase, materiali: [] };
+    const f = c.fasi.get(chiave) ?? {
+      id: chiave,
+      nome: x.fase,
+      posizione: x.posizioneFase,
+      materiali: [],
+    };
     f.materiali.push(x);
     c.fasi.set(chiave, f);
     m.set(x.order_id, c);
   }
   return [...m.values()]
-    .sort((a, b) => a.commessa.localeCompare(b.commessa, "it", { numeric: true }))
-    .map((c) => ({ ...c, fasi: [...c.fasi.values()].sort((a, b) => a.posizione - b.posizione) }));
+    .sort((a, b) =>
+      a.commessa.localeCompare(b.commessa, "it", { numeric: true }),
+    )
+    .map((c) => ({
+      ...c,
+      fasi: [...c.fasi.values()].sort((a, b) => a.posizione - b.posizione),
+    }));
+}
+
+export type FontePipelineAcquisti =
+  | "tutte"
+  | "materiali"
+  | "offerte"
+  | "ordini";
+/** Filter the existing, deduplicated cards without changing their workflow. */
+export function filtraFontiPipeline(
+  colonne: ColonnaAcquisti[],
+  fonte: FontePipelineAcquisti,
+): ColonnaAcquisti[] {
+  if (fonte === "tutte") return colonne;
+  return colonne
+    .filter((col) =>
+      fonte === "materiali"
+        ? col.id === "da_ordinare"
+        : fonte === "offerte"
+          ? col.id === "offerta"
+          : col.id !== "offerta",
+    )
+    .map((col) => {
+      const carte = col.carte.filter((c) =>
+        fonte === "offerte"
+          ? c.tipo === "rfq"
+          : fonte === "ordini"
+            ? c.tipo === "oda"
+            : false,
+      );
+      const materiali = fonte === "materiali" ? col.materiali : [];
+      const nascoste = fonte === "ordini" ? col.nascoste : 0;
+      return {
+        ...col,
+        carte,
+        materiali,
+        nascoste,
+        conteggio: carte.length + materiali.length + nascoste,
+        importo: nascoste
+          ? col.importo
+          : carte.reduce((sum, c) => sum + (c.importo ?? 0), 0) +
+            materiali.reduce((sum, m) => sum + importoMateriale(m), 0),
+      };
+    });
 }

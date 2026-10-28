@@ -159,6 +159,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           return builder;
         },
         neq: () => builder,
+        or: () => builder,
         in: (colonna: string, valori: unknown[]) => {
           inFiltri.push([colonna, valori]);
           return builder;

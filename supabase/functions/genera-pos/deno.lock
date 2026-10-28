@@ -1,0 +1,183 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:fflate@0.8.2": "0.8.2",
+    "npm:fontkit@2.0.4": "2.0.4",
+    "npm:parse5@7.3.0": "7.3.0",
+    "npm:pdfmake@0.3.9": "0.3.9"
+  },
+  "npm": {
+    "@noble/ciphers@1.3.0": {
+      "integrity": "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw=="
+    },
+    "@noble/hashes@1.8.0": {
+      "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
+    },
+    "@swc/helpers@0.5.23": {
+      "integrity": "sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==",
+      "dependencies": [
+        "tslib"
+      ]
+    },
+    "base64-js@0.0.8": {
+      "integrity": "sha512-3XSA2cR/h/73EzlXXdU6YNycmYI7+kicTxks4eJg2g39biHR84slg2+des+p7iHYhbRg/udIS4TD53WabcOUkw=="
+    },
+    "base64-js@1.5.1": {
+      "integrity": "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA=="
+    },
+    "brotli@1.3.3": {
+      "integrity": "sha512-oTKjJdShmDuGW94SyyaoQvAjf30dZaHnjJ8uAF+u2/vGJkJbJPJAT1gDiOJP5v1Zb6f9KEyW/1HpuaWIXtGHPg==",
+      "dependencies": [
+        "base64-js@1.5.1"
+      ]
+    },
+    "browserify-zlib@0.2.0": {
+      "integrity": "sha512-Z942RysHXmJrhqk88FmKBVq/v5tqmSkDz7p54G/MGyjMnCFFnC79XWNbg+Vta8W6Wb2qtSZTSxIGkJrRpCFEiA==",
+      "dependencies": [
+        "pako@1.0.11"
+      ]
+    },
+    "clone@2.1.2": {
+      "integrity": "sha512-3Pe/CF1Nn94hyhIYpjtiLhdCoEoz0DqQ+988E9gmeEdQZlojxnOb74wctFyuwWQHzqyf9X7C7MG8juUpqBJT8w=="
+    },
+    "dfa@1.2.0": {
+      "integrity": "sha512-ED3jP8saaweFTjeGX8HQPjeC1YYyZs98jGNZx6IiBvxW7JG5v492kamAQB3m2wop07CvU/RQmzcKr6bgcC5D/Q=="
+    },
+    "entities@6.0.1": {
+      "integrity": "sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g=="
+    },
+    "fast-deep-equal@3.1.3": {
+      "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="
+    },
+    "fflate@0.8.2": {
+      "integrity": "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A=="
+    },
+    "fontkit@2.0.4": {
+      "integrity": "sha512-syetQadaUEDNdxdugga9CpEYVaQIxOwk7GlwZWWZ19//qW4zE5bknOKeMBDYAASwnpaSHKJITRLMF9m1fp3s6g==",
+      "dependencies": [
+        "@swc/helpers",
+        "brotli",
+        "clone",
+        "dfa",
+        "fast-deep-equal",
+        "restructure",
+        "tiny-inflate",
+        "unicode-properties",
+        "unicode-trie"
+      ]
+    },
+    "js-md5@0.8.3": {
+      "integrity": "sha512-qR0HB5uP6wCuRMrWPTrkMaev7MJZwJuuw4fnwAzRgP4J4/F8RwtodOKpGp4XpqsLBFzzgqIO42efFAyz2Et6KQ=="
+    },
+    "linebreak@1.1.0": {
+      "integrity": "sha512-MHp03UImeVhB7XZtjd0E4n6+3xr5Dq/9xI/5FptGk5FrbDR3zagPa2DS6U8ks/3HjbKWG9Q1M2ufOzxV2qLYSQ==",
+      "dependencies": [
+        "base64-js@0.0.8",
+        "unicode-trie"
+      ]
+    },
+    "pako@0.2.9": {
+      "integrity": "sha512-NUcwaKxUxWrZLpDG+z/xZaCgQITkA/Dv4V/T6bw7VON6l1Xz/VnrBqrYjZQ12TamKHzITTfOEIYUj48y2KXImA=="
+    },
+    "pako@1.0.11": {
+      "integrity": "sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw=="
+    },
+    "parse5@7.3.0": {
+      "integrity": "sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw==",
+      "dependencies": [
+        "entities"
+      ]
+    },
+    "pdfkit@0.18.0": {
+      "integrity": "sha512-NvUwSDZ0eYEzqAiWwVQkRkjYUkZ48kcsHuCO31ykqPPIVkwoSDjDGiwIgHHNtsiwls3z3P/zy4q00hl2chg2Ug==",
+      "dependencies": [
+        "@noble/ciphers",
+        "@noble/hashes",
+        "fontkit",
+        "js-md5",
+        "linebreak",
+        "png-js"
+      ]
+    },
+    "pdfmake@0.3.9": {
+      "integrity": "sha512-V8VIcjMG/yk7oJYhYjtvyLXvop3w3zcIB0bHdG3z1vuW8nVeemzRWu7YrOG7QA9KYaf858MZnCUG6hQ1Bei0vA==",
+      "dependencies": [
+        "linebreak",
+        "pdfkit",
+        "xmldoc"
+      ]
+    },
+    "png-js@1.1.0": {
+      "integrity": "sha512-PM/uYGzGdNSzqeOgly68+6wKQDL1SY0a/N+OEa/+br6LnHWOAJB0Npiamnodfq3jd2LS/i2fMeOKSAILjA+m5Q==",
+      "dependencies": [
+        "browserify-zlib"
+      ]
+    },
+    "restructure@3.0.2": {
+      "integrity": "sha512-gSfoiOEA0VPE6Tukkrr7I0RBdE0s7H1eFCDBk05l1KIQT1UIKNc5JZy6jdyW6eYH3aR3g5b3PuL77rq0hvwtAw=="
+    },
+    "sax@1.6.1": {
+      "integrity": "sha512-42tBVwLWnaQvW5zc4HbZrTuWccECCZfBi92FDuwtqxasH+JbPB3/FOKb1m222K42R4WxuxzzMsTswfzgtSu64Q=="
+    },
+    "tiny-inflate@1.0.3": {
+      "integrity": "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw=="
+    },
+    "tslib@2.8.1": {
+      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
+    },
+    "unicode-properties@1.4.1": {
+      "integrity": "sha512-CLjCCLQ6UuMxWnbIylkisbRj31qxHPAurvena/0iwSVbQ2G1VY5/HjV0IRabOEbDHlzZlRdCrD4NhB0JtU40Pg==",
+      "dependencies": [
+        "base64-js@1.5.1",
+        "unicode-trie"
+      ]
+    },
+    "unicode-trie@2.0.0": {
+      "integrity": "sha512-x7bc76x0bm4prf1VLg79uhAzKw8DVboClSN5VxJuQ+LKDOVEW9CdH+VY7SP+vX7xCYQqzzgQpFqz15zeLvAtZQ==",
+      "dependencies": [
+        "pako@0.2.9",
+        "tiny-inflate"
+      ]
+    },
+    "xmldoc@2.0.3": {
+      "integrity": "sha512-6gRk4NY/Jvg67xn7OzJuxLRsGgiXBaPUQplVJ/9l99uIugxh4FTOewYz5ic8WScj7Xx/2WvhENiQKwkK9RpE4w==",
+      "dependencies": [
+        "sax"
+      ]
+    }
+  },
+  "redirects": {
+    "https://esm.sh/@pdf-lib/standard-fonts@^1.0.0?target=denonext": "https://esm.sh/@pdf-lib/standard-fonts@1.0.0?target=denonext",
+    "https://esm.sh/@pdf-lib/upng@^1.0.1?target=denonext": "https://esm.sh/@pdf-lib/upng@1.0.1?target=denonext",
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.105.3",
+    "https://esm.sh/@types/pako@~1.0.7/index.d.ts": "https://esm.sh/@types/pako@1.0.7/index.d.ts",
+    "https://esm.sh/pako@^1.0.10?target=denonext": "https://esm.sh/pako@1.0.11?target=denonext",
+    "https://esm.sh/pako@^1.0.11?target=denonext": "https://esm.sh/pako@1.0.11?target=denonext",
+    "https://esm.sh/pako@^1.0.6?target=denonext": "https://esm.sh/pako@1.0.11?target=denonext",
+    "https://esm.sh/tslib@^1.11.1?target=denonext": "https://esm.sh/tslib@1.14.1?target=denonext"
+  },
+  "remote": {
+    "https://esm.sh/@pdf-lib/standard-fonts@1.0.0/denonext/standard-fonts.mjs": "708d496da295d425f227de54b24c0da9be34cd33f5635d9bdd355dc549b49988",
+    "https://esm.sh/@pdf-lib/standard-fonts@1.0.0?target=denonext": "6831e71a173d549ea549bc8ca62160b5309cb77c41a4a34b04bc679c9bb390bf",
+    "https://esm.sh/@pdf-lib/upng@1.0.1/denonext/upng.mjs": "725dab6b2d126a6cb418f24ed9bd0aa9400949cbbbe8dcb975241236fdfa2d0d",
+    "https://esm.sh/@pdf-lib/upng@1.0.1?target=denonext": "0aa62a3f01d37283242d27853ae61c7e3b8e4504a80bf2f7e748efc43fb06b19",
+    "https://esm.sh/@supabase/supabase-js@2.105.3": "5a134c393ed588a62d398734c1af54ff1eab170090908bbaef624106b5201d41",
+    "https://esm.sh/pako@1.0.11/denonext/pako.mjs": "4895feb3e2441ef725da4052a5dc93d219d065fef1decc4452bb9b7ee1477c0d",
+    "https://esm.sh/pako@1.0.11?target=denonext": "bc43f66ed245d58d468bf9867b3e9080c5b0590b4c14038ea308954490e0b2ea",
+    "https://esm.sh/pdf-lib@1.17.1": "cf7c5527829cb9bbb3aa20d339c530067441c10eb98880360aea9e77c3c87ff8",
+    "https://esm.sh/pdf-lib@1.17.1/denonext/es/core/annotation.mjs": "9fea26c9d06ec825c6bde7f498361fa4cf91cfa7f6c67c362c96edb812fe4619",
+    "https://esm.sh/pdf-lib@1.17.1/denonext/es/utils.mjs": "cf96c5836fdd5f60eeccd53603c87b52c43c11c8b99e85f79f586be58a59f4d1",
+    "https://esm.sh/pdf-lib@1.17.1/denonext/es/utils/index.mjs": "34773d399ffdacd2972f527377d293aa3bff9d3a0d31d48d956a00c9c0c32329",
+    "https://esm.sh/pdf-lib@1.17.1/denonext/pdf-lib.mjs": "3be07aa3466e0e9eee79730a775211d6bb8547c0cb9d203c09dde6feca1dc559",
+    "https://esm.sh/tslib@1.14.1/denonext/tslib.mjs": "748739307d67fbaa8ae634eed70715714dd1f54f04fe8635bcb7f72cb0aaed62",
+    "https://esm.sh/tslib@1.14.1?target=denonext": "2982231d9e09e6f007540c7a24c12a7cccb0e84ca98df2ad86ff2bdca1c0fa35"
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:fflate@0.8.2",
+      "npm:fontkit@2.0.4",
+      "npm:parse5@7.3.0",
+      "npm:pdfmake@0.3.9"
+    ]
+  }
+}

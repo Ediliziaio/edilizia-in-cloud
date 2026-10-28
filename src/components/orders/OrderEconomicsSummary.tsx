@@ -1,3 +1,4 @@
+import { CostiMezziRiepilogo } from "@/components/mezzi/CostiMezziRiepilogo";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -224,7 +225,7 @@ export function OrderEconomicsSummary({
         { key: "provvigioni", label: "Provvigioni", value: actual.commissions, color: CHART.provvigioni },
         { key: "rimborsi-km", label: "Rimborsi km approvati", value: actual.mileageReimbursements, color: CHART.rimborsiKm },
         { key: "errori", label: "Errori/perdite", value: actual.errors, color: CHART.errori },
-        { key: "diretti", label: "Altri costi diretti", value: actual.directCosts, color: CHART.diretti },
+        { key: "diretti", label: "Costi diretti da contabilità", value: actual.directCosts, color: CHART.diretti },
         ...(quality.canShowMargin && actual.margin > 0
           ? [{ key: "margine", label: "Margine diretto", value: actual.margin, color: CHART.margine }]
           : []),
@@ -612,6 +613,8 @@ export function OrderEconomicsSummary({
           </div>
         </div>
 
+        <CostiMezziRiepilogo orderId={orderId} />
+
         {/* Il mezzo e una stima gestionale: non viene confuso con i rimborsi km
             approvati, che sono gia nel consuntivo diretto. */}
         {vehicleCosts.dataVisible && vehicleCosts.vehiclesUsed > 0 && (
@@ -620,7 +623,7 @@ export function OrderEconomicsSummary({
               <div className="flex min-w-0 items-start gap-2">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Incidenza stimata dei mezzi</p>
+                  <p className="text-sm font-semibold text-foreground">Stima annua del parco mezzi</p>
                   <p className="text-[11px] text-muted-foreground">
                     {vehicleCosts.vehiclesUsed} {vehicleCosts.vehiclesUsed === 1 ? "mezzo" : "mezzi"} · {vehicleCosts.vehicleDays} giorni-mezzo sul cantiere
                   </p>
@@ -632,17 +635,7 @@ export function OrderEconomicsSummary({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StructureKpi label="Costo mezzi stimato" value={formatCurrency(vehicleCosts.estimatedCost)} />
-              <StructureKpi
-                label="Margine dopo mezzi"
-                value={quality.canShowMargin
-                  ? formatCurrency(actual.margin - vehicleCosts.estimatedCost)
-                  : "Da calcolare"}
-                valueClass={!quality.canShowMargin
-                  ? "text-muted-foreground"
-                  : actual.margin - vehicleCosts.estimatedCost >= 0
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-red-700 dark:text-red-300"}
-              />
+              <StructureKpi label="Trattamento economico" value="Stima separata" />
               <StructureKpi
                 label="Copertura dati"
                 value={vehicleCosts.vehiclesWithoutCost > 0

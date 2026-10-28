@@ -422,6 +422,7 @@ export interface AnagraficaNative {
   attivo: boolean;
   // Reconciliation fields
   cliente_id?: string | null;
+  fornitore_id?: string | null;
   sync_from_cliente?: boolean;
   last_synced_at?: string | null;
   created_at: string;

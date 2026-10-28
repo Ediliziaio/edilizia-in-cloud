@@ -8,6 +8,7 @@ import {
 const state = vi.hoisted(() => ({ mezzi: [] as unknown[] }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: state.mezzi }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/components/mezzi/ViaggioDialog",()=>({ViaggioDialog:({mezzoId,defaultOrderId,onClose}:{mezzoId:string;defaultOrderId:string;onClose:()=>void})=><div role="dialog" aria-label="Registra viaggio">{mezzoId} · {defaultOrderId}<button onClick={onClose}>Chiudi viaggio</button></div>}));
 
 const mezzo = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
   id, nome, tipo: "attrezzatura", targa: null as string | null, veicolo: false, contatore: null as number | null,
@@ -18,7 +19,7 @@ let ultimo: Record<string, RigaMezzoGiornata> = {};
 function Prova() {
   const [v, setV] = useState<Record<string, RigaMezzoGiornata>>({});
   ultimo = v;
-  return <MezziFineGiornata orderId="o1" valori={v} onChange={setV} />;
+  return <MezziFineGiornata orderId="o1" companyId="c1" valori={v} onChange={setV} />;
 }
 
 afterEach(cleanup);
@@ -64,5 +65,15 @@ describe("Rapportino: mezzi e attrezzi a fine giornata", () => {
     expect(within(gruppo).queryByRole("radio", { name: /furgone/i })).not.toBeInTheDocument();
     fireEvent.click(within(gruppo).getByRole("radio", { name: "In cantiere" }));
     expect(righeDaSalvare(ultimo)).toEqual([]);
+  });
+  it("apre le tratte senza uscire dal rapportino o perdere la lettura del contatore",()=>{
+    state.mezzi=[mezzo("d","Ducato",{tipo:"furgone",veicolo:true,contatore:100,contatore_unita:"km"})];
+    render(<Prova/>);
+    fireEvent.click(screen.getByRole("button",{name:/^Ducato/}));
+    fireEvent.change(screen.getByLabelText("Km di Ducato a fine giornata"),{target:{value:"180"}});
+    fireEvent.click(screen.getByRole("button",{name:"Registra viaggio e tappe"}));
+    expect(screen.getByRole("dialog",{name:"Registra viaggio"})).toHaveTextContent("d · o1");
+    fireEvent.click(screen.getByRole("button",{name:"Chiudi viaggio"}));
+    expect(screen.getByLabelText("Km di Ducato a fine giornata")).toHaveValue("180");
   });
 });

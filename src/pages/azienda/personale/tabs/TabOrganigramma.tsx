@@ -1,321 +1,471 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useOrganigramma, useSyncFromEmployees } from "@/hooks/useOrganigramma";
+import { useHrSedi } from "@/hooks/useHrSedi";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Search, RefreshCw, Users, Building2, MapPin, UserPlus, List, Network } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  Search,
+  RefreshCw,
+  Users,
+  UserPlus,
+  List,
+  Network,
+  MapPin,
+} from "lucide-react";
 import type { HrProfilo } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
 import { OrgTreeView } from "@/components/hr/OrgTreeView";
-import type { OrgTreeNode as OrgTreeNodeType } from "@/types/hr";
-
-function filterTree(
-  nodes: OrgTreeNodeType[],
-  search: string,
-  reparto: string
-): OrgTreeNodeType[] {
-  if (!search && reparto === "__all__") return nodes;
-
-  const searchLower = search.toLowerCase();
-
-  function nodeMatches(node: OrgTreeNodeType): boolean {
-    const matchSearch =
-      !search ||
-      `${node.nome} ${node.cognome} ${node.mansione || ""} ${node.email || ""}`
-        .toLowerCase()
-        .includes(searchLower);
-    const matchReparto = reparto === "__all__" || node.reparto === reparto;
-    return matchSearch && matchReparto;
-  }
-
-  function filterRecursive(nodes: OrgTreeNodeType[]): OrgTreeNodeType[] {
-    const result: OrgTreeNodeType[] = [];
-    for (const node of nodes) {
-      const filteredChildren = filterRecursive(node.children);
-      if (nodeMatches(node) || filteredChildren.length > 0) {
-        result.push({ ...node, children: filteredChildren });
-      }
-    }
-    return result;
-  }
-
-  return filterRecursive(nodes);
-}
-
-const REPARTO_COLORS: Record<string, string> = {
-  Direzione: "bg-slate-700 text-white",
-  Tecnico: "bg-blue-600 text-white",
-  Cantiere: "bg-amber-600 text-white",
-  Commerciale: "bg-green-600 text-white",
-  Amministrazione: "bg-purple-600 text-white",
-};
-
-function getRepartoBadgeClass(reparto: string | null) {
-  if (!reparto) return "bg-muted text-muted-foreground";
-  return REPARTO_COLORS[reparto] || "bg-sky-500 text-white";
-}
+import { OrgNode } from "@/components/hr/OrgNode";
+import {
+  filterOrgTree,
+  orgLinksToReview,
+} from "@/lib/personale/organizzazione";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export function TabOrganigramma() {
-  const { data, isLoading } = useOrganigramma();
+  const companyId = useEffectiveCompanyId();
+  return <OrganigrammaContent key={companyId || "no-company"} />;
+}
+
+function OrganigrammaContent() {
+  const { data, isLoading, isError, refetch } = useOrganigramma();
+  const sites = useHrSedi();
+  const permissions = usePermissions();
+  const canEdit =
+    !permissions.isLoading &&
+    !permissions.solaLettura &&
+    (permissions.isAdmin || permissions.canViewPersone);
   const syncMutation = useSyncFromEmployees();
+  const [params, setParams] = useSearchParams();
+  const siteFilter = params.get("sede_hr") || "__all__";
   const [search, setSearch] = useState("");
-  const [filterReparto, setFilterReparto] = useState<string>("__all__");
-  const [editingProfilo, setEditingProfilo] = useState<HrProfilo | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"tree" | "list">(
-    typeof window !== "undefined" && window.innerWidth < 640 ? "list" : "tree"
+  const [department, setDepartment] = useState("__all__");
+  const [editing, setEditing] = useState<HrProfilo | null>(null);
+  const [open, setOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
+  const profili = useMemo(() => data?.profili || [], [data?.profili]);
+  const siteNames = useMemo(
+    () => new Map((sites.data || []).map((s) => [s.id, s.nome])),
+    [sites.data],
   );
-
-  const profili = data?.profili || [];
-  const reparti = data?.reparti || [];
-
-  const filtered = profili.filter((p) => {
-    const matchSearch =
-      !search ||
-      `${p.nome} ${p.cognome} ${p.mansione || ""} ${p.email || ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
-    const matchReparto = filterReparto === "__all__" || p.reparto === filterReparto;
-    return matchSearch && matchReparto;
-  });
-
-  const handleEdit = (p: HrProfilo) => {
-    setEditingProfilo(p);
-    setSheetOpen(true);
+  const matches = useMemo(
+    () => (p: HrProfilo) =>
+      (!search.trim() ||
+        `${p.nome} ${p.cognome} ${p.mansione || ""} ${p.email || ""}`
+          .toLocaleLowerCase("it")
+          .includes(search.trim().toLocaleLowerCase("it"))) &&
+      (department === "__all__" || p.reparto === department) &&
+      (siteFilter === "__all__" ||
+        (siteFilter === "__none__" ? !p.sede_id : p.sede_id === siteFilter)),
+    [search, department, siteFilter],
+  );
+  const filtered = useMemo(() => profili.filter(matches), [profili, matches]);
+  const forest = useMemo(
+    () => filterOrgTree(data?.tree || [], matches),
+    [data?.tree, matches],
+  );
+  // Classify by the ORIGINAL tree: filters must not turn managers into unlinked people.
+  const structuredIds = useMemo(
+    () =>
+      new Set(
+        (data?.tree || []).filter((n) => n.children.length).map((n) => n.id),
+      ),
+    [data?.tree],
+  );
+  const connected = useMemo(
+    () => forest.filter((n) => structuredIds.has(n.id)),
+    [forest, structuredIds],
+  );
+  const independent = forest.filter((n) => !structuredIds.has(n.id));
+  const roots = (data?.tree || []).filter((n) => n.children.length);
+  const selectSite = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value === "__all__") next.delete("sede_hr");
+    else next.set("sede_hr", value);
+    setParams(next, { replace: true });
   };
-
-  const handleNew = () => {
-    setEditingProfilo(null);
-    setSheetOpen(true);
+  const openProfile = (p: HrProfilo) => {
+    setEditing(p);
+    setOpen(true);
   };
+  const newProfile = () => {
+    if (!canEdit) return;
+    setEditing(null);
+    setOpen(true);
+  };
+  const reset = () => {
+    setSearch("");
+    setDepartment("__all__");
+    selectSite("__all__");
+  };
+  const gotoSites = () => {
+    const next = new URLSearchParams(params);
+    next.set("tab", "sedi");
+    setParams(next);
+  };
+  const profilesById = new Map(profili.map((p) => [p.id, p]));
+  const linksToReview = orgLinksToReview(profili, data?.tree || []);
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-40" />
-        </div>
-        <Skeleton className="h-[400px] w-full" />
+      <div className="space-y-3">
+        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-[440px] w-full rounded-2xl" />
       </div>
     );
-  }
-
-  // Empty state
-  if (profili.length === 0) {
+  if (isError)
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-          <Users className="h-16 w-16 text-muted-foreground/50" />
-          <div>
-            <h3 className="text-lg font-semibold">Nessun dipendente nell'organigramma</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Sincronizza i dipendenti esistenti o aggiungi un nuovo profilo HR.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-              Sincronizza da Dipendenti
-            </Button>
-            <Button variant="outline" onClick={handleNew}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Nuovo Profilo
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div
+        role="alert"
+        className="rounded-xl border border-orange-200 bg-orange-50 p-5"
+      >
+        <h2 className="font-semibold">Organigramma non disponibile</h2>
+        <p className="my-2 text-sm">
+          Non è stato possibile caricare i profili. Non significa che l’azienda
+          sia vuota.
+        </p>
+        <Button variant="outline" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     );
-  }
-
-  // KPI cards
-  const totalActive = profili.filter((p) => p.attivo).length;
-  const uniqueReparti = reparti.length;
-  const uniqueSedi = new Set(profili.map((p) => p.sede_id).filter(Boolean)).size;
 
   return (
     <div className="space-y-4">
-      {/* KPI Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold">{totalActive}</p>
-              <p className="text-xs text-muted-foreground truncate">Dipendenti attivi</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold">{uniqueReparti}</p>
-              <p className="text-xs text-muted-foreground truncate">Reparti</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold">{uniqueSedi}</p>
-              <p className="text-xs text-muted-foreground truncate">Sedi</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <UserPlus className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold">{profili.filter((p) => !p.responsabile_id).length}</p>
-              <p className="text-xs text-muted-foreground truncate">Senza resp.</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <div className="flex gap-2 items-center">
-          <div className="relative flex-1 sm:flex-none sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca dipendente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+      {linksToReview.length > 0 && (
+        <details className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          <summary className="cursor-pointer font-medium">
+            {linksToReview.length} collegamenti da verificare
+          </summary>
+          <p className="my-2 text-xs">
+            Responsabile non presente tra gli attivi, riferimento a sé stessi o
+            catena circolare. Per non nascondere persone l’albero interrompe
+            questi collegamenti solo nella vista; i dati salvati non sono
+            modificati.
+          </p>
+          <ul className="list-inside list-disc text-xs">
+            {linksToReview.map((p) => (
+              <li key={p.id}>
+                {p.nome} {p.cognome}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">
+            Persone e responsabilità
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {profili.length} persone attive · {data?.reparti.length || 0}{" "}
+            reparti · {roots.length}{" "}
+            {roots.length === 1
+              ? "struttura con collaboratori"
+              : "strutture con collaboratori"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={gotoSites}>
+            <MapPin className="mr-1.5 h-4 w-4" />
+            Gestisci sedi
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!canEdit || syncMutation.isPending}
+            onClick={() => {
+              if (canEdit) syncMutation.mutate();
+            }}
+            title="Aggiunge soltanto i dipendenti che non hanno ancora un profilo HR"
+          >
+            <RefreshCw
+              className={`mr-1.5 h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
             />
-          </div>
-          <Select value={filterReparto} onValueChange={setFilterReparto}>
-            <SelectTrigger className="flex-1 sm:w-[160px] sm:flex-none">
-              <SelectValue placeholder="Tutti i reparti" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Tutti i reparti</SelectItem>
-              {reparti.map((r) => (
-                <SelectItem key={r} value={r}>{r}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2 items-center">
-          <div className="flex border rounded-md overflow-hidden">
-            <Button variant={viewMode === "tree" ? "default" : "ghost"} size="sm" className="rounded-none hidden sm:flex" onClick={() => setViewMode("tree")}>
-              <Network className="h-4 w-4 mr-1" />Albero
-            </Button>
-            <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setViewMode("list")}>
-              <List className="h-4 w-4 mr-1" />Lista
-            </Button>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline ml-1">Sincronizza</span>
+            {syncMutation.isPending
+              ? "Sincronizzazione…"
+              : "Importa dipendenti mancanti"}
           </Button>
-          <Button size="sm" onClick={handleNew}>
-            <UserPlus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Nuovo Profilo</span>
+          <Button size="sm" onClick={newProfile} disabled={!canEdit}>
+            <UserPlus className="mr-1.5 h-4 w-4" />
+            Nuovo profilo
           </Button>
         </div>
       </div>
-
-      {/* Tree View */}
-      {viewMode === "tree" && data?.tree && (
-        <OrgTreeView
-          tree={filterTree(data.tree, search, filterReparto)}
-          onNodeClick={(node) => handleEdit(node as HrProfilo)}
-        />
+      {!canEdit && (
+        <p className="text-sm text-muted-foreground">
+          Consultazione in sola lettura.
+        </p>
       )}
-
-      {/* List View Table */}
-      {viewMode === "list" && (
+      {profili.length === 0 ? (
         <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Mansione</TableHead>
-                  <TableHead>Reparto</TableHead>
-                  <TableHead>Responsabile</TableHead>
-                  <TableHead>Contratto</TableHead>
-                  <TableHead>Assunzione</TableHead>
-                  <TableHead>Stato</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nessun risultato trovato
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((p) => {
-                    const responsabile = profili.find((r) => r.id === p.responsabile_id);
-                    return (
-                      <TableRow
-                        key={p.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleEdit(p)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                              style={{ backgroundColor: p.colore_avatar || "#0EA5E9" }}
-                            >
-                              {p.nome?.[0]}{p.cognome?.[0]}
-                            </div>
-                            {p.nome} {p.cognome}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{p.mansione || "—"}</TableCell>
-                        <TableCell>
-                          {p.reparto ? (
-                            <Badge className={getRepartoBadgeClass(p.reparto)} variant="secondary">
-                              {p.reparto}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {responsabile ? `${responsabile.nome} ${responsabile.cognome}` : "—"}
-                        </TableCell>
-                        <TableCell className="text-sm capitalize">{p.tipo_contratto?.replace("_", " ") || "—"}</TableCell>
-                        <TableCell className="text-sm">
-                          {p.data_assunzione
-                            ? new Date(p.data_assunzione).toLocaleDateString("it-IT")
-                            : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={p.attivo ? "default" : "secondary"}>
-                            {p.attivo ? "Attivo" : "Inattivo"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+          <CardContent className="py-14 text-center">
+            <Users className="mx-auto mb-3 h-10 w-10 text-blue-500" />
+            <h3 className="font-semibold">Nessun profilo nell’organigramma</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Importa i dipendenti mancanti oppure crea il primo profilo con il
+              pulsante in alto.
+            </p>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
+            <div className="relative min-w-48 flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                aria-label="Cerca persona nell’organigramma"
+                placeholder="Cerca nome, ruolo o email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <select
+              aria-label="Filtra reparto"
+              className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            >
+              <option value="__all__">Tutti i reparti</option>
+              {data?.reparti.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filtra sede"
+              className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
+              value={siteFilter}
+              onChange={(e) => selectSite(e.target.value)}
+            >
+              <option value="__all__">Tutte le sedi</option>
+              <option value="__none__">Sede da assegnare</option>
+              {sites.data?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                  {!s.attiva ? " (inattiva)" : ""}
+                </option>
+              ))}
+              {siteFilter !== "__all__" &&
+                siteFilter !== "__none__" &&
+                !siteNames.has(siteFilter) && (
+                  <option value={siteFilter}>
+                    Sede selezionata non disponibile
+                  </option>
+                )}
+            </select>
+            <div
+              className="flex gap-1 rounded-lg bg-slate-100 p-1"
+              role="group"
+              aria-label="Vista organigramma"
+            >
+              <Button
+                aria-pressed={viewMode === "tree"}
+                size="sm"
+                variant={viewMode === "tree" ? "default" : "ghost"}
+                onClick={() => setViewMode("tree")}
+              >
+                <Network className="mr-1.5 h-4 w-4" />
+                Albero
+              </Button>
+              <Button
+                aria-pressed={viewMode === "list"}
+                size="sm"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                onClick={() => setViewMode("list")}
+              >
+                <List className="mr-1.5 h-4 w-4" />
+                Lista
+              </Button>
+            </div>
+          </div>
+          {sites.isError && (
+            <p role="alert" className="text-sm text-orange-700">
+              Nomi delle sedi non disponibili.{" "}
+              <button className="underline" onClick={() => sites.refetch()}>
+                Riprova
+              </button>
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>
+              {filtered.length} persone corrispondenti
+              {viewMode === "tree"
+                ? " · i responsabili restano visibili come contesto"
+                : ""}
+            </p>
+            {(search ||
+              department !== "__all__" ||
+              siteFilter !== "__all__") && (
+              <Button variant="ghost" size="sm" onClick={reset}>
+                Azzera filtri
+              </Button>
+            )}
+          </div>
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-12 text-center">
+              <p>Nessuna persona corrisponde ai filtri.</p>
+              <Button className="mt-3" variant="outline" onClick={reset}>
+                Mostra tutte le persone
+              </Button>
+            </div>
+          ) : viewMode === "tree" ? (
+            <>
+              <OrgTreeView
+                tree={connected}
+                onNodeClick={openProfile}
+                siteNames={siteNames}
+              />
+              {independent.length > 0 && (
+                <section
+                  aria-label="Profili senza collegamenti"
+                  className="rounded-2xl border bg-white p-4"
+                >
+                  <h3 className="text-sm font-semibold">
+                    Profili senza collegamenti · {independent.length}
+                  </h3>
+                  <p className="mb-4 mt-1 text-xs text-muted-foreground">
+                    Non hanno collegamenti visibili nell’albero. Possono essere
+                    ruoli autonomi o profili da completare: non sono
+                    automaticamente errori.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+                    {independent.map((n) => (
+                      <div key={n.id} className="h-[116px] min-w-0">
+                        <OrgNode
+                          node={n}
+                          onClick={openProfile}
+                          siteName={
+                            n.sede_id ? siteNames.get(n.sede_id) : undefined
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          ) : (
+            <Card>
+              <CardContent className="overflow-x-auto p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Persona</TableHead>
+                      <TableHead>Ruolo e reparto</TableHead>
+                      <TableHead>Responsabile</TableHead>
+                      <TableHead>Sede</TableHead>
+                      <TableHead className="text-right">Profilo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((p) => {
+                      const manager = p.responsabile_id
+                        ? profilesById.get(p.responsabile_id)
+                        : null;
+                      return (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">
+                            {p.nome} {p.cognome}
+                          </TableCell>
+                          <TableCell>
+                            {p.mansione || "Da definire"}
+                            <p className="text-xs text-muted-foreground">
+                              {p.reparto || "Reparto da definire"}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            {manager
+                              ? `${manager.nome} ${manager.cognome}`
+                              : p.responsabile_id
+                                ? "Collegamento da verificare"
+                                : "Nessuno assegnato"}
+                          </TableCell>
+                          <TableCell>
+                            {p.sede_id
+                              ? siteNames.get(p.sede_id) || "Sede assegnata"
+                              : "Da assegnare"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={`Apri profilo di ${p.nome} ${p.cognome}`}
+                              onClick={() => openProfile(p)}
+                            >
+                              Apri profilo
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
-
-      <HrProfiloSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        profilo={editingProfilo}
-        allProfili={profili}
-      />
+      {canEdit ? (
+        <HrProfiloSheet
+          open={open}
+          onOpenChange={setOpen}
+          profilo={editing}
+          allProfili={profili}
+        />
+      ) : (
+        <Sheet open={open && !!editing} onOpenChange={setOpen}>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>
+                {editing?.nome} {editing?.cognome}
+              </SheetTitle>
+              <SheetDescription>
+                Profilo organizzativo · sola lettura
+              </SheetDescription>
+            </SheetHeader>
+            <dl className="mt-6 space-y-4">
+              <div>
+                <dt className="text-xs text-muted-foreground">Ruolo</dt>
+                <dd>{editing?.mansione || "Da definire"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Reparto</dt>
+                <dd>{editing?.reparto || "Da definire"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Sede</dt>
+                <dd>
+                  {editing?.sede_id
+                    ? siteNames.get(editing.sede_id) || "Sede assegnata"
+                    : "Da assegnare"}
+                </dd>
+              </div>
+            </dl>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

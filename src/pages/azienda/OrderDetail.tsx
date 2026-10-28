@@ -1,4 +1,6 @@
+import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
+import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { LegacyWorkReview } from "@/components/orders/LegacyWorkReview";
 import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDialog';
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
@@ -13,7 +15,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Wallet, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
-import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
+import { PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
@@ -58,10 +60,10 @@ import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
-import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
+import { OrderViewTransition } from "@/components/orders/OrderViewTransition";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
 import { CronoprogrammaCommessa } from "@/components/orders/CronoprogrammaCommessa";
@@ -95,6 +97,7 @@ import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 import { useVertical } from "@/hooks/useVertical";
 import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/orderPlaybook";
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
@@ -114,7 +117,6 @@ import { CantiereDaOrganizzare } from "@/components/orders/CantiereDaOrganizzare
 import type { ControlloAvvio } from "@/lib/orders/nuovaCommessa";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
 import { OrderUsciteCard } from "@/components/orders/OrderUsciteCard";
-import { OrderCommunicationsCard } from "@/components/orders/OrderCommunicationsCard";
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
@@ -957,6 +959,7 @@ function OrderDetailInner() {
       toast.success(`${created} attività create dal flusso "${PLAYBOOK_LABELS[playbookKey]}". Le trovi nella card Attività.`);
       queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      invalidateOfficeWorkspace(queryClient, id);
     } catch (e) {
       toast.error("Errore nell'applicare il processo standard: " + (e instanceof Error ? e.message : "riprova"));
     } finally {
@@ -1274,6 +1277,9 @@ function OrderDetailInner() {
   const costoMaterialiGross = costoMaterialiIvato(displayItems);
   const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
   const cassaDopoMateriali = collectedGross - costoMaterialiGross; // < 0 ⇒ anticipo
+  // One data/permission boundary, placed in the active Cantiere layout only.
+  // Framework contracts keep their intervention workspace, without losing figures.
+  const figureResponsabilita = companyId && id ? <div id="section-figure-responsabilita" className="scroll-mt-24"><ErrorBoundary><IncarichiCantiere key={`${companyId}:${id}`} companyId={companyId} orderId={id} compact /></ErrorBoundary></div> : null;
   const accontoCopreMateriali = costoMaterialiGross <= 0 || collectedGross >= costoMaterialiGross;
   const saldoDate =
     displayInstallments
@@ -1384,26 +1390,6 @@ function OrderDetailInner() {
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
-        <OrderHeaderSummary
-          compact={activeTab !== "panoramica"}
-          riepilogo={
-            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm font-semibold max-sm:text-[13px] sm:gap-x-5">
-              <VoceRiepilogo etichetta="Stato" senzaEtichettaMobile>
-                <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: statuses.find(status => status.id === order.current_status_id)?.color || "#64748b" }} />
-                  {statuses.find(status => status.id === order.current_status_id)?.name || "Stato non impostato"}
-                </span>
-              </VoceRiepilogo>
-              {avanzamentoPct != null && !!phaseProgress?.total && (
-                <VoceRiepilogo etichetta="Avanzamento" senzaEtichettaMobile>{Math.round(Math.min(100, Math.max(0, avanzamentoPct)))}%</VoceRiepilogo>
-              )}
-              {permissions.canViewOrderAmounts && !contractFinancePending && !operationalIntervention && <>
-                <VoceRiepilogo etichetta="Incassato" soloDesktop>{formatCurrency(collectedGross)} <span className="font-normal text-slate-500">su {formatCurrency(cashTotalGross)}</span></VoceRiepilogo>
-                <VoceRiepilogo etichetta="Residuo" tono={saldoResiduoGross > 0.01 ? "attenzione" : "ok"}>{saldoResiduoGross > 0.01 ? formatCurrency(saldoResiduoGross) : "Saldato"}</VoceRiepilogo>
-              </>}
-            </span>
-          }
-        >
         {operationalIntervention || contractFinancePending ? contractFinanceNotice : <OrderFinancialOverview
           orderId={id!}
           totalAmount={agreedAmount}
@@ -1481,7 +1467,6 @@ function OrderDetailInner() {
             )}
           </QuoteCard>
         </OrderCommessaSummary>
-        </OrderHeaderSummary>
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
@@ -1493,7 +1478,8 @@ function OrderDetailInner() {
           <OrderDetailNavigation operational={contractLink.data?.workflow_kind === "intervento"} />
 
           {/* Tab: Panoramica */}
-          <TabsContent value="panoramica" className="space-y-4 mt-4">
+          <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
+            <OrderViewTransition viewKey="panoramica">
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
               <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950">Da controllare</h2>
@@ -1553,14 +1539,7 @@ function OrderDetailInner() {
                 snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
                 indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
-              <OrderDisclosure title="Comunicazioni cliente" description="Email e messaggi del cliente, anche relativi ad altri lavori.">
-                <OrderCommunicationsCard
-                  compact
-                  customerId={order.customer_id}
-                  customerEmail={order.customer?.email}
-                  customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-                />
-              </OrderDisclosure>
+              {id && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi della commessa</summary><p className="my-2 text-xs text-muted-foreground">Dati interni, senza modificare importi, contratto o documento cliente.</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
               </div>
               <div className="space-y-4">
                 <QuoteCard title="Lavoro previsto" icon={<HardHat className="h-4 w-4" />}>
@@ -1591,14 +1570,16 @@ function OrderDetailInner() {
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} /> : undefined}
               />
             </div>
+            </OrderViewTransition>
           </TabsContent>
 
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
-          <TabsContent value="articoli" className="space-y-4 mt-4">
+          <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
+            <OrderViewTransition viewKey={activeMaterialiView}>
             {activeMaterialiView === "articoli" && <>
             {/* Un solo elenco degli articoli, diviso per fase (23/10/2026): materiali,
                 lavorazioni e descrizioni, con validazione del tecnico, acquisti e
@@ -1740,15 +1721,17 @@ function OrderDetailInner() {
               />
             ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>}
             </div>}
+            </OrderViewTransition>
           </TabsContent>
 
           {/* Tab: Finanza */}
-          <TabsContent value="finanza" className="space-y-4 mt-4">
+          <TabsContent value="finanza" className="order-detail-tab-panel space-y-4 mt-4">
             {operationalIntervention || contractFinancePending ? contractFinanceNotice : <>
             <div id="economia-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
-            {activeEconomiaView === "documenti" && <details className="rounded-xl border border-slate-300 bg-white">
+            <OrderViewTransition viewKey={activeEconomiaView}>
+            {activeEconomiaView === "sal" && <details open className="rounded-xl border border-slate-300 bg-white">
               <summary id="section-sal" className="cursor-pointer scroll-mt-24 px-4 py-3 text-sm font-medium">SAL e avanzamento economico</summary>
               <div className="p-4 pt-0">
                 {companyId && <OrdineSAL orderId={id!} companyId={companyId}
@@ -1946,7 +1929,7 @@ function OrderDetailInner() {
             {activeEconomiaView === "pagamenti" && <div id="section-ritenute" className="scroll-mt-24">
               <RitenuteTab orderId={id!} />
             </div>}
-            {activeEconomiaView === "documenti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
+            {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
@@ -2114,12 +2097,19 @@ function OrderDetailInner() {
               </div>
             </QuoteCard>
             </div>}
+            </OrderViewTransition>
             </>}
           </TabsContent>
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
-          <TabsContent value="cantiere" className="mt-2 space-y-3 sm:mt-4 sm:space-y-4">
-            {contractLink.data?.workflow_kind === "contratto" ? <ContractInterventions key={id} orderId={id!} /> : <>
+          <TabsContent value="cantiere" className="order-detail-tab-panel mt-2 space-y-3 sm:mt-4 sm:space-y-4">
+            {contractLink.data?.workflow_kind === "contratto" ? <>
+              <section id="section-squadra" aria-label="Organizzazione del contratto" className="space-y-3 scroll-mt-24">
+                <h2 className="text-base font-semibold">Organizzazione</h2>
+                {figureResponsabilita}
+              </section>
+              <ContractInterventions key={id} orderId={id!} />
+            </> : <>
             <div id="cantiere-workspace" className="scroll-mt-24">
               <CantiereViewNav
                 value={vistaCantiere}
@@ -2127,12 +2117,14 @@ function OrderDetailInner() {
                 counts={{ lavorazioni: conteggiViste?.lavorazioni, diario: conteggiViste?.rapportini }}
               />
             </div>
+            <OrderViewTransition viewKey={vistaCantiere}>
             {vistaCantiere === "lavorazioni" && <>
             {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
+                organizationContent={figureResponsabilita}
                 onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
               {permissions.canEditOrders && companyId && <details className="mt-3 rounded-lg border bg-white px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Supporto AI per le assegnazioni</summary><div className="mt-3"><AllocazioneOperaiAIDialog orderId={id!} companyId={companyId} /></div></details>}
             </div>
@@ -2155,6 +2147,7 @@ function OrderDetailInner() {
             {vistaCantiere === "ufficio" && <div id="section-ufficio" className="space-y-4 scroll-mt-24">
               <ErrorBoundary><FasiUfficio key={id} orderId={id!} /></ErrorBoundary>
             </div>}
+            {vistaCantiere === "sopralluoghi" && <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard key={id} orderId={id!} /></ErrorBoundary></div>}
             {vistaCantiere === "squadra" && <div id="section-statistiche" className="space-y-4 scroll-mt-24">
               <ErrorBoundary><OreEPersone key={id} orderId={id!} inizioLavori={order.work_start_date ?? order.created_at} /></ErrorBoundary>
               {/* Squadre, ditte e costi del personale: il riepilogo di prima, chiuso finché non serve. */}
@@ -2163,7 +2156,7 @@ function OrderDetailInner() {
               </OrderDisclosure>
             </div>}
             {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-24">
-              <ErrorBoundary><MezziCommessaCard key={id} orderId={id!} compact /></ErrorBoundary>
+              <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} /></ErrorBoundary>
             </div>}
             {vistaCantiere === "lavorazioni" && <>
               <section
@@ -2188,9 +2181,10 @@ function OrderDetailInner() {
                   <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
               </section>
             <div id="section-attivita" className="scroll-mt-24 empty:hidden">
-              <LinkedTasks key={id} orderId={id} category="ordini" excludeOffice compatta editable={permissions.canEditOrders} />
+              <LinkedTasks key={id} orderId={id} category="ordini" excludeOffice compatta editable={permissions.canEditOrders}
+                title="Attività operative del cantiere"
+                description="Promemoria con responsabile e scadenza, distinti dalle fasi di lavoro. Le attività amministrative si gestiscono in Ufficio." />
             </div>
-            <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard orderId={id!} /></ErrorBoundary></div>
             </>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
@@ -2223,6 +2217,7 @@ function OrderDetailInner() {
               />
               <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} /></div>
             </>}
+            </OrderViewTransition>
             </>}
           </TabsContent>
         </Tabs>
@@ -2312,6 +2307,7 @@ function OrderDetailInner() {
         }}
         defaultCategory="ordini"
         defaultOrderId={id}
+        defaultActivityScope={activeTab === "cantiere" && vistaCantiere === "ufficio" ? "ufficio" : "generale"}
       />
 
       {/* Editor del playbook commessa (per-azienda, per mestiere) */}

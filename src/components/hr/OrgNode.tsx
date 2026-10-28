@@ -1,70 +1,47 @@
 import type { OrgTreeNode } from "@/types/hr";
-import { Badge } from "@/components/ui/badge";
-import { Users } from "lucide-react";
+import { MapPin } from "lucide-react";
 
-interface Props {
+export function OrgNode({
+  node,
+  isRoot,
+  onClick,
+  siteName,
+}: {
   node: OrgTreeNode;
   isRoot?: boolean;
   onClick: (node: OrgTreeNode) => void;
-}
-
-const REPARTO_COLORS: Record<string, string> = {
-  Direzione: "border-slate-500",
-  Tecnico: "border-blue-500",
-  Cantiere: "border-amber-500",
-  Commerciale: "border-green-500",
-  Amministrazione: "border-purple-500",
-};
-
-function getRepartoBorder(reparto: string | null) {
-  if (!reparto) return "border-border";
-  return REPARTO_COLORS[reparto] || "border-sky-500";
-}
-
-export function OrgNode({ node, isRoot, onClick }: Props) {
-  const borderClass = isRoot
-    ? "border-primary border-2 shadow-md"
-    : `border-l-4 ${getRepartoBorder(node.reparto)} shadow-sm`;
-
+  siteName?: string;
+}) {
   return (
     <button
+      type="button"
       onClick={() => onClick(node)}
-      className={`
-        bg-card rounded-lg p-3 min-w-[180px] max-w-[220px]
-        ${borderClass}
-        hover:shadow-md transition-shadow text-left
-        ${!node.attivo ? "opacity-50 grayscale" : ""}
-      `}
+      title={`${node.nome} ${node.cognome} · ${node.mansione || "Ruolo da definire"}`}
+      className={`h-full w-full rounded-xl border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 ${isRoot ? "border-blue-300 border-t-[3px]" : "border-slate-200"}`}
     >
       <div className="flex items-center gap-2.5">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-          style={{ backgroundColor: node.colore_avatar || "#0EA5E9" }}
-        >
-          {node.nome?.[0]}{node.cognome?.[0]}
-        </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+          {node.nome?.[0]}
+          {node.cognome?.[0]}
+        </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">
+          <p className="truncate text-sm font-semibold text-slate-900">
             {node.nome} {node.cognome}
           </p>
-          {node.mansione && (
-            <p className="text-xs text-muted-foreground truncate">{node.mansione}</p>
-          )}
+          <p className="truncate text-xs text-muted-foreground">
+            {node.mansione || "Ruolo da definire"}
+          </p>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-        {node.reparto && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {node.reparto}
-          </Badge>
-        )}
-        {node.children.length > 0 && (
-          <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
-            <Users className="h-3 w-3" />
-            {node.children.length}
-          </span>
-        )}
+      <div className="mt-2 flex items-center gap-1.5">
+        <span className="truncate rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+          {node.reparto || "Reparto da definire"}
+        </span>
       </div>
+      <p className="mt-1 flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+        <MapPin className="h-3 w-3 shrink-0" />
+        {siteName || (node.sede_id ? "Sede assegnata" : "Sede da assegnare")}
+      </p>
     </button>
   );
 }

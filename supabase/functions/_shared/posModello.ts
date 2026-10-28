@@ -1,3 +1,10 @@
+import {normalizzaRiferimentoPsc, type RiferimentoPsc} from "./posPsc.ts";
+import {normalizzaSegnaliPos,type SceltaSegnalePos} from "./posSegnaletica.ts";
+import { normalizzaRequisitiAddettiPos, erroriRequisitiAddettiPos, type RequisitiAddettiPos } from "./posRequisitiAddetti.ts";
+import {erroriDocumentazioneMezzo} from "./posDocumentiMezzi.ts";
+import { erroriSceltaMezzo } from "./posMezzi.ts";
+import { erroriFontiTecniche } from "./posFontiTecniche.ts";
+import { normalizzaTecnicaPos, erroriTecnicaPos, type TecnicaLavorazionePos } from "./posTecnica.ts";
 /**
  * Il POS sul modello ufficiale: Allegato I del Decreto Interministeriale
  * 9 settembre 2014 (modello semplificato), che segue i contenuti minimi
@@ -14,6 +21,8 @@
  * proporre l'AI ma vanno riviste una per una prima di approvare.
  */
 
+import { normalizzaProdottoPos, erroriProdottoPos, type ProdottoPos } from "./posProdotti.ts";
+export type { ProdottoPos } from "./posProdotti.ts";
 export const POS_VERSIONE_MODELLO = 1 as const;
 
 export type RuoloImpresa = "affidataria" | "affidataria_esecutrice" | "esecutrice_subappalto";
@@ -72,6 +81,10 @@ export interface LavoratoreAutonomo {
 }
 
 export interface RigaFormazione {
+  /** Source identity only; never an authorization or an attestation of qualification. */
+  riferimento_addetto?: { tipo: "hr"; id: string };
+  /** Conferma esplicita dopo la lettura dei documenti, mai inferita da titoli. */
+  verificata?: boolean;
   nominativo: string;
   qualifica: string;
   base: boolean;
@@ -92,6 +105,12 @@ export interface RigaRumore {
 }
 
 export interface Lavorazione {
+  segnaletica?: SceltaSegnalePos[];
+  requisiti_addetti?: RequisitiAddettiPos;
+  tecnica?: TecnicaLavorazionePos;
+  fase_id?: string | null;
+  prodotti?: ProdottoPos[];
+  prodotti_riesaminati?: boolean;
   id: string;
   titolo: string;
   descrizione: string;
@@ -108,7 +127,7 @@ export interface Lavorazione {
   svolgimento: Svolgimento;
   svolgimento_con: string;
   /** Proposta dall'AI o scritta a mano. */
-  origine: "ai" | "utente";
+  origine: "ai" | "utente" | "modello";
   /** Una scheda proposta dall'AI vale solo dopo che qualcuno l'ha letta e confermata. */
   verificata: boolean;
 }
@@ -116,6 +135,9 @@ export interface Lavorazione {
 export interface ProceduraPsc {
   procedura: string;
   indicazioni: string;
+  pagina?: string;
+  lavorazione_id?: string;
+  responsabile?: string;
 }
 
 export interface AllegatoPos {
@@ -125,6 +147,14 @@ export interface AllegatoPos {
 }
 
 export interface PosContenuto {
+  versione_psc?: 1;
+  versione_requisiti_addetti?: 1;
+  versione_controlli?: 1 | 2;
+  versione_prodotti?: 1;
+  versione_tecnica?: 1;
+  versione_fonti_tecniche?:1;
+  versione_mezzi?:1;
+  versione_documenti_mezzi?:1;
   versione_modello: typeof POS_VERSIONE_MODELLO;
   opera: {
     committente: Soggetto;
@@ -166,7 +196,7 @@ export interface PosContenuto {
   formazione: RigaFormazione[];
   rumore: { esito: string; righe: RigaRumore[] };
   lavorazioni: Lavorazione[];
-  procedure_psc: { psc_presente: boolean; richieste: boolean; voci: ProceduraPsc[] };
+  procedure_psc: { psc_presente: boolean; richieste: boolean; voci: ProceduraPsc[]; documento?: RiferimentoPsc };
   allegati: AllegatoPos[];
 }
 
@@ -178,6 +208,7 @@ export const soggettoVuoto = (): Soggetto => ({ nominativo: "", codice_fiscale: 
 export function posVuoto(): PosContenuto {
   return {
     versione_modello: POS_VERSIONE_MODELLO,
+    versione_controlli: 2,
     opera: {
       committente: soggettoVuoto(),
       responsabile_lavori: null,
@@ -221,6 +252,7 @@ export function lavorazioneVuota(id: string): Lavorazione {
     id, titolo: "", descrizione: "", modalita: "", sostanze: "", opere_provvisionali: "", macchine: "",
     impianti: "", turni: "", rischi: "", misure: "", dpi: "", durata_giorni: null,
     svolgimento: "diretto", svolgimento_con: "", origine: "utente", verificata: true,
+    fase_id: null, prodotti: [], prodotti_riesaminati: false,
   };
 }
 
@@ -253,13 +285,19 @@ function figura(v: unknown): FiguraPos {
 
 export function normalizzaLavorazione(v: unknown, id: string): Lavorazione {
   const o = isObj(v) ? v : {};
-  const origine = uno(o.origine, ["ai", "utente"] as const, "utente");
+  const origine = uno(o.origine, ["ai", "utente", "modello"] as const, "utente");
   return {
     id: str(o.id) || id,
+    ...(o.segnaletica !== undefined ? {segnaletica:normalizzaSegnaliPos(o.segnaletica)} : {}),
+    ...(o.requisiti_addetti !== undefined ? {requisiti_addetti:normalizzaRequisitiAddettiPos(o.requisiti_addetti)} : {}),
     titolo: str(o.titolo),
     descrizione: str(o.descrizione),
     modalita: str(o.modalita),
     sostanze: str(o.sostanze),
+    fase_id: typeof o.fase_id === "string" && o.fase_id ? o.fase_id : null,
+    prodotti: arr(o.prodotti).map(normalizzaProdottoPos),
+    prodotti_riesaminati: bool(o.prodotti_riesaminati),
+    ...(isObj(o.tecnica) ? {tecnica:normalizzaTecnicaPos(o.tecnica)} : {}),
     opere_provvisionali: str(o.opere_provvisionali),
     macchine: str(o.macchine),
     impianti: str(o.impianti),
@@ -294,6 +332,14 @@ export function normalizzaPos(v: unknown): PosContenuto {
   const psc = isObj(v.procedure_psc) ? v.procedure_psc : {};
   return {
     versione_modello: POS_VERSIONE_MODELLO,
+    ...(v.versione_requisiti_addetti===1?{versione_requisiti_addetti:1 as const}:{}),
+    ...(v.versione_psc===1 ? {versione_psc:1 as const} : {}),
+    versione_controlli: v.versione_controlli === 2 ? 2 : 1,
+    ...(v.versione_prodotti === 1 ? { versione_prodotti: 1 as const } : {}),
+    ...(v.versione_tecnica === 1 ? { versione_tecnica: 1 as const } : {}),
+    ...(v.versione_fonti_tecniche===1?{versione_fonti_tecniche:1 as const}:{}),
+    ...(v.versione_mezzi===1?{versione_mezzi:1 as const}:{}),
+    ...(v.versione_documenti_mezzi===1?{versione_documenti_mezzi:1 as const}:{}),
     opera: {
       committente: soggetto(opera.committente),
       responsabile_lavori: isObj(opera.responsabile_lavori) ? soggetto(opera.responsabile_lavori) : null,
@@ -351,7 +397,8 @@ export function normalizzaPos(v: unknown): PosContenuto {
     formazione: arr(v.formazione).map((r) => {
       const o = isObj(r) ? r : {};
       return {
-        nominativo: str(o.nominativo), qualifica: str(o.qualifica), base: bool(o.base),
+        ...(isObj(o.riferimento_addetto) && o.riferimento_addetto.tipo === "hr" && str(o.riferimento_addetto.id).trim() ? {riferimento_addetto:{tipo:"hr" as const,id:str(o.riferimento_addetto.id).trim()}} : {}),
+        nominativo: str(o.nominativo), qualifica: str(o.qualifica), base: bool(o.base), verificata: bool(o.verificata),
         rischi_specifici: bool(o.rischi_specifici), rischi_cantiere: bool(o.rischi_cantiere),
         dpi_terza_categoria: bool(o.dpi_terza_categoria), altro: str(o.altro), attestati: str(o.attestati),
       };
@@ -370,9 +417,10 @@ export function normalizzaPos(v: unknown): PosContenuto {
     procedure_psc: {
       psc_presente: bool(psc.psc_presente),
       richieste: bool(psc.richieste),
+      ...(normalizzaRiferimentoPsc(psc.documento) ? {documento:normalizzaRiferimentoPsc(psc.documento)} : {}),
       voci: arr(psc.voci).map((p) => {
         const o = isObj(p) ? p : {};
-        return { procedura: str(o.procedura), indicazioni: str(o.indicazioni) };
+        return { procedura: str(o.procedura), indicazioni: str(o.indicazioni), ...(typeof o.pagina === "string" ? {pagina:str(o.pagina)} : {}), ...(typeof o.lavorazione_id === "string" ? {lavorazione_id:str(o.lavorazione_id)} : {}), ...(typeof o.responsabile === "string" ? {responsabile:str(o.responsabile)} : {}) };
       }),
     },
     allegati: arr(v.allegati).map((a) => {
@@ -472,9 +520,9 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     add("3.2.1 l)", "formazione", "Informazione e formazione dei lavoratori impegnati in cantiere");
   } else {
     const senza = pos.formazione
-      .filter((f) => !f.base && !f.rischi_specifici && !f.rischi_cantiere && !f.dpi_terza_categoria && vuoto(f.altro))
+      .filter((f) => (pos.versione_controlli === 2 && !f.verificata) || (!f.base && !f.rischi_specifici && !f.rischi_cantiere && !f.dpi_terza_categoria && vuoto(f.altro)))
       .map((f) => f.nominativo.trim() || "lavoratore senza nome");
-    if (senza.length) add("3.2.1 l)", "formazione", `Formazione ricevuta da: ${senza.join(", ")}`);
+    if (senza.length) add("3.2.1 l)", "formazione", `Documenti e pertinenza della formazione da verificare per: ${senza.join(", ")}`);
   }
 
   // Rumore
@@ -497,15 +545,39 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     if (vuoto(l.sostanze)) manca.push("sostanze pericolose (anche «nessuna»)");
     if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push("impresa con cui si svolge");
     if (manca.length) add("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
-    if (l.origine === "ai" && !l.verificata) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: proposta dall'AI, da rileggere e confermare`);
+    if (pos.versione_prodotti === 1) {
+      if (!l.prodotti_riesaminati) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`);
+      if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`);
+      for (const p of l.prodotti || []) {
+        const errori = erroriProdottoPos(p, l.fase_id);
+        if (errori.length) add("3.2.1 e)", "lavorazioni", `Prodotto «${p.nome || "senza nome"}» in «${nome}»: ${errori.join(", ")}`);
+        if (p.sds_necessaria === "si" && nessuno(l.sostanze)) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: sostanze dichiarate assenti ma prodotto con SDS richiesta`);
+      }
+    }
+    if(pos.versione_requisiti_addetti===1){const e=erroriRequisitiAddettiPos(l.requisiti_addetti,l,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 l)","lavorazioni",`Requisiti addetti in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_documenti_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const fonte=a.anagrafica?.modalita==="inventario"?a.anagrafica.fonte?.mezzo_id||null:null;const e=erroriDocumentazioneMezzo(a.documentazione,fonte,a.anagrafica?.utilizzo_dal||"",a.anagrafica?.utilizzo_al||"");if(e.length)add("3.2.1 d)","lavorazioni",`Documentazione attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
+    if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) add("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
+    if (l.origine !== "utente" && !l.verificata) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
   });
 
   // Sostanze: servono le schede di sicurezza allegate
   const conSostanze = pos.lavorazioni.some((l) => !vuoto(l.sostanze) && !nessuno(l.sostanze));
-  if (conSostanze && !pos.allegati.some((a) => a.tipo === "scheda_sicurezza" && !vuoto(a.file_path))) {
+  if (pos.versione_prodotti !== 1 && conSostanze && !pos.allegati.some((a) => a.tipo === "scheda_sicurezza" && !vuoto(a.file_path))) {
     add("3.2.1 e)", "allegati", "Schede di sicurezza delle sostanze pericolose usate");
   }
 
+  // A present PSC needs an explicit original, not just a boolean declaration.
+  if (pos.versione_psc===1 && pos.procedure_psc.psc_presente && !pos.procedure_psc.documento) {
+    add("3.2.1 h)", "psc", "Originale PSC e revisione di riferimento da collegare");
+  }
+  if (pos.procedure_psc.psc_presente && pos.procedure_psc.richieste) {
+    pos.procedure_psc.voci.forEach((v,i) => {
+      if (vuoto(v.procedura) || vuoto(v.indicazioni)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: completa prescrizione e risposta operativa`);
+      if(v.lavorazione_id && !pos.lavorazioni.some(l=>l.id===v.lavorazione_id)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: lavorazione non più presente`);
+    });
+  }
   // Procedure richieste dal PSC
   if (pos.procedure_psc.psc_presente && pos.procedure_psc.richieste && !pos.procedure_psc.voci.some((v) => !vuoto(v.procedura))) {
     add("3.2.1 h)", "psc", "Procedure complementari o di dettaglio richieste dal PSC");
@@ -520,47 +592,6 @@ export function completezzaPercento(pos: PosContenuto): number {
   const totale = vociMancanti(posVuoto()).length;
   const mancanti = vociMancanti(pos).length;
   return Math.max(0, Math.min(100, Math.round(((totale - Math.min(mancanti, totale)) / totale) * 100)));
-}
-
-// ── Aggiornamento dai dati dell'app ──────────────────────────────────────────
-
-/**
- * Le parti del POS che arrivano dall'app (commessa, impresa, figure,
- * lavoratori e formazione) si possono rileggere quando i dati cambiano. Quello
- * che l'utente scrive a mano (lavorazioni, rumore, procedure del PSC,
- * allegati, turni e modalità organizzative) non si tocca.
- */
-export function aggiornaDaDatiApp(attuale: PosContenuto, daApp: PosContenuto): PosContenuto {
-  const tieni = (a: string, b: string) => (vuoto(b) ? a : b);
-  return {
-    ...attuale,
-    opera: {
-      ...attuale.opera,
-      committente: daApp.opera.committente.nominativo ? daApp.opera.committente : attuale.opera.committente,
-      cantiere: daApp.opera.cantiere.via ? daApp.opera.cantiere : attuale.opera.cantiere,
-      descrizione_attivita: tieni(attuale.opera.descrizione_attivita, daApp.opera.descrizione_attivita),
-      data_inizio: tieni(attuale.opera.data_inizio, daApp.opera.data_inizio),
-      data_fine: tieni(attuale.opera.data_fine, daApp.opera.data_fine),
-    },
-    impresa: {
-      ...daApp.impresa,
-      // Ruolo, subappalto e uffici di cantiere li decide chi scrive il POS.
-      ruolo: attuale.impresa.ruolo,
-      subappalto_a: attuale.impresa.subappalto_a,
-      durata_oltre_200_giorni: attuale.impresa.durata_oltre_200_giorni,
-      uffici_cantiere: vuoto(attuale.impresa.uffici_cantiere.indirizzo) ? daApp.impresa.uffici_cantiere : attuale.impresa.uffici_cantiere,
-    },
-    dirigenti: daApp.dirigenti.length ? daApp.dirigenti : attuale.dirigenti,
-    preposti: daApp.preposti.length ? daApp.preposti : attuale.preposti,
-    rspp: vuoto(daApp.rspp.nominativo) ? attuale.rspp : daApp.rspp,
-    medico_competente: vuoto(daApp.medico_competente.nominativo) ? attuale.medico_competente : daApp.medico_competente,
-    rls: vuoto(daApp.rls.nominativo) ? attuale.rls : daApp.rls,
-    emergenze: daApp.emergenze.addetti.length
-      ? { ...attuale.emergenze, addetti: daApp.emergenze.addetti }
-      : attuale.emergenze,
-    lavoratori: daApp.lavoratori.length ? daApp.lavoratori : attuale.lavoratori,
-    formazione: daApp.formazione.length ? daApp.formazione : attuale.formazione,
-  };
 }
 
 /** Mansioni di sicurezza tipiche per ruolo, se la figura non le ha scritte. */

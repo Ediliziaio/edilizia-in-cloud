@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ORDER_DETAIL_TABS,
+  CANTIERE_VIEWS,
   orderDetailLocation,
   resolveOrderDetailDestination,
   resolveCantiereView,
@@ -26,7 +27,7 @@ describe("Navigazione unica della commessa", () => {
   });
   it.each([
     ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "pagamenti"],
-    ["section-sal", "documenti"], ["section-varianti", "documenti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"], ["section-manodopera-costi", "manodopera"],
+    ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"], ["section-manodopera-costi", "manodopera"],
   ])("l'ancora economica %s monta la vista corretta", (section, view) => {
     expect(resolveEconomiaView("?vista_economia=altra", section)).toBe(view);
     expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("finanza");
@@ -93,8 +94,16 @@ describe("Navigazione unica della commessa", () => {
     expect(resolveCantiereView("?vista_cantiere=__proto__")).toBe("lavorazioni");
     expect(resolveCantiereView("?vista_cantiere=collaudo")).toBe("collaudo");
     expect(resolveCantiereView("?vista_cantiere=squadra", "section-assistenza")).toBe("collaudo");
-    expect(resolveCantiereView("?vista_cantiere=diario", "section-sopralluoghi")).toBe("lavorazioni");
+    expect(resolveCantiereView("?vista_cantiere=diario", "section-sopralluoghi")).toBe("sopralluoghi");
     expect(resolveOrderDetailDestination("?tab=panoramica", "#section-assistenza")).toEqual({tab: "cantiere", section: "section-assistenza"});
+  });
+  it("colloca Rilievi e sopralluoghi subito dopo Cronoprogramma e conserva le ancore", () => {
+    const index = CANTIERE_VIEWS.findIndex(view => view.value === "cronoprogramma");
+    expect(CANTIERE_VIEWS[index + 1].value).toBe("sopralluoghi");
+    expect(resolveCantiereView("?vista_cantiere=sopralluoghi")).toBe("sopralluoghi");
+    expect(resolveOrderDetailDestination("?tab=panoramica#ignored", "#section-sopralluoghi")).toEqual({tab: "cantiere", section: "section-sopralluoghi"});
+    expect(resolveOrderDetailDestination("?tab=panoramica&section=section-figure-responsabilita")).toEqual({tab:"cantiere",section:"section-figure-responsabilita"});
+    expect(resolveCantiereView("?vista_cantiere=sopralluoghi", "section-figure-responsabilita")).toBe("lavorazioni");
   });
   it("cambia vista eliminando l'ancora precedente senza perdere i parametri estranei", () => {
     expect(orderDetailLocation("?tab=cantiere&source=agenda", {tab:"cantiere",cantiereView:"diario"})).toEqual({search:"?tab=cantiere&source=agenda&vista_cantiere=diario",hash:""});

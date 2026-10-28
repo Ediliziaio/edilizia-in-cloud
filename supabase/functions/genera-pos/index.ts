@@ -1,3 +1,10 @@
+import { supportaRequisitiAddettiPos } from "../_shared/posRequisitiAddetti.ts";
+import { supportaDocumentiMezziPos } from "../_shared/posDocumentiMezzi.ts";
+import { supportaMezziPos } from "../_shared/posMezzi.ts";
+import { supportaFontiTecnichePos } from "../_shared/posFontiTecniche.ts";
+import { supportaTecnicaPos } from "../_shared/posTecnica.ts";
+import { supportaProdottiPos } from "../_shared/posProdotti.ts";
+import { verificaVersionePos } from "../_shared/posVersione.ts";
 /**
  * genera-pos — Piano Operativo di Sicurezza sul modello ufficiale
  * (DI 9 settembre 2014, Allegato I; Allegato XV punto 3.2.1 del D.Lgs 81/2008).
@@ -25,22 +32,26 @@ import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { colonneRiassunto, preparaPosDaApp } from "../_shared/posDatiApp.ts";
 import { normalizzaLavorazione, normalizzaPos, vociMancanti, type Lavorazione } from "../_shared/posModello.ts";
 
+import { applicaRiusoPos, lavorazioniRiutilizzabili } from "../_shared/posRiuso.ts";
+
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const AZIONI = ["crea", "dati_app", "lavorazioni_ai", "approva"] as const;
+const AZIONI = ["apri_originale_addetto","apri_documento_mezzo","crea", "dati_app", "lavorazioni_ai", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"] as const;
 type Azione = typeof AZIONI[number];
 
 async function verificaPermesso(db: Db, userId: string, companyId: string, scrive: boolean, cors: Record<string, string>) {
-  const { data: ok } = await db.rpc("has_permission_for_company", {
+  const { data: ok, error: permessoError } = await db.rpc("has_permission_for_company", {
     _user_id: userId,
     _permission: "can_view_sicurezza_cantiere",
     _company_id: companyId,
   });
+  if (permessoError) throw errorResponse("Permessi non verificabili: riprova prima di procedere",503,cors);
   if (ok !== true) throw errorResponse("Non hai il permesso Sicurezza Cantiere in questa azienda", 403, cors);
   if (!scrive) return;
-  const { data: sp } = await db
+  const { data: sp, error: staffError } = await db
     .from("staff_permissions").select("sola_lettura").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
+  if (staffError) throw errorResponse("Sola lettura non verificabile",503,cors);
   if (sp?.sola_lettura === true) {
     const { data: ruoli } = await db.from("user_roles").select("role").eq("user_id", userId);
     const superAdmin = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
@@ -54,7 +65,7 @@ async function verificaPermesso(db: Db, userId: string, companyId: string, scriv
 async function caricaPos(db: Db, companyId: string, posId: string, cors: Record<string, string>) {
   const { data, error } = await db
     .from("pos_documents")
-    .select("id, company_id, order_id, status, contenuto, revisione, revisioni, document_type")
+    .select("id, company_id, order_id, status, contenuto, revisione, revisioni, document_type, updated_at")
     .eq("id", posId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -146,7 +157,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   const lavorazioni = elenco
     .map((l, i) => {
       const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
-      const conRighe = { ...o, rischi: righe(o.rischi), misure: righe(o.misure), dpi: righe(o.dpi), sostanze: righe(o.sostanze) };
+      const conRighe = { ...o, tecnica:undefined, requisiti_addetti:undefined, rischi: righe(o.rischi), misure: righe(o.misure), dpi: righe(o.dpi), sostanze: righe(o.sostanze) };
       return { ...normalizzaLavorazione(conRighe, `ai-${base}-${i + 1}`), origine: "ai" as const, verificata: false };
     })
     .filter((l) => l.titolo.trim() || l.descrizione.trim());
@@ -165,14 +176,65 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     // Compatibilità: chi chiamava senza azione con order_id voleva creare un POS.
-    const azione: Azione = AZIONI.includes(body.azione) ? body.azione : body.order_id ? "crea" : body.azione;
+    const azione: Azione = body.azione == null && body.order_id ? "crea" : body.azione;
     const companyId = typeof body.company_id === "string" ? body.company_id : "";
     if (!AZIONI.includes(azione)) return errorResponse("Azione non riconosciuta", 400, cors);
     if (!companyId) return errorResponse("company_id obbligatorio", 400, cors);
 
     await requireCompanyAccess(db, userId, companyId, cors);
-    await verificaPermesso(db, userId, companyId, azione === "crea" || azione === "approva", cors);
+    await verificaPermesso(db, userId, companyId, ["crea", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"].includes(azione), cors);
 
+    if(azione === "apri_originale_addetto") {
+      const persona=String(body.persona_id||"");
+      const {data:fonte,error}=await db.rpc("pos_originale_addetto_per_autore",{_company:companyId,_ordine:String(body.order_id||""),_riesame:String(body.riesame_id||""),_persona:persona,_documento:String(body.documento_id||""),_impronta:String(body.impronta||""),_autore:userId});
+      if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
+      const path=fonte?.path;
+      if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale formativo non disponibile",403,cors);
+      const {data:link,error:err}=await db.storage.from("hr-documenti").createSignedUrl(path,300);
+      if(err||!link?.signedUrl)return errorResponse("Originale formativo non disponibile",503,cors);
+      return jsonResponse({ok:true,url:link.signedUrl},200,cors);
+    }
+    if(azione === "apri_documento_mezzo") {
+      const ordine=String(body.order_id||""),mezzo=String(body.mezzo_id||""),documento=String(body.documento_id||""),impronta=String(body.impronta||"");
+      const {data:path,error}=await db.rpc("pos_documento_mezzo_per_autore",{_company:companyId,_ordine:ordine,_mezzo:mezzo,_documento:documento,_impronta:impronta,_autore:userId});
+      if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
+      if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale attrezzatura non disponibile",403,cors);
+      const {data:link,error:err}=await db.storage.from("mezzi-documenti").createSignedUrl(path,300);
+      if(err||!link?.signedUrl)return errorResponse("Originale attrezzatura non disponibile",503,cors);
+      return jsonResponse({ok:true,url:link.signedUrl},200,cors);
+    }
+    if (azione === "scarica_emissione") {
+      if(!["pdf","zip"].includes(body.tipo)) return errorResponse("Scegli PDF o fascicolo",400,cors);
+      const {scaricaEmissionePos}=await import("../_shared/posEmissione.ts");
+      const r=await scaricaEmissionePos(db,companyId,String(body.emissione_id||""),body.tipo);
+      return jsonResponse({ok:true,...r},200,cors);
+    }
+    if (azione === "archivia_modello") {
+      const {data,error}=await db.from("pos_modelli_aziendali").update({archiviato:true}).eq("company_id",companyId).eq("id",body.modello_id).select("id").maybeSingle();
+      if(error) return errorResponse("Modello non archiviato",500,cors);
+      if(!data) return errorResponse("Modello non trovato",404,cors);
+      return jsonResponse({ok:true},200,cors);
+    }
+    if (azione === "salva_modello") {
+      const nome=typeof body.nome === "string" ? body.nome.trim() : "";
+      const ambito=typeof body.ambito === "string" ? body.ambito.trim() : "";
+      if(!nome || nome.length>100 || !ambito || ambito.length>500 || body.testi_verificati !== true) return errorResponse("Indica nome e campo d’impiego e verifica i testi da riutilizzare",400,cors);
+      const sorgente=await caricaPos(db,companyId,String(body.pos_id||""),cors);
+      if(body.attesa_updated_at !== sorgente.updated_at) return errorResponse("Il POS è cambiato: ricaricalo prima di salvare il modello",409,cors);
+      if(sorgente.contenuto?.versione_requisiti_addetti===1&&!supportaRequisitiAddettiPos(body))return errorResponse("Ricarica l’editor per riutilizzare le lavorazioni senza trasferire riscontri nominativi",409,cors);
+      if(sorgente.contenuto?.versione_documenti_mezzi===1&&!supportaDocumentiMezziPos(body))return errorResponse("Ricarica l’editor per riutilizzare i documenti delle attrezzature",409,cors);
+      if(sorgente.contenuto?.versione_mezzi===1&&!supportaMezziPos(body))return errorResponse("Ricarica l’editor per riutilizzare le attrezzature",409,cors);
+      if(sorgente.contenuto?.versione_fonti_tecniche===1&&!supportaFontiTecnichePos(body))return errorResponse("Ricarica l’editor per riutilizzare le fonti tecniche",409,cors);
+      if(sorgente.contenuto?.versione_tecnica===1&&!supportaTecnicaPos(body)) return errorResponse("Ricarica l’editor per riutilizzare il dettaglio tecnico",409,cors);
+      const lavorazioni=lavorazioniRiutilizzabili(sorgente.contenuto);
+      if(!lavorazioni.length) return errorResponse("Il POS non contiene lavorazioni da riutilizzare",400,cors);
+      const {data:versioni,error:versioniError}=await db.from("pos_modelli_aziendali").select("nome,versione").eq("company_id",companyId).ilike("nome",nome.replace(/[\\%_]/g, "\\$&")).order("versione",{ascending:false}).limit(1);
+      if(versioniError) return errorResponse("Versione del modello non verificabile",503,cors);
+      const versione=(versioni?.[0]?.versione||0)+1;
+      const {data:modello,error}=await db.from("pos_modelli_aziendali").insert({company_id:companyId,nome,ambito,versione,contenuto:{versione_modello:1,...(sorgente.contenuto?.versione_requisiti_addetti===1?{versione_requisiti_addetti:1}:{}),...(lavorazioni.some(l=>l.tecnica)?{versione_tecnica:1}:{}),...(sorgente.contenuto?.versione_fonti_tecniche===1?{versione_fonti_tecniche:1}:{}),...(sorgente.contenuto?.versione_mezzi===1?{versione_mezzi:1}:{}),...(sorgente.contenuto?.versione_documenti_mezzi===1?{versione_documenti_mezzi:1}:{}),lavorazioni},sorgente_pos_id:sorgente.id,created_by:userId}).select("id").single();
+      if(error) return errorResponse(error.code === "23505" ? "Il modello è stato aggiornato da un altro utente: riprova" : "Modello non salvato",error.code === "23505" ? 409 : 500,cors);
+      return jsonResponse({ok:true,modello_id:modello.id,versione},200,cors);
+    }
     if (azione === "crea") {
       const orderId = typeof body.order_id === "string" ? body.order_id : "";
       if (!orderId) return errorResponse("Scegli la commessa del POS", 400, cors);
@@ -182,7 +244,36 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         return errorResponse(e instanceof Error ? e.message : "Commessa non trovata", 404, cors);
       }
-      const contenuto = preparato.contenuto;
+      let contenuto = preparato.contenuto;
+      if(supportaRequisitiAddettiPos(body))contenuto.versione_requisiti_addetti=1;
+      if(supportaProdottiPos(body)) contenuto.versione_prodotti=1;
+      if(supportaTecnicaPos(body)) contenuto.versione_tecnica=1;
+      if(supportaFontiTecnichePos(body))contenuto.versione_fonti_tecniche=1;
+      if(supportaMezziPos(body))contenuto.versione_mezzi=1;
+      if(supportaDocumentiMezziPos(body))contenuto.versione_documenti_mezzi=1;
+      // Older deployed editors cannot record the new explicit review checkbox.
+      // Keep their existing rules until the coordinated frontend rollout.
+      if(body.versione_client !== 2 && !body.sorgente_pos_id && !body.modello_id) contenuto.versione_controlli=1;
+      let descrizioneRevisione = "Prima emissione";
+      if(body.sorgente_pos_id && body.modello_id) return errorResponse("Scegli un solo punto di partenza",400,cors);
+      if(body.sorgente_pos_id) {
+        const sorgente=await caricaPos(db,companyId,String(body.sorgente_pos_id),cors);
+        if(body.attesa_updated_at !== sorgente.updated_at) return errorResponse("Il POS sorgente è cambiato: ricarica prima di duplicare",409,cors);
+        contenuto=applicaRiusoPos(contenuto,sorgente.contenuto);
+        descrizioneRevisione=`Bozza da POS ${sorgente.id}, rev. ${sorgente.revisione ?? 0}; lavorazioni da verificare`;
+      } else if(body.modello_id) {
+        const {data:modello,error}=await db.from("pos_modelli_aziendali").select("id,nome,versione,contenuto").eq("company_id",companyId).eq("id",body.modello_id).eq("archiviato",false).maybeSingle();
+        if(error) return errorResponse("Modello non leggibile",503,cors);
+        if(!modello) return errorResponse("Modello non disponibile",404,cors);
+        contenuto=applicaRiusoPos(contenuto,modello.contenuto);
+        descrizioneRevisione=`Bozza da modello ${modello.nome}, v${modello.versione} (${modello.id}); lavorazioni da verificare`;
+      }
+      if(contenuto.versione_requisiti_addetti===1&&!supportaRequisitiAddettiPos(body))return errorResponse("Ricarica l’editor per i riscontri nominativi della propria impresa",409,cors);
+    if(contenuto.versione_documenti_mezzi===1&&!supportaDocumentiMezziPos(body))return errorResponse("Ricarica l’editor per riutilizzare i documenti delle attrezzature",409,cors);
+      if(contenuto.versione_mezzi===1&&!supportaMezziPos(body))return errorResponse("Ricarica l’editor per riutilizzare le attrezzature",409,cors);
+    if(contenuto.versione_fonti_tecniche===1&&!supportaFontiTecnichePos(body))return errorResponse("Ricarica l’editor per riutilizzare le fonti tecniche",409,cors);
+      if(contenuto.versione_tecnica===1&&!supportaTecnicaPos(body)) return errorResponse("Ricarica l’editor per riutilizzare le schede tecniche di questo POS",409,cors);
+      if(body.sorgente_pos_id || body.modello_id) preparato.contesto.avvisi.push("Lavorazioni riprese da adattare e confermare. Dati di cantiere, persone e incarichi recuperati dalla commessa di destinazione; firme e allegati precedenti esclusi.");
       if (["affidataria", "affidataria_esecutrice", "esecutrice_subappalto"].includes(body.ruolo_impresa)) {
         contenuto.impresa.ruolo = body.ruolo_impresa;
       }
@@ -196,7 +287,7 @@ Deno.serve(async (req: Request) => {
           status: "bozza",
           version: 1,
           revisione: 0,
-          revisioni: [{ rev: 0, data: oggi, descrizione: "Prima emissione" }],
+          revisioni: [{ rev: 0, data: oggi, descrizione: descrizioneRevisione }],
           contenuto,
           generated_by: "app",
           created_by: userId,
@@ -213,8 +304,36 @@ Deno.serve(async (req: Request) => {
     if (!posId) return errorResponse("pos_id obbligatorio", 400, cors);
     const pos = await caricaPos(db, companyId, posId, cors);
 
+    if(azione === "anteprima_pdf") {
+      const {data:ordine,error:ordineErr}=await db.from("orders").select("order_code").eq("company_id",companyId).eq("id",pos.order_id).maybeSingle();
+      if(ordineErr) return errorResponse("Codice commessa non disponibile",503,cors);
+      const {generaPdfPos}=await import("../_shared/posPdf.ts");
+      const {datiDaSnapshotPos}=await import("../_shared/posEmissione.ts");
+      const pdf=await generaPdfPos(datiDaSnapshotPos(pos,pos.revisione??0,ordine?.order_code||""),new Date().toISOString(),{anteprima:true});
+      return new Response(new Uint8Array(pdf.bytes),{status:200,headers:{...cors,"Content-Type":"application/pdf","Content-Disposition":"inline; filename=POS-anteprima.pdf","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+    }
+    if(azione === "emetti") {
+      const q=db.from("pos_contenuti_archiviati").select("id,revisione,snapshot,fonte,acquisito_il").eq("company_id",companyId).eq("pos_id",posId);
+      const {data:a,error:err}=await (body.snapshot_id?q.eq("id",body.snapshot_id):q.eq("revisione",pos.revisione??0)).maybeSingle();
+      if(err||!a) return errorResponse("Contenuto approvato non disponibile",404,cors);
+      const {data:ordine,error:ordineErr}=await db.from("orders").select("order_code").eq("company_id",companyId).eq("id",pos.order_id).maybeSingle();
+      if(ordineErr) return errorResponse("Codice commessa non disponibile",503,cors);
+      const {conservaEmissionePos,datiDaSnapshotPos}=await import("../_shared/posEmissione.ts");
+      const r=await conservaEmissionePos(db,userId,{posId,companyId,attesoUpdatedAt:pos.updated_at,snapshotId:a.id,
+        dati:datiDaSnapshotPos(a.snapshot,a.revisione,ordine?.order_code||""),nomeAutore:"Copia da contenuto archiviato",
+        fonti:async()=>({tipo:"contenuto_archiviato",snapshot_id:a.id,fonte:a.fonte,acquisito_il:a.acquisito_il,
+          nota:"Le fonti e i byte originari non sono ricostruiti. Il codice commessa è rilevato alla preparazione della copia."})});
+      return jsonResponse({ok:true,emissione_id:r.id},200,cors);
+    }
     if (azione === "dati_app") {
       const preparato = await preparaPosDaApp(db, companyId, String(pos.order_id));
+      if(body.versione_client !== 2) preparato.contenuto.versione_controlli=1;
+      if(supportaRequisitiAddettiPos(body))preparato.contenuto.versione_requisiti_addetti=1;
+      if(supportaProdottiPos(body)) preparato.contenuto.versione_prodotti=1;
+      if(supportaTecnicaPos(body)) preparato.contenuto.versione_tecnica=1;
+      if(supportaFontiTecnichePos(body))preparato.contenuto.versione_fonti_tecniche=1;
+      if(supportaMezziPos(body))preparato.contenuto.versione_mezzi=1;
+      if(supportaDocumentiMezziPos(body))preparato.contenuto.versione_documenti_mezzi=1;
       return jsonResponse({ ok: true, contenuto: preparato.contenuto, contesto: preparato.contesto }, 200, cors);
     }
 
@@ -223,16 +342,39 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: true, ...proposta }, 200, cors);
     }
 
-    // approva
+    // approva: check the editor token before any approval, rendering or replay.
+    verificaVersionePos(pos,body);
+    if (pos.contenuto?.versione_controlli === 2 && body.versione_client !== 2) return errorResponse("Questo POS richiede l’editor aggiornato: ricarica l’app prima di approvare",409,cors);
     if (pos.status === "approvato") return jsonResponse({ ok: true, gia_approvato: true }, 200, cors);
+    if(pos.status!=="bozza") return errorResponse("Apri una bozza prima di approvare il POS",409,cors);
+    if(body.versione_client===2 && pos.contenuto?.versione_controlli!==2) return errorResponse("Apri il POS nell’editor aggiornato, verifica i controlli e salva la bozza prima di approvare",409,cors);
     const contenuto = normalizzaPos(pos.contenuto);
+    if (contenuto.versione_prodotti===1 && !supportaProdottiPos(body)) return errorResponse("Ricarica l’editor per riesaminare i prodotti di questo POS",409,cors);
+    if(contenuto.versione_tecnica===1&&!supportaTecnicaPos(body)) return errorResponse("Ricarica l’editor per riesaminare le schede tecniche di questo POS",409,cors);
+    if(contenuto.versione_mezzi===1&&!supportaMezziPos(body))return errorResponse("Ricarica l’editor per verificare le attrezzature",409,cors);
+    if(contenuto.versione_fonti_tecniche===1&&!supportaFontiTecnichePos(body))return errorResponse("Ricarica l’editor per verificare le fonti tecniche",409,cors);
+    if(contenuto.versione_requisiti_addetti===1&&!supportaRequisitiAddettiPos(body))return errorResponse("Ricarica l’editor per i riscontri nominativi della propria impresa",409,cors);
+    if(contenuto.versione_documenti_mezzi===1&&!supportaDocumentiMezziPos(body))return errorResponse("Ricarica l’editor per verificare documenti e controlli delle attrezzature",409,cors);
+    if(contenuto.versione_psc===1 && body.versione_psc_client!==1)return errorResponse("Ricarica l’editor per il riferimento originale del PSC",409,cors);
     const mancanti = vociMancanti(contenuto);
     if (mancanti.length) {
       return jsonResponse({ ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti }, 422, cors);
     }
     const { data: profilo } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
     const nome = [profilo?.first_name, profilo?.last_name].filter(Boolean).join(" ") || profilo?.email || "utente";
-    const { error } = await db
+    if(body.versione_client===2) {
+      const {conservaEmissionePos}=await import("../_shared/posEmissione.ts");
+      const fonti=await preparaPosDaApp(db,companyId,String(pos.order_id));
+      const rilevateIl=new Date().toISOString();
+      const r=await conservaEmissionePos(db,userId,{posId,companyId,attesoUpdatedAt:pos.updated_at,nomeAutore:nome,
+        dati:{contenuto,stato:"approvato",revisione:pos.revisione??0,revisioni:Array.isArray(pos.revisioni)?pos.revisioni:[],codiceCommessa:String(fonti.order.order_code||"")},
+        fonti:async()=>{
+          return {tipo:"dati_app_rilevati_durante_preparazione",rilevati_il:rilevateIl,commessa:fonti.order,contenuto_rilevato:fonti.contenuto,contesto:fonti.contesto,riferimenti:fonti.fonti,
+            nota:"Dati delle fonti rilevati durante la preparazione, distinti dai contenuti adattati e approvati dall’utente."};
+        }});
+      return jsonResponse({ok:true,approvato_da_nome:nome,emissione_id:r.id},200,cors);
+    }
+    let approvazione = db
       .from("pos_documents")
       .update({
         status: "approvato",
@@ -245,10 +387,14 @@ Deno.serve(async (req: Request) => {
       .eq("id", posId)
       .eq("company_id", companyId)
       .eq("status", pos.status);
+    approvazione = pos.updated_at ? approvazione.eq("updated_at",pos.updated_at) : approvazione.is("updated_at",null);
+    const {data:approvato,error}=await approvazione.select('id').maybeSingle();
     if (error) return errorResponse(`POS non approvato: ${error.message}`, 500, cors);
+    if(!approvato) return errorResponse("Il POS è cambiato durante la verifica. Ricarica e ricontrolla la bozza.",409,cors);
     return jsonResponse({ ok: true, approvato_da_nome: nome }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    if(err instanceof Error && "status" in err && typeof err.status === "number") return errorResponse(err.message,err.status,cors);
     return errorResponse(`Errore interno: ${err instanceof Error ? err.message : String(err)}`, 500, cors);
   }
 });

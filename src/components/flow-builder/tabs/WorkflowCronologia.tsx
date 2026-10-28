@@ -180,14 +180,16 @@ function EnrollContactDialog({
   const triggerEvent = triggerNode?.config_json?.trigger_event
     ?? triggerNode?.config_json?.item_id
     ?? triggerNode?.config_json?.trigger_type;
+  const manualAllowed=["contatto_creato","contact_created","contatto_aggiornato","contact_updated","manuale","manual_trigger","manual_run"].includes(triggerEvent??"");
 
   const handleEnroll = async () => {
-    if (!selectedContact || !triggerEvent) return;
+    if (!selectedContact || !triggerEvent || !manualAllowed) return;
     setEnrolling(true);
     try {
       const { data, error } = await supabase.functions.invoke("process-automation", {
         body: {
           action: "trigger",
+          flow_id: flowId,
           trigger_event: triggerEvent,
           company_id: companyId,
           entity_id: selectedContact.id,
@@ -200,6 +202,7 @@ function EnrollContactDialog({
         },
       });
       if (error) throw error;
+      if (!data?.enrolled) throw new Error("Nessuna iscrizione creata: controlla evento, filtri e stato del flusso.");
       toast.success(`${selectedContact.first_name} ${selectedContact.last_name} iscritto al flusso`);
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow-enrollments-stats", flowId] });
@@ -237,6 +240,7 @@ function EnrollContactDialog({
               Nessun trigger configurato — il flusso deve avere un trigger per poter iscrivere contatti.
             </div>
           )}
+          {triggerEvent&&!manualAllowed&&<p role="status" className="text-xs text-muted-foreground">Questo flusso richiede un evento operativo reale. Non può essere avviato iscrivendo un contatto a mano.</p>}
 
           <div className="space-y-2">
             <div className="relative">
@@ -288,7 +292,7 @@ function EnrollContactDialog({
             <Button
               size="sm"
               onClick={handleEnroll}
-              disabled={!selectedContact || !triggerEvent || enrolling}
+              disabled={!selectedContact || !triggerEvent || !manualAllowed || enrolling}
             >
               {enrolling ? (
                 <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Iscrizione...</>

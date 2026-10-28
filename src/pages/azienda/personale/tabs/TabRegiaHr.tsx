@@ -27,6 +27,8 @@ import { useAllHrProfili } from "@/hooks/useOrganigramma";
 import { useRichieste } from "@/hooks/useRichieste";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { HrQueryError } from "@/components/hr/HrQueryError";
+import { buildOrgTree, orgLinksToReview, hasValidGps } from "@/lib/personale/organizzazione";
 
 interface TabRegiaHrProps {
   onNavigate?: (tab: string) => void;
@@ -40,6 +42,8 @@ interface HrSedeSummary {
   id: string;
   nome: string | null;
   attiva: boolean | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 type HrActivityLogRow = Pick<
@@ -49,17 +53,20 @@ type HrActivityLogRow = Pick<
 
 export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
   const companyId = useEffectiveCompanyId();
-  const { data: profili = [], isLoading: loadingProfili } = useAllHrProfili();
-  const { data: richiestePendenti = [], isLoading: loadingRichieste } = useRichieste({ stato: "in_attesa" });
-  const { data: liveStatus = [], isLoading: loadingLive } = useLiveStatus();
+  const profilesQuery = useAllHrProfili();
+  const requestsQuery = useRichieste({ stato: "in_attesa" });
+  const liveQuery = useLiveStatus();
+  const { data: profili = [], isLoading: loadingProfili } = profilesQuery;
+  const { data: richiestePendenti = [], isLoading: loadingRichieste } = requestsQuery;
+  const { data: liveStatus = [], isLoading: loadingLive } = liveQuery;
 
-  const { data: sedi = [], isLoading: loadingSedi } = useQuery<HrSedeSummary[]>({
+  const sitesQuery = useQuery<HrSedeSummary[]>({
     queryKey: ["hr-regia-sedi", companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("hr_sedi")
-        .select("id, nome, attiva")
+        .select("id, nome, attiva, lat, lng")
         .eq("company_id", companyId)
         .order("nome", { ascending: true });
       if (error) throw error;
@@ -69,7 +76,8 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: activityLog = [], isLoading: loadingActivity } = useQuery<HrActivityLogRow[]>({
+  const { data: sedi = [], isLoading: loadingSedi } = sitesQuery;
+  const { data: activityLog = [], isLoading: loadingActivity, isError: errorActivity, refetch: retryActivity } = useQuery<HrActivityLogRow[]>({
     queryKey: ["hr-regia-activity", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -81,7 +89,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
         .order("created_at", { ascending: false })
         .limit(6);
 
-      if (error) return [];
+      if (error) throw error;
       return (data ?? []) as HrActivityLogRow[];
     },
     enabled: !!companyId,
@@ -91,7 +99,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
   const metrics = useMemo(() => {
     const attivi = profili.filter((profilo) => profilo.attivo);
     const senzaSede = attivi.filter((profilo) => !profilo.sede_id).length;
-    const senzaResponsabile = attivi.filter((profilo) => !profilo.responsabile_id).length;
+    const senzaResponsabile = orgLinksToReview(attivi, buildOrgTree(attivi)).length;
     const saldiCritici = attivi.filter((profilo) => (
       Number(profilo.ferie_residue ?? 0) < 0
       || Number(profilo.permessi_residui_ore ?? 0) < 0
@@ -101,10 +109,9 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
     const sediAttive = sedi.filter((sede) => sede.attiva !== false).length;
 
     const penalties =
-      richiestePendenti.length * 4 +
       saldiCritici * 8 +
       senzaSede * 3 +
-      Math.max(0, senzaResponsabile - 1) * 2 +
+      senzaResponsabile * 2 +
       (sediAttive === 0 && attivi.length > 0 ? 18 : 0);
 
     return {
@@ -115,9 +122,10 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
       saldiCritici,
       presentiOra,
       sediAttive,
+      sediGps: sedi.filter((sede) => sede.attiva !== false && hasValidGps(sede)).length,
       healthScore: Math.max(0, Math.min(100, 100 - penalties)),
     };
-  }, [liveStatus, profili, richiestePendenti.length, sedi]);
+  }, [liveStatus, profili, sedi]);
 
   const actions = useMemo(() => {
     const list: Array<{
@@ -166,10 +174,10 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
       });
     }
 
-    if (metrics.senzaResponsabile > 1) {
+    if (metrics.senzaResponsabile > 0) {
       list.push({
-        title: "Organigramma incompleto",
-        description: `${metrics.senzaResponsabile} profili attivi non hanno un responsabile.`,
+        title: "Collegamenti da verificare",
+        description: `${metrics.senzaResponsabile} collegamenti dell'organigramma non sono validi. I profili autonomi non sono errori.`,
         tab: "organigramma",
         severity: "media",
         icon: Network,
@@ -190,9 +198,12 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
   }, [liveStatus.length, metrics, richiestePendenti.length]);
 
   const loading = loadingProfili || loadingRichieste || loadingLive || loadingSedi;
+  const failed = profilesQuery.isError || requestsQuery.isError || liveQuery.isError || sitesQuery.isError;
+  const unavailable = loading || failed || !companyId;
 
   return (
     <div className="space-y-4">
+      {failed && <HrQueryError label="Controllo HR incompleto" onRetry={() => Promise.all([profilesQuery.refetch(), requestsQuery.refetch(), liveQuery.refetch(), sitesQuery.refetch()])} />}
       {/* Testata navy famiglia (come Costi/Commesse): i quattro numeri di
           controllo HR, cliccabili → portano al tab che li gestisce. */}
       <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
@@ -200,15 +211,15 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           <NavyStatCard
             label="Profili attivi"
-            value={loading ? "…" : metrics.totaleAttivi}
-            sub={metrics.senzaSede > 0 ? `${metrics.senzaSede} senza sede` : "anagrafiche a posto"}
+            value={unavailable ? "—" : metrics.totaleAttivi}
+            sub={unavailable ? "dati da verificare" : metrics.senzaSede > 0 ? `${metrics.senzaSede} senza sede` : "sede assegnata"}
             icon={Users}
             tone={metrics.senzaSede > 0 ? "text-orange-300" : "text-blue-100"}
             onClick={() => onNavigate?.("profili")}
           />
           <NavyStatCard
             label="Presenti ora"
-            value={loading ? "…" : metrics.presentiOra}
+            value={unavailable ? "—" : metrics.presentiOra}
             sub={`su ${metrics.totaleAttivi} attivi`}
             icon={UserRoundCheck}
             tone="text-emerald-300"
@@ -216,7 +227,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
           />
           <NavyStatCard
             label="Richieste aperte"
-            value={loading ? "…" : richiestePendenti.length}
+            value={unavailable ? "—" : richiestePendenti.length}
             sub={richiestePendenti.length > 0 ? "da approvare" : "nessuna in attesa"}
             icon={CalendarCheck}
             tone={richiestePendenti.length > 0 ? "text-orange-300" : "text-blue-100"}
@@ -224,8 +235,8 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
           />
           <NavyStatCard
             label="Sedi attive"
-            value={loading ? "…" : metrics.sediAttive}
-            sub={metrics.sediAttive === 0 ? "nessuna sede" : "operative"}
+            value={unavailable ? "—" : metrics.sediAttive}
+            sub={unavailable ? "dati da verificare" : `${metrics.sediGps} con coordinate GPS`}
             icon={MapPin}
             tone={metrics.sediAttive === 0 && metrics.totaleAttivi > 0 ? "text-orange-300" : "text-blue-100"}
             onClick={() => onNavigate?.("sedi")}
@@ -243,13 +254,14 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
               </p>
             </div>
             <Badge className={metrics.healthScore >= 80 ? "bg-emerald-100 text-emerald-700" : metrics.healthScore >= 55 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}>
-              {metrics.healthScore}/100
+              {unavailable ? "Non verificabile" : `Indice dati ${metrics.healthScore}/100`}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Progress value={metrics.healthScore} className="h-2" />
-          {actions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Indicatore dei soli dati caricati, non certificazione HR: saldi negativi, sede e collegamenti. Le richieste in attesa non riducono l'indice.</p>
+          {!unavailable && <Progress value={metrics.healthScore} className="h-2" />}
+          {unavailable ? <p className="text-sm text-muted-foreground">Attendo dati completi per mostrare le verifiche operative.</p> : actions.length === 0 ? (
             <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
@@ -306,7 +318,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
                 <div key={item} className="h-12 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
-          ) : activityLog.length === 0 ? (
+          ) : errorActivity ? <HrQueryError label="Registro HR non disponibile" onRetry={retryActivity} /> : activityLog.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
               Nessun evento HR tracciato. Le nuove approvazioni richieste verranno registrate qui.
             </div>

@@ -1,3 +1,4 @@
+import { ContestoSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
 /**
  * /azienda/mezzi/:id — scheda del mezzo o dell'attrezzatura: foto, dati e chi
  * lo ha in carico in testa, costo annuo stimato, attrezzi a bordo; poi
@@ -6,7 +7,8 @@
  * transenne) hanno i montaggi sui cantieri. Aperta da una scansione
  * (?da=qr), propone di segnarla in magazzino con un tocco.
  */
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
+import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, Euro, Eye, Gauge, HardHat, Layers, Loader2, Package, Pencil, QrCode, ScanLine, Trash2, User, Warehouse, X,
@@ -45,6 +47,7 @@ import {
 const ORA = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
 
 export default function MezzoDetail() {
+  const schedaCommessa = useContext(ContestoSchedaCommessa);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -100,7 +103,7 @@ export default function MezzoDetail() {
         </p>
         <div className="flex justify-center gap-2">
           {error && <Button variant="outline" onClick={() => refetch()}>Riprova</Button>}
-          <Button asChild><Link to="/azienda/manodopera?tab=mezzi">Torna ai mezzi</Link></Button>
+          <Button asChild><Link to="/azienda/manodopera?tab=mezzi">{schedaCommessa ? "Torna alla commessa" : "Torna ai mezzi"}</Link></Button>
         </div>
       </div>
     );
@@ -144,9 +147,9 @@ export default function MezzoDetail() {
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* Mobile no: la freccia indietro è già nella barra in alto. */}
-      <Link to={elenco} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
+      {!schedaCommessa && <Link to={elenco} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />{attrezzo ? "Attrezzature" : "Mezzi"}
-      </Link>
+      </Link>}
 
       {daQr && (
         <div className="flex items-center gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 max-sm:flex-wrap max-sm:gap-2">
@@ -351,15 +354,15 @@ export default function MezzoDetail() {
         )}
       </div>
 
-      <Tabs value={tabScelto ?? tabIniziale} onValueChange={setTabScelto}>
-        {/* Mobile: tre schede (quel che serve dal furgone o dal cantiere);
-            le altre si guardano al computer. */}
+      <Tabs value={tabScelto ?? (searchParams.get("tab")==="viaggi" && mezzo.contatore_unita==="km" ? "viaggi" : tabIniziale)} onValueChange={setTabScelto}>
+        {/* Documenti e manutenzioni restano raggiungibili anche da telefono. */}
         <div className="-mx-1 overflow-x-auto px-1 max-sm:mx-0 max-sm:px-0">
-          <TabsList className="inline-flex w-max max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+          <TabsList className="inline-flex w-max">
             {aQuantita && <TabsTrigger value="montaggi">Montaggi</TabsTrigger>}
-            <TabsTrigger value="scadenze" className={aQuantita ? "max-sm:hidden" : undefined}>{attrezzo ? "Documenti" : "Scadenze"}</TabsTrigger>
-            <TabsTrigger value="manutenzioni" className="max-sm:hidden">{attrezzo ? "Manutenzioni" : "Tagliandi"}</TabsTrigger>
+            <TabsTrigger value="scadenze">{attrezzo ? "Documenti" : "Scadenze"}</TabsTrigger>
+            <TabsTrigger value="manutenzioni">{attrezzo ? "Manutenzioni" : "Tagliandi"}</TabsTrigger>
             <TabsTrigger value="foto">Foto</TabsTrigger>
+            {mezzo.contatore_unita==="km" && ["furgone","autocarro","autovettura","altro"].includes(mezzo.tipo) && <TabsTrigger value="viaggi">Viaggi e tratte</TabsTrigger>}
             {!aQuantita && <TabsTrigger value="uso" className="max-sm:hidden">{attrezzo ? "Cantieri" : "Cantieri e km"}</TabsTrigger>}
             <TabsTrigger value="storico" className="max-sm:hidden">Storico</TabsTrigger>
             <TabsTrigger value="segnalazioni" className="gap-1.5">
@@ -384,6 +387,7 @@ export default function MezzoDetail() {
         </TabsContent>
         <TabsContent value="manutenzioni" className="mt-3">
           <MezzoManutenzioniSection
+            onVaiDocumenti={()=>setTabScelto("scadenze")}
             mezzoId={mezzo.id}
             companyId={companyId}
             contatoreAttuale={mezzo.contatore}
@@ -400,6 +404,7 @@ export default function MezzoDetail() {
             <MezzoUsoCantieri mezzoId={mezzo.id} tipo={mezzo.tipo} />
           </TabsContent>
         )}
+        {mezzo.contatore_unita==="km" && ["furgone","autocarro","autovettura","altro"].includes(mezzo.tipo) && <TabsContent value="viaggi" className="mt-3"><ViaggiMezzoWorkspace key={mezzo.id} companyId={companyId} mezzoId={mezzo.id} readOnly={!puoModificare} vedeCosti={perms.canViewCosts} initialDay={searchParams.get("giorno") ?? undefined} /></TabsContent>}
         <TabsContent value="storico" className="mt-3 space-y-5">
           {!aQuantita && <MezzoStoricoSection mezzoId={mezzo.id} puoModificare={puoModificare} />}
           <section className="space-y-2">

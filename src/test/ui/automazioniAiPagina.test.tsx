@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
 const AZIONI = [
   { type: "send_overdue_reminder", mode: "require_confirmation", risk: "yellow", max: 50 as number | null },
@@ -83,7 +84,7 @@ import SettingsAIAutomazioni from "@/pages/azienda/impostazioni/SettingsAIAutoma
 
 function apri() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><SettingsAIAutomazioni /></QueryClientProvider>);
+  return render(<MemoryRouter><QueryClientProvider client={client}><SettingsAIAutomazioni /></QueryClientProvider></MemoryRouter>);
 }
 const attendi = () => screen.findAllByRole("heading", { level: 3 });
 const sceltaPronta = (nome: string) => screen.getByRole("button", { name: new RegExp(`^${nome}`) });
@@ -311,7 +312,7 @@ describe("Automazioni AI: sola lettura e letture che falliscono", () => {
     apri();
     expect(await screen.findByText(/Non riesco a leggere le scelte salvate/)).toBeInTheDocument();
     expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
-    expect(screen.getByRole("button", { name: "Riprova" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Riprova" }).length).toBeGreaterThan(0);
   });
 
   it("lo storico: vuoto, con le azioni, o non leggibile", async () => {

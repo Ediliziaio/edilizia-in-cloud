@@ -3,6 +3,53 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { HrSede } from "@/types/hr";
 import { toast } from "sonner";
+import { validateSedeGps } from "@/lib/personale/organizzazione";
+
+export interface HrSedePersona {
+  id: string;
+  nome: string;
+  cognome: string;
+  mansione: string | null;
+  sede_id: string | null;
+  attivo: boolean;
+}
+
+/** Only organizational fields; never fetch payroll or private profile details for site cards. */
+export function useHrSedePeople() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["hr-sedi-persone", companyId],
+    enabled: !!companyId,
+    queryFn: async ({ signal }) => {
+      const people: HrSedePersona[] = [];
+      for (let from = 0; ; from += 500) {
+        const { data, error } = await supabase
+          .from("hr_profili")
+          .select("id, nome, cognome, mansione, sede_id, attivo")
+          .eq("company_id", companyId!)
+          .order("cognome")
+          .order("id")
+          .range(from, from + 499)
+          .abortSignal(signal);
+        if (error) throw error;
+        people.push(...(data || []));
+        if (!data || data.length < 500) break;
+      }
+      return people;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+}
+
+function assertGps(data: Partial<HrSede>) {
+  const error = validateSedeGps(
+    data.lat?.toString() || "",
+    data.lng?.toString() || "",
+    String(data.raggio_mt ?? 200),
+  );
+  if (error) throw new Error(error);
+}
 
 export function useHrSedi() {
   const companyId = useEffectiveCompanyId();
@@ -31,6 +78,7 @@ export function useCreateHrSede() {
   return useMutation({
     mutationFn: async (data: Partial<HrSede>) => {
       if (!companyId) throw new Error("companyId required");
+      assertGps(data);
       const { error } = await supabase.from("hr_sedi").insert({
         company_id: companyId,
         nome: data.nome || "",
@@ -47,6 +95,7 @@ export function useCreateHrSede() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-sedi"] });
+      qc.invalidateQueries({ queryKey: ["hr-regia-sedi"] });
       toast.success("Sede creata con successo");
     },
     onError: (e: any) => toast.error("Errore: " + e.message),
@@ -60,6 +109,9 @@ export function useUpdateHrSede() {
   return useMutation({
     mutationFn: async ({ id, ...data }: Partial<HrSede> & { id: string }) => {
       if (!companyId) throw new Error("companyId required");
+      // Other callers may update only the name/status. Validate GPS only when supplied.
+      if ("lat" in data || "lng" in data || "raggio_mt" in data)
+        assertGps(data);
       const { error } = await supabase
         .from("hr_sedi")
         .update({
@@ -79,6 +131,7 @@ export function useUpdateHrSede() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-sedi"] });
+      qc.invalidateQueries({ queryKey: ["hr-regia-sedi"] });
       toast.success("Sede aggiornata");
     },
     onError: (e: any) => toast.error("Errore: " + e.message),
@@ -101,7 +154,9 @@ export function useDeleteHrSede() {
 
       if (countError) throw countError;
       if ((count ?? 0) > 0) {
-        throw new Error("Non puoi eliminare una sede assegnata a profili HR. Disattivala o sposta prima i profili.");
+        throw new Error(
+          "Non puoi eliminare una sede assegnata a profili HR. Disattivala o sposta prima i profili.",
+        );
       }
 
       const { error } = await supabase
@@ -113,6 +168,7 @@ export function useDeleteHrSede() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-sedi"] });
+      qc.invalidateQueries({ queryKey: ["hr-regia-sedi"] });
       toast.success("Sede eliminata");
     },
     onError: (e: any) => toast.error("Errore: " + e.message),
@@ -133,18 +189,21 @@ export function useImportaSediAziendali() {
   return useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("companyId required");
-      const [{ data: aziendali, error: e1 }, { data: esistenti, error: e2 }] = await Promise.all([
-        supabase
-          .from("sedi")
-          .select("nome, indirizzo, citta, provincia, cap, lat, lng")
-          .eq("company_id", companyId)
-          .eq("attiva", true),
-        supabase.from("hr_sedi").select("nome").eq("company_id", companyId),
-      ]);
+      const [{ data: aziendali, error: e1 }, { data: esistenti, error: e2 }] =
+        await Promise.all([
+          supabase
+            .from("sedi")
+            .select("nome, indirizzo, citta, provincia, cap, lat, lng")
+            .eq("company_id", companyId)
+            .eq("attiva", true),
+          supabase.from("hr_sedi").select("nome").eq("company_id", companyId),
+        ]);
       if (e1) throw e1;
       if (e2) throw e2;
 
-      const nomiEsistenti = new Set((esistenti || []).map((s) => (s.nome || "").trim().toLowerCase()));
+      const nomiEsistenti = new Set(
+        (esistenti || []).map((s) => (s.nome || "").trim().toLowerCase()),
+      );
       const daImportare = (aziendali || []).filter(
         (s) => s.nome && !nomiEsistenti.has(s.nome.trim().toLowerCase()),
       );

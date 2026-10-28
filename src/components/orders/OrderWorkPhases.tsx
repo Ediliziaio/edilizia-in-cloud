@@ -1,5 +1,6 @@
+import { MezziFaseCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { NewPhaseMaterial } from "./NewPhaseMaterial";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   HardHat,
   Plus,
@@ -141,9 +142,11 @@ interface OrderWorkPhasesProps {
   view?: "lavorazioni";
   /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
   importoContratto?: number | null;
+  /** Le figure della commessa condividono l'organizzazione, senza duplicare anagrafiche o permessi. */
+  organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -467,7 +470,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
           </div>
         )}
 
-        {showTeam && !isLoading && !isError && <section ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
+        {showTeam && <section ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
+          {!isLoading && !isError && <>
           <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione organizzazione={{
             aperta: organizzazioneAperta,
             riepilogo: squadreQuery.isError ? "squadre non disponibili" : squadreQuery.isLoading ? "caricamento squadre…" : `${squadreGenerali.length ? `Squadra commessa: ${squadreGenerali.slice(0, 2).map(s => `${s.nome}${!s.attiva || s.finita ? " (storico)" : ""}`).join(", ")}${squadreGenerali.length > 2 ? ` +${squadreGenerali.length - 2}` : ""}` : "nessuna squadra generale"}${unassigned.length ? ` · ${unassigned.length} persone / ditte generali` : ""}`,
@@ -484,6 +488,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             </div>
           </section>}
           </div>
+          </>}
+          {organizationContent}
         </section>}
         <Dialog open={turniOrdine === orderId} onOpenChange={open => setTurniOrdine(open ? orderId : null)}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{canEditOrders ? "Pianifica turni di lavoro" : "Turni di lavoro"}</DialogTitle><DialogDescription>Organizza i giorni di presenza. Le ore lavorate arrivano dai rapportini.</DialogDescription></DialogHeader>{turniOrdine === orderId && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}</DialogContent></Dialog>
 
@@ -791,7 +797,7 @@ function PhaseCard({
   sottofasi,
   azioniSottofasi,
 }: PhaseCardProps) {
-  const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins } = usePermissions();
+  const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins, canViewMezzi } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
@@ -1272,13 +1278,13 @@ function PhaseCard({
               </div>
 
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
-              {(mezziFase.length > 0 || canEditOrders) && (
+              {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
                   <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                     Mezzi
                   </span>
                   <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-                    {canEditOrders && <a href="#section-mezzi" className="inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium text-slate-700 hover:bg-slate-50">Mezzi e attrezzature del cantiere</a>}
+                    <MezziFaseCantiere orderId={orderId} faseId={phase.id} />
                     {mezziFase.map((m) => (
                       <span key={m.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs", AZIONE_TENUE.mezzo)}>
                         <b className="font-semibold">{m.nome}</b>

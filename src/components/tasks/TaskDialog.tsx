@@ -1,18 +1,47 @@
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  CalendarDays, Trash2, RefreshCw, Sparkles, User, Users, UserX,
-  ListChecks, Clock, Link2, ChevronDown, Plus, X, ExternalLink,
+  CalendarDays,
+  Trash2,
+  RefreshCw,
+  Sparkles,
+  User,
+  Users,
+  UserX,
+  ListChecks,
+  Clock,
+  Link2,
+  ChevronDown,
+  Plus,
+  X,
+  ExternalLink,
 } from "lucide-react";
 import { TaskTemplatePicker } from "./TaskTemplatePicker";
 import { addDays, format } from "date-fns";
@@ -23,7 +52,8 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { TASK_CATEGORY_OPTIONS as CATEGORIES } from "@/lib/taskCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { queryKeys } from "@/lib/queryKeys";
@@ -38,14 +68,15 @@ import {
 } from "@/lib/taskStatuses";
 
 const RECURRENCE_OPTIONS = [
-  { value: "none",      label: "Nessuna ripetizione" },
-  { value: "daily",     label: "Ogni giorno" },
-  { value: "weekly",    label: "Ogni settimana" },
-  { value: "biweekly",  label: "Ogni 2 settimane" },
-  { value: "monthly",   label: "Ogni mese" },
+  { value: "none", label: "Nessuna ripetizione" },
+  { value: "daily", label: "Ogni giorno" },
+  { value: "weekly", label: "Ogni settimana" },
+  { value: "biweekly", label: "Ogni 2 settimane" },
+  { value: "monthly", label: "Ogni mese" },
 ];
 
 interface TaskData {
+  activity_scope?: "generale" | "ufficio" | "cantiere";
   id?: string;
   title: string;
   notes: string;
@@ -79,6 +110,7 @@ interface TaskDialogProps {
   defaultOpportunityId?: string;
   defaultTicketId?: string;
   defaultAssignedTo?: string | null;
+  defaultActivityScope?: "generale" | "ufficio";
 }
 
 const PRIORITIES = [
@@ -88,7 +120,6 @@ const PRIORITIES = [
   { value: "urgente", label: "Urgente" },
 ];
 
-
 const MAX_INITIAL_CHECKLIST_ITEMS = 20;
 
 function inferDueDateFromText(text: string): Date | undefined {
@@ -97,66 +128,136 @@ function inferDueDateFromText(text: string): Date | undefined {
   if (lower.includes("dopodomani")) return addDays(today, 2);
   if (lower.includes("domani")) return addDays(today, 1);
   if (lower.includes("oggi")) return today;
-  if (lower.includes("prossima settimana") || lower.includes("settimana prossima")) return addDays(today, 7);
+  if (
+    lower.includes("prossima settimana") ||
+    lower.includes("settimana prossima")
+  )
+    return addDays(today, 7);
 
   const match = lower.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/);
   if (!match) return undefined;
   const day = Number(match[1]);
   const month = Number(match[2]) - 1;
   const currentYear = today.getFullYear();
-  const year = match[3] ? Number(match[3].length === 2 ? `20${match[3]}` : match[3]) : currentYear;
+  const year = match[3]
+    ? Number(match[3].length === 2 ? `20${match[3]}` : match[3])
+    : currentYear;
   const parsed = new Date(year, month, day);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
 function inferPriorityFromText(text: string) {
   const lower = text.toLowerCase();
-  if (/\b(urgente|subito|immediato|bloccante|scadut[aoe]|oggi)\b/.test(lower)) return "urgente";
-  if (/\b(importante|alta priorita|alta priorità|domani|cliente arrabbiato)\b/.test(lower)) return "alta";
+  if (/\b(urgente|subito|immediato|bloccante|scadut[aoe]|oggi)\b/.test(lower))
+    return "urgente";
+  if (
+    /\b(importante|alta priorita|alta priorità|domani|cliente arrabbiato)\b/.test(
+      lower,
+    )
+  )
+    return "alta";
   if (/\b(quando possibile|bassa|non urgente)\b/.test(lower)) return "bassa";
   return "normale";
 }
 
 function inferCategoryFromText(text: string) {
   const lower = text.toLowerCase();
-  if (/\b(ticket|assistenza|segnalazione|bug|problema)\b/.test(lower)) return "assistenza";
-  if (/\b(magazzino|stock|material[ei]|scarico|carico|inventario)\b/.test(lower)) return "magazzino";
-  if (/\b(fattura|pagamento|incasso|saldo|bonifico|scadenza pagamento)\b/.test(lower)) return "pagamenti";
+  if (/\b(ticket|assistenza|segnalazione|bug|problema)\b/.test(lower))
+    return "assistenza";
+  if (
+    /\b(magazzino|stock|material[ei]|scarico|carico|inventario)\b/.test(lower)
+  )
+    return "magazzino";
+  if (
+    /\b(fattura|pagamento|incasso|saldo|bonifico|scadenza pagamento)\b/.test(
+      lower,
+    )
+  )
+    return "pagamenti";
   if (/\b(costo|spesa|fornitore|consuntivo)\b/.test(lower)) return "costi";
-  if (/\b(cliente|lead|commerciale|preventivo|sopralluogo)\b/.test(lower)) return "marketing";
-  if (/\b(ordine|commessa|cantiere|lavoro|posa|montaggio|installazione)\b/.test(lower)) return "ordini";
+  if (/\b(cliente|lead|commerciale|preventivo|sopralluogo)\b/.test(lower))
+    return "marketing";
+  if (
+    /\b(ordine|commessa|cantiere|lavoro|posa|montaggio|installazione)\b/.test(
+      lower,
+    )
+  )
+    return "ordini";
   return "generale";
 }
 
 function inferEstimatedHoursFromText(text: string) {
-  const match = text.toLowerCase().match(/\b(\d+(?:[,.]\d+)?)\s*(?:h|ore|ora)\b/);
+  const match = text
+    .toLowerCase()
+    .match(/\b(\d+(?:[,.]\d+)?)\s*(?:h|ore|ora)\b/);
   return match ? match[1].replace(",", ".") : "";
 }
 
 function buildChecklistFromText(text: string) {
   const lower = text.toLowerCase();
-  if (/\b(montaggio|posa|installazione|cantiere|finestr|serrament)\b/.test(lower)) {
-    return ["Verificare misure e accesso", "Preparare materiali e attrezzatura", "Eseguire intervento", "Caricare foto o note finali"];
+  if (
+    /\b(montaggio|posa|installazione|cantiere|finestr|serrament)\b/.test(lower)
+  ) {
+    return [
+      "Verificare misure e accesso",
+      "Preparare materiali e attrezzatura",
+      "Eseguire intervento",
+      "Caricare foto o note finali",
+    ];
   }
   if (/\b(ordine|acquisto|fornitore|materiale)\b/.test(lower)) {
-    return ["Verificare quantità", "Confermare disponibilità", "Registrare ordine o consegna", "Aggiornare la commessa"];
+    return [
+      "Verificare quantità",
+      "Confermare disponibilità",
+      "Registrare ordine o consegna",
+      "Aggiornare la commessa",
+    ];
   }
   if (/\b(cliente|preventivo|sopralluogo|commerciale)\b/.test(lower)) {
-    return ["Contattare il cliente", "Verificare dati e richiesta", "Aggiornare esito", "Programmare follow-up"];
+    return [
+      "Contattare il cliente",
+      "Verificare dati e richiesta",
+      "Aggiornare esito",
+      "Programmare follow-up",
+    ];
   }
   if (/\b(ticket|assistenza|problema|bug)\b/.test(lower)) {
-    return ["Analizzare segnalazione", "Riprodurre o verificare problema", "Applicare soluzione", "Confermare chiusura"];
+    return [
+      "Analizzare segnalazione",
+      "Riprodurre o verificare problema",
+      "Applicare soluzione",
+      "Confermare chiusura",
+    ];
   }
   return ["Verificare dati", "Eseguire attività", "Aggiornare stato"];
 }
 
 function inferTitleFromText(text: string) {
-  const firstLine = text.split(/\n/).map((line) => line.trim()).find(Boolean) || "";
+  const firstLine =
+    text
+      .split(/\n/)
+      .map((line) => line.trim())
+      .find(Boolean) || "";
   const sentence = firstLine.split(/[.!?]/)[0]?.trim() || firstLine;
   return sentence.length > 110 ? `${sentence.slice(0, 107)}...` : sentence;
 }
 
-export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, defaultAssignedTo }: TaskDialogProps) {
+export function TaskDialog({
+  open,
+  onOpenChange,
+  task,
+  onSaved,
+  defaultCategory,
+  defaultOrderId,
+  defaultStockItemId,
+  defaultCostId,
+  defaultContactId,
+  defaultOpportunityId,
+  defaultTicketId,
+  defaultAssignedTo,
+  defaultActivityScope,
+}: TaskDialogProps) {
+  const taskQueryClient = useQueryClient();
   const { effectiveCompany, user, profile } = useAuth();
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
@@ -181,18 +282,27 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [ticketId, setTicketId] = useState<string>("");
   const [category, setCategory] = useState("generale");
   const [estimatedHours, setEstimatedHours] = useState("");
-  const [initialChecklistItems, setInitialChecklistItems] = useState<string[]>([]);
+  const [initialChecklistItems, setInitialChecklistItems] = useState<string[]>(
+    [],
+  );
   const [checklistDraft, setChecklistDraft] = useState("");
   const [aiBrief, setAiBrief] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(true);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<string>("none");
-  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>();
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<
+    Date | undefined
+  >();
   const [saving, setSaving] = useState(false);
-  const { statuses: statusOptions } = useTaskStatuses(companyId, [status].filter(Boolean));
+  const { statuses: statusOptions } = useTaskStatuses(
+    companyId,
+    [status].filter(Boolean),
+  );
 
   useEffect(() => {
     if (isEditing && task) {
+      // Reset the bounded form snapshot when the selected entity changes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTitle(task.title);
       setNotes(task.notes || "");
       setStatus(task.status);
@@ -206,21 +316,31 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOpportunityId(task.opportunity_id || "");
       setTicketId(task.ticket_id || "");
       setCategory(task.category);
-      setEstimatedHours(task.estimated_hours != null ? String(task.estimated_hours) : "");
+      setEstimatedHours(
+        task.estimated_hours != null ? String(task.estimated_hours) : "",
+      );
       setInitialChecklistItems([]);
       setChecklistDraft("");
       setAiBrief("");
       setAdvancedOpen(true);
       setIsRecurring(task.is_recurring ?? false);
       setRecurrenceRule(task.recurrence_rule ?? "none");
-      setRecurrenceEndDate(task.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined);
+      setRecurrenceEndDate(
+        task.recurrence_end_date
+          ? new Date(task.recurrence_end_date)
+          : undefined,
+      );
     } else {
       setTitle(task?.title || "");
       setNotes(task?.notes || "");
       setStatus(task?.status || "da_fare");
       setPriority(task?.priority || "normale");
       setDueDate(task?.due_date ? new Date(task.due_date) : undefined);
-      setAssignedTo(task?.assigned_to || defaultAssignedTo || (onlyAssigned && user?.id ? user.id : ""));
+      setAssignedTo(
+        task?.assigned_to ||
+          defaultAssignedTo ||
+          (onlyAssigned && user?.id ? user.id : ""),
+      );
       setOrderId(task?.order_id || defaultOrderId || "");
       setStockItemId(task?.stock_item_id || defaultStockItemId || "");
       setCostId(task?.cost_id || defaultCostId || "");
@@ -228,23 +348,46 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOpportunityId(task?.opportunity_id || defaultOpportunityId || "");
       setTicketId(task?.ticket_id || defaultTicketId || "");
       setCategory(task?.category || defaultCategory || "generale");
-      setEstimatedHours(task?.estimated_hours != null ? String(task.estimated_hours) : "");
+      setEstimatedHours(
+        task?.estimated_hours != null ? String(task.estimated_hours) : "",
+      );
       setInitialChecklistItems([]);
       setChecklistDraft("");
       setAiBrief("");
       setAdvancedOpen(false);
       setIsRecurring(task?.is_recurring ?? false);
       setRecurrenceRule(task?.recurrence_rule ?? "none");
-      setRecurrenceEndDate(task?.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined);
+      setRecurrenceEndDate(
+        task?.recurrence_end_date
+          ? new Date(task.recurrence_end_date)
+          : undefined,
+      );
     }
-  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, defaultAssignedTo, onlyAssigned, user?.id, isEditing]);
+  }, [
+    task,
+    open,
+    defaultCategory,
+    defaultOrderId,
+    defaultStockItemId,
+    defaultCostId,
+    defaultContactId,
+    defaultOpportunityId,
+    defaultTicketId,
+    defaultAssignedTo,
+    onlyAssigned,
+    user?.id,
+    isEditing,
+  ]);
 
   // FIX: filtro ruoli staff per escludere customer/referrer
   const { data: assignableUsers = [] } = useCompanyStaffUsers(
-    open ? companyId : null
+    open ? companyId : null,
   );
   const assigneeOptions = useMemo(() => {
-    const map = new Map<string, { id: string; first_name: string; last_name: string }>();
+    const map = new Map<
+      string,
+      { id: string; first_name: string; last_name: string }
+    >();
     if (user?.id) {
       map.set(user.id, {
         id: user.id,
@@ -254,22 +397,24 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     }
     assignableUsers.forEach((u) => map.set(u.id, u));
     return Array.from(map.values());
-  }, [assignableUsers, profile?.first_name, profile?.last_name, user?.id]);
+  }, [assignableUsers, profile?.first_name, profile?.last_name, user]);
 
   const teamAssigneeOptions = useMemo(
     () => assigneeOptions.filter((option) => option.id !== user?.id),
     [assigneeOptions, user?.id],
   );
 
-  const assignMode = !assignedTo || assignedTo === "none"
-    ? "unassigned"
-    : assignedTo === user?.id
-      ? "me"
-      : "team";
+  const assignMode =
+    !assignedTo || assignedTo === "none"
+      ? "unassigned"
+      : assignedTo === user?.id
+        ? "me"
+        : "team";
 
   const setAssignMode = (mode: "me" | "team" | "unassigned") => {
     if (mode === "me" && user?.id) setAssignedTo(user.id);
-    if (mode === "team") setAssignedTo(teamAssigneeOptions[0]?.id || assignedTo || "");
+    if (mode === "team")
+      setAssignedTo(teamAssigneeOptions[0]?.id || assignedTo || "");
     if (mode === "unassigned") setAssignedTo("none");
   };
 
@@ -289,14 +434,22 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     if (due) setDueDate(due);
     const hours = inferEstimatedHoursFromText(text);
     if (hours) setEstimatedHours(hours);
-    setInitialChecklistItems((prev) => prev.length > 0 ? prev : buildChecklistFromText(text));
+    setInitialChecklistItems((prev) =>
+      prev.length > 0 ? prev : buildChecklistFromText(text),
+    );
 
     const lower = text.toLowerCase();
     const matchedAssignee = assigneeOptions.find((option) => {
       const first = option.first_name?.toLowerCase();
       const last = option.last_name?.toLowerCase();
-      const full = `${option.first_name} ${option.last_name}`.trim().toLowerCase();
-      return (first && lower.includes(first)) || (last && lower.includes(last)) || lower.includes(full);
+      const full = `${option.first_name} ${option.last_name}`
+        .trim()
+        .toLowerCase();
+      return (
+        (first && lower.includes(first)) ||
+        (last && lower.includes(last)) ||
+        lower.includes(full)
+      );
     });
     if (matchedAssignee) setAssignedTo(matchedAssignee.id);
 
@@ -315,11 +468,15 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   };
 
   const updateInitialChecklistItem = (index: number, value: string) => {
-    setInitialChecklistItems((items) => items.map((item, itemIndex) => itemIndex === index ? value : item));
+    setInitialChecklistItems((items) =>
+      items.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    );
   };
 
   const removeInitialChecklistItem = (index: number) => {
-    setInitialChecklistItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
+    setInitialChecklistItems((items) =>
+      items.filter((_, itemIndex) => itemIndex !== index),
+    );
   };
 
   const { data: orders = [] } = useQuery({
@@ -334,7 +491,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .limit(100);
       return data || [];
     },
-    enabled: open && !!companyId && (category === "ordini" || category === "pagamenti"),
+    enabled:
+      open &&
+      !!companyId &&
+      (category === "ordini" || category === "pagamenti"),
   });
 
   const { data: stockItems = [] } = useQuery({
@@ -409,7 +569,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     const normalizedEstimatedHours = estimatedHours.trim()
       ? Number(estimatedHours.replace(",", "."))
       : null;
-    if (normalizedEstimatedHours != null && (!Number.isFinite(normalizedEstimatedHours) || normalizedEstimatedHours < 0)) {
+    if (
+      normalizedEstimatedHours != null &&
+      (!Number.isFinite(normalizedEstimatedHours) ||
+        normalizedEstimatedHours < 0)
+    ) {
       toast.error("Stima ore non valida");
       return;
     }
@@ -424,19 +588,28 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       // contatto dell'opportunità: così si vede anche nella scheda del cliente.
       // L'elenco carica le ultime 100: per una più vecchia si chiede al database.
       let contattoDellOpportunita: string | null = null;
-      const oppScelta = opportunityId && opportunityId !== "none" ? opportunityId : null;
+      const oppScelta =
+        opportunityId && opportunityId !== "none" ? opportunityId : null;
       if (oppScelta && (!contactId || contactId === "none")) {
-        const inElenco = (opportunities as { id: string; contact_id?: string | null }[])
-          .find((o) => o.id === oppScelta);
+        const inElenco = (
+          opportunities as { id: string; contact_id?: string | null }[]
+        ).find((o) => o.id === oppScelta);
         contattoDellOpportunita = inElenco?.contact_id ?? null;
         if (!contattoDellOpportunita) {
           const { data } = await supabase
-            .from("marketing_opportunities").select("contact_id").eq("id", oppScelta).maybeSingle();
-          contattoDellOpportunita = (data as { contact_id?: string | null } | null)?.contact_id ?? null;
+            .from("marketing_opportunities")
+            .select("contact_id")
+            .eq("id", oppScelta)
+            .maybeSingle();
+          contattoDellOpportunita =
+            (data as { contact_id?: string | null } | null)?.contact_id ?? null;
         }
       }
 
       const payload: Omit<TablesInsert<"tasks">, "created_by"> = {
+        ...(!isEditing && defaultActivityScope
+          ? { activity_scope: defaultActivityScope }
+          : {}),
         company_id: companyId,
         title: title.trim(),
         notes: notes.trim() || null,
@@ -448,23 +621,38 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         // attaccata a ciò da cui nasce, e con un'opportunità si porta dietro il
         // suo contatto (vedi lib/attivita/collegamenti.ts).
         ...collegamentiAttivita(
-          { contactId, opportunityId, orderId, stockItemId, costId, ticketId: ticketId || defaultTicketId },
+          {
+            contactId,
+            opportunityId,
+            orderId,
+            stockItemId,
+            costId,
+            ticketId: ticketId || defaultTicketId,
+          },
           contattoDellOpportunita,
         ),
         category,
         estimated_hours: normalizedEstimatedHours,
         is_recurring: isRecurring && recurrenceRule !== "none",
-        recurrence_rule: isRecurring && recurrenceRule !== "none" ? recurrenceRule : null,
-        recurrence_end_date: isRecurring && recurrenceRule !== "none" && recurrenceEndDate
-          ? format(recurrenceEndDate, "yyyy-MM-dd")
-          : null,
+        recurrence_rule:
+          isRecurring && recurrenceRule !== "none" ? recurrenceRule : null,
+        recurrence_end_date:
+          isRecurring && recurrenceRule !== "none" && recurrenceEndDate
+            ? format(recurrenceEndDate, "yyyy-MM-dd")
+            : null,
       };
 
       if (isEditing && task?.id) {
-        const { error } = await supabase.from("tasks").update(payload).eq("id", task.id).eq("company_id", companyId!);
+        const { error } = await supabase
+          .from("tasks")
+          .update(payload)
+          .eq("id", task.id)
+          .eq("company_id", companyId!);
         if (error) throw error;
         const changes = Object.fromEntries(
-          Object.entries(payload).filter(([key, value]) => (task as any)[key] !== value)
+          Object.entries(payload).filter(
+            ([key, value]) => (task as any)[key] !== value,
+          ),
         );
         const statusChanged = typeof changes.status === "string";
         await logTaskActivity({
@@ -472,9 +660,19 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           userId: user.id,
           taskId: task.id,
           taskTitle: title.trim(),
-          eventType: statusChanged ? getTaskStatusEventType(task.status, String(changes.status), statusOptions) : "task_updated",
+          eventType: statusChanged
+            ? getTaskStatusEventType(
+                task.status,
+                String(changes.status),
+                statusOptions,
+              )
+            : "task_updated",
           description: statusChanged
-            ? getTaskStatusTransitionDescription(task.status, String(changes.status), statusOptions)
+            ? getTaskStatusTransitionDescription(
+                task.status,
+                String(changes.status),
+                statusOptions,
+              )
             : describeTaskChanges(changes),
           changes,
           beforeSnapshot: task as any,
@@ -490,15 +688,19 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           .single();
         if (error) throw error;
         if (createdTask?.id && checklistItems.length > 0) {
-          const { error: checklistError } = await supabase.from("task_checklist_items").insert(
-            checklistItems.map((item, index) => ({
-              task_id: createdTask.id,
-              title: item,
-              position: index,
-            })) as any,
-          );
+          const { error: checklistError } = await supabase
+            .from("task_checklist_items")
+            .insert(
+              checklistItems.map((item, index) => ({
+                task_id: createdTask.id,
+                title: item,
+                position: index,
+              })) as any,
+            );
           if (checklistError) {
-            toast.warning("Attività creata, ma checklist non salvata", { description: checklistError.message });
+            toast.warning("Attività creata, ma checklist non salvata", {
+              description: checklistError.message,
+            });
           }
         }
         await logTaskActivity({
@@ -513,6 +715,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         toast.success("Attività creata");
       }
 
+      invalidateOfficeWorkspace(taskQueryClient, orderId || defaultOrderId);
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
@@ -536,7 +739,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         beforeSnapshot: task as any,
         importance: "high",
       });
-      const { error } = await supabase.from("tasks").delete().eq("id", task.id).eq("company_id", companyId!);
+      const { error } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("id", task.id)
+        .eq("company_id", companyId!);
       if (error) throw error;
       toast.success("Attività eliminata");
       onSaved();
@@ -554,9 +761,13 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         <DialogHeader>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <DialogTitle>{isEditing ? "Modifica Attività" : "Nuova Attività"}</DialogTitle>
+              <DialogTitle>
+                {isEditing ? "Modifica Attività" : "Nuova Attività"}
+              </DialogTitle>
               <DialogDescription className="sr-only">
-                {isEditing ? "Modifica i dettagli dell'attività" : "Compila i campi per creare una nuova attività"}
+                {isEditing
+                  ? "Modifica i dettagli dell'attività"
+                  : "Compila i campi per creare una nuova attività"}
               </DialogDescription>
             </div>
             {!isEditing && !isMobile && (
@@ -566,7 +777,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 currentStatus={status}
                 currentPriority={priority}
                 currentCategory={category}
-                currentEstimatedHours={estimatedHours ? Number(estimatedHours.replace(",", ".")) : null}
+                currentEstimatedHours={
+                  estimatedHours
+                    ? Number(estimatedHours.replace(",", "."))
+                    : null
+                }
                 currentChecklistItems={initialChecklistItems}
                 statusOptions={statusOptions}
                 onApply={(tpl) => {
@@ -575,8 +790,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                   if (tpl.status) setStatus(tpl.status);
                   setPriority(tpl.priority);
                   setCategory(tpl.category);
-                  if (tpl.estimated_hours != null) setEstimatedHours(String(tpl.estimated_hours));
-                  if (tpl.checklist_items) setInitialChecklistItems(tpl.checklist_items);
+                  if (tpl.estimated_hours != null)
+                    setEstimatedHours(String(tpl.estimated_hours));
+                  if (tpl.checklist_items)
+                    setInitialChecklistItems(tpl.checklist_items);
                 }}
               />
             )}
@@ -588,7 +805,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             <div className="rounded-lg border bg-primary/5 p-3">
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <Label htmlFor="task-ai-brief" className="text-sm font-medium">Assistente AI</Label>
+                <Label htmlFor="task-ai-brief" className="text-sm font-medium">
+                  Assistente AI
+                </Label>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Textarea
@@ -600,7 +819,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                   className="min-h-[68px] bg-background text-sm"
                   maxLength={800}
                 />
-                <Button type="button" className="h-10 gap-2 sm:self-end" onClick={applySmartDraft}>
+                <Button
+                  type="button"
+                  className="h-10 gap-2 sm:self-end"
+                  onClick={applySmartDraft}
+                >
                   <Sparkles className="h-4 w-4" />
                   Compila
                 </Button>
@@ -610,12 +833,32 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
           <div className="space-y-2">
             <Label htmlFor="title">Titolo *</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" maxLength={200} autoFocus={isMobile && !isEditing} />
+            {!isEditing && defaultActivityScope === "ufficio" && (
+              <p className="text-xs text-primary">
+                Attività d’ufficio · collegata alla commessa corrente
+              </p>
+            )}
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Es. Ordinare prodotto X"
+              maxLength={200}
+              autoFocus={isMobile && !isEditing}
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Note</Label>
-            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={isMobile ? 2 : 3} maxLength={1000} className="max-sm:min-h-[60px]" />
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Dettagli aggiuntivi..."
+              rows={isMobile ? 2 : 3}
+              maxLength={1000}
+              className="max-sm:min-h-[60px]"
+            />
           </div>
 
           {!isEditing && !isMobile && (
@@ -628,11 +871,19 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 {initialChecklistItems.length > 0 && (
                   <div className="mb-2 space-y-1.5">
                     {initialChecklistItems.map((item, index) => (
-                      <div key={`checklist-${index}`} className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5">
-                        <Checkbox checked={false} aria-label={`Elemento checklist ${index + 1}`} />
+                      <div
+                        key={`checklist-${index}`}
+                        className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5"
+                      >
+                        <Checkbox
+                          checked={false}
+                          aria-label={`Elemento checklist ${index + 1}`}
+                        />
                         <Input
                           value={item}
-                          onChange={(e) => updateInitialChecklistItem(index, e.target.value)}
+                          onChange={(e) =>
+                            updateInitialChecklistItem(index, e.target.value)
+                          }
                           className="h-7 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
                           maxLength={200}
                         />
@@ -651,7 +902,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 )}
                 <div className="flex gap-2">
                   <div className="flex h-9 items-center pl-2">
-                    <Checkbox checked={false} disabled aria-label="Nuovo elemento checklist" />
+                    <Checkbox
+                      checked={false}
+                      disabled
+                      aria-label="Nuovo elemento checklist"
+                    />
                   </div>
                   <Input
                     id="initial-checklist-item"
@@ -717,90 +972,143 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 Da assegnare
               </Button>
             </div>
-            <Select value={assignedTo || "none"} onValueChange={setAssignedTo} disabled={onlyAssigned}>
-              <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
+            <Select
+              value={assignedTo || "none"}
+              onValueChange={setAssignedTo}
+              disabled={onlyAssigned}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nessun assegnatario" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nessuno</SelectItem>
                 {assigneeOptions.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.first_name} {u.last_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
-            <div className="space-y-2">
-              <Label>Priorità</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
+              <div className="space-y-2">
+                <Label>Priorità</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITIES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 max-sm:hidden">
+                <Label>Categoria</Label>
+                <Select
+                  value={category}
+                  onValueChange={(v) => {
+                    setCategory(v);
+                    setOrderId("");
+                    setStockItemId("");
+                    setCostId("");
+                    setContactId("");
+                    setOpportunityId("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div
+                className={cn(
+                  "space-y-2",
+                  !isEditing && "max-sm:hidden",
+                  "max-sm:order-last",
+                )}
+              >
+                <Label>{isEditing ? "Stato" : "Stato iniziale"}</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-2 max-sm:hidden">
-              <Label>Categoria</Label>
-              <Select value={category} onValueChange={(v) => { setCategory(v); setOrderId(""); setStockItemId(""); setCostId(""); setContactId(""); setOpportunityId(""); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
+              <div className="space-y-2">
+                <Label>Scadenza</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !dueDate && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {dueDate
+                        ? format(dueDate, "dd/MM/yyyy")
+                        : isMobile
+                          ? "Data"
+                          : "Seleziona data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={setDueDate}
+                      locale={it}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-            <div className={cn("space-y-2", !isEditing && "max-sm:hidden", "max-sm:order-last")}>
-              <Label>{isEditing ? "Stato" : "Stato iniziale"}</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2 max-sm:hidden">
+                <Label
+                  htmlFor="estimated-hours"
+                  className="flex items-center gap-1.5"
+                >
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  Stima ore
+                </Label>
+                <Input
+                  id="estimated-hours"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.25"
+                  value={estimatedHours}
+                  onChange={(e) => setEstimatedHours(e.target.value)}
+                  placeholder="Es. 2.5"
+                />
+              </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
-            <div className="space-y-2">
-              <Label>Scadenza</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}>
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "dd/MM/yyyy") : isMobile ? "Data" : "Seleziona data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dueDate} onSelect={setDueDate} locale={it} />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2 max-sm:hidden">
-              <Label htmlFor="estimated-hours" className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                Stima ore
-              </Label>
-              <Input
-                id="estimated-hours"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.25"
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(e.target.value)}
-                placeholder="Es. 2.5"
-              />
-            </div>
-
-          </div>
           </div>
 
           <div className="rounded-md border bg-muted/20">
@@ -813,7 +1121,12 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 <Link2 className="h-4 w-4 text-muted-foreground" />
                 Collegamenti e opzioni
               </span>
-              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", advancedOpen && "rotate-180")} />
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  advancedOpen && "rotate-180",
+                )}
+              />
             </button>
           </div>
 
@@ -821,160 +1134,210 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             <div className="space-y-4 rounded-md border p-3">
               {/* Ripetizione */}
               <div className="space-y-2 border rounded-md p-3 bg-muted/20">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-1.5 cursor-pointer">
-                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                Ripetizione
-              </Label>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isRecurring}
-                onClick={() => setIsRecurring((v) => !v)}
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                  isRecurring ? "bg-primary" : "bg-input"
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5 cursor-pointer">
+                    <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                    Ripetizione
+                  </Label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isRecurring}
+                    onClick={() => setIsRecurring((v) => !v)}
+                    className={cn(
+                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                      isRecurring ? "bg-primary" : "bg-input",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-4 w-4 rounded-full bg-background shadow-lg transition-transform",
+                        isRecurring ? "translate-x-4" : "translate-x-0",
+                      )}
+                    />
+                  </button>
+                </div>
+                {isRecurring && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Ogni
+                      </Label>
+                      <Select
+                        value={recurrenceRule}
+                        onValueChange={setRecurrenceRule}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RECURRENCE_OPTIONS.filter(
+                            (o) => o.value !== "none",
+                          ).map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Termina il (opz.)
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start font-normal h-8 text-sm",
+                              !recurrenceEndDate && "text-muted-foreground",
+                            )}
+                          >
+                            <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                            {recurrenceEndDate
+                              ? format(recurrenceEndDate, "dd/MM/yy")
+                              : "Nessuna fine"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={recurrenceEndDate}
+                            onSelect={setRecurrenceEndDate}
+                            locale={it}
+                          />
+                          {recurrenceEndDate && (
+                            <div className="p-2 border-t">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full text-xs"
+                                onClick={() => setRecurrenceEndDate(undefined)}
+                              >
+                                Rimuovi data fine
+                              </Button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
                 )}
-              >
-                <span
-                  className={cn(
-                    "pointer-events-none inline-block h-4 w-4 rounded-full bg-background shadow-lg transition-transform",
-                    isRecurring ? "translate-x-4" : "translate-x-0"
-                  )}
-                />
-              </button>
-            </div>
-            {isRecurring && (
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Ogni</Label>
-                  <Select value={recurrenceRule} onValueChange={setRecurrenceRule}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              </div>
+
+              {(category === "ordini" || category === "pagamenti") && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Ordine collegato</Label>
+                    {orderId && orderId !== "none" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenChange(false);
+                          navigate(`/azienda/ordini/${orderId}`);
+                        }}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Apri commessa
+                      </button>
+                    )}
+                  </div>
+                  <Select value={orderId} onValueChange={setOrderId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona ordine" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {RECURRENCE_OPTIONS.filter((o) => o.value !== "none").map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      <SelectItem value="none">Nessuno</SelectItem>
+                      {orders.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.order_code ? `${o.order_code} - ` : ""}
+                          {o.description?.slice(0, 40)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Termina il (opz.)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={cn("w-full justify-start font-normal h-8 text-sm", !recurrenceEndDate && "text-muted-foreground")}>
-                        <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                        {recurrenceEndDate ? format(recurrenceEndDate, "dd/MM/yy") : "Nessuna fine"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} locale={it} />
-                      {recurrenceEndDate && (
-                        <div className="p-2 border-t">
-                          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setRecurrenceEndDate(undefined)}>
-                            Rimuovi data fine
-                          </Button>
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
+              )}
+
+              {category === "magazzino" && (
+                <div className="space-y-2">
+                  <Label>Articolo magazzino</Label>
+                  <Select value={stockItemId} onValueChange={setStockItemId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona articolo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessuno</SelectItem>
+                      {stockItems.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              )}
+
+              {category === "costi" && (
+                <div className="space-y-2">
+                  <Label>Costo collegato</Label>
+                  <Select value={costId} onValueChange={setCostId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona costo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessuno</SelectItem>
+                      {costs.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} (€{c.amount})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Contatto collegato</Label>
+                <Select value={contactId} onValueChange={setContactId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona contatto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessuno</SelectItem>
+                    {contacts.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.first_name} {c.last_name || ""}{" "}
+                        {c.email ? `(${c.email})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+
+              <div className="space-y-2">
+                <Label>Opportunità collegata</Label>
+                <Select value={opportunityId} onValueChange={setOpportunityId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona opportunità" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessuna</SelectItem>
+                    {opportunities.map((o: any) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name} {o.value > 0 ? `(€${o.value})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
-          {(category === "ordini" || category === "pagamenti") && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Ordine collegato</Label>
-                {orderId && orderId !== "none" && (
-                  <button
-                    type="button"
-                    onClick={() => { onOpenChange(false); navigate(`/azienda/ordini/${orderId}`); }}
-                    className="flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" /> Apri commessa
-                  </button>
-                )}
-              </div>
-              <Select value={orderId} onValueChange={setOrderId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona ordine" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {orders.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.order_code ? `${o.order_code} - ` : ""}{o.description?.slice(0, 40)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {category === "magazzino" && (
-            <div className="space-y-2">
-              <Label>Articolo magazzino</Label>
-              <Select value={stockItemId} onValueChange={setStockItemId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona articolo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {stockItems.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {category === "costi" && (
-            <div className="space-y-2">
-              <Label>Costo collegato</Label>
-              <Select value={costId} onValueChange={setCostId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona costo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {costs.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} (€{c.amount})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>Contatto collegato</Label>
-              <Select value={contactId} onValueChange={setContactId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona contatto" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {contacts.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name || ""} {c.email ? `(${c.email})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-          <div className="space-y-2">
-            <Label>Opportunità collegata</Label>
-              <Select value={opportunityId} onValueChange={setOpportunityId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona opportunità" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuna</SelectItem>
-                  {opportunities.map((o: any) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.name} {o.value > 0 ? `(€${o.value})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
               {category === "generale" && (
                 <p className="text-xs text-muted-foreground">
-                  Contatto e opportunità si collegano sempre; per ordine, magazzino e costo scegli la categoria corrispondente.
+                  Contatto e opportunità si collegano sempre; per ordine,
+                  magazzino e costo scegli la categoria corrispondente.
                 </p>
               )}
             </div>
@@ -993,16 +1356,32 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
         <DialogFooter className="gap-2">
           {isEditing && (
-            <Button variant="destructive" onClick={handleDelete} disabled={saving} className="sm:mr-auto">
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={saving}
+              className="sm:mr-auto"
+            >
               <Trash2 className="h-4 w-4 mr-2" />
               Elimina
             </Button>
           )}
-          <Button variant="outline" className="max-sm:hidden" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            className="max-sm:hidden"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Annulla
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio..." : isEditing ? (isMobile ? "Salva" : "Salva modifiche") : "Crea attività"}
+            {saving
+              ? "Salvataggio..."
+              : isEditing
+                ? isMobile
+                  ? "Salva"
+                  : "Salva modifiche"
+                : "Crea attività"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -115,6 +115,8 @@ export interface Permissions {
   canViewManutenzione: boolean;
   canViewSicurezzaCantiere: boolean;
   canViewSubappaltatori: boolean;
+  /** LUL, F24 e documenti mensili riservati: non ereditato da Sicurezza cantiere. */
+  canViewSubappaltatoriAmministrazione: boolean;
   canViewGiornaleLavori: boolean;
   /** Modifica/compila il Giornale Lavori (rapportini) */
   canEditGiornaleLavori: boolean;
@@ -232,6 +234,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_manutenzione",
   "can_view_sicurezza_cantiere",
   "can_view_subappaltatori",
+  "can_view_subappaltatori_amministrazione",
   "can_view_giornale_lavori",
   "can_edit_giornale_lavori",
   "can_view_sopralluoghi",
@@ -299,7 +302,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketingAiAgent: true, canViewMarketingEmail: true,
   canViewMarketingWhatsapp: true, canViewMarketingReports: true,
   canViewInterventi: true, canViewManutenzione: true,
-  canViewSicurezzaCantiere: true, canViewSubappaltatori: true,
+  canViewSicurezzaCantiere: true, canViewSubappaltatori: true, canViewSubappaltatoriAmministrazione: true,
   canViewGiornaleLavori: true,
   canEditGiornaleLavori: true,
   canViewSopralluoghi: true,
@@ -352,7 +355,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketingAiAgent: false, canViewMarketingEmail: false,
   canViewMarketingWhatsapp: false, canViewMarketingReports: false,
   canViewInterventi: false, canViewManutenzione: false,
-  canViewSicurezzaCantiere: false, canViewSubappaltatori: false,
+  canViewSicurezzaCantiere: false, canViewSubappaltatori: false, canViewSubappaltatoriAmministrazione: false,
   canViewGiornaleLavori: false,
   canEditGiornaleLavori: false,
   canViewSopralluoghi: false,
@@ -391,7 +394,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewOperai: false, canEditOperai: false,
   canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: false,
-  canViewSubappaltatori: true,
+  canViewSubappaltatori: true, canViewSubappaltatoriAmministrazione: false,
   canViewSicurezzaCantiere: true,
   canViewGiornaleLavori: true,
   canEditGiornaleLavori: false,
@@ -568,6 +571,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewManutenzione:      g("can_view_manutenzione"),
     canViewSicurezzaCantiere: g("can_view_sicurezza_cantiere"),
     canViewSubappaltatori:    g("can_view_subappaltatori"),
+    canViewSubappaltatoriAmministrazione: g("can_view_subappaltatori_amministrazione"),
     canViewGiornaleLavori:    g("can_view_giornale_lavori"),
     canEditGiornaleLavori:    g("can_edit_giornale_lavori"),
     canViewSopralluoghi:      g("can_view_sopralluoghi"),

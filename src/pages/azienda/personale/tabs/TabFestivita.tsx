@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
-import { useHrFestivita, useCreateHrFestivita, useUpdateHrFestivita, useDeleteHrFestivita } from "@/hooks/useHrFestivita";
+import { useHrFestivita, useCreateHrFestivita, useUpdateHrFestivita, useDeleteHrFestivita, useImportHrFestivita } from "@/hooks/useHrFestivita";
+import { projectHoliday } from "@/lib/personale/calendarioLavorativo";
+import { usePermissions } from "@/hooks/usePermissions";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 import type { HrFestivita } from "@/types/hr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,59 +18,42 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
-const FESTIVITA_ITALIANE = [
-  { data: "01-01", descrizione: "Capodanno" },
-  { data: "01-06", descrizione: "Epifania" },
-  { data: "04-25", descrizione: "Festa della Liberazione" },
-  { data: "05-01", descrizione: "Festa dei Lavoratori" },
-  { data: "06-02", descrizione: "Festa della Repubblica" },
-  { data: "08-15", descrizione: "Ferragosto" },
-  { data: "11-01", descrizione: "Tutti i Santi" },
-  { data: "12-08", descrizione: "Immacolata Concezione" },
-  { data: "12-25", descrizione: "Natale" },
-  { data: "12-26", descrizione: "Santo Stefano" },
-];
-
 export function TabFestivita() {
-  const { data: festivita = [], isLoading } = useHrFestivita();
-  const createMut = useCreateHrFestivita();
+  const { data: festivita = [], isLoading, isError, refetch } = useHrFestivita();
+  const importMut = useImportHrFestivita();
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   const deleteMut = useDeleteHrFestivita();
   const [editItem, setEditItem] = useState<HrFestivita | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const ricorrenti = festivita.filter((f) => f.ricorrente).length;
-  const anno = new Date().getFullYear();
+  const [month, setMonth] = useState(new Date());
+  const anno = month.getFullYear();
+  const projected = useMemo(() => festivita.flatMap((f) => { const p = projectHoliday(f, anno); return p ? [p] : []; }).sort((a, b) => a.projectedDate.localeCompare(b.projectedDate)), [festivita, anno]);
+  const ricorrenti = projected.filter((f) => f.ricorrente).length;
 
   // Dates for calendar highlighting
   const festivitaDates = useMemo(() => {
-    return festivita.map((f) => parseISO(f.data));
-  }, [festivita]);
+    return projected.map((f) => parseISO(f.projectedDate));
+  }, [projected]);
 
   const handlePopulateItaliane = () => {
-    const existing = festivita.map((f) => f.data.slice(5)); // MM-DD
-    const toAdd = FESTIVITA_ITALIANE.filter((fi) => !existing.includes(fi.data));
-    if (toAdd.length === 0) {
-      toast.info("Tutte le festività italiane sono già presenti");
-      return;
-    }
-    Promise.all(
-      toAdd.map((fi) =>
-        createMut.mutateAsync({ data: `${anno}-${fi.data}`, descrizione: fi.descrizione, ricorrente: true })
-      )
-    ).then(() => toast.success(`${toAdd.length} festività italiane aggiunte`));
+    if (canEdit) importMut.mutate(anno);
   };
 
   return (
     <div className="space-y-4">
+      {isError && <HrQueryError label="Calendario non disponibile" onRetry={refetch} />}
+      <p className="text-sm text-muted-foreground">Calendario {anno}: ricorrenze proiettate nell’anno selezionato. Pasqua e Lunedì dell’Angelo sono specifici dell’anno. Verifica patrono locale, chiusure e accordi con il consulente.</p>
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-muted"><CalendarCheck className="h-5 w-5 text-muted-foreground" /></div>
             <div>
-              <p className="text-2xl font-bold">{festivita.length}</p>
-              <p className="text-xs text-muted-foreground">Festività totali</p>
+              <p className="text-2xl font-bold">{isError || isLoading ? "—" : projected.length}</p>
+              <p className="text-xs text-muted-foreground">Festività nel {anno}</p>
             </div>
           </CardContent>
         </Card>
@@ -75,7 +61,7 @@ export function TabFestivita() {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-muted"><RefreshCw className="h-5 w-5 text-muted-foreground" /></div>
             <div>
-              <p className="text-2xl font-bold">{ricorrenti}</p>
+              <p className="text-2xl font-bold">{isError || isLoading ? "—" : ricorrenti}</p>
               <p className="text-xs text-muted-foreground">Ricorrenti</p>
             </div>
           </CardContent>
@@ -84,7 +70,7 @@ export function TabFestivita() {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-muted"><CalendarDays className="h-5 w-5 text-muted-foreground" /></div>
             <div>
-              <p className="text-2xl font-bold">{festivita.length - ricorrenti}</p>
+              <p className="text-2xl font-bold">{isError || isLoading ? "—" : projected.length - ricorrenti}</p>
               <p className="text-xs text-muted-foreground">Una tantum</p>
             </div>
           </CardContent>
@@ -93,11 +79,11 @@ export function TabFestivita() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handlePopulateItaliane} disabled={createMut.isPending}>
+        <Button variant="outline" size="sm" onClick={handlePopulateItaliane} disabled={!canEdit || isError || isLoading || importMut.isPending}>
           🇮🇹 Aggiungi festività italiane {anno}
         </Button>
         <div className="ml-auto">
-          <Button size="sm" onClick={() => setShowNew(true)}>
+          <Button disabled={!canEdit} size="sm" onClick={() => setShowNew(true)}>
             <Plus className="h-4 w-4 mr-1" /> Nuova Festività
           </Button>
         </div>
@@ -112,8 +98,15 @@ export function TabFestivita() {
               mode="multiple"
               selected={festivitaDates}
               locale={it}
-              className="pointer-events-none"
+              month={month}
+              onMonthChange={setMonth}
+              onSelect={() => undefined}
             />
+            <div className="flex items-center justify-between gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno - 1, month.getMonth(), 1))} aria-label="Anno precedente">{anno - 1}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date())}>Oggi</Button>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno + 1, month.getMonth(), 1))} aria-label="Anno successivo">{anno + 1}</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -121,10 +114,10 @@ export function TabFestivita() {
         <div className="space-y-2">
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-          ) : festivita.length === 0 ? (
+          ) : isError ? null : projected.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">Nessuna festività configurata. Usa il bottone "Aggiungi festività italiane" per iniziare.</CardContent></Card>
           ) : (
-            festivita.map((f) => (
+            projected.map((f) => (
               <Card key={f.id}>
                 <CardContent className="p-3 flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10 shrink-0">
@@ -140,14 +133,14 @@ export function TabFestivita() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(parseISO(f.data), "EEEE d MMMM yyyy", { locale: it })}
+                      {format(parseISO(f.projectedDate), "EEEE d MMMM yyyy", { locale: it })}
                     </p>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem(f)}>
+                    <Button disabled={!canEdit} aria-label={`Modifica ${f.descrizione}`} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem(f)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(f.id)}>
+                    <Button disabled={!canEdit} aria-label={`Elimina ${f.descrizione}`} variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(f.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -177,7 +170,8 @@ export function TabFestivita() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteId) deleteMut.mutate(deleteId); setDeleteId(null); }}
+              disabled={!canEdit || deleteMut.isPending}
+              onClick={(event) => { event.preventDefault(); if (deleteId) deleteMut.mutate(deleteId, { onSuccess: () => setDeleteId(null) }); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Elimina

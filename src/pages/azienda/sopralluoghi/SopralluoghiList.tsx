@@ -1,40 +1,113 @@
-/**
- * SopralluoghiList — lista sopralluoghi (rilievi tecnici di cantiere).
- *
- * Visibile se feature flag 'surveys_module' attiva (modulo gratuito, default ON).
- */
+import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
+import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
+import {
+  useOperationalArchive,
+  inOperationalScope,
+} from "@/hooks/useOperationalArchive";
+import { OperationalHelp } from "@/components/orders/OperationalHelp";
+import { OperationalArchive } from "@/components/orders/OperationalArchive";
+import { OperationalTable } from "@/components/orders/OperationalTable";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { listaSopralluoghiBacheca } from "@/lib/api/surveysBoard";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  ClipboardList, Plus, MapPin, Search, Calendar, CalendarClock, AlertCircle, Settings, Phone, User, ArrowRight, CheckCircle2,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ClipboardList,
+  Plus,
+  MapPin,
+  Search,
+  Calendar,
+  CalendarClock,
+  AlertCircle,
+  Settings,
+  Phone,
+  User,
+  ArrowRight,
+  FileCheck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePermissions } from "@/hooks/usePermissions";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
+import { OperationalBoard } from "@/components/orders/OperationalBoard";
+import { usePipelineTransition } from "@/hooks/usePipelineTransition";
 import { PianificaSopralluogoDialog } from "@/components/sopralluoghi/PianificaSopralluogoDialog";
 import {
-  FASI, contaPerFase, cosaFareOra, fasePratica, filtraBacheca, ordinaBacheca, prossimaAzione, quando,
-  type FasePratica, type FiltriBacheca, type PeriodoFiltro, type SopralluogoBacheca,
+  FASI,
+  contaPerFase,
+  cosaFareOra,
+  fasePratica,
+  filtraBacheca,
+  ordinaBacheca,
+  prossimaAzione,
+  quando,
+  type FasePratica,
+  type FiltriBacheca,
+  type PeriodoFiltro,
+  type SopralluogoBacheca,
 } from "@/lib/sopralluoghi/bacheca";
+import {
+  FILTRI_SOPRALLUOGHI,
+  leggiFiltriBacheca,
+  scriviFiltriBacheca,
+} from "@/lib/sopralluoghi/filtriBacheca";
 
-const COLORE_FASE: Record<FasePratica, string> = {
-  da_pianificare: "bg-slate-100 text-slate-700 border-slate-300",
-  pianificato: "bg-sky-100 text-sky-700 border-sky-300",
-  in_corso: "bg-amber-100 text-amber-700 border-amber-300",
-  completato: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  firmato: "bg-violet-100 text-violet-700 border-violet-300",
-  preventivo: "bg-teal-100 text-teal-700 border-teal-300",
+const COLORI: Record<
+  FasePratica,
+  { badge: string; bordo: string; descrizione: string }
+> = {
+  da_pianificare: {
+    badge: "bg-slate-100 text-slate-700",
+    bordo: "#64748b",
+    descrizione: "Fissa data e tecnico",
+  },
+  pianificato: {
+    badge: "bg-sky-50 text-sky-700",
+    bordo: "#0284c7",
+    descrizione: "Appuntamenti già fissati",
+  },
+  in_corso: {
+    badge: "bg-amber-50 text-amber-700",
+    bordo: "#d97706",
+    descrizione: "Rilievi da completare",
+  },
+  completato: {
+    badge: "bg-emerald-50 text-emerald-700",
+    bordo: "#059669",
+    descrizione: "In attesa della firma cliente",
+  },
+  firmato: {
+    badge: "bg-violet-50 text-violet-700",
+    bordo: "#7c3aed",
+    descrizione: "Pronti per il preventivo",
+  },
+  preventivo: {
+    badge: "bg-teal-50 text-teal-700",
+    bordo: "#0d9488",
+    descrizione: "Pratiche collegate a preventivo o commessa",
+  },
 };
-const TONO_QUANDO = { normale: "text-muted-foreground", oggi: "font-semibold text-orange-700", ritardo: "font-semibold text-red-600", nessuna: "text-muted-foreground italic" } as const;
+const TONO = {
+  normale: "text-slate-500",
+  oggi: "font-medium text-orange-700",
+  ritardo: "font-medium text-red-600",
+  nessuna: "text-slate-500",
+};
 const PERIODI: { value: PeriodoFiltro; label: string }[] = [
   { value: "tutti", label: "Tutte le date" },
   { value: "oggi", label: "Oggi" },
@@ -44,232 +117,706 @@ const PERIODI: { value: PeriodoFiltro; label: string }[] = [
   { value: "senza_data", label: "Senza data" },
 ];
 
+function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
+  const fase = fasePratica(s);
+  if (!fase) return null;
+  const fatto = ["completato", "firmato", "preventivo"].includes(fase);
+  const q = quando(s.scheduled_at, adesso, fatto);
+  const azione = prossimaAzione(s, adesso);
+  return (
+    <Card className="min-w-0 rounded-lg border-slate-200  bg-white shadow-sm transition hover:border-orange-200 hover:shadow-sm">
+      <CardContent className="flex flex-col gap-2 p-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <PipelineCardHeading>
+            <Link
+              to={`/azienda/sopralluoghi/${s.id}`}
+              className="min-w-0 max-w-full truncate font-mono text-xs font-semibold text-primary hover:underline"
+              title={s.code}
+            >
+              {s.code}
+            </Link>
+          </PipelineCardHeading>
+          <Link
+            to={`/azienda/sopralluoghi/${s.id}`}
+            className="block truncate text-sm font-semibold text-slate-900 hover:text-primary"
+            title={s.cliente_nome || "Cliente non indicato"}
+          >
+            {s.cliente_nome || "Cliente non indicato"}
+          </Link>
+          <p className={cn("flex items-start gap-1.5 text-xs", TONO[q.tono])}>
+            <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {q.testo}
+          </p>
+          <p className="flex items-start gap-1.5 text-xs text-slate-500">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span
+              className="line-clamp-2"
+              title={[s.address, s.city].filter(Boolean).join(", ")}
+            >
+              {[s.address, s.city].filter(Boolean).join(", ") ||
+                "Indirizzo da indicare"}
+            </span>
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1">
+              <User className="h-3 w-3" />
+              {s.tecnico_nome || "Tecnico da assegnare"}
+            </span>
+            {s.cliente_telefono && (
+              <a
+                href={`tel:${s.cliente_telefono}`}
+                className="inline-flex items-center gap-1 text-sky-700 hover:underline"
+              >
+                <Phone className="h-3 w-3" />
+                {s.cliente_telefono}
+              </a>
+            )}
+          </div>
+        </div>
+        {azione && (
+          <p className="border-t pt-2 text-xs text-slate-500">{azione}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PipelineSopralluoghi({
+  righe,
+  adesso,
+  puoCreare,
+  pianifica,
+  onMove,
+  saving,
+}: {
+  righe: SopralluogoBacheca[];
+  adesso: Date;
+  puoCreare: boolean;
+  pianifica: (s: SopralluogoBacheca) => void;
+  onMove: (id: string, target: string) => void;
+  saving: boolean;
+}) {
+  const navigate = useNavigate();
+  const accent: Record<FasePratica, string> = {
+    da_pianificare: "border-t-slate-500",
+    pianificato: "border-t-sky-500",
+    in_corso: "border-t-amber-500",
+    completato: "border-t-emerald-500",
+    firmato: "border-t-violet-500",
+    preventivo: "border-t-teal-500",
+  };
+  return (
+    <>
+      <OperationalBoard
+        label="Pipeline sopralluoghi"
+        onOpen={(s) => navigate(`/azienda/sopralluoghi/${s.id}`)}
+        renderActions={(s) =>
+          puoCreare &&
+          ["da_pianificare", "pianificato"].includes(fasePratica(s) ?? "") ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              aria-label="Pianifica"
+              title="Pianifica sopralluogo"
+              onClick={() => pianifica(s)}
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+            </Button>
+          ) : null
+        }
+        onMove={puoCreare ? onMove : undefined}
+        disabled={saving}
+        getLabel={(s) => s.code}
+        columns={FASI.map(({ fase, etichetta }) => ({
+          id: fase,
+          label: etichetta,
+          hint: COLORI[fase].descrizione,
+          accent: accent[fase],
+          items: righe
+            .filter((s) => fasePratica(s) === fase)
+            .sort((a, b) =>
+              ["completato", "firmato", "preventivo"].includes(fase)
+                ? (
+                    b.scheduled_at ||
+                    b.updated_at ||
+                    b.created_at
+                  ).localeCompare(
+                    a.scheduled_at || a.updated_at || a.created_at,
+                  )
+                : 0,
+            ),
+        }))}
+        renderCard={(s) => <Scheda s={s} adesso={adesso} />}
+      />
+    </>
+  );
+}
+
 export default function SopralluoghiList() {
   const permessi = usePermissions();
-  // In sola lettura i sopralluoghi si consultano ma non si creano (policy in DB).
   const puoCreare = !permessi.solaLettura;
-  const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
-  const [filtri, setFiltri] = useState<FiltriBacheca>({ fase: "tutte", periodo: "tutti", tecnico: "tutti", testo: "", soloSenzaPreventivo: false });
-  const [daPianificare, setDaPianificare] = useState<SopralluogoBacheca | null>(null);
-
-  const { data: tutti = [], isLoading, isError, refetch } = useQuery({
+  const [params, setParams] = useSearchParams();
+  useOperationalViewMemory("sop", [
+    "sop_vista",
+    "sop_ambito",
+    "sop_cerca",
+    "sop_fase",
+    "sop_periodo",
+    "sop_tecnico",
+    "sop_senza_preventivo",
+    "sop_ferme",
+  ]);
+  const filtri = useMemo(() => leggiFiltriBacheca(params), [params]);
+  const vista = params.get("sop_vista") === "elenco" ? "elenco" : "pipeline";
+  const [pagina, setPagina] = useState(1);
+  const [daPianificare, setDaPianificare] = useState<SopralluogoBacheca | null>(
+    null,
+  );
+  const {
+    data: tutti = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["sopralluoghi-bacheca", companyId],
     enabled: !!companyId,
     queryFn: () => listaSopralluoghiBacheca(companyId as string),
   });
+  const movement = usePipelineTransition({
+    kind: "survey",
+    enabled: puoCreare,
+    onPlan: (id) => setDaPianificare(tutti.find((s) => s.id === id) ?? null),
+  });
+  const moveSurvey = (id: string, target: string) => {
+    const s = tutti.find((s) => s.id === id);
+    if (!s) return;
+    movement.request(
+      {
+        id: s.id,
+        label: s.code,
+        status: s.status,
+        stage: fasePratica(s) ?? "",
+        href: `/azienda/sopralluoghi/${s.id}`,
+        scheduled: s.scheduled_at,
+        linked: !!(s.estimate_id || s.order_id),
+      },
+      target,
+    );
+  };
+
   const { data: staff = [] } = useCompanyStaffUsers(companyId);
-
   const adesso = useMemo(() => new Date(), [tutti]); // eslint-disable-line react-hooks/exhaustive-deps
-  const conteggi = useMemo(() => contaPerFase(tutti), [tutti]);
   const ora = useMemo(() => cosaFareOra(tutti, adesso), [tutti, adesso]);
-  const elenco = useMemo(() => ordinaBacheca(filtraBacheca(tutti, filtri, adesso), adesso), [tutti, filtri, adesso]);
-
-  const imposta = (p: Partial<FiltriBacheca>) => setFiltri((f) => ({ ...f, ...p }));
-  const filtriAttivi = (filtri.fase && filtri.fase !== "tutte") || (filtri.periodo && filtri.periodo !== "tutti")
-    || (filtri.tecnico && filtri.tecnico !== "tutti") || !!filtri.testo?.trim() || filtri.soloSenzaPreventivo;
-  const azzera = () => setFiltri({ fase: "tutte", periodo: "tutti", tecnico: "tutti", testo: "", soloSenzaPreventivo: false });
-
-  const voceOra = [
-    { chiave: "oggi", n: ora.oggi.length, testo: "oggi in agenda", tono: "text-orange-700", azione: () => imposta({ fase: "tutte", periodo: "oggi", soloSenzaPreventivo: false }) },
-    { chiave: "ritardo", n: ora.inRitardo.length, testo: "in ritardo", tono: "text-red-600", azione: () => imposta({ fase: "tutte", periodo: "in_ritardo", soloSenzaPreventivo: false }) },
-    { chiave: "ferme", n: ora.bozzeFerme.length, testo: "bozze ferme da oltre 2 settimane", tono: "text-slate-700", azione: () => imposta({ fase: "da_pianificare", periodo: "tutti", soloSenzaPreventivo: false }) },
-    { chiave: "prev", n: ora.senzaPreventivo.length, testo: "finiti senza preventivo", tono: "text-violet-700", azione: () => imposta({ fase: "tutte", periodo: "tutti", soloSenzaPreventivo: true }) },
-  ].filter((v) => v.n > 0);
+  const base = useMemo(
+    () => filtraBacheca(tutti, { ...filtri, fase: "tutte" }, adesso),
+    [tutti, filtri, adesso],
+  );
+  const conteggi = useMemo(() => contaPerFase(base), [base]);
+  const archive = useOperationalArchive(
+    "sop_ambito",
+    filtri.fase !== "tutte" || vista === "elenco" ? "all" : "active",
+  );
+  const elencoCompleto = useMemo(
+    () => ordinaBacheca(filtraBacheca(tutti, filtri, adesso), adesso),
+    [tutti, filtri, adesso],
+  );
+  const elenco = elencoCompleto.filter((s) =>
+    inOperationalScope(fasePratica(s) === "preventivo", archive.scope),
+  );
+  const totale = Object.values(contaPerFase(tutti)).reduce((a, b) => a + b, 0);
+  const pagine = Math.max(1, Math.ceil(elenco.length / 24));
+  const paginaAttuale = Math.min(pagina, pagine);
+  const imposta = (p: Partial<FiltriBacheca>) => {
+    setPagina(1);
+    setParams(
+      (prima) => {
+        const next = scriviFiltriBacheca(prima, p);
+        if (p.fase) next.set("sop_ambito", "all");
+        return next;
+      },
+      { replace: true },
+    );
+  };
+  const azzera = () => imposta(FILTRI_SOPRALLUOGHI);
+  const attivi =
+    Number(filtri.fase !== "tutte") +
+    Number(filtri.periodo !== "tutti") +
+    Number(filtri.tecnico !== "tutti") +
+    Number(!!filtri.testo?.trim()) +
+    Number(!!filtri.soloSenzaPreventivo) +
+    Number(!!filtri.soloBozzeFerme);
 
   return (
-    <div className="mx-auto max-w-6xl p-0 sm:p-2 md:p-6 space-y-3 sm:space-y-4">
-      {/* Header — telefono: resta solo «Nuovo sopralluogo» a tutta riga; il
-          titolo lo dice già la scheda in alto e le impostazioni sono dal computer. */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 max-sm:hidden">
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center text-white shadow-lg shrink-0">
-            <ClipboardList className="h-4 w-4 sm:h-6 sm:w-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-2xl font-bold">Sopralluoghi</h1>
-            <p className="hidden sm:block text-sm text-muted-foreground mt-0.5">
-              Rilievi tecnici sul cantiere — pianificati in calendario, con foto, audio e firma cliente
-            </p>
-          </div>
+    <div className="min-w-0 space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Sopralluoghi
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Dalla pianificazione al preventivo: cliente, tecnico e prossima
+            azione sempre visibili.
+          </p>
         </div>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-          {/* Modelli dei sopralluoghi: prima stavano tra le impostazioni dei preventivi. */}
+        <div className="flex items-center gap-2">
           {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
-            <Button asChild variant="outline" className="gap-2 w-full sm:w-auto max-sm:hidden">
-              <Link to="/azienda/impostazioni/sopralluoghi"><Settings className="h-4 w-4" />Impostazioni</Link>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1.5 max-sm:hidden"
+            >
+              <Link to="/azienda/impostazioni/sopralluoghi">
+                <Settings className="h-3.5 w-3.5" />
+                Modelli e impostazioni
+              </Link>
             </Button>
           )}
-          {puoCreare ? (
-            <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
-              <Link to="/azienda/sopralluoghi/nuovo"><Plus className="h-4 w-4" />Nuovo sopralluogo</Link>
+          {puoCreare && (
+            <Button
+              asChild
+              size="sm"
+              className="gap-1.5 bg-orange-600 hover:bg-orange-700"
+            >
+              <Link to="/azienda/sopralluoghi/nuovo">
+                <Plus className="h-4 w-4" />
+                Nuovo sopralluogo
+              </Link>
             </Button>
-          ) : (
-            <Button disabled title="Sei in sola lettura" className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" />Nuovo sopralluogo</Button>
           )}
         </div>
-      </div>
-
-      {/* Avanzamento: a che punto sono i sopralluoghi. Un clic filtra, un secondo clic toglie. */}
-      {!isLoading && !isError && tutti.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 lg:grid-cols-6" role="tablist" aria-label="Fase dei sopralluoghi">
-          {FASI.map(({ fase, etichetta }) => (
-            <button
-              key={fase}
-              type="button"
-              role="tab"
-              aria-selected={filtri.fase === fase}
-              onClick={() => imposta({ fase: filtri.fase === fase ? "tutte" : fase })}
-              className={cn(
-                "rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:border-orange-300",
-                filtri.fase === fase && "border-orange-500 bg-orange-50",
-              )}
-            >
-              <span className="block text-xl font-bold leading-none tabular-nums">{conteggi[fase]}</span>
-              <span className="mt-1 block truncate text-[11px] text-muted-foreground">{etichetta}</span>
-            </button>
-          ))}
+      </header>
+      {!isError && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {isLoading ? (
+            [0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))
+          ) : (
+            <>
+              <OperationalKpiCard
+                label="Oggi in agenda"
+                value={ora.oggi.length}
+                icon={Calendar}
+                tone="blue"
+                onClick={() =>
+                  imposta({ ...FILTRI_SOPRALLUOGHI, periodo: "oggi" })
+                }
+                active={filtri.periodo === "oggi"}
+              />
+              <OperationalKpiCard
+                label="Da pianificare"
+                value={contaPerFase(tutti).da_pianificare}
+                icon={CalendarClock}
+                tone="amber"
+                onClick={() =>
+                  imposta({ ...FILTRI_SOPRALLUOGHI, fase: "da_pianificare" })
+                }
+                active={filtri.fase === "da_pianificare"}
+              />
+              <OperationalKpiCard
+                label="In ritardo"
+                value={ora.inRitardo.length}
+                icon={AlertCircle}
+                tone={ora.inRitardo.length > 0 ? "red" : "green"}
+                onClick={() =>
+                  imposta({ ...FILTRI_SOPRALLUOGHI, periodo: "in_ritardo" })
+                }
+                active={filtri.periodo === "in_ritardo"}
+              />
+              <OperationalKpiCard
+                label="Da preventivare"
+                value={ora.senzaPreventivo.length}
+                icon={FileCheck}
+                tone="green"
+                hint="completati o firmati"
+                onClick={() =>
+                  imposta({ ...FILTRI_SOPRALLUOGHI, soloSenzaPreventivo: true })
+                }
+                active={filtri.soloSenzaPreventivo}
+              />
+            </>
+          )}
         </div>
       )}
-
-      {/* Cosa fare ora */}
-      {!isLoading && !isError && voceOra.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50/40">
-          <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3">
-            <span className="flex items-center gap-1.5 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-orange-600" />Cosa fare ora</span>
-            {voceOra.map((v) => (
-              <button key={v.chiave} type="button" onClick={v.azione} className="flex items-center gap-1.5 text-sm hover:underline">
-                <span className={cn("text-lg font-bold tabular-nums", v.tono)}>{v.n}</span>
-                <span className="text-muted-foreground">{v.testo}</span>
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <OperationalViewSwitch
+            value={vista}
+            label="Vista sopralluoghi"
+            onChange={(v) =>
+              setParams(
+                (prima) => {
+                  const p = new URLSearchParams(prima);
+                  p.set("sop_ambito", archive.scope);
+                  if (v === "pipeline") p.delete("sop_vista");
+                  else p.set("sop_vista", v);
+                  return p;
+                },
+                { replace: true },
+              )
+            }
+          />
+          <OperationalHelp>
+            Trascina la scheda nella fase desiderata oppure usa l’icona con le
+            frecce. Firma, preventivo e pianificazione aprono il passaggio
+            dedicato.
+          </OperationalHelp>
+          <div className="relative min-w-52 flex-1">
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              aria-label="Cerca per cliente, telefono, indirizzo o codice"
+              placeholder="Cliente, indirizzo, codice o telefono…"
+              className="h-8 pl-8 text-xs"
+              value={filtri.testo}
+              onChange={(e) => imposta({ testo: e.target.value })}
+            />
+          </div>
+          <Select
+            value={filtri.periodo}
+            onValueChange={(v) => imposta({ periodo: v as PeriodoFiltro })}
+          >
+            <SelectTrigger
+              aria-label="Periodo sopralluoghi"
+              className="h-8 w-44 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODI.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filtri.tecnico}
+            onValueChange={(v) => imposta({ tecnico: v })}
+          >
+            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i tecnici</SelectItem>
+              <SelectItem value="nessuno">Senza tecnico</SelectItem>
+              {staff.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
+                    "Utente"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!!attivi && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-9 gap-1 text-xs"
+              onClick={azzera}
+            >
+              <X className="h-3.5 w-3.5" />
+              Azzera filtri ({attivi})
+            </Button>
+          )}
+        </div>
+        <div
+          className="flex gap-1 overflow-x-auto border-t border-slate-100 pt-2"
+          role="group"
+          aria-label="Fase dei sopralluoghi"
+        >
+          {[{ fase: "tutte", etichetta: "Tutti" }, ...FASI]
+            .filter(
+              (f) =>
+                f.fase === "tutte" ||
+                inOperationalScope(f.fase === "preventivo", archive.scope),
+            )
+            .map((f) => (
+              <button
+                key={f.fase}
+                type="button"
+                aria-pressed={filtri.fase === f.fase}
+                onClick={() =>
+                  imposta({ fase: f.fase as FasePratica | "tutte" })
+                }
+                className={cn(
+                  "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium",
+                  filtri.fase === f.fase
+                    ? "bg-orange-50 text-orange-800 ring-1 ring-inset ring-orange-100"
+                    : "text-slate-500 hover:bg-slate-50",
+                )}
+              >
+                {f.etichetta}
+                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] tabular-nums text-slate-600">
+                  {f.fase === "tutte"
+                    ? base.filter((s) =>
+                        inOperationalScope(
+                          fasePratica(s) === "preventivo",
+                          archive.scope,
+                        ),
+                      ).length
+                    : conteggi[f.fase as FasePratica]}
+                </span>
               </button>
             ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Filtri */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per cliente, telefono, indirizzo, codice…"
-            value={filtri.testo ?? ""}
-            onChange={(e) => imposta({ testo: e.target.value })}
-            className="pl-8 h-10 sm:h-9 text-sm"
-            aria-label="Cerca per cliente, telefono, indirizzo o codice"
-          />
         </div>
-        <Select value={filtri.periodo ?? "tutti"} onValueChange={(v) => imposta({ periodo: v as PeriodoFiltro })}>
-          <SelectTrigger className="h-10 w-[170px] text-sm sm:h-9" aria-label="Periodo"><SelectValue /></SelectTrigger>
-          <SelectContent>{PERIODI.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={filtri.tecnico ?? "tutti"} onValueChange={(v) => imposta({ tecnico: v })}>
-          <SelectTrigger className="h-10 w-[170px] text-sm sm:h-9" aria-label="Tecnico"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti i tecnici</SelectItem>
-            <SelectItem value="nessuno">Senza tecnico</SelectItem>
-            {staff.map((u) => <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Utente"}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {filtriAttivi && <Button variant="ghost" size="sm" onClick={azzera}>Azzera filtri</Button>}
-        {!isLoading && <span className="ml-auto text-xs text-muted-foreground tabular-nums">{elenco.length} sopralluoghi</span>}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <OperationalArchive
+            label="sopralluoghi"
+            scope={archive.scope}
+            onChange={(v) => archive.setScope(v, ["sop_fase", "sop_pagina"])}
+            active={base.filter((s) => fasePratica(s) !== "preventivo").length}
+            history={base.filter((s) => fasePratica(s) === "preventivo").length}
+          />
+          <span>
+            {isLoading
+              ? "Caricamento…"
+              : isError
+                ? "Dati non disponibili"
+                : `${elenco.length} di ${totale} sopralluoghi`}
+          </span>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              aria-pressed={!!filtri.soloSenzaPreventivo}
+              onClick={() =>
+                imposta({ soloSenzaPreventivo: !filtri.soloSenzaPreventivo })
+              }
+              className={cn(
+                "hover:text-primary",
+                filtri.soloSenzaPreventivo && "font-medium text-orange-700",
+              )}
+            >
+              Solo completati senza preventivo
+            </button>
+            {ora.bozzeFerme.length > 0 && (
+              <button
+                type="button"
+                aria-pressed={!!filtri.soloBozzeFerme}
+                onClick={() =>
+                  imposta({ soloBozzeFerme: !filtri.soloBozzeFerme })
+                }
+                className={cn(
+                  "hover:text-primary",
+                  filtri.soloBozzeFerme && "font-medium text-orange-700",
+                )}
+              >
+                Bozze ferme da oltre 14 giorni ({ora.bozzeFerme.length})
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-
-      {/* Elenco */}
       {isLoading ? (
-        <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-64 rounded-xl" />
+          ))}
+        </div>
       ) : isError ? (
-        <Card className="border-red-200 dark:border-red-900/40">
-          <CardContent className="p-6 sm:p-12 text-center">
-            <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
-            <p className="font-semibold mb-1">Impossibile caricare i sopralluoghi</p>
-            <p className="text-sm text-muted-foreground mb-4">Si è verificato un errore. Controlla la connessione e riprova.</p>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button>
+        <Card role="alert">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-500" />
+            <p className="font-semibold">Impossibile caricare i sopralluoghi</p>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onClick={() => refetch()}
+            >
+              Riprova
+            </Button>
           </CardContent>
         </Card>
       ) : elenco.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 sm:p-12 text-center">
-            <div className="mx-auto h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-orange-100 flex items-center justify-center mb-3">
-              <ClipboardList className="h-7 w-7 sm:h-8 sm:w-8 text-orange-600" />
-            </div>
-            <p className="font-semibold">Nessun sopralluogo</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-              {filtriAttivi ? "Nessun risultato per i filtri attivi." : "Usa il pulsante \"Nuovo sopralluogo\" in alto per crearne uno."}
+        <Card>
+          <CardContent className="p-10 text-center">
+            <ClipboardList className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+            <p className="font-semibold">
+              Nessun sopralluogo{attivi ? " per questi filtri" : ""}
             </p>
-            {filtriAttivi && <Button variant="outline" size="sm" className="mt-3" onClick={azzera}>Azzera filtri</Button>}
+            <p className="mt-1 text-sm text-slate-500">
+              {attivi
+                ? "Modifica la ricerca o azzera i filtri per rivedere le pratiche."
+                : "Crea il primo sopralluogo per iniziare a pianificare i rilievi."}
+            </p>
+            {!!attivi && (
+              <Button variant="outline" className="mt-3" onClick={azzera}>
+                Azzera filtri
+              </Button>
+            )}
           </CardContent>
         </Card>
+      ) : vista === "pipeline" ? (
+        <PipelineSopralluoghi
+          key={companyId}
+          righe={elenco}
+          adesso={adesso}
+          puoCreare={puoCreare}
+          onMove={moveSurvey}
+          saving={movement.saving}
+          pianifica={setDaPianificare}
+        />
       ) : (
-        <div className="space-y-2">
-          {elenco.map((s) => {
-            const fase = fasePratica(s) as FasePratica;
-            const faseTesto = FASI.find((f) => f.fase === fase)?.etichetta ?? "";
-            const fatto = fase === "completato" || fase === "firmato" || fase === "preventivo";
-            const q = quando(s.scheduled_at, adesso, fatto);
-            const azione = prossimaAzione(s, adesso);
-            const modificabile = puoCreare && (fase === "da_pianificare" || fase === "pianificato");
-            return (
-              <Card
-                key={s.id}
-                className="hover:border-orange-300 hover:shadow-sm active:bg-orange-50/40 transition-all cursor-pointer"
-                onClick={() => navigate(`/azienda/sopralluoghi/${s.id}`)}
-              >
-                <CardContent className="p-3 sm:p-4 flex items-start gap-2.5 sm:gap-3">
-                  <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                    <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-bold text-orange-700">{s.code}</span>
-                      <Badge variant="outline" className={cn("text-[10px]", COLORE_FASE[fase])}>{faseTesto}</Badge>
-                      <span className={cn("flex items-center gap-1 text-xs", TONO_QUANDO[q.tono])}>
-                        <Calendar className="h-3 w-3 shrink-0" />{q.testo}
-                      </span>
-                    </div>
-                    {(s.cliente_nome || s.cliente_telefono) && (
-                      <div className="flex items-center gap-3 flex-wrap text-sm">
-                        {s.cliente_nome && <span className="flex items-center gap-1 font-medium"><User className="h-3.5 w-3.5 text-muted-foreground" />{s.cliente_nome}</span>}
-                        {s.cliente_telefono && (
-                          <a href={`tel:${s.cliente_telefono}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-xs text-sky-700 hover:underline">
-                            <Phone className="h-3 w-3" />{s.cliente_telefono}
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-0.5 text-xs text-muted-foreground">
-                      {(s.address || s.city) && (
-                        <span className="flex items-start gap-1 min-w-0">
-                          <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="truncate">{[s.address, s.city].filter(Boolean).join(", ")}</span>
+        <>
+          <OperationalTable label="Elenco sopralluoghi">
+            <thead>
+              <tr>
+                {[
+                  "Codice",
+                  "Cliente",
+                  "Fase",
+                  "Data e ora",
+                  "Tecnico",
+                  "Indirizzo",
+                  "Telefono",
+                  "Azioni",
+                ].map((label) => (
+                  <th key={label} scope="col">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {elenco
+                .slice((paginaAttuale - 1) * 24, paginaAttuale * 24)
+                .map((s) => {
+                  const fase = fasePratica(s)!;
+                  const data = quando(
+                    s.scheduled_at,
+                    adesso,
+                    ["completato", "firmato", "preventivo"].includes(fase),
+                  );
+                  const href = `/azienda/sopralluoghi/${s.id}`;
+                  const canPlan =
+                    puoCreare &&
+                    ["da_pianificare", "pianificato"].includes(fase);
+                  return (
+                    <tr key={s.id}>
+                      <td>
+                        <Link
+                          to={href}
+                          className="block max-w-44 truncate font-mono text-xs font-medium text-primary hover:underline"
+                          title={s.code}
+                        >
+                          {s.code}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link
+                          to={href}
+                          className="block min-w-36 max-w-48 truncate font-medium hover:text-primary hover:underline"
+                          title={s.cliente_nome ?? undefined}
+                        >
+                          {s.cliente_nome || "Cliente non indicato"}
+                        </Link>
+                      </td>
+                      <td>
+                        <Badge
+                          className={cn(
+                            "whitespace-nowrap text-[10px]",
+                            COLORI[fase].badge,
+                          )}
+                        >
+                          {FASI.find((f) => f.fase === fase)?.etichetta}
+                        </Badge>
+                      </td>
+                      <td className="whitespace-nowrap">
+                        <span className={cn("text-xs", TONO[data.tono])}>
+                          {data.testo}
                         </span>
-                      )}
-                      <span>{s.tecnico_nome ? `Tecnico: ${s.tecnico_nome}` : "Nessun tecnico"}</span>
-                    </div>
-                    {azione && (
-                      <p className="flex items-center gap-1 text-xs font-medium text-orange-800"><ArrowRight className="h-3 w-3" />{azione}</p>
-                    )}
-                    {fase === "preventivo" && <p className="flex items-center gap-1 text-xs text-teal-700"><CheckCircle2 className="h-3 w-3" />Preventivo fatto</p>}
-                  </div>
-                  {modificabile && (
-                    <Button
-                      size="sm"
-                      variant={fase === "da_pianificare" ? "default" : "outline"}
-                      className={cn("shrink-0 gap-1.5", fase === "da_pianificare" && "bg-orange-600 hover:bg-orange-700")}
-                      onClick={(e) => { e.stopPropagation(); setDaPianificare(s); }}
-                    >
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      {fase === "da_pianificare" ? "Pianifica" : "Sposta"}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      </td>
+                      <td className="whitespace-nowrap text-xs text-slate-500">
+                        {s.tecnico_nome || "Da assegnare"}
+                      </td>
+                      <td>
+                        <span
+                          className="block min-w-48 max-w-72 truncate text-xs text-slate-500"
+                          title={[s.address, s.city].filter(Boolean).join(", ")}
+                        >
+                          {[s.address, s.city].filter(Boolean).join(", ") ||
+                            "Indirizzo da indicare"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-xs">
+                        {s.cliente_telefono ? (
+                          <a
+                            href={`tel:${s.cliente_telefono}`}
+                            className="text-primary hover:underline"
+                          >
+                            {s.cliente_telefono}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                          {canPlan && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setDaPianificare(s)}
+                            >
+                              {fase === "da_pianificare"
+                                ? "Pianifica"
+                                : "Sposta data"}
+                            </Button>
+                          )}
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                          >
+                            <Link to={href}>
+                              Apri
+                              <ArrowRight className="ml-1 h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </OperationalTable>
+          {pagine > 1 && (
+            <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+              <span>
+                Pagina {paginaAttuale} di {pagine} · {elenco.length}{" "}
+                sopralluoghi
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAttuale === 1}
+                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                >
+                  Precedenti
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAttuale === pagine}
+                  onClick={() => setPagina((p) => p + 1)}
+                >
+                  Successivi
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
-
-      <PianificaSopralluogoDialog sopralluogo={daPianificare} onClose={() => setDaPianificare(null)} />
+      {movement.dialog}
+      <PianificaSopralluogoDialog
+        sopralluogo={daPianificare}
+        onClose={() => setDaPianificare(null)}
+      />
     </div>
   );
 }

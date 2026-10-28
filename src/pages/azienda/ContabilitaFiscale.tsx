@@ -1,110 +1,182 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useF24 } from '@/hooks/useF24';
-import { useLiquidazioneIVA } from '@/hooks/useLiquidazioneIVA';
-import { F24Generator } from '@/components/contabilita/F24Generator';
-import { FiscalitaNavigation } from '@/components/fatturazione/FiscalitaNavigation';
-import { LiquidazioneIVA } from '@/components/contabilita/LiquidazioneIVA';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
-
-export default function ContabilitaFiscale() {
-  const currentYear = new Date().getFullYear();
-  const [anno, setAnno] = useState(currentYear);
-
-  const { effectiveCompany } = useAuth();
-  void effectiveCompany;
-
-  const {
-    entries,
-    isLoading: isLoadingF24,
-    salva,
-    isSalvando,
-    marcaPagato,
-    totaleAPagare,
-    scadentiProssimi30gg,
-    componi,
-    isComponendo,
-  } = useF24(anno);
-
-  const { calcola, isCalcolando, risultato, reset } = useLiquidazioneIVA();
-
+import { Link } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { useF24 } from "@/hooks/useF24";
+import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
+import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
+import { F24Generator } from "@/components/contabilita/F24Generator";
+import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
+import {
+  FiscalLegacyRedirect,
+  FiscalStandaloneWorkspace,
+} from "@/components/fatturazione/FiscalWorkspace";
+import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
+import { Button } from "@/components/ui/button";
+import { FiscalPeriodControl } from "@/components/fatturazione/FiscalPeriodControl";
+import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
+import {
+  fiscalAmountTotal,
+  partitionFiscalMonths,
+} from "@/lib/fatturazione/fiscalWorkspace";
+import { formatCurrency } from "@/lib/formatters";
+const RitenuteBonificiPanel = lazy(
+  () => import("@/components/fatturazione/RitenuteBonificiPanel"),
+);
+export default function ContabilitaFiscale({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
+  return embedded ? (
+    <Content />
+  ) : (
+    <FiscalLegacyRedirect
+      section="contabilita"
+      fallback={<FiscalStandaloneWorkspace section="contabilita" />}
+    />
+  );
+}
+function Content() {
+  const p = useFiscalPeriod(),
+    f = useF24(p.anno),
+    iva = useLiquidazioneIVA();
+  const requestedView = p.params.get("vista");
+  const view =
+    requestedView === "iva" || requestedView === "ritenute_bancarie"
+      ? requestedView
+      : "f24";
+  const { selected: periodEntries, unassigned } = partitionFiscalMonths(
+    f.entries,
+    p,
+  );
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
-      <FiscalitaNavigation />
-
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Contabilità Fiscale</h1>
-
-        {/* Year selector */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setAnno((y) => y - 1)}
-            aria-label="Anno precedente"
+    <div className="space-y-4">
+      <FiscalSectionHeader
+        title="Contabilità fiscale"
+        actions={
+          <Link
+            className="text-sm text-blue-700 underline"
+            to="/azienda/prima-nota"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="w-14 text-center font-semibold text-lg">{anno}</span>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setAnno((y) => y + 1)}
-            aria-label="Anno successivo"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+            Apri Prima Nota →
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={view === "f24" ? "default" : "outline"}
+          onClick={() => p.set({ vista: "f24" })}
+        >
+          Registro F24
+        </Button>
+        <Button
+          variant={view === "iva" ? "default" : "outline"}
+          onClick={() => p.set({ vista: "iva" })}
+        >
+          Prospetto IVA
+        </Button>
+        <Button
+          variant={view === "ritenute_bancarie" ? "default" : "outline"}
+          onClick={() => p.set({ vista: "ritenute_bancarie" })}
+        >
+          Ritenute bancarie
+        </Button>
       </div>
-
-      <Tabs defaultValue="f24">
-        <TabsList>
-          <TabsTrigger value="f24">F24</TabsTrigger>
-          <TabsTrigger value="liquidazione-iva">Liquidazione IVA</TabsTrigger>
-          <TabsTrigger value="prima-nota">Prima Nota</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="f24" className="mt-4">
-          <F24Generator
-            entries={entries}
-            isLoading={isLoadingF24}
-            onSalva={salva}
-            isSalvando={isSalvando}
-            onMarcaPagato={marcaPagato}
-            totaleAPagare={totaleAPagare}
-            scadentiProssimi30gg={scadentiProssimi30gg}
-            onComponi={componi}
-            isComponendo={isComponendo}
-          />
-        </TabsContent>
-
-        <TabsContent value="liquidazione-iva" className="mt-4">
-          <LiquidazioneIVA
-            calcola={calcola}
-            isCalcolando={isCalcolando}
-            risultato={risultato}
-            reset={reset}
-          />
-        </TabsContent>
-
-        <TabsContent value="prima-nota" className="mt-4">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-              <FileText className="h-12 w-12 text-muted-foreground opacity-60" />
-              <p className="text-muted-foreground text-center max-w-xs">
-                Accedi alla Prima Nota completa per gestire movimenti contabili, entrate e uscite.
-              </p>
-              <Button asChild>
-                <Link to="/azienda/prima-nota">Vai alla Prima Nota completa</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {p.tipo === "mensile" && (
+        <FiscalPeriodControl
+          key={`${f.companyId}:${p.anno}:${p.mese}`}
+          anno={p.anno}
+          mese={p.mese}
+          canManage={f.canEdit}
+        />
+      )}
+      {view === "ritenute_bancarie" ? (
+        <Suspense
+          fallback={<p role="status">Caricamento registro ritenute…</p>}
+        >
+          <RitenuteBonificiPanel />
+        </Suspense>
+      ) : view === "iva" ? (
+        <LiquidazioneIVA {...iva} />
+      ) : (
+        <>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+            <strong>
+              Registrazioni F24, non deleghe trasmesse o pagamenti.
+            </strong>
+            <p className="mt-1">
+              La composizione automatica è sospesa finché fonti, date fiscali e
+              revisione non sono verificate. Consulta il prospetto IVA senza
+              scrivere righe; registra solo importi comunicati dal consulente.
+              Per i pagamenti serve una quietanza verificata.
+            </p>
+          </div>
+          {f.isLoading || f.isError ? (
+            <FiscalQueryState
+              loading={f.isLoading}
+              error={f.isError}
+              onRetry={() => void f.refetch()}
+            />
+          ) : (
+            <>
+              {unassigned.length > 0 && (
+                <details className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+                  <summary className="cursor-pointer font-medium">
+                    {unassigned.length}{" "}
+                    {unassigned.length === 1
+                      ? "registrazione"
+                      : "registrazioni"}{" "}
+                    del {p.anno} senza mese valido
+                  </summary>
+                  <p className="mt-2 text-muted-foreground">
+                    Non incluse nei totali del periodo. Occorre verificare il
+                    mese di riferimento con il consulente.
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {unassigned.map((entry) => (
+                      <li key={entry.id}>
+                        Codice {entry.tributo_code} ·{" "}
+                        {fiscalAmountTotal([entry.importo]) === null
+                          ? "Importo da verificare"
+                          : formatCurrency(entry.importo)}{" "}
+                        ·{" "}
+                        {entry.stato === "da_pagare"
+                          ? "Da pagare"
+                          : entry.stato === "pagato"
+                            ? "Pagato"
+                            : "Annullato"}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <F24Generator
+                key={`${f.companyId}:${p.anno}:${p.tipo}:${p.mese}:${p.trimestre}`}
+                entries={periodEntries}
+                isLoading={false}
+                onSalva={(data, versione) => f.salva({ ...data, versione })}
+                onAnteprima={f.anteprima}
+                isSalvando={f.isSalvando}
+                totaleAPagare={fiscalAmountTotal(
+                  periodEntries
+                    .filter((e) => e.stato === "da_pagare")
+                    .map((e) => e.importo),
+                )}
+                scadentiProssimi30gg={f.scadentiProssimi30gg.filter((e) =>
+                  periodEntries.some((r) => r.id === e.id),
+                )}
+                readOnly={!f.canEdit}
+                periodMonth={p.tipo === "mensile" ? p.mese : undefined}
+                periodMonths={
+                  p.tipo === "mensile"
+                    ? [p.mese]
+                    : Array.from(
+                        { length: 3 },
+                        (_, i) => (p.trimestre - 1) * 3 + i + 1,
+                      )
+                }
+              />
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

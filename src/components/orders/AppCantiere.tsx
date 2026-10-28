@@ -148,6 +148,7 @@ export function AppCantiere({
         )}
       </div>
 
+      {gestione && <p className="mt-3 text-xs text-muted-foreground">Il ruolo operativo nell’app è distinto dagli incarichi di sicurezza. Per datore di lavoro, preposto e altre figure verifica le nomine nella sezione Sicurezza della commessa.</p>}
       {aperto && n > 0 && (
         <ul className="mt-3 divide-y divide-emerald-100 overflow-hidden rounded-lg border border-emerald-100 bg-background dark:divide-emerald-900 dark:border-emerald-900">
           {ordinati.map((a) => (

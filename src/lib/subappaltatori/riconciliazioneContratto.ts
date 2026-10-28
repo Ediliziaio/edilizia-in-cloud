@@ -12,6 +12,7 @@ export interface ContrattoPerRiepilogo {
   oneri_sicurezza?: number | null;
 }
 export interface SalPerRiepilogo {
+  pagato_registrato?: number | null;
   importo_lordo: number;
   ritenuta_importo: number;
   importo_netto: number;
@@ -59,8 +60,8 @@ export function riepilogoContratto(
   const eseguito = tondo(validi.reduce((t, s) => t + n(s.importo_lordo), 0));
   const approvato = tondo(validi.filter((s) => s.stato === "verificato" || s.stato === "pagato").reduce((t, s) => t + n(s.importo_lordo), 0));
   const fatturato = tondo(fatture.reduce((t, f) => t + imponibile(f), 0));
-  const pagato = tondo(validi.filter((s) => s.stato === "pagato").reduce((t, s) => t + n(s.importo_netto), 0));
-  const daPagare = tondo(validi.filter((s) => s.stato !== "pagato").reduce((t, s) => t + n(s.importo_netto), 0));
+  const pagato = tondo(validi.reduce((t, s) => t + (s.pagato_registrato != null ? n(s.pagato_registrato) : s.stato === "pagato" ? n(s.importo_netto) : 0), 0));
+  const daPagare = tondo(Math.max(0, validi.reduce((t,s)=>t+n(s.importo_netto),0)-pagato));
   const ritenuteTrattenute = tondo(ritenute.filter((r) => r.stato === "trattenuta").reduce((t, r) => t + n(r.importo), 0));
   const ritenuteSvincolate = tondo(ritenute.filter((r) => r.stato === "svincolata").reduce((t, r) => t + n(r.importo), 0));
 

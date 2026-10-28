@@ -39,7 +39,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
         // 2. Incassi effettivi (il tipo è "incasso", non "entrata")
         tutteLePagine((from, to) => supabase
           .from("movimenti_cassa_native" as never)
-          .select("documento_id, importo, data_movimento")
+          .select("*") // Optional net amount remains compatible before the dedicated migration is activated.
           .eq("company_id", companyId!)
           .eq("tipo", "incasso")
           .not("documento_id", "is", null)
@@ -59,8 +59,8 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
 
       // Incassi
       const emesseNative = new Map(docRes.filter(d => d.origine === "nativa" && documentoNelRegistro(d) && !isNotaCredito(d.tipo)).map(d => [d.id,d]));
-      const incassi = incassiRes as unknown as { documento_id: string; importo: number }[];
-      const incassato_mese = incassi.filter(r => emesseNative.has(r.documento_id)).reduce((s,r) => s + (r.importo ?? 0),0);
+      const incassi = incassiRes as unknown as { documento_id: string; importo: number; importo_netto_banca?: number | null }[];
+      const incassato_mese = incassi.filter(r => emesseNative.has(r.documento_id)).reduce((s,r) => s + Number(r.importo_netto_banca ?? r.importo ?? 0),0);
 
       // Outstanding
       const pagSt = pagStRes as unknown as { fattura_id: string; importo_residuo: number; stato_pagamento: string }[];

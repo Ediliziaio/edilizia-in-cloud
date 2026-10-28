@@ -1,5 +1,5 @@
 /**
- * Un rapportino nella lista del cantiere, visto da chi lo ha compilato.
+ * Un rapportino nella lista del cantiere: autore o consultazione del capocantiere.
  *
  * Lo stato viene da `stato` (non dal vecchio `approvato`): un rapportino RESPINTO si riconosce subito, mostra
  * il motivo scritto dall'ufficio e ha il bottone per correggerlo e rimandarlo.
@@ -41,6 +41,7 @@ const CHIP: Record<StatoRapportino, { classe: string; icona: typeof Clock }> = {
 
 interface Props {
   r: RapportinoCardRiga;
+  autore?: string;
   pdfOccupato: boolean;
   /** Senza: il PDF non si apre da qui (rapporto di un collega ancora senza PDF). */
   onPdf?: () => void;
@@ -52,7 +53,7 @@ interface Props {
   nomiFasi?: ReadonlyMap<string, string>;
 }
 
-export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi, nomiFasi }: Props) {
+export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, onCorreggi, nomiFasi }: Props) {
   const stato = statoRapportino(r) ?? "inviato";
   const { classe, icona: Icona } = CHIP[stato];
   const daRifare = rapportinoDaRifare(stato);
@@ -62,6 +63,7 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
   return (
     <div className={cn("rounded-2xl border bg-muted p-4", stato === "rifiutato" ? "border-red-300" : "border-border")}>
       <p className="mb-2 text-xs font-semibold text-muted-foreground">{cliente ? "Collaudo col cliente" : "Rapportino"}</p>
+      {autore && <p className="mb-2 text-sm font-semibold">{autore}</p>}
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="font-semibold text-foreground">
           {Number.isNaN(giorno.getTime()) ? r.data_lavoro : format(giorno, "d MMM yyyy", { locale: it })}

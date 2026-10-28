@@ -1,5 +1,5 @@
 import {
-  getBezierPath,
+  getSmoothStepPath,
   EdgeLabelRenderer,
   BaseEdge,
   type EdgeProps,
@@ -17,24 +17,26 @@ export function AddStepEdge({
   style,
   markerEnd,
   data,
+  label,
 }: EdgeProps) {
-  // Curva morbida (bezier) stile ActiveCampaign al posto della linea a
-  // scalino con angoli retti (getSmoothStepPath). Il "+" resta centrato
-  // perché getBezierPath ritorna labelX/labelY sul punto medio del path.
-  const [edgePath, labelX, labelY] = getBezierPath({
+  // Tratti ortogonali: prima si scende, poi si raggiunge il ramo e si
+  // riprende verso il basso. Solo gli angoli sono leggermente arrotondati.
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
-    curvature: 0.35,
+    borderRadius: 6,
+    offset: 32,
   });
+  const edgeData = data as { onAddStep?: (id: string) => void; __flow?: boolean } | undefined;
 
   // Durante il test: la linea da un nodo completato "trasporta" un pacchetto di
   // dati (pallino che scorre lungo il path). Solo sulle linee verdi (success).
   const flowing =
-    Boolean((data as { __flow?: boolean } | undefined)?.__flow) &&
+    Boolean(edgeData?.__flow) &&
     (style as { stroke?: string } | undefined)?.stroke === "#22c55e";
 
   return (
@@ -45,6 +47,8 @@ export function AddStepEdge({
         style={{
           stroke: "#64748b",
           strokeWidth: 2,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
           // Larghezza COSTANTE a ogni zoom: senza questo, con molti nodi il
           // fitView zooma out e il tratto da 2px diventa sub-pixel → linee invisibili.
           vectorEffect: "non-scaling-stroke",
@@ -52,7 +56,7 @@ export function AddStepEdge({
         }}
       />
       {flowing && (
-        <circle r={4.5} fill="#22c55e" style={{ filter: "drop-shadow(0 0 5px rgba(34,197,94,0.9))" }}>
+        <circle className="motion-reduce:hidden" r={4.5} fill="#22c55e" style={{ filter: "drop-shadow(0 0 5px rgba(34,197,94,0.9))" }}>
           <animateMotion dur="1.4s" repeatCount="indefinite" path={edgePath} />
         </circle>
       )}
@@ -66,9 +70,13 @@ export function AddStepEdge({
           className="nodrag nopan"
         >
           <button
-            onClick={() => (data as any)?.onAddStep?.(id)}
-            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-border bg-background text-muted-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/10 hover:text-primary"
+            type="button"
+            aria-label={label ? `Aggiungi un passo nel ramo ${String(label)}` : "Aggiungi un passo"}
+            title={label ? `Ramo ${String(label)} · Aggiungi un passo` : "Aggiungi un passo"}
+            onClick={() => edgeData?.onAddStep?.(id)}
+            className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-md border border-border bg-background px-1.5 text-muted-foreground shadow-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
+            {label != null && <span className="text-[10px] font-semibold">{label}</span>}
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>

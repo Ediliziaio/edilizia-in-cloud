@@ -1,0 +1,9 @@
+{
+  "nodeModulesDir": "none",
+  "imports": {
+    "pdfmake": "npm:pdfmake@0.3.9/build/pdfmake.js",
+    "pdfmake-fonts": "npm:pdfmake@0.3.9/build/vfs_fonts.js",
+    "pdf-lib": "npm:pdf-lib@1.17.1",
+    "fflate": "npm:fflate@0.8.2"
+  }
+}

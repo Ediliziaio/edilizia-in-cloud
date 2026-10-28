@@ -3,7 +3,7 @@
  * del cantiere dalla commessa (non la sede), figure della sicurezza, RSPP che
  * coincide col datore di lavoro, capocantiere della commessa che vince su
  * quello generico, lavoratori senza doppioni e senza i subappaltatori,
- * formazione spuntata solo dagli attestati, avvisi per quello che manca.
+ * formazione controllata esplicitamente, avvisi per quello che manca.
  */
 import { describe, expect, it } from "vitest";
 import { preparaPosDaApp } from "../../../supabase/functions/_shared/posDatiApp";
@@ -47,12 +47,12 @@ const base = (): Record<string, Riga[]> => ({
   }],
   companies: [{ id: AZ, name: "Demo Azienda" }],
   sicurezza_figure: [
-    { company_id: AZ, attivo: true, ruolo: "datore_lavoro", nominativo: "Mario Rossi", esterno: false, mansioni_sicurezza: null },
-    { company_id: AZ, attivo: true, ruolo: "rspp", nominativo: "mario  rossi", esterno: false, mansioni_sicurezza: "RSPP interno" },
+    { company_id: AZ, attivo: true, ruolo: "datore_lavoro", hr_profilo_id:"hr-datore", nominativo: "Mario Rossi", esterno: false, mansioni_sicurezza: null },
+    { company_id: AZ, attivo: true, ruolo: "rspp", hr_profilo_id:"hr-datore", nominativo: "mario  rossi", esterno: false, mansioni_sicurezza: "RSPP interno" },
     { company_id: AZ, attivo: true, ruolo: "capocantiere", nominativo: "Capo Generico", esterno: false, mansioni_sicurezza: "Sovrintende" },
     { company_id: AZ, attivo: true, ruolo: "rlst", nominativo: "Paolo Gialli", esterno: true, mansioni_sicurezza: null },
-    { company_id: AZ, attivo: true, ruolo: "addetto_antincendio", nominativo: "Luca Bianchi", esterno: false, mansioni_sicurezza: null },
-    { company_id: AZ, attivo: true, ruolo: "addetto_primo_soccorso", nominativo: "Luca Bianchi", esterno: false, mansioni_sicurezza: null },
+    { company_id: AZ, attivo: true, ruolo: "addetto_antincendio", hr_profilo_id:"hr-luca", nominativo: "Luca Bianchi", esterno: false, mansioni_sicurezza: null },
+    { company_id: AZ, attivo: true, ruolo: "addetto_primo_soccorso", hr_profilo_id:"hr-luca", nominativo: "Luca Bianchi", esterno: false, mansioni_sicurezza: null },
   ],
   order_employees: [{ order_id: ORD, employee_id: "emp-1" }],
   order_campo_assignments: [
@@ -60,7 +60,7 @@ const base = (): Record<string, Riga[]> => ({
     { order_id: ORD, company_id: AZ, user_id: "u-sub", role_type: "subcontractor", is_capocantiere: false },
   ],
   employees: [{
-    id: "emp-1", first_name: "Luca", last_name: "Bianchi", qualifica: "Operaio specializzato", livello_inquadramento: null,
+    company_id: AZ, id: "emp-1", first_name: "Luca", last_name: "Bianchi", qualifica: "Operaio specializzato", livello_inquadramento: null,
     user_id: "u-luca", formazione_sicurezza_completed: false, formazione_sicurezza_data: null, formazione_sicurezza_scadenza: null,
   }],
   hr_profili: [
@@ -105,7 +105,7 @@ describe("POS preparato dai dati dell'app", () => {
     expect(contenuto.preposti[0].mansioni_sicurezza).toBe("Sovrintende");
     expect(contenuto.lavoratori).toEqual([{ qualifica: "Operaio specializzato", numero: 1, note: "" }]);
     expect(contenuto.formazione).toHaveLength(1);
-    expect(contenuto.formazione[0]).toMatchObject({ nominativo: "Luca Bianchi", base: true, rischi_specifici: false, dpi_terza_categoria: true, rischi_cantiere: false });
+    expect(contenuto.formazione[0]).toMatchObject({ nominativo: "Luca Bianchi", base: false, rischi_specifici: false, dpi_terza_categoria: false, rischi_cantiere: false, verificata: false });
     expect(contenuto.formazione[0].attestati).toContain("scad. 01/05/2027");
   });
 
@@ -126,7 +126,7 @@ describe("POS preparato dai dati dell'app", () => {
     expect(contenuto.opera.cantiere.via).toBe("");
   });
 
-  it("fasi della commessa nella descrizione, turni dagli orari, addetti alle emergenze dagli attestati", async () => {
+  it("fasi e turni dalla commessa senza nominare addetti dagli attestati", async () => {
     const t = base();
     // Niente addetti tra le figure: si propongono da chi ha l'attestato.
     t.sicurezza_figure = t.sicurezza_figure.filter((f) => !String(f.ruolo).startsWith("addetto_"));
@@ -140,11 +140,102 @@ describe("POS preparato dai dati dell'app", () => {
     expect(contenuto.opera.descrizione_attivita).toContain("Fasi di lavoro: Montaggio ponteggio, Posa cappotto.");
     expect(contesto.fasi).toEqual(["Montaggio ponteggio", "Posa cappotto"]);
     expect(contenuto.opera.turni_lavoro).toBe("Turno unico diurno dalle 08:00 alle 17:00 con pausa di 60 minuti, dal lunedì al venerdì.");
-    expect(contenuto.emergenze.addetti).toEqual([expect.objectContaining({ nominativo: "Luca Bianchi", primo_soccorso: true, antincendio: false })]);
-    expect(contesto.avvisi.join(" ")).toMatch(/conferma che sono designati/);
+    expect(contenuto.emergenze.addetti).toEqual([]);
+    expect(contesto.avvisi.join(" ")).toMatch(/Gli attestati non costituiscono una nomina/);
+  });
+
+  it("un incarico documentato del sito prevale su quello globale ed esclude gli altri datori",async()=>{
+    const t=base();
+    t.sicurezza_incarichi=[
+      {id:'i1',company_id:AZ,order_id:ORD,subappaltatore_id:null,ruolo:'capocantiere',nominativo:'Capo Nominato',dal:'2026-09-01',al:null,stato:'documentato',mansioni_sicurezza:'Nomina specifica'},
+      {id:'i2',company_id:AZ,order_id:ORD,subappaltatore_id:'sub',ruolo:'rspp',nominativo:'RSPP esterna impresa',dal:'2026-09-01',al:null,stato:'documentato'},
+      {id:'i3',company_id:AZ,order_id:ORD,subappaltatore_id:null,ruolo:'rspp',nominativo:'RSPP futura',dal:'2027-01-01',al:null,stato:'documentato'},
+      {id:'i4',company_id:AZ,order_id:ORD,subappaltatore_id:null,ruolo:'rspp',nominativo:'RSPP proposta',dal:'2026-09-01',al:null,stato:'proposto'},
+    ];
+    const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.preposti).toEqual([expect.objectContaining({nominativo:'Capo Nominato',mansioni_sicurezza:'Nomina specifica'})]);
+    expect(contenuto.rspp.nominativo).toBe('mario  rossi');
+  });
+  it("non unisce due operai omonimi e conserva il riferimento del relativo attestato",async()=>{
+    const t=base();
+    t.order_employees.push({order_id:ORD,employee_id:'emp-2'});
+    t.employees.push({...t.employees[0],id:'emp-2',user_id:'u-omonimo'});
+    t.hr_profili.push({...t.hr_profili[0],id:'hr-omonimo',user_id:'u-omonimo',employee_id:'emp-2'});
+    const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.lavoratori.reduce((n,r)=>n+r.numero,0)).toBe(2);
+    expect(contenuto.formazione).toHaveLength(2);
+    expect(contenuto.formazione[0].attestati).toContain('Formazione generale');
+    expect(contenuto.formazione[1].attestati).toBe('');
+  });
+  it("un errore in una fonte obbligatoria interrompe la preparazione",async()=>{
+    const db=dbFinto(base());
+    const guasto={from:(tab:string)=>tab==='sicurezza_incarichi'?{select:()=>({eq:()=>({eq:()=>({order:async()=>({data:null,error:{message:'fonte indisponibile'}})})})})}:db.from(tab)};
+    await expect(preparaPosDaApp(guasto,AZ,ORD)).rejects.toThrow(/Fonte POS non disponibile/);
+  });
+  it("non tratta una prenotazione futura di ponteggio come presenza in cantiere",async()=>{
+    const t=base();t.mezzi_allocazioni=[{company_id:AZ,order_id:ORD,quantita:100,dal:'2027-01-01',al:null,mezzo:{nome:'Ponteggio futuro',tipo:'ponteggio',unita_misura:'mq',deleted_at:null}}];
+    const {contesto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contesto.mezzi.some(m=>m.nome.includes('Ponteggio futuro'))).toBe(false);
+  });
+
+  it("recupera le imprese del contratto anche senza il vecchio order_id anagrafico",async()=>{
+    const t=base();t.subappaltatori_sicurezza=[{id:'sub-nuovo',company_id:AZ,order_id:null,ragione_sociale:'Impresa da contratto',tipo_lavori:'Impianti',durc_scadenza:null}];
+    t.contratti_subappalto=[{company_id:AZ,order_id:ORD,subappaltatore_id:'sub-nuovo',stato:'attivo'}];
+    const {contesto,contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contesto.subappaltatori).toEqual([{ragione_sociale:'Impresa da contratto',tipo_lavori:'Impianti',durc_scadenza:null}]);
+    expect(contenuto.formazione).toHaveLength(1);
+  });
+  it("non legge un dipendente di un’altra azienda neppure con un collegamento incoerente",async()=>{
+    const t=base();t.employees[0].company_id='altra-azienda';t.hr_profili=[];t.order_campo_assignments=[];
+    const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.formazione).toEqual([]);expect(contenuto.lavoratori).toEqual([]);
+  });
+
+  it("flag HR storico e attestato scaduto restano fonti da controllare, senza spunte automatiche",async()=>{
+    const t=base();t.employees[0].formazione_sicurezza_completed=true;
+    t.hr_documenti[0].data_scadenza='2020-01-01';
+    const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.formazione[0]).toMatchObject({base:false,rischi_specifici:false,dpi_terza_categoria:false,verificata:false});
+    expect(contenuto.formazione[0].attestati).toContain('01/01/2020');
+    expect(contenuto.formazione[0].attestati).toContain('Indicazione HR storica');
+  });
+
+  it("non unisce nomine di omonimi né attribuisce al datore un RSPP solo per il nome",async()=>{
+    const t=base();
+    t.sicurezza_figure.find(f=>f.ruolo==='rspp')!.hr_profilo_id='hr-altro-rspp';
+    t.sicurezza_figure.find(f=>f.ruolo==='addetto_primo_soccorso')!.hr_profilo_id='hr-altro-luca';
+    const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.rspp.svolto_da).toBe('interno');
+    expect(contenuto.emergenze.addetti).toHaveLength(2);
+    expect(contenuto.emergenze.addetti.every(a=>!(a.antincendio&&a.primo_soccorso))).toBe(true);
   });
 
   it("una commessa di un'altra azienda non si legge", async () => {
     await expect(preparaPosDaApp(dbFinto(base()), "altra-azienda", ORD)).rejects.toThrow(/Commessa non trovata/);
   });
+  it("non attribuisce attestati quando due profili HR puntano al medesimo dipendente",async()=>{
+    const t=base();t.hr_profili.push({...t.hr_profili[0],id:'hr-ambiguo'});
+    const {contenuto,contesto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.formazione).toHaveLength(1);expect(contenuto.formazione[0].attestati).toBe('');expect(contenuto.formazione[0].riferimento_addetto).toBeUndefined();expect(contesto.avvisi.join(' ')).toContain('ambiguo');
+  });
+  it("un lavoratore esterno legacy non diventa un dipendente nel POS",async()=>{
+    const t=base();t.employees[0].role_type='subappaltatore';t.order_campo_assignments=[];
+    const {contenuto,contesto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+    expect(contenuto.formazione).toEqual([]);expect(contenuto.lavoratori).toEqual([]);expect(contesto.avvisi.join(' ')).toContain('legacy');
+  });
+  it("conserva l’identificativo HR del collegamento univoco senza confermare la formazione",async()=>{
+    const {contenuto}=await preparaPosDaApp(dbFinto(base()),AZ,ORD);
+    expect(contenuto.formazione[0].riferimento_addetto).toEqual({tipo:'hr',id:'hr-luca'});expect(contenuto.formazione[0].verificata).toBe(false);
+  });
+
+ it("controlla anche l’anagrafica del solo accesso Campo prima di importarla come propria",async()=>{
+  const t=base();t.order_employees=[];t.employees[0].role_type='subappaltatore';
+  const {contenuto,contesto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);
+  expect(contenuto.formazione).toEqual([]);expect(contesto.avvisi.join(' ')).toContain('legacy');
+ });
+ it("una persona recuperata per il solo capomastro non diventa automaticamente un operaio assegnato",async()=>{
+  const t=base();t.order_employees=[];t.order_campo_assignments=[];t.orders[0].capomastro_user_id='u-luca';
+  const {contenuto}=await preparaPosDaApp(dbFinto(t),AZ,ORD);expect(contenuto.formazione).toEqual([]);
+ });
+
 });

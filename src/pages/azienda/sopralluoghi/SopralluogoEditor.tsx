@@ -6,17 +6,19 @@
  *  Header collassabile (campi template)
  *  Lista aree (con add elementi e foto)
  *  Note generali + audio
- *  Toolbar bottom: Firma · PDF · Riassunto AI
+ *  Azioni in testata: PDF · Firma · Riassunto AI; consultazione separata dalla modifica.
  *
  * Auto-save con debounce 600ms su qualsiasi modifica.
  */
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { sameSurveyJson, mergeSurveyAreaEdit } from "@/lib/surveys/autosave";
+import { copySurveyValues } from "@/lib/surveys/copyElement";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, useIsMutating } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  getSurvey, updateSurvey, addArea, updateArea, deleteArea,
-  addElement, updateElement, deleteElement, logActivity,
+  updateSurvey, addArea, updateArea, deleteArea,
+  addElement, deleteElement, logActivity,
 } from "@/lib/api/surveys";
 import type {
   SurveyAreaRow, SurveyElementRow,
@@ -35,7 +37,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
+  ArrowLeft, ClipboardList, Plus, Save, FileSignature, Sparkles,
   Loader2, MapPin, Calendar, UserPlus, AlertCircle, CheckCircle2, UserRound, Target,
 } from "lucide-react";
 import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
@@ -44,16 +46,26 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
-import { isVisible } from "@/components/surveys/engine/evalConditions";
 import { AreaCard } from "@/components/surveys/engine/AreaCard";
 import { AudioRecorder } from "@/components/surveys/engine/AudioRecorder";
 import { PhotoChecklist } from "@/components/surveys/engine/PhotoChecklist";
 import { FreePhotoUpload } from "@/components/surveys/engine/FreePhotoUpload";
+import {useAuth} from "@/contexts/AuthContext";
+import {usePermissions} from "@/hooks/usePermissions";
+import {useSurveyDetail,useSurveyReferences} from "@/hooks/useSurveyDetail";
+import {surveyAddress} from "@/lib/surveys/report";
+import {SurveyWorkspace} from "@/components/sopralluoghi/SurveyWorkspace";
+import {SurveyPdfTools} from "@/components/sopralluoghi/SurveyPdfTools";
+import {SurveyElementEditDialog} from "@/components/sopralluoghi/SurveyElementEditDialog";
+import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
+import { submitFieldSurvey } from "@/lib/surveys/fieldAccess";
+import { SurveyOfficeReview } from "@/components/sopralluoghi/SurveyOfficeReview";
+import { surveyCompletion } from "@/lib/surveys/completion";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   draft:       { label: "Bozza",       color: "bg-slate-100 text-slate-700" },
   in_progress: { label: "In corso",    color: "bg-amber-100 text-amber-700" },
-  completed:   { label: "Completato",  color: "bg-emerald-100 text-emerald-700" },
+  completed:   { label: "Da revisionare",  color: "bg-emerald-100 text-emerald-700" },
   reviewed:    { label: "Revisionato", color: "bg-sky-100 text-sky-700" },
   signed:      { label: "Firmato",     color: "bg-violet-100 text-violet-700" },
   converted:   { label: "Convertito",  color: "bg-teal-100 text-teal-700" },
@@ -63,11 +75,30 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 export default function SopralluogoEditor() {
   const { id } = useParams<{ id: string }>();
+  const [params,setParams]=useSearchParams();
+  const {solaLettura}=usePermissions();
+  const access = useSurveyAccess();
+  const writable = access.field ? access.canEdit : !solaLettura;
+  const {user,effectiveCompany}=useAuth();
+  if(!id) return null;
+  const setEdit=(edit:boolean)=>setParams(previous=>{const next=new URLSearchParams(previous);if(edit) next.set("modifica","1");else next.delete("modifica");return next;});
+  const key=`${effectiveCompany?.id}:${user?.id}:${id}`;
+  return params.get("modifica")==="1"&&writable
+    ? <SurveyEditorForm key={key} id={id} onBack={()=>setEdit(false)}/>
+    : <SurveyWorkspace key={key} surveyId={id} onEdit={writable?()=>setEdit(true):undefined}/>;
+}
+
+function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
+  const access = useSurveyAccess();
   const navigate = useNavigate();
+  const {effectiveCompany}=useAuth();
   const qc = useQueryClient();
 
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [editingElement,setEditingElement]=useState<SurveyElementRow|null>(null);
+  const areaDraftsRef = useRef(new Map<string, Partial<SurveyAreaRow>>());
+  const [areaDrafts, setAreaDrafts] = useState(new Map<string, Partial<SurveyAreaRow>>());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [aiSummary, setAiSummary] = useState<any | null>(null);
 
@@ -76,54 +107,11 @@ export default function SopralluogoEditor() {
     title: string;
     description: string;
     onConfirm: () => void;
+    action?: string;
   } | null>(null);
 
   // Conta mutazioni di auto-save attualmente in volo (header debounce + area + element)
   const pendingWrites = useIsMutating({ mutationKey: ["sopralluogo-autosave", id] });
-
-  // Realtime: invalidate query quando media/elementi/aree cambiano (multi-utente sync)
-  useEffect(() => {
-    if (!id) return;
-    const ch = supabase
-      .channel(`survey-${id}-realtime`)
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "survey_elements",
-        filter: `survey_id=eq.${id}`,
-      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "survey_areas",
-        filter: `survey_id=eq.${id}`,
-      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "survey_media",
-        filter: `survey_id=eq.${id}`,
-      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
-  }, [id, qc]);
-
-  const generatePdfMut = useMutation({
-    mutationFn: async () => {
-      if (!id) return;
-      const { data, error } = await supabase.functions.invoke("generate-survey-pdf", {
-        body: { survey_id: id },
-      });
-      if (error) throw error;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = data as any;
-      if (!r?.ok) throw new Error(r?.error ?? "Generazione fallita");
-      return r;
-    },
-    onSuccess: (r) => {
-      if (r?.html_url) {
-        window.open(r.html_url, "_blank");
-        toast.success("Report aperto in nuova tab", {
-          description: "Clicca 'Stampa / Salva PDF' nel report",
-        });
-      }
-    },
-    onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
-  });
 
   const aiSummaryMut = useMutation({
     mutationFn: async () => {
@@ -145,18 +133,15 @@ export default function SopralluogoEditor() {
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
   const [generalNotes, setGeneralNotes] = useState("");
 
-  const { data: detail, isLoading, isError, refetch } = useQuery({
-    queryKey: ["sopralluogo", id],
-    enabled: !!id,
-    queryFn: () => getSurvey(id!),
-  });
+  const { data: detail, isLoading, isError, refetch } = useSurveyDetail(id);
+  const references = useSurveyReferences(detail?.survey);
 
   // A chi si riferisce il sopralluogo: opportunità, contatto o cliente. Serve
   // solo per mostrarlo in testata (il collegamento si sceglie alla creazione).
   const svLink = detail?.survey;
   const { data: riferitoA } = useQuery({
     queryKey: ["sopralluogo-riferito-a", svLink?.id, svLink?.opportunity_id, svLink?.contact_id, svLink?.client_id],
-    enabled: !!svLink && !!(svLink.opportunity_id || svLink.contact_id || svLink.client_id),
+    enabled: !access.field && !!svLink && !!(svLink.opportunity_id || svLink.contact_id || svLink.client_id),
     queryFn: async (): Promise<{ tipo: string; nome: string; to: string | null } | null> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
@@ -178,6 +163,7 @@ export default function SopralluogoEditor() {
   // Sync state da server al primo load
   useEffect(() => {
     if (detail) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- One-time hydration from the loaded server record; never reset an active draft on refetch.
       setHeaderData(detail.survey.header_data ?? {});
       setGeneralNotes(detail.survey.notes ?? "");
     }
@@ -188,10 +174,10 @@ export default function SopralluogoEditor() {
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       const headerDirty = detail
-        ? (JSON.stringify(headerData) !== JSON.stringify(detail.survey.header_data ?? {})
+        ? (!sameSurveyJson(headerData, detail.survey.header_data ?? {})
           || generalNotes !== (detail.survey.notes ?? ""))
         : false;
-      if (pendingWrites > 0 || autoSaveStatus === "saving" || headerDirty) {
+      if (pendingWrites > 0 || areaDrafts.size > 0 || autoSaveStatus === "saving" || headerDirty) {
         e.preventDefault();
         // Browser moderni ignorano il testo; basta returnValue
         e.returnValue = "";
@@ -199,13 +185,13 @@ export default function SopralluogoEditor() {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [pendingWrites, autoSaveStatus, headerData, generalNotes, detail]);
+  }, [pendingWrites, areaDrafts.size, autoSaveStatus, headerData, generalNotes, detail]);
 
   // Auto-save header (debounced 600ms)
   useEffect(() => {
-    if (!detail || !id) return;
+    if (!detail || !id || detail.survey.client_signature_at || detail.survey.status==="signed") return;
     const timer = setTimeout(async () => {
-      const headerChanged = JSON.stringify(headerData) !== JSON.stringify(detail.survey.header_data ?? {});
+      const headerChanged = !sameSurveyJson(headerData, detail.survey.header_data ?? {});
       const notesChanged = generalNotes !== (detail.survey.notes ?? "");
       if (!headerChanged && !notesChanged) return;
       setAutoSaveStatus("saving");
@@ -231,6 +217,7 @@ export default function SopralluogoEditor() {
   const updateStatusMut = useMutation({
     mutationFn: async (status: string) => {
       if (!id) return;
+      if (access.field && status === "completed") return submitFieldSurvey(id);
       const patch: Record<string, string | null> = { status };
       const now = new Date().toISOString();
       if (status === "in_progress" && !detail?.survey.started_at) patch.started_at = now;
@@ -242,6 +229,8 @@ export default function SopralluogoEditor() {
       toast.success("Stato aggiornato");
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
       qc.invalidateQueries({ queryKey: ["sopralluoghi-list"] });
+      qc.invalidateQueries({ queryKey: ["field-survey-access"] });
+      qc.invalidateQueries({ queryKey: ["field-surveys"] });
     },
     onError: (e) => toast.error("Aggiornamento stato fallito", { description: String(e) }),
   });
@@ -261,6 +250,7 @@ export default function SopralluogoEditor() {
 
   const updateAreaMut = useMutation({
     mutationKey: ["sopralluogo-autosave", id],
+    scope: { id: `sopralluogo-aree:${effectiveCompany?.id}:${id}` },
     mutationFn: async ({ id: areaId, patch }: { id: string; patch: Partial<SurveyAreaRow> }) => {
       await updateArea(areaId, patch);
     },
@@ -268,9 +258,14 @@ export default function SopralluogoEditor() {
       // Reset stato "error" precedente quando si parte con una nuova mutazione
       setAutoSaveStatus("saving");
     },
-    onSuccess: () => {
+    onSuccess: (_, input) => {
       setAutoSaveStatus("saved");
-      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
+      qc.setQueriesData({ queryKey: ["sopralluogo", id] }, (old: import("@/lib/api/surveys").SurveyDetail | undefined) => old?.survey.company_id === effectiveCompany?.id ? { ...old, areas: old.areas.map((a) => a.id === input.id ? { ...a, ...input.patch } : a) } : old);
+      if (areaDraftsRef.current.get(input.id) === input.patch) {
+        areaDraftsRef.current.delete(input.id);
+        setAreaDrafts(new Map(areaDraftsRef.current));
+      }
+      if (areaDraftsRef.current.size === 0) void qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
     onError: (err) => {
       console.error("[sopralluogo] autosave mutation failed", err);
@@ -278,6 +273,16 @@ export default function SopralluogoEditor() {
       toast.error("Salvataggio fallito", { description: "Riprovo automaticamente al prossimo input" });
     },
   });
+
+  function editArea(areaId: string, patch: Partial<SurveyAreaRow>) {
+    const area = detail?.areas.find((a) => a.id === areaId);
+    if (!area) return;
+    const current = { ...area, ...areaDraftsRef.current.get(areaId) };
+    const next = mergeSurveyAreaEdit(current, patch);
+    areaDraftsRef.current.set(areaId, next);
+    setAreaDrafts(new Map(areaDraftsRef.current));
+    updateAreaMut.mutate({ id: areaId, patch: next });
+  }
 
   const deleteAreaMut = useMutation({
     mutationFn: deleteArea,
@@ -297,29 +302,16 @@ export default function SopralluogoEditor() {
         position: existing.length,
       });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }),
+    onSuccess: (created) => {
+      if(created) {
+        qc.setQueriesData({queryKey:["sopralluogo",id]},(old: import("@/lib/api/surveys").SurveyDetail|undefined)=>old&&old.survey.company_id===effectiveCompany?.id?{...old,elements:old.elements.some(e=>e.id===created.id)?old.elements:[...old.elements,created]}:old);
+        setEditingElement(created);
+      }
+      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
+    },
     onError: (e) => toast.error("Aggiunta elemento fallita", { description: String(e) }),
   });
 
-  const updateElementMut = useMutation({
-    mutationKey: ["sopralluogo-autosave", id],
-    mutationFn: async ({ id: elId, patch }: { id: string; patch: Partial<SurveyElementRow> }) => {
-      await updateElement(elId, patch);
-    },
-    onMutate: () => {
-      // Reset stato "error" precedente quando si parte con una nuova mutazione
-      setAutoSaveStatus("saving");
-    },
-    onSuccess: () => {
-      setAutoSaveStatus("saved");
-      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
-    },
-    onError: (err) => {
-      console.error("[sopralluogo] autosave mutation failed", err);
-      setAutoSaveStatus("error");
-      toast.error("Salvataggio fallito", { description: "Riprovo automaticamente al prossimo input" });
-    },
-  });
 
   const deleteElementMut = useMutation({
     mutationFn: deleteElement,
@@ -340,11 +332,13 @@ export default function SopralluogoEditor() {
       quantity: number | null | undefined;
       position: number;
     }) => {
-      if (!id) return;
+      if (!id || !detail || !effectiveCompany?.id || detail.survey.company_id !== effectiveCompany.id || detail.survey.client_signature_at || detail.survey.status === "signed") throw new Error("Sopralluogo non modificabile.");
+      const sourceType = detail.template.schema.element_types.find((t) => t.key === input.elementType);
+      if (!sourceType) throw new Error("Tipo di elemento non disponibile.");
       return addElement(id, input.areaId, {
         element_type: input.elementType,
-        values: (input.values ?? {}) as SurveyElementRow["values"],
-        quantity: input.quantity ?? 1,
+        values: copySurveyValues(sourceType, input.values ?? {}, "all") as SurveyElementRow["values"],
+        quantity: 1,
         position: input.position,
       });
     },
@@ -356,52 +350,7 @@ export default function SopralluogoEditor() {
   });
 
   // Calcolo % completamento (campi obbligatori header + area + element + foto)
-  const completionPct = useMemo(() => {
-    if (!detail) return 0;
-    let totalRequired = 0;
-    let totalCompleted = 0;
-
-    // Header required — solo i campi effettivamente a schermo: un obbligatorio
-    // nascosto da `show_if` non è dovuto, e contandolo la percentuale non
-    // arrivava mai al 100% senza che si capisse cosa mancava.
-    detail.template.schema.header_schema?.forEach((s) => {
-      if (!isVisible(s.show_if, headerData)) return;
-      s.fields.forEach((f) => {
-        if (f.required && isVisible(f.show_if, headerData)) {
-          totalRequired++;
-          const v = headerData[f.key];
-          if (v != null && v !== "") totalCompleted++;
-        }
-      });
-    });
-
-    // Per ogni elemento: campi required + foto required
-    detail.elements.forEach((el) => {
-      const type = detail.template.schema.element_types?.find((t) => t.key === el.element_type);
-      if (!type) return;
-      const valori = el.values ?? {};
-      type.sections.forEach((s) => {
-        if (!isVisible(s.show_if, valori)) return;
-        s.fields.forEach((f) => {
-          if (f.required && isVisible(f.show_if, valori)) {
-            totalRequired++;
-            const v = valori[f.key];
-            if (v != null && v !== "") totalCompleted++;
-          }
-        });
-      });
-      (type.required_photos ?? []).forEach((p) => {
-        if (p.required) {
-          totalRequired++;
-          const has = detail.media.some((m) => m.element_id === el.id && m.checklist_key === p.key && m.type === "photo");
-          if (has) totalCompleted++;
-        }
-      });
-    });
-
-    if (totalRequired === 0) return 100;
-    return Math.round((totalCompleted / totalRequired) * 100);
-  }, [detail, headerData]);
+  const completionPct = useMemo(() => detail ? surveyCompletion({...detail,survey:{...detail.survey,header_data:headerData}}) : 0, [detail,headerData]);
 
   const onMediaChange = () => {
     qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
@@ -445,6 +394,7 @@ export default function SopralluogoEditor() {
   }
 
   const { survey, template, areas, elements, media } = detail;
+  if(survey.client_signature_at || survey.status==="signed") return <SurveyWorkspace surveyId={id}/>;
   const statusCfg = STATUS_LABEL[survey.status] ?? STATUS_LABEL.draft;
 
   // La mossa ovvia, in chiaro. Prima l'unico modo di avviare un sopralluogo
@@ -453,19 +403,20 @@ export default function SopralluogoEditor() {
   // mai stato avviato. La tendina resta per i casi fuori percorso.
   const prossimoPasso: { stato: string; etichetta: string } | null =
     survey.status === "draft"       ? { stato: "in_progress", etichetta: "Inizia sopralluogo" }
-  : survey.status === "in_progress" ? { stato: "completed",   etichetta: "Ho finito" }
-  : survey.status === "completed"   ? { stato: "reviewed",    etichetta: "Segna come revisionato" }
+  : survey.status === "in_progress" ? { stato: "completed",   etichetta: access.field ? "Consegna all’ufficio" : "Invia in revisione" }
   : null;
   // Media a livello sopralluogo (né area né elemento): foto generali + audio generale.
   const generalMedia = media.filter((m) => !m.area_id && !m.element_id);
+  const unsaved=!sameSurveyJson(headerData,survey.header_data ?? {}) || generalNotes!==(survey.notes ?? "") || areaDrafts.size>0 || pendingWrites>0 || autoSaveStatus==="saving" || autoSaveStatus==="error";
 
   return (
-    <div className="pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="pb-8">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background border-b">
         <div className="container mx-auto p-3 flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/sopralluoghi")}>
+          <Button variant="ghost" size="sm" onClick={onBack} disabled={unsaved} aria-label="Torna al riepilogo">
             <ArrowLeft className="h-4 w-4" />
+            <span className="ml-1 hidden sm:inline">Riepilogo</span>
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -481,7 +432,7 @@ export default function SopralluogoEditor() {
               {template.name} · {survey.address ?? "Indirizzo non specificato"}
             </p>
           </div>
-          <Button
+          {!access.field && <Button
             variant="outline" size="sm"
             onClick={() => setAssignDialogOpen(true)}
             className="gap-1.5 h-8"
@@ -489,13 +440,13 @@ export default function SopralluogoEditor() {
           >
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Assegna</span>
-          </Button>
+          </Button>}
           {prossimoPasso && (
             <Button
               size="sm"
               className="h-8 gap-1.5"
-              disabled={updateStatusMut.isPending}
-              onClick={() => updateStatusMut.mutate(prossimoPasso.stato)}
+              disabled={updateStatusMut.isPending || unsaved}
+              onClick={() => prossimoPasso.stato === "completed" ? setConfirmDialog({title:"Consegnare il rilievo alla revisione?",description:`La compilazione risulta al ${completionPct}%. I dati mancanti restano segnalati. Dopo la consegna l’operatore non potrà modificare finché l’ufficio non restituisce il rilievo.`,onConfirm:()=>updateStatusMut.mutate("completed"),action:"Consegna all’ufficio"}) : updateStatusMut.mutate(prossimoPasso.stato)}
             >
               {updateStatusMut.isPending
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -503,18 +454,24 @@ export default function SopralluogoEditor() {
               {prossimoPasso.etichetta}
             </Button>
           )}
-          <Select value={survey.status} onValueChange={(v) => updateStatusMut.mutate(v)}>
+          {!access.field && !["completed","reviewed"].includes(survey.status) && <Select value={survey.status} onValueChange={(v) => updateStatusMut.mutate(v)}>
             <SelectTrigger className="w-32 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => (
+              {Object.entries(STATUS_LABEL).filter(([key])=>key!=="reviewed").map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v.label}</SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select>}
         </div>
         <div className="px-3 pb-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <SurveyPdfTools detail={detail} companyName={effectiveCompany?.name || "Azienda"} references={references.data} disabled={unsaved||references.isPending}/>
+            {!access.field && <Button variant="outline" className="min-h-10 rounded-xl gap-2" onClick={()=>navigate(`/azienda/sopralluoghi/${id}/firma`)} disabled={unsaved}><FileSignature className="h-4 w-4"/>Firma</Button>}
+            {!access.field && <Button variant="ghost" className="min-h-10 rounded-xl gap-2 text-blue-700" disabled={aiSummaryMut.isPending||unsaved} onClick={()=>aiSummaryMut.mutate()}>{aiSummaryMut.isPending?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}Riassunto AI</Button>}
+            {unsaved&&<span className="text-xs text-orange-800">Attendi il salvataggio prima di esportare o uscire.</span>}
+          </div>
           <div className="flex items-center gap-2">
             <Progress value={completionPct} className="flex-1 h-1.5" />
             <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
@@ -525,6 +482,7 @@ export default function SopralluogoEditor() {
       </div>
 
       <div className="container mx-auto p-3 md:p-4 space-y-3 max-w-4xl">
+        <SurveyOfficeReview detail={detail}/>
         {/* Address quick info */}
         {(survey.address || survey.scheduled_at || riferitoA) && (
           <Card>
@@ -545,7 +503,7 @@ export default function SopralluogoEditor() {
               {survey.address && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-orange-600" />
-                  {[survey.address, survey.city].filter(Boolean).join(", ")}
+                  {surveyAddress(survey)}
                 </span>
               )}
               {survey.scheduled_at && (
@@ -554,7 +512,7 @@ export default function SopralluogoEditor() {
                   {format(new Date(survey.scheduled_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
                 </span>
               )}
-              {survey.order_id && (
+              {!access.field && survey.order_id && (
                 <Link
                   to={`/azienda/ordini/${survey.order_id}`}
                   className="flex items-center gap-1 text-violet-600 hover:underline"
@@ -592,15 +550,13 @@ export default function SopralluogoEditor() {
             .map((area) => (
               <AreaCard
                 key={area.id}
-                area={area}
+                area={{ ...area, ...areaDrafts.get(area.id) }}
                 areaDefinition={template.schema.area_definition}
                 elementTypes={template.schema.element_types ?? []}
                 elements={elements.filter((e) => e.area_id === area.id)}
                 media={media}
                 surveyId={survey.id}
-                onAreaChange={(aid, patch) => {
-                  updateAreaMut.mutate({ id: aid, patch });
-                }}
+                onAreaChange={editArea}
                 onAreaDelete={() => {
                   setConfirmDialog({
                     title: `Eliminare "${area.name}"?`,
@@ -609,7 +565,7 @@ export default function SopralluogoEditor() {
                   });
                 }}
                 onElementAdd={(elType) => addElementMut.mutate({ areaId: area.id, elementType: elType })}
-                onElementChange={(eid, patch) => updateElementMut.mutate({ id: eid, patch })}
+                onElementOpen={(eid)=>setEditingElement(elements.find(e=>e.id===eid)??null)}
                 onElementDuplicate={(eid) => {
                   const orig = elements.find((e) => e.id === eid);
                   if (!orig) return;
@@ -709,6 +665,7 @@ export default function SopralluogoEditor() {
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}
       />
+      {editingElement&&<SurveyElementEditDialog key={editingElement.id} detail={detail} element={editingElement} onNextElement={setEditingElement} onClose={()=>setEditingElement(null)}/>}
 
       {/* Confirm dialog (sostituisce confirm() nativo) */}
       <AlertDialog open={!!confirmDialog} onOpenChange={(o) => !o && setConfirmDialog(null)}>
@@ -726,7 +683,7 @@ export default function SopralluogoEditor() {
                 setConfirmDialog(null);
               }}
             >
-              Elimina
+              {confirmDialog?.action || "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -796,35 +753,6 @@ export default function SopralluogoEditor() {
         </div>
       )}
 
-      {/* Bottom action bar — safe-area (home indicator iPhone), 3 pulsanti in riga, touch 44px */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex gap-2">
-        <Button
-          variant="outline"
-          className="flex-1 min-w-0 h-11 gap-2"
-          onClick={() => navigate(`/azienda/sopralluoghi/${id}/firma`)}
-        >
-          <FileSignature className="h-4 w-4 shrink-0" />
-          Firma
-        </Button>
-        <Button
-          variant="outline"
-          className="flex-1 min-w-0 h-11 gap-2"
-          onClick={() => generatePdfMut.mutate()}
-          disabled={generatePdfMut.isPending}
-        >
-          {generatePdfMut.isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
-          PDF
-        </Button>
-        <Button
-          variant="outline"
-          className="flex-1 min-w-0 h-11 gap-2 border-violet-300 text-violet-700"
-          onClick={() => aiSummaryMut.mutate()}
-          disabled={aiSummaryMut.isPending}
-        >
-          {aiSummaryMut.isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Sparkles className="h-4 w-4 shrink-0" />}
-          <span className="truncate"><span className="hidden sm:inline">Riassunto </span>AI</span>
-        </Button>
-      </div>
     </div>
   );
 }

@@ -1,3 +1,10 @@
+import { ElencoContrattiSub, type RigaContrattoSub } from "./ElencoContrattiSub";
+import { ContrattoCarta } from "./ContrattoCarta";
+import {LavoriMisureSubDialog} from "./LavoriMisureSubDialog";
+import {VerbaleSalSubDialog} from "./VerbaleSalSubDialog";
+import type {SALSubappaltatore} from "@/types/subappaltatori";
+import {usePermissions} from "@/hooks/usePermissions";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * I contratti di un subappaltatore, uno per ogni commessa su cui lavora: elenco,
  * creazione e modifica (con importi, oneri della sicurezza, responsabili,
@@ -5,10 +12,10 @@
  * firma registrata, e la riconciliazione contratto / SAL / fatturato / pagato /
  * ritenute con le fatture ricevute collegate.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Clock, Download, FileSignature, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Unlink, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, Download, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Unlink, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -86,18 +93,35 @@ export const chiaviContratti = {
 
 /** Tutti i contratti del subappaltatore, il più recente prima. */
 export function useContrattiSubappaltatore(subId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: chiaviContratti.elenco(subId),
+    queryKey: [...chiaviContratti.elenco(subId), companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contratti_subappalto" as never)
         .select("*, commessa:orders!contratti_subappalto_order_id_fkey(order_code, description, work_address, client_name, client_company)")
         .eq("subappaltatore_id", subId!)
+        .eq("company_id",companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as ContrattoCompleto[];
     },
-    enabled: !!subId,
+    enabled: !!subId && !!companyId,
+  });
+}
+
+function useFirmeSubappalto(subId: string, ids: string[]) {
+  return useQuery({
+    queryKey: ["firme-subappalto", subId, ids.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("signature_requests")
+        .select("id, contratto_subappalto_id, status, signer_name, signer_email, created_at, signed_at, otp_canale" as never)
+        .in("contratto_subappalto_id" as never, ids as never).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ id: string; contratto_subappalto_id: string; status: string; signer_name: string | null; signer_email: string | null; created_at: string; signed_at: string | null }>;
+    },
+    enabled: ids.length > 0,
+    refetchInterval: 60_000,
   });
 }
 
@@ -152,20 +176,29 @@ async function scaricaFirmato(richiestaId: string) {
 }
 
 export function ContrattiSubappalto({
-  companyId, sub, selezionatoId, onSeleziona,
+  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita,
 }: {
+  richiestaApertura?: string | null;
+  onAperturaGestita?: () => void;
   companyId: string;
   sub: SubPerContratto;
   selezionatoId: string | null;
   onSeleziona: (id: string) => void;
+  onApriContabilita: (id: string) => void;
 }) {
   const qc = useQueryClient();
-  const { data: contratti = [], isLoading } = useContrattiSubappaltatore(sub.id);
+  const [dettaglioLocale, setDettaglio] = useState<string | null>(null);
+  const dettaglio = richiestaApertura ?? dettaglioLocale;
+  const ritornoDettaglio = useRef<HTMLElement | null>(null);
+  const chiudiDettaglio = () => {setDettaglio(null);onAperturaGestita?.();};
+  const permessiLavori = usePermissions();
+  const [lavoriMisure, setLavoriMisure] = useState<ContrattoCompleto|null>(null);
+  const [verbaleDaMisure, setVerbaleDaMisure] = useState<SALSubappaltatore|null>(null);
+  const { data: contratti = [], isLoading, isError: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(sub.id);
   const ids = contratti.map((c) => c.id);
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
   const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
-  const [firma, setFirma] = useState<{ id: string; il: string; da: string } | null>(null);
   const [collega, setCollega] = useState<string | null>(null);
   const [invio, setInvio] = useState<{ c: ContrattoCompleto; nome: string; email: string; telefono: string } | null>(null);
 
@@ -180,17 +213,17 @@ export function ContrattiSubappalto({
     enabled: !!dialog,
   });
 
-  const { data: sal = [] } = useQuery({
-    queryKey: chiaviContratti.salTutti(sub.id),
+  const { data: sal = [], isLoading: caricoSal, isError: erroreSal } = useQuery({
+    queryKey: [...chiaviContratti.salTutti(sub.id), ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, stato").in("contratto_id", ids);
+        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; stato: string }>;
+      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
     },
     enabled: ids.length > 0,
   });
-  const { data: ritenute = [] } = useQuery({
+  const { data: ritenute = [], isLoading: caricoRitenute, isError: erroreRitenute } = useQuery({
     queryKey: ["ritenute-sub-tutte", sub.id, ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("ritenute_garanzia" as never).select("contratto_id, importo, stato").in("contratto_id", ids);
@@ -199,7 +232,7 @@ export function ContrattiSubappalto({
     },
     enabled: ids.length > 0,
   });
-  const { data: fatture = [] } = useQuery({
+  const { data: fatture = [], isLoading: caricoFatture, isError: erroreFatture } = useQuery({
     queryKey: ["fatture-sub", sub.id, ids.join(","), sub.piva],
     queryFn: async () => {
       // Le collegate ai contratti e quelle ancora libere con la stessa P.IVA.
@@ -214,18 +247,7 @@ export function ContrattiSubappalto({
     enabled: !!sub.piva || ids.length > 0,
   });
   // L'ultima richiesta di firma di ogni contratto: inviata, aperta, firmata, rifiutata.
-  const { data: richieste = [] } = useQuery({
-    queryKey: ["firme-subappalto", sub.id, ids.join(",")],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("signature_requests")
-        .select("id, contratto_subappalto_id, status, signer_name, signer_email, created_at, signed_at, otp_canale" as never)
-        .in("contratto_subappalto_id" as never, ids as never).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; contratto_subappalto_id: string; status: string; signer_name: string | null; signer_email: string | null; created_at: string; signed_at: string | null }>;
-    },
-    enabled: ids.length > 0,
-    refetchInterval: 60_000,
-  });
+  const {data: richieste = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(sub.id, ids);
   const richiestaDi = (id: string) => richieste.find((r) => r.contratto_subappalto_id === id);
 
   const { data: azienda } = useQuery({
@@ -249,6 +271,8 @@ export function ContrattiSubappalto({
     qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
     qc.invalidateQueries({ queryKey: ["subappaltatori-page", companyId] });
     qc.invalidateQueries({ queryKey: ["order-subcontract-statistics"] });
+    qc.invalidateQueries({ queryKey: ["fascicolo-cantiere"] });
+    qc.invalidateQueries({ queryKey: ["sicurezza-documenti", companyId] });
   };
 
   const salva = useMutation({
@@ -277,7 +301,7 @@ export function ContrattiSubappalto({
       if (error) throw new Error("Contratto non salvato. Controlla i dati e riprova.");
       return (data as unknown as { id: string }).id;
     },
-    onSuccess: (id) => { toast.success(dialog?.id ? "Contratto aggiornato" : "Contratto creato"); invalida(); setDialog(null); onSeleziona(id); },
+    onSuccess: (id) => { toast.success(dialog?.id ? "Contratto aggiornato" : "Contratto creato"); invalida(); setDialog(null); onSeleziona(id); setDettaglio(id); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -288,17 +312,6 @@ export function ContrattiSubappalto({
       if (error) throw new Error("Stato non aggiornato. Riprova.");
     },
     onSuccess: () => { toast.success("Stato del contratto aggiornato"); invalida(); },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const registraFirma = useMutation({
-    mutationFn: async () => {
-      if (!firma) return;
-      const { error } = await supabase.from("contratti_subappalto" as never)
-        .update({ firmato_il: firma.il ? new Date(`${firma.il}T12:00:00`).toISOString() : null, firmato_da: firma.da.trim() || null } as never).eq("id", firma.id);
-      if (error) throw new Error("Firma non registrata. Riprova.");
-    },
-    onSuccess: () => { toast.success("Firma registrata"); invalida(); setFirma(null); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -388,51 +401,45 @@ export function ContrattiSubappalto({
         </Button>
       </div>
 
-      {isLoading ? (
+      {erroreContratti ? <p role="alert" className="rounded-lg border p-4 text-sm">Contratti non disponibili. <Button variant="outline" onClick={() => void ricaricaContratti()}>Riprova</Button></p> : isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : contratti.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
           Nessun contratto. Creane uno per la commessa: servirà per SAL, ritenute e pagamenti, e lo potrai stampare e far firmare.
         </CardContent></Card>
-      ) : contratti.map((c) => {
+      ) : erroreSal || erroreRitenute || erroreFatture ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">Riepilogo dei contratti non disponibile. Non mostriamo importi parziali.<Button variant="outline" className="ml-3" onClick={invalida}>Riprova</Button></div> : caricoSal || caricoRitenute || caricoFatture ? <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento riepilogo dei contratti…</p> : <ElencoContrattiSub righe={contratti.map(c => ({contratto:c, riepilogo:riepiloghi.get(c.id)!, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(richiestaDi(c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}))} onApri={cid => {ritornoDettaglio.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;onAperturaGestita?.();setDettaglio(cid); onSeleziona(cid);}}/>}
+      {erroreFirme && <p role="alert" className="text-sm text-amber-800">Stato delle richieste di firma non disponibile. <Button variant="link" onClick={() => void qc.invalidateQueries({queryKey:['firme-subappalto',sub.id]})}>Riprova</Button></p>}
+      <Dialog open={!!dettaglio} onOpenChange={open => {if (!open) chiudiDettaglio();}}>
+        <DialogContent onCloseAutoFocus={event => {if (ritornoDettaglio.current?.isConnected) {event.preventDefault();ritornoDettaglio.current.focus();}}} className="flex max-h-[90dvh] max-w-6xl flex-col gap-0 overflow-hidden p-0"><DialogHeader className="sr-only"><DialogTitle>Dettaglio contratto</DialogTitle><DialogDescription>Documento, firma, lavori e contabilità del contratto selezionato.</DialogDescription></DialogHeader><div className="overflow-y-auto">
+        {contratti.filter(c => c.id === dettaglio).map((c) => {
         const r = riepiloghi.get(c.id)!;
         const suoFatture = fatture.filter((f) => f.contratto_subappalto_id === c.id);
         const selezionato = c.id === selezionatoId;
         const richiesta = richiestaDi(c.id);
         return (
           <Card key={c.id} className={cn(selezionato && "border-primary/50 ring-1 ring-primary/30")}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                <FileText className="h-4 w-4" />
-                {c.numero_contratto ? `Contratto ${c.numero_contratto}` : "Contratto di subappalto"}
-                <span className="text-sm font-normal text-muted-foreground">· {c.commessa?.order_code ?? "Commessa"} {c.commessa?.description ? `— ${c.commessa.description}` : ""}</span>
-                <Badge className={cn("ml-auto hover:opacity-100", STATI[c.stato]?.cls)}>{STATI[c.stato]?.label ?? c.stato}</Badge>
-                {c.firmato_il
-                  ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100"><CheckCircle2 className="mr-1 h-3 w-3" />Firmato il {dataIT(c.firmato_il)}</Badge>
-                  : <Badge variant="outline" className="border-amber-300 text-amber-700">Da firmare</Badge>}
-              </CardTitle>
+            <CardHeader className="gap-3 border-b bg-muted/20 p-4 pr-12 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1"><CardTitle className="flex items-start gap-2 text-base"><FileText className="mt-0.5 h-4 w-4 shrink-0"/>{c.numero_contratto || "Contratto di subappalto"}</CardTitle><p className="text-sm text-muted-foreground">{c.commessa?.order_code ?? "Commessa"}{c.commessa?.description ? ` · ${c.commessa.description}` : ""}</p></div>
+              <div className="flex shrink-0 flex-wrap gap-2"><Badge className={cn("hover:opacity-100",STATI[c.stato]?.cls)}>{STATI[c.stato]?.label??c.stato}</Badge>{c.firmato_il?<Badge className="bg-emerald-100 text-emerald-800">Firma registrata · {dataIT(c.firmato_il)}</Badge>:<Badge variant="outline" className="border-amber-300 text-amber-700">Da firmare</Badge>}</div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">{c.descrizione_lavori}</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            <CardContent className="space-y-4 p-4">
+              <p className="text-sm">{c.descrizione_lavori}</p>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {([
                   ["Valore (con oneri)", euro(r.valore)],
                   ["Eseguito (SAL)", euro(r.eseguito)],
-                  ["Approvato", euro(r.approvato)],
-                  ["Fatturato", euro(r.fatturato)],
-                  ["Pagato", euro(r.pagato)],
-                  ["Da pagare", euro(r.daPagare)],
+                  ["Netto SAL non pagati", euro(r.daPagare)],
                   ["Ritenute trattenute", euro(r.ritenuteTrattenute)],
                 ] as const).map(([k, v]) => (
-                  <div key={k} className="rounded-lg bg-muted px-2.5 py-2">
+                  <div key={k} className="rounded-xl border bg-background p-3">
                     <p className="text-[11px] text-muted-foreground">{k}</p>
-                    <p className="text-sm font-semibold tabular-nums">{v}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{v}</p>
                   </div>
                 ))}
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground"><span>Eseguito {r.avanzamento}%</span><span>Residuo {euro(r.residuo)}</span></div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-orange-500" style={{ width: `${r.avanzamento}%` }} /></div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${r.avanzamento}%` }} /></div>
               </div>
               {/* Firma elettronica: a che punto è */}
               {richiesta && !c.firmato_il && (
@@ -447,9 +454,24 @@ export function ContrattiSubappalto({
                     : `Inviato per la firma il ${dataIT(richiesta.created_at)} a ${richiesta.signer_name ?? ""} (${richiesta.signer_email ?? ""}): in attesa della firma.`}
                 </div>
               )}
-              {r.avvisi.map((a) => (
-                <p key={a} className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><AlertTriangle className="h-4 w-4 shrink-0" />{a}</p>
-              ))}
+              <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={!!richiesta && ["pending","otp_verified","signed"].includes(richiesta.status)} onSaved={invalida}>                <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
+                {!c.firmato_il && (
+                  <Button size="sm" className="gap-1" onClick={() => setInvio({
+                    c, nome: c.referente_subappaltatore || sub.responsabile || "",
+                    email: sub.pec || sub.email || "", telefono: sub.telefono || "",
+                  })}>
+                    <Send className="h-3.5 w-3.5" />{richiesta && ["pending", "otp_verified"].includes(richiesta.status) ? "Invia di nuovo" : "Invia per la firma"}
+                  </Button>
+                )}
+                {c.firmato_il && richiesta?.status === "signed" && (
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => scaricaFirmato(richiesta.id)}>
+                    <Download className="h-3.5 w-3.5" />Contratto firmato
+                  </Button>
+                )}
+</ContrattoCarta>
+              {r.avvisi.length>0&&<details className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><summary className="flex cursor-pointer items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4"/>{r.avvisi.length} verifiche contabili da completare</summary><ul className="mt-2 list-disc space-y-2 pl-5">{r.avvisi.map(a=><li key={a}>{a}</li>)}</ul></details>}
+              <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Contabilità e fatture collegate · {suoFatture.length} {suoFatture.length===1?"fattura":"fatture"}</summary>
+                <div className="my-3 grid grid-cols-3 gap-2 text-sm">{[["Approvato",r.approvato],["Fatturato",r.fatturato],["Pagato",r.pagato]].map(([label,amount])=><div key={String(label)}><p className="text-xs text-muted-foreground">{label}</p><strong className="tabular-nums">{euro(Number(amount))}</strong></div>)}</div>
 
               <div className="rounded-lg border">
                 <div className="flex items-center justify-between px-3 py-2 text-sm font-medium">
@@ -473,38 +495,22 @@ export function ContrattiSubappalto({
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {!selezionato && <Button size="sm" variant="outline" onClick={() => onSeleziona(c.id)}>Vedi SAL e ritenute</Button>}
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
-                {!c.firmato_il && (
-                  <Button size="sm" className="gap-1" onClick={() => setInvio({
-                    c, nome: c.referente_subappaltatore || sub.responsabile || "",
-                    email: sub.pec || sub.email || "", telefono: sub.telefono || "",
-                  })}>
-                    <Send className="h-3.5 w-3.5" />{richiesta && ["pending", "otp_verified"].includes(richiesta.status) ? "Invia di nuovo" : "Invia per la firma"}
-                  </Button>
-                )}
-                {c.firmato_il && richiesta?.status === "signed" && (
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => scaricaFirmato(richiesta.id)}>
-                    <Download className="h-3.5 w-3.5" />Contratto firmato
-                  </Button>
-                )}
-                {/* Firma su carta: si registra a mano. */}
-                {(!c.firmato_il || richiesta?.status !== "signed") && (
-                  <Button size="sm" variant="ghost" className="gap-1" onClick={() => setFirma({ id: c.id, il: c.firmato_il?.slice(0, 10) ?? oggi(), da: c.firmato_da ?? sub.responsabile ?? "" })}>
-                    <FileSignature className="h-3.5 w-3.5" />{c.firmato_il ? "Firma su carta" : "Firmato su carta"}
-                  </Button>
-                )}
-                <Select value={c.stato} onValueChange={(v) => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
-                  <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+              </details>
+              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
+                <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
+                <Button size="sm" variant="ghost" className="gap-1" onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
+                <div className="ml-auto flex items-center gap-2"><span className="text-xs text-muted-foreground">Stato lavori</span><Select disabled={cambiaStato.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders} value={c.stato} onValueChange={(v) => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
+                  <SelectTrigger aria-label="Stato lavori del contratto" className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}</SelectContent>
-                </Select>
+                </Select></div>
               </div>
             </CardContent>
           </Card>
         );
       })}
+        </div><DialogFooter className="border-t bg-background p-3"><Button variant="outline" onClick={chiudiDettaglio}>Torna ai contratti</Button></DialogFooter></DialogContent>
+      </Dialog>
 
       {/* Nuovo / modifica */}
       <Dialog open={!!dialog} onOpenChange={(v) => { if (!v && !salva.isPending) setDialog(null); }}>
@@ -548,26 +554,6 @@ export function ContrattiSubappalto({
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)} disabled={salva.isPending}>Annulla</Button>
             <Button onClick={() => salva.mutate()} disabled={salva.isPending}>{salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Firma */}
-      <Dialog open={!!firma} onOpenChange={(v) => { if (!v) setFirma(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Firma del contratto</DialogTitle>
-            <DialogDescription>Stampa il contratto, fallo firmare e registra qui quando e da chi è stato firmato.</DialogDescription>
-          </DialogHeader>
-          {firma && (
-            <div className="space-y-3">
-              <div className="space-y-1"><Label>Firmato il</Label><Input type="date" value={firma.il} onChange={(e) => setFirma({ ...firma, il: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Firmato da (per il subappaltatore)</Label><Input value={firma.da} onChange={(e) => setFirma({ ...firma, da: e.target.value })} /></div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFirma(null)}>Annulla</Button>
-            <Button onClick={() => registraFirma.mutate()} disabled={registraFirma.isPending}>Registra</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -624,6 +610,12 @@ export function ContrattiSubappalto({
         </DialogContent>
       </Dialog>
 
+      {lavoriMisure && <LavoriMisureSubDialog key={lavoriMisure.id} companyId={companyId} contratto={lavoriMisure} onApriStorico={()=>{ const cid=lavoriMisure.id; setLavoriMisure(null); onApriContabilita(cid); }} onClose={()=>setLavoriMisure(null)} onApriVerbale={async (id)=>{
+        const {data,error}=await supabase.from('sal_subappaltatori').select('*').eq('id',id).eq('company_id',companyId).eq('contratto_id',lavoriMisure.id).single();
+        if(error||!data)throw Error('SAL registrato ma non ancora consultabile: riprova la lettura');
+        setVerbaleDaMisure(data as SALSubappaltatore);setLavoriMisure(null);
+      }}/>}
+      {verbaleDaMisure && <VerbaleSalSubDialog key={verbaleDaMisure.id} companyId={companyId} sal={verbaleDaMisure} onClose={()=>setVerbaleDaMisure(null)} />}
       {stampa && (
         <PrintPreviewModal htmlContent={stampa.html} fileName={stampa.nome} title={stampa.nome}
           open={!!stampa} onOpenChange={(v) => { if (!v) setStampa(null); }} />
@@ -642,53 +634,22 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
   onApriCommessa: (orderId: string) => void;
   onApriContratto: (contrattoId: string) => void;
 }) {
-  const { data: contratti = [], isLoading } = useContrattiSubappaltatore(subId);
+  const { data: contratti = [], isLoading, isError, refetch } = useContrattiSubappaltatore(subId);
   const ids = contratti.map((c) => c.id);
-  const { data: sal = [] } = useQuery({
-    queryKey: chiaviContratti.salTutti(subId),
+  const { data: sal = [], isLoading: caricoSal, isError: erroreSal, refetch: ricaricaSal } = useQuery({
+    queryKey: [...chiaviContratti.salTutti(subId), ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, stato").in("contratto_id", ids);
+        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; stato: string }>;
+      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
     },
     enabled: ids.length > 0,
   });
-  const righe = contratti.map((c) => ({ c, r: riepilogoContratto(c, sal.filter((s) => s.contratto_id === c.id), [], []) }));
-  const tot = righe.reduce((t, { r }) => ({ valore: t.valore + r.valore, eseguito: t.eseguito + r.eseguito, pagato: t.pagato + r.pagato, daPagare: t.daPagare + r.daPagare }),
-    { valore: 0, eseguito: 0, pagato: 0, daPagare: 0 });
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {([["Valore dei contratti", tot.valore, ""], ["Eseguito (SAL)", tot.eseguito, ""], ["Pagato", tot.pagato, "text-green-600"], ["Da pagare", tot.daPagare, "text-amber-600"]] as const).map(([k, v, cls]) => (
-          <Card key={k}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{k}</p><p className={cn("text-xl font-bold tabular-nums", cls)}>{euro(v)}</p></CardContent></Card>
-        ))}
-      </div>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Commesse</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {isLoading ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-            : righe.length === 0 ? <p className="text-sm text-muted-foreground">Nessun contratto: crea un contratto per ogni commessa nella scheda «Contratto».</p>
-            : righe.map(({ c, r }) => (
-              <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm">
-                <div className="min-w-0 flex-1">
-                  <button type="button" className="font-semibold hover:underline" onClick={() => onApriCommessa(c.order_id)}>
-                    {c.commessa?.order_code ? `${c.commessa.order_code} · ` : ""}{c.commessa?.description ?? "Commessa"}
-                  </button>
-                  <p className="truncate text-xs text-muted-foreground">{c.descrizione_lavori}</p>
-                </div>
-                <Badge className={cn("hover:opacity-100", STATI[c.stato]?.cls)}>{STATI[c.stato]?.label ?? c.stato}</Badge>
-                <div className="grid grid-cols-3 gap-3 text-right text-xs">
-                  <div><p className="text-muted-foreground">Eseguito</p><p className="font-semibold tabular-nums">{euro(r.eseguito)} <span className="font-normal text-muted-foreground">({r.avanzamento}%)</span></p></div>
-                  <div><p className="text-muted-foreground">Pagato</p><p className="font-semibold tabular-nums text-green-700">{euro(r.pagato)}</p></div>
-                  <div><p className="text-muted-foreground">Da pagare</p><p className="font-semibold tabular-nums text-amber-700">{euro(r.daPagare)}</p></div>
-                </div>
-                <Button size="sm" variant="ghost" className="h-7" onClick={() => onApriContratto(c.id)}>Contratto</Button>
-              </div>
-            ))}
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const {data: firme = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(subId, ids);
+  const righe: RigaContrattoSub[] = contratti.map(c => ({contratto:c, riepilogo:{...riepilogoContratto(c, sal.filter(s => s.contratto_id === c.id), [], []), avvisi:[] as string[]}, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(firme.find(f => f.contratto_subappalto_id === c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}));
+  if (isError || erroreSal) return <div role="alert" className="rounded-lg border p-4 text-sm">Commesse e riepiloghi non disponibili. <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>Riprova</Button></div>;
+  if (isLoading || caricoSal) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento commesse e contratti…</p>;
+  if (!righe.length) return <p className="rounded-lg border p-6 text-sm text-muted-foreground">Nessun contratto collegato. Crea un contratto per ogni commessa nella scheda Contratti.</p>;
+  return <ElencoContrattiSub righe={righe} contesto="commesse" onApri={onApriContratto} onCommessa={onApriCommessa}/>;
 }

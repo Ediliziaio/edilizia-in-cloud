@@ -8,9 +8,10 @@ import { EvidenzaObbligatoria, campoVuoto } from "./EvidenzaObbligatoria";
 interface TaskConfigPanelProps {
   config: Record<string, any>;
   onChange: (field: string, value: any) => void;
+  companyId?: string;
 }
 
-export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
+export function TaskConfigPanel({ config, onChange, companyId }: TaskConfigPanelProps) {
   const aggiorna = config.item_id === "aggiorna_task";
   return (
     <div className="space-y-4">
@@ -21,7 +22,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs">ID Task da aggiornare</Label>
-              <VariablePicker onInsert={(v) => onChange("task_id", (config.task_id || "") + v)} />
+              <VariablePicker companyId={companyId} onInsert={(v) => onChange("task_id", (config.task_id || "") + v)} />
             </div>
             <Input
               value={config.task_id || ""}
@@ -38,7 +39,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Titolo attività</Label>
-          <VariablePicker onInsert={(v) => onChange("titolo", (config.titolo || "") + v)} />
+          <VariablePicker companyId={companyId} onInsert={(v) => onChange("titolo", (config.titolo || "") + v)} />
         </div>
         <Input
           value={config.titolo || ""}
@@ -53,7 +54,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Descrizione</Label>
-          <VariablePicker onInsert={(v) => onChange("descrizione", (config.descrizione || "") + v)} />
+          <VariablePicker companyId={companyId} onInsert={(v) => onChange("descrizione", (config.descrizione || "") + v)} />
         </div>
         <Textarea
           value={config.descrizione || ""}

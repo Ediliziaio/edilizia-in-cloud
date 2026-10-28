@@ -3,7 +3,7 @@
 // Algoritmo (cycle-safe, gestisce grafi sconnessi):
 //  1. Livelli (y): cammino più LUNGO dalle radici (trigger o nodi senza archi
 //     entranti), così un nodo di merge finisce sempre sotto TUTTI i suoi genitori.
-//     Propagazione tipo BFS con guardia anti-ciclo (max "tocchi" per nodo).
+//     Ordinamento topologico; i cicli non validi restano finiti e visibili.
 //  2. Posizione orizzontale (x): ogni nodo è centrato sotto i propri genitori;
 //     i rami (sì/no di una condizione, split A/B) vengono spaziati ai lati grazie
 //     a un bias sull'handle sorgente. Niente sovrapposizioni (gap minimo) e ogni
@@ -14,22 +14,21 @@
 
 import type { Node, Edge } from "@xyflow/react";
 
-// I nodi reali sono alti ~96-126px (trigger/condizione i più alti, +20px con
-// il badge "Da verificare"): 180px lascia un respiro pulito tra un livello e
-// l'altro evitando che le card si tocchino.
-const VERTICAL_GAP = 180; // distanza verticale tra livelli
-const HORIZONTAL_GAP = 320; // distanza orizzontale tra colonne dello stesso livello (card larghe ~220-300px)
+// Spazio LIBERO fra le card: non fra i loro angoli superiori. Anche una
+// condizione alta o una card larga deve lasciare spazio ai rami e al "+".
+const VERTICAL_GAP = 96;
+const HORIZONTAL_GAP = 72;
 const ORIGIN_X = 160;
 const ORIGIN_Y = 60;
 
 /** Bias orizzontale del ramo in base all'handle sorgente (sì/no, split_n). */
-function handleBias(handle?: string | null): number {
+function handleBias(handle?: string | null, splitCount = 2): number {
   if (!handle) return 0;
   if (handle === "yes") return -0.5;
   if (handle === "no") return 0.5;
   if (handle.startsWith("split_")) {
     const idx = Number.parseInt(handle.slice("split_".length), 10);
-    return Number.isFinite(idx) ? idx - 0.5 : 0;
+    return Number.isFinite(idx) ? idx - (splitCount - 1) / 2 : 0;
   }
   return 0;
 }
@@ -46,6 +45,10 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
   if (layoutNodes.length === 0) return { positions: {}, movedCount: 0 };
 
   const nodeIds = new Set(layoutNodes.map((n) => n.id));
+  const widthOf = (n: Node) => n.measured?.width || n.width || (n.type === "end" ? 100 : 280);
+  const heightOf = (n: Node) => n.measured?.height || n.height || (n.type === "end" ? 44 : 140);
+  const nodesById = new Map(layoutNodes.map((n) => [n.id, n]));
+  const columnGap = Math.max(...layoutNodes.map(widthOf)) + HORIZONTAL_GAP;
   const outAdj = new Map<string, string[]>();
   const inEdges = new Map<string, { parent: string; handle?: string | null }[]>();
   for (const n of layoutNodes) {
@@ -59,48 +62,27 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
     inEdges.get(e.target)!.push({ parent: e.source, handle: e.sourceHandle });
   }
 
-  // ── 1) Livelli: cammino più lungo dalle radici, con guardia anti-ciclo ──
+  // ── 1) Livelli: tutti i genitori devono precedere un ricongiungimento ──
   const level = new Map<string, number>();
-  // Un DAG valido di N nodi ha cammino più lungo ≤ N-1: limitiamo i livelli a N
-  // così un eventuale ciclo non gonfia all'infinito le coordinate (resta compatto).
-  const maxLevel = layoutNodes.length;
-  const cap = maxLevel + 1; // massimi "tocchi" per nodo (guardia secondaria sui cicli)
-
-  const relax = (seeds: string[]) => {
-    const queue = [...seeds];
-    const touches = new Map<string, number>();
-    for (const s of seeds) if (!level.has(s)) level.set(s, 0);
-    while (queue.length > 0) {
-      const u = queue.shift()!;
-      const t = (touches.get(u) ?? 0) + 1;
-      touches.set(u, t);
-      if (t > cap) continue; // ciclo: interrompi la propagazione da questo nodo
-      const lu = level.get(u) ?? 0;
-      for (const v of outAdj.get(u) ?? []) {
-        const candidate = lu + 1;
-        if (candidate > maxLevel) continue; // ciclo: non superare N livelli
-        const lv = level.get(v);
-        if (lv === undefined || lv < candidate) {
-          level.set(v, candidate);
-          queue.push(v);
-        }
-      }
+  const pending = new Map(layoutNodes.map((n) => [n.id, inEdges.get(n.id)!.length]));
+  const queue = layoutNodes.filter((n) => pending.get(n.id) === 0).map((n) => n.id);
+  const visited = new Set<string>();
+  let cursor = 0;
+  while (visited.size < layoutNodes.length) {
+    // Un ciclo è già bloccato dalla validazione. Qui non si cambiano archi:
+    // si rende comunque ispezionabile il grafo senza gonfiarlo a N² livelli.
+    if (cursor === queue.length) queue.push(layoutNodes.find((n) => !visited.has(n.id))!.id);
+    const id = queue[cursor++];
+    if (visited.has(id)) continue;
+    visited.add(id);
+    level.set(id, level.get(id) ?? 0);
+    for (const child of outAdj.get(id)!) {
+      if (visited.has(child)) continue;
+      level.set(child, Math.max(level.get(child) ?? 0, level.get(id)! + 1));
+      pending.set(child, pending.get(child)! - 1);
+      if (pending.get(child) === 0) queue.push(child);
     }
-  };
-
-  const roots = layoutNodes
-    .filter((n) => n.type === "trigger" || inEdges.get(n.id)!.length === 0)
-    .map((n) => n.id);
-  relax(roots.length > 0 ? roots : [layoutNodes[0].id]);
-
-  // Componenti sconnesse / cicli puri: seed iterativo sui nodi rimasti.
-  let guard = 0;
-  while (guard++ < layoutNodes.length) {
-    const leftover = layoutNodes.find((n) => !level.has(n.id));
-    if (!leftover) break;
-    relax([leftover.id]);
   }
-  for (const n of layoutNodes) if (!level.has(n.id)) level.set(n.id, 0);
 
   // ── 2) Posizione orizzontale: centrata sotto i genitori, senza overlap ──
   const byLevel = new Map<number, string[]>();
@@ -123,20 +105,24 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
       const ins = inEdges.get(id)!.filter((ie) => xPos.has(ie.parent));
       const desired =
         ins.length > 0
-          ? ins.reduce((s, ie) => s + xPos.get(ie.parent)! + handleBias(ie.handle) * HORIZONTAL_GAP, 0) / ins.length
+          ? ins.reduce((s, ie) => {
+              const parent = nodesById.get(ie.parent)!;
+              const splitCount = Math.max(2, String(parent.data?.percentuali || "50,50").split(",").length);
+              return s + xPos.get(ie.parent)! + handleBias(ie.handle, splitCount) * columnGap;
+            }, 0) / ins.length
           : null;
       return { id, order, desired };
     });
     items.sort((a, b) => {
-      const da = a.desired ?? a.order * HORIZONTAL_GAP;
-      const db = b.desired ?? b.order * HORIZONTAL_GAP;
+      const da = a.desired ?? a.order * columnGap;
+      const db = b.desired ?? b.order * columnGap;
       return da - db;
     });
     // posiziona sinistra→destra rispettando il gap minimo
     let prev = Number.NEGATIVE_INFINITY;
     for (const it of items) {
-      let x = it.desired ?? it.order * HORIZONTAL_GAP;
-      if (x < prev + HORIZONTAL_GAP) x = prev + HORIZONTAL_GAP;
+      let x = it.desired ?? it.order * columnGap;
+      if (x < prev + columnGap) x = prev + columnGap;
       xPos.set(it.id, x);
       prev = x;
     }
@@ -156,8 +142,6 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
   // allineati a sinistra: senza questo, nodi di larghezza diversa (es. la pill
   // "Attendi" vs le card) hanno centri sfalsati e lo smoothstep fa lo "scalino".
   // Converto center→top-left sottraendo metà larghezza reale misurata da ReactFlow.
-  const widthOf = (n: Node) =>
-    (n as { measured?: { width?: number } }).measured?.width ?? (n.width ?? 260);
   const topLeftX = new Map<string, number>();
   for (const n of layoutNodes) topLeftX.set(n.id, (xPos.get(n.id) ?? 0) - widthOf(n) / 2);
 
@@ -166,10 +150,16 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
   if (!Number.isFinite(minX)) minX = 0;
 
   const positions: Record<string, { x: number; y: number }> = {};
+  const yByLevel = new Map<number, number>();
+  let nextY = ORIGIN_Y;
+  for (const l of levels) {
+    yByLevel.set(l, nextY);
+    nextY += Math.max(...byLevel.get(l)!.map((id) => heightOf(nodesById.get(id)!))) + VERTICAL_GAP;
+  }
   let movedCount = 0;
   for (const n of layoutNodes) {
     const x = Math.round((topLeftX.get(n.id) ?? 0) - minX + ORIGIN_X);
-    const y = Math.round(level.get(n.id)! * VERTICAL_GAP + ORIGIN_Y);
+    const y = Math.round(yByLevel.get(level.get(n.id)!)!);
     positions[n.id] = { x, y };
     if (Math.round(n.position.x) !== x || Math.round(n.position.y) !== y) movedCount++;
   }

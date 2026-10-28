@@ -4,6 +4,7 @@
  * (crea, dati dell'app, lavorazioni proposte dall'AI, approvazione).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { readAllPages } from "@/lib/personale/readAllPages";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -48,7 +49,7 @@ export interface PosRiga {
 
 const chiavi = {
   elenco: (companyId: string | null) => ["pos", "elenco", companyId] as const,
-  uno: (id: string | undefined) => ["pos", "uno", id] as const,
+  uno: (companyId: string | null, id: string | undefined) => ["pos", "uno", companyId, id] as const,
   figure: (companyId: string | null) => ["pos", "figure", companyId] as const,
 };
 
@@ -88,15 +89,14 @@ export function usePosElenco() {
     queryKey: chiavi.elenco(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<PosRiga[]> => {
-      const { data, error } = await supabase
+      const rows = await readAllPages((from,to)=>supabase
         .from("pos_documents")
         .select(SELECT_POS)
-        .eq("company_id", companyId!)
+        .eq("company_id",companyId!)
         .or("document_type.is.null,document_type.eq.pos")
-        .is("superseded_by", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return ((data ?? []) as unknown as RigaDb[]).map(daDb);
+        .is("superseded_by",null)
+        .order("created_at",{ascending:false}).order("id").range(from,to));
+      return (rows as unknown as RigaDb[]).map(daDb);
     },
     staleTime: 30 * 1000,
   });
@@ -105,7 +105,7 @@ export function usePosElenco() {
 export function usePos(id: string | undefined) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: chiavi.uno(id),
+    queryKey: chiavi.uno(companyId, id),
     enabled: !!id && !!companyId,
     queryFn: async (): Promise<PosRiga | null> => {
       const { data, error } = await supabase
@@ -130,15 +130,19 @@ export class ErrorePos extends Error {
   }
 }
 
-async function chiamaServer<T>(corpo: Record<string, unknown>): Promise<T> {
+async function rispostaServerPos(corpo: Record<string, unknown>): Promise<Response> {
   const { data: sessione } = await supabase.auth.getSession();
   const token = sessione.session?.access_token;
   if (!token) throw new ErrorePos("Sessione scaduta: accedi di nuovo e riprova");
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`, {
+  return fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(corpo),
+    body: JSON.stringify({ ...corpo, versione_client: 2, versione_psc_client: 1, versione_prodotti_client: 1, versione_tecnica_client: 1, versione_fonti_tecniche_client: 1, versione_mezzi_client: 1, versione_documenti_mezzi_client: 1, versione_requisiti_addetti_client: 1 }),
   });
+}
+
+export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promise<T> {
+  const res = await rispostaServerPos(corpo);
   const testo = await res.text();
   let json: Record<string, unknown> = {};
   try {
@@ -157,26 +161,29 @@ export function useCreaPos() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orderId, ruoloImpresa }: { orderId: string; ruoloImpresa?: string }) =>
-      chiamaServer<{ pos_id: string; avvisi: string[] }>({ azione: "crea", company_id: companyId, order_id: orderId, ruolo_impresa: ruoloImpresa }),
+    mutationFn: ({ orderId, ruoloImpresa, sorgentePos, modelloId }: { orderId: string; ruoloImpresa?: string; sorgentePos?: Pick<PosRiga, "id" | "updated_at">; modelloId?: string }) =>
+      chiamaServerPos<{ pos_id: string; avvisi: string[] }>({ azione: "crea", company_id: companyId, order_id: orderId, ruolo_impresa: ruoloImpresa, sorgente_pos_id: sorgentePos?.id, attesa_updated_at: sorgentePos?.updated_at, modello_id: modelloId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pos"] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "POS non creato"),
   });
 }
 
 export async function datiAppPos(companyId: string, posId: string) {
-  return chiamaServer<{ contenuto: PosContenuto; contesto: ContestoPos }>({ azione: "dati_app", company_id: companyId, pos_id: posId });
+  return chiamaServerPos<{ contenuto: PosContenuto; contesto: ContestoPos }>({ azione: "dati_app", company_id: companyId, pos_id: posId });
 }
 
 export async function lavorazioniAiPos(companyId: string, posId: string) {
-  return chiamaServer<{ lavorazioni: Lavorazione[]; modalita_organizzative?: string }>({ azione: "lavorazioni_ai", company_id: companyId, pos_id: posId });
+  return chiamaServerPos<{ lavorazioni: Lavorazione[]; modalita_organizzative?: string }>({ azione: "lavorazioni_ai", company_id: companyId, pos_id: posId });
 }
 
 export function useApprovaPos() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (posId: string) => chiamaServer<{ approvato_da_nome: string }>({ azione: "approva", company_id: companyId, pos_id: posId }),
+    mutationFn: ({posId,attesaUpdatedAt}:{posId:string;attesaUpdatedAt:string|null}) => {
+      if(!companyId || attesaUpdatedAt===undefined) throw new Error("Ricarica il POS prima di approvarlo");
+      return chiamaServerPos<{ approvato_da_nome: string }>({ azione: "approva", company_id: companyId, pos_id: posId, attesa_updated_at:attesaUpdatedAt });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pos"] });
       toast.success("POS approvato");
@@ -190,7 +197,7 @@ export function useSalvaPos(id: string) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (campi: { contenuto?: PosContenuto; iter?: IterPos }) => {
+    mutationFn: async (campi: { contenuto?: PosContenuto; iter?: IterPos; attesa_updated_at:string|null }) => {
       const riga: TablesUpdate<"pos_documents"> = { updated_at: new Date().toISOString() };
       if (campi.contenuto) {
         const c = campi.contenuto;
@@ -204,8 +211,16 @@ export function useSalvaPos(id: string) {
         riga.responsabile_sicurezza = c.rspp.nominativo || null;
       }
       if (campi.iter) riga.iter = campi.iter as unknown as Json;
-      const { error } = await supabase.from("pos_documents").update(riga).eq("id", id).eq("company_id", companyId!);
-      if (error) throw error;
+      const atteso=campi.attesa_updated_at;
+      if(!companyId || atteso===undefined) throw new Error("Ricarica il POS prima di salvarlo");
+      let query=supabase.from("pos_documents").update(riga).eq("id",id).eq("company_id",companyId!);
+      query=atteso===null?query.is("updated_at",null):query.eq("updated_at",atteso);
+      const {data,error}=await query.select(SELECT_POS).maybeSingle();
+      if(error) throw error;
+      if(!data) throw new Error("Il POS è cambiato o non è più modificabile. Ricarica prima di salvare: le tue modifiche locali sono ancora qui.");
+      const aggiornato=daDb(data as unknown as RigaDb);
+      qc.setQueryData(chiavi.uno(companyId,id),aggiornato);
+      return aggiornato;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pos"] }),
     onError: (e) => toast.error(e instanceof Error ? `POS non salvato: ${e.message}` : "POS non salvato"),
@@ -218,25 +233,14 @@ export function useNuovaRevisione(pos: PosRiga | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (descrizione: string) => {
-      if (!pos) throw new Error("POS non caricato");
-      const rev = pos.revisione + 1;
-      const revisioni = [...pos.revisioni, { rev, data: new Date().toISOString().slice(0, 10), descrizione }];
-      const { error } = await supabase
-        .from("pos_documents")
-        .update({
-          status: "bozza",
-          revisione: rev,
-          revisioni: revisioni as unknown as Json,
-          approvato_da: null,
-          approvato_da_nome: null,
-          approvato_il: null,
-          // Firme e verifiche valgono per la revisione precedente.
-          iter: {} as unknown as Json,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", pos.id)
-        .eq("company_id", companyId!);
-      if (error) throw error;
+      if (!pos || !companyId || pos.company_id !== companyId) throw new Error("POS non disponibile nell’azienda corrente");
+      const { data, error } = await supabase.rpc('pos_apri_revisione' as never, {
+        _pos_id: pos.id,
+        _descrizione: descrizione,
+        _attesa_updated_at: pos.updated_at,
+      } as never);
+      if(error) throw error;
+      if(!data) throw new Error('Revisione non aperta: ricarica il POS.');
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pos"] });
@@ -265,6 +269,7 @@ export function useEliminaPos() {
 // ── Allegati ─────────────────────────────────────────────────────────────────
 
 export async function caricaAllegatoPos(companyId: string, posId: string, file: File): Promise<string> {
+  if(!file.size || file.size>20*1024*1024) throw new Error("Per l’emissione del POS scegli un file non vuoto fino a 20 MB");
   const sicuro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
   const path = `${companyId}/pos/${posId}/${crypto.randomUUID()}-${sicuro}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false, contentType: file.type || undefined });
@@ -369,4 +374,51 @@ export function useEliminaFigura() {
     },
     onError: (e) => toast.error(e instanceof Error ? `Figura non tolta: ${e.message}` : "Figura non tolta"),
   });
+}
+
+
+export interface ModelloPosAziendale {
+  id: string; nome: string; ambito: string; versione: number; created_at: string;
+}
+
+export function useModelliPos(enabled = true) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["pos", "modelli", companyId], enabled: !!companyId && enabled,
+    queryFn: () => readAllPages<ModelloPosAziendale>((from,to) => supabase.from("pos_modelli_aziendali" as never)
+      .select("id,nome,ambito,versione,created_at").eq("company_id",companyId!).eq("archiviato",false)
+      .order("nome").order("versione",{ascending:false}).order("id").range(from,to) as never),
+  });
+}
+
+export function useSalvaModelloPos() {
+  const companyId=useEffectiveCompanyId();
+  const qc=useQueryClient();
+  return useMutation({
+    mutationFn: (input:{pos:Pick<PosRiga,"id"|"updated_at">;nome:string;ambito:string;testiVerificati:boolean}) =>
+      chiamaServerPos<{modello_id:string;versione:number}>({azione:"salva_modello",company_id:companyId,pos_id:input.pos.id,attesa_updated_at:input.pos.updated_at,nome:input.nome,ambito:input.ambito,testi_verificati:input.testiVerificati}),
+    onSuccess: r=>{ qc.invalidateQueries({queryKey:["pos","modelli"]}); toast.success(`Modello aziendale salvato, versione ${r.versione}`); },
+    onError: e=>toast.error(e instanceof Error?e.message:"Modello non salvato"),
+  });
+}
+
+export function useArchiviaModelloPos() {
+  const companyId=useEffectiveCompanyId();
+  const qc=useQueryClient();
+  return useMutation({
+    mutationFn: (id:string)=>chiamaServerPos({azione:"archivia_modello",company_id:companyId,modello_id:id}),
+    onSuccess:()=>{qc.invalidateQueries({queryKey:["pos","modelli"]});toast.success("Versione archiviata. I POS già creati restano invariati.");},
+    onError:e=>toast.error(e instanceof Error?e.message:"Modello non archiviato"),
+  });
+}
+
+
+export async function pdfAnteprimaPos(companyId:string,posId:string): Promise<Blob> {
+  const res=await rispostaServerPos({azione:"anteprima_pdf",company_id:companyId,pos_id:posId});
+  if(!res.ok) {
+    const json=await res.json().catch(()=>({}));
+    throw new ErrorePos(json.error||"Anteprima PDF non disponibile");
+  }
+  if(!res.headers.get("Content-Type")?.includes("application/pdf")) throw new ErrorePos("Il server non ha restituito un PDF");
+  return res.blob();
 }

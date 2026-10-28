@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Nelle viste di lavoro (cantiere, materiali, economia) il riepilogo si riduce a
- * una riga con i numeri che servono, e si apre con un clic: senza, i quattro
- * blocchi occupavano ~740px e il contenuto della scheda partiva in fondo allo
- * schermo. La panoramica mantiene tutto aperto.
+ * una riga con stato e avanzamento, e si apre con un clic.
+ * Il riepilogo economico resta fuori da questo contenitore, sempre visibile.
+ * La panoramica mantiene anche i dettagli operativi aperti.
  *
  * I figli restano montati anche a riepilogo chiuso: nessun dato si ricarica.
  */

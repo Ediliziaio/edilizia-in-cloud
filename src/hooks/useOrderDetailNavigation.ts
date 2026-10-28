@@ -23,6 +23,7 @@ export function useOrderDetailNavigation(ready: boolean) {
   const activeCantiereView = resolveCantiereView(location.search, section);
   const activeEconomiaView = resolveEconomiaView(location.search, section);
   const activeMaterialiView = resolveMaterialiView(location.search, section);
+  const previousTab = useRef(tab);
 
   const navigateTo = useCallback(
     (destination: OrderDetailDestination) => {
@@ -41,6 +42,8 @@ export function useOrderDetailNavigation(ready: boolean) {
   );
 
   useEffect(() => {
+    const changedArea = previousTab.current !== tab;
+    previousTab.current = tab;
     if (
       !ready ||
       (!section && !new URLSearchParams(location.search).has("tab"))
@@ -52,11 +55,11 @@ export function useOrderDetailNavigation(ready: boolean) {
       // Explicit section links still jump straight to the requested content.
       const target = section
         ? document.getElementById(section)
-        : tab === "cantiere" && new URLSearchParams(location.search).has("vista_cantiere")
+        : !changedArea && tab === "cantiere" && new URLSearchParams(location.search).has("vista_cantiere")
         ? document.getElementById("cantiere-workspace")
-        : tab === "finanza" && new URLSearchParams(location.search).has("vista_economia")
+        : !changedArea && tab === "finanza" && new URLSearchParams(location.search).has("vista_economia")
         ? document.getElementById("economia-workspace")
-        : tab === "articoli" && new URLSearchParams(location.search).has("vista_materiali")
+        : !changedArea && tab === "articoli" && new URLSearchParams(location.search).has("vista_materiali")
         ? document.getElementById("materiali-workspace")
         : document.getElementById("order-detail-overview") ?? document.getElementById("order-detail-sections");
       // Legacy deep links can point inside a collapsed details element.
@@ -66,7 +69,7 @@ export function useOrderDetailNavigation(ready: boolean) {
         if (parent instanceof HTMLDetailsElement) parent.open = true;
         parent = parent.parentElement;
       }
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      target?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     });
     return () => cancelAnimationFrame(frame);
   }, [ready, tab, section, location.key, location.search]);

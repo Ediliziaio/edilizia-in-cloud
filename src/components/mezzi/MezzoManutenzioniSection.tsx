@@ -1,10 +1,13 @@
+import { VerbaleTecnicoDialog } from "./VerbaleTecnicoDialog";
+import {useVerbaliTecniciMezzo} from "@/hooks/useVerbaliTecniciMezzo";
+import {usePermissions} from "@/hooks/usePermissions";
 /**
  * Tagliandi e interventi di un mezzo, con il prossimo tagliando per data o per
  * km/ore. I km segnati su un intervento aggiornano quelli del mezzo (trigger
  * mezzi_aggiorna_contatore): non si scrivono in due posti.
  */
 import { useMemo, useState } from "react";
-import { Download, Gauge, Loader2, Paperclip, Pencil, Plus, Trash2, Wrench } from "lucide-react";
+import { Download, FileCheck2, Gauge, Loader2, Paperclip, Pencil, Plus, Trash2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
@@ -24,7 +27,7 @@ import {
 } from "@/hooks/useMezzi";
 import {
   STATO_SCADENZA_BADGE, TIPI_MANUTENZIONE, aggiungiGiorni, formatContatore, formatData, oggiIso,
-  prossimoTagliando, tipoManutenzioneLabel, vociPerClasse,
+  prossimoTagliando, tipoManutenzioneLabel, categoriaDocumentoLabel,vociPerClasse,
   type ContatoreUnita, type MezzoClasse, type MezzoManutenzione, type MezzoManutenzioneTipo,
 } from "@/types/mezzi";
 
@@ -38,10 +41,13 @@ interface Props {
   puoModificare: boolean;
   /** Per un attrezzo: manutenzione ordinaria, parti, tarature (niente tagliandi e gomme). */
   classe?: MezzoClasse;
+  onVaiDocumenti?:()=>void;
 }
 
-export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale, unita, puoModificare, classe = "mezzo" }: Props) {
+export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale, unita, puoModificare, classe = "mezzo",onVaiDocumenti }: Props) {
   const attrezzo = classe === "attrezzatura";
+  const permessi=usePermissions();const registro=useVerbaliTecniciMezzo(companyId,mezzoId);const registrazioni=permessi.canViewMezzi?registro.data?.registrazioni||[]:[];
+  const [verbale,setVerbale]=useState<MezzoManutenzione|null>(null);
   const { data: lista = [], isLoading, error, refetch } = useMezzoManutenzioni(mezzoId);
   const salva = useSalvaManutenzioneMezzo(mezzoId);
   const elimina = useEliminaManutenzioneMezzo();
@@ -110,6 +116,14 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
 
   return (
     <div className="space-y-4">
+      {verbale&&puoModificare&&<VerbaleTecnicoDialog key={verbale.id} companyId={companyId} mezzoId={mezzoId} manutenzioneId={verbale.id} onClose={()=>setVerbale(null)} onVaiDocumenti={onVaiDocumenti}/>}
+      {permessi.canViewMezzi && registro.isError && (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+          Non riesco a leggere il registro delle copie tecniche.{' '}
+          <button type="button" className="font-medium underline" onClick={() => registro.refetch()}>Riprova registro</button>
+        </div>
+      )}
+      {registrazioni.length>0&&<details className="rounded-xl border bg-card p-3"><summary className="cursor-pointer text-sm font-medium">Registro delle copie tecniche · {registrazioni.length}</summary><ul className="mt-3 space-y-2">{registrazioni.map(r=><li key={r.id} className="rounded border p-3 text-sm"><p className="font-medium">{r.titolo}</p><p className="mt-1 text-xs text-muted-foreground">{categoriaDocumentoLabel(r.categoria)} · Intervento {r.data_intervento?`del ${formatData(r.data_intervento)}`:"di origine registrato"} · Copia registrata il {formatData(r.registrato_il.slice(0,10))}</p>{!r.disponibile&&<p className="mt-1 text-xs text-amber-900">Il documento registrato è stato rimosso o sostituito: controlla l’archivio.</p>}{!lista.some(m=>m.id===r.manutenzione_id)&&<p className="mt-1 text-xs text-muted-foreground">L’intervento di origine non è più nello storico operativo. Il riferimento della registrazione resta conservato.</p>}{onVaiDocumenti&&<Button type="button" size="sm" variant="link" className="mt-1 h-auto p-0 text-xs" onClick={onVaiDocumenti}>Vai ai documenti della macchina</Button>}</li>)}</ul></details>}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -189,6 +203,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {[m.officina, m.costo != null ? euro(Number(m.costo)) : null, m.descrizione].filter(Boolean).join(" · ") || " "}
                 </p>
+                {registrazioni.some(r=>r.manutenzione_id===m.id)&&<p className="mt-1 text-xs text-muted-foreground">Copie tecniche registrate: {registrazioni.filter(r=>r.manutenzione_id===m.id).length}{onVaiDocumenti&&<Button type="button" variant="link" size="sm" className="ml-2 h-auto p-0 text-xs" onClick={onVaiDocumenti}>Vedi documenti</Button>}</p>}
                 {(m.prossima_data || m.prossimo_contatore != null) && (
                   <p className="mt-0.5 text-xs text-foreground/70">
                     Prossimo: {[
@@ -206,6 +221,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
                 )}
                 {puoModificare && (
                   <>
+                    {m.file_path&&<Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={()=>setVerbale(m)} aria-label={`Registra verbale tecnico dell’intervento del ${formatData(m.data)}`} title="Registra verbale tecnico"><FileCheck2 className="h-4 w-4"/></Button>}
                     <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => modifica(m)} aria-label="Modifica" title="Modifica">
                       <Pencil className="h-4 w-4" />
                     </Button>

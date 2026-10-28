@@ -4,6 +4,9 @@ import { isCommessaCampoEvent, isCommessaCampoQueryKey, refreshCampoAcquistoQuer
 import { createCommessaRefresh } from "@/lib/orders/createCommessaRefresh";
 
 const keys = [
+  ["campo-avanzamento-fasi", "c", "u", null], ["campo-avanzamento-fasi", "c", "u", "o"],
+  ["campo-sottofasi", "c", "u", "o"], ["campo-avanzamento-permessi", "c", "u", "o,altro"],
+  ["campo-avanzamento-cantieri", "c", "u", "o,altro"],
   ["order-campo-rapportini", "o", "c"], ["order-diary-audit", "o", "c"], ["order-events", "c", "o"],
   ["cronoprogramma-rapportini", "o", "c"], ["order-material-usage", "o", "c"], ["order-economics-canonical", "o"],
   ["order-economics-vehicles", "o"], ["oes-employees", "o"], ["order-conteggi-viste", "o", "c"],
@@ -19,6 +22,8 @@ describe("Allineamento Campo e commessa: letture canoniche, nessuna scrittura ec
     expect(isCommessaCampoQueryKey(key, "o", "c")).toBe(true);
   });
   it.each([
+    ["campo-avanzamento-fasi", "altra", "u", "o"], ["campo-avanzamento-fasi", "c", "u", "altro"],
+    ["campo-sottofasi", "c", "u", "altro"], ["campo-avanzamento-permessi", "c", "u", "non-o"],
     ["order-economics-canonical", "altro"], ["order-conteggi-viste", "o", "altra"], ["orders", "list", "c"],
     ["orders", "detail", "altro"], ["foto-cantiere", "order", "altra", "o"], ["foto-cantiere", "company", "c"],
     ["mezzi", "elenco", "c"], ["mezzi", "scheda", "o"], ["campo-sottofasi", "phase-id"],

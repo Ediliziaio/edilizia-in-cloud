@@ -6,10 +6,10 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  aggiornaDaDatiApp, completezzaPercento, lavorazioneVuota, normalizzaPos, posVuoto, vociMancanti,
+  completezzaPercento, lavorazioneVuota, normalizzaPos, posVuoto, vociMancanti,
   type Lavorazione, type PosContenuto,
 } from "../../../supabase/functions/_shared/posModello";
-import { dividiIndirizzo, formazioneDaAttestati } from "../../../supabase/functions/_shared/posDatiApp";
+import { dividiIndirizzo } from "../../../supabase/functions/_shared/posDatiApp";
 
 function lavorazione(extra: Partial<Lavorazione> = {}): Lavorazione {
   return {
@@ -47,8 +47,8 @@ function posCompleto(): PosContenuto {
   p.emergenze.addetti = [{ nominativo: "Luca Bianchi", antincendio: true, primo_soccorso: true, mansioni_sicurezza: "Emergenze in cantiere" }];
   p.lavoratori = [{ qualifica: "Operaio specializzato", numero: 2, note: "" }];
   p.formazione = [
-    { nominativo: "Luca Bianchi", qualifica: "Capocantiere", base: true, rischi_specifici: true, rischi_cantiere: true, dpi_terza_categoria: true, altro: "", attestati: "" },
-    { nominativo: "Marco Operaio", qualifica: "Operaio", base: true, rischi_specifici: false, rischi_cantiere: false, dpi_terza_categoria: false, altro: "", attestati: "" },
+    { nominativo: "Luca Bianchi", qualifica: "Capocantiere", base: true, verificata: true, rischi_specifici: true, rischi_cantiere: true, dpi_terza_categoria: true, altro: "", attestati: "" },
+    { nominativo: "Marco Operaio", qualifica: "Operaio", base: true, verificata: true, rischi_specifici: false, rischi_cantiere: false, dpi_terza_categoria: false, altro: "", attestati: "" },
   ];
   p.rumore.esito = "Dalla valutazione del 12/03/2026 l'esposizione è inferiore a 80 dB(A)";
   p.lavorazioni = [lavorazione()];
@@ -115,6 +115,15 @@ describe("contenuti minimi dell'Allegato XV", () => {
     expect(vociMancanti(p).map((v) => v.testo)).toContain("Impresa affidataria per cui si lavora in subappalto");
   });
 
+  it("il nuovo controllo richiede verifica umana, senza ricalcolare i documenti storici",()=>{
+    const p=posCompleto();p.formazione[0].verificata=false;
+    expect(vociMancanti(p).find(v=>v.sezione==='formazione')?.testo).toContain('Luca Bianchi');
+    const vecchio={...p};delete vecchio.versione_controlli;
+    expect(normalizzaPos(vecchio).versione_controlli).toBe(1);
+    expect(vociMancanti(normalizzaPos(vecchio))).toEqual([]);
+    expect(normalizzaPos(p).versione_controlli).toBe(2);
+  });
+
   it("un lavoratore senza nessuna formazione segnata blocca", () => {
     const p = posCompleto();
     p.formazione[1].base = false;
@@ -146,28 +155,6 @@ describe("lettura sicura", () => {
   });
 });
 
-describe("aggiornamento dai dati dell'app", () => {
-  it("rilegge impresa, figure e lavoratori, non tocca lavorazioni, rumore, turni e ruolo", () => {
-    const attuale = posCompleto();
-    attuale.impresa.ruolo = "esecutrice_subappalto";
-    attuale.impresa.subappalto_a = "Grande Impresa S.p.A.";
-    const daApp = posVuoto();
-    daApp.impresa.ragione_sociale = "Demo Azienda S.r.l. (nuova)";
-    daApp.lavoratori = [{ qualifica: "Operaio", numero: 4, note: "" }];
-    const nuovo = aggiornaDaDatiApp(attuale, daApp);
-    expect(nuovo.impresa.ragione_sociale).toBe("Demo Azienda S.r.l. (nuova)");
-    expect(nuovo.impresa.ruolo).toBe("esecutrice_subappalto");
-    expect(nuovo.impresa.subappalto_a).toBe("Grande Impresa S.p.A.");
-    expect(nuovo.lavoratori).toEqual([{ qualifica: "Operaio", numero: 4, note: "" }]);
-    expect(nuovo.lavorazioni).toEqual(attuale.lavorazioni);
-    expect(nuovo.rumore).toEqual(attuale.rumore);
-    expect(nuovo.opera.turni_lavoro).toBe(attuale.opera.turni_lavoro);
-    // Quello che l'app non ha non cancella quello scritto a mano.
-    expect(nuovo.rspp.nominativo).toBe("Anna Verdi");
-    expect(nuovo.opera.committente.nominativo).toBe("Fabio Riva");
-  });
-});
-
 describe("dati presi dall'app", () => {
   it("divide l'indirizzo del cantiere in via, località e provincia", () => {
     expect(dividiIndirizzo("Via Mazzini 14, Como")).toEqual({ via: "Via Mazzini 14", localita: "Como", provincia: "" });
@@ -177,11 +164,5 @@ describe("dati presi dall'app", () => {
     expect(dividiIndirizzo("")).toEqual({ via: "", localita: "", provincia: "" });
   });
 
-  it("spunta la formazione solo dove c'è un attestato che la documenta", () => {
-    expect(formazioneDaAttestati([], false)).toEqual({ base: false, rischi_specifici: false, dpi_terza_categoria: false });
-    expect(formazioneDaAttestati(["Formazione generale 4 ore"], false)).toMatchObject({ base: true, rischi_specifici: false });
-    expect(formazioneDaAttestati(["Formazione specifica rischio alto 12 ore"], false)).toMatchObject({ rischi_specifici: true });
-    expect(formazioneDaAttestati(["Lavori in quota e DPI anticaduta"], false)).toMatchObject({ dpi_terza_categoria: true });
-    expect(formazioneDaAttestati([], true)).toMatchObject({ base: true, rischi_specifici: true, dpi_terza_categoria: false });
-  });
+
 });

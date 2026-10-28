@@ -10,7 +10,7 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-teal-400 dark:border-teal-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
+      className={`w-[260px] rounded-xl border-2 bg-card shadow-sm transition-shadow hover:shadow-md border-teal-400 dark:border-teal-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-teal-500 !w-3 !h-3 !border-2 !border-background" />
 

@@ -18,6 +18,7 @@ import { Loader2, User, UserPlus, Settings2, DatabaseZap, Briefcase, Users, Head
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { CustomFieldInput } from "@/components/shared/CustomFieldInput";
+import { serializeFieldValue } from "@/lib/custom-fields/values";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
@@ -752,7 +753,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                         value={customFieldValues[field.id] || ""}
                         onChange={(v) => setCustomFieldValues((prev) => ({
                           ...prev,
-                          [field.id]: v === null || v === undefined ? "" : String(v),
+                          [field.id]: serializeFieldValue(v),
                         }))}
                       />
                     ))}

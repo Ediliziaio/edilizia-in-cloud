@@ -9,6 +9,9 @@
 export function linkPerCampo(url: string | null | undefined): string {
   if (!url) return "/campo";
   if (url.startsWith("/campo")) return url;
+  const survey = url.match(/^\/azienda\/sopralluoghi\/([0-9a-f-]{36})(?:\?|$)/i);
+  if (survey) return `/campo/sopralluoghi/${survey[1]}`;
+  if (/^\/azienda\/sopralluoghi(?:\?|$)/.test(url)) return "/campo/sopralluoghi";
   const commessa = url.match(/^\/azienda\/ordini\/([0-9a-f-]{36})/);
   if (commessa) return `/campo/lavoro/${commessa[1]}`;
   if (url.startsWith("/azienda/attivita")) return "/campo/attivita";

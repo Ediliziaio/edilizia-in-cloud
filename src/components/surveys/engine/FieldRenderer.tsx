@@ -108,6 +108,7 @@ function FieldInput({
           {isCurrency && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>}
           <Input
             type="number"
+            inputMode="decimal"
             aria-label={field.label}
             value={value == null ? "" : String(value)}
             onChange={(e) => {
@@ -135,15 +136,30 @@ function FieldInput({
       if (opts.length <= 4) {
         return (
           <RadioGroup
+            aria-label={field.label}
+            aria-required={field.required || undefined}
+            aria-invalid={hasError || undefined}
             value={(value as string) ?? ""}
             onValueChange={(v) => onChange(field.key, v)}
-            className="grid grid-cols-2 sm:flex sm:gap-3 sm:flex-wrap gap-2"
+            className="grid grid-cols-2 items-stretch gap-2"
           >
             {opts.map((o) => (
-              <div key={o.value} className="flex items-center gap-1.5 border rounded-md px-2.5 py-1.5 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
-                <RadioGroupItem value={o.value} id={`${field.key}-${o.value}`} />
-                <Label htmlFor={`${field.key}-${o.value}`} className="text-xs cursor-pointer">{o.label}</Label>
-              </div>
+              <label
+                key={o.value}
+                htmlFor={`${field.key}-${o.value}`}
+                className={cn(
+                  "flex min-h-12 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-colors motion-reduce:transition-none focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:ring-offset-2",
+                  value === o.value ? "border-blue-500 bg-blue-50/70 text-blue-950" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                  hasError && "border-rose-500",
+                )}
+              >
+                <RadioGroupItem
+                  value={o.value}
+                  id={`${field.key}-${o.value}`}
+                  className="h-4 w-4 min-h-0 min-w-0 shrink-0 self-center border-slate-300 text-blue-600 data-[state=checked]:border-blue-600"
+                />
+                <span className="min-w-0 break-words text-sm font-medium leading-snug">{o.label}</span>
+              </label>
             ))}
           </RadioGroup>
         );

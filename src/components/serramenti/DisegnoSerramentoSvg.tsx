@@ -42,6 +42,7 @@ interface Props {
    */
   compatto?: boolean;
   className?: string;
+  ariaLabel?: string;
 }
 
 const ROSSO = "#e11d2e";
@@ -100,7 +101,7 @@ function schiarisci(hex: string, quanto: number): string {
 }
 
 export function DisegnoSerramentoSvg({
-  disegno, scena: scenaData, vista, finituraInterna, finituraEsterna, finituraCassonetto, finituraTapparella, finituraManiglia = "argento", mostraQuote = true, compatto = false, className,
+  disegno, scena: scenaData, vista, finituraInterna, finituraEsterna, finituraCassonetto, finituraTapparella, finituraManiglia = "argento", mostraQuote = true, compatto = false, className, ariaLabel,
 }: Props) {
   const id = useId().replace(/:/g, "");
   const scena = useMemo(
@@ -221,7 +222,7 @@ export function DisegnoSerramentoSvg({
       viewBox={`${-mSx} ${-mSopra} ${W + mSx + mDx} ${H + mSopra + mSotto}`}
       className={className}
       role="img"
-      aria-label={`Serramento ${Math.round(W)} per ${Math.round(H)} millimetri, vista ${esterna ? "esterna" : "interna"}`}
+      aria-label={ariaLabel ?? `Serramento ${Math.round(W)} per ${Math.round(H)} millimetri, vista ${esterna ? "esterna" : "interna"}`}
       style={{ maxWidth: "100%", height: "auto" }}
     >
       <defs>
@@ -355,6 +356,8 @@ export function DisegnoSerramentoSvg({
 
           if (forma.kind === "rect") {
             switch (forma.ruolo) {
+              case "rete":
+                return <g key={i}><rect x={forma.x} y={forma.y} width={forma.w} height={forma.h} fill="#f7f9fa" /><rect x={forma.x} y={forma.y} width={forma.w} height={forma.h} fill={`url(#${id}rete)`} stroke="#78838c" strokeWidth={filo * 0.5} /></g>;
               case "vetro":
                 return vetro(
                   [[forma.x, forma.y], [forma.x + forma.w, forma.y], [forma.x + forma.w, forma.y + forma.h], [forma.x, forma.y + forma.h]],

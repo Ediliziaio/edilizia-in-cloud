@@ -21,9 +21,10 @@ import {
   GROUP_OPTIONS,
   OBJECT_NAME_MAP,
   isObjectRendered,
-  toSnakeCase,
 } from "@/components/settings/CustomFieldsConfig";
 import { PlatformCustomFieldsPanel } from "@/components/admin/settings/PlatformCustomFieldsPanel";
+import { fieldObjectType, customFieldKey } from "@/lib/custom-fields/objects";
+import { readDefinitionPages } from "@/lib/custom-fields/federatedCatalogue";
 
 // Oggetti selezionabili (esclude "Tutto").
 const OBJECTS = GROUP_OPTIONS.filter((g) => g.value !== "all");
@@ -60,13 +61,15 @@ export function PlatformEntityCustomFieldsPanel() {
   // lettura cross-azienda di marketing_custom_fields.
   const fieldsQuery = useQuery({
     queryKey: ["platform-entity-custom-fields"],
-    queryFn: async (): Promise<CompanyFieldRow[]> => {
+    queryFn: async ({ signal }): Promise<CompanyFieldRow[]> => {
+      return await readDefinitionPages(async (from, to) => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
         .select("id, company_id, name, field_type, object_type, section, is_required, created_at, deleted_at, companies(name)")
-        .order("created_at", { ascending: false });
+        .is("deleted_at", null).order("created_at", { ascending: false }).order("id").range(from, to).abortSignal(signal);
       if (error) throw new Error(error.message || "Errore caricamento campi");
-      return ((data ?? []) as unknown as CompanyFieldRow[]).filter((row) => !row.deleted_at);
+      return (data ?? []) as unknown as Record<string, unknown>[];
+      }, signal) as unknown as CompanyFieldRow[];
     },
     staleTime: 30_000,
   });
@@ -82,10 +85,13 @@ export function PlatformEntityCustomFieldsPanel() {
 
   // Conteggio campi di sistema (BUILTIN) per object_type, via label.
   const systemCountByObject = useMemo(() => {
-    const byLabel = new Map<string, number>();
-    for (const bf of BUILTIN_FIELDS) byLabel.set(bf.object, (byLabel.get(bf.object) ?? 0) + 1);
+    const byType = new Map<string, number>();
+    for (const bf of BUILTIN_FIELDS) {
+      const type = fieldObjectType(bf);
+      byType.set(type, (byType.get(type) ?? 0) + 1);
+    }
     const map = new Map<string, number>();
-    for (const g of OBJECTS) map.set(g.value, byLabel.get(objectLabel(g.value)) ?? 0);
+    for (const g of OBJECTS) map.set(g.value, byType.get(g.value) ?? 0);
     return map;
   }, []);
 
@@ -136,7 +142,7 @@ export function PlatformEntityCustomFieldsPanel() {
   const filteredSystemFields = useMemo(() => {
     const q = systemSearch.trim().toLowerCase();
     return BUILTIN_FIELDS.filter((bf) => {
-      if (systemObject !== "all" && bf.object !== objectLabel(systemObject)) return false;
+      if (systemObject !== "all" && fieldObjectType(bf) !== systemObject) return false;
       if (!q) return true;
       return (
         bf.name.toLowerCase().includes(q) ||
@@ -168,7 +174,7 @@ export function PlatformEntityCustomFieldsPanel() {
         </div>
         <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">Oggetti resi in UI</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">Con compilatore centrale</p>
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-semibold text-emerald-800 dark:text-emerald-200">{renderedCount}</p>
@@ -179,11 +185,11 @@ export function PlatformEntityCustomFieldsPanel() {
           apiOnlyCount > 0 ? "border-amber-300 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20" : "",
         )}>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-amber-700 dark:text-amber-300">Oggetti solo API</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Senza compilatore centrale</p>
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <p className="text-2xl font-semibold text-amber-800 dark:text-amber-200">{apiOnlyCount}</p>
-          <p className="text-xs text-amber-700/80 dark:text-amber-300/80">Campi salvati ma non resi</p>
+          <p className="text-xs text-amber-700/80 dark:text-amber-300/80">Definizioni da collegare alle schede</p>
         </div>
       </div>
 
@@ -210,9 +216,9 @@ export function PlatformEntityCustomFieldsPanel() {
         {/* ── Copertura ─────────────────────────────────────────────── */}
         <TabsContent value="coverage" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Ogni oggetto può ospitare campi personalizzati. Gli oggetti <strong>solo API</strong> salvano
-            i valori in database ma non hanno ancora un renderer nei form della UI: i campi creati lì
-            non sono visibili agli utenti. Questa è la principale lista di gap “da inserire”.
+            La presenza di una definizione non garantisce che sia compilabile nelle schede o risolvibile in tutti i testi.
+            Gli oggetti senza compilatore centrale possono avere percorsi dedicati, come le schede tecniche del listino.
+            Qui si misura soltanto il collegamento con i campi personalizzati centrali.
           </p>
           {objectsWithoutSystemFields.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
@@ -237,11 +243,11 @@ export function PlatformEntityCustomFieldsPanel() {
                     <TableCell>
                       {row.rendered ? (
                         <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Reso in UI
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Nelle schede
                         </Badge>
                       ) : (
                         <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                          <AlertTriangle className="mr-1 h-3 w-3" /> Solo API
+                          <AlertTriangle className="mr-1 h-3 w-3" /> Da collegare
                         </Badge>
                       )}
                     </TableCell>
@@ -359,7 +365,7 @@ export function PlatformEntityCustomFieldsPanel() {
                         <TableCell className="text-muted-foreground">{f.field_type}</TableCell>
                         <TableCell>
                           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                            {`{{ ${f.object_type}.${toSnakeCase(f.name)} }}`}
+                            {customFieldKey(f)}
                           </code>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { HrQueryError } from "@/components/hr/HrQueryError";
+import { HrPager } from "@/components/hr/HrPager";
+import { readAllPages } from "@/lib/personale/readAllPages";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, Loader2, FileText, FileUp, Send, Search, Building2, CheckCircle2, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -20,6 +23,8 @@ import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { CaricaBustePagaDialog } from "./CaricaBustePagaDialog";
 import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { TIPI_DOCUMENTO, type TipoDocumentoPaghe } from "@/lib/paghe/lettoreBustePaga";
+import { PagheWorkspace } from "@/components/personale/PagheWorkspace";
+import { payrollAmount,optionalPayrollAmount } from "@/lib/paghe/registri";
 
 /** Un documento ricavato dal PDF del consulente (hr_paghe_documenti). */
 interface DocumentoPaghe {
@@ -55,6 +60,7 @@ const STATO_LABELS: Record<string, string> = {
 };
 
 interface CedolinoForm {
+  profilo_id: string;
   employee_name: string;
   mese: string;
   anno: string;
@@ -67,6 +73,7 @@ interface CedolinoForm {
 }
 
 const emptyForm = (): CedolinoForm => ({
+  profilo_id: "",
   employee_name: "",
   mese: String(new Date().getMonth() + 1),
   anno: String(new Date().getFullYear()),
@@ -78,21 +85,15 @@ const emptyForm = (): CedolinoForm => ({
   note: "",
 });
 
-function parseNonNegativeAmount(value: string, label: string, required = false) {
-  if (!value.trim()) {
-    if (required) throw new Error(`${label} obbligatorio`);
-    return 0;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`${label} deve essere un importo valido e non negativo`);
-  }
-
-  return parsed;
+export function TabCedolini() {
+  const [view,setView]=useState<'cedolini'|'benefit'|'registers'>('cedolini');
+  const permissions=usePermissions();
+  return <div className="mt-4 space-y-4"><nav aria-label="Sezioni paghe" className="flex flex-wrap gap-2 rounded-xl border bg-white p-2">
+    {([['cedolini','Cedolini'],['benefit','Benefit e rimborsi'],['registers','TFR e welfare']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?'default':'ghost'} disabled={key!=='cedolini'&&(!permissions.isAdmin||permissions.isLoading)} onClick={()=>setView(key)}>{label}</Button>)}
+  </nav>{view==='cedolini'?<CedoliniArchivio/>:<PagheWorkspace key={view} area={view}/>}</div>;
 }
 
-export function TabCedolini() {
+function CedoliniArchivio() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -103,6 +104,8 @@ export function TabCedolini() {
   // early-return): così TUTTI gli hook sotto girano sempre (Rules of Hooks).
   // La query sensibile è disabilitata per i ristretti + render gated più sotto.
   const isRestricted = !permissions.isAdmin && !permissions.canViewBilling;
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && !isRestricted;
+  const [paging, setPaging] = useState({ key: "", page: 0 });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CedolinoForm>(emptyForm());
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
@@ -111,22 +114,21 @@ export function TabCedolini() {
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [printTitle, setPrintTitle] = useState("");
   const [caricaOpen, setCaricaOpen] = useState(false);
-  const [filterMese, setFilterMese] = useState("tutti");
+  const [filterMese, setFilterMese] = useState(String(new Date().getMonth() + 1));
   const [cerca, setCerca] = useState("");
 
   // I documenti caricati dal consulente nell'anno: il PDF vero di ogni busta,
   // la consegna (pubblicata / aperta) e i documenti che restano all'azienda.
-  const { data: documenti = [] } = useQuery({
+  const { data: documenti = [], isError: documentsError, refetch: retryDocuments } = useQuery({
     queryKey: ["paghe-documenti", companyId, filterYear],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase
         .from("hr_paghe_documenti" as never)
         .select("id, tipo, per_dipendente, cedolino_id, caricamento_id, titolo, anno, mese, pubblicato_at, visto_at")
         .eq("company_id", companyId!)
         .eq("anno", parseInt(filterYear))
         .is("sostituito_da", null)
-        .order("mese", { ascending: false });
-      if (error) throw error;
+        .order("mese", { ascending: false }).order("id").range(from, to).abortSignal(signal));
       return (data ?? []) as unknown as DocumentoPaghe[];
     },
     enabled: !!companyId && !isRestricted,
@@ -160,20 +162,31 @@ export function TabCedolini() {
     try { await apriDocumentoPaghe(documentoId); } catch { toast.error("Non riesco ad aprire il documento. Riprova tra poco."); }
   };
 
-  const { data: cedolini = [], isLoading } = useQuery({
+  const { data: cedolini = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["cedolini", companyId, filterYear],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase
         .from("cedolini")
         .select("*")
         .eq("company_id", companyId!)
         .eq("anno", parseInt(filterYear))
-        .order("mese", { ascending: false });
-      if (error) throw error;
+        .order("mese", { ascending: false }).order("id").range(from, to).abortSignal(signal));
       return data || [];
     },
     enabled: !!companyId && !isRestricted,
   });
+
+  const peopleQuery = useQuery({
+    queryKey: ["hr-payroll-people", companyId], enabled: !!companyId && canEdit && dialogOpen,
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase.from("hr_profili").select("id,employee_id,nome,cognome,matricola,attivo")
+        .eq("company_id", companyId!).not("employee_id", "is", null).order("cognome").order("id").range(from, to).abortSignal(signal));
+      return data || [];
+    },
+  });
+  const filterKey = JSON.stringify([companyId, filterYear, filterMese, cerca]);
+  const page = paging.key === filterKey ? paging.page : 0;
+  const setPage = (value: number) => setPaging({ key: filterKey, page: value });
 
   const computedNetto = () => {
     // 2026-05-27 (Form UX audit): parseDecimalIT — prima parseFloat
@@ -192,8 +205,8 @@ export function TabCedolini() {
       toast.error("Azienda non disponibile");
       return;
     }
-    if (!form.employee_name.trim()) {
-      toast.error("Inserisci prima il nome del dipendente");
+    if (!form.profilo_id) {
+      toast.error("Seleziona prima il dipendente");
       return;
     }
     setIsFetchingOre(true);
@@ -209,17 +222,13 @@ export function TabCedolini() {
       // Fonte VERA: hr_giornate (consolidate dalle timbrature). La vecchia
       // query interrogava una tabella `presenze` che non è mai esistita nel
       // database: il bottone falliva dal primo giorno.
-      const nomeCercato = form.employee_name.trim().toLowerCase();
       const { data: profili, error: profErr } = await supabase
         .from("hr_profili")
         .select("id, nome, cognome, employee_id")
         .eq("company_id", companyId!)
-        .eq("attivo", true);
+        .eq("id", form.profilo_id);
       if (profErr) { toast.error("Errore nel recupero dei profili"); return; }
-      const match = (profili || []).filter((p) =>
-        `${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase().includes(nomeCercato)
-        || nomeCercato.includes(`${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase()),
-      );
+      const match = profili || [];
       if (match.length === 0) {
         toast.info(`Nessun profilo HR trovato per "${form.employee_name}"`);
         return;
@@ -270,7 +279,7 @@ export function TabCedolini() {
       } as never);
 
       const esito = calcolo as Record<string, unknown> | null;
-      if (calcErr || !esito || esito.calcolabile !== true) {
+      if (calcErr || !esito || esito.calcolabile !== true || esito.tipo_risultato !== 'stima_non_validata') {
         const motivo = (esito?.motivo as string | undefined) ?? calcErr?.message;
         setForm((f) => ({ ...f, note: f.note ? `${f.note}\n${oreLine}` : oreLine }));
         toast.warning(`Recuperate ${totalOre.toFixed(1)} ore, ma il lordo non si può calcolare`, {
@@ -304,7 +313,7 @@ export function TabCedolini() {
       }));
 
       toast.success(
-        `Cedolino calcolato: lordo ${Number(esito.lordo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`,
+        `Stima non validata: lordo ${Number(esito.lordo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`,
         {
           description: avvisi.length
             ? `${avvisi.length} ${avvisi.length === 1 ? "avviso" : "avvisi"} nelle note — controlla prima di salvare.`
@@ -319,13 +328,14 @@ export function TabCedolini() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non disponibile");
-      if (!form.employee_name.trim()) throw new Error("Nome dipendente obbligatorio");
-      const lordo = parseNonNegativeAmount(form.lordo, "Lordo", true);
-      const contributiDipendente = parseNonNegativeAmount(form.contributi_dipendente, "Contributi dipendente");
-      const contributiDatore = parseNonNegativeAmount(form.contributi_datore, "Contributi datore");
-      const ritenuteIrpef = parseNonNegativeAmount(form.ritenute_irpef, "Ritenute IRPEF");
+      if (!canEdit) throw new Error("Operazione non consentita");
+      if (!form.profilo_id) throw new Error("Seleziona il dipendente");
+      const lordo = payrollAmount(form.lordo, "Lordo");
+      const contributiDipendente = optionalPayrollAmount(form.contributi_dipendente, "Contributi dipendente");
+      const contributiDatore = optionalPayrollAmount(form.contributi_datore, "Contributi datore");
+      const ritenuteIrpef = optionalPayrollAmount(form.ritenute_irpef, "Ritenute IRPEF");
 
-      if (contributiDipendente + ritenuteIrpef > lordo) {
+      if ((contributiDipendente ?? 0) + (ritenuteIrpef ?? 0) > lordo) {
         throw new Error("Contributi dipendente e IRPEF non possono superare il lordo");
       }
 
@@ -335,15 +345,13 @@ export function TabCedolini() {
       // dipendente (che filtra proprio su employee_id), cioè non serviva a
       // nessuno. Ora l'archivio è uno solo, `hr_cedolini`, dove il legame è
       // obbligatorio: il nome lo prende dall'anagrafica.
-      const nomeCompleto = form.employee_name.trim().toLowerCase();
-      const { data: profiliMatch } = await supabase
+      const { data: profiliMatch, error: peopleError } = await supabase
         .from("hr_profili")
         .select("employee_id, nome, cognome")
         .eq("company_id", companyId)
-        .not("employee_id", "is", null);
-      const trovati = (profiliMatch || []).filter(
-        (p) => `${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase() === nomeCompleto,
-      );
+        .not("employee_id", "is", null).eq("id", form.profilo_id);
+      if (peopleError) throw peopleError;
+      const trovati = profiliMatch || [];
       if (trovati.length === 0) {
         throw new Error(
           `"${form.employee_name.trim()}" non corrisponde a nessun dipendente in anagrafica. `
@@ -365,15 +373,15 @@ export function TabCedolini() {
         contributi_dipendente: contributiDipendente,
         contributi_datore: contributiDatore,
         ritenute_irpef: ritenuteIrpef,
-        netto: Math.round((lordo - contributiDipendente - ritenuteIrpef) * 100) / 100,
-        stato: form.stato,
+        netto: contributiDipendente==null||ritenuteIrpef==null?null:Math.round((lordo - contributiDipendente - ritenuteIrpef) * 100) / 100,
+        stato: "bozza",
         generation_method: "manual",
         note: form.note.trim() || null,
       } as never);
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
-      toast.success("Cedolino creato");
+      toast.success("Prospetto interno salvato in bozza: non è una busta paga validata");
       queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] });
       setDialogOpen(false);
       setForm(emptyForm());
@@ -383,7 +391,9 @@ export function TabCedolini() {
 
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
+      if (!canEdit) throw new Error("Operazione non consentita");
       if (!companyId) throw new Error("Azienda non disponibile");
+      if (stato!=='bozza' && (documentsError || !docPerCedolino.has(id))) throw new Error("Collega prima il PDF originale del consulente: un prospetto interno non può essere emesso o pagato");
       const { error } = await supabase
         .from("hr_cedolini")
         .update({ stato })
@@ -441,6 +451,8 @@ export function TabCedolini() {
 
   return (
     <div className="space-y-4 mt-4">
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-medium">Busta paga originale e prospetto interno sono documenti diversi</p><p className="mt-1">Carica il PDF del consulente per archivio e consegna. Gli inserimenti a mano e i calcoli automatici sono bozze indicative: non ricostruiscono tutte le voci, i fondi o i conguagli. Ore mancanti non autorizzano trattenute.</p></div>
+      {documentsError && <HrQueryError label="Documenti e stato di consegna non disponibili" onRetry={retryDocuments} />}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -467,11 +479,11 @@ export function TabCedolini() {
               {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo a mano
+          <Button disabled={!canEdit} size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo prospetto
           </Button>
           {/* Caricare e pubblicare è del titolare (così le regole del database). */}
-          {permissions.isAdmin && (
+          {canEdit && permissions.isAdmin && (
             <Button size="sm" onClick={() => setCaricaOpen(true)}>
               <FileUp className="h-4 w-4 mr-1" aria-hidden="true" /> Carica dal consulente
             </Button>
@@ -479,7 +491,7 @@ export function TabCedolini() {
         </div>
       </div>
 
-      {daPubblicare > 0 && permissions.isAdmin && (
+      {daPubblicare > 0 && canEdit && permissions.isAdmin && !documentsError && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>{daPubblicare} documenti per i dipendenti sono salvati ma non ancora pubblicati: i dipendenti non li vedono.</span>
           <Button size="sm" onClick={() => pubblicaMutation.mutate()} disabled={pubblicaMutation.isPending}>
@@ -492,7 +504,7 @@ export function TabCedolini() {
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
-      ) : cedoliniVisibili.length === 0 ? (
+      ) : isError ? <HrQueryError label="Cedolini non disponibili" onRetry={refetch} /> : cedoliniVisibili.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-2">
             <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
@@ -523,24 +535,24 @@ export function TabCedolini() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {cedoliniVisibili.map((c: any) => {
-                const netto = c.netto ?? ((Number(c.lordo) || 0) - (Number(c.contributi_dipendente) || 0) - (Number(c.ritenute_irpef) || 0));
+              {cedoliniVisibili.slice(Math.min(page, Math.max(0, Math.ceil(cedoliniVisibili.length / 20) - 1)) * 20, (Math.min(page, Math.max(0, Math.ceil(cedoliniVisibili.length / 20) - 1)) + 1) * 20).map((c: any) => {
+                const netto = c.netto;
                 const doc = docPerCedolino.get(c.id);
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.employee_name}</TableCell>
+                    <TableCell className="font-medium">{c.employee_name}<p className="mt-1 text-xs font-normal text-muted-foreground">{doc?'PDF originale del consulente':'Prospetto interno · non validato'}</p></TableCell>
                     <TableCell className="text-sm">{MESI[c.mese - 1]} {c.anno}</TableCell>
-                    <TableCell className="text-right text-sm">{formatCurrency(c.lordo)}</TableCell>
-                    <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.contributi_dipendente)}</TableCell>
-                    <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.ritenute_irpef)}</TableCell>
-                    <TableCell className="text-right font-semibold text-primary">{formatCurrency(netto)}</TableCell>
+                    <TableCell className="text-right text-sm">{c.lordo==null?'Da verificare':formatCurrency(c.lordo)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.contributi_dipendente==null?'Da verificare':formatCurrency(c.contributi_dipendente)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.ritenute_irpef==null?'Da verificare':formatCurrency(c.ritenute_irpef)}</TableCell>
+                    <TableCell className="text-right font-semibold text-primary">{netto==null?'Da verificare':formatCurrency(netto)}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
+                        {(!canEdit || !doc) && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
                           {STATO_LABELS[c.stato] || c.stato}
-                        </span>
+                        </span>}
                       </div>
-                      <Select value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
+                      {canEdit && !!doc && <Select disabled={updateStatoMutation.isPending || documentsError} value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
                         <SelectTrigger className="h-9 text-base md:h-6 md:text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
                           <SelectValue />
                         </SelectTrigger>
@@ -549,7 +561,7 @@ export function TabCedolini() {
                             <SelectItem key={s} value={s} className="text-xs">{STATO_LABELS[s]}</SelectItem>
                           ))}
                         </SelectContent>
-                      </Select>
+                      </Select>}
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-xs">
                       {!doc ? <span className="text-muted-foreground">—</span>
@@ -562,10 +574,10 @@ export function TabCedolini() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        title={doc ? "Apri il PDF del consulente" : "Scarica cedolino PDF"}
+                        title={doc ? "Apri il PDF del consulente" : "Carica prima il PDF originale del consulente"}
                         onClick={() => (doc ? apri(doc.id) : handleExportPdf(c))}
-                        disabled={isExporting && exportingId === c.id}
-                        aria-label="Scarica cedolino PDF"
+                        disabled={!doc || documentsError || (isExporting && exportingId === c.id)}
+                        aria-label={doc?"Apri PDF originale":"PDF originale non disponibile"}
                       >
                         {isExporting && exportingId === c.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -608,22 +620,26 @@ export function TabCedolini() {
         </div>
       )}
 
-      {companyId && <CaricaBustePagaDialog companyId={companyId} open={caricaOpen} onOpenChange={setCaricaOpen} />}
+      {!isError && <HrPager total={cedoliniVisibili.length} page={page} onPage={setPage} />}
+      {companyId && canEdit && <CaricaBustePagaDialog companyId={companyId} open={caricaOpen} onOpenChange={setCaricaOpen} />}
 
       {/* Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuovo Cedolino</DialogTitle>
+            <DialogTitle>Nuovo prospetto interno · bozza</DialogTitle>
+            <DialogDescription>Non è una busta paga. Gli importi mancanti restano da verificare; per emissione e consegna carica il PDF originale del consulente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
               <Label>Dipendente *</Label>
-              <Input
-                value={form.employee_name}
-                onChange={(e) => setForm((p) => ({ ...p, employee_name: e.target.value }))}
-                placeholder="Nome e cognome"
-              />
+              <Select disabled={peopleQuery.isLoading || peopleQuery.isError} value={form.profilo_id} onValueChange={(id) => {
+                const person = peopleQuery.data?.find((p) => p.id === id);
+                if (person) setForm((p) => ({ ...p, profilo_id: id, employee_name: `${person.nome} ${person.cognome}` }));
+              }}><SelectTrigger aria-label="Dipendente del cedolino"><SelectValue placeholder="Seleziona dipendente" /></SelectTrigger>
+                <SelectContent>{(peopleQuery.data || []).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome} · {p.matricola || p.id.slice(0, 8)}{!p.attivo ? " · Storico" : ""}</SelectItem>)}</SelectContent>
+              </Select>
+              {peopleQuery.isError && <HrQueryError label="Anagrafica non disponibile" onRetry={peopleQuery.refetch} />}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -661,7 +677,7 @@ export function TabCedolini() {
               ) : (
                 <Download className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
               )}
-              {isFetchingOre ? "Caricamento..." : "Carica ore da timbrature"}
+              {isFetchingOre ? "Verifica in corso…" : "Verifica ore e prepara una stima"}
             </Button>
 
             <div className="grid grid-cols-2 gap-3">
@@ -685,25 +701,18 @@ export function TabCedolini() {
               </div>
             </div>
             <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-              <span className="text-sm font-medium">Netto stimato</span>
-              <span className="text-primary font-bold">{formatCurrency(computedNetto())}</span>
+              <span className="text-sm font-medium">Risultato aritmetico non validato</span>
+              <span className="text-primary font-bold">{[form.lordo,form.contributi_dipendente,form.ritenute_irpef].every(v=>v.trim())?formatCurrency(computedNetto()):'Dati incompleti'}</span>
             </div>
             <div className="space-y-1">
-              <Label>Stato</Label>
-              <Select value={form.stato} onValueChange={(v) => setForm((p) => ({ ...p, stato: v as CedolinoForm["stato"] }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(["bozza", "emesso", "pagato"] as const).map((s) => (
-                    <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">Salvataggio solo in bozza. Per emissione e consegna importa il documento originale validato dal consulente. Compila anche gli importi pari a zero: un dato vuoto non è uno zero verificato.</p>
             </div>
+            {form.note&&<details className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><summary className="cursor-pointer font-medium">Ipotesi e avvisi della stima · da verificare</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{form.note}</p></details>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crea cedolino"}
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva prospetto in bozza"}
             </Button>
           </DialogFooter>
         </DialogContent>

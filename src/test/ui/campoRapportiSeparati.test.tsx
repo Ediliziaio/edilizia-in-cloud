@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoLavoroDetail from "@/pages/campo/CampoLavoroDetail";
 
-const state = vi.hoisted(() => ({ error: false, loading: false, refetch: vi.fn(), capo: true }));
+const state = vi.hoisted(() => ({ error: false, loading: false, refetch: vi.fn(), capo: true, colleghi: false, ruoloErrore: false, ruoloCarica: false, filters: [] as unknown[][], historyOptions: null as null | { queryKey: unknown[]; enabled?: boolean; queryFn: () => Promise<unknown> } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { id: "worker", company_id: "company" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isOperaio: true }) }));
 vi.mock("@/hooks/useOrderDiary", () => ({ useOrderDiary: () => ({ timeline: [] as unknown[] }) }));
@@ -11,18 +11,23 @@ vi.mock("@/components/campo/NoteCantiereCampo", () => ({ NoteCantiereCampo: () :
 vi.mock("@/components/campo/ChiLavoraCampo", () => ({ ChiLavoraCampo: () : null => null }));
 vi.mock("@/components/common/ImgRiservata", () => ({ ImgRiservata: () : null => null }));
 vi.mock("@/components/campo/FirmaPad", () => ({ FirmaPad: () => <div>Canvas firma di prova</div> }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
+  const q = { select: () => q, eq: (column: string, value: unknown) => { state.filters.push([column,value]); return q; }, order: () => q, then: Promise.resolve({data:[],error:null}).then.bind(Promise.resolve({data:[],error:null})) }; return q;
+} } }));
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryKey }: { queryKey: string[] }) => {
+  useQuery: (options: { queryKey: string[]; enabled?: boolean; queryFn: () => Promise<unknown> }) => {
+    const { queryKey } = options;
+    if (queryKey[0] === "campo-rapportini-ordine" && queryKey[2] !== "collaudi") state.historyOptions = options;
     const history = queryKey[0] === "campo-rapportini-ordine";
     const data = queryKey[0] === "campo-lavoro" ? {
       id: "assignment", is_capocantiere: state.capo,
       order: { id: "order", order_code: "C-1", description: "Cantiere di prova", percentuale_avanzamento: 40, status: "in_corso", customer: null as null },
     } : history ? [
-      { id: "daily", data_lavoro: "2026-10-12", stato: "inviato", ore_lavorate: 7, descrizione_lavori: "La giornata di posa", lavoro_completato: false },
-      { id: "client", data_lavoro: "2026-10-11", stato: "inviato", ore_lavorate: 0, descrizione_lavori: "La consegna delle finestre", lavoro_completato: true, firma_cliente_url: "cliente.png", firma_cliente_nome: "Luca Bianchi" },
+      { id: "daily", user_id: "worker", data_lavoro: "2026-10-12", stato: "inviato", ore_lavorate: 7, descrizione_lavori: "La giornata di posa", lavoro_completato: false },
+      { id: "client", user_id: "worker", data_lavoro: "2026-10-11", stato: "inviato", ore_lavorate: 0, descrizione_lavori: "La consegna delle finestre", lavoro_completato: true, firma_cliente_url: "cliente.png", firma_cliente_nome: "Luca Bianchi" },
+      ...(state.colleghi ? [{ id: "collega", user_id: "other", autore: {first_name:"Luca",last_name:"Collega"}, data_lavoro: "2026-10-12", stato: "rifiutato", ore_lavorate: 0, descrizione_lavori: "Rapportino del collega", lavoro_completato: false }] : []),
     ] : queryKey[0] === "campo-ruolo" ? { isCapocantiere: state.capo, esisteCapo: true, isCaposquadra: false } : undefined;
-    return { data, isLoading: history && state.loading, isError: history && state.error, refetch: state.refetch };
+    return { data, isLoading: (history && state.loading) || (queryKey[0] === "campo-ruolo" && state.ruoloCarica), isError: (history && state.error) || (queryKey[0] === "campo-ruolo" && state.ruoloErrore), refetch: state.refetch };
   },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({ mutate: vi.fn(), isPending: false }),
@@ -33,7 +38,7 @@ function open(query = "tab=rapportini") {
     <Routes><Route path="/campo/lavoro/:orderId" element={<CampoLavoroDetail />} /></Routes>
   </MemoryRouter>);
 }
-beforeEach(() => { state.error = false; state.loading = false; state.capo = true; vi.clearAllMocks(); });
+beforeEach(() => { state.error = false; state.loading = false; state.capo = true; state.colleghi = false; state.ruoloErrore = false; state.ruoloCarica = false; state.filters = []; state.historyOptions = null; vi.clearAllMocks(); });
 afterEach(cleanup);
 
 describe("Rapportino (operaio) e Collaudo (cliente) restano due cose separate", () => {
@@ -110,4 +115,29 @@ describe("Rapportino (operaio) e Collaudo (cliente) restano due cose separate", 
     expect(screen.getByRole("status")).toHaveTextContent("Carico i rapporti");
     expect(screen.queryByText("Nessun rapportino per questo cantiere")).toBeNull();
   });
+});
+
+describe("Consultazione dei rapportini del cantiere", () => {
+ it("il capocantiere riconosce gli autori ma firma solo il proprio", () => {
+  state.colleghi = true; open();
+  expect(screen.getByText("Luca Collega")).toBeInTheDocument();
+  expect(screen.getByText("Rapportino del collega")).toBeInTheDocument();
+  expect(screen.getAllByRole("button", {name:"Aggiungi la tua firma"})).toHaveLength(1);
+  expect(screen.queryByRole("button", {name:"Correggi e rimanda"})).toBeNull();
+ });
+ it("la lettura del capo è limitata ad azienda e commessa con cache distinta", async () => {
+  open(); const options = state.historyOptions!; expect(options.enabled).toBe(true);
+  expect(options.queryKey).toEqual(["campo-rapportini-ordine","order","worker","company","cantiere"]);
+  await options.queryFn(); expect(state.filters).toEqual([["company_id","company"],["order_id","order"]]);
+ });
+ it("gli altri operatori conservano il filtro personale sul server", async () => {
+  state.capo=false;open();const options=state.historyOptions!;await options.queryFn();
+  expect(options.queryKey.at(-1)).toBe("personali");
+  expect(state.filters).toContainEqual(["user_id","worker"]);
+ });
+ it.each(["errore","caricamento"])("ruolo in %s: non allarga né avvia la lettura", (caso) => {
+  state.ruoloErrore=caso==="errore";state.ruoloCarica=caso==="caricamento";open();
+  expect(state.historyOptions?.enabled).toBe(false);
+  if(state.ruoloErrore)expect(screen.getByRole("alert")).toHaveTextContent("Non riesco a verificare quali rapportini");
+ });
 });

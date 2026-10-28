@@ -3,6 +3,7 @@ export type OrderDetailTab = "panoramica" | "cantiere" | "articoli" | "finanza";
 export const CANTIERE_VIEWS = [
   { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, responsabili, assegnazioni e mezzi del cantiere." },
   { value: "cronoprogramma", label: "Cronoprogramma", description: "Le fasi nel tempo: date previste e reali, ritardi e avanzamento." },
+  { value: "sopralluoghi", label: "Rilievi e sopralluoghi", description: "Visite, misure e verifiche tecniche collegate a questa commessa." },
   { value: "ufficio", label: "Ufficio", description: "Le fasi dell’ufficio: contratto, ordini, pratiche, fatture, con chi le fa." },
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
@@ -14,7 +15,9 @@ export const ECONOMIA_VIEWS = [
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
   { value: "manodopera", label: "Manodopera e subappalti", description: "Ore, tariffe, budget e costi registrati di dipendenti e ditte." },
   { value: "pagamenti", label: "Incassi e pagamenti", description: "Rate cliente, uscite ai fornitori e disponibilità di cassa." },
-  { value: "documenti", label: "Varianti, SAL e documenti", description: "Variazioni del contratto, avanzamento economico e documenti fiscali." },
+  { value: "varianti", label: "Varianti", description: "Modifiche del contratto e dei lavori concordati." },
+  { value: "sal", label: "SAL", description: "Avanzamento riconosciuto e verbali." },
+  { value: "documenti", label: "Documenti", description: "Fatture e documenti fiscali collegati." },
 ] as const;
 export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
@@ -29,7 +32,9 @@ export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
   if (section === "section-manodopera-costi") return "manodopera";
   if (section === "section-pagamenti" || section === "esposizione-commessa" || section === "section-ritenute") return "pagamenti";
-  if (section === "section-sal" || section === "section-varianti" || section === "section-fatturazione") return "documenti";
+  if (section === "section-sal") return "sal";
+  if (section === "section-varianti") return "varianti";
+  if (section === "section-fatturazione") return "documenti";
   if (section === "section-conto-economico") return "margini";
   return ECONOMIA_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_economia"))?.value ?? "margini";
 }
@@ -47,7 +52,8 @@ const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-pianificazione": "lavorazioni", "section-cronoprogramma": "cronoprogramma", "section-squadra": "lavorazioni", "section-statistiche": "squadra",
   "section-mezzi": "lavorazioni", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
-  "section-assistenza": "collaudo", "section-sopralluoghi": "lavorazioni",
+  "section-assistenza": "collaudo", "section-sopralluoghi": "sopralluoghi",
+  "section-figure-responsabilita": "lavorazioni",
   "section-ufficio": "ufficio",
   "section-sicurezza": "sicurezza",
 };
@@ -84,6 +90,7 @@ const SECTION_TABS = {
   "section-collaudo": "cantiere",
   "section-foto": "cantiere",
   "section-squadra": "cantiere",
+  "section-figure-responsabilita": "cantiere",
   "section-statistiche": "cantiere",
   "section-mezzi": "cantiere",
   "section-diario": "cantiere",

@@ -60,6 +60,9 @@ import { prendiInCarico } from "../_shared/presaInCarico.ts";
 import { evaluateAutomationFilters, matchesAutomationTriggerConfig } from "../_shared/automationFilters.ts";
 import { resolveAutomationRecord, loadAutomationCustomFields, automationEntityType, automationEventEntity, automationEventPayload } from "../_shared/automationContext.ts";
 import { EMAIL_PREFIX_TYPES, EMAIL_RECORD_FIELDS, emailTokens, escapeEmailValue, emailContentEmpty, emailAddressList, automationEmailDelayMs, normalizeAutomationEmailConfig } from "../_shared/automationEmail.ts";
+import { authorizeAutomationTrigger } from "../_shared/automationTriggerAccess.ts";
+import { readAutomationCustomField, resolveAutomationCustomConfig, writeAutomationCustomField } from "../_shared/automationCustomFields.ts";
+import { AUTOMATION_NATIVE_FIELDS, customFieldId } from "../_shared/automationFieldContract.ts";
 interface AutomationNode {
   id: string;
   flow_id: string;
@@ -86,9 +89,13 @@ serveConMetricheRapida("process-automation", async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceKey);
+  if(req.method==="GET"){
+    const {data,error}=await supabase.rpc("automation_custom_fields_version");
+    return new Response(JSON.stringify({capabilities:{custom_fields:!error&&data===1?1:0}}),{headers:{...corsH,"Content-Type":"application/json","Cache-Control":"no-store"}});
+  }
 
   try {
-    const body = await req.json();
+    let body = await req.json();
     const { action } = body;
 
     // ── 1. Trigger: fire a new automation ──
@@ -102,6 +109,8 @@ serveConMetricheRapida("process-automation", async (req) => {
           });
         }
         await requireCompanyAccess(supabaseAdmin, userId, body.company_id, corsH);
+        const userDb = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {global:{headers:{Authorization:req.headers.get("Authorization")!}}});
+        body = await authorizeAutomationTrigger(supabaseAdmin, userDb, userId, body, corsH);
       }
       return await handleTrigger(supabase, body);
     }
@@ -157,12 +166,14 @@ async function handleTrigger(supabase: any, body: any) {
   }
 
   // Find published flows for this company that have a trigger node matching this event
-  const { data: flows, error: flowErr } = await supabase
+  let flowQuery = supabase
     .from("automation_flows")
     .select("id, version, config_json, allow_reentry, timezone")
     .eq("company_id", company_id)
     .eq("status", "published")
     .is("deleted_at", null);
+  if (body.manual_flow_id) flowQuery = flowQuery.eq("id", body.manual_flow_id);
+  const { data: flows, error: flowErr } = await flowQuery;
 
   if (flowErr) throw flowErr;
   if (!flows || flows.length === 0) {
@@ -225,6 +236,7 @@ async function handleTrigger(supabase: any, body: any) {
   const TRIGGER_EVENT_MAP: Record<string, string> = {
     contatto_creato: "contact_created",
     contatto_aggiornato: "contact_updated",
+    campo_custom_aggiornato: "custom_field_updated",
     // Trigger CRM riattivati/aggiunti (audit automazioni 2026-07-02):
     contatto_assegnato: "contact_assigned",
     tag_aggiunto: "tag_added",
@@ -321,6 +333,8 @@ async function handleTrigger(supabase: any, body: any) {
   const enrollmentIds: string[] = [];
 
   for (const flow of flows) {
+    const customPath=Array.isArray(enrichedPayload.custom_field_flow_path)?enrichedPayload.custom_field_flow_path:[];
+    if(customPath.includes(flow.id)||customPath.length>=32)continue;
     // Use in-memory lookup instead of per-flow query
     const nodes = nodesByFlow.get(flow.id) ?? [];
     const matchingTriggers = nodes.filter((n: AutomationNode) => {
@@ -1274,8 +1288,9 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
     const dot = raw.indexOf(".");
     const prefix = dot > 0 ? raw.slice(0, dot) : "contatto";
     const field = dot > 0 ? raw.slice(dot + 1) : raw;
-    const rec = await load(prefix);
-    const actual = rec ? rec[field] : undefined;
+    const customId = customFieldId(raw);
+    const rec = customId ? null : await load(prefix);
+    const actual = customId ? await readAutomationCustomField(supabase, companyId, entityId, queueItem, customId) : rec ? rec[field] : undefined;
     const operator = String(r.operatore ?? "uguale");
     if (operator === "da_oggi" || operator === "prima_di_oggi") return confrontoConOggi(actual, operator);
     const aliases: Record<string, string> = { uguale: "equals", diverso: "not_equals", contiene: "contains",
@@ -1577,7 +1592,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   // `action_type` non è impostato (nodi creati a mano, non da template).
   const rawActionType = cfg.action_type ?? cfg.item_id;
   const actionType = ACTION_ALIASES[rawActionType] || rawActionType;
-  const ncfg = normalizeConfig(actionType, cfg);
+  let ncfg = normalizeConfig(actionType, cfg);
 
   // Defensive compatibility for old queued test runs: simulate EVERY action.
   const testMode = queueItem?.context_json?.payload?.test_mode === true
@@ -1585,6 +1600,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   if (testMode) {
     return { success: true, output: { action: actionType, simulated: true, test_mode: true } };
   }
+  // These senders resolve text themselves (including HTML escaping); do not pre-expand unescaped values.
+  const ownsTextResolver=new Set(["send_email","send_sms","send_whatsapp","send_whatsapp_locale","send_ai_message","internal_notification"]);
+  try { if(!ownsTextResolver.has(actionType)) ncfg = await resolveAutomationCustomConfig(supabase, ncfg, companyId, entityId, queueItem); }
+  catch (error) { return {success:false,error:error instanceof Error ? error.message : "Variabile personalizzata non disponibile"}; }
   const invalidAction = actionConfigErrors(cfg);
   if (invalidAction.length) return { success: false, error: invalidAction.join(" ") };
 
@@ -1847,6 +1866,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const field = ncfg.field_name || ncfg.campo;
       const value = ncfg.field_value ?? ncfg.valore;
       if (!field) return { success: false, error: "No field_name configured" };
+      if (customFieldId(field)) {
+        try { return await writeAutomationCustomField(supabase, companyId, entityId, queueItem, String(ncfg.tabella ?? "contacts"), customFieldId(field)!, value); }
+        catch (error) { return {success:false,error:error instanceof Error ? error.message : "Campo personalizzato non salvato"}; }
+      }
       // Il catalogo espone `tabella` (contatto/opportunità/ticket/task/ordine/
       // fattura): PRIMA veniva ignorata e si scriveva SEMPRE su
       // marketing_contacts. Whitelist → niente tabelle arbitrarie.
@@ -1861,9 +1884,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const requested = String(ncfg.tabella ?? "contacts");
       const table = TABLE_MAP[requested];
       if (!table) return { success: false, error: `Tabella non supportata: ${requested}` };
+      if (!(AUTOMATION_NATIVE_FIELDS[requested] ?? []).includes(field)) return {success:false,error:"Campo non aggiornabile con questa azione. Usa l’azione dedicata o un campo personalizzato."};
       if (["id", "company_id", "created_by"].includes(field)) return { success: false, error: "Questo campo non è modificabile da un’automazione" };
       const target = await resolveAutomationRecord(supabase, requested, entityId, companyId, queueItem);
       if (!target?.id) return { success: false, error: "Nessun record collegato trovato da aggiornare per questa azienda" };
+      if(requested==="invoices"&&!["draft","bozza"].includes(String(target.status??target.stato??"")))return {success:false,error:"Una fattura già emessa non è modificabile da questa azione."};
       const { data: updatedRows, error: ufErr } = await supabase
         .from(table)
         .update({ [field]: rv(value) })

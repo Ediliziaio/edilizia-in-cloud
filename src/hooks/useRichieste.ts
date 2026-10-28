@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useAuth } from "@/contexts/AuthContext";
 import type { HrProfilo, HrRichiesta, RichiestaStato, RichiestaTipo } from "@/types/hr";
-import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { workingDates } from "@/lib/personale/calendarioLavorativo";
+import { readAllPages } from "@/lib/personale/readAllPages";
 
 export type RichiestaWithProfilo = HrRichiesta & {
   profilo?: { id: string; nome: string; cognome: string; colore_avatar: string; reparto: string | null; mansione: string | null };
@@ -12,19 +13,7 @@ export type RichiestaWithProfilo = HrRichiesta & {
 
 type BalanceProfilo = Pick<HrProfilo, "id" | "ferie_residue" | "permessi_residui_ore" | "rol_residuo_ore" | "ore_giornaliere">;
 type OverlapRow = Pick<HrRichiesta, "id" | "tipo" | "stato" | "data_inizio" | "data_fine">;
-type RichiestaWorkflowRow = Pick<
-  HrRichiesta,
-  "id" | "profilo_id" | "tipo" | "data_inizio" | "data_fine" | "ore_richieste" | "stato"
->;
-type HrGiornataRow = Pick<
-  Tables<"hr_giornate">,
-  "id" | "data" | "ore_lavorate" | "prima_entrata" | "ultima_uscita" | "note" | "source"
->;
-type HrGiornataInsert = TablesInsert<"hr_giornate">;
-type HrGiornataUpdate = TablesUpdate<"hr_giornate">;
-type HrProfiloUpdate = TablesUpdate<"hr_profili">;
 type HrRichiestaInsert = TablesInsert<"hr_richieste">;
-type HrRichiestaUpdate = TablesUpdate<"hr_richieste">;
 type RpcError = { code?: string; message?: string; details?: string; hint?: string };
 type RpcClient = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError | null }>;
@@ -75,88 +64,22 @@ async function updateRichiestaStatoRpc({
   throw new Error(error.message || "Aggiornamento richiesta HR non riuscito");
 }
 
-async function logHrActivityBestEffort({
-  companyId,
-  userId,
-  richiesta,
-  stato,
-  wasApproved,
-  willBeApproved,
-}: {
-  companyId: string;
-  userId: string | null;
-  richiesta: RichiestaWorkflowRow;
-  stato: RichiestaStato;
-  wasApproved: boolean;
-  willBeApproved: boolean;
-}) {
-  if (!userId) return;
-
-  const metadata: Json = {
-    profilo_id: richiesta.profilo_id,
-    tipo: richiesta.tipo,
-    data_inizio: richiesta.data_inizio,
-    data_fine: richiesta.data_fine,
-    ore_richieste: richiesta.ore_richieste,
-    fallback_client: true,
-  };
-
-  try {
-    await (supabase as unknown as RpcClient).rpc("log_activity", {
-      p_company_id: companyId,
-      p_category: "modification",
-      p_event_type: "hr.request.status_changed",
-      p_actor_user_id: userId,
-      p_target_table: "hr_richieste",
-      p_target_id: richiesta.id,
-      p_target_label: richiesta.id,
-      p_description: `Richiesta HR ${richiesta.tipo} impostata a ${stato}`,
-      p_changes: {
-        stato: { before: richiesta.stato, after: stato },
-        approved_transition: willBeApproved && !wasApproved,
-        restore_transition: wasApproved && !willBeApproved,
-      },
-      p_before_snapshot: richiesta as unknown as Json,
-      p_after_snapshot: { ...richiesta, stato } as unknown as Json,
-      p_importance: stato === "approvata" ? "high" : "normal",
-      p_metadata: metadata,
-      p_source_function: "client:fallback_useUpdateRichiestaStato",
-      p_trace_id: null,
-    });
-  } catch {
-    // L'audit è best-effort nel fallback client: il workflow principale non deve bloccarsi.
-  }
-}
-
 function inclusiveDays(start: string, end: string) {
   const startTime = new Date(`${start}T12:00:00`).getTime();
   const endTime = new Date(`${end}T12:00:00`).getTime();
   return Math.max(1, Math.round((endTime - startTime) / 86_400_000) + 1);
 }
 
-function eachIsoDate(start: string, end: string) {
-  const dates: string[] = [];
-  const cursor = new Date(`${start}T12:00:00`);
-  const last = new Date(`${end}T12:00:00`);
-
-  while (cursor <= last) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return dates;
-}
-
-function requestedHours(data: Partial<HrRichiesta>, profilo: BalanceProfilo) {
+function requestedHours(data: Partial<HrRichiesta>, profilo: BalanceProfilo, workDays?: number) {
   if (data.ore_richieste != null) return data.ore_richieste;
-  return inclusiveDays(data.data_inizio!, data.data_fine!) * Number(profilo.ore_giornaliere || 8);
+  return (workDays ?? inclusiveDays(data.data_inizio!, data.data_fine!)) * Number(profilo.ore_giornaliere || 8);
 }
 
-export function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: BalanceProfilo) {
+export function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: BalanceProfilo, workDays?: number) {
   const tipo = data.tipo ?? "ferie";
 
   if (tipo === "ferie") {
-    const requested = inclusiveDays(data.data_inizio!, data.data_fine!);
+    const requested = workDays ?? inclusiveDays(data.data_inizio!, data.data_fine!);
     const available = Number(profilo.ferie_residue ?? 0);
     if (requested > available) {
       throw new Error(`Ferie residue insufficienti: richiesta ${requested} gg, disponibili ${available} gg`);
@@ -164,7 +87,7 @@ export function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: Bala
   }
 
   if (tipo === "permesso") {
-    const requested = requestedHours(data, profilo);
+    const requested = requestedHours(data, profilo, workDays);
     const available = Number(profilo.permessi_residui_ore ?? 0);
     if (requested > available) {
       throw new Error(`Permessi insufficienti: richiesta ${requested}h, disponibili ${available}h`);
@@ -172,180 +95,12 @@ export function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: Bala
   }
 
   if (tipo === "rol") {
-    const requested = requestedHours(data, profilo);
+    const requested = requestedHours(data, profilo, workDays);
     const available = Number(profilo.rol_residuo_ore ?? 0);
     if (requested > available) {
       throw new Error(`ROL insufficienti: richiesta ${requested}h, disponibili ${available}h`);
     }
   }
-}
-
-function getBalanceDelta(data: Pick<HrRichiesta, "tipo" | "data_inizio" | "data_fine" | "ore_richieste">, profilo: BalanceProfilo) {
-  if (data.tipo === "ferie") {
-    return { ferie: inclusiveDays(data.data_inizio, data.data_fine), permessi: 0, rol: 0 };
-  }
-
-  if (data.tipo === "permesso") {
-    return { ferie: 0, permessi: requestedHours(data, profilo), rol: 0 };
-  }
-
-  if (data.tipo === "rol") {
-    return { ferie: 0, permessi: 0, rol: requestedHours(data, profilo) };
-  }
-
-  return { ferie: 0, permessi: 0, rol: 0 };
-}
-
-function getGiornataStato(tipo: RichiestaTipo) {
-  const supported: Partial<Record<RichiestaTipo, string>> = {
-    ferie: "ferie",
-    permesso: "permesso",
-    rol: "permesso",
-    malattia: "malattia",
-    smart_working: "smart_working",
-    trasferta: "trasferta",
-    infortunio: "assente",
-    maternita: "assente",
-    paternita: "assente",
-    lutto: "assente",
-  };
-
-  return supported[tipo] ?? null;
-}
-
-function richiestaNote(data: Pick<HrRichiesta, "id" | "tipo" | "ore_richieste">) {
-  const hours = data.ore_richieste ? ` · ${data.ore_richieste}h` : "";
-  return `Richiesta ${data.tipo} approvata${hours} · ${data.id}`;
-}
-
-async function updateProfileBalances(
-  companyId: string,
-  profilo: BalanceProfilo,
-  richiesta: Pick<HrRichiesta, "tipo" | "data_inizio" | "data_fine" | "ore_richieste">,
-  direction: "consume" | "restore",
-) {
-  const delta = getBalanceDelta(richiesta, profilo);
-  if (!delta.ferie && !delta.permessi && !delta.rol) return;
-
-  const sign = direction === "consume" ? -1 : 1;
-  const payload: HrProfiloUpdate = {
-    ferie_residue: Number(profilo.ferie_residue ?? 0) + sign * delta.ferie,
-    permessi_residui_ore: Number(profilo.permessi_residui_ore ?? 0) + sign * delta.permessi,
-    rol_residuo_ore: Number(profilo.rol_residuo_ore ?? 0) + sign * delta.rol,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from("hr_profili")
-    .update(payload)
-    .eq("id", profilo.id)
-    .eq("company_id", companyId);
-
-  if (error) throw error;
-}
-
-async function syncApprovedRequestToGiornate(companyId: string, richiesta: RichiestaWorkflowRow, profilo: BalanceProfilo) {
-  const stato = getGiornataStato(richiesta.tipo);
-  if (!stato) return;
-
-  const dates = eachIsoDate(richiesta.data_inizio, richiesta.data_fine);
-  if (dates.length === 0) return;
-
-  const source = "hr_richiesta";
-  const dailyHours = Number(profilo.ore_giornaliere || 8);
-  let remainingPermissionHours = richiesta.tipo === "permesso" || richiesta.tipo === "rol"
-    ? requestedHours(richiesta, profilo)
-    : 0;
-
-  const { data: existingRows, error: existingError } = await supabase
-    .from("hr_giornate")
-    .select("id, data, ore_lavorate, prima_entrata, ultima_uscita, note, source")
-    .eq("company_id", companyId)
-    .eq("profilo_id", richiesta.profilo_id)
-    .in("data", dates);
-
-  if (existingError) throw existingError;
-
-  const giornataRows = (existingRows ?? []) as HrGiornataRow[];
-  const existingByDate = new Map(giornataRows.map((row) => [row.data, row]));
-  const toInsert: HrGiornataInsert[] = dates
-    .filter((date) => !existingByDate.has(date))
-    .map((date) => {
-      const requestedToday = remainingPermissionHours > 0 ? Math.min(dailyHours, remainingPermissionHours) : dailyHours;
-      if (remainingPermissionHours > 0) remainingPermissionHours = Math.max(0, remainingPermissionHours - requestedToday);
-
-      return {
-        company_id: companyId,
-        profilo_id: richiesta.profilo_id,
-        data: date,
-        stato,
-        ore_previste: dailyHours,
-        ore_lavorate: stato === "permesso" ? Math.max(0, dailyHours - requestedToday) : 0,
-        ore_pausa: 0,
-        note: richiestaNote(richiesta),
-        bloccata: true,
-        source,
-        updated_at: new Date().toISOString(),
-      };
-    });
-
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("hr_giornate").insert(toInsert);
-    if (error) throw error;
-  }
-
-  const existingUpdates = giornataRows.map((row) => {
-    const hasWorkedHours = Number(row.ore_lavorate ?? 0) > 0 || row.prima_entrata || row.ultima_uscita;
-    const nextNote = String(row.note ?? "").includes(richiesta.id)
-      ? row.note
-      : [row.note, richiestaNote(richiesta)].filter(Boolean).join("\n");
-    const payload: HrGiornataUpdate = {
-      stato,
-      note: nextNote,
-      bloccata: true,
-      anomalia: hasWorkedHours ? true : undefined,
-      anomalia_motivo: hasWorkedHours ? "Timbrature presenti su giornata con richiesta HR approvata" : undefined,
-      source: row.source ?? source,
-      updated_at: new Date().toISOString(),
-    };
-
-    return supabase
-      .from("hr_giornate")
-      .update(payload)
-      .eq("id", row.id)
-      .eq("company_id", companyId);
-  });
-
-  const updateResults = await Promise.all(existingUpdates);
-  const updateError = updateResults.find((result) => result.error)?.error;
-  if (updateError) throw updateError;
-}
-
-async function clearRequestGeneratedGiornate(companyId: string, richiesta: RichiestaWorkflowRow) {
-  const source = "hr_richiesta";
-  const { data, error } = await supabase
-    .from("hr_giornate")
-    .select("id, ore_lavorate, prima_entrata, ultima_uscita")
-    .eq("company_id", companyId)
-    .eq("profilo_id", richiesta.profilo_id)
-    .eq("source", source)
-    .ilike("note", `%${richiesta.id}%`);
-
-  if (error) throw error;
-
-  const generatedOnlyIds = ((data ?? []) as Pick<HrGiornataRow, "id" | "ore_lavorate" | "prima_entrata" | "ultima_uscita">[])
-    .filter((row) => Number(row.ore_lavorate ?? 0) === 0 && !row.prima_entrata && !row.ultima_uscita)
-    .map((row) => row.id);
-
-  if (generatedOnlyIds.length === 0) return;
-
-  const { error: deleteError } = await supabase
-    .from("hr_giornate")
-    .delete()
-    .eq("company_id", companyId)
-    .in("id", generatedOnlyIds);
-
-  if (deleteError) throw deleteError;
 }
 
 export async function assertNoOverlappingRequest({
@@ -393,7 +148,8 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
   return useQuery({
     queryKey: ["hr-richieste", companyId, filters],
     enabled: !!companyId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => {
       let q = supabase
         .from("hr_richieste")
         .select("*, profilo:hr_profili!hr_richieste_profilo_id_fkey(id, nome, cognome, colore_avatar, reparto, mansione)")
@@ -408,12 +164,12 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
         const start = `${y}-${m}-01`;
         const endDate = new Date(Number(y), Number(m), 0);
         const end = `${y}-${m}-${String(endDate.getDate()).padStart(2, "0")}`;
-        q = q.gte("data_inizio", start).lte("data_inizio", end);
+        q = q.gte("data_fine", start).lte("data_inizio", end);
       }
 
-      const { data, error } = await q;
-      if (error) throw error;
-      const righe = (data || []) as RichiestaWithProfilo[];
+      return q.order("id").range(from, to).abortSignal(signal);
+      });
+      const righe = (data || []) as unknown as RichiestaWithProfilo[];
 
       // Richieste nate senza profilo HR collegato (solo con l'utente: succede con quelle
       // create da fuori la scheda Personale): il nome si cerca dal profilo HR di quell'utente
@@ -471,7 +227,7 @@ export function useCreateRichiesta() {
 
       const { data: profilo, error: profiloError } = await supabase
         .from("hr_profili")
-        .select("id, ferie_residue, permessi_residui_ore, rol_residuo_ore, ore_giornaliere")
+        .select("id, ferie_residue, permessi_residui_ore, rol_residuo_ore, ore_giornaliere, giorni_lavorativi")
         .eq("company_id", companyId)
         .eq("id", data.profilo_id)
         .maybeSingle();
@@ -479,7 +235,17 @@ export function useCreateRichiesta() {
       if (profiloError) throw profiloError;
       if (!profilo) throw new Error("Profilo HR non valido per questa azienda");
 
-      assertBalanceAvailable({ ...data, tipo }, profilo as BalanceProfilo);
+      let workDays: number | undefined;
+      if (["ferie","permesso","rol"].includes(tipo)) {
+        const { data: holidays, error: calendarError } = await supabase.from("hr_festivita")
+          .select("data,descrizione,ricorrente").eq("company_id", companyId);
+        if (calendarError) throw calendarError;
+        workDays = workingDates(data.data_inizio, data.data_fine, profilo.giorni_lavorativi || [], holidays || []).length;
+        if (!workDays) throw new Error("Nessun giorno lavorativo nel periodo selezionato");
+        if (!profilo.ore_giornaliere || profilo.ore_giornaliere <= 0) throw new Error("Ore giornaliere da configurare");
+        if (data.ore_richieste != null && data.ore_richieste > workDays * profilo.ore_giornaliere) throw new Error("Le ore richieste superano quelle previste nel periodo");
+      }
+      assertBalanceAvailable({ ...data, tipo }, profilo as BalanceProfilo, workDays);
       await assertNoOverlappingRequest({
         companyId,
         profiloId: data.profilo_id!,
@@ -513,7 +279,6 @@ export function useCreateRichiesta() {
 
 export function useUpdateRichiestaStato() {
   const companyId = useEffectiveCompanyId();
-  const { user } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
@@ -523,84 +288,7 @@ export function useUpdateRichiestaStato() {
       const rpcHandled = await updateRichiestaStatoRpc({ id, stato, noteRisposta: note_risposta });
       if (rpcHandled) return;
 
-      const { data: richiesta, error: richiestaError } = await supabase
-        .from("hr_richieste")
-        .select("id, profilo_id, tipo, data_inizio, data_fine, ore_richieste, stato")
-        .eq("id", id)
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      if (richiestaError) throw richiestaError;
-      if (!richiesta) throw new Error("Richiesta non trovata");
-      if (!richiesta.profilo_id) throw new Error("Richiesta non collegata a un profilo HR");
-
-      const workflowRichiesta = richiesta as RichiestaWorkflowRow;
-      const wasApproved = workflowRichiesta.stato === "approvata";
-      const willBeApproved = stato === "approvata";
-
-      const { data: profilo, error: profiloError } = await supabase
-        .from("hr_profili")
-        .select("id, ferie_residue, permessi_residui_ore, rol_residuo_ore, ore_giornaliere")
-        .eq("company_id", companyId)
-        .eq("id", workflowRichiesta.profilo_id)
-        .maybeSingle();
-
-      if (profiloError) throw profiloError;
-      if (!profilo) throw new Error("Profilo HR non valido per questa azienda");
-      const balanceProfilo = profilo as BalanceProfilo;
-
-      if (willBeApproved && !wasApproved) {
-        assertBalanceAvailable(workflowRichiesta as Partial<HrRichiesta>, balanceProfilo);
-        await assertNoOverlappingRequest({
-          companyId,
-          profiloId: workflowRichiesta.profilo_id,
-          tipo: workflowRichiesta.tipo,
-          dataInizio: workflowRichiesta.data_inizio,
-          dataFine: workflowRichiesta.data_fine,
-          stati: ["approvata"],
-          excludeId: id,
-        });
-
-        await updateProfileBalances(companyId, balanceProfilo, workflowRichiesta, "consume");
-        await syncApprovedRequestToGiornate(companyId, workflowRichiesta, balanceProfilo);
-      }
-
-      if (wasApproved && !willBeApproved) {
-        await updateProfileBalances(companyId, balanceProfilo, workflowRichiesta, "restore");
-        await clearRequestGeneratedGiornate(companyId, workflowRichiesta);
-      }
-
-      const payload: HrRichiestaUpdate = {
-        stato,
-        note_risposta: note_risposta ?? null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (willBeApproved && !wasApproved) {
-        payload.approvata_il = new Date().toISOString();
-        payload.approvata_da = user?.id ?? null;
-      }
-
-      if (!willBeApproved) {
-        payload.approvata_il = null;
-        payload.approvata_da = null;
-      }
-
-      const { error } = await supabase
-        .from("hr_richieste")
-        .update(payload)
-        .eq("id", id)
-        .eq("company_id", companyId);
-      if (error) throw error;
-
-      await logHrActivityBestEffort({
-        companyId,
-        userId: user?.id ?? null,
-        richiesta: workflowRichiesta,
-        stato,
-        wasApproved,
-        willBeApproved,
-      });
+      throw new Error("Servizio atomico richieste non disponibile: nessun saldo modificato. Contatta l’amministratore.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-richieste"] });

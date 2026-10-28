@@ -164,6 +164,7 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
   const companyId = effectiveCompany?.id ?? "";
   const aggiorna = () => {
     qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
+    qc.invalidateQueries({ queryKey: ["sicurezza-prodotti", companyId, orderId] });
     // Il riepilogo della commessa legge le stesse righe.
     qc.invalidateQueries({ queryKey: ["order-items", orderId] });
     qc.invalidateQueries({ queryKey: ["material-procurement"] });

@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 /**
  * Materiali e acquisti → «Bolle e DDT» e «Fatture fornitori» della commessa.
  *
@@ -186,6 +189,7 @@ export interface RigaFattura {
   oda: string | null;
   /** Ordine d'acquisto a cui la fattura è collegata, quando c'è. */
   purchaseOrderId: string | null;
+  costId: string | null;
   notaCredito: boolean;
   /** Fattura ripartita su più commesse: la percentuale di questa (il totale è già la quota). */
   quota: number | null;
@@ -257,7 +261,7 @@ export function useFattureFornitoriCommessa(orderId: string) {
           totale: intero == null || quota == null ? intero : Math.round(intero * quota) / 100,
           totaleDocumento: quota == null ? null : intero,
           stato: f.stato, legame, oda: f.purchase_order_id ? perOda.get(f.purchase_order_id) ?? null : null,
-          purchaseOrderId: f.purchase_order_id,
+          purchaseOrderId: f.purchase_order_id, costId:f.company_cost_id,
           notaCredito: segno < 0, quota,
         });
       };
@@ -277,6 +281,7 @@ const LEGAME: Record<RigaFattura["legame"], string> = {
 };
 
 export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean }) {
+  const [paymentCostId,setPaymentCostId] = useState<string|null>(null);
   const { data = [], isLoading, isError, refetch } = useFattureFornitoriCommessa(orderId);
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
@@ -290,10 +295,12 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           <p className="text-xs text-muted-foreground">Ripartita: {f.quota.toLocaleString("it-IT")}% di {formatCurrency(f.totaleDocumento)}</p>
         )}
       </div>
-      {mostraImporti && <p className="shrink-0 text-sm font-semibold tabular-nums">{f.totale == null ? "—" : formatCurrency(f.totale)}</p>}
+      {mostraImporti && <div className="flex items-center gap-3"><p className="shrink-0 text-sm font-semibold tabular-nums">{f.totale == null ? "—" : formatCurrency(f.totale)}</p>{f.costId && <Button variant="outline" size="sm" onClick={()=>setPaymentCostId(f.costId)}>Pagamenti e residuo</Button>}</div>}
     </li>
   );
   return (
+    <>
+    {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={()=>setPaymentCostId(null)}/>}
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
@@ -327,5 +334,6 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
         )}
       </CardContent>
     </Card>
+    </>
   );
 }

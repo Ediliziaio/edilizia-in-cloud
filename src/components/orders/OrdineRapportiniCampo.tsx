@@ -36,7 +36,7 @@ import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; }
+interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; soloDaApprovare?: boolean; }
 
 const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
   if (!value) return "—";
@@ -102,7 +102,7 @@ export function orePersoneRapportino(r: RigaOre): number {
   return (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
 }
 
-export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) {
+export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
   const { role, effectiveCompany, user } = useAuth();
@@ -132,10 +132,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) 
   const [motivoRifiuto, setMotivoRifiuto] = useState("");
 
   const { data: rapportini = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["order-campo-rapportini", orderId, companyId],
+    queryKey: ["order-campo-rapportini", orderId, companyId, ...(soloDaApprovare ? ["da-approvare"] : [])],
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("campo_rapportini")
         // NB: FK esplicita — campo_rapportini ha DUE relazioni verso profiles
         // (user_id e approvato_da): senza disambiguare PostgREST rifiuta l'embed.
@@ -143,6 +143,8 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) 
         .eq("order_id", orderId)
         .eq("company_id", companyId!)
         .order("data_lavoro", { ascending: false });
+      if (soloDaApprovare) query = query.eq("stato", "inviato");
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },
@@ -297,7 +299,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) 
       <CardHeader className="gap-4 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <ClipboardList className="h-4 w-4" />
-          Rapportini Campo ({rapportini.length})
+          {soloDaApprovare ? "Rapportini da approvare" : "Rapportini Campo"} ({isLoading ? "…" : isError ? "—" : rapportini.length})
         </CardTitle>
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
             Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
@@ -332,7 +334,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false }: Props) 
         ) : isError ? (
           <div role="alert" className="space-y-2 text-sm"><p>Rapportini non disponibili. Non è possibile verificare il consuntivo.</p><Button variant="outline" onClick={() => refetch()}>Riprova</Button></div>
         ) : rapportini.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun rapportino caricato dagli operai</p>
+          <p className="text-sm text-muted-foreground">{soloDaApprovare ? "Nessun rapportino da approvare" : "Nessun rapportino caricato dagli operai"}</p>
         ) : (
           <div className="space-y-4">
             {gruppi.map((gruppo) => (

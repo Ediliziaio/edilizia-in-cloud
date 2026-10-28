@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -6,10 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listSurveysByOrder } from "@/lib/api/surveys";
+import { surveyAddress } from "@/lib/surveys/report";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ClipboardCheck, Plus, MapPin, Calendar, ChevronRight, Ruler, Loader2,
+  ClipboardCheck,
+  Plus,
+  MapPin,
+  Calendar,
+  ChevronRight,
+  Ruler,
+  Loader2,
 } from "lucide-react";
 
 /**
@@ -22,15 +30,44 @@ import {
  */
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  draft: { label: "Bozza", color: "bg-slate-100 text-slate-700 border-slate-300" },
-  in_progress: { label: "In corso", color: "bg-amber-100 text-amber-700 border-amber-300" },
-  completed: { label: "Completato", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  reviewed: { label: "Verificato", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  signed: { label: "Firmato", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  converted: { label: "Convertito", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  archived: { label: "Archiviato", color: "bg-slate-100 text-slate-700 border-slate-300" },
-  cancelled: { label: "Annullato", color: "bg-slate-100 text-slate-700 border-slate-300" },
+  draft: {
+    label: "Bozza",
+    color: "bg-slate-100 text-slate-700 border-slate-300",
+  },
+  in_progress: {
+    label: "In corso",
+    color: "bg-amber-100 text-amber-700 border-amber-300",
+  },
+  completed: {
+    label: "Completato",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-300",
+  },
+  reviewed: {
+    label: "Verificato",
+    color: "bg-blue-100 text-blue-700 border-blue-300",
+  },
+  signed: {
+    label: "Firmato",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-300",
+  },
+  converted: {
+    label: "Convertito",
+    color: "bg-blue-100 text-blue-700 border-blue-300",
+  },
+  archived: {
+    label: "Archiviato",
+    color: "bg-slate-100 text-slate-700 border-slate-300",
+  },
+  cancelled: {
+    label: "Annullato",
+    color: "bg-slate-100 text-slate-700 border-slate-300",
+  },
 };
+const SurveyDetailDialog = lazy(() =>
+  import("@/components/sopralluoghi/SurveyDetailDialog").then((m) => ({
+    default: m.SurveyDetailDialog,
+  })),
+);
 
 interface OrderSurveysCardProps {
   orderId: string;
@@ -39,16 +76,27 @@ interface OrderSurveysCardProps {
 export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   const navigate = useNavigate();
   // La rotta di creazione rimanda indietro chi è in sola lettura: meglio spegnere il bottone.
-  const { solaLettura } = usePermissions();
+  const { solaLettura, canViewSopralluoghi } = usePermissions();
+  const [selected, setSelected] = useState<string | null>(null);
   const { effectiveCompany } = useAuth();
-  const { data: surveys, isLoading, isError } = useQuery({
+  const {
+    data: surveys,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["order-surveys", orderId, effectiveCompany?.id],
     queryFn: () => listSurveysByOrder(orderId, effectiveCompany!.id),
-    enabled: !!orderId && !!effectiveCompany?.id,
+    enabled: !!orderId && !!effectiveCompany?.id && canViewSopralluoghi,
     staleTime: 30_000,
   });
 
   const goNew = () => navigate(`/azienda/sopralluoghi/nuovo?order=${orderId}`);
+  if (!canViewSopralluoghi)
+    return (
+      <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+        Per consultare i rilievi serve il permesso «Sopralluoghi».
+      </p>
+    );
 
   return (
     <Card>
@@ -57,10 +105,19 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
           <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-500" />
           <span className="truncate">Rilievi e sopralluoghi</span>
           {surveys && surveys.length > 0 && (
-            <span className="text-xs font-normal text-muted-foreground shrink-0">({surveys.length})</span>
+            <span className="text-xs font-normal text-muted-foreground shrink-0">
+              ({surveys.length})
+            </span>
           )}
         </CardTitle>
-        <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={goNew} disabled={solaLettura} title={solaLettura ? "Sei in sola lettura" : undefined}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950"
+          onClick={goNew}
+          disabled={solaLettura}
+          title={solaLettura ? "Sei in sola lettura" : undefined}
+        >
           <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
           <span>Nuovo sopralluogo</span>
         </Button>
@@ -73,15 +130,21 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
         )}
 
         {isError && (
-          <p className="py-6 text-sm text-red-600">Errore nel caricamento dei sopralluoghi.</p>
+          <p className="py-6 text-sm text-red-600">
+            Errore nel caricamento dei sopralluoghi.
+          </p>
         )}
 
         {!isLoading && !isError && (!surveys || surveys.length === 0) && (
           <div className="flex items-center gap-3 py-1 text-sm text-muted-foreground max-sm:py-0 max-sm:text-xs">
             <Ruler className="h-5 w-5 shrink-0 text-muted-foreground/40 max-sm:hidden" />
             <span className="flex-1">
-              Nessun sopralluogo collegato.<span className="max-sm:hidden"> Le misure definitive del rilievo confermano
-              quelle del preventivo prima di ordinare al fornitore.</span>
+              Nessun sopralluogo collegato.
+              <span className="max-sm:hidden">
+                {" "}
+                Le misure definitive del rilievo confermano quelle del
+                preventivo prima di ordinare al fornitore.
+              </span>
             </span>
           </div>
         )}
@@ -91,18 +154,24 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
             {surveys.map((s) => {
               const cfg = STATUS_LABEL[s.status] ?? STATUS_LABEL.draft;
               const when = s.completed_at ?? s.scheduled_at ?? s.created_at;
-              const place = [s.address, s.city].filter(Boolean).join(", ");
+              const place = surveyAddress(s);
               return (
                 <li key={s.id}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/azienda/sopralluoghi/${s.id}`)}
+                    onClick={() => setSelected(s.id)}
+                    aria-haspopup="dialog"
                     className="-mx-2 flex w-full items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted/40"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{s.code || "Sopralluogo"}</span>
-                        <Badge variant="outline" className={`text-[10px] ${cfg.color}`}>
+                        <span className="truncate text-sm font-medium">
+                          {s.code || "Sopralluogo"}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${cfg.color}`}
+                        >
                           {cfg.label}
                         </Badge>
                       </div>
@@ -129,6 +198,25 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
           </ul>
         )}
       </CardContent>
+      {selected && (
+        <Suspense
+          fallback={
+            <p
+              role="status"
+              className="px-4 pb-4 text-sm text-muted-foreground"
+            >
+              Apro il sopralluogo…
+            </p>
+          }
+        >
+          <SurveyDetailDialog
+            key={`${effectiveCompany?.id}:${orderId}:${selected}`}
+            surveyId={selected}
+            orderId={orderId}
+            onClose={() => setSelected(null)}
+          />
+        </Suspense>
+      )}
     </Card>
   );
 }

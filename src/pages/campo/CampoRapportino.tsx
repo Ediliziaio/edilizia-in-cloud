@@ -585,7 +585,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         controllaGiorno();
         const payload: Blob = compressed ?? file;
 
-        const path = `${profile.company_id}/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const path = `${profile.company_id}/${orderId}/${crypto.randomUUID()}.jpg`;
         const { data: up, error: upErr } = await supabase.storage
           .from("campo-rapportini")
           .upload(path, payload, { contentType: "image/jpeg", upsert: false });
@@ -658,11 +658,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       // nel PDF generato all'invio); quella del cliente solo sul fine lavori.
       let firmaClienteUrl: string | null = null;
       let firmaOperaioUrl: string | null = null;
-      const ts = Date.now();
+      const firmaUploadId = crypto.randomUUID();
       const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
         controllaGiorno();
         const blob = await (await fetch(dataUrl)).blob();
-        const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
+        const path = `${companyId}/${orderId}/firme/${firmaUploadId}_${suffix}.png`;
         const { data: up, error: upErr } = await supabase.storage
           .from("campo-rapportini")
           .upload(path, blob, { contentType: "image/png", upsert: false });
@@ -774,34 +774,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       // applicava all'invio e l'approvazione era decorativa: un rapportino
       // rifiutato lasciava la fase gonfiata per sempre.
 
-      if (inserted?.id) {
-        const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
-        await supabase
-          .from("order_events" as never)
-          .insert({
-            order_id: orderId,
-            company_id: companyId,
-            event_type: "reportino_cantiere",
-            actor_id: user.id,
-            actor_name: actorName,
-            payload: {
-              rapportino_id: inserted.id,
-              data_lavoro: workDay,
-              ore_lavorate: orePayload,
-              ore_straordinario: !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
-              percentuale_avanzamento: percentuale,
-              lavoro_completato,
-              meteo: meteo || null,
-              foto_count: fotoUrls.length,
-              descrizione_lavori: descrizione || null,
-              origine: "app_campo",
-              ...(daRifare ? { rinviato: true } : {}),
-            },
-          } as never)
-          .then(({ error: eventError }) => {
-            if (eventError) console.warn("[CampoRapportino] diario ordine non aggiornato:", eventError);
-          });
-      }
+      // Il segnale di aggiornamento della commessa è scritto dal trigger nella
+      // stessa transazione del rapportino. Il client non scrive più order_events:
+      // quella scrittura separata non era autorizzata ai ruoli operativi.
 
       // Anche senza fasi, l'avanzamento dichiarato resta una proposta fino all'approvazione.
 
@@ -1308,7 +1283,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   );
   // Mezzi e attrezzi si spostano solo per oggi e ieri: per un giorno più vecchio non si chiede dove restano.
   const mezziAmmessi = workDay >= shiftWorkDay(campoWorkDay(), -1);
-  const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} valori={mezziSel} onChange={setMezziSel} /> : null;
+  const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} /> : null;
   const bloccoStraordinario = (
               <details open={oreStraordinario > 0 ? true : undefined} className={semplice ? "rounded-xl border bg-muted/30 p-3" : "border-t border-border pt-3"}>
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Straordinario · facoltativo{oreStraordinario > 0 ? ` · ${oreStraordinario}h` : ""}</summary>
@@ -1346,7 +1321,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               </details>
   );
   // Chi fa la squadra dichiara le ore con le presenze: le sue ore personali compaiono solo se in cantiere non c'è nessuno da segnare.
-  const mostraOrePersonali = !registraSquadra || (!squadraLoading && squadra.length === 0);
+  const mostraOrePersonali = !registraSquadra || (!squadraLoading && (squadra.length === 0 || Object.keys(presenzeSel).length === 0));
   const applicaVocale = (d: RapportinoVocaleDraft) => {
     if ((descrizione.trim() || Object.keys(materialiSel).length) && !window.confirm("La proposta vocale sostituirà il testo e i materiali riconosciuti. Vuoi inserirla nel modulo?")) return;
     if (!soloOreAllOperaio) {

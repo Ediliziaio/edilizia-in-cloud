@@ -48,11 +48,17 @@ function fakeClient(
     // Il saldo della Prima Nota è un aggregato; le altre RPC restituiscono righe a pagine.
     rpc: vi.fn((name: string, args: Record<string, string>) => {
       if (name !== "get_prima_nota_saldo")
-        filters.push({ table: name, column: "p_company_id", value: args.p_company_id });
+        filters.push({
+          table: name,
+          column: "p_company_id",
+          value: args.p_company_id,
+        });
       return name === "get_prima_nota_saldo"
         ? Promise.resolve({
             data: pn,
-            error: failures.includes("rpc") ? { message: "Aggregate failed" } : null,
+            error: failures.includes("rpc")
+              ? { message: "Aggregate failed" }
+              : null,
           })
         : client.from(name);
     }),
@@ -60,6 +66,28 @@ function fakeClient(
   return { client: client as unknown as Client, filters };
 }
 describe("forecast sources", () => {
+  it("suspends the VAT estimate if purchases or fiscal sources fail, even when external sales are available", async () => {
+    const { client } = fakeClient(
+      {
+        invoices: [
+          {
+            id: "i",
+            total: 12200,
+            paid_amount: 0,
+            due_date: "2026-11-01",
+            status: "sent",
+            issue_date: "2026-09-01",
+            tax_amount: 2200,
+          },
+        ],
+      },
+      ["fatture_ricevute"],
+    );
+    const result = await loadForecastDataset("company", "2026-10-14", client);
+    expect(result.movements.some((m) => m.source === "Stima IVA")).toBe(false);
+    expect(result.warnings.join(" ")).toMatch(/Stima IVA non disponibile/);
+    expect(result.movements.some((m) => m.source === "Fattura")).toBe(true);
+  });
   it("paginates beyond the default API limit without dropping any rows", async () => {
     const rows = Array.from({ length: 1253 }, (_, id) => ({ id }));
     const offsets: number[] = [];

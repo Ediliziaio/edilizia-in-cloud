@@ -17,7 +17,7 @@ const QUICK_ACTIONS = [
   { label: "Nuovo preventivo", href: "/azienda/marketing/preventivi/nuovo", icon: FileText, shortcut: "P" },
 ];
 
-export function DashboardQuickActions() {
+export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boolean }) {
   const [open, setOpen] = useState(false);
 
   // Chiudi con Escape
@@ -38,7 +38,7 @@ export function DashboardQuickActions() {
           <Button key={a.href} variant="outline" size="sm" className="h-8 text-xs" asChild>
             <Link to={a.href} aria-label={a.label}>
               <Plus className="h-4 w-4 mr-1" />
-              <span>{a.label.replace("Nuovo ", "")}</span>
+              <span>{fullLabels ? a.label : a.label.replace("Nuovo ", "")}</span>
             </Link>
           </Button>
         ))}

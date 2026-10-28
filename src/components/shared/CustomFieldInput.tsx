@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { multipleFieldValues } from "@/lib/custom-fields/values";
 
 export interface CustomFieldInputProps {
   fieldId: string;
@@ -112,11 +113,22 @@ export function CustomFieldInput({
           />
         );
 
+      case "multiselect": {
+        const selected = multipleFieldValues(value);
+        const choices = [...new Set([...(options ?? []), ...selected])];
+        return <div id={id} role="group" aria-label={label} className="flex flex-wrap gap-2 rounded-md border p-2">
+          {choices.length === 0 && <span className="text-xs text-muted-foreground">Nessuna opzione configurata</span>}
+          {choices.map((option, index) => <label key={option} htmlFor={`${id}-${index}`} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm">
+            <Checkbox id={`${id}-${index}`} disabled={disabled} checked={selected.includes(option)} onCheckedChange={checked => onChange(checked === true ? [...selected, option] : selected.filter(v => v !== option))} />{option}
+          </label>)}
+        </div>;
+      }
+      case "file":
+        return <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground"><p>{stringVal || "Nessun riferimento salvato"}</p><p>Gli allegati si gestiscono nell’area Documenti, con i relativi permessi.</p></div>;
       case "radio":
-      case "multiselect":
       case "select":
         return (
-          <Select
+          <div className="flex items-center gap-1"><Select
             value={stringVal || undefined}
             onValueChange={(v) => onChange(v)}
             disabled={disabled}
@@ -131,7 +143,7 @@ export function CustomFieldInput({
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select>{!!stringVal && !disabled && <button type="button" className="shrink-0 px-2 text-xs underline" onClick={() => onChange(null)} aria-label={`Svuota ${label}`}>Svuota</button>}</div>
         );
 
       case "text":

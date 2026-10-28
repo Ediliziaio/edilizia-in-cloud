@@ -77,6 +77,7 @@ export function refreshWorkQueries(
   for (const key of orderKeys)
     void qc.invalidateQueries({ queryKey: [key, orderId] });
   for (const key of sharedKeys) void qc.invalidateQueries({ queryKey: [key] });
+  void qc.invalidateQueries({ queryKey: ["addetti-qualifiche-commessa"] });
   void qc.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
   void qc.invalidateQueries({ queryKey: ["mezzi", "commessa", orderId] });
 }

@@ -1,6 +1,6 @@
 export type StatoContratto = 'bozza' | 'attivo' | 'completato' | 'risolto' | 'sospeso';
 export type StatoSALSub = 'ricevuto' | 'verificato' | 'pagato' | 'contestato';
-export type StatoRitenuta = 'trattenuta' | 'svincolata' | 'persa';
+export type StatoRitenuta = 'trattenuta' | 'svincolata' | 'persa' | 'annullata';
 export type TipoDocumentoSub =
   | 'durc'
   | 'visura_camerale'
@@ -29,6 +29,7 @@ export interface ContrattoSubappalto {
 }
 
 export interface SALSubappaltatore {
+  pagato_registrato?: number | null;
   id: string;
   company_id: string;
   contratto_id: string;

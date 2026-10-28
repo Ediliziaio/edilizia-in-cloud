@@ -31,6 +31,7 @@ function Harness({ initiallyReady = true }: { initiallyReady?: boolean }) {
         <details><summary>Note</summary><div id="section-note">Strumenti</div></details>
       </TabsContent>
       <TabsContent value="cantiere">
+        <div id="cantiere-workspace">Viste del cantiere</div>
         <h2>Lavorazioni</h2><div id="section-rapportini">Rapportini</div>
         <details><summary>Calendario</summary><div id="section-pianificazione">Date e appuntamenti</div><div id="section-attivita">Attività del cantiere</div></details>
       </TabsContent>
@@ -54,7 +55,7 @@ beforeEach(() => {
   scrollIntoView.mockClear();
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("navigazione commessa reale (Radix + React Router)", () => {
   it("presenta sempre le stesse quattro aree accessibili", () => {
@@ -129,6 +130,25 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
       expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview"));
     }
+  });
+
+  it("torna alla testata anche se la scheda ricorda una vista interna", async () => {
+    mount("?tab=cantiere&vista_cantiere=ufficio");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("cantiere-workspace"));
+    selectTab("Materiali e acquisti");
+    await waitFor(() => expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview")));
+    scrollIntoView.mockClear();
+    selectTab("Cantiere");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview"));
+    expect(screen.getByLabelText("URL corrente")).toHaveTextContent("vista_cantiere=ufficio");
+  });
+
+  it("non usa scorrimenti animati con movimento ridotto", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+    mount("?tab=panoramica#section-stato");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "start" }));
   });
 
   it("il link alle attività apre anche il contenitore della pianificazione", async () => {

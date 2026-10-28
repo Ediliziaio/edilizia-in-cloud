@@ -19,6 +19,8 @@ import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { EnergyQuoteImport } from "@/components/sopralluoghi/EnergyQuoteImport";
+import { applyEnergyFvImport, energySurveyOrigin } from "@/lib/surveys/energyQuote";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -216,6 +218,7 @@ function finanziamentoSalvato(progetto: unknown): Partial<WizardData> {
 function campiTetto(d: WizardData) {
   return {
     fonte_dati_tetto: d.fonte_dati_tetto,
+    qualita_dati_tetto: d.qualita_dati_tetto,
     ore_sole_annue: d.ore_sole_annue,
     superficie_tetto_disponibile_mq: d.superficie_tetto_disponibile_mq,
     numero_pannelli_max: d.numero_pannelli_max,
@@ -646,6 +649,7 @@ function FotovoltaicoWizard() {
               listino_id: null as string | null,
               descrizione: c.descrizione,
               quantita: Number(c.quantita) || 1,
+              unita_misura: c.unita_misura === "m" || c.unita_misura === "ml" ? "m" as const : "pz" as const,
               prezzo_vendita: Number(c.prezzo_unitario_vendita) || 0,
               prezzo_acquisto:
                 c.prezzo_unitario_netto != null ? Number(c.prezzo_unitario_netto) : null,
@@ -1845,6 +1849,7 @@ function FotovoltaicoWizard() {
     // A filo coi bordi del contenitore che scorre (<main> ha 12/24 px di spazio): barra e
     // piede fissi restano a filo, senza la fessura in cui passavano i campi.
     <div className="-m-3 min-h-full bg-slate-50 flex flex-col md:-m-6">
+      {(step <= 4 || energySurveyOrigin(data.qualita_dati_tetto)) && <EnergyQuoteImport companyId={effectiveCompanyId} module="fotovoltaico" disabled={readOnlyMode} originId={energySurveyOrigin(data.qualita_dati_tetto)} imported={!!energySurveyOrigin(data.qualita_dati_tetto)} listino={{pannelli,inverter,accumuli}} onApply={(detail,rows,prices,selection)=>{const next=applyEnergyFvImport(data,detail,effectiveCompanyId||"",{pannelli,inverter,accumuli},selection,rows,prices);setData(next);}}/>}
       <FvPageHeader
         numero={numero ?? null}
         stato={statoHeader}
@@ -2192,7 +2197,7 @@ function FotovoltaicoWizard() {
               readOnly={readOnlyMode}
               data={data}
               update={update}
-              condizioniDelModello={modelloDelDocumento?.condizioni_legali_testo ?? null}
+              condizioniDelModello={typeof modelloDelDocumento?.condizioni_legali_testo === "string" ? modelloDelDocumento.condizioni_legali_testo : null}
               condizioniSpenteNelModello={modelloDelDocumento?.condizioni_legali_attivo === false}
             />
           )}
@@ -4547,15 +4552,15 @@ function Step5Configurazione({
                     />
                   </div>
                   <div className="col-span-3 min-[1700px]:col-span-2">
-                    <Label className="text-[11px] text-slate-500">Quantità</Label>
+                    <Label className="text-[11px] text-slate-500">Quantità · {ex.unita_misura ?? "pz"}</Label>
                     <Input
                       type="number"
-                      min={1}
-                      step={1}
+                      min={ex.unita_misura === "m" ? 0.01 : 1}
+                      step={ex.unita_misura === "m" ? 0.01 : 1}
                       value={ex.quantita}
                       disabled={readOnlyMode}
                       onChange={(e) =>
-                        aggiornaExtra(idx, { quantita: Math.max(1, Math.round(Number(e.target.value) || 1)) })
+                        aggiornaExtra(idx, { quantita: ex.unita_misura === "m" ? Math.max(0.01, Math.round((Number(e.target.value) || 0.01)*100)/100) : Math.max(1, Math.round(Number(e.target.value) || 1)) })
                       }
                       className="h-9 text-sm bg-white"
                     />

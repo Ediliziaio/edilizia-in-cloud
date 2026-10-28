@@ -30,6 +30,8 @@ import {
 import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
 import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HrQueryError } from "@/components/hr/HrQueryError";
+import { HrPager } from "@/components/hr/HrPager";
 
 interface ProfiloOption {
   id: string;
@@ -37,6 +39,7 @@ interface ProfiloOption {
   cognome: string;
   mansione: string | null;
   reparto: string | null;
+  attivo: boolean;
 }
 
 function fmt(d: string): string {
@@ -47,26 +50,34 @@ function fmt(d: string): string {
 export function TabDocumenti() {
   const companyId = useEffectiveCompanyId();
   const [selectedProfilo, setSelectedProfilo] = useState<string>("");
+  const [view, setView] = useState("scadenze");
+  const [page, setPage] = useState(0);
   const [pushBannerDismissed, setPushBannerDismissed] = useState(false);
 
   // Niente più filtro `user_id IS NOT NULL`: i documenti stanno sul profilo HR,
   // quindi anche chi non ha (ancora) un accesso alla piattaforma è gestibile.
-  const { data: profili = [], isLoading: loadingProfili } = useQuery<ProfiloOption[]>({
+  const { data: profili = [], isLoading: loadingProfili, isError: errorProfili, refetch: retryProfili } = useQuery<ProfiloOption[]>({
     queryKey: ["hr-profili-documenti-list", companyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const rows: ProfiloOption[] = [];
+      for (let from = 0; ; from += 500) {
       const { data, error } = await supabase
         .from("hr_profili")
-        .select("id, nome, cognome, mansione, reparto")
+        .select("id, nome, cognome, mansione, reparto, attivo")
         .eq("company_id", companyId!)
-        .eq("attivo", true)
-        .order("cognome", { ascending: true });
+        .order("attivo", { ascending: false })
+        .order("cognome", { ascending: true }).order("id")
+        .range(from, from + 499).abortSignal(signal);
       if (error) throw error;
-      return (data ?? []) as ProfiloOption[];
+      rows.push(...(data ?? []));
+      if (!data || data.length < 500) break;
+      }
+      return rows;
     },
     enabled: !!companyId,
   });
 
-  const { data: scadenze = [], isLoading: loadingScadenze } = useHrScadenzeAzienda();
+  const { data: scadenze = [], isLoading: loadingScadenze, isError: errorScadenze, refetch: retryScadenze } = useHrScadenzeAzienda();
 
   const daVedere = useMemo(
     () => scadenze.filter((s) => s.stato === "scaduto" || s.stato === "in_scadenza"),
@@ -81,7 +92,7 @@ export function TabDocumenti() {
         <PushConsentBanner onDismiss={() => setPushBannerDismissed(true)} />
       )}
 
-      <Tabs defaultValue="scadenze">
+      <Tabs value={view} onValueChange={setView}>
         <TabsList className="h-auto gap-1 p-1">
           <TabsTrigger value="scadenze" className="gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5" />
@@ -95,7 +106,7 @@ export function TabDocumenti() {
 
         {/* ── Scadenze di tutta l'azienda ───────────────────────────────────── */}
         <TabsContent value="scadenze" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {!errorScadenze && !loadingScadenze && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Card>
               <CardContent className="p-4">
                 <p className="text-2xl font-semibold text-red-600">{scaduti}</p>
@@ -114,11 +125,11 @@ export function TabDocumenti() {
                 <p className="text-xs text-muted-foreground">Documenti con scadenza</p>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           {loadingScadenze ? (
             <Skeleton className="h-40 w-full rounded-xl" />
-          ) : daVedere.length === 0 ? (
+          ) : errorScadenze ? <HrQueryError label="Scadenze non disponibili" onRetry={retryScadenze} /> : daVedere.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
               <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500/60" />
               <p className="text-sm font-medium">Nessuna scadenza da gestire</p>
@@ -140,16 +151,16 @@ export function TabDocumenti() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {daVedere.map((s) => {
+                  {daVedere.slice(Math.min(page, Math.max(0, Math.ceil(daVedere.length / 20) - 1)) * 20, (Math.min(page, Math.max(0, Math.ceil(daVedere.length / 20) - 1)) + 1) * 20).map((s) => {
                     const badge = STATO_BADGE[s.stato];
                     return (
                       <TableRow
                         key={s.id}
                         className="cursor-pointer"
-                        onClick={() => setSelectedProfilo(s.hr_profilo_id)}
+                        onClick={() => { setSelectedProfilo(s.hr_profilo_id); setView("per-persona"); }}
                       >
                         <TableCell className="text-sm font-medium">
-                          {s.persona}
+                          <button type="button" className="text-left underline-offset-4 hover:underline" onClick={(event) => { event.stopPropagation(); setSelectedProfilo(s.hr_profilo_id); setView("per-persona"); }}>{s.persona}</button>
                           {s.mansione && (
                             <span className="block text-xs font-normal text-muted-foreground">{s.mansione}</span>
                           )}
@@ -171,6 +182,7 @@ export function TabDocumenti() {
               </Table>
             </div>
           )}
+          {!errorScadenze && <HrPager total={daVedere.length} page={page} onPage={setPage} />}
         </TabsContent>
 
         {/* ── Documenti della singola persona ───────────────────────────────── */}
@@ -180,7 +192,7 @@ export function TabDocumenti() {
               <User className="h-3.5 w-3.5" />
               Persona
             </div>
-            {loadingProfili ? (
+            {errorProfili ? <HrQueryError label="Elenco persone non disponibile" onRetry={retryProfili} /> : loadingProfili ? (
               <Skeleton className="h-9 w-64 rounded-md" />
             ) : (
               <Select value={selectedProfilo} onValueChange={setSelectedProfilo}>
@@ -192,6 +204,7 @@ export function TabDocumenti() {
                     <SelectItem key={p.id} value={p.id}>
                       {[p.nome, p.cognome].filter(Boolean).join(" ") || p.id.slice(0, 8)}
                       {p.mansione ? ` · ${p.mansione}` : ""}
+                      {!p.attivo ? " · Cessato" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

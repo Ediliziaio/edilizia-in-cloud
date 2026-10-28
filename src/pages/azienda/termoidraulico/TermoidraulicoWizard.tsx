@@ -361,7 +361,7 @@ export default function TermoidraulicoWizard() {
       setCreating(true);
       try {
         const created = await upsertMut.mutateAsync(await createInput());
-        navigate(`/azienda/termoidraulico/${created.id}/modifica`, { replace: true });
+        navigate(`/azienda/termoidraulico/${created.id}/modifica${searchParams.get("rilievo") ? `?rilievo=${encodeURIComponent(searchParams.get("rilievo")!)}` : ""}`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
           description: motivoSalvataggioNonRiuscito(e),

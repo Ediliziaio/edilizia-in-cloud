@@ -12,6 +12,8 @@
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { canImportSurvey } from "../_shared/surveyImportAccess.ts";
 
 interface Payload {
   progetto_id: string;
@@ -52,27 +54,28 @@ Deno.serve(async (req: Request) => {
   try {
     const auth = await requireAuth(req, corsHeaders);
     const supabaseAdmin = auth.supabaseAdmin;
+    // Privileged writes only after caller-scoped reads and fresh office permissions.
+    const caller = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!,{
+      global:{headers:{Authorization:req.headers.get("Authorization")!}},auth:{persistSession:false},
+    });
 
     const p = (await req.json()) as Payload;
     if (!p.progetto_id) return errorResponse("progetto_id mancante", 400, corsHeaders);
     if (!p.sopralluogo_id) return errorResponse("sopralluogo_id mancante", 400, corsHeaders);
 
     // 1. Verifica progetto e sopralluogo + authz
-    const { data: prog, error: progErr } = await supabaseAdmin
+    const { data: prog, error: progErr } = await caller
       .from("sr_progetti").select("id, company_id").eq("id", p.progetto_id).maybeSingle();
     if (progErr || !prog) return errorResponse("Progetto non trovato", 404, corsHeaders);
 
-    const { data: survey, error: surveyErr } = await supabaseAdmin
+    const { data: survey, error: surveyErr } = await caller
       .from("surveys").select("id, company_id").eq("id", p.sopralluogo_id).maybeSingle();
     if (surveyErr || !survey) return errorResponse("Sopralluogo non trovato", 404, corsHeaders);
     if (survey.company_id !== prog.company_id) {
       return errorResponse("Sopralluogo e progetto appartengono a aziende diverse", 403, corsHeaders);
     }
-
-    // 2. Replace mode: cancella esistenti
-    if (p.replace) {
-      await supabaseAdmin.from("sr_serramenti_progetto").delete().eq("progetto_id", p.progetto_id);
-      await supabaseAdmin.from("sr_accessori_progetto").delete().eq("progetto_id", p.progetto_id);
+    if (!await canImportSurvey(caller,auth.userId,prog.company_id)) {
+      return errorResponse("Importazione riservata all’ufficio con permessi di modifica preventivi",403,corsHeaders);
     }
 
     // 3. Load elementi del sopralluogo (solo infissi)
@@ -107,7 +110,7 @@ Deno.serve(async (req: Request) => {
       .eq("progetto_id", p.progetto_id)
       .order("position", { ascending: false })
       .limit(1);
-    const startPos = (existing && existing[0]?.position != null) ? Number(existing[0].position) + 1 : 0;
+    const startPos = !p.replace && (existing && existing[0]?.position != null) ? Number(existing[0].position) + 1 : 0;
 
     let startPosAcc = 0;
     {
@@ -117,7 +120,7 @@ Deno.serve(async (req: Request) => {
         .eq("progetto_id", p.progetto_id)
         .order("position", { ascending: false })
         .limit(1);
-      startPosAcc = (existingAcc && existingAcc[0]?.position != null) ? Number(existingAcc[0].position) + 1 : 0;
+      startPosAcc = !p.replace && (existingAcc && existingAcc[0]?.position != null) ? Number(existingAcc[0].position) + 1 : 0;
     }
 
     // 5. Mappa ogni element → riga BOM
@@ -191,6 +194,14 @@ Deno.serve(async (req: Request) => {
       if (isComplemento("inferriata")) addAccessorio("inferriata", "Inferriata di sicurezza");
     }
 
+    // Never erase an existing quote when there are no compatible survey rows.
+    if (p.replace && !serramentiPayload.length && !accessoriPayload.length) return errorResponse("Nessun elemento compatibile: preventivo non modificato",422,corsHeaders);
+    if (p.replace) {
+      const {error:serError}=await supabaseAdmin.from("sr_serramenti_progetto").delete().eq("progetto_id",p.progetto_id);
+      if(serError)throw serError;
+      const {error:accError}=await supabaseAdmin.from("sr_accessori_progetto").delete().eq("progetto_id",p.progetto_id);
+      if(accError)throw accError;
+    }
     // 6. Insert
     if (serramentiPayload.length > 0) {
       const { error: insSerErr } = await supabaseAdmin
@@ -232,6 +243,7 @@ Deno.serve(async (req: Request) => {
       accessori_imported: accessoriPayload.length,
     }, 200, corsHeaders);
   } catch (err) {
+    if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sr-import-da-sopralluogo] error", msg);
     return errorResponse(msg, 500, corsHeaders);

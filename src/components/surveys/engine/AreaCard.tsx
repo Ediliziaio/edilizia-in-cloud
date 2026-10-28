@@ -3,7 +3,10 @@
  */
 import { useState } from "react";
 import type {
-  AreaDefinition, ElementTypeDefinition, SurveyAreaRow, SurveyElementRow,
+  AreaDefinition,
+  ElementTypeDefinition,
+  SurveyAreaRow,
+  SurveyElementRow,
   SurveyMediaRow,
 } from "@/types/surveys";
 import { SectionRenderer } from "./SectionRenderer";
@@ -14,10 +17,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MapPin, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { availableSurveyTypes } from "@/lib/surveys/availableTypes";
 
 export interface AreaCardProps {
   area: SurveyAreaRow;
@@ -29,7 +36,7 @@ export interface AreaCardProps {
   onAreaChange: (id: string, patch: Partial<SurveyAreaRow>) => void;
   onAreaDelete: () => void;
   onElementAdd: (elementType: string) => void;
-  onElementChange: (id: string, patch: Partial<SurveyElementRow>) => void;
+  onElementOpen: (id: string) => void;
   onElementDuplicate: (id: string) => void;
   onElementDelete: (id: string) => void;
   onMediaAdded?: (m: SurveyMediaRow) => void;
@@ -37,11 +44,23 @@ export interface AreaCardProps {
 }
 
 export function AreaCard({
-  area, areaDefinition, elementTypes, elements, media, surveyId,
-  onAreaChange, onAreaDelete, onElementAdd, onElementChange,
-  onElementDuplicate, onElementDelete, onMediaAdded, onMediaDeleted,
+  area,
+  areaDefinition,
+  elementTypes: originalElementTypes,
+  elements,
+  media,
+  surveyId,
+  onAreaChange,
+  onAreaDelete,
+  onElementAdd,
+  onElementOpen,
+  onElementDuplicate,
+  onElementDelete,
+  onMediaAdded,
+  onMediaDeleted,
 }: AreaCardProps) {
   const [expanded, setExpanded] = useState(true);
+  const elementTypes = availableSurveyTypes(originalElementTypes);
   const areaMedia = media.filter((m) => m.area_id === area.id && !m.element_id);
   const elementCount = elements.length;
 
@@ -62,7 +81,11 @@ export function AreaCard({
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center gap-2 flex-1 min-w-0"
         >
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {expanded ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
           <MapPin className="h-4 w-4 text-orange-600 shrink-0" />
           <Input
             value={area.name}
@@ -98,9 +121,11 @@ export function AreaCard({
             <SectionRenderer
               section={areaSection}
               values={area.area_data ?? {}}
-              onChange={(k, v) => onAreaChange(area.id, {
-                area_data: { ...(area.area_data ?? {}), [k]: v },
-              })}
+              onChange={(k, v) =>
+                onAreaChange(area.id, {
+                  area_data: { [k]: v },
+                })
+              }
             />
           )}
 
@@ -133,7 +158,9 @@ export function AreaCard({
               {elements
                 .sort((a, b) => a.position - b.position)
                 .map((el, idx) => {
-                  const type = elementTypes.find((t) => t.key === el.element_type);
+                  const type = elementTypes.find(
+                    (t) => t.key === el.element_type,
+                  );
                   if (!type) return null;
                   return (
                     <ElementCard
@@ -143,7 +170,7 @@ export function AreaCard({
                       index={idx}
                       surveyId={surveyId}
                       media={media}
-                      onChange={onElementChange}
+                      onOpen={() => onElementOpen(el.id)}
                       onDuplicate={() => onElementDuplicate(el.id)}
                       onDelete={() => onElementDelete(el.id)}
                       onMediaAdded={onMediaAdded}
@@ -159,7 +186,10 @@ export function AreaCard({
             <Button
               variant="outline"
               onClick={() => onElementAdd(elementTypes[0].key)}
-              className={cn("w-full gap-2 border-dashed border-2", "border-orange-300 hover:bg-orange-50")}
+              className={cn(
+                "w-full gap-2 border-dashed border-2",
+                "border-orange-300 hover:bg-orange-50",
+              )}
             >
               <Plus className="h-4 w-4" />
               Aggiungi {elementTypes[0].label}
@@ -177,7 +207,10 @@ export function AreaCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 {elementTypes.map((t) => (
-                  <DropdownMenuItem key={t.key} onClick={() => onElementAdd(t.key)}>
+                  <DropdownMenuItem
+                    key={t.key}
+                    onClick={() => onElementAdd(t.key)}
+                  >
                     {t.label}
                   </DropdownMenuItem>
                 ))}

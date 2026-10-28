@@ -33,6 +33,8 @@ import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
 import type { StatoSalvataggio } from "@/components/preventivatore";
 import { dettagliPerSalvataggio } from "@/lib/computo/vociDettagli";
+import { EnergyQuoteImport } from "@/components/sopralluoghi/EnergyQuoteImport";
+import { energyComputoRows, energySurveyOrigin } from "@/lib/surveys/energyQuote";
 
 interface Props {
   aiContext?: NativeComputoAiContext;
@@ -57,6 +59,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
 
   // Stato controllato del computo, seedato una volta dal server (vedi header).
   const [computo, setComputo] = useState<ClmComputoVoce[]>(() => initialComputo);
+  const linkedSurveyId = computo.map(r=>energySurveyOrigin(r.fonte)).find(Boolean);
   const [dirty, setDirty] = useState(initialDirty);
   const [savedOnce, setSavedOnce] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -228,6 +231,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
         )}
       </div>
 
+      <EnergyQuoteImport companyId={companyId} module="climatizzazione" originId={linkedSurveyId} imported={!!linkedSurveyId} disabled={saveMut.isPending} onApply={(_detail,rows,prices)=>handleChange([...computo,...energyComputoRows(rows,prices,companyId||"",progettoId,computo)])}/>
       {model && <LavorazioniDelModello intervento={model} />}
       {/* Hint listino vuoto */}
       {/* Telefono no: il listino si imposta da computer, e le voci libere ci sono comunque. */}

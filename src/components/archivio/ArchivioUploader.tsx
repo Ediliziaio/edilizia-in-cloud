@@ -1,49 +1,53 @@
-import { useState, useRef } from 'react';
-import { ArchivioDocument } from '@/hooks/useArchivioSostitutivo';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useRef } from "react";
+import { ArchivioDocument } from "@/hooks/useArchivioSostitutivo";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Info, Upload } from 'lucide-react';
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Info, Upload } from "lucide-react";
 
 interface Props {
   onUpload: (params: {
     file: File;
-    tipo_documento: ArchivioDocument['tipo_documento'];
+    tipo_documento: ArchivioDocument["tipo_documento"];
     anno_fiscale: number;
     note?: string;
   }) => Promise<void>;
   isUploading: boolean;
+  anno?: number;
 }
 
-const TIPO_DOCUMENTO_LABELS: Record<ArchivioDocument['tipo_documento'], string> = {
-  fattura_attiva: 'Fattura attiva',
-  fattura_passiva: 'Fattura passiva',
-  nota_credito: 'Nota di credito',
-  altro: 'Altro',
+const TIPO_DOCUMENTO_LABELS: Record<
+  ArchivioDocument["tipo_documento"],
+  string
+> = {
+  fattura_attiva: "Fattura attiva",
+  fattura_passiva: "Fattura passiva",
+  nota_credito: "Nota di credito",
+  altro: "Altro",
 };
 
 interface FormState {
-  tipo_documento: ArchivioDocument['tipo_documento'] | '';
+  tipo_documento: ArchivioDocument["tipo_documento"] | "";
   anno_fiscale: string;
   note: string;
   file: File | null;
 }
 
-export function ArchivioUploader({ onUpload, isUploading }: Props) {
+export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>({
-    tipo_documento: '',
-    anno_fiscale: String(new Date().getFullYear()),
-    note: '',
+    tipo_documento: "",
+    anno_fiscale: String(anno ?? new Date().getFullYear()),
+    note: "",
     file: null,
   });
 
@@ -51,22 +55,27 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
     e.preventDefault();
     if (!form.file || !form.tipo_documento || !form.anno_fiscale) return;
 
-    await onUpload({
-      file: form.file,
-      tipo_documento: form.tipo_documento as ArchivioDocument['tipo_documento'],
-      anno_fiscale: parseInt(form.anno_fiscale),
-      note: form.note || undefined,
-    });
+    try {
+      await onUpload({
+        file: form.file,
+        tipo_documento:
+          form.tipo_documento as ArchivioDocument["tipo_documento"],
+        anno_fiscale: parseInt(form.anno_fiscale),
+        note: form.note || undefined,
+      });
 
-    // Reset form
-    setForm({
-      tipo_documento: '',
-      anno_fiscale: String(new Date().getFullYear()),
-      note: '',
-      file: null,
-    });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      // Reset form
+      setForm({
+        tipo_documento: "",
+        anno_fiscale: String(anno ?? new Date().getFullYear()),
+        note: "",
+        file: null,
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch {
+      /* Mutation exposes the failure; keep the selected file and form for retry. */
     }
   };
 
@@ -83,21 +92,27 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
             <Label>Tipo documento</Label>
             <Select
               value={form.tipo_documento}
-              onValueChange={v =>
-                setForm(f => ({ ...f, tipo_documento: v as ArchivioDocument['tipo_documento'] }))
+              onValueChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  tipo_documento: v as ArchivioDocument["tipo_documento"],
+                }))
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleziona tipo..." />
               </SelectTrigger>
               <SelectContent>
-                {(Object.entries(TIPO_DOCUMENTO_LABELS) as [ArchivioDocument['tipo_documento'], string][]).map(
-                  ([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  )
-                )}
+                {(
+                  Object.entries(TIPO_DOCUMENTO_LABELS) as [
+                    ArchivioDocument["tipo_documento"],
+                    string,
+                  ][]
+                ).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -109,7 +124,9 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
               min="2000"
               max="2099"
               value={form.anno_fiscale}
-              onChange={e => setForm(f => ({ ...f, anno_fiscale: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, anno_fiscale: e.target.value }))
+              }
             />
           </div>
 
@@ -119,9 +136,13 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
               ref={fileInputRef}
               type="file"
               accept=".pdf,.xml,.p7m"
-              onChange={e => setForm(f => ({ ...f, file: e.target.files?.[0] ?? null }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))
+              }
             />
-            <p className="text-xs text-muted-foreground">Formati accettati: PDF, XML, P7M</p>
+            <p className="text-xs text-muted-foreground">
+              Formati accettati: PDF, XML, P7M
+            </p>
           </div>
 
           <div className="space-y-1.5">
@@ -129,7 +150,7 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
             <Textarea
               placeholder="Note opzionali sul documento..."
               value={form.note}
-              onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               rows={2}
             />
           </div>
@@ -137,14 +158,14 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
             <span>
-              Del documento si calcola l'impronta SHA-256, che serve a riconoscere se il file
-              cambia. Non è una firma digitale.
+              Del documento si calcola l'impronta SHA-256, che serve a
+              riconoscere se il file cambia. Non è una firma digitale.
             </span>
           </div>
 
           <Button type="submit" disabled={isUploading || !isValid}>
             <Upload className="h-4 w-4 mr-2" />
-            {isUploading ? 'Archiviazione in corso...' : 'Archivia Documento'}
+            {isUploading ? "Archiviazione in corso..." : "Archivia Documento"}
           </Button>
         </form>
       </CardContent>

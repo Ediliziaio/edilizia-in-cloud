@@ -43,6 +43,15 @@ beforeEach(() => {
 afterEach(cleanup);
 const show = () => render(<LinkedTasks orderId="order" category="ordini" />);
 describe("Attività collegate: caricamento e dipendenze", () => {
+  it("spiega le attività operative senza cambiare i titoli nelle altre pagine", () => {
+    const view = render(<LinkedTasks orderId="order" category="ordini" compatta title="Attività operative del cantiere" description="Promemoria con responsabile e scadenza, non fasi di lavoro." />);
+    expect(screen.getByText("Attività operative del cantiere")).toBeVisible();
+    expect(screen.getByText(/Promemoria con responsabile/)).toBeVisible();
+    view.unmount();
+    show();
+    expect(screen.getByText("Attività")).toBeVisible();
+    expect(screen.queryByText("Attività operative del cantiere")).not.toBeInTheDocument();
+  });
   it("un errore non viene presentato come elenco vuoto", () => {
     m.error = true;
     show();

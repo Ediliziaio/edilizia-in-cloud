@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { formatDateIt } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -186,6 +187,11 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   }, [companyId]);
 
   useEffect(() => { void loadData(); }, [loadData, refreshKey]);
+  useEffect(() => {
+    const refresh = () => { void loadData(); };
+    window.addEventListener('eic-financial-refresh',refresh);
+    return () => window.removeEventListener('eic-financial-refresh',refresh);
+  },[loadData]);
 
   // Giroconti/transazioni interne: mai riconciliabili con una fattura.
   // Contarli tra i "da riconciliare" produce solo lavoro finto e allarmi finti.
@@ -236,6 +242,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // Fattura interna, bonifico e rata della commessa si muovono insieme: dopo
   // un abbinamento o uno storno le altre pagine rileggono i loro dati.
   function aggiornaPagineCollegate() {
+    refreshFinancialQueries(queryClient);
     queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
     queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
@@ -372,50 +379,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     if (matching) return;
     setMatching(true);
     try {
-      const residuo = Number(sc.amount || 0) - Number(sc.paid_amount || 0);
-      const matchedAmount = Math.min(Math.abs(tx.amount), residuo);
-      if (matchedAmount <= 0) {
-        toast.error("La scadenza risulta già saldata.");
-        return;
-      }
-
-      const { data: recRow, error: recErr } = await supabase.from("bank_reconciliations").insert({
-        company_id: companyId,
-        transaction_id: tx.id,
-        scadenza_id: sc.id,
-        matched_amount: matchedAmount,
-        match_type: "manual",
-        matched_by: user?.id ?? null,
-        matched_at: new Date().toISOString(),
-        notes: matchNote.trim() || null,
-      } as any).select("id").single();
-      if (recErr || !recRow?.id) throw recErr || new Error("registro non scritto");
-
-      const claimRes = await (supabase as any).from("bank_transactions")
-        .update({ linked_scadenza_id: sc.id, reconciliation_status: "reconciled", reconciled_at: new Date().toISOString() })
-        .eq("id", tx.id).eq("company_id", companyId)
-        .is("linked_scadenza_id", null)
-        .select("id");
-      if (claimRes.error || !claimRes.data || claimRes.data.length === 0) {
-        await supabase.from("bank_reconciliations").delete().eq("id", recRow.id);
-        throw claimRes.error || new Error("Movimento già abbinato da un'altra sessione");
-      }
-
-      const newPaid = Number(sc.paid_amount || 0) + matchedAmount;
-      const scRes = await supabase.from("scadenze").update({
-        paid_amount: newPaid,
-        status: newPaid >= Number(sc.amount || 0) ? "pagata" : "parziale",
-        paid_date: tx.booking_date ?? new Date().toLocaleDateString("en-CA"),
-      }).eq("id", sc.id).eq("company_id", companyId);
-      if (scRes.error) {
-        await (supabase as any).from("bank_transactions")
-          .update({ linked_scadenza_id: null, reconciliation_status: "pending", reconciled_at: null })
-          .eq("id", tx.id).eq("company_id", companyId);
-        await supabase.from("bank_reconciliations").delete().eq("id", recRow.id);
-        throw scRes.error;
-      }
-
-      toast.success(`Uscita riconciliata: ${fmtEur(matchedAmount)} su "${sc.description || "scadenza"}"`);
+      const {data,error}=await (supabase as any).rpc('riconcilia_uscita_scadenza',{p_transazione:tx.id,p_scadenza:sc.id,p_tipo:'manual'});
+      if(error)throw new Error(error.message);
+      refreshFinancialQueries(queryClient);
+      toast.success(`Uscita riconciliata: ${fmtEur(Number(data?.importo??Math.abs(tx.amount)))}`);
       setSelectedDebit(null);
       setMatchNote("");
       loadData();
@@ -433,6 +400,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     try {
       const { data, error } = await supabase.functions.invoke("bank-auto-reconcile", { body: { company_id: companyId } });
       if (error || data?.success === false) throw new Error(data?.error || error?.message || "Errore");
+      refreshFinancialQueries(queryClient);
       const inc = data?.auto_matched ?? 0;
       const cost = data?.costs_matched ?? 0;
       const prop = data?.proposals_created ?? 0;
@@ -473,6 +441,14 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         setUnlinking(false);
         void loadData();
         return;
+      }
+
+      if (String(rec.notes??'').startsWith('[PAGAMENTO_UNICO]')) {
+        const {error}=await (supabase as any).rpc('scollega_uscita_scadenza',{p_riconciliazione:rec.id});
+        if(error)throw new Error(error.message);
+        refreshFinancialQueries(queryClient);
+        toast.success('Banca scollegata. Il pagamento registrato è conservato.');
+        setUnlinkTarget(null);return;
       }
 
       // ── Riconciliazione a SCADENZA (uscita): storno dedicato ──────────────

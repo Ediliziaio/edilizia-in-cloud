@@ -29,6 +29,7 @@ import {
   type MezzoInCarico,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
 
 const ORDINE_STATO: Record<string, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3 };
 
@@ -142,6 +143,7 @@ export default function CampoMezzi() {
 }
 
 function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Map<string, string> | undefined; attrezzi: MezzoInCarico[] }) {
+  const [routeParams] = useSearchParams();
   const [km, setKm] = useState(false);
   const [segnala, setSegnala] = useState(false);
   const [aprendo, setAprendo] = useState<string | null>(null);
@@ -226,6 +228,10 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
             <Wrench className="mr-2 h-4 w-4 shrink-0" />Segnala un problema
           </Button>
         </div>
+
+        {mezzo.contatore_unita === "km" && ["furgone", "autocarro", "autovettura", "altro"].includes(mezzo.tipo) && (
+          <ViaggiMezzoWorkspace companyId={mezzo.company_id} mezzoId={mezzo.id} campo autoOpen={routeParams.get("viaggio")===mezzo.id} defaultOrderId={routeParams.get("commessa") ?? undefined} />
+        )}
 
         {scaduti.length > 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">

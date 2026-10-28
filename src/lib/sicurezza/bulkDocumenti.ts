@@ -111,6 +111,12 @@ export function guessContentType(
   return MIME_BY_EXT[ext] || fallback || "application/octet-stream";
 }
 
+/** A Blob extracted from ZIP has no MIME. Storage multipart uses the Blob type. */
+export function blobDocumentoUpload(nome:string,blob:Blob):Blob {
+  const mime=guessContentType(nome,blob.type||undefined);
+  return blob.type===mime?blob:blob.slice(0,blob.size,mime);
+}
+
 /** Sanitizza il nome file per lo storage path (mirror del caricamento singolo). */
 export function sanitizeFileName(name: string): string {
   return String(name ?? "file").replace(/[^\w.-]+/g, "_");

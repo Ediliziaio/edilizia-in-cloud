@@ -47,6 +47,7 @@ import {
   classifyTipoDocumento,
   extractZipEntries,
   guessContentType,
+  blobDocumentoUpload,
   guessScadenzaFromName,
   sanitizeFileName,
   SUBAPPALTATORI_DOCUMENTI_BUCKET,
@@ -169,7 +170,7 @@ export default function BulkDocumentiUploadDialog({
         const filePath = `${companyId}/${subappaltatoreId}/${Date.now()}-${suffix}-${safeName}`;
         const { error: upErr } = await supabase.storage
           .from(SUBAPPALTATORI_DOCUMENTI_BUCKET)
-          .upload(filePath, row.blob, {
+          .upload(filePath, blobDocumentoUpload(row.name,row.blob), {
             contentType: guessContentType(row.name, row.blob.type || undefined),
             upsert: false,
           });

@@ -84,6 +84,11 @@ interface SupplierUsageCounts {
   scadenze: number;
   primaNota: number;
   warehouseStock: number;
+  fiscalPartners: number;
+  contracts: number;
+  relations: number;
+  receivedInvoices: number;
+  receiptHistory: number;
 }
 
 const emptyUsageCounts: SupplierUsageCounts = {
@@ -94,6 +99,11 @@ const emptyUsageCounts: SupplierUsageCounts = {
   scadenze: 0,
   primaNota: 0,
   warehouseStock: 0,
+  fiscalPartners: 0,
+  contracts: 0,
+  relations: 0,
+  receivedInvoices: 0,
+  receiptHistory: 0,
 };
 
 const supplierUsageLabels: Record<keyof SupplierUsageCounts, string> = {
@@ -104,6 +114,11 @@ const supplierUsageLabels: Record<keyof SupplierUsageCounts, string> = {
   scadenze: "Scadenze/pagamenti",
   primaNota: "Prima nota",
   warehouseStock: "Magazzino",
+  fiscalPartners: "Anagrafiche fiscali collegate",
+  contracts: "Contratti e incarichi",
+  relations: "Ruoli e collegamenti dedicati",
+  receivedInvoices: "Fatture ricevute collegate",
+  receiptHistory: "Storico collegamenti ricevute",
 };
 
 function getUsageTotal(usage: SupplierUsageCounts | undefined) {
@@ -123,6 +138,11 @@ async function getSupplierUsageCounts(
     scadenze,
     primaNota,
     warehouseStock,
+    fiscalPartners,
+    contracts,
+    relations,
+    receivedInvoices,
+    receiptHistory,
   ] = await Promise.all([
     supabase
       .from("article_templates")
@@ -158,6 +178,31 @@ async function getSupplierUsageCounts(
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .eq("supplier_id", supplierId),
+    supabase
+      .from("anagrafiche_native" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("fornitore_id", supplierId),
+    supabase
+      .from("supplier_contracts" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("supplier_id", supplierId),
+    supabase
+      .from("supplier_relations" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("supplier_id", supplierId),
+    supabase
+      .from("fatture_ricevute" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("fornitore_id", supplierId),
+    supabase
+      .from("supplier_receipt_links_log" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .or(`supplier_id.eq.${supplierId},previous_supplier_id.eq.${supplierId}`),
   ]);
 
   const errors = [
@@ -168,6 +213,11 @@ async function getSupplierUsageCounts(
     scadenze,
     primaNota,
     warehouseStock,
+    fiscalPartners,
+    contracts,
+    relations,
+    receivedInvoices,
+    receiptHistory,
   ]
     .map((result) => result.error)
     .filter(Boolean);
@@ -183,6 +233,11 @@ async function getSupplierUsageCounts(
     scadenze: scadenze.count ?? 0,
     primaNota: primaNota.count ?? 0,
     warehouseStock: warehouseStock.count ?? 0,
+    fiscalPartners: fiscalPartners.count ?? 0,
+    contracts: contracts.count ?? 0,
+    relations: relations.count ?? 0,
+    receivedInvoices: receivedInvoices.count ?? 0,
+    receiptHistory: receiptHistory.count ?? 0,
   };
 }
 
@@ -712,7 +767,7 @@ export function SuppliersConfig({
       const safeName = normalizeSupplierName(data.name);
       if (!safeName)
         throw new ErroreFornitore("La ragione sociale è obbligatoria.");
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from("suppliers")
         .insert({
           ...payloadFornitore(data),
@@ -721,13 +776,15 @@ export function SuppliersConfig({
         .select("id")
         .single();
       if (error) throw error;
+      return created.id;
     },
-    onSuccess: async () => {
+    onSuccess: async (id) => {
       await invalidateSuppliers();
       toast.success("Fornitore creato", {
         description: "Il fornitore è stato aggiunto con successo.",
       });
       handleCloseDialog();
+      onApriFornitore?.(id);
     },
     onError: (error) => {
       toast.error("Errore", {
@@ -849,6 +906,20 @@ export function SuppliersConfig({
       if (!source || !target)
         throw new ErroreFornitore(
           "Non trovo uno dei due fornitori: ricarica la pagina e riprova.",
+        );
+
+      // L'unione storica procede per più scritture: non iniziarla quando ci
+      // sono fascicoli o collegamenti che non sa trasferire atomicamente.
+      const sourceUsage = await getSupplierUsageCounts(companyId, sourceId);
+      if (
+        sourceUsage.fiscalPartners ||
+        sourceUsage.contracts ||
+        sourceUsage.relations ||
+        sourceUsage.receivedInvoices ||
+        sourceUsage.receiptHistory
+      )
+        throw new ErroreFornitore(
+          "Il doppione ha collegamenti fiscali, ruoli o contratti. L’unione automatica non è disponibile: conserva le schede e verifica i collegamenti senza perdere documenti.",
         );
 
       let contatti: ReturnType<typeof contattiPerUnione>;

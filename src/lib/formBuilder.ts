@@ -1,3 +1,5 @@
+import { customDestinationId } from "../../supabase/functions/_shared/formCustomFields";
+
 type FormFieldDraft = {
   id?: string;
   name?: string;
@@ -18,6 +20,13 @@ type LeadFormDraft = {
   fields?: FormFieldDraft[] | null;
   settings?: Record<string, unknown> | null;
 };
+
+/** Draft preparation is allowed, but never publish a mapping that the live endpoint will ignore. */
+export async function ensureFormCustomFieldSupport(form: { is_published?: boolean; fields?: FormFieldDraft[] }, readSupport: () => Promise<boolean>) {
+  if (form.is_published && form.fields?.some(f => f.mapping?.startsWith("cf:")) && !(await readSupport())) {
+    throw new Error("Il servizio di invio non supporta ancora i campi personalizzati. Mantieni il modulo in bozza finché il servizio non è aggiornato.");
+  }
+}
 
 const STRUCTURAL_TYPES = new Set(["heading", "paragraph", "divider"]);
 const DATALESS_TYPES = new Set(["heading", "paragraph", "divider"]);
@@ -119,6 +128,7 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
   if (!slug) errors.push("Scrivi un indirizzo valido per il modulo: lettere, numeri e trattini.");
 
   const fieldNames = new Set<string>();
+  const customDestinations = new Set<string>();
   let hasContactCaptureField = false;
 
   fields.forEach((field, index) => {
@@ -142,7 +152,12 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
     }
 
     const mapping = String(field.mapping || field.name || "").toLowerCase();
-    if (type === "email" || type === "phone" || CONTACT_CAPTURE_MAPPINGS.has(mapping)) {
+    if (mapping.startsWith("cf:")) {
+      const id = customDestinationId(mapping);
+      if (!id) errors.push(`Il campo "${label || name}" ha una destinazione personalizzata non valida.`);
+      else if (customDestinations.has(id)) errors.push("Due domande scrivono nello stesso campo personalizzato: scegli destinazioni diverse.");
+      else customDestinations.add(id);
+    } else if (type === "email" || type === "phone" || CONTACT_CAPTURE_MAPPINGS.has(mapping)) {
       hasContactCaptureField = true;
     }
   });

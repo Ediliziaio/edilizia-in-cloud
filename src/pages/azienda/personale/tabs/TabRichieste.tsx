@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { toast } from "sonner";
 import { useRichieste, useCreateRichiesta, useUpdateRichiestaStato, type RichiestaWithProfilo } from "@/hooks/useRichieste";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
@@ -18,6 +19,9 @@ import type { HrProfilo, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { colleghiGiaAssenti, inizialiRichiedente, nomeRichiedente } from "@/lib/personale/richieste";
+import { useHrFestivita } from "@/hooks/useHrFestivita";
+import { workingDates } from "@/lib/personale/calendarioLavorativo";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -47,27 +51,11 @@ const STATO_STYLE: Record<RichiestaStato, { bg: string; text: string; icon: Luci
   revocata: { bg: "bg-muted", text: "text-muted-foreground", icon: AlertCircle, label: "Revocata" },
 };
 
-const STATO_FILTER_VALUES = ["tutte", "in_attesa", "approvata", "rifiutata", "annullata"] as const;
+const STATO_FILTER_VALUES = ["tutte", "in_attesa", "approvata", "rifiutata", "annullata", "revocata"] as const;
 type RichiestaStatoFilter = (typeof STATO_FILTER_VALUES)[number];
 
 function isRichiestaStatoFilter(value: string): value is RichiestaStatoFilter {
   return STATO_FILTER_VALUES.includes(value as RichiestaStatoFilter);
-}
-
-function useLoadingTimeout(isLoading: boolean, delayMs = 8000) {
-  const [timedOut, setTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setTimedOut(false);
-      return;
-    }
-
-    const timer = window.setTimeout(() => setTimedOut(true), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [delayMs, isLoading]);
-
-  return timedOut;
 }
 
 function getErrorMessage(error: unknown) {
@@ -75,6 +63,9 @@ function getErrorMessage(error: unknown) {
 }
 
 export function TabRichieste() {
+  const permissions=usePermissions();
+  const canApprove=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin;
+  const canCreate=!permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   const [statoFilter, setStatoFilter] = useState<RichiestaStatoFilter>("tutte");
   const [searchText, setSearchText] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -147,6 +138,7 @@ export function TabRichieste() {
               <SelectItem value="approvata">Approvate</SelectItem>
               <SelectItem value="rifiutata">Rifiutate</SelectItem>
               <SelectItem value="annullata">Annullate</SelectItem>
+              <SelectItem value="revocata">Revocate</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -157,7 +149,7 @@ export function TabRichieste() {
           onChange={(e) => setSearchText(e.target.value)}
         />
         <div className="ml-auto">
-          <Button size="sm" onClick={() => setShowNew(true)}>
+          <Button disabled={!canCreate} size="sm" onClick={() => setShowNew(true)}>
             <Plus className="h-4 w-4 mr-1" /> Nuova Richiesta
           </Button>
         </div>
@@ -220,8 +212,8 @@ export function TabRichieste() {
               onClick={() => setDetailReq(r)}
               giaAssenti={giaAssenti.get(r.id) ?? []}
               inCorso={aggiorna.isPending && aggiorna.variables?.id === r.id}
-              onApprova={() => aggiorna.mutate({ id: r.id, stato: "approvata" })}
-              onRifiuta={() => setDetailReq(r)}
+              onApprova={canApprove ? () => aggiorna.mutate({ id: r.id, stato: "approvata" }) : undefined}
+              onRifiuta={canApprove ? () => setDetailReq(r) : undefined}
             />
           ))}
         </div>
@@ -338,7 +330,7 @@ export function RichiestaRow({
         {/* Approva / rifiuta senza aprire la scheda (solo in attesa, solo desktop). */}
         {r.stato === "in_attesa" && onApprova && onRifiuta && (
           <div className="flex shrink-0 items-center gap-1.5 max-sm:hidden" onClick={(e) => e.stopPropagation()}>
-            <Button size="sm" variant="outline" className="h-8 gap-1 text-red-600 hover:text-red-700" onClick={onRifiuta} disabled={inCorso}>
+            <Button size="sm" variant="outline" className="h-8 gap-1 text-red-600 hover:text-red-700" onClick={onRifiuta} disabled={inCorso || !r.profilo_id} title={!r.profilo_id ? "Collega prima la richiesta a un profilo HR" : undefined}>
               <XCircle className="h-3.5 w-3.5" /> Rifiuta
             </Button>
             <Button size="sm" className="h-8 gap-1" onClick={onApprova} disabled={inCorso || !r.profilo_id}
@@ -362,6 +354,7 @@ export function RichiestaRow({
 /* ── New request dialog ── */
 function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]; open: boolean; onClose: () => void }) {
   const create = useCreateRichiesta();
+  const calendar = useHrFestivita();
   const [profiloId, setProfiloId] = useState("");
   const [tipo, setTipo] = useState<RichiestaTipo>("ferie");
   const [dataInizio, setDataInizio] = useState("");
@@ -370,12 +363,19 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
   const [motivo, setMotivo] = useState("");
   const activeProfili = useMemo(() => profili.filter((p) => p.attivo), [profili]);
   const selectedProfilo = useMemo(() => profili.find((p) => p.id === profiloId), [profili, profiloId]);
-  const durataGiorni = dataInizio && dataFine && dataFine >= dataInizio
-    ? differenceInCalendarDays(new Date(dataFine), new Date(dataInizio)) + 1
-    : 0;
+  const needsCalendar = ["ferie", "permesso", "rol"].includes(tipo);
+  let calendarWarning: string | null = null;
+  let durataGiorni = 0;
+  if (dataInizio && dataFine && dataFine >= dataInizio) {
+    if (needsCalendar) {
+      if (calendar.isLoading || calendar.isError) calendarWarning = "Calendario aziendale non disponibile: conteggio da verificare.";
+      else try { durataGiorni = workingDates(dataInizio, dataFine, selectedProfilo?.giorni_lavorativi || [], calendar.data || []).length; }
+      catch { calendarWarning = "Configura i giorni lavorativi della persona prima di richiedere ferie o permessi."; }
+    } else durataGiorni = differenceInCalendarDays(new Date(dataFine), new Date(dataInizio)) + 1;
+  }
   const oreStimate = ore.trim()
     ? Number(ore)
-    : durataGiorni * Number(selectedProfilo?.ore_giornaliere || 8);
+    : durataGiorni * Number(selectedProfilo?.ore_giornaliere || 0);
 
   const saldoHint = useMemo(() => {
     if (!selectedProfilo || durataGiorni <= 0) return null;
@@ -488,6 +488,8 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
               </div>
             </div>
           )}
+          {needsCalendar && <p className="text-xs text-muted-foreground">Conteggio sui giorni lavorativi del profilo e sulle festività aziendali configurate. Non sono giorni di calendario.</p>}
+          {calendarWarning && <p role="alert" className="text-sm text-amber-700">{calendarWarning}</p>}
           <div>
             <Label>Motivo</Label>
             <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della richiesta..." rows={2} />
@@ -495,7 +497,7 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="max-sm:hidden">Annulla</Button>
-          <Button onClick={handleSubmit} disabled={create.isPending}>
+          <Button onClick={handleSubmit} disabled={create.isPending || !!calendarWarning || (needsCalendar && durataGiorni === 0)}>
             {create.isPending ? "Invio..." : "Crea Richiesta"}
           </Button>
         </DialogFooter>
@@ -510,6 +512,8 @@ function toastMissing() {
 
 /* ── Detail / approval dialog ── */
 function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: RichiestaWithProfilo; open: boolean; onClose: () => void }) {
+  const permissions=usePermissions();
+  const canApprove=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin && !!r.profilo_id;
   const isMobile = useIsMobile();
   const update = useUpdateRichiestaStato();
   const [noteRisposta, setNoteRisposta] = useState(r.note_risposta || "");
@@ -517,6 +521,7 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
   const days = differenceInCalendarDays(new Date(r.data_fine), new Date(r.data_inizio)) + 1;
 
   const handleAction = (stato: RichiestaStato) => {
+    if(!canApprove) return;
     update.mutate({ id: r.id, stato, note_risposta: noteRisposta || undefined }, { onSuccess: onClose });
   };
 
@@ -561,7 +566,8 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
             <span>{format(new Date(r.created_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
 
-          {r.stato === "in_attesa" && (
+          {!r.profilo_id && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Richiesta senza profilo HR collegato: verifica l’anagrafica prima di decidere l’esito. Nessun saldo viene modificato.</p>}
+          {r.stato === "in_attesa" && canApprove && (
             <>
               <div>
                 <Label>Note risposta</Label>

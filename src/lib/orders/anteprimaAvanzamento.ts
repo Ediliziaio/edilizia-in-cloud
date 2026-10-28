@@ -1,7 +1,7 @@
 // src/lib/orders/anteprimaAvanzamento.ts
 /**
  * Cosa succede alle fasi quando un rapportino viene approvato (07/10/2026): lo
- * specchio, per l'anteprima, della regola del trigger fn_rapportino_applica_avanzamento.
+ * specchio, per l'anteprima, della regola del trigger campo_rapportino_avanzamento_approvato.
  * Modulo puro.
  */
 import { avanzamentoFase } from "@/lib/orders/cronoprogramma";
@@ -36,7 +36,7 @@ export function anteprimaAvanzamento(
   const righe: RigaAnteprima[] = [];
   for (const voce of voci) {
     const fase = fasi.find((f) => f.id === voce.phase_id);
-    if (!fase) continue;   // un'altra commessa, o una fase tolta: il database la salta
+    if (!fase) continue;   // una fase non disponibile non ha effetto; il server rifiuta il rapporto finché non viene corretto
     const prima = avanzamentoFase(fase);
     const delle = perFase.get(fase.id) ?? [];
     const spunte = Array.isArray(voce.sottofasi_fatte) ? voce.sottofasi_fatte.filter((x): x is string => typeof x === "string") : null;
@@ -52,7 +52,7 @@ export function anteprimaAvanzamento(
 
     const grezza = voce.percentuale;
     const numero = grezza === undefined || grezza === null || grezza === "" ? 0 : Number(grezza);
-    if (!Number.isFinite(numero)) continue;   // non è un numero: il database salta la voce
+    if (!Number.isFinite(numero)) continue;   // non è un numero: il server rifiuta l’approvazione
     const dichiarata = limita(numero);
     const dopo = Math.max(prima, dichiarata);
     if (dopo === prima && dichiarata >= prima) continue;

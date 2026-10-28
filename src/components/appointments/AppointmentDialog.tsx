@@ -1333,7 +1333,7 @@ export function AppointmentDialog({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 Campi personalizzati
               </p>
-              <EntityCustomFieldsSection entityType="appointment" entityId={appointment.id} />
+              <EntityCustomFieldsSection entityType="appointment" entityId={appointment.id} disabled={solaLettura} />
             </div>
           )}
         </div>

@@ -74,10 +74,20 @@ describe("Filtri dell’elenco sempre disponibili", () => {
       );
       expect(hideCompleted).toHaveBeenCalledWith(true);
       if (paymentFilter !== "all") {
+        const toolbar = screen.getByRole("group", { name: "Filtri commesse" });
+        const reset = screen.getByRole("button", { name: "Cancella tutti i filtri" });
+        expect(screen.getAllByText("Azzera filtri")).toHaveLength(1);
+        expect(screen.queryByLabelText("Filtri attivi")).not.toBeInTheDocument();
+        // The reset stays outside the wrapping controls, on the toolbar's first row.
+        expect(reset.parentElement).toBe(toolbar);
+        expect(toolbar).toHaveClass("flex", "items-start");
+        expect(toolbar).not.toHaveClass("flex-wrap");
         fireEvent.click(
           screen.getByRole("button", { name: "Cancella tutti i filtri" }),
         );
         expect(clear).toHaveBeenCalledOnce();
+      } else {
+        expect(screen.queryByRole("button", { name: "Cancella tutti i filtri" })).not.toBeInTheDocument();
       }
     },
   );

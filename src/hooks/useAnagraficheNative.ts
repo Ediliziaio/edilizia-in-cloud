@@ -2,34 +2,62 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 
-export function useAnagraficheNative(search?: string, includeInactive = false) {
+export function useAnagraficheNative(
+  search?: string,
+  includeInactive = false,
+  complete = false,
+) {
   const companyId = useEffectiveCompanyId();
 
   return useQuery({
-    queryKey: ["anagrafiche-native", "list", companyId ?? undefined, search, includeInactive] as const,
+    queryKey: [
+      "anagrafiche-native",
+      "list",
+      companyId ?? undefined,
+      search,
+      includeInactive,
+      complete,
+    ] as const,
     enabled: !!companyId,
     queryFn: async () => {
-      let query = supabase
-        .from("anagrafiche_native" as never)
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("ragione_sociale", { ascending: true })
-        .limit(100);
+      const buildQuery = () => {
+        let query = supabase
+          .from("anagrafiche_native" as never)
+          .select("*")
+          .eq("company_id", companyId!)
+          .order("ragione_sociale", { ascending: true })
+          .order("id");
 
-      if (!includeInactive) {
-        query = query.eq("attivo", true);
-      }
+        if (!includeInactive) {
+          query = query.eq("attivo", true);
+        }
 
-      // Virgole, parentesi e apici romperebbero il filtro .or(); un privato si cerca anche per nome o cognome.
-      const termine = (search ?? "").replace(/[,()"'\\%*]/g, " ").trim();
-      if (termine) {
-        query = query.or(
-          ["ragione_sociale", "nome", "cognome", "partita_iva", "codice_fiscale"].map((c) => `${c}.ilike.%${termine}%`).join(","),
+        // Virgole, parentesi e apici romperebbero il filtro .or(); un privato si cerca anche per nome o cognome.
+        const termine = (search ?? "").replace(/[,()"'\\%*]/g, " ").trim();
+        if (termine) {
+          query = query.or(
+            [
+              "ragione_sociale",
+              "nome",
+              "cognome",
+              "partita_iva",
+              "codice_fiscale",
+              "email",
+            ]
+              .map((c) => `${c}.ilike.%${termine}%`)
+              .join(","),
+          );
+        }
+
+        return query;
+      };
+      if (complete)
+        return loadCatalogPages<{ id: string }>(
+          (from, to) => buildQuery().range(from, to) as never,
         );
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await buildQuery().limit(100);
       if (error) throw error;
       return (data as unknown[]) ?? [];
     },
@@ -42,7 +70,7 @@ export function useAnagraficaNative(id: string | undefined) {
   const companyId = useEffectiveCompanyId();
 
   return useQuery({
-    queryKey: queryKeys.anagraficheNative.detail(id),
+    queryKey: [...queryKeys.anagraficheNative.detail(id), companyId],
     enabled: !!id && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase

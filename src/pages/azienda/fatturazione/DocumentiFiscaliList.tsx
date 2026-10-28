@@ -45,7 +45,7 @@ import {
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
   AlertCircle, CheckCircle2, Clock, Truck, RotateCcw, FileSpreadsheet,
   BarChart3, Settings2, BookUser, Wallet, Archive, Calculator, ShieldCheck,
-  Scale, ExternalLink, Link2,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -57,14 +57,14 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 import AnagraficheList from "./AnagraficheList";
 import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
+import FiscalWorkspace from "@/components/fatturazione/FiscalWorkspace";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 const PER_PAGE = 25;
 
-// Mobile: due schede su cinque (clienti fiscali, cassetto SDI e fiscalità
-// restano al desktop).
-const HUB_TABS_MOBILE: BillingHubTab[] = ["fatture", "incassi"];
+// Mobile: Fatture, Incassi e Fiscalità; le altre schede restano al desktop.
+const HUB_TABS_MOBILE: BillingHubTab[] = ["fatture", "incassi", "fiscalita"];
 
 type BillingHubTab = "fatture" | "rubrica" | "incassi" | "sdi" | "fiscalita";
 
@@ -126,7 +126,7 @@ function BillingHubTabs({
     // Mobile: due linguette affiancate da 36px, senza icone né descrizioni;
     // sta sotto il titolo della pagina (vedi l'ordine nel contenitore).
     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm max-sm:-order-1 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none">
-      <div className="flex min-w-max gap-1 max-sm:grid max-sm:min-w-0 max-sm:grid-cols-2">
+      <div className="flex min-w-max gap-1 max-sm:grid max-sm:min-w-0 max-sm:grid-cols-3">
         {HUB_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const TabIcon = tab.icon;
@@ -171,74 +171,6 @@ function BillingHubTabs({
   );
 }
 
-function FiscalitaPanel() {
-  const tools = [
-    {
-      title: "Registro IVA",
-      description: "Registri, riepiloghi e controlli IVA.",
-      to: "/azienda/documenti/registro-iva",
-      icon: BarChart3,
-    },
-    {
-      title: "Contabilità fiscale",
-      description: "F24, liquidazione IVA e scadenze fiscali.",
-      to: "/azienda/contabilita-fiscale",
-      icon: Calculator,
-    },
-    {
-      title: "Ritenute garanzia",
-      description: "Trattenute, svincoli e dossier collegati ai cantieri.",
-      to: "/azienda/ritenute-garanzia",
-      icon: ShieldCheck,
-    },
-    {
-      title: "Archivio sostitutivo",
-      description: "Conservazione digitale e documenti in esibizione.",
-      to: "/azienda/archivio-sostitutivo",
-      icon: Scale,
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <Calculator className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Fiscalità</h1>
-            <p className="mt-0.5 text-sm text-slate-500">IVA, ritenute e conservazione raccolte nello stesso flusso della fatturazione.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {tools.map((tool) => {
-          const ToolIcon = tool.icon;
-          return (
-            <Link
-              key={tool.to}
-              to={tool.to}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-                  <ToolIcon className="h-5 w-5" />
-                </span>
-                <ExternalLink className="h-4 w-4 text-slate-300 transition-colors group-hover:text-orange-500" />
-              </div>
-              <div className="mt-4">
-                <p className="font-semibold text-slate-950">{tool.title}</p>
-                <p className="mt-1 text-sm leading-5 text-slate-500">{tool.description}</p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function DocumentiFiscaliHub() {
   const isMobile = useIsMobile();
@@ -269,7 +201,7 @@ function DocumentiFiscaliHub() {
       {activeHubTab === "rubrica" && <AnagraficheList embedded />}
       {activeHubTab === "incassi" && <RegistroIncassi embedded />}
       {activeHubTab === "sdi" && <CassettoSDI embedded />}
-      {activeHubTab === "fiscalita" && <FiscalitaPanel />}
+      {activeHubTab === "fiscalita" && <FiscalWorkspace />}
     </div>
   );
 }
@@ -375,19 +307,17 @@ function DocumentiFiscaliListInner() {
   };
 
   const { data, isLoading, isError, isFetching, refetch } = useDocumentiFiscali(filters);
-  const [showSlowLoading, setShowSlowLoading] = useState(false);
+  const [slowLoadingKey, setSlowLoadingKey] = useState<string | null>(null);
+  const loadingKey = JSON.stringify([activeTab, page, search, selectedMonth, statoFilter]);
+  const showSlowLoading = isLoading && slowLoadingKey === loadingKey;
   const { data: counts } = useDocumentCounts();
   const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
 
   useEffect(() => {
-    if (!isLoading) {
-      setShowSlowLoading(false);
-      return;
-    }
-    setShowSlowLoading(false);
-    const timer = window.setTimeout(() => setShowSlowLoading(true), 3500);
+    if (!isLoading) return;
+    const timer = window.setTimeout(() => setSlowLoadingKey(loadingKey), 3500);
     return () => window.clearTimeout(timer);
-  }, [isLoading, activeTab, page, search, selectedMonth, statoFilter]);
+  }, [isLoading, loadingKey]);
 
   const docs = useMemo(() => data?.documenti ?? [], [data?.documenti]);
   const total = data?.total ?? 0;
@@ -984,7 +914,7 @@ function DocumentiFiscaliListInner() {
                       {showColTipo && (
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] font-normal">
-                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19" }[doc.tipo] ?? doc.tipo}
+                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", acconto_fattura: "Acconto fattura", acconto_parcella: "Acconto parcella", autoconsumo: "Autoconsumo", autofattura_splafonamento: "TD21", fattura_differita_b: "TD25", reverse_charge_interno: "TD16" }[doc.tipo] ?? doc.tipo}
                           </Badge>
                         </TableCell>
                       )}

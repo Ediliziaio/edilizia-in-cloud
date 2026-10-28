@@ -3,15 +3,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { useNavigate } from "react-router-dom";
 import { useAnagraficheNative } from "@/hooks/useAnagraficheNative";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  useAnagraficheWithReconciliation,
-  useSuggestedMatches,
-  useLinkAnagraficaToCliente,
-  useUnlinkAnagraficaFromCliente,
-} from "@/hooks/billing/useAnagraficaReconciliation";
+import { PartnerReconciliationPanel } from "@/components/fatturazione/PartnerReconciliationPanel";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,16 +14,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import {
-  Plus, Search, Upload, Link2, Unlink, ArrowRightLeft,
-  Check, RefreshCw, Info, Users,
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { Search, Truck, Link2, ArrowRightLeft, Users } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
 
 const TIPO_COLORS: Record<string, string> = {
@@ -56,10 +50,15 @@ type AnagraficheListProps = {
   embedded?: boolean;
 };
 
-export default function AnagraficheList({ embedded = false }: AnagraficheListProps = {}) {
+export default function AnagraficheList({
+  embedded = false,
+}: AnagraficheListProps = {}) {
   const companyId = useEffectiveCompanyId();
-  const { user } = useAuth();
-  const [mainTab, setMainTab] = useState<"anagrafiche" | "riconciliazione">("anagrafiche");
+  const navigate = useNavigate();
+  const permissions = usePermissions();
+  const [mainTab, setMainTab] = useState<"anagrafiche" | "riconciliazione">(
+    "anagrafiche",
+  );
 
   return (
     <div className={cn("space-y-6", !embedded && "p-6")}>
@@ -70,34 +69,51 @@ export default function AnagraficheList({ embedded = false }: AnagraficheListPro
               <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti fiscali</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Clienti e fornitori fiscali per fatturazione, SDI e riconciliazione.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+                Clienti fiscali
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Clienti e fornitori fiscali per fatturazione, SDI e
+                riconciliazione.
+              </p>
             </div>
           </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Upload className="h-4 w-4 mr-1" /> Importa Excel
-          </Button>
-          <Button
-            size="sm"
-            className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
-            onClick={() => toast.info("Creazione manuale anagrafica non ancora disponibile", {
-              description: "Usa l'import Excel o crea l'anagrafica durante l'emissione di un documento.",
-            })}
-          >
-            <Plus className="h-4 w-4 mr-1" /> Nuova anagrafica
-          </Button>
-        </div>
+          <div className="flex gap-2">
+            {(permissions.isAdmin || permissions.canViewCustomers) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/azienda/clienti")}
+              >
+                <Users className="mr-1 h-4 w-4" />
+                Clienti dei cantieri
+              </Button>
+            )}
+            {(permissions.isAdmin ||
+              permissions.canViewSettingsSuppliers ||
+              permissions.canEditSettingsSuppliers) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/azienda/impostazioni/fornitori")}
+              >
+                <Truck className="mr-1 h-4 w-4" />
+                Fornitori operativi
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
+      <Tabs
+        value={mainTab}
+        onValueChange={(v) => setMainTab(v as typeof mainTab)}
+      >
         <TabsList>
           <TabsTrigger value="anagrafiche">Anagrafiche</TabsTrigger>
           <TabsTrigger value="riconciliazione" className="gap-1.5">
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            Riconciliazione Clienti
-            <SuggestedMatchBadge companyId={companyId} />
+            Riconciliazione clienti e fornitori
           </TabsTrigger>
         </TabsList>
 
@@ -106,22 +122,10 @@ export default function AnagraficheList({ embedded = false }: AnagraficheListPro
         </TabsContent>
 
         <TabsContent value="riconciliazione">
-          <ReconciliazionePanel companyId={companyId} userId={user?.id} />
+          <PartnerReconciliationPanel companyId={companyId} />
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-// ─── Badge count for suggested matches ─────────────────────────
-
-function SuggestedMatchBadge({ companyId }: { companyId: string | null }) {
-  const { data: suggestions } = useSuggestedMatches(companyId);
-  if (!suggestions?.length) return null;
-  return (
-    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-      {suggestions.length}
-    </Badge>
   );
 }
 
@@ -133,19 +137,53 @@ function AnagraficheTable() {
   const [search, setSearch] = useState("");
   const [tipoCliente, setTipoCliente] = useState<string>("all");
   const [soloAttivi, setSoloAttivi] = useState(true);
+  const [page, setPage] = useState(0);
 
-  const { data: rawData, isLoading } = useAnagraficheNative(search || undefined, !soloAttivi);
-  const anagrafiche = useMemo(() => (rawData ?? []) as unknown as AnagraficaNative[], [rawData]);
+  const {
+    data: rawData,
+    isLoading,
+    isError,
+    refetch,
+  } = useAnagraficheNative(search || undefined, !soloAttivi, true);
+  const anagrafiche = useMemo(
+    () => (rawData ?? []) as unknown as AnagraficaNative[],
+    [rawData],
+  );
 
   const filtered = useMemo(() => {
     return anagrafiche.filter((a) => {
-      if (tipoTab === "cliente" && a.tipo !== "cliente" && a.tipo !== "entrambi") return false;
-      if (tipoTab === "fornitore" && a.tipo !== "fornitore" && a.tipo !== "entrambi") return false;
+      if (
+        tipoTab === "cliente" &&
+        a.tipo !== "cliente" &&
+        a.tipo !== "entrambi"
+      )
+        return false;
+      if (
+        tipoTab === "fornitore" &&
+        a.tipo !== "fornitore" &&
+        a.tipo !== "entrambi"
+      )
+        return false;
       if (tipoCliente !== "all" && a.tipo_cliente !== tipoCliente) return false;
       if (soloAttivi && !a.attivo) return false;
       return true;
     });
   }, [anagrafiche, tipoTab, tipoCliente, soloAttivi]);
+  const filteredKey = JSON.stringify([
+    search,
+    tipoTab,
+    tipoCliente,
+    soloAttivi,
+  ]);
+  const [lastFilters, setLastFilters] = useState(filteredKey);
+  if (lastFilters !== filteredKey) {
+    setLastFilters(filteredKey);
+    setPage(0);
+  }
+  const currentPage = Math.min(
+    page,
+    Math.max(0, Math.ceil(filtered.length / 30) - 1),
+  );
 
   return (
     <div className="space-y-4 mt-4">
@@ -186,8 +224,14 @@ function AnagraficheTable() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2">
-          <Switch id="attivi" checked={soloAttivi} onCheckedChange={setSoloAttivi} />
-          <Label htmlFor="attivi" className="text-sm">Solo attivi</Label>
+          <Switch
+            id="attivi"
+            checked={soloAttivi}
+            onCheckedChange={setSoloAttivi}
+          />
+          <Label htmlFor="attivi" className="text-sm">
+            Solo attivi
+          </Label>
         </div>
       </div>
 
@@ -204,8 +248,18 @@ function AnagraficheTable() {
             ))}
           </CardContent>
         </Card>
+      ) : isError ? (
+        <div role="alert" className="rounded-xl border p-4">
+          Anagrafiche non disponibili: nessun risultato viene mostrato come
+          vuoto.
+          <Button variant="outline" onClick={() => void refetch()}>
+            Riprova
+          </Button>
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">Nessuna anagrafica trovata</div>
+        <div className="text-center py-12 text-muted-foreground">
+          Nessuna anagrafica trovata
+        </div>
       ) : (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
@@ -222,354 +276,92 @@ function AnagraficheTable() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b hover:bg-muted/30 cursor-pointer"
-                    onClick={() => navigate(`/azienda/documenti/anagrafiche/${a.id}`)}
-                  >
-                    <td className="p-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {getInitials(a.ragione_sociale ?? `${a.nome} ${a.cognome}`)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {a.ragione_sociale ?? `${a.nome ?? ""} ${a.cognome ?? ""}`.trim()}
-                          </span>
-                          {a.cliente_id && (
-                            <Link2 className="h-3.5 w-3.5 text-primary" />
-                          )}
+                {filtered
+                  .slice(currentPage * 30, currentPage * 30 + 30)
+                  .map((a) => (
+                    <tr
+                      key={a.id}
+                      className="border-b hover:bg-muted/30 cursor-pointer"
+                      onClick={() =>
+                        navigate(`/azienda/documenti/anagrafiche/${a.id}`)
+                      }
+                    >
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                              {getInitials(
+                                a.ragione_sociale ?? `${a.nome} ${a.cognome}`,
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {a.ragione_sociale ??
+                                `${a.nome ?? ""} ${a.cognome ?? ""}`.trim()}
+                            </span>
+                            {a.cliente_id && (
+                              <Link2 className="h-3.5 w-3.5 text-primary" />
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-3 font-mono text-xs">{a.partita_iva ?? "—"}</td>
-                    <td className="p-3">
-                      <Badge variant="secondary" className={TIPO_COLORS[a.tipo_cliente] ?? ""}>
-                        {a.tipo_cliente}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-right font-mono">{formatCurrency(a.fatturato_totale ?? 0)}</td>
-                    <td className="p-3 text-right">{a.numero_fatture ?? 0}</td>
-                    <td className="p-3 text-xs text-muted-foreground">
-                      {a.ultima_fattura_at ? a.ultima_fattura_at.substring(0, 10) : "—"}
-                    </td>
-                    <td className="p-3">
-                      <Badge variant={a.attivo ? "default" : "secondary"}>
-                        {a.attivo ? "Attivo" : "Inattivo"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-3 font-mono text-xs">
+                        {a.partita_iva ?? "—"}
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant="secondary"
+                          className={TIPO_COLORS[a.tipo_cliente] ?? ""}
+                        >
+                          {a.tipo_cliente}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right font-mono">
+                        {formatCurrency(a.fatturato_totale ?? 0)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {a.numero_fatture ?? 0}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {a.ultima_fattura_at
+                          ? a.ultima_fattura_at.substring(0, 10)
+                          : "—"}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={a.attivo ? "default" : "secondary"}>
+                          {a.attivo ? "Attivo" : "Inattivo"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
-
-// ─── Riconciliazione Panel ─────────────────────────────────────
-
-function ReconciliazionePanel({ companyId, userId }: { companyId: string | null; userId?: string }) {
-  const { data: suggestions, isLoading: loadingSugg } = useSuggestedMatches(companyId);
-  const { data: anagrafiche, isLoading: loadingAna } = useAnagraficheWithReconciliation(companyId);
-  const linkMutation = useLinkAnagraficaToCliente();
-  const unlinkMutation = useUnlinkAnagraficaFromCliente();
-
-  const linked = anagrafiche?.filter((a) => a.cliente_id) ?? [];
-  const unlinked = anagrafiche?.filter((a) => !a.cliente_id) ?? [];
-  const isLoading = loadingSugg || loadingAna;
-
-  if (!companyId) return null;
-
-  return (
-    <div className="space-y-6 mt-4">
-      {/* Info banner */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex items-start gap-3 py-4">
-          <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div>
-            <p className="font-medium text-sm">Collega Anagrafica Fiscale ai Clienti Cantieri</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              L'anagrafica fiscale e i clienti cantieri sono registri separati.
-              Collegandoli puoi associare fatture agli ordini e sincronizzare i dati.
-              Il collegamento è opzionale.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {isLoading && (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
-          ))}
+      {!isLoading && !isError && filtered.length > 0 && (
+        <div className="flex items-center justify-end gap-3 text-sm">
+          <span>
+            {filtered.length} anagrafiche · pagina {currentPage + 1} di{" "}
+            {Math.ceil(filtered.length / 30)}
+          </span>
+          <Button
+            variant="outline"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            Precedenti
+          </Button>
+          <Button
+            variant="outline"
+            disabled={(currentPage + 1) * 30 >= filtered.length}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            Successivi
+          </Button>
         </div>
       )}
-
-      {/* Suggested matches */}
-      {!isLoading && (suggestions?.length ?? 0) > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <RefreshCw className="h-4 w-4 text-primary" />
-              Match suggeriti ({suggestions?.length})
-              <span className="text-xs font-normal text-muted-foreground">
-                — rilevati per Codice Fiscale o nome simile
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {suggestions?.map((s) => (
-              <div key={s.anagrafica.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-                {/* Anagrafica side */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{s.anagrafica.ragione_sociale ?? "—"}</p>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {s.anagrafica.partita_iva ?? s.anagrafica.codice_fiscale ?? "—"}
-                  </p>
-                </div>
-
-                {/* Match indicator */}
-                <Badge
-                  variant={s.matchType === "exact_cf" ? "default" : "secondary"}
-                  className="shrink-0"
-                >
-                  {s.matchType === "exact_cf" ? "CF esatto" : `${s.confidence}% nome`}
-                </Badge>
-
-                {/* Profile side */}
-                <div className="flex-1 min-w-0 text-right">
-                  <p className="text-sm font-medium truncate">
-                    {s.suggestedClient.first_name} {s.suggestedClient.last_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{s.suggestedClient.email}</p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-1 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={linkMutation.isPending}
-                    onClick={() =>
-                      linkMutation.mutate({
-                        anagraficaId: s.anagrafica.id,
-                        clienteId: s.suggestedClient.id,
-                        companyId,
-                        performedBy: userId,
-                      })
-                    }
-                  >
-                    <Link2 className="h-3.5 w-3.5 mr-1" />
-                    Collega
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={linkMutation.isPending}
-                    onClick={() =>
-                      linkMutation.mutate({
-                        anagraficaId: s.anagrafica.id,
-                        clienteId: s.suggestedClient.id,
-                        syncFromCliente: true,
-                        companyId,
-                        performedBy: userId,
-                      })
-                    }
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                    Collega + Sync
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Already linked */}
-      {!isLoading && linked.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Check className="h-4 w-4 text-green-600" />
-              Già collegate ({linked.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="p-3 text-left font-medium">Anagrafica Fiscale</th>
-                  <th className="p-3 text-left font-medium">Cliente Cantieri</th>
-                  <th className="p-3 text-left font-medium">Sync</th>
-                  <th className="p-3 text-right font-medium">Azioni</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linked.map((a) => (
-                  <tr key={a.id} className="border-b">
-                    <td className="p-3">
-                      <p className="font-medium text-sm">{a.ragione_sociale ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{a.partita_iva ?? a.codice_fiscale ?? "—"}</p>
-                    </td>
-                    <td className="p-3">
-                      <p className="text-sm">{a.cliente?.first_name} {a.cliente?.last_name}</p>
-                      <p className="text-xs text-muted-foreground">{a.cliente?.email ?? "—"}</p>
-                    </td>
-                    <td className="p-3">
-                      {a.sync_from_cliente ? (
-                        <Badge variant="default" className="gap-1">
-                          <RefreshCw className="h-3 w-3" /> Attiva
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Solo link</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        disabled={unlinkMutation.isPending}
-                        onClick={() =>
-                          unlinkMutation.mutate({ anagraficaId: a.id, companyId: companyId!, performedBy: userId })
-                        }
-                      >
-                        <Unlink className="h-3.5 w-3.5 mr-1" /> Scollega
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Unlinked — manual search */}
-      {!isLoading && unlinked.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              Non collegate ({unlinked.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <ManualLinkTable
-              unlinked={unlinked}
-              companyId={companyId}
-              userId={userId}
-              linkMutation={linkMutation}
-            />
-          </CardContent>
-        </Card>
-      )}
     </div>
-  );
-}
-
-// ─── Manual Link Table ─────────────────────────────────────────
-
-function ManualLinkTable({
-  unlinked,
-  companyId,
-  userId,
-  linkMutation,
-}: {
-  unlinked: Array<{ id: string; ragione_sociale: string | null; partita_iva: string | null; codice_fiscale: string | null }>;
-  companyId: string;
-  userId?: string;
-  linkMutation: ReturnType<typeof useLinkAnagraficaToCliente>;
-}) {
-  const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
-
-  const { data: allClienti } = useQuery({
-    queryKey: ["clienti-for-reconciliation", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, fiscal_code")
-        .eq("company_id", companyId)
-        .order("last_name");
-      return (data ?? []) as unknown as Array<{
-        id: string; first_name: string | null; last_name: string; email: string; fiscal_code: string | null;
-      }>;
-    },
-  });
-
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b bg-muted/50">
-          <th className="p-3 text-left font-medium">Anagrafica Fiscale</th>
-          <th className="p-3 text-left font-medium">Collega a Cliente</th>
-        </tr>
-      </thead>
-      <tbody>
-        {unlinked.map((ana) => {
-          const term = searchTerms[ana.id] ?? "";
-          const filtered = (allClienti ?? []).filter(
-            (c) =>
-              !term ||
-              `${c.first_name} ${c.last_name}`.toLowerCase().includes(term.toLowerCase()) ||
-              (c.fiscal_code ?? "").includes(term) ||
-              c.email.toLowerCase().includes(term.toLowerCase())
-          );
-
-          return (
-            <tr key={ana.id} className="border-b">
-              <td className="p-3">
-                <p className="font-medium text-sm">{ana.ragione_sociale ?? "—"}</p>
-                <p className="text-xs text-muted-foreground font-mono">{ana.partita_iva ?? ana.codice_fiscale ?? "—"}</p>
-              </td>
-              <td className="p-3">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                      <Search className="h-3.5 w-3.5" />
-                      Cerca cliente...
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-2" align="start">
-                    <Input
-                      placeholder="Cerca per nome, email, CF..."
-                      value={term}
-                      onChange={(e) => setSearchTerms((s) => ({ ...s, [ana.id]: e.target.value }))}
-                      className="mb-2 h-8 text-xs"
-                      autoFocus
-                    />
-                    <div className="max-h-48 overflow-y-auto space-y-1">
-                      {filtered.slice(0, 20).map((c) => (
-                        <button
-                          key={c.id}
-                          className="w-full text-left p-2 rounded hover:bg-muted text-sm flex justify-between items-center"
-                          onClick={() =>
-                            linkMutation.mutate({ anagraficaId: ana.id, clienteId: c.id, companyId, performedBy: userId })
-                          }
-                        >
-                          <span className="truncate">{c.first_name} {c.last_name}</span>
-                          <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                            {c.fiscal_code ?? c.email}
-                          </span>
-                        </button>
-                      ))}
-                      {filtered.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-3">Nessun cliente trovato</p>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
   );
 }

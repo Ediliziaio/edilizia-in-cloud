@@ -16,27 +16,40 @@ export function useGiornate(dateFrom: string, dateTo: string) {
 
   return useQuery({
     queryKey: ["hr-giornate", companyId, dateFrom, dateTo],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) return [];
+      const giornate: GiornataWithProfilo[] = [];
+      // Un mese può superare le 1000 giornate (persone × giorni): leggere
+      // soltanto il primo blocco produceva riepiloghi silenziosamente parziali.
+      const pageSize = 500;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("hr_giornate")
+          .select(
+            "*, hr_profili!hr_giornate_profilo_id_fkey(nome, cognome, colore_avatar, mansione, reparto)",
+          )
+          .eq("company_id", companyId)
+          .gte("data", dateFrom)
+          .lte("data", dateTo)
+          .order("data", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1)
+          .abortSignal(signal);
 
-      const { data, error } = await supabase
-        .from("hr_giornate")
-        .select("*, hr_profili!hr_giornate_profilo_id_fkey(nome, cognome, colore_avatar, mansione, reparto)")
-        .eq("company_id", companyId)
-        .gte("data", dateFrom)
-        .lte("data", dateTo)
-        .order("data", { ascending: true });
+        if (error) throw error;
 
-      if (error) throw error;
-
-      return (data || []).map((g: any) => ({
-        ...g,
-        profilo_nome: g.hr_profili?.nome || "",
-        profilo_cognome: g.hr_profili?.cognome || "",
-        profilo_colore: g.hr_profili?.colore_avatar || "#0EA5E9",
-        profilo_mansione: g.hr_profili?.mansione,
-        profilo_reparto: g.hr_profili?.reparto,
-      })) as GiornataWithProfilo[];
+        giornate.push(
+          ...((data || []).map((g) => ({
+            ...g,
+            profilo_nome: g.hr_profili?.nome || "",
+            profilo_cognome: g.hr_profili?.cognome || "",
+            profilo_colore: g.hr_profili?.colore_avatar || "#0EA5E9",
+            profilo_mansione: g.hr_profili?.mansione,
+            profilo_reparto: g.hr_profili?.reparto,
+          })) as GiornataWithProfilo[]),
+        );
+        if (!data || data.length < pageSize) return giornate;
+      }
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -45,7 +58,13 @@ export function useGiornate(dateFrom: string, dateTo: string) {
 }
 
 export function useGiornateSummary(dateFrom: string, dateTo: string) {
-  const { data: giornate = [], isLoading } = useGiornate(dateFrom, dateTo);
+  const {
+    data: giornate = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useGiornate(dateFrom, dateTo);
 
   const presenti = giornate.filter((g) => g.stato === "presente").length;
   const assenti = giornate.filter((g) => g.stato === "assente").length;
@@ -57,6 +76,9 @@ export function useGiornateSummary(dateFrom: string, dateTo: string) {
   return {
     giornate,
     isLoading,
+    isError,
+    error,
+    refetch,
     summary: { presenti, assenti, ferie, malattia, oreTotali, anomalie },
   };
 }

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { customDestinationId, mappedCustomRows, type CustomContactDefinition } from "../_shared/formCustomFields.ts";
 
 async function hashIP(ip: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -138,6 +139,8 @@ async function updateGoogleAdsContactAttribution(
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "GET") return new Response(JSON.stringify({ capabilities: { custom_contact_fields: 1 } }),
+    { headers: { ...getCorsHeaders(req), "Content-Type": "application/json", "Cache-Control": "no-store" } });
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -172,7 +175,7 @@ Deno.serve(async (req) => {
     const gclid = attr("gclid"), wbraid = attr("wbraid"), gbraid = attr("gbraid"), fbclid = attr("fbclid"),
       ttclid = attr("ttclid"), msclkid = attr("msclkid"), li_fat_id = attr("li_fat_id");
 
-    if (!form_id || !formData) {
+    if (!form_id || !formData || typeof formData !== "object" || Array.isArray(formData)) {
       return new Response(
         JSON.stringify({ error: "form_id and data required" }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
@@ -242,6 +245,26 @@ Deno.serve(async (req) => {
     const callCenterId = cleanText(settings.callCenterId);
     const defaultTags = cleanStringList(settings.defaultTags);
 
+    // Validate custom destinations BEFORE any contact/submission writes.
+    // Only the stored form and same-tenant, active definitions are authoritative.
+    let customRows: Array<{ field_id: string; value: string }> = [];
+    try {
+      const mapped = fields.filter((f: { mapping?: string }) => f.mapping?.startsWith("cf:"));
+      if (mapped.length) {
+        const ids = [...new Set(mapped.map((f: { mapping?: string }) => customDestinationId(f.mapping)).filter((id: string | null): id is string => !!id))];
+        if (ids.length !== mapped.length) throw new Error("Destinazioni personalizzate duplicate o non valide nel modulo.");
+        const { data: definitions, error: definitionsError } = await supabase.from("marketing_custom_fields")
+          .select("id, company_id, object_type, name, field_type, options, deleted_at")
+          .eq("company_id", form.company_id).eq("object_type", "contact").is("deleted_at", null).in("id", ids);
+        if (definitionsError) throw definitionsError;
+        customRows = mappedCustomRows(form.company_id, mapped, formData, (definitions ?? []) as CustomContactDefinition[]);
+      }
+    } catch (error) {
+      console.error("Form custom field validation failed", error instanceof Error ? error.message : "definitions unavailable");
+      return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Campi del modulo non disponibili. Riprova." }),
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } });
+    }
+
     // Build contact data from field mappings
     let mappedEmail: string | null = null;
     let mappedFirstName: string | null = null;
@@ -257,6 +280,7 @@ Deno.serve(async (req) => {
       if (!value) continue;
 
       const mapping = (field.mapping || field.name || "").toLowerCase();
+      if (mapping.startsWith("cf:")) continue; // never treat a custom email/phone as the contact identity
       if (mapping === "email" || field.type === "email") mappedEmail = value;
       else if (mapping === "first_name" || mapping === "nome") mappedFirstName = value;
       else if (mapping === "last_name" || mapping === "cognome") mappedLastName = value;
@@ -370,6 +394,18 @@ Deno.serve(async (req) => {
           .select("id")
           .single();
         if (newContact) contactId = newContact.id;
+      }
+    }
+
+    if (customRows.length) {
+      if (!contactId) return new Response(JSON.stringify({ error: "Per salvare i campi personalizzati serve un contatto valido." }),
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } });
+      const { data: savedCustom, error: customError } = await supabase.from("marketing_contact_field_values")
+        .upsert(customRows.map(row => ({ ...row, contact_id: contactId })), { onConflict: "contact_id,field_id" }).select("field_id");
+      if (customError || savedCustom?.length !== customRows.length) {
+        console.error("Form custom fields save failed", customError?.code ?? "missing_acknowledgement");
+        return new Response(JSON.stringify({ error: "I campi aggiuntivi non sono stati salvati. Riprova: nessuna conferma di invio è stata emessa." }),
+          { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } });
       }
     }
 

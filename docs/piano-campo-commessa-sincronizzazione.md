@@ -609,3 +609,103 @@ La verifica in sola lettura della commessa DEMO-2026-N047 mostra la ditta e il s
 Restano tre sviluppi distinti: una base persistita per ore e tariffa del preventivato; maggiorazioni degli straordinari e regole di viaggio/trasferta con tariffa storicizzata; protezione server delle rettifiche dirette del registro quando esistono snapshot di rapportini approvati. Il motore attuale usa la tariffa base anche per gli straordinari, mentre rimborsi km e stime mezzi restano voci separate del conto economico. Queste variabili non vengono inventate nel nuovo riepilogo. Resta inoltre il ponte transazionale degli eventi descritto nella sezione 21.
 
 Log: `/tmp/campo-economia-suite-20261013.log`, `/tmp/campo-economia-types-20261013.log`. Modifiche locali; nessuna migrazione applicata, modifica di costi o rapportini online, commit, push o deploy.
+
+
+## 23 Allineamento operativo dei ruoli e delle fasi — 27 ottobre 2026
+
+Audit mirato alla commessa, al dettaglio lavoro Campo, alla squadra e alla pagina Avanzamento. Capocantiere e caposquadra sono incarichi operativi riferiti alla singola commessa; l’account rimane employee/subcontractor. Non vengono introdotti nuovi ruoli globali o autorizzazioni automatiche per chi compare nelle figure di sicurezza.
+
+### Correzioni implementate
+
+- Nel dettaglio cantiere Campo un pannello esplicita il ruolo restituito dalla commessa e propone fasi contestuali, propri rapportini e, per i coordinatori, accesso alla squadra. Il pulsante dei rapportini cambia la sezione esistente senza lasciare il dettaglio. Il contatto del cliente usa il medesimo ruolo verificato dei rapporti cliente, anziché il flag di una diversa lettura dell’assegnazione.
+- Validazione rigorosa della risposta di `campo_mio_ruolo`: null o payload incompleti non diventano «nessun capocantiere». Gli errori del ruolo e della lettura squadra hanno un messaggio e un nuovo tentativo, non spariscono dalla pagina.
+- Avanzamento aperto dalla commessa mantiene `order_id`, filtra entrambe le letture delle fasi sul server e permette il ritorno al cantiere. La cache distingue azienda, persona e commessa; anche la lettura delle intestazioni degli ordini filtra l’azienda.
+- Regola, ruolo o assegnazioni alle fasi non leggibili non abilitano più le spunte. Le mutazioni ricontrollano i dati di autorizzazione letti prima di scrivere. Se le sottofasi non sono leggibili, non viene proposta la chiusura di una fase come se non avesse sottofasi. Questo è un controllo di interfaccia: RLS e controlli server rimangono necessari e non sono sostituiti.
+- Fasi, sottofasi e foto rileggono le viste correlate tramite il recupero condiviso della commessa. Aggiunte le chiavi aggregate Campo con confini di azienda e commessa; rimossi i refresh indiscriminati delle fasi di tutte le aziende. Nessuna nuova scrittura economica: la rilettura non applica le proposte di un rapportino prima dell’approvazione.
+- Nell’ufficio la gestione del capocantiere chiarisce che ruolo operativo e nomine di sicurezza sono distinti. Nell’app l’avanzamento operativo rimane distinto da SAL economico, fattura e pagamento. Le modalità preesistenti di completamento delle fasi non sono convertite in riconoscimenti economici.
+
+### Prove e limiti
+
+188 test passati su 12 file: ruolo assente/incompleto, capocantiere, caposquadra, operaio e ditta, errore permessi, rifiuto server, fasi e sottofasi, filtri di commessa, cache di un’altra azienda, rapporti separati, impostazioni del rapportino, sottoscrizione condivisa e visibilità squadra. TypeScript mirato su questi ingressi e dipendenze senza errori. ESLint senza errori, con 10 warning preesistenti nei file coinvolti. `git diff --check` passa.
+
+Controllo remoto in sola lettura: le RPC `campo_mio_ruolo` e `campo_mie_fasi` restituiscono jsonb e `fasi_regola_chi_spunta` restituisce text. Nessuna migrazione, modifica RLS, assegnazione, nomina, rapportino, timbratura o pagamento scritto online durante questo incremento.
+
+Controllo visivo a 390 × 844 del componente reale in un’anteprima isolata con dati e ruoli simulati, inclusi errore e nuovo tentativo. Non è un accesso come operaio o capocantiere nel database reale. Screenshot `rir/outputs/campo-ruolo-operaio-demo-2710.png` e `rir/outputs/campo-ruolo-capocantiere-demo-2710.png`. Server di anteprima fermato e viewport ripristinato.
+
+### Parti che restano da completare / collaudare
+
+1. Sessioni reali separate per operaio, caposquadra, capocantiere e subappaltatore, incluse assegnazioni future/scadute, revoca in corso di sessione e cambio azienda. Verificare le policy server, non solo la visibilità dei comandi.
+2. Dichiarazioni di quantità della ditta dall’app collegate alle voci del contratto: proposta dal campo, riconoscimento dell’ufficio, poi SAL. In questo incremento non è stato aggiunto un modulo economico nell’app né trasformate ore esterne in costi interni.
+3. Consegna e presa visione dei documenti di sicurezza per la precisa versione e commessa, senza confondere una checklist con una nomina o una firma.
+4. Prove su telefono fisico, offline/riconnessione e invii simultanei; ponte transazionale scrittura/evento/PDF e altre proposte server delle sezioni precedenti da riesaminare alla luce delle migrazioni SAL/POS più recenti. Non si presume che una vecchia bozza sia applicabile senza confronto con lo schema attuale.
+
+Frontend locale; nessun commit, push o deploy. Build isolata finale in `/tmp/edilizia-campo-ruoli-final-2710`; esito annotato al completamento.
+
+Build finale riuscita: `/tmp/edilizia-campo-ruoli-final-2710`. Confermati 188 test superati, TypeScript mirato senza errori e lint senza errori.
+
+## 24 Collaudo DEMO dei quattro ruoli e correzione accessi — 28 ottobre 2026
+
+Eseguito sul database collegato, con quattro identità DEMO esistenti: operaio, caposquadra, capocantiere e subappaltatore. Ogni operazione sotto test usa il ruolo PostgreSQL `authenticated`, i claim della rispettiva identità, le policy RLS e i trigger reali. Due commesse temporanee distinguono l'ambito assegnato da quello estraneo. Nessuna password o sessione viene estratta o cambiata.
+
+Un account DEMO caposquadra possiede anche il ruolo ufficio: il suo accesso più ampio è legittimo. Nel solo collaudo transazionale il ruolo staff viene rimosso per isolare il profilo operativo, poi ripristinato automaticamente dal rollback. Ruoli, permessi, regola di completamento delle fasi, anagrafiche di squadra e dati finanziari di prova vengono tutti annullati. La commessa storica DEMO-2025-037 indicata nel browser non viene modificata.
+
+### Problemi confermati e corretti sul server
+
+1. `has_permission_for_company` leggeva righe residue di `staff_permissions` anche per utenti senza ruolo staff. Un subappaltatore poteva così superare la regola delle fasi riservate ai capi. La funzione ora richiede un ruolo appropriato per l'azienda richiesta: staff della propria azienda, ruolo piattaforma o accesso multi-azienda staff attivo e non scaduto. Restano le autorizzazioni degli amministratori; una riga permessi da sola non attribuisce un ruolo.
+2. Le vecchie policy di contratti di subappalto, SAL subappaltatori e ritenute ammettevano ogni utente della stessa azienda. Sostituite da lettura con i permessi economici e amministrativi pertinenti e scrittura con le ulteriori condizioni previste. Le ritenute senza contratto richiedono il permesso costi; quelle di subappalto anche il permesso amministrazione subappaltatori. La scrittura delle ritenute resta amministrativa, coerente con la verifica fiscale esistente. Restano le policy speciali superadmin e la lettura commercialista già presente sui contratti.
+
+Migrazione `20281028020000_campo_permessi_staff_qualificati.sql` applicata con MCP e registro riallineato alla stessa versione. Nessuna modifica permanente agli account o ai dati economici. Il frontend di questo incremento non cambia; non è stato eseguito commit, push o deploy frontend.
+
+### Risultato verificato
+
+**79 verifiche SQL superate dopo l'applicazione**, con fallimento esplicito dello script se una sola verifica non passa:
+
+- Tutti e quattro vedono la commessa e le fasi assegnate, senza leggere quelle della seconda commessa.
+- Operaio, caposquadra operativo e subappaltatore vedono i propri rapportini; il capocantiere vede i quattro rapportini del proprio cantiere. Nessuno legge il rapporto della commessa estranea o modifica quello altrui.
+- Invio del proprio rapportino consentito; autoapprovazione e invio su commessa estranea negati. Con regola `capi`, il completamento diretto è ammesso al capocantiere e negato agli altri tre ruoli operativi.
+- Contratti economici, SAL subappaltatori e ritenute non leggibili né aggiornabili dai quattro profili operativi puri. Ufficio qualificato e amministratore mantengono la lettura autorizzata.
+- Una proposta inviata al 60% lascia la fase a 0% fino alla verifica. L'approvazione dell'ufficio porta fase e avanzamento della commessa al 60%; ripetere la stessa approvazione non duplica l'avanzamento.
+- Una proposta contenente una fase estranea è rifiutata e il rapporto resta inviato, senza approvazione parziale. Con sottofasi di peso 1 e 3, completare la prima produce il 25%, senza adottare il 99% dichiarato.
+- L'amministratore può ancora registrare un SAL da 100 con ritenuta 5 e netto 95. Lo staff abilitato può registrare un SAL senza operazione fiscale; tentare la ritenuta è respinto dal controllo fiscale esistente senza lasciare un SAL parziale. Queste prove non registrano pagamenti.
+
+Script ripetibile: `scripts/sql/campo-demo-ruoli-rapportini.sql`. Richiede un esecutore amministrativo per preparare fixture e claim; non è un endpoint pubblico e non conferisce privilegi a chi lo legge. Fixture e notifiche transazionali vengono annullate intenzionalmente. Verifica finale: zero commesse, rapportini e contratti di collaudo residui; ruolo staff e impostazione `chi_spunta=tutti` ripristinati.
+
+Regressione applicativa mirata: **184 test su 11 file superati** (ruolo, avanzamento/sottofasi, sincronizzazione e sottoscrizione commessa, rapporti separati, regole del rapportino, squadra, scope fasi e permessi). `git diff --check` passa. Risultati SQL e log conservati in `rir/outputs/campo-collaudo-2810/`.
+
+### Confini ancora da provare
+
+Questo è un collaudo di autorizzazione e flusso reale sul database, non quattro login browser né un test su telefoni fisici. Restano da verificare con sessioni distinte: revoca e assegnazioni future/scadute, cache durante cambio account/azienda, tempi di aggiornamento fra dispositivi, offline/riconnessione e invii simultanei. Gli altri sviluppi della sezione 23 rimangono aperti. Il risultato non certifica l'intero sistema né un audit completo di tutte le tabelle/documenti.
+
+## 25 Collaudo nell’app con quattro accessi separati — 28 ottobre 2026
+
+Completato nel browser locale collegato al database reale: login ordinari su quattro origini distinte (`operaio.localhost`, `caposquadra.localhost`, `capocantiere.localhost`, `subappaltatore.localhost`, porta 8081), quindi quattro archivi di sessione distinti. Nessuna sostituzione del ruolo nel client, lettura dei token, simulazione delle risposte o disattivazione RLS.
+
+Dopo l’autorizzazione dell’utente sono stati usati i due account DEMO indicati, `operaio@azienda.srl` e `esterno@azienda.srl`, e creati `caposquadra.collaudo@azienda.srl` e `capocantiere.collaudo@azienda.srl`. I due nuovi account hanno soltanto il ruolo globale employee, senza privilegi ufficio. Caposquadra e capocantiere derivano dalla squadra e dall’incarico operativo della commessa. Credenziali non riportate nei file del progetto; nessuna password dei due account esistenti è stata cambiata e nessuna email di invito è stata inviata.
+
+### Dati di collaudo conservati per verifica
+
+- `DEMO-APP-2810-A`, id `ec5bff4e-c812-4c77-b94a-940eb3a213b1`: «COLLAUDO APP — quattro sessioni, nessun lavoro reale». Una fase, squadra di prova, quattro assegnazioni e quattro rapportini realmente inviati dall’interfaccia. Quattro PDF generati dal percorso normale. Ore dichiarate complessive zero; nessuna timbratura, firma, fattura o pagamento registrato.
+- `DEMO-APP-2810-B-RISERVATA`, id `fe6705c5-7a14-4811-b0be-473e218b67b1`: nessuna assegnazione ai quattro operatori, per provare l’accesso diretto non consentito.
+- Il rapportino del capocantiere è approvato e porta la fase e la commessa al 60%. Gli altri tre restano in attesa, come evidenza del diverso stato. Questi dati DEMO sono persistenti e separati dalle fixture annullate della sezione 24. La commessa storica indicata inizialmente dall’utente non è stata modificata.
+
+### Difetti trovati attraverso l’app e risolti
+
+1. **Consultazione del capocantiere.** Il server permetteva la lettura dei rapportini del cantiere ma il client aggiungeva sempre il filtro dell’autore, mostrando un falso elenco vuoto. Ora il capocantiere verificato legge quelli della sola commessa e azienda; gli altri ruoli conservano il filtro personale. La cache distingue persona, azienda e ambito. Sono visibili gli autori; firma e correzione rimangono esclusivamente sui propri documenti, con ricontrollo dell’autore prima del caricamento della firma. Errore o caricamento del ruolo non allargano la lettura. Nessuna approvazione dall’app del capo.
+2. **Note senza presenze.** Con una squadra disponibile il coordinatore non vedeva il campo delle ore personali; selezionare una presenza con zero ore era correttamente respinto, ma mancava un percorso per sole note. Senza persone selezionate compare ora il campo delle ore personali, nel quale indicare esplicitamente zero. Se si seleziona la squadra valgono ancora ore effettive positive e la registrazione delle presenze, senza duplicare quelle dell’autore.
+3. **Aggiornamento tra sessioni.** La scrittura separata di `order_events` non era autorizzata ai ruoli operativi e non forniva un segnale affidabile. Il nuovo registro `commessa_campo_sync` contiene soltanto commessa, azienda, revisione e data; il trigger lo aggiorna nella stessa transazione di rapportini, fasi e sottofasi. Non trasmette nomi, ore, descrizioni o costi. Solo le commesse già leggibili tramite RLS consentono la lettura del segnale; i client non possono scriverlo. Il canale condiviso riceve il segnale e rilegge le query interessate. Anche Avanzamento aperto nel contesto di una commessa monta il recupero condiviso. Rimangono accorpamento, recupero periodico e riapertura/riconnessione. Rimossa la scrittura client non autorizzata su `order_events`.
+
+Migrazione `20281028022000_commessa_campo_sync_transazionale.sql` applicata e registro riallineato. Collaudo transazionale prima del rilascio: segnali di rapportino e fase, lettura assegnata per quattro ruoli, riga della commessa estranea realmente presente ma non leggibile, scrittura dei segnali negata e rollback delle modifiche. Nessun rilievo dell’advisor sugli oggetti nuovi.
+
+### Esiti osservati e verifiche
+
+- Quattro invii dall’app riusciti; ufficio con quattro rapportini, operaio/caposquadra/subappaltatore con un solo proprio rapportino, capocantiere con tutti e quattro e una sola azione di firma personale.
+- Proposta della fase al 60% nel rapportino: commessa ferma a zero prima della verifica. Approvazione completata dal popup nell’ufficio: fase e commessa al 60%, stato Approvato visibile all’autore.
+- Le tre altre pagine già aperte mostrano il 60% senza reload. Prova aggiuntiva del recupero: modifica autenticata dell’ufficio sul solo dato DEMO 60 → 70, osservata sulle quattro pagine aperte (tre viste Avanzamento e riepilogo capo) entro il controllo eseguito tra le 06:06:37 e le 06:06:58 UTC, poi ripristino al 60% propagato alle stesse viste. È un’osservazione di collaudo, non uno SLA di latenza.
+- URL diretto alla commessa B bloccato in ciascuna delle quattro sessioni con «Lavoro non disponibile», senza rivelarne descrizione o documenti. La vista Avanzamento contestuale mostra soltanto la fase della commessa A.
+- Verifica finale sotto RLS autenticata: rapportini visibili 1 / 1 / 4 / 1; commessa estranea visibile zero per tutti; quattro PDF, un’approvazione, zero ore; fase e commessa 60.
+- **195 test su nove file superati**, compresi i nuovi controlli su autori/azioni riservate, filtri e chiavi di cache, ruolo non disponibile, note senza presenze e segnale transazionale. Ripetuti dopo la modifica server anche i **79 controlli SQL** della sezione 24: tutti superati.
+- TypeScript mirato su sei file sorgente senza errori. ESLint mirato senza errori, con nove warning già presenti nel dettaglio Campo. `git diff --check` passa. I nomi dei nuovi upload fotografici/firme usano UUID; i file storici non cambiano.
+
+Prove, immagini e log: `rir/outputs/campo-app-2810/`. Frontend modificato e verificato in locale; backend sincronizzazione applicato. Nessun commit, push o deploy frontend in questo incremento. Non è stato certificato il controllo generale del progetto.
+
+Restano distinti: telefoni fisici, rete mobile/offline e invii simultanei, revoche durante una sessione e assegnazioni future/scadute. La sincronizzazione contestuale non aggiunge un ascolto globale a tutte le commesse della pagina Avanzamento generale. Il segnale atomico non rende atomici PDF, upload e rapportino: un PDF che fallisce resta da rigenerare senza inviare un secondo rapportino. Le altre parti del piano non vengono dichiarate completate da questo collaudo.

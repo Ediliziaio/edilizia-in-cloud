@@ -14,6 +14,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useMieiMezzi } from "@/hooks/useMezzi";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 
 interface AppItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -31,6 +32,7 @@ export default function CampoMenu() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { isOperaio } = useIsCampo();
+  const surveyAccess = useFieldSurveyAccess();
   // «Il mio mezzo» compare solo a chi ha un mezzo in carico: sul telefono il meno è meglio.
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
 
@@ -87,6 +89,7 @@ export default function CampoMenu() {
   ];
 
   const sections = isOperaio ? operaioSections : subSections;
+  if (surveyAccess.data?.can_view) sections[0].items.push({icon:ClipboardCheck,label:"Sopralluoghi",url:"/campo/sopralluoghi",color:"text-blue-700 bg-blue-50"});
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto pb-8">

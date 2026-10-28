@@ -1,0 +1,16 @@
+/* Only this workspace: avoid stacking Radix's default entrance and the view fade. */
+#order-detail-overview .order-detail-tab-panel[data-state="active"] {
+  animation: none;
+}
+
+#order-detail-overview [data-order-navigation] button {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #order-detail-overview [data-order-navigation] button {
+    transition: none;
+  }
+}

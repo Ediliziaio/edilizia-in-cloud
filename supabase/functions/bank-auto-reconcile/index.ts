@@ -166,6 +166,17 @@ Deno.serve(async (req) => {
       // che bypassa la RLS). requireCompanyAccess lancia 403 se non autorizzato e
       // impedisce anche il ramo "processa tutte le aziende" a un utente normale.
       await requireCompanyAccess(supabase, user.id, companyId as string, getCorsHeaders(req));
+
+      // L'app chiede la riconciliazione con il JWT dell'utente: il service-role
+      // resta riservato al lavoro server dopo questa autorizzazione.
+      const scoped = createClient(supabaseUrl, serviceRoleKey, { global: { headers: { Authorization: authHeader } } });
+      const [manage, readonly] = await Promise.all([
+        scoped.rpc('puo_gestire_scadenze', { _company_id: companyId }),
+        scoped.rpc('utente_sola_lettura', { p_company_id: companyId }),
+      ]);
+      if (manage.error || readonly.error || manage.data !== true || readonly.data === true)
+        return errorResponse('Non hai il permesso di riconciliare pagamenti', 403);
+
     }
 
     // Se non c'è company_id, processa tutte le company con connessioni attive
@@ -256,31 +267,13 @@ Deno.serve(async (req) => {
             const ambiguoSc = best != null && second >= best.score - 15;
             if (best && best.score >= 80 && !ambiguoSc) {
               const matchedAmount = Math.min(Math.abs(tx.amount), (best.sc.amount || 0) - (best.sc.paid_amount || 0));
-              // Prima il registro: se non si riesce a tracciare, NON si paga.
-              // (Questo insert falliva DA SEMPRE in silenzio: invoice_id era
-              // NOT NULL — la migration 20280214 l'ha reso nullable — e la
-              // scadenza veniva marcata pagata senza alcuna traccia.)
-              const { error: recScErr } = await supabase.from("bank_reconciliations").insert({
-                company_id: cId, transaction_id: tx.id, scadenza_id: best.sc.id,
-                matched_amount: matchedAmount, match_type: "auto", match_score: best.score, matched_at: new Date().toISOString(),
+              // Stessa transazione della UI: banca, scadenza, costo e Prima Nota.
+              // Se esiste già un pagamento ambiguo la RPC si ferma senza scrivere.
+              const { error: scErr } = await supabase.rpc('riconcilia_uscita_scadenza', {
+                p_transazione: tx.id, p_scadenza: best.sc.id, p_tipo: 'auto', p_punteggio: best.score,
               });
-              if (recScErr) {
-                console.error("bank_reconciliations insert (scadenza) failed:", recScErr.message);
-                continue;
-              }
-              const { error: linkErr } = await supabase.from("bank_transactions").update({
-                linked_scadenza_id: best.sc.id,
-                reconciliation_status: "reconciled",
-                reconciled_at: new Date().toISOString(),
-              }).eq("id", tx.id).eq("company_id", cId);
-              if (linkErr) console.error("bank_transactions link (scadenza) failed:", linkErr.message);
+              if (scErr) { console.error('Riconciliazione uscita non applicata:', scErr.message); continue; }
               const newPaid = (best.sc.paid_amount || 0) + matchedAmount;
-              const { error: scErr } = await supabase.from("scadenze").update({
-                paid_amount: newPaid,
-                status: newPaid >= (best.sc.amount || 0) ? "pagata" : "da_pagare",
-                paid_date: tx.booking_date ?? localDateIT(new Date()),
-              }).eq("id", best.sc.id).eq("company_id", cId);
-              if (scErr) console.error("scadenze update failed:", scErr.message);
               best.sc.paid_amount = newPaid;
               totalCostsMatched++;
             }

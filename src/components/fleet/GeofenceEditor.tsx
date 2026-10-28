@@ -1,7 +1,7 @@
 import { useState } from "react";
-import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Circle, Marker, useMapEvents } from "react-leaflet";
-import L from "leaflet";
+import { FleetMapCanvas } from "./FleetMapCanvas";
+import { usePermissions } from "@/hooks/usePermissions";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 import { Plus, Trash2, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,28 +14,6 @@ import { useGeofence } from "@/hooks/useGeofence";
 import type { CantiereGeofence, CantiereGeofenceInsert } from "@/types/fleet";
 import { useToast } from "@/hooks/use-toast";
 
-// Fix icone Leaflet
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
-
-// ── Map click handler ─────────────────────────────────────────────────────────
-function ClickHandler({
-  onMapClick,
-}: {
-  onMapClick: (lat: number, lng: number) => void;
-}) {
-  useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
 interface GeofenceEditorProps {
   companyId: string;
 }
@@ -46,9 +24,13 @@ interface GeofenceEditorProps {
  */
 export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
   const { toast } = useToast();
+  const permissions=usePermissions();
+  const canEdit=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin;
   const {
     geofences,
     isLoading,
+    isError,
+    refetch,
     createGeofence,
     deleteGeofence,
     isCreating,
@@ -68,6 +50,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
   };
 
   const handleCreate = async () => {
+    if (!canEdit) return;
     if (!newName.trim() || newLat == null || newLng == null) {
       toast({ title: "Errore", description: "Clicca sulla mappa per scegliere il centro e inserisci un nome", variant: "destructive" });
       return;
@@ -96,10 +79,13 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
   };
 
   const handleDelete = async (id: string, nome: string) => {
+    if (!canEdit) return;
     setDeletingId(id);
     try {
       await deleteGeofence(id);
       toast({ title: "Geofence rimosso", description: `"${nome}" rimosso.` });
+    } catch {
+      toast({title:"Zona non rimossa",description:"Riprova: il salvataggio non è stato confermato.",variant:"destructive"});
     } finally {
       setDeletingId(null);
     }
@@ -117,6 +103,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
           size="sm"
           className="h-8 gap-1"
           onClick={() => setDialogOpen(true)}
+          disabled={!canEdit || isError}
         >
           <Plus className="h-3.5 w-3.5" />
           Aggiungi zona
@@ -128,7 +115,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : geofences.length === 0 ? (
+      ) : isError ? <HrQueryError label="Zone GPS non disponibili" onRetry={refetch} /> : geofences.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-6">
           Nessuna zona di geofence configurata
         </p>
@@ -153,7 +140,7 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-destructive hover:text-destructive"
-                disabled={isDeleting && deletingId === g.id}
+                disabled={!canEdit || (isDeleting && deletingId === g.id)}
                 onClick={() => handleDelete(g.id, g.nome)}
               >
                 {isDeleting && deletingId === g.id
@@ -205,27 +192,9 @@ export function GeofenceEditor({ companyId }: GeofenceEditorProps) {
             </p>
 
             <div className="h-56 rounded-lg overflow-hidden border">
-              <MapContainer
-                center={[41.9028, 12.4964]}
-                zoom={6}
-                style={{ height: "100%", width: "100%" }}
-              >
-                <TileLayer
-                  attribution='&copy; OpenStreetMap'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <ClickHandler onMapClick={handleMapClick} />
-                {newLat != null && newLng != null && (
-                  <>
-                    <Marker position={[newLat, newLng]} />
-                    <Circle
-                      center={[newLat, newLng]}
-                      radius={parseInt(newRadius, 10) || 200}
-                      pathOptions={{ color: "#f59e0b", fillColor: "#fef3c7", fillOpacity: 0.4 }}
-                    />
-                  </>
-                )}
-              </MapContainer>
+              <FleetMapCanvas height="224px" onMapClick={handleMapClick} points={newLat != null && newLng != null ? [
+                {lat:newLat,lng:newLng,radius:Number(newRadius)||200,color:"#ea580c",label:"Zona da confermare"}
+              ] : []} />
             </div>
           </div>
 

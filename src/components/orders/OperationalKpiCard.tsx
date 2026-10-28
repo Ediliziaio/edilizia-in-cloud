@@ -3,7 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-type OperationalKpiTone = "blue" | "green" | "amber" | "red" | "orange" | "slate";
+type OperationalKpiTone =
+  | "blue"
+  | "green"
+  | "amber"
+  | "red"
+  | "orange"
+  | "slate";
 
 interface OperationalKpiCardProps {
   icon: ElementType;
@@ -17,7 +23,10 @@ interface OperationalKpiCardProps {
   className?: string;
 }
 
-const toneStyles: Record<OperationalKpiTone, { accent: string; iconBox: string; icon: string; value: string }> = {
+const toneStyles: Record<
+  OperationalKpiTone,
+  { accent: string; iconBox: string; icon: string; value: string }
+> = {
   blue: {
     accent: "bg-blue-500",
     iconBox: "bg-blue-50 ring-blue-100",
@@ -85,7 +94,8 @@ export function OperationalKpiCard({
         "relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all",
         // Lift hover SOLO se cliccabile — su card read-only non ha senso
         // suggerire interattività che non c'è (causava aspettative sbagliate).
-        onClick && "cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
+        onClick &&
+          "cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
         active && "border-orange-200 ring-2 ring-orange-200/80",
         className,
       )}
@@ -97,12 +107,19 @@ export function OperationalKpiCard({
           stanno affiancate; il colore del filo a sinistra dice già lo stato.
           Anche sotto 1280: con quattro card in riga l'icona lasciava al testo
           meno di 100px e le etichette andavano a capo («IN / SCADENZA»). */}
-      <CardContent className="flex items-center gap-3 p-3 max-sm:gap-0 max-sm:px-3 max-sm:py-2">
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 max-xl:hidden", styles.iconBox)}>
+      <CardContent className="flex items-center gap-3 px-3 py-2 max-sm:gap-0 max-sm:px-3 max-sm:py-2">
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 max-xl:hidden",
+            styles.iconBox,
+          )}
+        >
           <Icon className={cn("h-[18px] w-[18px]", styles.icon)} />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+            {label}
+          </p>
           {isLoading ? (
             <Skeleton className="mt-1 h-7 w-28" />
           ) : (
@@ -114,14 +131,18 @@ export function OperationalKpiCard({
                 // "365...." — cioe' il numero spariva del tutto. Misurato: la
                 // colonna di testo della card e' 82px, un importo a text-2xl ne
                 // chiede oltre 90. I conteggi ("10", "5") restano grandi.
-                String(value).length > 5 ? "text-base sm:text-lg" : "text-lg sm:text-xl",
+                String(value).length > 5
+                  ? "text-base sm:text-lg"
+                  : "text-lg sm:text-xl",
               )}
             >
               {value}
             </p>
           )}
           {hint && !isLoading && (
-            <p className="mt-0.5 truncate text-[10px] text-slate-500 sm:text-xs max-sm:hidden">{hint}</p>
+            <p className="mt-0.5 truncate text-[10px] text-slate-500 sm:text-xs max-sm:hidden">
+              {hint}
+            </p>
           )}
         </div>
       </CardContent>

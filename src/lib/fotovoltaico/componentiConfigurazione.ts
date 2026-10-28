@@ -49,6 +49,7 @@ export interface ConfigurazioneComponentiFv {
     descrizione: string;
     quantita: number;
     prezzo_vendita: number;
+    unita_misura?: "pz" | "m";
     prezzo_acquisto: number | null;
   }>;
 }
@@ -193,7 +194,7 @@ export function righeComponentiFv(data: ConfigurazioneComponentiFv, listino: Lis
       descrizione: ex.descrizione.trim(),
       marca: null, modello: null,
       quantita: ex.quantita,
-      unita_misura: "pz",
+      unita_misura: ex.unita_misura ?? "pz",
       prezzo_unitario_netto: netto,
       prezzo_unitario_vendita: vendita,
       margine_pct: margine(vendita, netto),

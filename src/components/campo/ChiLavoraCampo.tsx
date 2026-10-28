@@ -27,7 +27,9 @@ function Persona({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
 }
 
 export function ChiLavoraCampo({ orderId }: { orderId: string }) {
-  const { data } = useChiLavora(orderId);
+  const { data, isLoading, isError, refetch } = useChiLavora(orderId);
+  if (isError) return <section role="alert" className="rounded-2xl border p-4 text-sm"><p>Squadra e contatti non disponibili.</p><button type="button" className="mt-2 min-h-11 text-primary underline" onClick={() => void refetch()}>Riprova a leggere la squadra</button></section>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento squadra e contatti…</p>;
   if (!data) return null;
 
   const { mie_squadre: squadre, anche_oggi: altri } = data;

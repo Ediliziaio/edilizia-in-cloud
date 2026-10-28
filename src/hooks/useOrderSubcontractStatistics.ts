@@ -17,7 +17,7 @@ export function useOrderSubcontractStatistics(orderId: string) {
       const [contracts, sals] = await Promise.all([
         supabase.from("contratti_subappalto").select("id,importo_contrattuale,stato")
           .eq("company_id", companyId!).eq("order_id", orderId).limit(1000),
-        supabase.from("sal_subappaltatori").select("id,contratto_id,importo_lordo,importo_netto,stato")
+        supabase.from("sal_subappaltatori").select("id,contratto_id,importo_lordo,importo_netto,pagato_registrato,stato")
           .eq("company_id", companyId!).eq("order_id", orderId).limit(1000),
       ]);
       if (contracts.error) throw contracts.error;

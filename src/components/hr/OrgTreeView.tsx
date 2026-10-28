@@ -1,139 +1,240 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useMemo, useLayoutEffect } from "react";
 import type { OrgTreeNode } from "@/types/hr";
 import { OrgNode } from "@/components/hr/OrgNode";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import {
+  fitOrgView,
+  layoutOrgTree,
+  ORG_CARD_WIDTH,
+  ORG_CARD_HEIGHT,
+} from "@/lib/personale/organizzazione";
 
 interface Props {
   tree: OrgTreeNode[];
   onNodeClick: (node: OrgTreeNode) => void;
+  siteNames?: Map<string, string>;
 }
 
-function TreeBranch({
-  node,
-  onNodeClick,
-  isRoot,
-  hasParentConnector = false,
-}: {
-  node: OrgTreeNode;
-  onNodeClick: (n: OrgTreeNode) => void;
-  isRoot?: boolean;
-  hasParentConnector?: boolean;
-}) {
-  return (
-    <li className="flex flex-col items-center relative">
-      {hasParentConnector && <div className="w-px h-6 bg-border" />}
-      <OrgNode node={node} isRoot={isRoot} onClick={onNodeClick} />
-      {node.children.length > 0 && (
-        <>
-          {/* Vertical connector down from parent */}
-          <div className="w-px h-6 bg-border" />
-          <ul className="flex gap-2 relative pt-0">
-            {/* Horizontal connector line */}
-            {node.children.length > 1 && (
-              <div
-                className="absolute top-0 h-px bg-border"
-                style={{
-                  left: `calc(${100 / (2 * node.children.length)}%)`,
-                  right: `calc(${100 / (2 * node.children.length)}%)`,
-                }}
-              />
-            )}
-            {node.children.map((child) => (
-              <TreeBranch key={child.id} node={child} onNodeClick={onNodeClick} hasParentConnector />
-            ))}
-          </ul>
-        </>
-      )}
-    </li>
-  );
-}
-
-export function OrgTreeView({ tree, onNodeClick }: Props) {
+export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  const handleZoomIn = () => setScale((s) => Math.min(s + 0.15, 2));
-  const handleZoomOut = () => setScale((s) => Math.max(s - 0.15, 0.3));
-  const handleReset = () => {
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  };
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.08 : 0.08;
-    setScale((s) => Math.min(Math.max(s + delta, 0.3), 2));
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [viewport, setViewport] = useState({ width: 900, height: 560 });
+  const drag = useRef<{
+    x: number;
+    y: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const layout = useMemo(
+    () => layoutOrgTree(tree, collapsed),
+    [tree, collapsed],
+  );
+  const automatic = fitOrgView(layout, viewport);
+  const [override, setOverride] = useState<{
+    layout: typeof layout;
+    viewport: typeof viewport;
+    value: typeof automatic;
+  } | null>(null);
+  const view =
+    override?.layout === layout && override.viewport === viewport
+      ? override.value
+      : automatic;
+  const setView = (update: (old: typeof view) => typeof view) =>
+    setOverride({ layout, viewport, value: update(view) });
+  const fit = () => setOverride(null);
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () =>
+      setViewport({
+        width: el.clientWidth || 900,
+        height: el.clientHeight || 560,
+      });
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - translate.x, y: e.clientY - translate.y });
-  }, [translate]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setTranslate({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
+  function zoom(delta: number) {
+    setView((old) => {
+      const scale = Math.min(
+        1.6,
+        Math.max(
+          Math.min(0.08, automatic.scale),
+          old.scale * (delta > 0 ? 1.25 : 0.8),
+        ),
+      );
+      const ratio = scale / old.scale;
+      return {
+        scale,
+        x: viewport.width / 2 - (viewport.width / 2 - old.x) * ratio,
+        y: viewport.height / 2 - (viewport.height / 2 - old.y) * ratio,
+      };
     });
-  }, [isDragging, dragStart]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  if (tree.length === 0) return null;
-
+  }
+  if (!tree.length) return null;
   return (
-    <div className="relative rounded-xl bg-muted/30 border overflow-hidden" style={{ minHeight: 500 }}>
-      {/* Zoom controls */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut}>
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleReset}>
-          <Maximize className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="absolute top-3 left-3 z-10 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-        {Math.round(scale * 100)}%
-      </div>
-
-      {/* Pannable/Zoomable area */}
-      <div
-        ref={containerRef}
-        className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing"
-        style={{ minHeight: 500 }}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >
-        <div
-          className="inline-flex justify-center w-full pt-8 pb-8 transition-transform"
-          style={{
-            transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-            transformOrigin: "top center",
-            transition: isDragging ? "none" : "transform 0.15s ease",
-          }}
-        >
-          <ul className="flex gap-4">
-            {tree.map((root) => (
-              <TreeBranch key={root.id} node={root} onNodeClick={onNodeClick} isRoot />
-            ))}
-          </ul>
+    <section
+      aria-label="Albero organizzativo"
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-white px-4 py-3">
+        <div>
+          <h3 className="text-sm font-semibold">Struttura organizzativa</h3>
+          <p className="text-xs text-muted-foreground">
+            Dall’alto verso il basso · apri un profilo per i dettagli
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed(new Set())}
+          >
+            Espandi tutto
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Riduci organigramma"
+            onClick={() => zoom(-0.15)}
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <output
+            aria-label="Zoom organigramma"
+            className="w-12 text-center text-xs tabular-nums"
+          >
+            {Math.round(view.scale * 100)}%
+          </output>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Ingrandisci organigramma"
+            onClick={() => zoom(0.15)}
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={fit}>
+            <Maximize className="mr-1.5 h-4 w-4" />
+            Adatta alla vista
+          </Button>
         </div>
       </div>
-    </div>
+      <div
+        ref={containerRef}
+        className="relative h-[min(62vh,640px)] min-h-[440px] overflow-hidden cursor-grab active:cursor-grabbing"
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          drag.current = {
+            x: view.x,
+            y: view.y,
+            startX: e.clientX,
+            startY: e.clientY,
+          };
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (drag.current) {
+            const d = drag.current;
+            setView((old) => ({
+              ...old,
+              x: d.x + e.clientX - d.startX,
+              y: d.y + e.clientY - d.startY,
+            }));
+          }
+        }}
+        onPointerUp={() => {
+          drag.current = null;
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+        }}
+      >
+        <div
+          className="absolute left-0 top-0 origin-top-left"
+          style={{
+            width: layout.width,
+            height: layout.height,
+            transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
+          }}
+        >
+          <svg
+            width={layout.width}
+            height={layout.height}
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none"
+          >
+            {layout.edges.map((edge) => (
+              <path
+                key={edge.id}
+                d={edge.path}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+            ))}
+          </svg>
+          {layout.nodes.map(({ node, x, y }) => (
+            <div
+              key={node.id}
+              className="absolute"
+              style={{
+                left: x,
+                top: y,
+                width: ORG_CARD_WIDTH,
+                height: ORG_CARD_HEIGHT,
+              }}
+            >
+              <OrgNode
+                node={node}
+                isRoot={node.depth === 0}
+                onClick={onNodeClick}
+                siteName={
+                  node.sede_id ? siteNames?.get(node.sede_id) : undefined
+                }
+              />
+              {node.children.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={`${collapsed.has(node.id) ? "Espandi" : "Comprimi"} collaboratori di ${node.nome} ${node.cognome}`}
+                  aria-expanded={!collapsed.has(node.id)}
+                  className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-blue-200 bg-white px-2 text-[11px] text-blue-700 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500"
+                  onClick={() =>
+                    setCollapsed((old) => {
+                      const next = new Set(old);
+                      if (next.has(node.id)) next.delete(node.id);
+                      else next.add(node.id);
+                      return next;
+                    })
+                  }
+                >
+                  {node.children.length}
+                  {collapsed.has(node.id) ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronUp className="h-3 w-3" />
+                  )}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="border-t bg-white px-4 py-2 text-xs text-muted-foreground">
+        Trascina lo sfondo per spostarti. Usa + e − per lo zoom; la rotellina
+        continua a scorrere la pagina.
+      </p>
+    </section>
   );
 }

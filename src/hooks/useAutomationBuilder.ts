@@ -476,6 +476,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
           toast.error("Impossibile pubblicare", { description: errors[0] });
           return;
         }
+        if(/custom_field\.|cf:|\.custom_|campo_custom_aggiornato/.test(JSON.stringify(nodes))){
+          const {data,error}=await supabase.functions.invoke("process-automation",{method:"GET"});
+          if(error||data?.capabilities?.custom_fields!==1)throw new Error("Le nuove funzioni dei campi personalizzati non sono ancora attive sul server. Salva la bozza e completa prima il rilascio del servizio e del database.");
+        }
         // Bug 1 fix: save all unsaved changes before publishing.
         // Se il salvataggio fallisce NON pubblicare: si pubblicherebbe la
         // versione vecchia del canvas (diversa da quella a schermo).

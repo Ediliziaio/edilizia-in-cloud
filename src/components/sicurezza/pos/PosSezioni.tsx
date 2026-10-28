@@ -1,3 +1,9 @@
+import {RiferimentoPscPos} from "./RiferimentoPscPos";
+import {SegnaleticaLavorazionePos} from "./SegnaleticaLavorazionePos";
+import { RequisitiLavorazionePos } from "./RequisitiLavorazionePos";
+import { cambiaNominativoFormazione } from "../../../../supabase/functions/_shared/posAddetti";
+import { TecnicaLavorazionePos } from "./TecnicaLavorazionePos";
+import { tecnicaPosVuota } from "../../../../supabase/functions/_shared/posTecnica";
 /**
  * Le sezioni dell'editor del POS, nell'ordine del modello semplificato del
  * DI 9/9/2014 (Allegato I). Ogni sezione modifica la bozza con `modifica`,
@@ -23,6 +29,8 @@ import {
 import type { ContestoPos } from "../../../../supabase/functions/_shared/posModello";
 import { caricaAllegatoPos, linkAllegatoPos } from "@/hooks/usePos";
 
+import { ProdottiLavorazionePos } from "./ProdottiLavorazionePos";
+import { invalidaProdottiLavorazione } from "../../../../supabase/functions/_shared/posProdotti";
 export type Modifica = (fn: (d: PosContenuto) => void) => void;
 
 interface BaseProps {
@@ -392,7 +400,7 @@ export function SezioneFormazione({ d, modifica, ro, mancanti }: BaseProps) {
   ];
   return (
     <Sezione id="formazione" numero={6} titolo="Informazione e formazione dei lavoratori" riferimento={RIFERIMENTI_SEZIONE.formazione} mancanti={mancanti}
-      descrizione="Per ciascun lavoratore. Le caselle sono spuntate solo dove l'app ha trovato un attestato: controlla e completa.">
+      descrizione="Per ciascun lavoratore. I documenti trovati sono riferimenti da controllare: titolo e flag HR non compilano le caselle. Verifica contenuti, scadenza e pertinenza alla mansione.">
       {!ro && (
         <Button size="sm" variant="outline" onClick={() => modifica((x) => {
           x.formazione.push({ nominativo: "", qualifica: "", base: false, rischi_specifici: false, rischi_cantiere: false, dpi_terza_categoria: false, altro: "", attestati: "" });
@@ -401,20 +409,25 @@ export function SezioneFormazione({ d, modifica, ro, mancanti }: BaseProps) {
       {d.formazione.map((f, n) => (
         <Riga key={`for-${n}`} readOnly={ro} etichettaRimuovi={`Togli ${f.nominativo || `il lavoratore ${n + 1}`}`} onRemove={() => modifica((x) => { x.formazione.splice(n, 1); })}>
           <div className="grid gap-3 pr-10 sm:grid-cols-2">
-            <Campo id={`for-${n}-nome`} label="Lavoratore" value={f.nominativo} readOnly={ro} onChange={(v) => modifica((x) => { x.formazione[n].nominativo = v; })} />
-            <Campo id={`for-${n}-q`} label="Qualifica" value={f.qualifica} readOnly={ro} onChange={(v) => modifica((x) => { x.formazione[n].qualifica = v; })} />
+            <Campo id={`for-${n}-nome`} label="Lavoratore" value={f.nominativo} readOnly={ro} onChange={(v) => modifica((x) => { x.formazione[n] = cambiaNominativoFormazione(x.formazione[n], v); })} />
+            <Campo id={`for-${n}-q`} label="Qualifica" value={f.qualifica} readOnly={ro} onChange={(v) => modifica((x) => { x.formazione[n].qualifica = v; x.formazione[n].verificata = false; })} />
             <div className="grid gap-2 text-sm sm:col-span-2 sm:grid-cols-2">
               {voci.map((v) => (
                 <label key={v.k} className="flex items-center gap-2">
-                  <Checkbox checked={f[v.k]} disabled={ro} onCheckedChange={(c) => modifica((x) => { x.formazione[n][v.k] = c === true; })} />
+                  <Checkbox checked={f[v.k]} disabled={ro} onCheckedChange={(c) => modifica((x) => { x.formazione[n][v.k] = c === true; x.formazione[n].verificata = false; })} />
                   {v.label}
                 </label>
               ))}
             </div>
             <Campo id={`for-${n}-altro`} label="Altro (descrivi)" value={f.altro} readOnly={ro} className="sm:col-span-2"
-              placeholder="Es.: PLE, carrello elevatore, preposto 8 ore, ponteggiatori 28 ore"
-              onChange={(v) => modifica((x) => { x.formazione[n].altro = v; })} />
+              placeholder="Es.: abilitazioni PLE, carrello elevatore, preposto, ponteggi"
+              onChange={(v) => modifica((x) => { x.formazione[n].altro = v; x.formazione[n].verificata = false; })} />
+            <p className="text-xs text-muted-foreground sm:col-span-2">{f.riferimento_addetto ? "Anagrafica HR collegata per identificativo. Modificare il nominativo rimuove il collegamento; nessuna qualifica è confermata automaticamente." : "Riga senza collegamento HR univoco: dati nominativi da riconciliare prima di collegare le evidenze della commessa."}</p>
             {f.attestati && <p className="text-xs text-muted-foreground sm:col-span-2">Attestati nell'app: {f.attestati}</p>}
+            <label className="flex items-start gap-2 rounded-lg border p-3 text-sm sm:col-span-2">
+              <Checkbox checked={f.verificata===true} disabled={ro} onCheckedChange={c=>modifica(x=>{x.formazione[n].verificata=c===true;})}/>
+              Ho controllato i documenti, le scadenze e la pertinenza delle voci indicate per questo lavoratore e cantiere.
+            </label>
           </div>
         </Riga>
       ))}
@@ -457,19 +470,21 @@ export function SezioneRumore({ d, modifica, ro, mancanti }: BaseProps) {
 // ── 8. Lavorazioni ───────────────────────────────────────────────────────────
 
 interface LavorazioniProps extends BaseProps {
+  companyId?:string;
+  orderId?:string;
   contesto: ContestoPos | null;
   onProponiAi: () => void;
   proponendo: boolean;
 }
 
-export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo }: LavorazioniProps) {
+export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId }: LavorazioniProps) {
   const campo = (l: Lavorazione, n: number, k: keyof Lavorazione, label: string, righe = 2, placeholder?: string) => (
     <Area id={`lv-${n}-${k}`} label={label} rows={righe} value={String(l[k] ?? "")} readOnly={ro} placeholder={placeholder}
-      onChange={(v) => modifica((x) => { (x.lavorazioni[n] as unknown as Record<string, unknown>)[k] = v; })} />
+      onChange={(v) => modifica((x) => { (x.lavorazioni[n] as unknown as Record<string, unknown>)[k] = v; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
   );
   return (
     <Sezione id="lavorazioni" numero={8} titolo="Lavorazioni svolte in cantiere" riferimento={RIFERIMENTI_SEZIONE.lavorazioni} mancanti={mancanti}
-      descrizione="Una scheda per lavorazione: sostanze, opere provvisionali, macchine, rischi, misure e DPI. Le schede proposte dall'AI valgono solo dopo che le hai lette e confermate."
+      descrizione="Una scheda per lavorazione: sostanze, opere provvisionali, macchine, rischi, misure e DPI. Le schede proposte dall'AI o riprese da altri POS e modelli richiedono adattamento e conferma."
       azioni={!ro ? (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={onProponiAi} disabled={proponendo}>
@@ -480,6 +495,11 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
           </Button>
         </div>
       ) : undefined}>
+      {d.versione_tecnica!==1&&!ro&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm"><p className="max-w-2xl">Questo POS usa le schede sintetiche precedenti. Attiva il dettaglio per organizzazione, rischi e attrezzature: i testi esistenti restano conservati e il riesame delle nuove sezioni sarà richiesto prima dell’approvazione.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_tecnica=1;for(const l of x.lavorazioni){l.tecnica ||= tecnicaPosVuota();l.tecnica.riesaminata=false;}})}>Attiva schede tecniche</Button></div>}
+      {d.versione_tecnica===1&&d.versione_fonti_tecniche!==1&&!ro&&<Button variant="outline" onClick={()=>modifica(x=>{x.versione_fonti_tecniche=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva collegamenti alle fonti tecniche</Button>}
+      {d.versione_tecnica===1&&d.versione_mezzi!==1&&!ro&&<div className="space-y-2 rounded-md border bg-slate-50 p-3 text-sm"><p>Collega le attrezzature effettive alle assegnazioni della commessa, con periodo e quantità d’uso da confermare. I testi esistenti restano conservati.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_mezzi=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva identità e impiego attrezzature</Button></div>}
+      {d.versione_mezzi===1&&d.versione_documenti_mezzi!==1&&!ro&&<div className="space-y-2 rounded-md border bg-slate-50 p-3 text-sm"><p>Collega gli originali tecnici della macchina e riesamina manutenzioni e segnalazioni per l’impiego dichiarato. Le schede già scritte restano conservate.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_documenti_mezzi=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva documenti e controlli delle attrezzature</Button></div>}
+      {d.versione_requisiti_addetti!==1&&!ro&&<div className="rounded-lg border bg-slate-50 p-3 text-sm"><p>Collega i riscontri nominativi della tua impresa alle lavorazioni e conserva gli originali pertinenti nell’emissione. L’attivazione richiederà questo riesame prima dell’approvazione.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_requisiti_addetti=1;x.versione_controlli=2;})}>Attiva requisiti nominativi per lavorazione</Button></div>}
       {contesto && (contesto.mezzi.length > 0 || contesto.subappaltatori.length > 0) && (
         <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
           {contesto.mezzi.length > 0 && <p><span className="font-medium">Mezzi sulla commessa:</span> {contesto.mezzi.map((m) => m.targa ? `${m.nome} (${m.targa})` : m.nome).join(", ")}</p>}
@@ -488,7 +508,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
       )}
       {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Proponile con l'AI partendo dalla descrizione dell'attività, o scrivile a mano.</p>}
       {d.lavorazioni.map((l, n) => (
-        <div key={l.id} className={`rounded-xl border ${l.origine === "ai" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
+        <div key={l.id} className={`rounded-xl border ${l.origine !== "utente" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
           <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 text-xs font-bold">{n + 1}</span>
             <input
@@ -497,11 +517,11 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
               value={l.titolo}
               disabled={ro}
               placeholder="Titolo della lavorazione"
-              onChange={(e) => modifica((x) => { x.lavorazioni[n].titolo = e.target.value; })}
+              onChange={(e) => modifica((x) => { x.lavorazioni[n].titolo = e.target.value; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })}
             />
-            {l.origine === "ai" && (
+            {l.origine !== "utente" && (
               <Badge variant="outline" className={l.verificata ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-100 text-amber-900"}>
-                {l.verificata ? "AI, confermata" : "Proposta dall'AI"}
+                {l.origine === "modello" ? (l.verificata ? "Riuso confermato" : "Da adattare al cantiere") : (l.verificata ? "AI, confermata" : "Proposta dall'AI")}
               </Badge>
             )}
             {!ro && (
@@ -511,16 +531,19 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={n === d.lavorazioni.length - 1} aria-label="Sposta giù"
                   onClick={() => modifica((x) => { const [it] = x.lavorazioni.splice(n, 1); x.lavorazioni.splice(n + 1, 0, it); })}><ArrowDown className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Duplica"
-                  onClick={() => modifica((x) => { x.lavorazioni.splice(n + 1, 0, { ...x.lavorazioni[n], id: nuovoId(), titolo: `${x.lavorazioni[n].titolo} (copia)` }); })}><Copy className="h-4 w-4" /></Button>
+                  onClick={() => modifica((x) => { x.lavorazioni.splice(n + 1, 0, { ...structuredClone(x.lavorazioni[n]), prodotti: x.lavorazioni[n].prodotti?.map(p=>({...p,verificato:false})), prodotti_riesaminati:false, ...(x.lavorazioni[n].tecnica?{tecnica:{...structuredClone(x.lavorazioni[n].tecnica!),riesaminata:false}}:{}), requisiti_addetti: undefined, segnaletica: undefined, id: nuovoId(), titolo: `${x.lavorazioni[n].titolo} (copia)`, origine: "modello", verificata: false }); })}><Copy className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" aria-label={`Elimina la lavorazione ${l.titolo || n + 1}`}
                   onClick={() => modifica((x) => { x.lavorazioni.splice(n, 1); })}><Trash2 className="h-4 w-4" /></Button>
               </div>
             )}
           </div>
           <div className="grid gap-3 p-3 sm:grid-cols-2">
+            {d.versione_tecnica===1&&<TecnicaLavorazionePos d={d} n={n} ro={ro} modifica={modifica} companyId={companyId} orderId={orderId}/>}
+            <SegnaleticaLavorazionePos l={l} ro={ro} onChange={segnaletica=>modifica(x=>{x.lavorazioni[n].segnaletica=segnaletica;x.lavorazioni[n].verificata=false;if(x.lavorazioni[n].tecnica)x.lavorazioni[n].tecnica!.riesaminata=false;})}/>
             {campo(l, n, "descrizione", "Descrizione della lavorazione")}
             {campo(l, n, "modalita", "Modalità e organizzazione della fase di lavoro")}
-            {campo(l, n, "sostanze", "Sostanze e preparati pericolosi", 2, "«Nessuna», oppure i prodotti: allega le schede di sicurezza")}
+            {campo(l, n, "sostanze", "Sostanze e preparati pericolosi", 2, "«Nessuna», oppure descrivi le sostanze e collega i singoli prodotti")}
+            {d.versione_prodotti===1&&companyId&&orderId&&<ProdottiLavorazionePos companyId={companyId} orderId={orderId} d={d} l={l} n={n} modifica={modifica} ro={ro}/>}
             {campo(l, n, "opere_provvisionali", "Opere provvisionali", 2, "Ponteggi, trabattelli, parapetti… o «Nessuna»")}
             {campo(l, n, "macchine", "Macchine e attrezzature", 2, "Anche «Nessuna»")}
             {campo(l, n, "impianti", "Impianti", 2, "Elettrico di cantiere, idrico… o «Nessuno»")}
@@ -529,10 +552,10 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {campo(l, n, "dpi", "DPI", 3, "Uno per riga, con la norma se la conosci")}
             {campo(l, n, "turni", "Turni di lavoro", 3)}
             <Campo id={`lv-${n}-durata`} label="Durata presunta (giorni)" type="number" value={l.durata_giorni == null ? "" : String(l.durata_giorni)} readOnly={ro}
-              onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); })} />
+              onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
             <div className="space-y-1">
               <Label className="text-xs font-medium text-slate-700">Svolgimento</Label>
-              <Select value={l.svolgimento} disabled={ro} onValueChange={(v) => modifica((x) => { x.lavorazioni[n].svolgimento = v as Svolgimento; })}>
+              <Select value={l.svolgimento} disabled={ro} onValueChange={(v) => modifica((x) => { x.lavorazioni[n].svolgimento = v as Svolgimento; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(SVOLGIMENTO_LABEL) as Svolgimento[]).map((k) => <SelectItem key={k} value={k}>{SVOLGIMENTO_LABEL[k]}</SelectItem>)}
@@ -542,9 +565,10 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {l.svolgimento !== "diretto" && (
               <Campo id={`lv-${n}-con`} label={l.svolgimento === "subappalto" ? "Impresa subappaltatrice" : "Impresa con cui si collabora"} value={l.svolgimento_con} readOnly={ro}
                 hint={contesto?.subappaltatori.length ? `Sulla commessa: ${contesto.subappaltatori.map((s) => s.ragione_sociale).join(", ")}` : undefined}
-                onChange={(v) => modifica((x) => { x.lavorazioni[n].svolgimento_con = v; })} />
+                onChange={(v) => modifica((x) => { x.lavorazioni[n].svolgimento_con = v; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
             )}
-            {l.origine === "ai" && (
+            {d.versione_requisiti_addetti===1&&companyId&&orderId&&<RequisitiLavorazionePos companyId={companyId} orderId={orderId} d={d} l={l} n={n} modifica={modifica} ro={ro}/>}
+            {l.origine !== "utente" && (
               <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-white p-2 text-sm sm:col-span-2">
                 <Checkbox checked={l.verificata} disabled={ro} onCheckedChange={(c) => modifica((x) => { x.lavorazioni[n].verificata = c === true; })} className="mt-0.5" />
                 Ho letto questa scheda, l'ho adattata al cantiere e la confermo
@@ -559,17 +583,19 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
 
 // ── 9. Procedure del PSC ─────────────────────────────────────────────────────
 
-export function SezionePsc({ d, modifica, ro, mancanti }: BaseProps) {
+export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId }: BaseProps & {companyId:string;orderId:string}) {
   const p = d.procedure_psc;
   return (
     <Sezione id="psc" numero={9} titolo="Procedure complementari o di dettaglio richieste dal PSC" riferimento={RIFERIMENTI_SEZIONE.psc} mancanti={mancanti}>
       <div className="flex items-center gap-2">
         <Switch id="psc-presente" checked={p.psc_presente} disabled={ro} onCheckedChange={(on) => modifica((x) => {
           x.procedure_psc.psc_presente = on;
+          x.versione_psc=1;
           if (!on) x.procedure_psc.richieste = false;
         })} />
         <Label htmlFor="psc-presente" className="text-sm">Per questo cantiere c'è un Piano di Sicurezza e Coordinamento (PSC)</Label>
       </div>
+      {p.psc_presente && <RiferimentoPscPos companyId={companyId} orderId={orderId} valore={p.documento} ro={ro} onChange={r=>modifica(x=>{x.versione_psc=1;if(r)x.procedure_psc.documento=r;else delete x.procedure_psc.documento;})}/>}
       {p.psc_presente && (
         <div className="flex items-center gap-2">
           <Switch id="psc-richieste" checked={p.richieste} disabled={ro} onCheckedChange={(on) => modifica((x) => { x.procedure_psc.richieste = on; })} />
@@ -588,6 +614,9 @@ export function SezionePsc({ d, modifica, ro, mancanti }: BaseProps) {
               <div className="grid gap-3 pr-10 sm:grid-cols-2">
                 <Area id={`psc-${n}-p`} label="Procedura richiesta nel PSC" rows={2} value={v.procedura} readOnly={ro} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].procedura = t; })} />
                 <Area id={`psc-${n}-i`} label="Indicazioni complementari e di dettaglio" rows={2} value={v.indicazioni} readOnly={ro} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].indicazioni = t; })} />
+                <Campo id={`psc-${n}-pagina`} label="Pagina / paragrafo del PSC" value={v.pagina||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].pagina=t;})}/>
+                <Campo id={`psc-${n}-responsabile`} label="Responsabile operativo della procedura" value={v.responsabile||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].responsabile=t;})}/>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor={`psc-${n}-lavorazione`} className="text-xs">Lavorazione interessata</Label><select id={`psc-${n}-lavorazione`} value={v.lavorazione_id||""} disabled={ro} className="h-9 w-full rounded-md border bg-background px-2 text-sm" onChange={e=>modifica(x=>{x.procedure_psc.voci[n].lavorazione_id=e.target.value;})}><option value="">Procedura generale / da associare</option>{v.lavorazione_id&&!d.lavorazioni.some(l=>l.id===v.lavorazione_id)&&<option value={v.lavorazione_id}>Lavorazione non più presente: da riesaminare</option>}{d.lavorazioni.map(l=><option key={l.id} value={l.id}>{l.titolo||l.id}</option>)}</select></div>
               </div>
             </Riga>
           ))}

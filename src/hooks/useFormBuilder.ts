@@ -7,6 +7,7 @@ import {
   normalizeLeadFormFields,
   sanitizeLeadFormSlug,
   validateLeadFormDraft,
+  ensureFormCustomFieldSupport,
 } from "@/lib/formBuilder";
 
 export type FormFieldType =
@@ -194,6 +195,10 @@ export function useFormBuilder() {
       } as LeadForm;
       const validation = validateLeadFormDraft(nextDraft, { publishing: nextDraft.is_published });
       if (!validation.ok) throw new Error(validation.errors[0]);
+      await ensureFormCustomFieldSupport(nextDraft, async () => {
+        const { data, error } = await withSupabaseTimeout(supabase.functions.invoke("form-submit", { method: "GET" }), "Verifica del servizio moduli non disponibile.");
+        return !error && data?.capabilities?.custom_contact_fields === 1;
+      });
 
       const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if ("name" in updates) payload.name = String(updates.name ?? "").trim();

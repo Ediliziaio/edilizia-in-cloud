@@ -1,3 +1,4 @@
+import { FinancialRefreshBridge } from "@/components/orders/FinancialRefreshBridge";
 import { Suspense, useEffect, useRef, useState } from "react";
 // Alias: tutti i lazy() delle route ritentano l'import con cache-bust se un
 // deploy invalida i chunk (vedi lazyWithRetry per la diagnosi completa).
@@ -577,6 +578,7 @@ const App = () => (
       },
     }}
   >
+    <FinancialRefreshBridge />
     <TooltipProvider>
      <ConfirmProvider>
       {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}

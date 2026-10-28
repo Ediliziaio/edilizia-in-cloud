@@ -1,0 +1,11 @@
+{
+  "nodeModulesDir": "none",
+  "lock": "deno.lock",
+  "imports": {
+    "pdfmake": "npm:pdfmake@0.3.9/build/pdfmake.js",
+    "pdfmake-fonts": "npm:pdfmake@0.3.9/build/vfs_fonts.js",
+    "fontkit": "npm:fontkit@2.0.4",
+    "parse5": "npm:parse5@7.3.0",
+    "fflate": "npm:fflate@0.8.2"
+  }
+}

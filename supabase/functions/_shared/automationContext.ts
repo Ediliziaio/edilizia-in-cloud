@@ -1,4 +1,5 @@
 import { PLATFORM_ADMIN_COMPANY_ID } from "./platformAutomation.ts";
+import { customObjectType } from "./automationFieldContract.ts";
 
 const TABLES: Record<string, string> = {
   contact: "marketing_contacts", opportunity: "marketing_opportunities", appointment: "appointments",
@@ -10,6 +11,8 @@ const TABLES: Record<string, string> = {
   rapportino: "rapportini_intervento", subappaltatore: "subappaltatori_sicurezza", contratto_subappalto: "contratti_subappalto",
   sal_subappaltatore: "sal_subappaltatori", costo_aziendale: "company_costs", salesperson: "salespeople",
   external_team: "external_teams", piano_manutenzione: "piani_manutenzione",
+  warehouse:"warehouse_stock",stock_movement:"warehouse_stock_movements",
+  quote_sr:"sr_progetti",quote_fv:"fv_progetti",quote_bgn:"bgn_progetti",quote_rst:"rst_progetti",quote_tet:"tet_progetti",quote_clm:"clm_progetti",quote_idr:"idr_progetti",quote_ele:"ele_progetti",quote_pav:"pav_progetti",quote_pis:"pis_progetti",
 };
 
 /** Oggetti che nascono dentro una commessa: dall'ordine si prende il più recente. */
@@ -81,6 +84,7 @@ const TYPES: Record<string, string> = {
   contatto: "contact", contacts: "contact", opportunita: "opportunity", opportunities: "opportunity",
   appuntamento: "appointment", ordine: "order", orders: "order", tickets: "ticket", tasks: "task",
   fattura: "invoice", invoices: "invoice", pagamento: "payment", preventivo: "quote",
+  stock:"warehouse",dipendente:"employee",employees:"employee",
 };
 export function automationEntityType(value: string): string { return TYPES[value] ?? value; }
 
@@ -180,8 +184,8 @@ export async function resolveAutomationRecord(db: any, target: string, entityId:
 /** Stable field IDs for new filters, field names retained for already-published filters. */
 export async function loadAutomationCustomFields(db: any, companyId: string, entityType: string, entityId: string): Promise<Record<string, unknown>> {
   const type = automationEntityType(entityType);
-  const { data: definitions, error } = await db.from("marketing_custom_fields").select("id, name, field_type")
-    .eq("company_id", companyId).eq("object_type", type).is("deleted_at", null);
+  const { data: definitions, error } = await db.from("marketing_custom_fields").select("id, name, field_type, key_aliases")
+    .eq("company_id", companyId).eq("object_type", customObjectType(type)).is("deleted_at", null);
   if (error) throw error;
   if (!definitions?.length) return {};
   const fieldIds = definitions.map((d: any) => d.id);
@@ -190,7 +194,7 @@ export async function loadAutomationCustomFields(db: any, companyId: string, ent
     : db.from("entity_custom_field_values").select("field_id, value").eq("company_id", companyId).eq("entity_type", type).eq("entity_id", entityId);
   const { data: values, error: valueError } = await query.in("field_id", fieldIds);
   if (valueError) throw valueError;
-  const result: Record<string, unknown> = {};
+  const result: Record<string, unknown> = Object.create(null);
   for (const definition of definitions) {
     let value = values?.find((v: any) => v.field_id === definition.id)?.value ?? null;
     if (["multiselect", "multi_select", "tags"].includes(definition.field_type) && typeof value === "string") {
@@ -198,6 +202,9 @@ export async function loadAutomationCustomFields(db: any, companyId: string, ent
     }
     result[definition.id] = value;
     result[definition.name] = value;
+    const currentKey = definition.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (currentKey) result[currentKey] = value;
+    for (const alias of definition.key_aliases ?? []) if (/^[a-z0-9_]+$/.test(alias)) result[alias] = value;
   }
   return result;
 }

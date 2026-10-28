@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,15 +8,38 @@ import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { TASK_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/taskCategories";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { TaskAllegati } from "@/components/attivita/TaskAllegati";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Calendar, Clock, Tag, FileText, User, ExternalLink, X, Link2,
-  Briefcase, Users, TrendingUp, Package, DollarSign, Ticket,
+  Calendar,
+  Clock,
+  Tag,
+  FileText,
+  User,
+  ExternalLink,
+  X,
+  Link2,
+  Briefcase,
+  Users,
+  TrendingUp,
+  Package,
+  DollarSign,
+  Ticket,
   History,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -30,8 +53,18 @@ import { TaskTagBadge } from "./TaskTagBadge";
 import { TaskCorrelationPicker } from "./TaskCorrelationPicker";
 import { TaskDependencySection } from "./TaskDependencySection";
 import { ChipIcona, SezioneCard } from "./SezioneCard";
-import { describeTaskChanges, logTaskActivity, TASK_FIELD_LABELS } from "@/lib/taskActivityLog";
+import {
+  describeTaskChanges,
+  logTaskActivity,
+  TASK_FIELD_LABELS,
+} from "@/lib/taskActivityLog";
 import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import {
+  OFFICE_STAGES,
+  officeStage,
+  invalidateOfficeWorkspace,
+} from "@/lib/orders/officeWorkspace";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import {
@@ -50,7 +83,6 @@ const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   alta: { label: "Alta", emoji: "🟠" },
   urgente: { label: "Urgente", emoji: "🔴" },
 };
-
 
 const TASK_EVENT_LABELS: Record<string, string> = {
   task_created: "ha creato l'attività",
@@ -97,7 +129,11 @@ function EditableField({
 
   return (
     <div className="flex items-start gap-3">
-      <ChipIcona icon={Icon} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
+      <ChipIcona
+        icon={Icon}
+        tono="blu"
+        className="mt-0.5 hidden sm:inline-flex"
+      />
       <div className="flex-1 min-w-0">
         <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
           {label}
@@ -138,7 +174,9 @@ function EditableField({
             }}
           >
             {displayValue ?? (
-              <span className="text-muted-foreground/50 italic">Aggiungi...</span>
+              <span className="text-muted-foreground/50 italic">
+                Aggiungi...
+              </span>
             )}
           </div>
         )}
@@ -148,10 +186,10 @@ function EditableField({
 }
 
 function formatProfileName(profile: any, fallback = "Utente") {
-  const name = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
+  const name =
+    `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
   return name || fallback;
 }
-
 
 function TaskActivityLog({
   task,
@@ -170,7 +208,9 @@ function TaskActivityLog({
       if (!companyId || !task?.id) return [];
       const { data, error } = await supabase
         .from("company_activity_log")
-        .select("id, created_at, actor_name, user_id, action, event_type, description, changes, before_snapshot, after_snapshot, details")
+        .select(
+          "id, created_at, actor_name, user_id, action, event_type, description, changes, before_snapshot, after_snapshot, details",
+        )
         .eq("company_id", companyId)
         .eq("target_id", task.id)
         .or("target_table.eq.tasks,target_type.eq.tasks,target_type.eq.task")
@@ -190,21 +230,40 @@ function TaskActivityLog({
     if (!afterStatus || beforeStatus === afterStatus) return null;
     return (
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {beforeStatus && <TaskStatusBadge status={beforeStatus} statuses={statusOptions} compact />}
-        {beforeStatus && <span className="text-[10px] text-muted-foreground">verso</span>}
-        <TaskStatusBadge status={afterStatus} statuses={statusOptions} compact />
+        {beforeStatus && (
+          <TaskStatusBadge
+            status={beforeStatus}
+            statuses={statusOptions}
+            compact
+          />
+        )}
+        {beforeStatus && (
+          <span className="text-[10px] text-muted-foreground">verso</span>
+        )}
+        <TaskStatusBadge
+          status={afterStatus}
+          statuses={statusOptions}
+          compact
+        />
       </div>
     );
   };
 
   const renderChangeBadges = (changes: unknown) => {
-    if (!changes || typeof changes !== "object" || Array.isArray(changes)) return null;
-    const fields = Object.keys(changes as Record<string, unknown>).filter((field) => field !== "updated_at");
+    if (!changes || typeof changes !== "object" || Array.isArray(changes))
+      return null;
+    const fields = Object.keys(changes as Record<string, unknown>).filter(
+      (field) => field !== "updated_at",
+    );
     if (fields.length === 0) return null;
     return (
       <div className="mt-1 flex flex-wrap gap-1">
         {fields.slice(0, 4).map((field) => (
-          <Badge key={field} variant="outline" className="h-5 px-1.5 text-[10px]">
+          <Badge
+            key={field}
+            variant="outline"
+            className="h-5 px-1.5 text-[10px]"
+          >
             {TASK_FIELD_LABELS[field] ?? field}
           </Badge>
         ))}
@@ -225,7 +284,9 @@ function TaskActivityLog({
           Cronologia
         </span>
         {logs.length > 0 && (
-          <span className="ml-auto text-[10px] text-muted-foreground">{logs.length}</span>
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {logs.length}
+          </span>
         )}
       </div>
 
@@ -239,20 +300,36 @@ function TaskActivityLog({
           <div className="divide-y">
             {logs.map((log: any) => {
               const eventType = log.event_type || log.action;
-              const actor = log.actor_name || (log.user_id === task.created_by ? creatorName : "Utente");
-              const description = log.description || TASK_EVENT_LABELS[eventType] || "ha aggiornato l'attività";
-              const afterStatus = log.after_snapshot?.status || log.changes?.status;
-              const statusTone = afterStatus ? getTaskStatusDefinition(afterStatus, statusOptions) : null;
+              const actor =
+                log.actor_name ||
+                (log.user_id === task.created_by ? creatorName : "Utente");
+              const description =
+                log.description ||
+                TASK_EVENT_LABELS[eventType] ||
+                "ha aggiornato l'attività";
+              const afterStatus =
+                log.after_snapshot?.status || log.changes?.status;
+              const statusTone = afterStatus
+                ? getTaskStatusDefinition(afterStatus, statusOptions)
+                : null;
               return (
                 <div key={log.id} className="flex gap-3 p-3">
-                  <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${statusTone?.tone === "amber" ? "bg-amber-500" : statusTone?.tone === "emerald" ? "bg-emerald-500" : statusTone?.tone === "blue" ? "bg-blue-500" : "bg-primary/70"}`} />
+                  <div
+                    className={`mt-1 h-2 w-2 shrink-0 rounded-full ${statusTone?.tone === "amber" ? "bg-amber-500" : statusTone?.tone === "emerald" ? "bg-emerald-500" : statusTone?.tone === "blue" ? "bg-blue-500" : "bg-primary/70"}`}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm">
                       <span className="font-medium">{actor}</span>{" "}
-                      <span className="text-muted-foreground">{description}</span>
+                      <span className="text-muted-foreground">
+                        {description}
+                      </span>
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {format(new Date(log.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                      {format(
+                        new Date(log.created_at),
+                        "d MMM yyyy 'alle' HH:mm",
+                        { locale: it },
+                      )}
                     </p>
                     {renderStatusTransition(log)}
                     {renderChangeBadges(log.changes)}
@@ -268,11 +345,17 @@ function TaskActivityLog({
               <div>
                 <p className="text-sm">
                   <span className="font-medium">{creatorName}</span>{" "}
-                  <span className="text-muted-foreground">ha creato l'attività</span>
+                  <span className="text-muted-foreground">
+                    ha creato l'attività
+                  </span>
                 </p>
                 {task.created_at && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {format(new Date(task.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                    {format(
+                      new Date(task.created_at),
+                      "d MMM yyyy 'alle' HH:mm",
+                      { locale: it },
+                    )}
                   </p>
                 )}
               </div>
@@ -281,15 +364,22 @@ function TaskActivityLog({
               <div className="flex gap-3">
                 <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Ultima modifica registrata</p>
+                  <p className="text-sm text-muted-foreground">
+                    Ultima modifica registrata
+                  </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {format(new Date(task.updated_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                    {format(
+                      new Date(task.updated_at),
+                      "d MMM yyyy 'alle' HH:mm",
+                      { locale: it },
+                    )}
                   </p>
                 </div>
               </div>
             )}
             <p className="pl-5 text-[11px] text-muted-foreground">
-              Le nuove modifiche compariranno qui con nome, data e campi cambiati.
+              Le nuove modifiche compariranno qui con nome, data e campi
+              cambiati.
             </p>
           </div>
         )}
@@ -298,7 +388,10 @@ function TaskActivityLog({
   );
 }
 
-export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
+export function TaskDetailPanel(props: TaskDetailPanelProps) {
+  return <TaskDetailContent key={props.task?.id ?? "none"} {...props} />;
+}
+function TaskDetailContent({ task, onClose }: TaskDetailPanelProps) {
   const queryClient = useQueryClient();
   // Mobile: restano i campi e le sezioni che servono sul posto (chi, quando,
   // collegamenti, allegati, checklist, commenti); dipendenze, cronologia,
@@ -306,7 +399,10 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const isMobile = useIsMobile();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
-  const { statuses: statusOptions } = useTaskStatuses(companyId, [task?.status].filter(Boolean));
+  const { statuses: statusOptions } = useTaskStatuses(
+    companyId,
+    [task?.status].filter(Boolean),
+  );
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
 
@@ -315,11 +411,6 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   // fare il reset SOLO quando cambia il task selezionato, non ad ogni save
   // del titolo (che bumpa task.title nel parent → causerebbe overwrite del
   // valore digitato dall'utente).
-   
-  useEffect(() => {
-    setTitle(task?.title ?? "");
-    setEditingTitle(false);
-  }, [task?.id]);
 
   const { data: assignedTags = [], refetch: refetchTags } = useQuery({
     queryKey: ["task-tags-assigned", task?.id],
@@ -330,7 +421,11 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         .select("tag:task_tags(id, name, color)")
         .eq("task_id", task.id);
       if (error) return [];
-      return (data ?? []).map((r: any) => r.tag).filter(Boolean) as { id: string; name: string; color: string }[];
+      return (data ?? []).map((r: any) => r.tag).filter(Boolean) as {
+        id: string;
+        name: string;
+        color: string;
+      }[];
     },
     enabled: !!task?.id,
   });
@@ -366,15 +461,33 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
   const updateMutation = useMutation({
     mutationFn: async (updates: TablesUpdate<"tasks">) => {
-      const { error } = await supabase
+      if (
+        task.activity_scope === "ufficio" &&
+        task.status === "in_attesa" &&
+        (task.bloccata_da_task_id || task.attende_fase_id) &&
+        updates.status &&
+        updates.status !== "in_attesa"
+      )
+        throw new Error("Completa prima la dipendenza indicata.");
+      const { data, error } = await supabase
         .from("tasks")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", task.id);
+        .eq("id", task.id)
+        .eq("company_id", companyId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length)
+        throw new Error(
+          "Attività non aggiornata: verifica i permessi e ricarica.",
+        );
 
       const statusChanged = typeof updates.status === "string";
       const eventType = statusChanged
-        ? getTaskStatusEventType(task.status, String(updates.status), statusOptions)
+        ? getTaskStatusEventType(
+            task.status,
+            String(updates.status),
+            statusOptions,
+          )
         : "task_updated";
 
       await logTaskActivity({
@@ -384,7 +497,11 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         taskTitle: updates.title ? String(updates.title) : task.title,
         eventType,
         description: statusChanged
-          ? getTaskStatusTransitionDescription(task.status, String(updates.status), statusOptions)
+          ? getTaskStatusTransitionDescription(
+              task.status,
+              String(updates.status),
+              statusOptions,
+            )
           : describeTaskChanges(updates),
         changes: updates,
         beforeSnapshot: task as any,
@@ -393,8 +510,11 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      invalidateOfficeWorkspace(queryClient, task.order_id);
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
-      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, task.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["task-activity-log", companyId, task.id],
+      });
     },
     onError: () => toast.error("Errore nel salvataggio"),
   });
@@ -403,11 +523,22 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   // era l'unico campo in sola lettura del pannello.
   const { data: staff = [] } = useCompanyStaffUsers(companyId);
   const opzioniAssegnatario = useMemo(() => {
-    const lista = staff.map((u) => ({ id: u.id, nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente" }));
+    const lista = staff.map((u) => ({
+      id: u.id,
+      nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente",
+    }));
     const attuale = task?.assigned_to as string | null | undefined;
     if (attuale && !lista.some((u) => u.id === attuale)) {
-      const p = task.assigned_profile as { first_name?: string | null; last_name?: string | null } | null;
-      lista.unshift({ id: attuale, nome: p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Utente" : "Utente non più attivo" });
+      const p = task.assigned_profile as {
+        first_name?: string | null;
+        last_name?: string | null;
+      } | null;
+      lista.unshift({
+        id: attuale,
+        nome: p
+          ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Utente"
+          : "Utente non più attivo",
+      });
     }
     return lista;
   }, [staff, task]);
@@ -426,9 +557,12 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   // Build correlations list from FK fields
   const correlations = task
     ? [
-        task.order && {
+        task.order_id && {
           icon: Briefcase,
-          label: task.order.order_code || task.order.description?.slice(0, 25),
+          label:
+            task.order?.order_code ||
+            task.order?.description?.slice(0, 25) ||
+            "Commessa collegata",
           tipo: "Ordine",
           to: `/azienda/ordini/${task.order_id}`,
           fkField: "order_id",
@@ -473,11 +607,21 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
   if (!task) return null;
 
-  const creatorName = formatProfileName(task.creator_profile || creatorProfile, "Utente");
+  const creatorName = formatProfileName(
+    task.creator_profile || creatorProfile,
+    "Utente",
+  );
 
   return (
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col">
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col"
+      >
+        <SheetTitle className="sr-only">{task.title}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Dettagli, checklist, documenti e storico dell’attività collegata.
+        </SheetDescription>
         {/* Header: striscia nei colori del brand, poi titolo e stato */}
         <div className="h-1 w-full shrink-0 bg-gradient-to-r from-eic-navy via-eic-navy to-orange-500" />
         <div className="border-b bg-card p-4 space-y-3">
@@ -512,19 +656,43 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           </div>
 
           {/* Status & Priority dropdowns */}
+          {task.activity_scope === "ufficio" && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              Fase dell’ufficio
+              <OfficeSelect
+                label="Fase dell’ufficio"
+                className="h-9 w-56 text-xs text-foreground"
+                value={officeStage(task.office_stage)}
+                disabled={updateMutation.isPending}
+                onValueChange={(value) =>
+                  updateMutation.mutate({
+                    office_stage: value,
+                  } as TablesUpdate<"tasks">)
+                }
+                options={OFFICE_STAGES.map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+              />
+            </label>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
             <Select
               value={task.status}
-              onValueChange={(val) => updateMutation.mutate({
-                ...buildTaskStatusUpdate(val, statusOptions),
-              })}
+              onValueChange={(val) =>
+                updateMutation.mutate({
+                  ...buildTaskStatusUpdate(val, statusOptions),
+                })
+              }
             >
               <SelectTrigger className="h-8 w-auto text-xs gap-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {statusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -538,7 +706,9 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(PRIORITY_CONFIG).map(([v, c]) => (
-                  <SelectItem key={v} value={v}>{c.emoji} {c.label}</SelectItem>
+                  <SelectItem key={v} value={v}>
+                    {c.emoji} {c.label}
+                  </SelectItem>
                 ))}
                 {/* Priorità fuori elenco (es. «media» di attività vecchie): senza
                     questa voce il menu in testata restava vuoto. */}
@@ -551,20 +721,31 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             {/* Qui c'era anche la pastiglia dello stato: lo dice già il menu qui
                 accanto («Da fare ▾» e «• Da fare» uno dopo l'altro). */}
             {isTaskReviewStatus(task.status, statusOptions) && (
-              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-xs text-amber-800">
+              <Badge
+                variant="outline"
+                className="border-amber-200 bg-amber-50 text-xs text-amber-800"
+              >
                 Controllo responsabile
               </Badge>
             )}
             {isTaskDoneStatus(task.status, statusOptions) && (
-              <Badge variant="secondary" className="text-xs">Chiusa</Badge>
+              <Badge variant="secondary" className="text-xs">
+                Chiusa
+              </Badge>
             )}
           </div>
           <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <User className="h-3.5 w-3.5" />
-            <span>Creata da <span className="font-medium text-foreground">{creatorName}</span></span>
+            <span>
+              Creata da{" "}
+              <span className="font-medium text-foreground">{creatorName}</span>
+            </span>
             {task.created_at && (
               <span>
-                il {format(new Date(task.created_at), "d MMM yyyy", { locale: it })}
+                il{" "}
+                {format(new Date(task.created_at), "d MMM yyyy", {
+                  locale: it,
+                })}
               </span>
             )}
           </div>
@@ -577,7 +758,11 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-6 sm:gap-y-4">
               {/* Assignee: si cambia da qui */}
               <div className="flex items-start gap-3">
-                <ChipIcona icon={User} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
+                <ChipIcona
+                  icon={User}
+                  tono="blu"
+                  className="mt-0.5 hidden sm:inline-flex"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     Assegnato a
@@ -592,16 +777,28 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                       </AvatarFallback>
                     </Avatar>
                     <Select
-                      value={(task.assigned_to as string | null | undefined) ?? "none"}
-                      onValueChange={(val) => updateMutation.mutate({ assigned_to: val === "none" ? null : val })}
+                      value={
+                        (task.assigned_to as string | null | undefined) ??
+                        "none"
+                      }
+                      onValueChange={(val) =>
+                        updateMutation.mutate({
+                          assigned_to: val === "none" ? null : val,
+                        })
+                      }
                     >
-                      <SelectTrigger className="h-7 w-auto max-w-full text-sm" aria-label="Cambia assegnatario">
+                      <SelectTrigger
+                        className="h-7 w-auto max-w-full text-sm"
+                        aria-label="Cambia assegnatario"
+                      >
                         <SelectValue placeholder="Non assegnato" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Non assegnato</SelectItem>
                         {opzioniAssegnatario.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.nome}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -623,37 +820,59 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 <EditableField
                   label="Stima (ore)"
                   icon={Clock}
-                  value={task.estimated_hours != null ? String(task.estimated_hours) : null}
+                  value={
+                    task.estimated_hours != null
+                      ? String(task.estimated_hours)
+                      : null
+                  }
                   type="number"
-                  onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
+                  onSave={(val) =>
+                    updateMutation.mutate({
+                      estimated_hours: val ? parseFloat(val) : null,
+                    })
+                  }
                 />
               )}
 
               <EditableField
                 label="Ore effettive"
                 icon={Clock}
-                value={task.actual_hours != null ? String(task.actual_hours) : null}
+                value={
+                  task.actual_hours != null ? String(task.actual_hours) : null
+                }
                 type="number"
-                onSave={(val) => updateMutation.mutate({ actual_hours: val ? parseFloat(val) : null })}
+                onSave={(val) =>
+                  updateMutation.mutate({
+                    actual_hours: val ? parseFloat(val) : null,
+                  })
+                }
               />
 
               {/* Category */}
               <div className="flex items-start gap-3">
-                <ChipIcona icon={Tag} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
+                <ChipIcona
+                  icon={Tag}
+                  tono="blu"
+                  className="mt-0.5 hidden sm:inline-flex"
+                />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     Categoria
                   </div>
                   <Select
                     value={task.category || "generale"}
-                    onValueChange={(val) => updateMutation.mutate({ category: val })}
+                    onValueChange={(val) =>
+                      updateMutation.mutate({ category: val })
+                    }
                   >
                     <SelectTrigger className="h-7 text-sm w-auto">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
-                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                        <SelectItem key={v} value={v}>
+                          {l}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -687,7 +906,9 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           >
             <div className="space-y-2">
               {correlations.length === 0 && (
-                <p className="text-xs text-muted-foreground/70 italic">Nessuna correlazione</p>
+                <p className="text-xs text-muted-foreground/70 italic">
+                  Nessuna correlazione
+                </p>
               )}
               {correlations.map((c: any, i: number) => {
                 const Icon = c.icon;
@@ -698,8 +919,12 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                   >
                     <Icon className="w-4 h-4 text-orange-600 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] text-muted-foreground">{c.tipo}</div>
-                      <div className="text-sm font-medium truncate">{c.label}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {c.tipo}
+                      </div>
+                      <div className="text-sm font-medium truncate">
+                        {c.label}
+                      </div>
                     </div>
                     {c.to && (
                       <Link
@@ -712,7 +937,9 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                     )}
                     <button
                       className="text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={() => updateMutation.mutate({ [c.fkField]: null })}
+                      onClick={() =>
+                        updateMutation.mutate({ [c.fkField]: null })
+                      }
                       title="Rimuovi correlazione"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -727,23 +954,23 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           <TaskAllegati taskId={task.id} companyId={companyId} />
 
           {(!isMobile || assignedTags.length > 0) && (
-          <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
-            <div className="flex flex-wrap gap-1.5">
-              {assignedTags.map((tag) => (
-                <TaskTagBadge
-                  key={tag.id}
-                  name={tag.name}
-                  color={tag.color}
-                  onRemove={() => removeTagMutation.mutate(tag.id)}
+            <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
+              <div className="flex flex-wrap gap-1.5">
+                {assignedTags.map((tag) => (
+                  <TaskTagBadge
+                    key={tag.id}
+                    name={tag.name}
+                    color={tag.color}
+                    onRemove={() => removeTagMutation.mutate(tag.id)}
+                  />
+                ))}
+                <TaskTagPicker
+                  taskId={task.id}
+                  assignedTags={assignedTags}
+                  onChanged={() => refetchTags()}
                 />
-              ))}
-              <TaskTagPicker
-                taskId={task.id}
-                assignedTags={assignedTags}
-                onChanged={() => refetchTags()}
-              />
-            </div>
-          </SezioneCard>
+              </div>
+            </SezioneCard>
           )}
 
           {/* Dipendenze */}
@@ -755,18 +982,31 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
           {/* Checklist */}
           <SezioneCard tono="blu">
-            <TaskChecklist taskId={task.id} companyId={companyId} taskTitle={task.title} />
+            <TaskChecklist
+              taskId={task.id}
+              companyId={companyId}
+              taskTitle={task.title}
+            />
           </SezioneCard>
 
           {/* Comments */}
           <SezioneCard tono="arancio">
-            <TaskComments taskId={task.id} companyId={companyId} taskTitle={task.title} />
+            <TaskComments
+              taskId={task.id}
+              companyId={companyId}
+              taskTitle={task.title}
+            />
           </SezioneCard>
 
           {/* Cronologia */}
           {!isMobile && (
             <SezioneCard tono="neutro">
-              <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
+              <TaskActivityLog
+                task={task}
+                companyId={companyId}
+                creatorName={creatorName}
+                statusOptions={statusOptions}
+              />
             </SezioneCard>
           )}
 

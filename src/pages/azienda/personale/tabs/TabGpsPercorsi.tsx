@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from "react";
 import { Loader2, Users, RefreshCw, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,7 +37,7 @@ export function TabGpsPercorsi() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
 
-  const { tecnici, isLoading: tecniciLoading, refresh } = useLiveTecnici(companyId);
+  const { tecnici, isLoading: tecniciLoading, isError: tecniciError, refresh } = useLiveTecnici(companyId);
   const { geofences } = useGeofence(companyId);
   const { ultimaViolazione, dismissViolazione } = useGeofenceAlert(companyId);
 
@@ -105,7 +106,7 @@ export function TabGpsPercorsi() {
         <TabsContent value="live" className="mt-4">
           {tecniciLoading ? (
             <MapLoader />
-          ) : tecnici.length === 0 ? (
+          ) : tecniciError ? <HrQueryError label="Posizioni GPS non disponibili" onRetry={refresh} /> : tecnici.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 border rounded-lg bg-muted/20">
               <Navigation className="h-8 w-8 opacity-30" />
               <p>Nessun tecnico con tracciamento GPS attivo</p>

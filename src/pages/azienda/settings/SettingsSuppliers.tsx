@@ -460,17 +460,19 @@ export default function SettingsSuppliers() {
     mutationFn: async (dati: SupplierFormData) => {
       if (!puoModificare || !effectiveCompany?.id)
         throw new Error("Non puoi aggiungere fornitori.");
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from("suppliers")
         .insert({ ...payloadFornitore(dati), company_id: effectiveCompany.id })
         .select("id")
         .single();
       if (error) throw error;
+      return created.id;
     },
-    onSuccess: async () => {
+    onSuccess: async (id) => {
       await invalidaFornitori(queryClient);
       setNuovoAperto(false);
       toast({ title: "Fornitore creato" });
+      vaiFornitore(id);
     },
     onError: (error) =>
       toast({

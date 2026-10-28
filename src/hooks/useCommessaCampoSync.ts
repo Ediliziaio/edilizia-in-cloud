@@ -23,6 +23,9 @@ export function attachCommessaCampoSync(qc: QueryClient, companyId: string, orde
       channel.on("postgres_changes", { event: "*", schema: "public", table: "order_events", filter: `order_id=eq.${orderId}` }, payload => {
         const row = Object.keys(payload.new).length ? payload.new : payload.old;
         if (isCommessaCampoEvent(row, orderId, companyId)) refresh.request();
+      }).on("postgres_changes", { event: "*", schema: "public", table: "commessa_campo_sync", filter: `order_id=eq.${orderId}` }, payload => {
+        const row = Object.keys(payload.new).length ? payload.new : payload.old;
+        if (isCommessaCampoEvent(row, orderId, companyId)) refresh.request();
       }).on("postgres_changes", { event: "*", schema: "public", table: "order_messages", filter: `order_id=eq.${orderId}` }, payload => {
         const row = Object.keys(payload.new).length ? payload.new : payload.old;
         if (isCommessaCampoEvent(row, orderId, companyId))

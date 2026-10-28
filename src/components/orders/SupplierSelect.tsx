@@ -1,3 +1,4 @@
+import { ViaggioSelect } from "@/components/mezzi/ViaggioSelect";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +30,9 @@ import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 
 interface SupplierSelectProps {
+  searchable?: boolean;
+  allowCreate?: boolean;
+  onSupplierNameChange?: (name: string) => void;
   value?: string;
   onValueChange: (
     value: string | undefined,
@@ -48,6 +52,9 @@ export function SupplierSelect({
   onValueChange,
   placeholder = "Seleziona fornitore",
   fallbackCompanyId,
+  searchable = false,
+  allowCreate = true,
+  onSupplierNameChange,
 }: SupplierSelectProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { effectiveCompany } = useAuth();
@@ -97,6 +104,7 @@ export function SupplierSelect({
         data.vat_rate ?? 22,
         data.payment_method || undefined,
       );
+      onSupplierNameChange?.(data.name);
       setDialogOpen(false);
       toast.success("Fornitore creato", {
         description: `${data.name} è stato aggiunto ai fornitori.`,
@@ -112,6 +120,7 @@ export function SupplierSelect({
   });
 
   const handleSelectChange = (v: string) => {
+    onSupplierNameChange?.(suppliers.find((s) => s.id === v)?.name ?? "");
     if (v === "none") {
       onValueChange(undefined, undefined, undefined);
     } else {
@@ -127,27 +136,43 @@ export function SupplierSelect({
   return (
     <div className="min-w-0 space-y-2">
       <div className="flex gap-2">
-        <Select
-          disabled={isLoading || isError}
-          value={value || "none"}
-          onValueChange={handleSelectChange}
-        >
-          <SelectTrigger className="min-w-0 flex-1" aria-label="Fornitore">
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">
-              <span className="text-muted-foreground">Nessun fornitore</span>
-            </SelectItem>
-            {suppliers.map((supplier) => (
-              <SelectItem key={supplier.id} value={supplier.id}>
-                <span>
-                  {supplier.name} ({supplier.vat_rate ?? 22}%)
-                </span>
+        {searchable ? (
+          <ViaggioSelect
+            label="Fornitore"
+            value={value || "none"}
+            onValueChange={handleSelectChange}
+            disabled={isLoading || isError}
+            emptyMessage="Fornitore non trovato. Usa + per registrarlo."
+            options={[
+              { value: "none", label: "Nessun fornitore" },
+              ...suppliers
+                .filter((s) => s.is_active !== false || s.id === value)
+                .map((s) => ({ value: s.id, label: s.name })),
+            ]}
+          />
+        ) : (
+          <Select
+            disabled={isLoading || isError}
+            value={value || "none"}
+            onValueChange={handleSelectChange}
+          >
+            <SelectTrigger className="min-w-0 flex-1" aria-label="Fornitore">
+              <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">
+                <span className="text-muted-foreground">Nessun fornitore</span>
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {suppliers.map((supplier) => (
+                <SelectItem key={supplier.id} value={supplier.id}>
+                  <span>
+                    {supplier.name} ({supplier.vat_rate ?? 22}%)
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -158,6 +183,7 @@ export function SupplierSelect({
                 onClick={() => setDialogOpen(true)}
                 aria-label="Aggiungi nuovo fornitore"
                 disabled={
+                  !allowCreate ||
                   !companyId ||
                   isLoading ||
                   isError ||

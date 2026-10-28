@@ -97,60 +97,16 @@ export function useSalvaUfficio(companyId?: string | null) {
     mutationFn: async (input: SalvaUfficioInput) => {
       if (!companyId) throw new Error("Azienda non determinata");
 
-      const dati = {
-        company_id: companyId,
-        nome: input.nome.trim(),
-        descrizione: input.descrizione?.trim() || null,
-        responsabile_id: input.responsabile_id || null,
-        colore: input.colore || null,
-        attivo: input.attivo ?? true,
-      };
-
-      let ufficioId = input.id;
-      if (ufficioId) {
-        const { error } = await supabase
-          .from("company_uffici")
-          .update(dati as never)
-          .eq("id", ufficioId)
-          .eq("company_id", companyId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from("company_uffici")
-          .insert(dati as never)
-          .select("id")
-          .single();
-        if (error) throw error;
-        ufficioId = (data as unknown as { id: string }).id;
-      }
-
-      // Membri: replace secco della lista dell'ufficio. È una lista corta e
-      // l'alternativa (diff) non vale la complessità.
-      const { error: delErr } = await supabase
-        .from("ufficio_membri")
-        .delete()
-        .eq("ufficio_id", ufficioId!);
-      if (delErr) throw delErr;
-
-      // Il responsabile è per forza dentro l'ufficio: altrimenti riceverebbe in
-      // carico attività di un reparto di cui non fa parte, e non le vedrebbe.
-      const membri = Array.from(new Set([
-        ...input.membri,
-        ...(dati.responsabile_id ? [dati.responsabile_id] : []),
-      ]));
-
-      if (membri.length > 0) {
-        const { error: insErr } = await supabase
-          .from("ufficio_membri")
-          .insert(membri.map((profile_id) => ({
-            ufficio_id: ufficioId!,
-            profile_id,
-            company_id: companyId,
-          })) as never);
-        if (insErr) throw insErr;
-      }
-
-      return ufficioId!;
+      if (!input.nome.trim()) throw new Error("Nome ufficio obbligatorio");
+      const { data, error } = await supabase.rpc("hr_salva_ufficio" as never, {
+        p_company: companyId, p_id: input.id ?? null,
+        p_dati: { nome: input.nome.trim(), descrizione: input.descrizione?.trim() || null,
+          responsabile_id: input.responsabile_id || null, colore: input.colore || null, attivo: input.attivo ?? true },
+        p_membri: [...new Set(input.membri)],
+      } as never);
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Salvataggio non confermato dal server");
+      return data as string;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ufficiKey(companyId) });
@@ -171,6 +127,7 @@ export function useEliminaUfficio(companyId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ufficioId: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       // I passi di flusso e le attività che puntavano qui non si rompono: le FK
       // sono ON DELETE SET NULL, tornano semplicemente senza ufficio.
       const { error } = await supabase

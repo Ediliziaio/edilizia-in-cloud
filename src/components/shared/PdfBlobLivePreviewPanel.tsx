@@ -99,6 +99,8 @@ interface Props {
   accentClass?: string;
   downloadFileName?: string;
   showDownloadOnMobile?: boolean;
+  allowOpenInNewTab?: boolean;
+  headerLabel?: string;
 }
 
 export function PdfBlobLivePreviewPanel({
@@ -110,6 +112,8 @@ export function PdfBlobLivePreviewPanel({
   accentClass = "text-orange-600",
   downloadFileName = "anteprima-template.pdf",
   showDownloadOnMobile = false,
+  allowOpenInNewTab = true,
+  headerLabel = "Anteprima live PDF",
 }: Props) {
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
   // condiviso, così ogni pannello (compreso il Fotovoltaico, che è HTML) eredita
@@ -334,7 +338,7 @@ export function PdfBlobLivePreviewPanel({
         <div className="flex items-center gap-1.5 min-w-0">
           <Eye className={"h-3.5 w-3.5 shrink-0 " + accentClass} />
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
-            Anteprima live PDF
+            {headerLabel}
           </span>
           <span role="status" aria-live="polite" className="text-[10px] text-muted-foreground" data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
           {loading && (
@@ -361,9 +365,9 @@ export function PdfBlobLivePreviewPanel({
           <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title="Aggiorna ora" className="h-7 w-7">
             <RefreshCw className={"h-3.5 w-3.5 " + (loading ? "animate-spin" : "")} />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title="Apri in nuova scheda" className="h-7 w-7">
+          {allowOpenInNewTab && <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title="Apri in nuova scheda" className="h-7 w-7">
             <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
+          </Button>}
           {(!isMobile || showDownloadOnMobile) && (
             <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url || !aggiornato} title="Scarica PDF" className="h-7 w-7">
               <Download className="h-3.5 w-3.5" />

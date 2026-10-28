@@ -1149,3 +1149,10 @@ verify_jwt = false
 # Preserves the existing deployed configuration; no anonymous AI access.
 [functions.ai-preventivo-conversazione]
 verify_jwt = false
+
+# Authenticated inventory editors; canonical technical-report copy and audit.
+[functions.mezzi-verbali]
+verify_jwt = true
+
+[functions.genera-verbale-sal-sub]
+verify_jwt = true

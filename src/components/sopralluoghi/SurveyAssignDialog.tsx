@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, UserPlus, X, Check } from "lucide-react";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface SurveyAssignDialogProps {
   surveyId: string;
@@ -43,10 +44,11 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [fieldAuthorized,setFieldAuthorized] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"technician" | "subcontractor" | "employee" | "observer">("technician");
 
-  const { data: assignees = [] } = useQuery({
-    queryKey: ["survey-assignees", surveyId],
+  const { data: assignees = [], isError: assigneesError } = useQuery({
+    queryKey: ["survey-assignees", surveyId, companyId],
     enabled: open,
     queryFn: () => listAssignees(surveyId),
   });
@@ -72,7 +74,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
   const assignMut = useMutation({
     mutationFn: async () => {
       if (!selectedUserId) throw new Error("Seleziona un utente");
-      await assignUser(surveyId, selectedUserId, selectedRole);
+      await assignUser(surveyId, selectedUserId, selectedRole, fieldAuthorized);
 
       const member = members.find((m) => m.id === selectedUserId);
       const memberName = member ? [member.first_name, member.last_name].filter(Boolean).join(" ") || member.email : "utente";
@@ -93,7 +95,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
           type: "generic",
           title: "Nuovo sopralluogo assegnato",
           body: `Sei stato assegnato come ${ROLE_LABEL[selectedRole].label} a un sopralluogo.`,
-          action_url: `/azienda/sopralluoghi/${surveyId}`,
+          action_url: selectedRole === "employee" || selectedRole === "subcontractor" ? `/campo/sopralluoghi/${surveyId}` : `/azienda/sopralluoghi/${surveyId}`,
           entity_type: "survey",
           entity_id: surveyId,
         });
@@ -106,6 +108,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
         description: notificato ? undefined : "Non è stata inviata la notifica: ha spento gli avvisi di assegnazione.",
       });
       setSelectedUserId("");
+      setFieldAuthorized(false);
       qc.invalidateQueries({ queryKey: ["survey-assignees", surveyId] });
     },
     onError: (e) => toast.error("Assegnazione fallita", { description: String(e) }),
@@ -118,6 +121,14 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
       qc.invalidateQueries({ queryKey: ["survey-assignees", surveyId] });
     },
   });
+  const authorizationMut = useMutation({
+    mutationFn:async({userId,authorized}:{userId:string;authorized:boolean})=>{
+      const {error}=await supabase.from("survey_assignees" as never).update({field_authorized:authorized} as never).eq("survey_id",surveyId).eq("user_id",userId).select("user_id").single();
+      if(error) throw new Error("Autorizzazione non aggiornata. Riprova.");
+    },
+    onSuccess:()=>{void qc.invalidateQueries({queryKey:["survey-assignees",surveyId]});toast.success("Autorizzazione app operai aggiornata");},
+    onError:(e)=>toast.error(e.message),
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -128,17 +139,17 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
             Assegna sopralluogo
           </DialogTitle>
           <DialogDescription>
-            Aggiungi tecnici, subappaltatori o operai. Riceveranno una notifica e
-            vedranno il sopralluogo nella loro area personale.
+            Assegna una persona. Per l’app operai serve anche l’autorizzazione esplicita qui sotto; assegnare non abilita automaticamente l’accesso.
           </DialogDescription>
         </DialogHeader>
 
+        {assigneesError&&<p role="alert" className="text-sm text-red-700">Assegnazioni non disponibili: non assegnare nuovamente la stessa persona. Riprova.</p>}
         {/* Lista assegnati */}
         {assignees.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-muted-foreground">Già assegnati ({assignees.length})</p>
             <div className="space-y-1">
-              {(assignees as Array<{ user_id: string; role: string }>).map((a) => {
+              {(assignees as Array<{ user_id: string; role: string;field_authorized:boolean }>).map((a) => {
                 const m = members.find((mb) => mb.id === a.user_id);
                 const cfg = ROLE_LABEL[a.role] ?? ROLE_LABEL.technician;
                 return (
@@ -150,6 +161,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
                       <Badge variant="outline" className={`text-[10px] ${cfg.color}`}>
                         {cfg.label}
                       </Badge>
+                      <label className="mt-2 flex items-center gap-2 text-xs"><Checkbox checked={a.field_authorized===true} disabled={authorizationMut.isPending} onCheckedChange={checked=>authorizationMut.mutate({userId:a.user_id,authorized:checked===true})}/>Accesso autorizzato dall’app operai</label>
                     </div>
                     <Button
                       variant="ghost" size="icon"
@@ -167,6 +179,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
         )}
 
         {/* Form aggiungi */}
+        <label className="flex min-h-12 items-start gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={fieldAuthorized} onCheckedChange={checked=>setFieldAuthorized(checked===true)}/><span>Autorizza questo sopralluogo nell’app operai<span className="mt-1 block text-xs text-muted-foreground">Solo utenti dell’azienda con ruolo operaio/subappaltatore. Osservatore: sola lettura. Non abilita l’area amministrativa né la gestione dei preventivi.</span></span></label>
         <div className="space-y-3 pt-2 border-t">
           <p className="text-xs font-semibold text-muted-foreground">Aggiungi nuovo</p>
           <div>
@@ -205,7 +218,7 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
           <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
           <Button
             onClick={() => assignMut.mutate()}
-            disabled={!selectedUserId || assignMut.isPending}
+            disabled={!selectedUserId || assignMut.isPending || assigneesError}
             className="gap-2 bg-orange-600 hover:bg-orange-700"
           >
             {assignMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}

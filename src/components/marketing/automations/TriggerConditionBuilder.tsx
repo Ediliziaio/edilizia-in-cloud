@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Plus, FolderPlus, Copy, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
-import { logger } from "@/utils/logger";
+import { useAutomationFieldDefinitions } from "@/hooks/useAutomationFieldDefinitions";
 import {
   type TriggerFilters,
   type TriggerCondition,
@@ -18,6 +16,7 @@ import {
 } from "@/types/automationBuilder";
 import { ConditionValueInput } from "./ConditionValueInput";
 import { filterConditionError, filterErrors } from "../../../../supabase/functions/_shared/automationFilters";
+import { CUSTOM_TRIGGER_OBJECTS,customFilterType } from "../../../../supabase/functions/_shared/automationFieldContract";
 
 interface Props {
   triggerCategory: string;
@@ -33,86 +32,13 @@ function genId() {
 
 // Map marketing_custom_fields field_type to our FieldType
 function mapCustomFieldType(fieldType: string): TriggerFieldDef["type"] {
-  switch (fieldType) {
-    case "number": return "number";
-    case "date": return "date";
-    case "boolean": case "checkbox": return "boolean";
-    case "select": case "dropdown": return "select";
-    default: return "text";
-  }
+  return customFilterType(fieldType);
 }
 
 export function TriggerConditionBuilder({ triggerCategory, filters, onChange, errors, companyId }: Props) {
-  const [customFields, setCustomFields] = useState<TriggerFieldDef[]>([]);
   const baseFields = getFieldsForCategory(triggerCategory);
-
-  // Load custom fields from DB
-  useEffect(() => {
-    let active = true;
-    setCustomFields([]);
-    if (!companyId) return;
-    // FIX B2: mappa tutte le categorie trigger → object_type DB (non solo contact/opportunity)
-    const CATEGORY_TO_OBJECT_TYPE: Record<string, string> = {
-      contact: "contact",
-      opportunity: "opportunity",
-      appointment: "appointment",
-      order: "order",
-      invoice: "invoice",
-      quote: "quote",
-      ticket: "ticket",
-      task: "task",
-      construction: "ordini_variazione",   // cantieri = ordini nel DB
-      maintenance: "contratto_manutenzione",
-      hr: "employee",
-      warehouse: "warehouse",
-    };
-    const objectType = CATEGORY_TO_OBJECT_TYPE[triggerCategory] ?? null;
-    if (!objectType) {
-      setCustomFields([]);
-      return;
-    }
-    supabase
-      .from("marketing_custom_fields")
-      // FIX B6: la tabella ha colonna 'name', non 'field_key'/'field_label'
-      .select("id, name, field_type, options")
-      .eq("company_id", companyId)
-      .eq("object_type", objectType)
-      .is("deleted_at", null)
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          logger.error("Error loading custom fields:", error.message);
-          setCustomFields([]);
-          return;
-        }
-        if (data && data.length > 0) {
-          setCustomFields(
-            data.map((f: any) => {
-              const def: TriggerFieldDef = {
-                key: `custom_field.${f.id}`,
-                label: f.name,
-                type: mapCustomFieldType(f.field_type),
-                group: "Campi personalizzati",
-              };
-              if (def.type === "select" && f.options) {
-                try {
-                  const opts = typeof f.options === "string" ? JSON.parse(f.options) : f.options;
-                  if (Array.isArray(opts)) {
-                    def.options = opts.map((o: any) =>
-                      typeof o === "string" ? { value: o, label: o } : { value: o.value || o, label: o.label || o.value || o }
-                    );
-                  }
-                } catch { /* ignore */ }
-              }
-              return def;
-            })
-          );
-        } else {
-          setCustomFields([]);
-        }
-      });
-    return () => { active = false; };
-  }, [companyId, triggerCategory]);
+  const {data:definitions=[],isError:customError}=useAutomationFieldDefinitions(companyId,CUSTOM_TRIGGER_OBJECTS[triggerCategory]);
+  const customFields:TriggerFieldDef[]=definitions.map(f=>({key:`custom_field.${f.id}`,label:f.name,type:mapCustomFieldType(f.field_type),group:"Campi personalizzati",options:f.options?.map(v=>({value:v,label:v}))}));
 
   const fields = [...baseFields, ...customFields];
 
@@ -170,6 +96,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
   if (filters.conditions.length === 0) {
     return (
       <div className="space-y-2">
+        {customError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
         <p className="text-xs text-muted-foreground">Nessun filtro configurato. Aggiungi una condizione per filtrare quando il trigger si attiva.</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="text-xs h-7" onClick={addCondition}>
@@ -185,6 +112,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
 
   return (
     <div className="space-y-2">
+      {customError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
       <p className="text-xs text-muted-foreground">
         {filters.logic === "OR" ? "Il flusso parte se almeno una condizione è vera." : "Il flusso parte solo se tutte le condizioni sono vere."}
         {" "}Date e giorni sono valutati nel fuso orario del flusso (predefinito: Italia).

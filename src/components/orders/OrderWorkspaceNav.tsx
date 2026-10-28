@@ -17,7 +17,7 @@ export function OrderWorkspaceNav<T extends string>({
 }) {
   const isMobile = useIsMobile();
   // Telefono: la tendina basta, senza riga sotto né spazio in più (06/10/2026).
-  if (isMobile) return <nav aria-label={label} className="min-h-0">
+  if (isMobile) return <nav data-order-navigation aria-label={label} className="min-h-0">
     <select aria-label={label} value={value} onChange={event => {
       const selected = views.find(view => view.value === event.target.value);
       if (selected) onChange(selected.value);
@@ -34,7 +34,7 @@ export function OrderWorkspaceNav<T extends string>({
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b border-slate-200">
       {/* min-h-0: il CSS globale dà `nav { min-height: 64px }` e allungava le schede. */}
-      <nav aria-label={label} className="-mb-px flex min-h-0 flex-wrap gap-x-1">
+      <nav data-order-navigation aria-label={label} className="-mb-px flex min-h-0 flex-wrap gap-x-1">
         {views.map((view) => {
           const n = counts?.[view.value];
           return (

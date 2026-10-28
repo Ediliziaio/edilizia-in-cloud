@@ -9,7 +9,7 @@ export function useGeofence(companyId: string) {
   const queryClient = useQueryClient();
   const queryKey = ["cantieri-geofence", companyId];
 
-  const { data: geofences = [], isLoading } = useQuery({
+  const { data: geofences = [], isLoading, isError, refetch } = useQuery({
     queryKey,
     queryFn: async (): Promise<CantiereGeofence[]> => {
       const { data, error } = await (supabase
@@ -69,6 +69,8 @@ export function useGeofence(companyId: string) {
   return {
     geofences,
     isLoading,
+    isError,
+    refetch,
     createGeofence: createMutation.mutateAsync,
     updateGeofence: updateMutation.mutateAsync,
     deleteGeofence: deleteMutation.mutateAsync,

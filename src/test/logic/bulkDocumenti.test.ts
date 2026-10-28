@@ -1,3 +1,4 @@
+import {blobDocumentoUpload} from "@/lib/sicurezza/bulkDocumenti";
 import { describe, expect, it } from "vitest";
 import {
   classifyTipoDocumento,
@@ -91,4 +92,10 @@ describe("sanitizeFileName", () => {
   it("preserva punti e trattini", () => {
     expect(sanitizeFileName("doc-2026.01.02.pdf")).toBe("doc-2026.01.02.pdf");
   });
+});
+
+
+describe("MIME dei blob ZIP caricati",()=>{
+ it("tipizza il PDF senza alterare i byte",async()=>{const bytes=new Uint8Array([37,80,68,70,45,49]);const raw=new Blob([bytes]);const file=blobDocumentoUpload("documento.PDF",raw);expect(file.type).toBe("application/pdf");expect(new Uint8Array(await file.arrayBuffer())).toEqual(bytes);expect(raw.type).toBe("");});
+ it("conserva il blob già tipizzato",()=>{const file=new Blob(["test"],{type:"application/pdf"});expect(blobDocumentoUpload("test.pdf",file)).toBe(file);});
 });

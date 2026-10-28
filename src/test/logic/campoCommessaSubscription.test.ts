@@ -38,7 +38,7 @@ describe("Una sottoscrizione per commessa, condivisa fra header e diario", () =>
     const qc = client(); attach(qc); attach(qc, "c", "altra"); attach(qc, "altra", "o");
     expect(state.channels).toHaveLength(3);
     for (const channel of state.channels) {
-      expect(channel.on.mock.calls.map(call => call[1].table)).toEqual(["order_events", "order_messages"]);
+      expect(channel.on.mock.calls.map(call => call[1].table)).toEqual(["order_events", "commessa_campo_sync", "order_messages"]);
     }
   });
   it("un evento dell'operaio aggiorna anche i costi canonici e i contatori dell'ufficio", async () => {
@@ -48,6 +48,16 @@ describe("Una sottoscrizione per commessa, condivisa fra header e diario", () =>
     await vi.advanceTimersByTimeAsync(350);
     keys.forEach(key => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
     expect(qc.getQueryState(["order-economics-canonical", "altra"])?.isInvalidated).toBe(false);
+  });
+  it("il segnale transazionale rilegge rapportini del capo e avanzamento senza divulgare il payload", async () => {
+    const qc = client();
+    const keys = [["campo-rapportini-ordine", "o", "capo", "c", "cantiere"], ["campo-fasi-commessa", "o"], ["orders", "detail", "o"]];
+    keys.forEach(key => qc.setQueryData(key, []));
+    qc.setQueryData(["campo-rapportini-ordine", "estranea", "capo", "c", "cantiere"], []); attach(qc);
+    state.channels[0].callbacks.get("commessa_campo_sync")!({ new: { company_id: "c", order_id: "o", revisione: 2 }, old: {} });
+    await vi.advanceTimersByTimeAsync(350);
+    keys.forEach(key => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
+    expect(qc.getQueryState(["campo-rapportini-ordine", "estranea", "capo", "c", "cantiere"])?.isInvalidated).toBe(false);
   });
   it("non applica un evento di un'altra azienda, nemmeno con la stessa commessa", async () => {
     const qc = client(); attach(qc); const invalidate = vi.spyOn(qc, "invalidateQueries");

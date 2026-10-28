@@ -20,10 +20,8 @@
 export const BUCKET_RICHIESTE = "quote-pdfs";
 const MAX_DOCUMENTO = 25 * 1024 * 1024;
 
-export async function sha256Hex(bytes: Uint8Array | ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes instanceof Uint8Array ? new Uint8Array(bytes) : bytes);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { sha256Hex } from "./improntaDocumento.ts";
+export { sha256Hex } from "./improntaDocumento.ts";
 
 export const pathDocumentoCongelato = (companyId: string, richiestaId: string, estensione: "pdf" | "html" = "pdf") =>
   `${companyId}/richieste/${richiestaId}.${estensione}`;

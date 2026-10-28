@@ -1,5 +1,7 @@
 import { FornitoreEditor } from "@/components/suppliers/FornitoreEditor";
 import { SchedaFornitore } from "@/components/suppliers/SchedaFornitore";
+import { SupplierWorkspacePanel } from "@/components/suppliers/SupplierWorkspacePanel";
+import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import {
   payloadFornitore,
   ricercaFornitore,
@@ -324,6 +326,7 @@ function SupplierDetail({
     refetch: refetchDettaglio,
   } = useSupplierDetail(supplierId);
   const [editing, setEditing] = useState(false);
+  const [detailTab, setDetailTab] = useState("anagrafica");
   const dettaglioRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isSupLoading)
@@ -371,7 +374,12 @@ function SupplierDetail({
         <p className="text-muted-foreground mb-4">Fornitore non trovato</p>
         <Button
           variant="outline"
-          onClick={() => (onBack ? onBack() : navigate("/azienda/fornitori"))}
+          onClick={() => {
+            if (confermaNavigazioneImpostazioni()) {
+              if (onBack) onBack();
+              else navigate("/azienda/fornitori");
+            }
+          }}
         >
           Torna alla lista
         </Button>
@@ -507,9 +515,15 @@ function SupplierDetail({
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="anagrafica">
+      <Tabs
+        value={detailTab}
+        onValueChange={(value) => {
+          if (confermaNavigazioneImpostazioni()) setDetailTab(value);
+        }}
+      >
         <TabsList className="h-auto max-w-full justify-start overflow-x-auto [&>button]:shrink-0">
           <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+          <TabsTrigger value="contratti">Contratti e ruoli</TabsTrigger>
           <TabsTrigger value="oda">OdA ({oda.length})</TabsTrigger>
           <TabsTrigger value="listino">Listino</TabsTrigger>
           <TabsTrigger value="scadenze">
@@ -526,6 +540,10 @@ function SupplierDetail({
             supplier={supplier}
             onModifica={puoModificare ? startEdit : undefined}
           />
+        </TabsContent>
+
+        <TabsContent value="contratti" className="mt-4">
+          <SupplierWorkspacePanel supplierId={supplierId} />
         </TabsContent>
 
         <TabsContent value="oda" className="mt-4">

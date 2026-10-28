@@ -290,6 +290,8 @@ export interface SurveyRow {
   started_at: string | null;
   completed_at: string | null;
   reviewed_at: string | null;
+  /** Last office outcome or request for integration, separate from field notes. */
+  field_review_note?: string | null;
   signed_at: string | null;
   duration_minutes: number | null;
   weather_conditions: string | null;

@@ -8,6 +8,8 @@
  * e in ufficio si vede subito dov'è ogni cosa.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { ViaggioDialog } from "@/components/mezzi/ViaggioDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -68,11 +70,14 @@ export function MezziFineGiornata({
   orderId,
   valori,
   onChange,
+  companyId,
 }: {
   orderId: string;
   valori: Record<string, RigaMezzoGiornata>;
   onChange: (v: Record<string, RigaMezzoGiornata>) => void;
+  companyId?: string;
 }) {
+  const [viaggioMezzo,setViaggioMezzo]=useState<string|null>(null);
   const { data: mezzi = [] } = useMezziDellaGiornata(orderId);
   if (mezzi.length === 0) return null;
 
@@ -117,7 +122,7 @@ export function MezziFineGiornata({
                   {r.usato ? "Usato oggi" : "Non usato"}
                 </span>
               </button>
-              {r.usato && (
+              {r.usato && <>
                 <label className="mt-2 flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">{m.contatore_unita === "ore" ? "Ore motore" : "Km"} a fine giornata</span>
                   <input
@@ -129,7 +134,8 @@ export function MezziFineGiornata({
                     aria-label={`${m.contatore_unita === "ore" ? "Ore motore" : "Km"} di ${m.nome} a fine giornata`}
                   />
                 </label>
-              )}
+                {companyId && m.veicolo && m.contatore_unita==="km" && m.dove_ora==="con_te" && <button type="button" className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-blue-200 px-3 text-xs font-semibold text-blue-900" onClick={()=>setViaggioMezzo(m.id)}>Registra viaggio e tappe</button>}
+              </>}
             </div>
           );
         })}
@@ -177,6 +183,7 @@ export function MezziFineGiornata({
           );
         })}
       </div>
+      {companyId && viaggioMezzo && <ViaggioDialog companyId={companyId} mezzoId={viaggioMezzo} defaultOrderId={orderId} onClose={()=>setViaggioMezzo(null)} />}
     </div>
   );
 }

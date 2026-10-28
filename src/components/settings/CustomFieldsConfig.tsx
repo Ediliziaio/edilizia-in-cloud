@@ -31,6 +31,10 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
+import { FederatedFieldCatalogue } from "@/components/settings/FederatedFieldCatalogue";
+import { readDefinitionPages } from "@/lib/custom-fields/federatedCatalogue";
+import { fieldObjectType, customFieldKey, customFieldCapabilities, GROUP_OPTIONS, OBJECT_NAME_MAP, isObjectRendered, toSnakeCase } from "@/lib/custom-fields/objects";
+export { GROUP_OPTIONS, OBJECT_NAME_MAP, RENDERED_OBJECT_TYPES, isObjectRendered, toSnakeCase } from "@/lib/custom-fields/objects";
 
 /* ───── types ───── */
 export interface UnifiedField {
@@ -106,8 +110,10 @@ function erroreCampo(error: unknown, fallback: string) {
   return error instanceof ErroreCampo ? error.message : userErrorMessage(error, fallback);
 }
 
-async function getCustomFieldUsageCounts(fieldId: string): Promise<CustomFieldUsageCounts> {
-  const [contactsRes, opportunitiesRes, entitiesRes] = await Promise.all([
+async function getCustomFieldUsageCounts(fieldId: string, objectType?: string, companyId?: string): Promise<CustomFieldUsageCounts> {
+  const catalogueTable = objectType === "product" ? "article_templates" : objectType === "family" ? "article_families" : objectType === "tariffa" ? "tariffe_aziendali" : null;
+  if (catalogueTable && (!companyId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fieldId))) throw new ErroreCampo("Impossibile verificare l’utilizzo nel catalogo: nessuna modifica eseguita.");
+  const [contactsRes, opportunitiesRes, entitiesRes, catalogueRes] = await Promise.all([
     supabase
       .from("marketing_contact_field_values")
       .select("id", { count: "exact", head: true })
@@ -120,16 +126,20 @@ async function getCustomFieldUsageCounts(fieldId: string): Promise<CustomFieldUs
       .from("entity_custom_field_values")
       .select("id", { count: "exact", head: true })
       .eq("field_id", fieldId),
+    catalogueTable
+      ? supabase.from(catalogueTable).select("id", { count: "exact", head: true }).eq("company_id", companyId!).not(`custom_field_values->${fieldId}`, "is", null)
+      : Promise.resolve({ count: 0, error: null }),
   ]);
 
   if (contactsRes.error) throw contactsRes.error;
   if (opportunitiesRes.error) throw opportunitiesRes.error;
   if (entitiesRes.error) throw entitiesRes.error;
+  if (catalogueRes.error) throw catalogueRes.error;
 
   return {
     contacts: contactsRes.count ?? 0,
     opportunities: opportunitiesRes.count ?? 0,
-    entities: entitiesRes.count ?? 0,
+    entities: (entitiesRes.count ?? 0) + (catalogueRes.count ?? 0),
   };
 }
 
@@ -233,7 +243,8 @@ export const FOLDER_LABELS: Record<string, string> = {
 
 /* ───── helper to build system fields ───── */
 function sysField(id: string, name: string, object: string, folder: string, uniqueKey: string): UnifiedField {
-  return { id, name, object, folder, folderColor: FOLDER_COLORS[folder] || FOLDER_COLORS.additional_info, uniqueKey, createdAt: "2024-01-01", isSystem: true };
+  const objectType = fieldObjectType({ uniqueKey });
+  return { id, name, object: OBJECT_NAME_MAP[objectType] ?? object, objectType, folder, folderColor: FOLDER_COLORS[folder] || FOLDER_COLORS.additional_info, uniqueKey, createdAt: "2024-01-01", isSystem: true };
 }
 
 /* ───── built-in fields ───── */
@@ -1364,126 +1375,6 @@ function sezioneDiPartenza(objectType: string): string {
   return "general_info";
 }
 
-/** I tipi che la scheda del contatto sa compilare davvero (testo, numero, data, scelta da un elenco): gli altri li mostra come testo. */
-const TIPI_DISTINTI_SU_CONTATTO = new Set(["text", "number", "date", "select"]);
-
-// Gli oggetti i cui campi personalizzati si vedono davvero in una scheda o in una finestra. Gli altri
-// salvano il valore nel database e lo mettono a disposizione di testi e automazioni, ma nessuna scheda lo
-// mostra: nel dialogo e in tabella lo dicono («Non compare nelle schede»).
-// Controllato sulle schermate il 09/10/2026: prima c'erano per sbaglio Prodotto, Famiglia, Tariffa, Categoria
-// listino e POS (nessun form li mostra), e mancavano Appuntamento, Attività, Dipendente e Magazzino.
-export const RENDERED_OBJECT_TYPES = new Set<string>([
-  "contact",                  // scheda del contatto + finestra del contatto
-  "opportunity",              // OpportunityDialog
-  "appointment",              // AppointmentDialog → EntityCustomFieldsSection
-  "task",                     // TaskDialog → EntityCustomFieldsSection
-  "employee",                 // EmployeeDialog → EntityCustomFieldsSection
-  "warehouse",                // StockItemDialog → EntityCustomFieldsSection
-  "ordini_variazione",        // OdVSection
-  "giornale_lavori",          // GiornaleLavori
-  "duvri_document",           // SicurezzaCantiere
-]);
-
-export function isObjectRendered(objectType: string): boolean {
-  return RENDERED_OBJECT_TYPES.has(objectType);
-}
-
-export const GROUP_OPTIONS = [
-  { value: "all", label: "Tutto" },
-  { value: "contact", label: "Contatto" },
-  { value: "opportunity", label: "Opportunità" },
-  { value: "appointment", label: "Appuntamento" },
-  { value: "order", label: "Ordine" },
-  { value: "invoice", label: "Fattura" },
-  { value: "quote", label: "Preventivo" },
-  { value: "ticket", label: "Ticket" },
-  { value: "task", label: "Task" },
-  { value: "employee", label: "Dipendente" },
-  { value: "warehouse", label: "Magazzino" },
-  { value: "user", label: "Utente" },
-  { value: "salesperson", label: "Venditore" },
-  { value: "external_team", label: "Squadra Esterna" },
-  { value: "supplier", label: "Fornitore" },
-  // ── Cantieri ──
-  { value: "ordini_variazione", label: "Ordine di Variazione" },
-  { value: "giornale_lavori",   label: "Giornale dei Lavori" },
-  { value: "pos_document",      label: "POS – Sicurezza" },
-  { value: "duvri_document",    label: "DUVRI – Sicurezza" },
-  // ── Assistenza ──
-  { value: "intervento",            label: "Intervento / Assistenza" },
-  { value: "rapportino",            label: "Rapportino Intervento" },
-  // ── Manutenzione ──
-  { value: "impianto",              label: "Impianto Cliente" },
-  { value: "contratto_manutenzione",label: "Contratto Manutenzione" },
-  { value: "piano_manutenzione",    label: "Piano Manutenzione" },
-  // ── Subappaltatori ──
-  { value: "subappaltatore",        label: "Subappaltatore" },
-  { value: "contratto_subappalto",  label: "Contratto Subappalto" },
-  { value: "sal_subappaltatore",    label: "SAL Subappaltatore" },
-  // ── Acquisti ──
-  { value: "ordine_acquisto",       label: "Ordine Acquisto (OdA)" },
-  { value: "ddt_ricezione",         label: "DDT Ricezione Merce" },
-  // ── Finanza ──
-  { value: "costo_aziendale",       label: "Costo Aziendale" },
-  // ── Azienda ──
-  { value: "company",               label: "Azienda / Profilo" },
-  // ── Catalogo Esteso (Sprint C) ──
-  { value: "product",               label: "Prodotto (Articolo)" },
-  { value: "family",                label: "Famiglia Prodotto" },
-  { value: "tariffa",               label: "Tariffa / Manodopera" },
-  { value: "catalog_category",      label: "Categoria Listino" },
-];
-
-export const OBJECT_NAME_MAP: Record<string, string> = {
-  contact: "Contatto",
-  candidato: "Candidato (Selezione)",
-  colloquio: "Colloquio Candidato",
-  opportunity: "Opportunità",
-  appointment: "Appuntamento",
-  order: "Ordine",
-  invoice: "Fattura",
-  quote: "Preventivo",
-  ticket: "Ticket",
-  task: "Task",
-  employee: "Dipendente",
-  warehouse: "Magazzino",
-  user: "Utente",
-  salesperson: "Venditore",
-  external_team: "Squadra Esterna",
-  supplier: "Fornitore",
-  // ── Cantieri ──
-  ordini_variazione: "Ordine di Variazione",
-  giornale_lavori: "Giornale dei Lavori",
-  pos_document: "POS – Sicurezza",
-  duvri_document: "DUVRI – Sicurezza",
-  // ── Assistenza ──
-  intervento: "Intervento / Assistenza",
-  rapportino: "Rapportino Intervento",
-  // ── Manutenzione ──
-  impianto: "Impianto Cliente",
-  contratto_manutenzione: "Contratto Manutenzione",
-  piano_manutenzione: "Piano Manutenzione",
-  // ── Subappaltatori ──
-  subappaltatore: "Subappaltatore",
-  contratto_subappalto: "Contratto Subappalto",
-  sal_subappaltatore: "SAL Subappaltatore",
-  // ── Acquisti ──
-  ordine_acquisto: "Ordine Acquisto (OdA)",
-  ddt_ricezione: "DDT Ricezione Merce",
-  // ── Finanza ──
-  costo_aziendale: "Costo Aziendale",
-  // ── Azienda ──
-  company: "Azienda / Profilo",
-  // ── Catalogo Esteso (Sprint C) ──
-  product: "Prodotto (Articolo)",
-  family: "Famiglia Prodotto",
-  tariffa: "Tariffa / Manodopera",
-  catalog_category: "Categoria Listino",
-};
-
-export function toSnakeCase(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
 
 /** Il menu «Dove compare»: prima gli oggetti che mostrano il campo, poi quelli che ancora no. */
 const OGGETTI_SCELTA = GROUP_OPTIONS.filter((g) => g.value !== "all");
@@ -1526,8 +1417,9 @@ export function CustomFieldsConfig() {
   // solo quelli attivi, e nella scheda «Campi eliminati» solo gli altri.
   const { data: customFields = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
-    queryFn: async (): Promise<MarketingCustomFieldRow[]> => {
+    queryFn: async ({ signal }): Promise<MarketingCustomFieldRow[]> => {
       if (!companyId) return [];
+      return await readDefinitionPages(async (from, to) => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
         .select("*")
@@ -1535,25 +1427,28 @@ export function CustomFieldsConfig() {
         .is("deleted_at", null)
         // Stesso ordine delle schede (che leggono per `position`): il campo nuovo è l'ultimo dei tuoi.
         .order("position")
-        .order("created_at");
+        .order("created_at").order("id").range(from, to).abortSignal(signal);
       if (error) throw error;
       return data ?? [];
+      }, signal) as unknown as MarketingCustomFieldRow[];
     },
     enabled: !!companyId,
   });
 
   const { data: deletedFields = [], isLoading: deletedLoading, isError: deletedError, refetch: refetchDeleted } = useQuery({
     queryKey: ["marketing_custom_fields_deleted", companyId],
-    queryFn: async (): Promise<MarketingCustomFieldRow[]> => {
+    queryFn: async ({ signal }): Promise<MarketingCustomFieldRow[]> => {
       if (!companyId) return [];
+      return await readDefinitionPages(async (from, to) => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
         .select("*")
         .eq("company_id", companyId)
         .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
+        .order("deleted_at", { ascending: false }).order("id").range(from, to).abortSignal(signal);
       if (error) throw error;
       return data ?? [];
+      }, signal) as unknown as MarketingCustomFieldRow[];
     },
     enabled: !!companyId,
     retry: false,
@@ -1563,7 +1458,7 @@ export function CustomFieldsConfig() {
   // (eliminare non li cancella: il campo va tra gli eliminati e si può ripristinare).
   const { data: usoCampo } = useQuery({
     queryKey: ["marketing_custom_fields_usage", deleteTarget?.id],
-    queryFn: () => getCustomFieldUsageCounts(deleteTarget!.id),
+    queryFn: () => getCustomFieldUsageCounts(deleteTarget!.id, deleteTarget?.objectType, companyId),
     enabled: deleteOpen && !!deleteTarget,
     retry: false,
   });
@@ -1572,14 +1467,13 @@ export function CustomFieldsConfig() {
   const allFields = useMemo<UnifiedField[]>(() => {
     const custom: UnifiedField[] = customFields.map((f) => {
       const objectName = OBJECT_NAME_MAP[f.object_type] ?? f.object_type;
-      const templateNs = f.object_type; // es. 'ordini_variazione'
       return {
         id: f.id,
         name: f.name,
         object: objectName,
         folder: f.section ?? f.object_type,
         folderColor: FOLDER_COLORS[f.section ?? f.object_type] || FOLDER_COLORS.additional_info,
-        uniqueKey: `{{ ${templateNs}.${toSnakeCase(f.name)} }}`,
+        uniqueKey: customFieldKey(f),
         createdAt: f.created_at,
         isSystem: false,
         fieldType: f.field_type,
@@ -1595,10 +1489,7 @@ export function CustomFieldsConfig() {
   const filtered = useMemo(() => {
     let result = allFields;
     if (groupBy !== "all") {
-      const objectName = OBJECT_NAME_MAP[groupBy];
-      if (objectName) {
-        result = result.filter((f) => f.object === objectName);
-      }
+      result = result.filter((f) => fieldObjectType(f) === groupBy);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -1648,13 +1539,12 @@ export function CustomFieldsConfig() {
   const normalizedOptions = needsOptions ? normalizeOptions(optionsInput) : [];
   const normalizedName = normalizeName(name);
   const previewKey = objectType ? `{{ ${objectType}.${toSnakeCase(normalizedName || "nome_campo")} }}` : "";
-  // La scheda del contatto distingue solo testo, numero, data e scelta da un elenco: gli altri tipi li compila come testo.
-  const tipoComeTesto = objectType === "contact" && !TIPI_DISTINTI_SU_CONTATTO.has(fieldType);
 
   const validateForm = () => {
     if (!puoModificare || isLoading || isError) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova quando i campi sono caricati.");
     if (!companyId) throw new ErroreCampo("Azienda non disponibile");
     if (!normalizedName) throw new ErroreCampo("Inserisci il nome del campo");
+    if (fieldType === "file" && !editTarget) throw new ErroreCampo("Gli allegati si gestiscono nell’area Documenti. Non viene creato un campo File privo di caricamento protetto.");
     if (normalizedName.length > 100) throw new ErroreCampo("Il nome del campo deve restare sotto i 100 caratteri");
     if (needsOptions && normalizedOptions.length === 0) {
       throw new ErroreCampo("Inserisci almeno un'opzione per questo tipo di campo");
@@ -1663,10 +1553,14 @@ export function CustomFieldsConfig() {
       (field) =>
         field.id !== editTarget?.id &&
         field.object_type === objectType &&
-        normalizeName(field.name).toLowerCase() === normalizedName.toLowerCase()
+        (normalizeName(field.name).toLowerCase() === normalizedName.toLowerCase() || toSnakeCase(field.name) === toSnakeCase(normalizedName))
     );
     if (duplicate) {
       throw new ErroreCampo(`Esiste già un campo «${normalizedName}» su «${OBJECT_NAME_MAP[objectType] ?? objectType}»: scegli un altro nome.`);
+    }
+    if (!toSnakeCase(normalizedName)) throw new ErroreCampo("Il nome deve contenere almeno una lettera o un numero.");
+    if (!editTarget && BUILTIN_FIELDS.some((field) => field.uniqueKey === `{{ ${objectType}.${toSnakeCase(normalizedName)} }}`)) {
+      throw new ErroreCampo("Questo nome corrisponde a una variabile di sistema. Scegli un nome diverso per non creare ambiguità nei testi.");
     }
   };
 
@@ -1674,6 +1568,9 @@ export function CustomFieldsConfig() {
     queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
     queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
+    queryClient.invalidateQueries({ queryKey: ["variable-picker-custom-fields"] });
+    queryClient.invalidateQueries({ queryKey: ["automation-field-definitions"] });
+    queryClient.invalidateQueries({ queryKey: ["email-merge-custom-fields"] });
   };
 
   const addMutation = useMutation({
@@ -1706,8 +1603,11 @@ export function CustomFieldsConfig() {
       if (!companyId || !editTarget) throw new ErroreCampo("Campo non disponibile");
       validateForm();
 
-      const usage = await getCustomFieldUsageCounts(editTarget.id);
+      const usage = await getCustomFieldUsageCounts(editTarget.id, editTarget.objectType, companyId);
       const isUsed = usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0;
+      if (toSnakeCase(normalizedName) !== toSnakeCase(editTarget.name)) {
+        throw new ErroreCampo("Cambiare questo nome modifica la variabile legacy nei testi. Gli alias storici sono salvati nel database, ma la rinomina resta protetta finché tutti i servizi di invio non sono aggiornati.");
+      }
       const typeChanged = fieldType !== editTarget.fieldType;
       const objectChanged = objectType !== editTarget.objectType;
       const optionsChanged = JSON.stringify(normalizedOptions) !== JSON.stringify(editTarget.options || []);
@@ -1783,7 +1683,7 @@ export function CustomFieldsConfig() {
     mutationFn: async (id: string) => {
       if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
       if (!companyId) throw new ErroreCampo("Azienda non disponibile");
-      const usage = await getCustomFieldUsageCounts(id);
+      const usage = await getCustomFieldUsageCounts(id, purgeTarget?.object_type, companyId);
       if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
         throw new CustomFieldInUseError(usage);
       }
@@ -1840,17 +1740,20 @@ export function CustomFieldsConfig() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="models" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 pb-2.5 pt-1 shrink-0 max-md:min-h-11">Modelli e schede tecniche</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
-          {puoModificare && (
+          {puoModificare && activeTab !== "models" && (
             <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto max-md:h-11">
               <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
             </Button>
           )}
         </div>
       </div>
+
+      {activeTab === "models" && <FederatedFieldCatalogue key={companyId} />}
 
       {!puoModificare && (
         <div className="pt-3">
@@ -1910,7 +1813,7 @@ export function CustomFieldsConfig() {
             {fuoriDalleSchedeCount === 1
               ? "1 campo è su una scheda che ancora non lo mostra"
               : `${fuoriDalleSchedeCount} campi sono su schede che ancora non li mostrano`}
-            : i valori si salvano e si usano nei testi.
+            . La definizione è salvata; compilazione e uso nei testi dipendono dall’integrazione del relativo modulo.
           </span>
         </div>
       )}
@@ -1967,6 +1870,7 @@ export function CustomFieldsConfig() {
                           {FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}
                         </span>
                       )}
+                      {!f.isSystem && <details className="mt-1 text-xs font-normal text-muted-foreground"><summary className="cursor-pointer">Dove si può usare</summary><dl className="mt-2 space-y-1">{Object.entries(customFieldCapabilities(f.objectType ?? "")).map(([key, description]) => <div key={key}><dt className="font-medium">{({editor:"Compilazione",email:"Testi",automation:"Automazioni",pdf:"PDF",ai:"AI"} as Record<string,string>)[key]}</dt><dd>{description}</dd></div>)}</dl></details>}
                     </TableCell>
                     <TableCell className="max-md:col-span-2 text-sm text-muted-foreground">
                       <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -1974,7 +1878,7 @@ export function CustomFieldsConfig() {
                         {f.objectType && !isObjectRendered(f.objectType) && (
                           <Badge
                             variant="outline"
-                            title="Il valore si salva e si usa nei testi e nelle automazioni, ma questa scheda ancora non lo mostra."
+                            title="La definizione è salvata, ma questa scheda non permette ancora di compilare il valore. L’uso nei testi dipende dal relativo motore."
                             className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
                           >
                             Non compare nelle schede
@@ -2200,8 +2104,8 @@ export function CustomFieldsConfig() {
                 <Alert className="mt-2">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    <strong>Non compare nelle schede.</strong> Il valore si salva e si usa nei testi e nelle
-                    automazioni, ma questa scheda ancora non lo mostra.
+                    <strong>Non compare nelle schede.</strong> La definizione si salva, ma il valore non è ancora
+                    compilabile in questa scheda. La disponibilità in testi e automazioni va verificata nel relativo modulo.
                   </AlertDescription>
                 </Alert>
               )}
@@ -2223,15 +2127,11 @@ export function CustomFieldsConfig() {
                 <SelectTrigger id="cf-type" className="max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FIELD_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value} disabled={t.value === "file" && fieldType !== "file"}>{t.label}{t.value === "file" ? " — area Documenti" : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {tipoComeTesto && (
-                <p className="text-xs text-muted-foreground">
-                  Sulla scheda del contatto questo tipo si compila come testo semplice.
-                </p>
-              )}
+              {fieldType === "file" && <p className="text-xs text-muted-foreground">Il riferimento esistente si conserva; il caricamento dei file resta nell’area Documenti.</p>}
             </div>
             {needsOptions && (
               <div className="space-y-1.5">
@@ -2260,6 +2160,7 @@ export function CustomFieldsConfig() {
             {editTarget && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Se il campo ha già dei valori scritti, il tipo, dove compare e le opzioni non si possono cambiare.
+                Anche un nome che cambia la variabile esistente resta protetto. Per i contatti, la chiave stabile per ID è disponibile nell’elenco dopo il salvataggio.
               </p>
             )}
           </fieldset>

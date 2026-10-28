@@ -13,9 +13,11 @@
  * lo segnala. Mai un nome, un numero o una data inventati.
  */
 import {
-  type AddettoEmergenze, type ContestoPos, type DirigentePos, type PosContenuto, type PrepostoPos, type RigaFormazione,
+  type AddettoEmergenze, type ContestoPos, type DirigentePos, type PosContenuto, type PrepostoPos,
   MANSIONI_PREDEFINITE, posVuoto,
 } from "./posModello.ts";
+
+import { risolviAddettiPropriPos } from "./posAddetti.ts";
 
 export type { ContestoPos };
 
@@ -25,7 +27,6 @@ type Row = Record<string, unknown>;
 
 const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const nomeDi = (nome: unknown, cognome: unknown) => [s(nome), s(cognome)].filter(Boolean).join(" ");
-const chiaveNome = (n: string) => n.toLowerCase().replace(/\s+/g, " ").trim();
 
 export { MANSIONI_PREDEFINITE } from "./posModello.ts";
 
@@ -53,21 +54,11 @@ function dataIt(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-/** Dagli attestati dell'app, quali caselle della formazione sono documentate. */
-export function formazioneDaAttestati(titoli: string[], formazioneCompletata: boolean): Pick<RigaFormazione, "base" | "rischi_specifici" | "dpi_terza_categoria"> {
-  const testo = titoli.join(" | ").toLowerCase();
-  return {
-    base: formazioneCompletata || /generale|base|\b4\s*(h|ore)\b/.test(testo),
-    rischi_specifici: formazioneCompletata || /specific|rischio\s+(alto|medio|basso)|\b(8|12)\s*(h|ore)\b/.test(testo),
-    dpi_terza_categoria: /dpi|terza\s+categoria|3\s*°?\s*cat|anticaduta|imbracatur|lavori\s+in\s+quota|funi/.test(testo),
-  };
-}
-
-
 export interface PosPreparato {
   contenuto: PosContenuto;
   contesto: ContestoPos;
   order: Row;
+  fonti: Record<string, unknown>;
 }
 
 export async function preparaPosDaApp(db: Db, companyId: string, orderId: string): Promise<PosPreparato> {
@@ -80,7 +71,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (orderErr) throw new Error(`Commessa non leggibile: ${orderErr.message}`);
   if (!order || order.deleted_at) throw new Error("Commessa non trovata in questa azienda");
 
-  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes, fasiRes] = await Promise.all([
+  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes, fasiRes, incarichiRes, contrattiRes, assegnazioniEsterneRes] = await Promise.all([
     db.from("anagrafica_azienda")
       .select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia, telefono, email, pec")
       .eq("company_id", companyId).maybeSingle(),
@@ -89,16 +80,32 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     db.from("order_employees").select("employee_id").eq("order_id", orderId),
     db.from("order_campo_assignments").select("user_id, role_type, is_capocantiere").eq("order_id", orderId).eq("company_id", companyId),
     db.from("mezzi").select("id, nome, tipo, targa, su_mezzo_id").eq("company_id", companyId).eq("assegnato_order_id", orderId).is("deleted_at", null),
-    db.from("subappaltatori_sicurezza").select("ragione_sociale, tipo_lavori, durc_scadenza").eq("company_id", companyId).eq("order_id", orderId),
+    db.from("subappaltatori_sicurezza").select("id, ragione_sociale, tipo_lavori, durc_scadenza").eq("company_id", companyId).eq("order_id", orderId),
     // Ponteggi, transenne e altre attrezzature a quantità montati sul cantiere (dal 05/10/2026).
     db.from("mezzi_allocazioni")
-      .select("quantita, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, tipo, unita_misura, deleted_at)")
+      .select("quantita, dal, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, tipo, unita_misura, deleted_at)")
       .eq("company_id", companyId).eq("order_id", orderId),
     // Le fasi di lavoro della commessa: dicono cosa si fa davvero in cantiere.
-    db.from("order_work_phases").select("name, position").eq("company_id", companyId).eq("order_id", orderId).order("position"),
+    db.from("order_work_phases").select("id, name, position").eq("company_id", companyId).eq("order_id", orderId).order("position"),
+    db.from("sicurezza_incarichi").select("*").eq("company_id",companyId).eq("order_id",orderId).order("dal",{ascending:false}),
+    db.from("contratti_subappalto").select("subappaltatore_id,stato").eq("company_id",companyId).eq("order_id",orderId),
+    db.from("subappaltatori_assegnazioni").select("subappaltatore_id,dal,al").eq("company_id",companyId).eq("order_id",orderId),
   ]);
 
+  for(const [fonte,res] of Object.entries({anagrafica:anag,azienda:company,figure:figureRes,operai:oeRes,assegnazioni:campoRes,mezzi:mezziRes,imprese:subRes,attrezzature:montatiRes,fasi:fasiRes,incarichi:incarichiRes,contratti:contrattiRes,assegnazioni_esterne:assegnazioniEsterneRes})) {
+    if(res?.error) throw new Error(`Fonte POS non disponibile (${fonte}): ${res.error.message}`);
+  }
+  const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  const riferimento = s(order.work_start_date) || oggi;
   const avvisi: string[] = [];
+  const impreseDirette=(subRes.data??[]) as Row[];
+  const idsDiretti=new Set(impreseDirette.map(i=>s(i.id)).filter(Boolean));
+  const altriSubIds=[...new Set([
+    ...((contrattiRes.data??[]) as Row[]).filter(c=>c.stato!=='annullato').map(c=>s(c.subappaltatore_id)),
+    ...((assegnazioniEsterneRes.data??[]) as Row[]).filter(a=>s(a.dal)<=riferimento&&(!a.al||s(a.al)>=riferimento)).map(a=>s(a.subappaltatore_id)),
+  ].filter(id=>id&&!idsDiretti.has(id)))];
+  const altreImprese=altriSubIds.length?await db.from('subappaltatori_sicurezza').select('id,ragione_sociale,tipo_lavori,durc_scadenza').eq('company_id',companyId).in('id',altriSubIds):{data:[]};
+  if(altreImprese.error) throw new Error(`Imprese collegate non disponibili: ${altreImprese.error.message}`);
   const pos = posVuoto();
 
   // ── Opera ────────────────────────────────────────────────────────────────
@@ -137,7 +144,22 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   }
 
   // ── Figure della sicurezza ───────────────────────────────────────────────
-  const figure = (figureRes.data ?? []) as Row[];
+  const incarichi = ((incarichiRes.data??[]) as Row[]).filter(i=>!i.subappaltatore_id&&s(i.dal)<=riferimento&&(!i.al||s(i.al)>=riferimento)&&i.stato==='documentato');
+  const ruoliLocali = new Set(incarichi.map(i=>s(i.ruolo)));
+  const globali = ((figureRes.data??[]) as Row[]).filter(f=>!ruoliLocali.has(s(f.ruolo))&&(!f.scadenza||s(f.scadenza)>=riferimento));
+  const figure = [...incarichi,...globali];
+  if(globali.length) avvisi.push("Figure aziendali riprese come proposte: verifica nomine, validità e pertinenza al cantiere; registra gli incarichi sulla commessa.");
+  if(((incarichiRes.data??[]) as Row[]).some(i=>!i.subappaltatore_id&&i.stato==='proposto')) avvisi.push("La commessa contiene nomine ancora da verificare: non sono riprese come incarichi documentati nel POS.");
+  const responsabileLavori=incarichi.find(i=>i.ruolo==='responsabile_lavori');
+  if(responsabileLavori) pos.opera.responsabile_lavori={nominativo:s(responsabileLavori.nominativo),codice_fiscale:'',indirizzo:'',telefono:s(responsabileLavori.telefono),email:s(responsabileLavori.email)};
+  const identitaFigura=(f:Row|undefined):string|null=>{
+    if(!f)return null;
+    if(s(f.hr_profilo_id))return `hr:${s(f.hr_profilo_id)}`;
+    const fonte=f.figura_id?((figureRes.data??[]) as Row[]).find(x=>x.id===f.figura_id):null;
+    if(fonte&&s(fonte.hr_profilo_id))return `hr:${s(fonte.hr_profilo_id)}`;
+    if(s(f.figura_id))return `figura:${s(f.figura_id)}`;
+    return s(f.id)?`figura:${s(f.id)}`:null;
+  };
   const conRuolo = (r: string) => figure.filter((f) => f.ruolo === r);
   const mansioni = (f: Row) => s(f.mansioni_sicurezza) || MANSIONI_PREDEFINITE[s(f.ruolo)] || "";
   const datore = conRuolo("datore_lavoro")[0];
@@ -158,7 +180,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     pos.rspp = {
       nominativo: nome,
       mansioni_sicurezza: mansioni(rspp),
-      svolto_da: datore && chiaveNome(nome) === chiaveNome(s(datore.nominativo)) ? "datore" : rspp.esterno ? "esterno" : "interno",
+      svolto_da: datore && !!identitaFigura(datore) && identitaFigura(datore) === identitaFigura(rspp) ? "datore" : rspp.esterno ? "esterno" : "interno",
     };
   }
   const medico = conRuolo("medico_competente")[0];
@@ -167,8 +189,8 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (rls) pos.rls = { tipo: rls.ruolo === "rlst" ? "rlst" : "rls", nominativo: s(rls.nominativo), mansioni_sicurezza: mansioni(rls) };
 
   const addetti = new Map<string, AddettoEmergenze>();
-  for (const f of [...conRuolo("addetto_antincendio"), ...conRuolo("addetto_primo_soccorso")]) {
-    const k = chiaveNome(s(f.nominativo));
+  for (const [indice,f] of [...conRuolo("addetto_antincendio"), ...conRuolo("addetto_primo_soccorso")].entries()) {
+    const k = identitaFigura(f) ?? `non-identificato:${indice}`;
     const cur = addetti.get(k) ?? { nominativo: s(f.nominativo), antincendio: false, primo_soccorso: false, mansioni_sicurezza: "" };
     if (f.ruolo === "addetto_antincendio") cur.antincendio = true;
     if (f.ruolo === "addetto_primo_soccorso") cur.primo_soccorso = true;
@@ -184,66 +206,43 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   const campo = (campoRes.data ?? []) as Row[];
   const userIds = [...new Set([...campo.map((r) => s(r.user_id)), s(order.capomastro_user_id)].filter(Boolean))];
 
-  const [empRes, hrByUser, profRes] = await Promise.all([
+  const [empRes, empByUser, hrByUser] = await Promise.all([
     employeeIds.length
-      ? db.from("employees").select("id, first_name, last_name, qualifica, livello_inquadramento, user_id, formazione_sicurezza_completed, formazione_sicurezza_data, formazione_sicurezza_scadenza").in("id", employeeIds)
+      ? db.from("employees").select("id, first_name, last_name, qualifica, livello_inquadramento, user_id, role_type, formazione_sicurezza_completed, formazione_sicurezza_data, formazione_sicurezza_scadenza").eq("company_id",companyId).in("id", employeeIds)
       : Promise.resolve({ data: [] }),
+    userIds.length
+      ? db.from("employees").select("id, first_name, last_name, qualifica, livello_inquadramento, user_id, role_type, formazione_sicurezza_completed, formazione_sicurezza_data, formazione_sicurezza_scadenza").eq("company_id",companyId).in("user_id",userIds)
+      : Promise.resolve({data:[]}),
     userIds.length
       ? db.from("hr_profili").select("id, user_id, employee_id, nome, cognome, mansione").eq("company_id", companyId).in("user_id", userIds)
       : Promise.resolve({ data: [] }),
-    userIds.length ? db.from("profiles").select("id, first_name, last_name").in("id", userIds) : Promise.resolve({ data: [] }),
   ]);
-  const employees = (empRes.data ?? []) as Row[];
+  for(const res of [empRes,empByUser,hrByUser]) if(res?.error) throw new Error(`Anagrafica lavoratori non disponibile: ${res.error.message}`);
+  const employees = [...new Map([...((empRes.data ?? []) as Row[]),...((empByUser.data ?? []) as Row[])].map(e=>[s(e.id),e])).values()];
+  const idsDaControllare = employees.map(e=>s(e.id));
   const hrUtenti = (hrByUser.data ?? []) as Row[];
-  const profili = new Map(((profRes.data ?? []) as Row[]).map((p) => [s(p.id), p]));
 
   // Profili del personale anche per chi arriva da order_employees (per gli attestati).
-  const hrByEmp = employeeIds.length
-    ? ((await db.from("hr_profili").select("id, user_id, employee_id, nome, cognome, mansione").eq("company_id", companyId).in("employee_id", employeeIds)).data ?? []) as Row[]
-    : [];
+  const hrEmpRes = idsDaControllare.length
+    ? await db.from("hr_profili").select("id, user_id, employee_id, nome, cognome, mansione").eq("company_id", companyId).in("employee_id", idsDaControllare)
+    : {data:[]};
+  if(hrEmpRes.error) throw new Error(`Profili HR non disponibili: ${hrEmpRes.error.message}`);
+  const hrByEmp = (hrEmpRes.data??[]) as Row[];
 
-  interface Persona { nome: string; qualifica: string; hrId: string | null; completata: boolean; nota: string; }
-  const persone = new Map<string, Persona>();
-  const aggiungi = (p: Persona) => {
-    if (!p.nome) return;
-    const k = chiaveNome(p.nome);
-    const cur = persone.get(k);
-    persone.set(k, cur ? { ...cur, hrId: cur.hrId ?? p.hrId, qualifica: cur.qualifica || p.qualifica, completata: cur.completata || p.completata } : p);
-  };
-  for (const e of employees) {
-    const hr = hrByEmp.find((h) => h.employee_id === e.id);
-    aggiungi({
-      nome: nomeDi(e.first_name, e.last_name),
-      qualifica: s(e.qualifica) || s(hr?.mansione) || s(e.livello_inquadramento),
-      hrId: hr ? s(hr.id) : null,
-      completata: e.formazione_sicurezza_completed === true,
-      nota: e.formazione_sicurezza_scadenza ? `formazione sicurezza fino al ${dataIt(s(e.formazione_sicurezza_scadenza))}` : "",
-    });
-  }
+  const risolti = risolviAddettiPropriPos(employees, campo, [...hrByEmp, ...hrUtenti], employeeIds);
+  avvisi.push(...risolti.avvisi);
   const capocantiereUser = new Set<string>([
-    ...campo.filter((c) => c.is_capocantiere === true).map((c) => s(c.user_id)),
+    ...campo.filter(c => c.is_capocantiere === true && (!c.role_type || ["employee", "operaio", "capocantiere"].includes(s(c.role_type)))).map(c => s(c.user_id)),
     s(order.capomastro_user_id),
   ].filter(Boolean));
-  for (const c of campo) {
-    if (c.role_type && !["employee", "operaio", "capocantiere"].includes(s(c.role_type))) continue;
-    const hr = hrUtenti.find((h) => h.user_id === c.user_id);
-    const prof = profili.get(s(c.user_id));
-    aggiungi({
-      nome: hr ? nomeDi(hr.nome, hr.cognome) : nomeDi(prof?.first_name, prof?.last_name),
-      qualifica: s(hr?.mansione) || (c.is_capocantiere ? "Capocantiere" : "Operaio"),
-      hrId: hr ? s(hr.id) : null,
-      completata: false,
-      nota: "",
-    });
-  }
 
   // Capocantiere della commessa: vince su quello generico dell'impresa.
   const nomiCapo = [...capocantiereUser].map((u) => {
-    const hr = hrUtenti.find((h) => h.user_id === u);
-    const prof = profili.get(u);
-    return hr ? nomeDi(hr.nome, hr.cognome) : nomeDi(prof?.first_name, prof?.last_name);
+    const candidati = [...new Map([...hrUtenti,...hrByEmp].filter(h => h.user_id === u).map(h => [s(h.id),h])).values()];
+    if(candidati.length !== 1 || !risolti.persone.some(p => p.hrId === candidati[0].id)) return "";
+    return nomeDi(candidati[0].nome, candidati[0].cognome);
   }).filter(Boolean);
-  if (nomiCapo.length) {
+  if (nomiCapo.length && !ruoliLocali.has("capocantiere")) {
     const generico = preposti.find((p) => p.ruolo === "capocantiere");
     const altri = preposti.filter((p) => p.ruolo !== "capocantiere");
     pos.preposti = [
@@ -255,7 +254,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   }
   pos.dirigenti = dirigenti;
 
-  const elenco = [...persone.values()];
+  const elenco = risolti.persone;
   if (!elenco.length) avvisi.push("Nessun lavoratore è assegnato alla commessa: aggiungili alla commessa o scrivili nel POS.");
 
   // Numero e qualifica
@@ -269,54 +268,37 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   // Formazione: attestati di sicurezza dal Personale
   const hrIds = elenco.map((p) => p.hrId).filter((x): x is string => !!x);
   const attestatiRes = hrIds.length
-    ? await db.from("hr_documenti").select("hr_profilo_id, titolo, ente, data_scadenza").eq("company_id", companyId).eq("categoria", "corso_sicurezza").in("hr_profilo_id", hrIds)
+    ? await db.from("hr_documenti").select("id, hr_profilo_id, titolo, ente, data_scadenza").eq("company_id", companyId).eq("categoria", "corso_sicurezza").in("hr_profilo_id", hrIds)
     : { data: [] };
+  if(attestatiRes.error) throw new Error(`Attestati non disponibili: ${attestatiRes.error.message}`);
   const attestati = (attestatiRes.data ?? []) as Row[];
+  if(elenco.length) avvisi.push("Formazione da verificare sui documenti: titoli e flag storici non attestano validità, contenuto o pertinenza. Conferma le voci nell’editor dopo il controllo.");
   pos.formazione = elenco.map((p) => {
     const suoi = attestati.filter((d) => p.hrId && d.hr_profilo_id === p.hrId);
-    const titoli = suoi.map((d) => s(d.titolo));
-    const flags = formazioneDaAttestati(titoli, p.completata);
     const elencoAttestati = [
       ...suoi.map((d) => [s(d.titolo), s(d.ente), d.data_scadenza ? `scad. ${dataIt(s(d.data_scadenza))}` : ""].filter(Boolean).join(", ")),
       p.nota,
     ].filter(Boolean).join("; ");
     return {
+      ...(p.hrId ? {riferimento_addetto:{tipo:"hr" as const,id:p.hrId}} : {}),
       nominativo: p.nome,
       qualifica: p.qualifica || "Operaio",
-      ...flags,
+      // Unstructured titles and historical HR flags remain references for human review.
+      base: false, rischi_specifici: false, dpi_terza_categoria: false,
       rischi_cantiere: false,
       altro: "",
       attestati: elencoAttestati,
+      verificata: false,
     };
   });
 
-  // Addetti alle emergenze: se le Figure non li indicano, si propongono quelli
-  // della commessa che hanno l'attestato (primo soccorso, antincendio). Sono
-  // persone vere con un corso vero: il titolare conferma la designazione.
-  if (!pos.emergenze.addetti.length && attestati.length) {
-    const perHr = new Map(elenco.filter((p) => p.hrId).map((p) => [p.hrId!, p.nome]));
-    const proposti = new Map<string, AddettoEmergenze>();
-    for (const d of attestati) {
-      const nome = perHr.get(s(d.hr_profilo_id));
-      const t = s(d.titolo).toLowerCase();
-      const antincendio = /antincendio|incendi/.test(t);
-      const primoSoccorso = /primo\s+soccorso|pronto\s+soccorso/.test(t);
-      if (!nome || (!antincendio && !primoSoccorso)) continue;
-      const cur = proposti.get(nome) ?? { nominativo: nome, antincendio: false, primo_soccorso: false, mansioni_sicurezza: "" };
-      cur.antincendio ||= antincendio;
-      cur.primo_soccorso ||= primoSoccorso;
-      proposti.set(nome, cur);
-    }
-    for (const a of proposti.values()) {
-      a.mansioni_sicurezza = [a.antincendio && MANSIONI_PREDEFINITE.addetto_antincendio, a.primo_soccorso && MANSIONI_PREDEFINITE.addetto_primo_soccorso].filter(Boolean).join(" ");
-    }
-    pos.emergenze.addetti = [...proposti.values()];
-    if (proposti.size) avvisi.push("Addetti alle emergenze proposti da chi ha l'attestato: conferma che sono designati per questo cantiere.");
-  }
+  // Un corso non equivale a una nomina: nessun addetto viene designato per parole nel titolo.
+  if(!pos.emergenze.addetti.length&&attestati.length) avvisi.push("Verifica le designazioni degli addetti alle emergenze nella commessa. Gli attestati non costituiscono una nomina.");
 
   // Turni di lavoro: l'orario più comune di chi lavora sulla commessa.
   if (!pos.opera.turni_lavoro && hrIds.length) {
-    const { data: orari } = await db.from("hr_profili").select("orario_inizio, orario_fine, pausa_pranzo_minuti, giorni_lavorativi").in("id", hrIds);
+    const { data: orari, error: orariError } = await db.from("hr_profili").select("orario_inizio, orario_fine, pausa_pranzo_minuti, giorni_lavorativi").eq("company_id",companyId).in("id", hrIds);
+    if(orariError) throw new Error(`Orari non disponibili: ${orariError.message}`);
     const conti = new Map<string, { n: number; testo: string }>();
     for (const o of (orari ?? []) as Row[]) {
       const inizio = s(o.orario_inizio).slice(0, 5);
@@ -338,12 +320,11 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   // ── Contesto per le schede delle lavorazioni ─────────────────────────────
   const mezzi = ((mezziRes.data ?? []) as Row[]).map((m) => ({ nome: s(m.nome), tipo: s(m.tipo), targa: s(m.targa) || null }));
   // Le opere provvisionali contano nel POS (ponteggi: PiMUS): ci vanno con quanto è montato adesso.
-  const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
   const unita: Record<string, string> = { mq: "m²", mc: "m³", ml: "m", pz: "pz", kg: "kg" };
   const montatiPerNome = new Map<string, { nome: string; tipo: string; quantita: number; unita: string }>();
   for (const a of (montatiRes.data ?? []) as Row[]) {
     const m = a.mezzo as Row | null;
-    if (!m || m.deleted_at || (a.al && String(a.al) <= oggi)) continue;
+    if (!m || m.deleted_at || (a.dal && s(a.dal)>riferimento) || (a.al && s(a.al)<riferimento)) continue;
     const nome = s(m.nome);
     const cur = montatiPerNome.get(nome) ?? { nome, tipo: s(m.tipo), quantita: 0, unita: unita[s(m.unita_misura)] ?? s(m.unita_misura) };
     cur.quantita += Number(a.quantita) || 0;
@@ -353,13 +334,26 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     const q = String(Math.round(g.quantita * 100) / 100).replace(".", ",");
     mezzi.push({ nome: `${g.nome} (${q} ${g.unita} montati)`, tipo: g.tipo, targa: null });
   }
-  const subappaltatori = ((subRes.data ?? []) as Row[]).map((r) => ({
+  const subappaltatori = [...impreseDirette,...((altreImprese.data??[]) as Row[])].map((r) => ({
     ragione_sociale: s(r.ragione_sociale),
     tipo_lavori: s(r.tipo_lavori),
     durc_scadenza: s(r.durc_scadenza) || null,
   }));
 
-  return { contenuto: pos, contesto: { mezzi, subappaltatori, fasi, avvisi }, order };
+  const riferimenti = (righe: Row[], campi: string[]) => righe.map(r => Object.fromEntries(campi.filter(k => r[k] !== undefined).map(k => [k,r[k]])));
+  const fonti = {
+    riferimento_periodo: riferimento,
+    figure_candidati: riferimenti((figureRes.data??[]) as Row[],["id","ruolo","scadenza","updated_at"]),
+    incarichi: riferimenti((incarichiRes.data??[]) as Row[],["id","ruolo","stato","dal","al","figura_id","subappaltatore_id","updated_at"]),
+    dipendenti: riferimenti(employees,["id","user_id","qualifica","livello_inquadramento"]),
+    profili_hr: riferimenti([...hrByEmp,...((hrByUser.data??[]) as Row[])],["id","user_id","employee_id","mansione"]),
+    assegnazioni_campo: riferimenti(campo,["user_id","role_type","is_capocantiere"]),
+    attestati: riferimenti(attestati,["id","hr_profilo_id","titolo","ente","data_scadenza"]),
+    mezzi: riferimenti((mezziRes.data??[]) as Row[],["id","nome","tipo","targa"]),
+    fasi: riferimenti((fasiRes.data??[]) as Row[],["id","name","position"]),
+    imprese: riferimenti([...impreseDirette,...((altreImprese.data??[]) as Row[])],["id","ragione_sociale","tipo_lavori","durc_scadenza"]),
+  };
+  return { contenuto: pos, contesto: { mezzi, subappaltatori, fasi, avvisi }, order, fonti };
 }
 
 /** Colonne «vecchie» di pos_documents tenute allineate per la lista e per chi le legge ancora. */

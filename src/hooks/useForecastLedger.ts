@@ -340,9 +340,11 @@ export async function loadForecastDataset(
             anno: number;
             mese: number | null;
             tributo_code: string | null;
+            stato: string;
           }>(() =>
-            scoped("f24_entries", "id,anno,mese,tributo_code")
+            scoped("f24_entries", "id,anno,mese,tributo_code,stato")
               .like("tributo_code", "60%")
+              .neq("stato", "annullato")
               .gte("anno", String(year - 1)),
           ),
         ]);
@@ -448,12 +450,14 @@ export async function loadForecastDataset(
       source: "prima-nota",
       updatedAt: today,
     };
+  // A partial VAT source set must never generate a seemingly complete tax estimate.
+  const vatReady = !softWarnings.length && !issues.includes("Fatture");
+  if (!vatReady) s.vatDocuments = [];
   const ledger = buildForecastLedger(
     s,
     today,
     1 - RITENUTA_BONIFICO_PARLANTE / (1 + IVA_SCORPORO_BANCA),
   );
-  const vatReady = !softWarnings.length;
   return {
     companyId,
     today,

@@ -1,3 +1,7 @@
+import { Link, useSearchParams } from "react-router-dom";
+import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
+import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
+import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 /**
  * Avanzamento lavori — l'operaio o il subappaltatore segna se ha fatto o meno
  * la SUA fase, allegando le foto.
@@ -89,7 +93,10 @@ async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promi
 
 export default function CampoAvanzamento() {
   const { user, profile } = useAuth();
+  const [params] = useSearchParams();
+  const orderFilter = params.get("order_id") || null;
   const companyId = profile?.company_id;
+  useCommessaCampoSync(orderFilter, companyId, !!user);
   const queryClient = useQueryClient();
   const [uploadingFaseId, setUploadingFaseId] = useState<string | null>(null);
 
@@ -99,11 +106,11 @@ export default function CampoAvanzamento() {
   // Query separate invece dell'embed annidato: gli embed PostgREST su tabelle
   // con RLS pesanti fanno esplodere il planning.
   const fasiQuery = useQuery({
-    queryKey: ["campo-avanzamento-fasi", companyId, user?.id],
+    queryKey: ["campo-avanzamento-fasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Fase[]> => {
-      const { data, error } = await supabase
-        .from("order_work_phases")
-        .select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il")
+      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il");
+      if (orderFilter) query = query.eq("order_id", orderFilter);
+      const { data, error } = await query
         // La chiave della query aveva già l'azienda, la query no.
         .eq("company_id", companyId!)
         // Stesso ordine completo della lettura delle sottofasi: oltre il
@@ -123,13 +130,13 @@ export default function CampoAvanzamento() {
   );
 
   const cantieriQuery = useQuery({
-    queryKey: ["campo-avanzamento-cantieri", orderIds.join(",")],
+    queryKey: ["campo-avanzamento-cantieri", companyId, user?.id, orderIds.join(",")],
     queryFn: async (): Promise<Cantiere[]> => {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("orders")
         .select("id, order_code, description, indirizzo_lavori")
-        .in("id", orderIds);
+        .in("id", orderIds).eq("company_id", companyId!);
       if (error) throw error;
       return (data ?? []) as Cantiere[];
     },
@@ -141,11 +148,11 @@ export default function CampoAvanzamento() {
   // dell'azienda (la RLS è la stessa delle fasi). Se la lettura fallisce le fasi
   // restano come sempre.
   const sottofasiQuery = useQuery({
-    queryKey: ["campo-sottofasi", companyId, user?.id],
+    queryKey: ["campo-sottofasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Sottofase[]> => {
-      const { data, error } = await db
-        .from("order_work_phases")
-        .select(`id, ${SOTTOFASI_NELLA_FASE}`)
+      let query = db.from("order_work_phases").select(`id, ${SOTTOFASI_NELLA_FASE}`);
+      if (orderFilter) query = query.eq("order_id", orderFilter);
+      const { data, error } = await query
         .eq("company_id", companyId!)
         .order("position", { ascending: true })
         .order("id", { ascending: true });
@@ -159,13 +166,14 @@ export default function CampoAvanzamento() {
   const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiQuery.data ?? []), [sottofasiQuery.data]);
 
   // Regola dell'azienda e, se serve, il mio ruolo e le mie fasi in ogni cantiere.
-  // Se la lettura fallisce si resta su «tutti»: decide comunque il database.
+  // Una lettura fallita non equivale alla regola «tutti»: si resta in consultazione.
   const permessiQuery = useQuery({
     queryKey: ["campo-avanzamento-permessi", companyId, user?.id, orderIds.join(",")],
     queryFn: async (): Promise<{ regola: ChiSpunta; perOrdine: Map<string, { ruolo: { capocantiere?: boolean; esiste_capo?: boolean } | null; mieFasi: Set<string> }> }> => {
       const perOrdine = new Map<string, { ruolo: { capocantiere?: boolean; esiste_capo?: boolean } | null; mieFasi: Set<string> }>();
       const { data: regolaDb, error } = await db.rpc("fasi_regola_chi_spunta", { p_company_id: companyId });
       if (error) throw error;
+      if (!["tutti", "chi_la_fa", "capi"].includes(regolaDb)) throw Error("Regola di avanzamento non disponibile");
       const regola = chiSpuntaValido(regolaDb);
       if (regola === "tutti") return { regola, perOrdine };
       await Promise.all(orderIds.map(async (id) => {
@@ -173,11 +181,15 @@ export default function CampoAvanzamento() {
           db.rpc("campo_mio_ruolo", { p_order_id: id }),
           regola === "chi_la_fa" ? db.rpc("campo_mie_fasi", { p_order_id: id }) : Promise.resolve({ data: [], error: null }),
         ]);
+        if (ruoloRes.error) throw ruoloRes.error;
+        const ruolo = leggiRuoloOperativoCampo(ruoloRes.data);
+        if (fasiRes.error) throw fasiRes.error;
+        if (regola === "chi_la_fa" && !Array.isArray(fasiRes.data)) throw Error("Assegnazioni alle fasi non disponibili");
         const mieFasi = new Set<string>();
         for (const e of (Array.isArray(fasiRes.data) ? fasiRes.data : []) as Array<{ id?: string; tu?: boolean; squadra?: string | null }>) {
           if (e.id && (e.tu || (e.squadra ?? "") !== "")) mieFasi.add(e.id);
         }
-        perOrdine.set(id, { ruolo: ruoloRes.error ? null : ruoloRes.data ?? null, mieFasi });
+        perOrdine.set(id, { ruolo, mieFasi });
       }));
       return { regola, perOrdine };
     },
@@ -187,21 +199,27 @@ export default function CampoAvanzamento() {
   });
   const puoSpuntare = (fase: Fase): boolean => {
     const p = permessiQuery.data;
-    if (!p || p.regola === "tutti") return true;
+    if (!p || permessiQuery.isError) return false;
+    if (p.regola === "tutti") return true;
     const o = p.perOrdine.get(fase.order_id);
-    if (!o || !o.ruolo) return true;
+    if (!o || !o.ruolo) return false;
     return puoSpuntareInCantiere(p.regola, o.ruolo, o.mieFasi.has(fase.id));
   };
 
   const segnaSottofase = useMutation({
     mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
+      const sottofase = (sottofasiQuery.data ?? []).find(s => s.id === id);
+      const fase = (fasiQuery.data ?? []).find(f => f.id === sottofase?.phase_id);
+      if (!fase || !puoSpuntare(fase)) throw Error("Permessi non confermati per questa fase. Rileggi il ruolo e riprova.");
       const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variabili) => {
+      const sottofase = (sottofasiQuery.data ?? []).find(s => s.id === variabili.id);
+      const fase = (fasiQuery.data ?? []).find(f => f.id === sottofase?.phase_id);
+      if (fase) void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
       // La fase si ricalcola nel database: si rileggono le sottofasi e le fasi.
-      queryClient.invalidateQueries({ queryKey: ["campo-sottofasi"] });
-      queryClient.invalidateQueries({ queryKey: ["campo-avanzamento-fasi"] });
+
     },
     // Il database dice da sé perché no («Le sottofasi le spunta il capocantiere.»).
     onError: (err: unknown) => toast.error(messaggioErrore(err, "Non riesco a salvare la sottofase")),
@@ -223,6 +241,7 @@ export default function CampoAvanzamento() {
 
   const toggleFase = useMutation({
     mutationFn: async (fase: Fase) => {
+      if (!puoSpuntare(fase)) throw Error("Permessi non confermati per questa fase. Rileggi il ruolo e riprova.");
       const completata = fase.status === "completata";
       // Riaprire non inventa un avanzamento: la percentuale resta, la aggiorna il prossimo rapportino
       // o l'ufficio (come la riapertura dall'ufficio).
@@ -237,8 +256,8 @@ export default function CampoAvanzamento() {
       if (error) throw error;
       return !completata;
     },
-    onSuccess: (nowDone) => {
-      queryClient.invalidateQueries({ queryKey: ["campo-avanzamento-fasi"] });
+    onSuccess: (nowDone, fase) => {
+      void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
       toast.success(nowDone ? "Fase segnata come completata" : "Fase riaperta");
     },
     onError: (err: unknown) =>
@@ -258,7 +277,7 @@ export default function CampoAvanzamento() {
     for (const file of Array.from(files)) {
       if (file.size > MAX_PHOTO_MB * 1024 * 1024) { falliti++; continue; }
       try {
-        const compressed = await compressImage(file).catch(() => null);
+        const compressed = await compressImage(file).catch((): null => null);
         const payload: Blob = compressed ?? file;
         const path = `${companyId}/${fase.order_id}/fasi/${fase.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
         const { data: up, error: upErr } = await supabase.storage
@@ -282,7 +301,7 @@ export default function CampoAvanzamento() {
       if (error) {
         toast.error("Foto caricate ma non collegate alla fase");
       } else {
-        queryClient.invalidateQueries({ queryKey: ["campo-avanzamento-fasi"] });
+        void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
         toast.success(nuove.length === 1 ? "Foto aggiunta" : `${nuove.length} foto aggiunte`);
       }
     }
@@ -297,7 +316,7 @@ export default function CampoAvanzamento() {
       .update({ foto_urls: rimaste })
       .eq("id", fase.id);
     if (error) toast.error("Non riesco a rimuovere la foto");
-    else queryClient.invalidateQueries({ queryKey: ["campo-avanzamento-fasi"] });
+    else void refreshCommessaCampoQueries(queryClient, fase.order_id, companyId);
   }
 
   const isLoading = fasiQuery.isLoading;
@@ -307,10 +326,12 @@ export default function CampoAvanzamento() {
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-3 md:p-4">
       <header>
+        {orderFilter && <Link className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary" to={`/campo/lavoro/${encodeURIComponent(orderFilter)}`}>← Torna al cantiere</Link>}
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Avanzamento lavori</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Segna le fasi che hai completato e allega le foto del lavoro fatto.
+          {orderFilter ? "Le fasi di questo cantiere, con le operazioni consentite al tuo ruolo." : "I cantieri a cui hai accesso, con le operazioni consentite al tuo ruolo."}
         </p>
+        <p className="mt-2 text-xs text-muted-foreground">Avanzamento operativo: non è un SAL economico né una conferma di pagamento. I rapportini restano soggetti alla verifica prevista dall’impresa.</p>
         {!isLoading && totali > 0 && (
           <div className="mt-3 flex items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
@@ -326,6 +347,8 @@ export default function CampoAvanzamento() {
         )}
       </header>
 
+      {!isLoading && totali > 0 && (permessiQuery.isError ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p>Permessi di avanzamento non disponibili. Puoi consultare le fasi; le spunte restano disattivate.</p><Button className="mt-2" variant="outline" onClick={() => void permessiQuery.refetch()}>Rileggi i permessi</Button></div> : permessiQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Verifica dei permessi di avanzamento…</p> : null)}
+      {sottofasiQuery.isError && <div role="alert" className="rounded-xl border p-3 text-sm">Dettaglio sottofasi non disponibile. <Button variant="outline" onClick={() => void sottofasiQuery.refetch()}>Rileggi sottofasi</Button></div>}
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-28 w-full" />
@@ -370,7 +393,7 @@ export default function CampoAvanzamento() {
                 const busy = uploadingFaseId === fase.id;
                 const sotto = sottofasiDi.get(fase.id) ?? [];
                 const derivata = faseHaSottofasi(sotto);
-                const spunta = puoSpuntare(fase);
+                const spunta = !sottofasiQuery.isError && !sottofasiQuery.isLoading && puoSpuntare(fase);
                 return (
                   <li key={fase.id} className="p-3">
                     <div className="flex items-start gap-3">
@@ -428,7 +451,7 @@ export default function CampoAvanzamento() {
 
                         {!spunta && (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {permessiQuery.data?.regola === "chi_la_fa"
+                            {permessiQuery.isError || permessiQuery.isLoading || sottofasiQuery.isError ? "Operazioni da verificare: rileggi permessi e sottofasi." : permessiQuery.data?.regola === "chi_la_fa"
                               ? "La segna chi fa questa fase, o il capocantiere."
                               : "La segna il capocantiere."}
                           </p>

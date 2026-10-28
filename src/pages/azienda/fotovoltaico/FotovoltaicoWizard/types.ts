@@ -114,6 +114,7 @@ export interface WizardData {
     descrizione: string;
     quantita: number;
     prezzo_vendita: number;
+    unita_misura?: "pz" | "m";
     prezzo_acquisto: number | null;
   }>;
   /** Righe MANODOPERA editabili dal commerciale (Fase 5). Salvate in

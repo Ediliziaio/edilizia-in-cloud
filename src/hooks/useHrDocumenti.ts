@@ -4,6 +4,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { HrDocumento } from "@/types/hrDocumenti";
 import { calcStato } from "@/types/hrDocumenti";
 import { toast } from "sonner";
+import { readAllPages } from "@/lib/personale/readAllPages";
 
 const BUCKET = "hr-documenti";
 
@@ -12,13 +13,12 @@ export function useHrDocumenti(profiloId: string | null | undefined) {
   return useQuery({
     queryKey: ["hr-documenti", profiloId],
     enabled: !!profiloId,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase
         .from("hr_documenti")
         .select("*")
         .eq("hr_profilo_id", profiloId!)
-        .order("data_scadenza", { ascending: true, nullsFirst: false });
-      if (error) throw error;
+        .order("data_scadenza", { ascending: true, nullsFirst: false }).order("id").range(from, to).abortSignal(signal));
       return (data ?? []) as HrDocumento[];
     },
     staleTime: 60 * 1000,
@@ -31,13 +31,12 @@ export function useHrScadenzeCounts() {
   return useQuery({
     queryKey: ["hr-scadenze-counts", companyId],
     enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase
         .from("hr_documenti")
         .select("hr_profilo_id, data_scadenza, alert_giorni_prima")
         .eq("company_id", companyId!)
-        .not("data_scadenza", "is", null);
-      if (error) throw error;
+        .not("data_scadenza", "is", null).order("id").range(from, to).abortSignal(signal));
       const map = new Map<string, { scaduti: number; inScadenza: number }>();
       for (const d of (data ?? []) as Array<{ hr_profilo_id: string; data_scadenza: string; alert_giorni_prima: number }>) {
         const stato = calcStato(d.data_scadenza, d.alert_giorni_prima);
@@ -76,14 +75,13 @@ export function useHrScadenzeAzienda() {
   return useQuery({
     queryKey: ["hr-scadenze-azienda", companyId],
     enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async ({ signal }) => {
+      const data = await readAllPages((from, to) => supabase
         .from("hr_documenti")
         .select("id, hr_profilo_id, categoria, titolo, data_scadenza, alert_giorni_prima, file_path, hr_profili!inner(nome, cognome, mansione)")
         .eq("company_id", companyId!)
         .not("data_scadenza", "is", null)
-        .order("data_scadenza", { ascending: true });
-      if (error) throw error;
+        .order("data_scadenza", { ascending: true }).order("id").range(from, to).abortSignal(signal));
       type Row = {
         id: string; hr_profilo_id: string; categoria: string; titolo: string | null;
         data_scadenza: string; alert_giorni_prima: number; file_path: string | null;
@@ -127,13 +125,16 @@ export function useUpsertHrDocumento(profiloId: string) {
   const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (doc: Partial<HrDocumento> & { id?: string }) => {
+      if (!companyId || !profiloId) throw new Error("Azienda o persona non disponibile");
       const { id, created_at, updated_at, ...rest } = doc as any;
       // Stringhe vuote → null sui campi data per evitare errori.
       for (const f of ["data_rilascio", "data_scadenza", "titolo", "ente", "note", "file_path", "file_name"]) {
         if (rest[f] === "") rest[f] = null;
       }
       if (id) {
-        const { error } = await supabase.from("hr_documenti").update(rest).eq("id", id);
+        // Never accept company/person reassignment through a document form.
+        delete rest.company_id; delete rest.hr_profilo_id; delete rest.created_by;
+        const { error } = await supabase.from("hr_documenti").update(rest).eq("id", id).eq("company_id", companyId).eq("hr_profilo_id", profiloId).select("id").single();
         if (error) throw error;
       } else {
         const uid = (await supabase.auth.getUser()).data.user?.id ?? null;
@@ -145,7 +146,10 @@ export function useUpsertHrDocumento(profiloId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-documenti", profiloId] });
+      qc.invalidateQueries({ queryKey: ["qualifiche-addetto", companyId] });
+      qc.invalidateQueries({ queryKey: ["addetti-qualifiche-commessa", companyId] }); qc.invalidateQueries({ queryKey: ["pos-riesame-proprio", companyId] });
       qc.invalidateQueries({ queryKey: ["hr-scadenze-counts"] });
+      qc.invalidateQueries({ queryKey: ["hr-scadenze-azienda"] });
       toast.success("Documento salvato");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio documento"),
@@ -154,15 +158,24 @@ export function useUpsertHrDocumento(profiloId: string) {
 
 export function useDeleteHrDocumento(profiloId: string) {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (doc: HrDocumento) => {
-      if (doc.file_path) { await supabase.storage.from(BUCKET).remove([doc.file_path]); }
-      const { error } = await supabase.from("hr_documenti").delete().eq("id", doc.id);
+      if (!companyId || doc.company_id !== companyId || doc.hr_profilo_id !== profiloId) throw new Error("Documento non valido per questa persona");
+      // Remove the record before its blob: a rejected DB deletion must not destroy the attachment.
+      const { error } = await supabase.from("hr_documenti").delete().eq("id", doc.id).eq("company_id", companyId).eq("hr_profilo_id", profiloId).select("id").single();
       if (error) throw error;
+      if (doc.file_path) {
+        const result = await supabase.storage.from(BUCKET).remove([doc.file_path]);
+        if (result.error) toast.warning("Documento rimosso dall'elenco; pulizia del file da riprovare.");
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-documenti", profiloId] });
+      qc.invalidateQueries({ queryKey: ["qualifiche-addetto", companyId] });
+      qc.invalidateQueries({ queryKey: ["addetti-qualifiche-commessa", companyId] }); qc.invalidateQueries({ queryKey: ["pos-riesame-proprio", companyId] });
       qc.invalidateQueries({ queryKey: ["hr-scadenze-counts"] });
+      qc.invalidateQueries({ queryKey: ["hr-scadenze-azienda"] });
       toast.success("Documento eliminato");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore eliminazione"),

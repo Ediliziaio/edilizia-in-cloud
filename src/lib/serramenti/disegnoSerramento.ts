@@ -113,7 +113,7 @@ export interface SerramentoDisegno {
 }
 
 export type Ruolo =
-  | "telaio" | "anta" | "vetro" | "maniglia" | "cerniera" | "simbolo" | "soglia"
+  | "telaio" | "anta" | "vetro" | "rete" | "maniglia" | "cerniera" | "simbolo" | "soglia"
   | "aletta" | "distanziatore" | "cassonetto" | "ispezione" | "tapparella" | "cintino" | "motore"
   | "inglesina" | "binario"
   | "lamella" | "asta" | "pannello" | "pannelloRilievo" | "fondo" | "lamellaLinea" | "pannelloLinea"

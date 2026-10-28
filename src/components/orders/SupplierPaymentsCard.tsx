@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { ExpensePaymentDialog } from './ExpensePaymentDialog';
+import { PurchasePaymentsDialog } from './PurchasePaymentsDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,8 @@ interface SupplierPaymentsCardProps {
 }
 
 export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaymentsCardProps) {
+  const [paymentCostId,setPaymentCostId] = useState<string|null>(null);
+  const [paymentOrderId,setPaymentOrderId] = useState<string|null>(null);
   const documents = useSupplierPayments(companyId, orderId);
   const ids = useMemo(() => [...new Set([
     ...items.map(i => i.supplier_id),
@@ -37,7 +40,10 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
   const paid = groups.reduce((s, g) => s + g.paid, 0);
   const unpaid = groups.reduce((s, g) => s + g.unpaid, 0);
 
-  return <Card>
+  return <>
+  {paymentOrderId && <PurchasePaymentsDialog orderId={paymentOrderId} onClose={()=>setPaymentOrderId(null)}/>}
+  {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={()=>setPaymentCostId(null)}/>}
+  <Card>
     <CardHeader className="pb-3">
       <CardTitle className="flex items-center gap-2 text-base">
         <Truck className="h-5 w-5 text-primary" />Pagamenti fornitori
@@ -76,15 +82,17 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
               {group.reviewCount > 0 && <p className="text-xs text-amber-700">Collegamenti, note di credito o pagamenti da verificare: {formatCurrency(group.review)}. Esclusi dai totali verificati.</p>}
               {group.ordered > 0 && <p className="text-xs text-muted-foreground">Ordinato {formatCurrency(group.ordered)} · {group.invoiceCount} fatture collegate</p>}
               {group.estimated > 0 && group.invoiced === 0 && <p className="text-xs text-muted-foreground">Budget articoli: {formatCurrency(group.estimated)} (stima, non pagamento)</p>}
-              {group.orders.map(order => <Link key={order.id} to={`/azienda/ordini-acquisto/${order.id}`}
+              {(documents.data?.invoices??[]).filter(f=>f.company_cost_id && (group.orders.some(o=>o.id===f.purchase_order_id) || group.key===`invoice:${f.cedente_piva || f.id}` || documents.data?.entries.some(e=>e.supplier_id===group.key && e.cost_id===f.company_cost_id))).map(f=><Button key={f.id} variant="outline" size="sm" className="mr-2" onClick={()=>setPaymentCostId(f.company_cost_id!)}>Fattura {f.numero_fattura ?? 'fornitore'} · pagamenti</Button>)}
+              {group.orders.map(order => <button type="button" key={order.id} onClick={()=>setPaymentOrderId(order.id)}
                 className="flex min-h-9 flex-wrap items-center justify-between gap-1 rounded px-1 text-xs text-primary hover:bg-muted focus-visible:outline focus-visible:outline-2">
                 <span>OdA #{order.oda_number} · {order.status}</span><span className="tabular-nums">{formatCurrency(Number(order.total) || 0)}</span>
-              </Link>)}
+              </button>)}
             </div>)}
           </div>
         </>}
     </CardContent>
-  </Card>;
+  </Card>
+  </>;
 }
 
 function Money({ label, value, className = '' }: { label: string; value: number; className?: string }) {

@@ -25,9 +25,10 @@ import "@xyflow/react/dist/style.css";
 
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
-import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
+import { nodesToReactFlow, connectionsToEdges, insertedStepIncomingEdge } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
+import { FlowAutoLayout } from "@/components/flow-builder/FlowAutoLayout";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
 import { FlowBuilderSidebar, type LeftPanel } from "./FlowBuilderSidebar";
@@ -87,10 +88,18 @@ export function FlowBuilderPage() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const initializedRef = useRef(false);
-  const autoTidiedRef = useRef(false);
+  // Posizioni e config NON fanno parte della chiave: il drag resta libero.
+  const topologyKey = useMemo(() => JSON.stringify([
+    flowId,
+    rfNodes.filter((n) => n.type !== "note").map((n) => [n.id, n.type, Boolean(n.data?.isEmpty)]).sort(),
+    rfEdges.map((e) => [e.id, e.source, e.sourceHandle, e.target, e.targetHandle]).sort(),
+  ]), [flowId, rfNodes, rfEdges]);
+  const applyVisualLayout = useCallback((positions: Record<string, { x: number; y: number }>) => {
+    setRfNodes((nds) => nds.map((n) => positions[n.id] ? { ...n, position: positions[n.id] } : n));
+  }, [setRfNodes]);
 
   // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
-  useEffect(() => { initializedRef.current = false; autoTidiedRef.current = false; }, [flowId]);
+  useEffect(() => { initializedRef.current = false; }, [flowId]);
   // Reset creation guard on route change
   useEffect(() => { if (!isNewFlowRoute) creationAttemptedRef.current = false; }, [isNewFlowRoute]);
 
@@ -233,38 +242,8 @@ export function FlowBuilderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builder.revision]);
 
-  // Auto-ordina alla prima apertura: ogni flusso viene mostrato con un layout
-  // verticale pulito e CENTRATO (connettori dritti, stile GHL) senza dover
-  // cliccare "Riordina". È solo VISIVO (non scrive su DB, non marca dirty) e
-  // non distruttivo: i flussi già ordinati hanno movedCount=0 → non si toccano;
-  // se l'utente sposta i nodi a mano in sessione, restano (l'auto-ordina gira una
-  // sola volta per apertura). NB: NON si usa useNodesInitialized (richiederebbe un
-  // ReactFlowProvider, qui assente → crash): si aspetta `reactFlowInstance` (da onInit)
-  // e un piccolo delay per far misurare le card a ReactFlow, poi si leggono i nodi
-  // misurati con getNodes() per centrare in base alla larghezza reale.
-  useEffect(() => {
-    if (autoTidiedRef.current) return;
-    if (!initializedRef.current || !reactFlowInstance) return;
-    const realNodes = rfNodes.filter((n) => !String(n.id).startsWith("placeholder-"));
-    if (realNodes.length < 2 || rfEdges.length === 0) {
-      autoTidiedRef.current = true; // niente da ordinare (vuoto / placeholder)
-      return;
-    }
-    autoTidiedRef.current = true; // gira una sola volta per apertura
-    const t = window.setTimeout(() => {
-      try {
-        const measured = reactFlowInstance.getNodes?.() ?? rfNodes;
-        const { positions, movedCount } = computeAutoLayout(measured, rfEdges);
-        if (movedCount > 0 && Object.keys(positions).length > 0) {
-          setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
-          window.setTimeout(() => {
-            try { reactFlowInstance.fitView?.({ padding: 0.2, duration: 300 }); } catch { /* noop */ }
-          }, 60);
-        }
-      } catch { /* noop: l'auto-ordina è best-effort, mai bloccare il builder */ }
-    }, 250);
-    return () => window.clearTimeout(t);
-  }, [rfNodes, rfEdges, setRfNodes, reactFlowInstance]);
+  // Il riordino visivo vive dentro ReactFlow (FlowAutoLayout), dove sono
+  // disponibili le misure effettive. Nessun timer basato sul caricamento DB.
 
   // Create flow if new
   useEffect(() => {
@@ -307,7 +286,7 @@ export function FlowBuilderPage() {
         sourceHandle: params.sourceHandle ?? undefined,
         targetHandle: params.targetHandle ?? undefined,
         type: "addStep",
-        animated: true,
+        animated: false,
         style: { strokeWidth: 2 },
         data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         // Label di ramo: il motore li normalizza (Sì/yes, No/no) — per gli
@@ -503,7 +482,7 @@ export function FlowBuilderPage() {
             source: newNodeId,
             target: targetId,
             type: "addStep",
-            animated: true,
+            animated: false,
             style: { strokeWidth: 2 },
             data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
           };
@@ -560,13 +539,13 @@ export function FlowBuilderPage() {
         const endNode = rfNodes.find((n) => n.type === "end");
         const edgeToEnd = endNode ? rfEdges.find((e) => e.target === endNode.id) : undefined;
         const mkEdge = (source: string, target: string): Edge => ({
-          id: crypto.randomUUID(), source, target, type: "addStep", animated: true,
+          id: crypto.randomUUID(), source, target, type: "addStep", animated: false,
           style: { strokeWidth: 2 }, data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
         });
         const persist = (e: Edge) => {
           if (flowId && effectiveCompany) addConnection({
             id: e.id, flow_id: flowId, company_id: effectiveCompany.id,
-            from_node_id: e.source, to_node_id: e.target, label: null, created_at: new Date().toISOString(),
+            from_node_id: e.source, to_node_id: e.target, label: typeof e.label === "string" ? e.label : null, created_at: new Date().toISOString(),
           });
         };
         // I nodi "Fine" sono SOLO visivi (non nel mirror/DB): un arco verso di
@@ -574,7 +553,7 @@ export function FlowBuilderPage() {
         const isMirrorNode = (id: string) => builder.nodes.some((n) => n.id === id);
         if (edgeToEnd) {
           // sorgente → nuovo → Fine (sostituisce sorgente → Fine)
-          const e1 = mkEdge(edgeToEnd.source, newNodeId);
+          const e1 = insertedStepIncomingEdge(edgeToEnd, crypto.randomUUID(), newNodeId);
           const e2 = mkEdge(newNodeId, edgeToEnd.target);
           setRfEdges((eds) => [...eds.filter((e) => e.id !== edgeToEnd.id), e1, e2]);
           removeConnection(edgeToEnd.id);
@@ -668,11 +647,15 @@ export function FlowBuilderPage() {
               target,
               sourceHandle,
               type: "addStep",
-              animated: true,
+              animated: false,
               style: { strokeWidth: 2 },
               data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
               label,
             });
+            // Inserire sul "+" di un ramo deve conservarne anche l'uscita e
+            // l'etichetta: sono la stessa condizione, non un arco generico.
+            const incomingEdge = insertedStepIncomingEdge(edge, edge1Id, newNodeId);
+            const incomingLabel = typeof edge.label === "string" ? edge.label : null;
 
             if (item.kind === "condition") {
               // Condition node: "yes" branch goes to original target, "no" branch goes to a new End node
@@ -682,7 +665,7 @@ export function FlowBuilderPage() {
 
               setRfEdges((eds) => [
                 ...eds.filter((e) => e.id !== pendingInsertEdgeId),
-                makeEdge(edge1Id, edge.source, newNodeId),
+                incomingEdge,
                 makeEdge(edge2Id, newNodeId, edge.target, "yes", "Sì"),
                 makeEdge(edge3Id, newNodeId, endNodeId, "no", "No"),
               ]);
@@ -701,7 +684,7 @@ export function FlowBuilderPage() {
               addConnection({
                 id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: edge.source, to_node_id: newNodeId,
-                label: null, created_at: new Date().toISOString(),
+                label: incomingLabel, created_at: new Date().toISOString(),
               });
               if (builder.nodes.some((n) => n.id === edge.target)) addConnection({
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
@@ -716,7 +699,7 @@ export function FlowBuilderPage() {
 
               setRfEdges((eds) => [
                 ...eds.filter((e) => e.id !== pendingInsertEdgeId),
-                makeEdge(edge1Id, edge.source, newNodeId),
+                incomingEdge,
                 makeEdge(edge2Id, newNodeId, edge.target, "split_0", "A: 50%"),
                 makeEdge(edge3Id, newNodeId, endNodeId, "split_1", "B: 50%"),
               ]);
@@ -735,7 +718,7 @@ export function FlowBuilderPage() {
               addConnection({
                 id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: edge.source, to_node_id: newNodeId,
-                label: null, created_at: new Date().toISOString(),
+                label: incomingLabel, created_at: new Date().toISOString(),
               });
               if (builder.nodes.some((n) => n.id === edge.target)) addConnection({
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
@@ -745,7 +728,7 @@ export function FlowBuilderPage() {
             } else {
               setRfEdges((eds) => [
                 ...eds.filter((e) => e.id !== pendingInsertEdgeId),
-                makeEdge(edge1Id, edge.source, newNodeId),
+                incomingEdge,
                 makeEdge(edge2Id, newNodeId, edge.target),
               ]);
               setRfNodes((nds) => [...nds, rfNode]);
@@ -767,7 +750,7 @@ export function FlowBuilderPage() {
                 addConnection({
                   id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
                   from_node_id: edge.source, to_node_id: newNodeId,
-                  label: null, created_at: new Date().toISOString(),
+                  label: incomingLabel, created_at: new Date().toISOString(),
                 });
                 // Arco verso il nodo Fine visivo: NON persistere (il nodo end
                 // non esiste in DB; lo scaffold rigenera l'arco al reload).
@@ -824,7 +807,7 @@ export function FlowBuilderPage() {
     // "modifiche non salvate" (pallino su Salva + prompt all'uscita) senza
     // alcuna modifica reale.
     if (movedCount === 0) {
-      try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 400 }); } catch { /* noop */ }
+      try { reactFlowInstance?.fitView?.({ padding: 0.22, maxZoom: 1, duration: 240 }); } catch { /* noop */ }
       toast.success("Il flusso è già ordinato");
       return;
     }
@@ -832,7 +815,7 @@ export function FlowBuilderPage() {
     updateNodePositions(positions);
     // Rinquadra la vista sul nuovo layout (dopo l'applicazione delle posizioni).
     window.setTimeout(() => {
-      try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 400 }); } catch { /* noop */ }
+      try { reactFlowInstance?.fitView?.({ padding: 0.22, maxZoom: 1, duration: 240 }); } catch { /* noop */ }
     }, 60);
     toast.success("Flusso riordinato");
   }, [rfNodes, rfEdges, setRfNodes, updateNodePositions, reactFlowInstance]);
@@ -894,7 +877,7 @@ export function FlowBuilderPage() {
             source: inEdge.source,
             target: outEdge.target,
             type: "addStep",
-            animated: true,
+            animated: false,
             style: { strokeWidth: 2 },
             data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
           });
@@ -1412,14 +1395,16 @@ export function FlowBuilderPage() {
                 edgeTypes={edgeTypes}
                 defaultEdgeOptions={{ type: "addStep", style: { stroke: "#64748b", strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#64748b" } }}
                 fitView
+                fitViewOptions={{ padding: 0.22, maxZoom: 1 }}
                 deleteKeyCode={["Backspace", "Delete"]}
                 className="bg-muted/30"
               >
                 {/* Forza la misurazione dei nodi al mount: senza, su React 19 + RF v12
                     il ResizeObserver interno non scatta e gli archi/linee non vengono disegnati. */}
                 <NodeMeasureFix />
+                <FlowAutoLayout topologyKey={topologyKey} onLayout={applyVisualLayout} />
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-                <Controls />
+                <Controls fitViewOptions={{ padding: 0.22, maxZoom: 1 }} />
                 <Panel position="top-left">
                   <Button
                     size="sm"
@@ -1429,7 +1414,7 @@ export function FlowBuilderPage() {
                     title="Riordina i nodi in un layout verticale pulito a partire dal trigger"
                   >
                     <Wand2 className="h-3.5 w-3.5" />
-                    Riordina
+                    Riordina dall’alto
                   </Button>
                 </Panel>
                 <MiniMap

@@ -20,12 +20,6 @@ interface VarGroup {
   vars: VarEntry[];
 }
 
-/** Replica esatta di toSnakeCase del backend (contactCustomFields.ts):
- *  i campi personalizzati si risolvono come {{contact.<snake_case_del_nome>}}. */
-function toSnakeCase(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
 const CONTACT_VARIABLES: VarEntry[] = [
   { key: "contatto.full_name", label: "Nome completo" },
   { key: "contact.first_name", label: "Nome contatto" },
@@ -106,7 +100,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, ex
         label: "Campi personalizzati",
         icon: "custom",
         vars: customFields.map((f: { id: string; name: string }) => ({
-          key: `contact.${toSnakeCase(f.name)}`,
+          key: emailCustomFieldKey(f.id),
           label: f.name,
         })),
       });

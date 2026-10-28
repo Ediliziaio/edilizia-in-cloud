@@ -285,10 +285,12 @@ describe("Un rapportino diverso per chi lo compila", () => {
     expect(screen.queryByText("Altro da segnalare (facoltativo)")).toBeNull();
   });
 
-  it("il capo sceglie chi ha lavorato già al primo passo e non vede le sue ore personali", () => {
+  it("il capo usa le ore personali per sole note e le presenze quando seleziona la squadra", () => {
     state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
     render(<CampoRapportino />);
     expect(screen.getByText("Chi ha lavorato oggi?")).toBeInTheDocument();
+    expect(ore()).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name:"Mario"}));
     expect(ore()).toBeNull();
     expect(screen.getByText("Cosa hai fatto oggi?")).toBeInTheDocument();
   });
@@ -476,4 +478,15 @@ describe("Le sottofasi nel rapportino del capocantiere", () => {
       fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"], nome: "Impianto elettrico" }],
     })));
   });
+});
+
+it("il coordinatore può inviare sole note con zero ore esplicite e senza presenze", async () => {
+ state.role={isCapocantiere:true,esisteCapo:true};
+ state.crew=[{key:"emp-1",employee_id:"1",nome:"Mario"}];
+ render(<CampoRapportino/>);
+ fireEvent.change(screen.getByLabelText("Lavori svolti nella giornata"),{target:{value:"Sopralluogo documentale senza lavoro né presenze"}});
+ fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"),{target:{value:"0"}});
+ avanti();invia();await waitFor(()=>expect(state.insert).toHaveBeenCalled());
+ expect(state.insert.mock.calls[0][0]).toMatchObject({ore_lavorate:0});
+ expect(state.insert.mock.calls[0][0].presenze).toBeUndefined();
 });

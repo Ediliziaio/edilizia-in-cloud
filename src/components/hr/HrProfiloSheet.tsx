@@ -22,6 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Save, Loader2, Info, User, Target, FileText, CalendarDays, Briefcase } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { normalizeHrNumbers } from "@/lib/personale/profileNumbers";
 
 interface Props {
   open: boolean;
@@ -52,20 +54,20 @@ const ORARIO_TIPO_OPTIONS = [
   { value: "part_time", label: "Part Time" },
 ];
 
-const NUMERIC_DEFAULTS: Record<string, number> = {
-  ore_settimanali: 40,
-  ore_giornaliere: 8,
-  pausa_pranzo_minuti: 60,
-  ferie_anno_giorni: 26,
-  ferie_residue: 26,
-  permessi_anno_ore: 32,
-  permessi_residui_ore: 32,
-  rol_anno_ore: 0,
-  rol_residuo_ore: 0,
-  posizione_organigramma: 0,
-};
+export function HrProfiloSheet(props: Props) {
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
+  if (canEdit) return <HrProfiloEditor {...props} />;
+  return <Sheet open={props.open && !!props.profilo} onOpenChange={props.onOpenChange}>
+    <SheetContent><SheetHeader><SheetTitle>{props.profilo?.nome} {props.profilo?.cognome}</SheetTitle></SheetHeader>
+      <p className="mt-2 text-sm text-muted-foreground">Profilo organizzativo · sola lettura</p>
+      <dl className="mt-6 space-y-4"><div><dt>Ruolo</dt><dd>{props.profilo?.mansione || "Da definire"}</dd></div>
+        <div><dt>Reparto</dt><dd>{props.profilo?.reparto || "Da definire"}</dd></div></dl>
+    </SheetContent>
+  </Sheet>;
+}
 
-export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Props) {
+function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
   const updateMutation = useUpdateHrProfilo();
   const createMutation = useCreateHrProfilo();
   const { data: sedi = [] } = useHrSedi();
@@ -168,14 +170,8 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
       return;
     }
 
-    for (const [field, defaultValue] of Object.entries(NUMERIC_DEFAULTS)) {
-      const value = sanitized[field];
-      if (value === "" || value == null || !Number.isFinite(Number(value)) || Number(value) < 0) {
-        sanitized[field] = defaultValue;
-      } else {
-        sanitized[field] = Number(value);
-      }
-    }
+    try { Object.assign(sanitized, normalizeHrNumbers(sanitized)); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Controlla orario e saldi"); return; }
 
     if (sanitized.data_cessazione && sanitized.attivo !== false) {
       sanitized.attivo = false;

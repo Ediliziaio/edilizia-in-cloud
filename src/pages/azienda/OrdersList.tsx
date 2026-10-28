@@ -5,7 +5,6 @@ import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
 import {readOrdersPage} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
-import { OrdersActiveFilters, type OrderFilterChip } from "@/components/orders/OrdersActiveFilters";
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
 import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABELS, type OrderFocus, type OrderMarginRow } from "@/lib/orders/listScope";
@@ -885,26 +884,6 @@ function OrdersListInner() {
     setPage(1);
   };
 
-  const activeFilterChips: OrderFilterChip[] = [];
-  const chip = (key: string, label: string, remove: () => void) => activeFilterChips.push({key, label, remove});
-  if (searchQuery) chip("search", `Ricerca: ${searchQuery}`, () => setSearchQuery(""));
-  if (statusFilter !== "all") chip("status", ({__da_completare__:"Da completare",__completati__:"Completati",__assistenza__:"In assistenza"} as Record<string,string>)[statusFilter] ?? statuses.find(status => status.id === statusFilter)?.name ?? "Stato selezionato", () => setStatusFilter("all"));
-  if (paymentFilter !== "all") chip("payment", paymentFilter === "paid" ? "Saldato" : paymentFilter === "overdue" ? "Rate scadute" : "Da incassare", () => setPaymentFilter("all"));
-  if (customerFilter !== "all") chip("customer", uniqueCustomers.find(customer => customer.id === customerFilter)?.name ?? "Cliente selezionato", () => setCustomerFilter("all"));
-  if (yearFilter !== "corrente") chip("year", periodLabel, () => handleYearChange("corrente"));
-  if (monthFilter !== "all") chip("month", `Mese: ${Number(monthFilter) + 1}`, () => handleMonthChange("all"));
-  if (amountMin || amountMax) chip("amount", "Intervallo importo", () => {setAmountMin("");setAmountMax("");});
-  if (salespersonFilter !== "all") chip("salesperson", "Venditore selezionato", () => setSalespersonFilter("all"));
-  if (laborFilter !== "all") chip("labor", "Manodopera selezionata", () => setLaborFilter("all"));
-  if (supplierFilter !== "all") chip("supplier", "Fornitore selezionato", () => setSupplierFilter("all"));
-  if (isYearCorrente && scopeGroup !== "all") chip("scopeGroup",scopeGroup === "annual" ? `Solo ${currentYear}` : "Solo pregresso da gestire",()=>setScopeGroup("all"));
-  if (hideCompleted) chip("completed", "Completati nascosti", () => setHideCompleted(false));
-  if (monthFilter === "all" && (contractDateRange.from || contractDateRange.to)) chip("contractRange", "Data contratto", () => {setContractDateRange({from:undefined,to:undefined});setMonthFilter("all");});
-  if (warehouseDateRange.from || warehouseDateRange.to) chip("warehouseRange", "Arrivo merce", () => setWarehouseDateRange({from:undefined,to:undefined}));
-  if (expectedDateRange.from || expectedDateRange.to) chip("expectedRange", "Data posa", () => setExpectedDateRange({from:undefined,to:undefined}));
-  if (controlFocus !== "all") chip("focus", ORDER_FOCUS_LABELS[controlFocus], () => setControlFocus("all"));
-  if (countActiveFilters(sidebarFilters)) chip("advanced", `${countActiveFilters(sidebarFilters)} filtri avanzati`, () => setSidebarFilters({...INITIAL_FILTER_STATE}));
-
   const handleMonthChange = (value: string) => {
     setURLParams({monthFilter:value,contractFrom:"",contractTo:""});
     setPage(1);
@@ -1756,8 +1735,6 @@ function OrdersListInner() {
               if (value) setStatusFilter("all");
             }}
           />
-
-          <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
 
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
             <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">

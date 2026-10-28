@@ -91,6 +91,14 @@ const chooseEmployee = () => {
 };
 
 describe("Lavorazioni e squadra", () => {
+  it.each(["pronto", "caricamento", "errore"])("raccoglie le figure nella stessa organizzazione, anche con fasi in stato %s", status => {
+    state.loading = status === "caricamento";
+    state.error = status === "errore";
+    render(<OrderWorkPhases orderId="order" view="lavorazioni" organizationContent={<div>Figure e responsabilità della commessa</div>} />);
+    const organization = screen.getByRole("region",{name:"Responsabili e assegnazioni generali"});
+    expect(within(organization).getByText("Figure e responsabilità della commessa")).toBeVisible();
+    expect(screen.getAllByText("Figure e responsabilità della commessa")).toHaveLength(1);
+  });
   it.each([false, true])("la squadra generale è indicata anche nella fase, mobile=%s, senza nuove righe ore o costi", mobile => {
     state.mobile = mobile;
     state.phases = [phase({status: "da_iniziare", assignments: [], start_date: "2026-10-20", end_date: "2026-10-23"})];

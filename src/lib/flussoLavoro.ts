@@ -30,7 +30,11 @@ export type AmbitoFlusso = "commessa" | "ticket";
  */
 export type EventoChiusura = "incasso_registrato";
 
-export const EVENTI_CHIUSURA: ReadonlyArray<{ value: EventoChiusura; label: string; spiegazione: string }> = [
+export const EVENTI_CHIUSURA: ReadonlyArray<{
+  value: EventoChiusura;
+  label: string;
+  spiegazione: string;
+}> = [
   {
     value: "incasso_registrato",
     label: "quando l'incasso è registrato",
@@ -69,9 +73,11 @@ export interface PassoFlusso {
   dopo_fase_lavorazione?: string | null;
   /** Posizione nel flusso (ordine delle fasi d'ufficio). */
   sort_order?: number | null;
+  office_stage?: string | null;
 }
 
 interface RigaTemplate {
+  office_stage: string | null;
   id: string;
   titolo: string;
   descrizione: string | null;
@@ -89,7 +95,7 @@ interface RigaTemplate {
 }
 
 const CAMPI_TEMPLATE =
-  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento, fase_raggiunta_id, activity_scope, dopo_fase_lavorazione, sort_order";
+  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento, fase_raggiunta_id, activity_scope, dopo_fase_lavorazione, sort_order, office_stage";
 
 /**
  * Legge il flusso configurato dall'azienda per questo ambito e questo vertical
@@ -110,10 +116,12 @@ export async function leggiFlussoAzienda(params: {
     .eq("attivo", true)
     .order("sort_order", { ascending: true });
   q = vertical ? q.eq("vertical", vertical) : q.is("vertical", null);
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) throw error;
 
   return ((data ?? []) as unknown as RigaTemplate[]).map((t) => ({
     id: t.id,
+    office_stage: t.office_stage,
     titolo: t.titolo,
     descrizione: t.descrizione ?? undefined,
     giorni_offset: Number(t.giorni_offset) || 0,
@@ -124,7 +132,10 @@ export async function leggiFlussoAzienda(params: {
     giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
     chiudi_su_evento: (t.chiudi_su_evento as EventoChiusura | null) ?? null,
     fase_raggiunta_id: t.fase_raggiunta_id ?? null,
-    activity_scope: t.activity_scope === "ufficio" || t.activity_scope === "cantiere" ? t.activity_scope : "generale",
+    activity_scope:
+      t.activity_scope === "ufficio" || t.activity_scope === "cantiere"
+        ? t.activity_scope
+        : "generale",
     dopo_fase_lavorazione: t.dopo_fase_lavorazione ?? null,
     sort_order: t.sort_order ?? null,
   }));
@@ -153,19 +164,31 @@ export interface ApplicaFlussoParams {
  * Idempotente: salta i titoli già presenti sull'entità. Se un passo dipende da
  * un titolo già esistente, si aggancia a quella attività invece di duplicarla.
  */
-export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ created: number }> {
+export async function applicaFlusso(
+  params: ApplicaFlussoParams,
+): Promise<{ created: number }> {
   const {
-    companyId, ambito, entitaId, vertical, baseDate, assignedTo,
-    passiPredefiniti, categoriaTask,
+    companyId,
+    ambito,
+    entitaId,
+    vertical,
+    baseDate,
+    assignedTo,
+    passiPredefiniti,
+    categoriaTask,
   } = params;
 
   // created_by è NOT NULL su tasks: serve l'utente corrente.
   const { data: auth } = await supabase.auth.getUser();
   const createdBy = auth?.user?.id;
-  if (!createdBy) throw new Error("Sessione scaduta: accedi di nuovo per applicare il flusso di lavoro.");
+  if (!createdBy)
+    throw new Error(
+      "Sessione scaduta: accedi di nuovo per applicare il flusso di lavoro.",
+    );
 
   const configurati = await leggiFlussoAzienda({ companyId, ambito, vertical });
-  const steps: PassoFlusso[] = configurati.length > 0 ? configurati : passiPredefiniti;
+  const steps: PassoFlusso[] =
+    configurati.length > 0 ? configurati : passiPredefiniti;
   if (steps.length === 0) return { created: 0 };
 
   // Un passo di ufficio nasce in carico al RESPONSABILE dell'ufficio: senza
@@ -173,16 +196,23 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
   // grosso delle scadute). Gli altri membri la vedono comunque e possono
   // prenderla: le policy "Membri ufficio …" su tasks servono a questo.
   const responsabilePerUfficio = new Map<string, string | null>();
-  const idUffici = Array.from(new Set(
-    steps.map((s) => s.assegna_a_ufficio_id).filter((v): v is string => !!v),
-  ));
+  const idUffici = Array.from(
+    new Set(
+      steps.map((s) => s.assegna_a_ufficio_id).filter((v): v is string => !!v),
+    ),
+  );
   if (idUffici.length > 0) {
-    const { data: uffici } = await supabase
+    const { data: uffici, error } = await supabase
       .from("company_uffici")
       .select("id, responsabile_id")
       .in("id", idUffici);
-    ((uffici ?? []) as unknown as Array<{ id: string; responsabile_id: string | null }>)
-      .forEach((u) => responsabilePerUfficio.set(u.id, u.responsabile_id));
+    if (error) throw error;
+    (
+      (uffici ?? []) as unknown as Array<{
+        id: string;
+        responsabile_id: string | null;
+      }>
+    ).forEach((u) => responsabilePerUfficio.set(u.id, u.responsabile_id));
   }
 
   const colonnaEntita = ambito === "ticket" ? "ticket_id" : "order_id";
@@ -190,30 +220,47 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
   // Fasi del cantiere della commessa ancora aperte: un passo può aspettarne una per nome.
   const faseApertaPerNome = new Map<string, string>();
   if (ambito === "commessa" && steps.some((s) => s.dopo_fase_lavorazione)) {
-    const { data: fasi } = await supabase
+    const { data: fasi, error } = await supabase
       .from("order_work_phases")
       .select("id, name, status, position")
       .eq("order_id", entitaId)
-      .neq("status", "completata")
       .order("position", { ascending: true });
-    ((fasi ?? []) as unknown as Array<{ id: string; name: string }>).forEach((f) => {
-      const k = f.name.trim().toLowerCase();
-      if (!faseApertaPerNome.has(k)) faseApertaPerNome.set(k, f.id);
-    });
+    if (error) throw error;
+    (
+      (fasi ?? []) as unknown as Array<{
+        id: string;
+        name: string;
+        status: string;
+      }>
+    )
+      .filter((f) => f.status !== "completata")
+      .forEach((f) => {
+        const k = f.name.trim().toLowerCase();
+        if (!faseApertaPerNome.has(k)) faseApertaPerNome.set(k, f.id);
+      });
   }
   const faseAttesa = (s: PassoFlusso): string | null =>
-    s.dopo_fase_lavorazione ? faseApertaPerNome.get(s.dopo_fase_lavorazione.trim().toLowerCase()) ?? null : null;
+    s.dopo_fase_lavorazione
+      ? (faseApertaPerNome.get(s.dopo_fase_lavorazione.trim().toLowerCase()) ??
+        null)
+      : null;
 
   // Titoli già presenti: non si duplicano, ma servono come ancora per i passi
   // che dipendono da un pezzo di flusso creato in un giro precedente.
-  const { data: esistenti } = await supabase
+  const { data: esistenti, error: existingError } = await supabase
     .from("tasks")
-    .select("id, title")
+    .select("id, title, status")
     .eq("company_id", companyId)
     .eq(colonnaEntita, entitaId);
+  if (existingError) throw existingError;
+  const completed = new Set(
+    (esistenti ?? []).filter((t) => t.status === "completata").map((t) => t.id),
+  );
   const norm = (t: string) => t.trim().toLowerCase();
   const taskIdPerTitolo = new Map<string, string>();
-  ((esistenti ?? []) as unknown as Array<{ id: string; title: string }>).forEach((t) => {
+  (
+    (esistenti ?? []) as unknown as Array<{ id: string; title: string }>
+  ).forEach((t) => {
     taskIdPerTitolo.set(norm(t.title ?? ""), t.id);
   });
 
@@ -223,7 +270,65 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
   // Le dipendenze del template sono fra righe di template; le attività vivono
   // per titolo: serve il ponte fra i due mondi.
   const titoloPerStepId = new Map<string, string>();
-  steps.forEach((s) => { if (s.id) titoloPerStepId.set(s.id, s.titolo); });
+  steps.forEach((s) => {
+    if (s.id) titoloPerStepId.set(s.id, s.titolo);
+  });
+  // Validate the graph before the first insert: invalid dependencies must not
+  // silently become parallel tasks or create a partially applied invalid flow.
+  const byId = new Map(steps.filter((s) => s.id).map((s) => [s.id!, s]));
+  const visiting = new Set<string>(),
+    visited = new Set<string>();
+  const sortedSteps: PassoFlusso[] = [];
+  const visit = (id: string) => {
+    if (visiting.has(id))
+      throw Error("Il modello contiene una dipendenza circolare.");
+    if (visited.has(id)) return;
+    const step = byId.get(id);
+    if (!step) throw Error("Una dipendenza del modello non è disponibile.");
+    visiting.add(id);
+    if (step.dipende_da_id) visit(step.dipende_da_id);
+    visiting.delete(id);
+    visited.add(id);
+    sortedSteps.push(step);
+  };
+  for (const step of steps) if (step.id) visit(step.id);
+  if (ambito === "commessa") {
+    // One database transaction: an invalid assignee or a failed dependency
+    // rolls back every task, including earlier parallel roots.
+    const ordered = [...sortedSteps, ...steps.filter((s) => !s.id)];
+    const payload = ordered.map((s, i) => ({
+      title: s.titolo,
+      notes: s.descrizione ?? null,
+      days: s.giorni_offset,
+      release_days: s.giorni_dopo_sblocco ?? 0,
+      activity_scope:
+        s.activity_scope ?? (s.assegna_a_ufficio_id ? "ufficio" : "generale"),
+      office_stage: s.office_stage ?? null,
+      priority: s.priorita,
+      sort_order: s.sort_order ?? i,
+      ufficio_id: s.assegna_a_ufficio_id ?? null,
+      assigned_to: s.assegna_a_ufficio_id
+        ? (responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null)
+        : (s.assegna_a_utente ?? assignedTo ?? createdBy),
+      predecessor_title: s.dipende_da_id
+        ? (titoloPerStepId.get(s.dipende_da_id) ?? null)
+        : null,
+      phase_name: s.dopo_fase_lavorazione ?? null,
+      close_event: s.chiudi_su_evento ?? null,
+      reached_status_id: s.fase_raggiunta_id ?? null,
+    }));
+    const { data, error } = await supabase.rpc(
+      "applica_attivita_commessa_atomico" as never,
+      {
+        p_company_id: companyId,
+        p_order_id: entitaId,
+        p_rows: payload,
+        p_base_date: format(baseDate, "yyyy-MM-dd"),
+      } as never,
+    );
+    if (error) throw error;
+    return { created: Number(data) || 0 };
+  }
 
   /** id dell'attività che deve chiudersi prima, se già nota. */
   const predecessore = (s: PassoFlusso): string | null => {
@@ -234,18 +339,22 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
   };
   /** true se il passo aspetta qualcuno che non è ancora stato creato. */
   const attendePredecessore = (s: PassoFlusso) =>
-    !!s.dipende_da_id && titoloPerStepId.has(s.dipende_da_id) && predecessore(s) === null;
+    !!s.dipende_da_id &&
+    titoloPerStepId.has(s.dipende_da_id) &&
+    predecessore(s) === null;
 
   const scadenzaIniziale = (s: PassoFlusso) =>
     format(addDays(baseDate, s.giorni_offset), "yyyy-MM-dd");
 
   const rigaPerStep = (s: PassoFlusso, posizione: number) => {
-    const bloccataDa = predecessore(s);
+    const prior = predecessore(s);
+    const bloccataDa = prior && !completed.has(prior) ? prior : null;
     // Aspetta una fase del cantiere solo se non aspetta già un'altra attività.
     const fase = bloccataDa ? null : faseAttesa(s);
     const attende = !!bloccataDa || !!fase;
     return {
       company_id: companyId,
+      office_stage: s.office_stage ?? null,
       [colonnaEntita]: entitaId,
       title: s.titolo,
       notes: s.descrizione ?? null,
@@ -255,8 +364,8 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
       due_date: attende ? null : scadenzaIniziale(s),
       bloccata_da_task_id: bloccataDa,
       attende_fase_id: fase,
-      sblocco_giorni: attende ? s.giorni_dopo_sblocco ?? 0 : null,
-      activity_scope: ambito === "commessa" ? s.activity_scope ?? (s.assegna_a_ufficio_id ? "ufficio" : "generale") : "generale",
+      sblocco_giorni: attende ? (s.giorni_dopo_sblocco ?? 0) : null,
+      activity_scope: "generale",
       sort_order: s.sort_order ?? posizione,
       priority: s.priorita,
       category: categoriaTask,
@@ -267,43 +376,35 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
       // Prima nascevano senza assegnatario: in produzione erano il grosso delle
       // attività scadute che nessuno vedeva come proprie.
       assigned_to: s.assegna_a_ufficio_id
-        ? responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null
-        : s.assegna_a_utente ?? assignedTo ?? createdBy,
+        ? (responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null)
+        : (s.assegna_a_utente ?? assignedTo ?? createdBy),
       created_by: createdBy,
       // La fase la avanza il DB alla chiusura (trigger avanza_fase_da_passo_chiuso).
-      fase_al_completamento_id: ambito === "commessa" ? s.fase_raggiunta_id ?? null : null,
+      fase_al_completamento_id: null as string | null,
     };
   };
 
-  // Si crea a ondate: prima i passi che possono partire, poi quelli che
-  // aspettavano loro. Il tetto sul numero di giri chiude il caso limite di una
-  // dipendenza che punta a un passo disattivato (che a quel punto parte subito).
+  // Validated graph: create predecessor ids first, then the waiting tasks.
   let rimasti = daCreare;
   let creati = 0;
   for (let giro = 0; giro < steps.length + 1 && rimasti.length > 0; giro++) {
     const ondata = rimasti.filter((s) => !attendePredecessore(s));
 
-    // Nessuno può partire (dipendenze non risolvibili): si sbloccano tutti,
-    // meglio un flusso piatto che attività ferme per sempre.
-    const daInserire = ondata.length > 0 ? ondata : rimasti;
-    const forzaRoot = ondata.length === 0;
+    if (!ondata.length)
+      throw Error(
+        "Non posso applicare il modello: dipendenze non risolvibili.",
+      );
+    const daInserire = ondata;
 
     const { data: inserite, error } = await supabase
       .from("tasks")
-      .insert(daInserire.map((s) => (forzaRoot
-        ? {
-            ...rigaPerStep(s, steps.indexOf(s)),
-            status: "da_fare",
-            bloccata_da_task_id: null,
-            attende_fase_id: null,
-            sblocco_giorni: null,
-            due_date: scadenzaIniziale(s),
-          }
-        : rigaPerStep(s, steps.indexOf(s)))) as never)
+      .insert(daInserire.map((s) => rigaPerStep(s, steps.indexOf(s))) as never)
       .select("id, title");
     if (error) throw error;
 
-    ((inserite ?? []) as unknown as Array<{ id: string; title: string }>).forEach((t) => {
+    (
+      (inserite ?? []) as unknown as Array<{ id: string; title: string }>
+    ).forEach((t) => {
       taskIdPerTitolo.set(norm(t.title ?? ""), t.id);
     });
     creati += daInserire.length;

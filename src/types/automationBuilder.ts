@@ -381,6 +381,13 @@ export function getFieldsForCategory(category: string): TriggerFieldDef[] {
     case "quote":        return QUOTE_TRIGGER_FIELDS;
     case "maintenance":  return MAINTENANCE_TRIGGER_FIELDS; // Sprint 2B — nuovo
     case "warehouse":    return WAREHOUSE_TRIGGER_FIELDS_V2;// Sprint 2B — extended
+    case "warehouse_movement": return [];
+    case "leave_request": return [];
+    case "employee": return [
+      {key:"first_name",label:"Nome dipendente",type:"text",group:"Dipendente"},
+      {key:"last_name",label:"Cognome dipendente",type:"text",group:"Dipendente"},
+      {key:"email",label:"Email dipendente",type:"text",group:"Dipendente"},
+    ];
     default:             return CONTACT_TRIGGER_FIELDS;
   }
 }

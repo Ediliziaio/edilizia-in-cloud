@@ -30,6 +30,8 @@ export interface ForecastMovement {
   source: string;
   href: string;
   estimated: boolean;
+  /** Gross amount before the forecast-only bank withholding assumption, never an actual tax receipt. */
+  grossCents?: number;
   expectedDate?: string | null;
   note?: string;
   orderId?: string | null;
@@ -250,7 +252,12 @@ export interface ForecastSources {
   /** Documenti con l'IVA dei mesi recenti, per la stima della liquidazione. */
   vatDocuments: VatDocumentRow[];
   /** F24 IVA già registrati (codici 6001-6012): il loro mese non si stima. */
-  vatF24: { anno: number; mese: number | null; tributo_code: string | null }[];
+  vatF24: {
+    anno: number;
+    mese: number | null;
+    tributo_code: string | null;
+    stato?: string;
+  }[];
 }
 /** Una fattura emessa o ricevuta ridotta a ciò che serve alla stima IVA. */
 export interface VatDocumentRow {
@@ -445,7 +452,7 @@ export function buildForecastLedger(
         (creditedTo.get(nc.credited_invoice_id) ?? 0) + toCents(nc.total),
       );
   const noteCollegate = (id: string | undefined | null): number =>
-    id ? creditedTo.get(id) ?? 0 : 0;
+    id ? (creditedTo.get(id) ?? 0) : 0;
   const invoiceDeadlines = new Set(
     s.deadlines
       .filter((d) => d.invoice_id && !closed(d.status))
@@ -475,6 +482,17 @@ export function buildForecastLedger(
     return [o.order_code, client].filter(Boolean).join(" · ") || undefined;
   };
   const add = (m: ForecastMovement, paid = false) => {
+    if (!paid && m.grossCents != null && m.grossCents !== m.cents) {
+      m = {
+        ...m,
+        note: [
+          m.note,
+          `Netto di cassa atteso: lordo ${(m.grossCents / 100).toFixed(2)} EUR meno ritenuta bancaria prevista ${((m.grossCents - m.cents) / 100).toFixed(2)} EUR. Ipotesi della commessa con bonus, non ritenuta effettivamente subita.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      };
+    }
     if (m.cents > 0)
       (paid ? collected : movements).push({
         ...m,
@@ -490,6 +508,14 @@ export function buildForecastLedger(
     orderId && orderMap.get(orderId)?.has_building_bonus && !financing
       ? Math.round(cents * withholdingFactor)
       : cents;
+  const incomeCash = (
+    gross: number,
+    orderId?: string | null,
+    financing = false,
+  ) => {
+    const cents = netIncome(gross, orderId, financing);
+    return { cents, ...(cents !== gross ? { grossCents: gross } : {}) };
+  };
   // Rate e incassi con la regola della scheda commessa (saldo = residuo, varianti approvate, piani
   // storici). Il piano salvato serve solo a riconoscere le rate che hanno già la loro fattura o scadenza.
   const rate = new Map(s.installments.map((r) => [r.id, r]));
@@ -497,7 +523,8 @@ export function buildForecastLedger(
     !!r &&
     ((!!r.invoice_id &&
       (invoices.has(r.invoice_id) || invoiceDeadlines.has(r.invoice_id))) ||
-      (!!r.documento_fiscale_id && nativeDeadlines.has(r.documento_fiscale_id)));
+      (!!r.documento_fiscale_id &&
+        nativeDeadlines.has(r.documento_fiscale_id)));
   const countedRate = s.rateDaIncassare.filter((d) => {
     const rata = rate.get(d.id);
     return !(
@@ -532,7 +559,11 @@ export function buildForecastLedger(
     if (invoice && (closed(invoice.status) || invoice.deleted_at)) continue;
     // La scadenza di una nota di credito collegata a una fattura non è un
     // rimborso in uscita: è una riduzione del credito, già tolta sotto.
-    if (invoice && creditNote(invoice.document_type) && invoice.credited_invoice_id)
+    if (
+      invoice &&
+      creditNote(invoice.document_type) &&
+      invoice.credited_invoice_id
+    )
       continue;
     // Il dovuto della fattura è al netto delle note di credito collegate.
     const noteFattura =
@@ -561,11 +592,15 @@ export function buildForecastLedger(
             ? "altri"
             : "fornitori",
       direction: d.direction === "entrata" ? "in" : "out",
-      cents: d.direction === "entrata" ? netIncome(amount, d.order_id) : amount,
+      ...(d.direction === "entrata"
+        ? incomeCash(amount, d.order_id ?? invoice?.order_id)
+        : { cents: amount }),
       date: d.due_date,
       source: "Scadenzario",
       href: "/azienda/scadenzario",
-      sourceCategory: d.cost_id ? costById.get(d.cost_id)?.category ?? null : null,
+      sourceCategory: d.cost_id
+        ? (costById.get(d.cost_id)?.category ?? null)
+        : null,
       orderId: d.order_id ?? invoice?.order_id,
       estimated: !!d.is_previsionale,
       ...(duplicate ? { possibleDuplicate: true, note: duplicateNote } : {}),
@@ -588,9 +623,9 @@ export function buildForecastLedger(
         counterparty: i.client_company_name ?? "",
         category: "clienti",
         direction: isCredit ? "out" : "in",
-        cents: isCredit
-          ? Math.max(0, toCents(i.total) - toCents(i.paid_amount))
-          : netIncome(residuoCents, i.order_id),
+        ...(isCredit
+          ? { cents: Math.max(0, toCents(i.total) - toCents(i.paid_amount)) }
+          : incomeCash(residuoCents, i.order_id)),
         date: i.due_date,
         source: "Fattura",
         href: `/azienda/fatturazione/${i.id}`,
@@ -637,7 +672,7 @@ export function buildForecastLedger(
         order?.client_name || order?.client_company || order?.order_code || "",
       category: "clienti",
       direction: "in",
-      cents: netIncome(toCents(d.amount), d.order_id, !!d.finanziamento),
+      ...incomeCash(toCents(d.amount), d.order_id, !!d.finanziamento),
       date: d.expected_date,
       expectedDate: validDay(d.expected_date),
       source: "Rata commessa",
@@ -655,7 +690,8 @@ export function buildForecastLedger(
     // L'incasso registrato in Prima Nota vale da solo: la rata non si conta una seconda volta.
     if (
       (i.installment_id && notedInstallments.has(i.installment_id)) ||
-      (documento && (notedNative.has(documento) || nativeDeadlines.has(documento)))
+      (documento &&
+        (notedNative.has(documento) || nativeDeadlines.has(documento)))
     )
       return;
     add(
@@ -663,7 +699,10 @@ export function buildForecastLedger(
         id: `incasso-rata:${i.installment_id ?? i.order_id}:${n}`,
         description: rata?.label || rata?.type || "Rata commessa",
         counterparty:
-          order?.client_name || order?.client_company || order?.order_code || "",
+          order?.client_name ||
+          order?.client_company ||
+          order?.order_code ||
+          "",
         category: "clienti",
         direction: "in",
         cents: toCents(i.importo),
@@ -1142,7 +1181,10 @@ export function buildForecastLedger(
   }
   const installmentsByDoc = new Map<string, InstallmentRow>();
   for (const r of s.installments)
-    if (r.documento_fiscale_id && !installmentsByDoc.has(r.documento_fiscale_id))
+    if (
+      r.documento_fiscale_id &&
+      !installmentsByDoc.has(r.documento_fiscale_id)
+    )
       installmentsByDoc.set(r.documento_fiscale_id, r);
   for (const n of s.notes)
     if (n.direction === "entrata") {
@@ -1200,6 +1242,27 @@ export function vatEstimates(
   today: string,
 ): { movements: ForecastMovement[]; warnings: string[] } {
   if (!s.vatDocuments.length) return { movements: [], warnings: [] };
+  const activeF24 = s.vatF24.filter((f) => f.stato !== "annullato");
+  if (activeF24.some((f) => /^603[1-4]$/.test(f.tributo_code ?? "")))
+    return {
+      movements: [],
+      warnings: [
+        "Stima IVA sospesa: sono presenti F24 trimestrali. Usa gli importi e le scadenze verificati dal commercialista, senza applicare il calendario mensile.",
+      ],
+    };
+  if (
+    activeF24.some(
+      (f) =>
+        VAT_F24_CODES.test(f.tributo_code ?? "") &&
+        (!f.mese || f.mese !== Number(f.tributo_code!.slice(2))),
+    )
+  )
+    return {
+      movements: [],
+      warnings: [
+        "Stima IVA sospesa: codice e mese degli F24 non sono coerenti o completi. Verifica le registrazioni fiscali prima di stimare nuove uscite.",
+      ],
+    };
   const months = new Map<
     string,
     { esterna: number; nativa: number; hasEsterna: boolean; acquisti: number }
@@ -1223,7 +1286,7 @@ export function vatEstimates(
     months.set(key, m);
   }
   const registered = new Set(
-    s.vatF24
+    activeF24
       .filter((f) => VAT_F24_CODES.test(f.tributo_code ?? "") && f.mese)
       .map((f) => `${f.anno}-${String(f.mese).padStart(2, "0")}`),
   );
@@ -1232,8 +1295,7 @@ export function vatEstimates(
   for (const key of [...months.keys()].sort()) {
     if (key > today.slice(0, 7)) break;
     const m = months.get(key)!;
-    const balance =
-      (m.hasEsterna ? m.esterna : m.nativa) - m.acquisti - credit;
+    const balance = (m.hasEsterna ? m.esterna : m.nativa) - m.acquisti - credit;
     credit = balance < 0 ? -balance : 0;
     const [year, month] = key.split("-").map(Number);
     const due = nextWorkingDay(dayKey(new Date(year, month, 16)));
@@ -1267,6 +1329,8 @@ export interface ForecastScenario {
   /** Le uscite scadute e non segnate pagate entrano oggi solo se lo chiedi: spesso sono già pagate. */
   includeOverdueExpense?: boolean;
   includeEstimates: boolean;
+  /** Explicit opt-in in the workspace; legacy callers retain their behaviour when undefined. */
+  includeVatEstimates?: boolean;
   /** Solo simulazione: data spostata a mano per un singolo incasso (id movimento → giorno). */
   dateOverrides?: Record<string, string>;
 }
@@ -1338,7 +1402,11 @@ export function projectForecast(
       undated.push(m);
       continue;
     }
-    if (m.estimated && !scenario.includeEstimates) {
+    if (
+      m.estimated &&
+      (!scenario.includeEstimates ||
+        (m.source === "Stima IVA" && scenario.includeVatEstimates === false))
+    ) {
       excludedEstimates.push(m);
       continue;
     }

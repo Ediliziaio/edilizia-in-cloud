@@ -75498,6 +75498,7 @@ export type Database = {
       }
       sal_subappaltatori: {
         Row: {
+          pagato_registrato: number | null
           attachment_url: string | null
           company_id: string
           contratto_id: string
@@ -75519,6 +75520,7 @@ export type Database = {
           subappaltatore_id: string
         }
         Insert: {
+          pagato_registrato?: number | null
           attachment_url?: string | null
           company_id: string
           contratto_id: string
@@ -75540,6 +75542,7 @@ export type Database = {
           subappaltatore_id: string
         }
         Update: {
+          pagato_registrato?: number | null
           attachment_url?: string | null
           company_id?: string
           contratto_id?: string
@@ -85000,6 +85003,7 @@ export type Database = {
           can_view_sms_marketing: boolean | null
           can_view_sopralluoghi: boolean
           can_view_subappaltatori: boolean | null
+          can_view_subappaltatori_amministrazione: boolean
           can_view_team_tasks: boolean
           can_view_tesoreria: boolean
           can_view_tickets: boolean | null
@@ -85108,6 +85112,7 @@ export type Database = {
           can_view_sms_marketing?: boolean | null
           can_view_sopralluoghi?: boolean
           can_view_subappaltatori?: boolean | null
+          can_view_subappaltatori_amministrazione?: boolean
           can_view_team_tasks?: boolean
           can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null
@@ -85216,6 +85221,7 @@ export type Database = {
           can_view_sms_marketing?: boolean | null
           can_view_sopralluoghi?: boolean
           can_view_subappaltatori?: boolean | null
+          can_view_subappaltatori_amministrazione?: boolean
           can_view_team_tasks?: boolean
           can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null

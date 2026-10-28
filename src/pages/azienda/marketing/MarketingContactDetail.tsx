@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
+import { CustomFieldValueEditor } from "@/components/shared/CustomFieldValueEditor";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
@@ -1366,13 +1367,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       {customFields
                         .filter((cf: any) => !fieldSearch || cf.name.toLowerCase().includes(fieldSearch.toLowerCase()))
                         .map((cf: any) => (
-                          <InlineField
-                            key={cf.id}
+                          <CustomFieldValueEditor
+                            key={`${companyId}:${id}:${cf.id}`}
+                            fieldId={cf.id}
                             label={cf.name}
                             value={getFieldValue(cf.id)}
-                            onSave={(v) => updateCustomField.mutate({ fieldId: cf.id, value: v })}
-                            type={cf.field_type === "select" ? "select" : cf.field_type === "date" ? "date" : cf.field_type === "number" ? "number" : "text"}
-                            options={cf.field_type === "select" ? cf.options : undefined}
+                            onSave={(v) => updateCustomField.mutateAsync({ fieldId: cf.id, value: v })}
+                            type={cf.field_type}
+                            options={cf.options}
                             disabled={!canEditContacts}
                           />
                         ))}

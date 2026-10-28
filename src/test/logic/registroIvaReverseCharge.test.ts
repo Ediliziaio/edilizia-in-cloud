@@ -1,29 +1,35 @@
-/** Reverse charge nel registro IVA (21/10/2026): l'IVA integrata entra nei due lati. */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-
-const radice = join(__dirname, "../../..");
-const pagina = readFileSync(join(radice, "src/pages/azienda/fatturazione/RegistroIVA.tsx"), "utf8");
-const migrazione = readFileSync(join(radice, "supabase/migrations/20281021160000_reverse_charge_ricevute_nel_registro_iva.sql"), "utf8");
-const correzione = readFileSync(join(radice, "supabase/migrations/20281021160500_reverse_charge_imponibile_acquisti_una_volta.sql"), "utf8");
-
-describe("registro IVA: reverse charge", () => {
-  it("le ricevute N6.x si integrano con l'aliquota della fattura, 22% se non indicata", () => {
-    expect(pagina).toContain('String(natura || "").toUpperCase().startsWith("N6")');
-    expect(pagina).toContain("Number(doc.aliquota_reverse_charge ?? 22)");
-    expect(migrazione).toContain("coalesce(f.aliquota_reverse_charge, 22) AS aliquota_rc");
-    expect(migrazione).toContain("LIKE 'N6%'");
-  });
-  it("fra le vendite con imponibile e imposta, fra gli acquisti solo l'imposta", () => {
-    expect(migrazione).toContain("SELECT aliquota, 'I', imponibile, imposta FROM rc");
-    expect(correzione).toContain("SELECT aliquota, 0::numeric, imposta FROM rc");
-  });
-  it("la TD16 conta fra le vendite e la sua IVA anche fra gli acquisti", () => {
-    expect(pagina).toContain('"reverse_charge_interno"];');
-    expect(pagina).toContain("TIPI_INTEGRAZIONE.includes(doc.tipo)");
-  });
-  it("l'aliquota si cambia dalla riga, per fattura", () => {
-    expect(pagina).toContain("aliquota_reverse_charge: aliquota");
-  });
+import { it, expect } from "vitest";
+import {
+  fiscalRows,
+  type FiscalDocument,
+} from "@/lib/fatturazione/fiscalWorkspace";
+const purchase = (rate: unknown): FiscalDocument => ({
+  id: "r",
+  numero_fattura: "RC/1",
+  data_fattura: "2026-10-01",
+  imponibile_totale: 100,
+  iva_totale: 0,
+  totale_documento: 100,
+  aliquota_reverse_charge: rate,
+  riepilogo_iva: [{ aliquota: 0, imponibile: 100, imposta: 0, natura: "N6.3" }],
+});
+it("does not assume 22% when the reverse charge rate is missing", () => {
+  expect(fiscalRows([], [purchase(null)]).some((r) => r.synthetic)).toBe(false);
+});
+it("a stated 10% generates two explicit projections, not registered invoices", () => {
+  const rows = fiscalRows([], [purchase(10)]);
+  expect(rows.filter((r) => r.synthetic).map((r) => r.tax)).toEqual([
+    1000, 1000,
+  ]);
+  expect(rows.find((r) => r.id.startsWith("rc-a:"))?.base).toBe(0);
+  expect(rows.every((r) => r.documentId === "r")).toBe(true);
+});
+it("receipt credit notes reverse both projections", () => {
+  const p = purchase(22);
+  p.tipo_documento = "TD04";
+  expect(
+    fiscalRows([], [p])
+      .filter((r) => r.synthetic)
+      .map((r) => r.tax),
+  ).toEqual([-2200, -2200]);
 });

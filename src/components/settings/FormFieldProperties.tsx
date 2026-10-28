@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { normalizeLeadFormOptions, sanitizeLeadFormFieldName } from "@/lib/formBuilder";
+import { useEntityCustomFields } from "@/hooks/useEntityCustomFields";
+import { compatibleFormDestination } from "../../../supabase/functions/_shared/formCustomFields";
 
 const CONTACT_MAPPINGS = [
   { value: "", label: "Non salvare nel contatto" },
@@ -35,6 +37,7 @@ interface Props {
 }
 
 export function FormFieldProperties({ field, onUpdate, onDelete, disabled = false }: Props) {
+  const custom = useEntityCustomFields("contact");
   // Ogni etichetta è collegata al suo campo: chi usa la tastiera o il lettore di schermo sa cosa sta compilando.
   const id = useId();
   const idTesto = `${id}-testo`;
@@ -181,8 +184,12 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
               {CONTACT_MAPPINGS.map((m) => (
                 <SelectItem key={m.value} value={m.value || "none"}>{m.label}</SelectItem>
               ))}
+              {(custom.data ?? []).filter(f => compatibleFormDestination(field.type, f.field_type)).map(f => <SelectItem key={f.id} value={`cf:${f.id}`}>Campo personalizzato · {f.name}</SelectItem>)}
+              {field.mapping?.startsWith("cf:") && !(custom.data ?? []).some(f => `cf:${f.id}` === field.mapping && compatibleFormDestination(field.type, f.field_type)) && <SelectItem value={field.mapping} disabled>Destinazione non disponibile · da verificare</SelectItem>}
             </SelectContent>
           </Select>
+          {custom.isError && <p role="alert" className="text-xs text-destructive">Impossibile caricare le destinazioni personalizzate. Le mappature esistenti non sono state cancellate.</p>}
+          {field.mapping?.startsWith("cf:") && <p className="text-xs text-muted-foreground">Collegamento tramite ID stabile, senza duplicare il campo. Richiede il servizio di invio moduli aggiornato; non sostituisce email o telefono di contatto.</p>}
         </div>
       )}
 

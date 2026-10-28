@@ -60,6 +60,10 @@ describe("quando e cosa fare", () => {
 });
 
 describe("filtri, conteggi e ordine", () => {
+  it("bozze ferme mostra solo le bozze senza data più vecchie di 14 giorni", () => {
+    const righe = [s({ code: "vecchia", created_at: giorno(-30) }), s({ code: "recente", created_at: giorno(-2) }), s({ code: "pianificata", created_at: giorno(-30), scheduled_at: giorno(2) }), s({ code: "archiviata", status: "archived", created_at: giorno(-30) })];
+    expect(filtraBacheca(righe, { soloBozzeFerme: true }, adesso).map(s => s.code)).toEqual(["vecchia"]);
+  });
   const righe = [
     s({ code: "A", scheduled_at: giorno(0, 15), technician_id: "t1", cliente_nome: "Mario Rossi", cliente_telefono: "333111" }),
     s({ code: "B", scheduled_at: giorno(4), technician_id: "t2", cliente_nome: "Anna Verdi" }),

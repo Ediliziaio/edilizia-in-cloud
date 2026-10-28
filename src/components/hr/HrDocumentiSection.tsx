@@ -1,3 +1,4 @@
+import { QualificheAddetto } from "@/components/sicurezza/QualificheAddetto";
 /**
  * HrDocumentiSection — documenti, certificati e scadenze di un dipendente.
  * Contratto, visita medica, corsi sicurezza, idoneità, patente, DURC... con
@@ -23,6 +24,8 @@ import {
 import { FileText, Plus, Download, Pencil, Trash2, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -35,7 +38,9 @@ interface Props { profiloId: string; companyId: string; }
 const EMPTY: Partial<HrDocumento> = { categoria: "contratto", alert_giorni_prima: 30 };
 
 export function HrDocumentiSection({ profiloId, companyId }: Props) {
-  const { data: docs = [], isLoading } = useHrDocumenti(profiloId);
+  const { data: docs = [], isLoading, isError, refetch } = useHrDocumenti(profiloId);
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   const isMobile = useIsMobile();
   const upsert = useUpsertHrDocumento(profiloId);
   const del = useDeleteHrDocumento(profiloId);
@@ -56,9 +61,10 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
   };
 
   const save = async () => {
+    if (!canEdit) return;
     try {
       setUploading(true);
-      let patch: Partial<HrDocumento> = { ...form };
+      const patch: Partial<HrDocumento> = { ...form };
       if (file) {
         const up = await uploadHrFile(companyId, profiloId, file);
         patch.file_path = up.path; patch.file_name = up.name;
@@ -79,15 +85,16 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
 
   return (
     <div className="space-y-3">
+      <QualificheAddetto key={companyId+profiloId} companyId={companyId} tipo="hr" personaId={profiloId} />
       {/* Mobile: niente titolo (lo dice già la scheda), il bottone riempie la riga. */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-muted-foreground max-sm:hidden">DOCUMENTI & SCADENZE</h4>
-        <Button size="sm" variant="outline" onClick={openNew} className="max-sm:flex-1"><Plus className="h-4 w-4 mr-1" />Aggiungi</Button>
+        <Button disabled={!canEdit || isError} size="sm" variant="outline" onClick={openNew} className="max-sm:flex-1"><Plus className="h-4 w-4 mr-1" />Aggiungi</Button>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-      ) : docs.length === 0 ? (
+      ) : isError ? <HrQueryError label="Documenti della persona non disponibili" onRetry={refetch} /> : docs.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground max-sm:py-2 max-sm:text-xs">
           <FileText className="h-8 w-8 mx-auto mb-2 opacity-40 max-sm:hidden" />
           <span className="max-sm:hidden">Nessun documento. Carica contratto, visita medica, corsi sicurezza…</span>
@@ -104,7 +111,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
               <div
                 key={d.id}
                 className="flex items-start gap-2 rounded-lg border p-3 max-sm:items-center max-sm:rounded-none max-sm:border-0 max-sm:px-3 max-sm:py-2.5 max-sm:active:bg-muted"
-                onClick={isMobile ? () => openEdit(d) : undefined}
+                onClick={isMobile && canEdit ? () => openEdit(d) : undefined}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
@@ -133,12 +140,12 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
                       <Download className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(d)} title="Modifica">
+                  <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(d)} title="Modifica">
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
+                      <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -162,7 +169,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open && canEdit} onOpenChange={setOpen}>
         {/* Mobile: categoria, titolo, date e file; ente, preavviso (resta quello
             della categoria) e note si compilano al computer. */}
         <DialogContent className="max-w-md">
@@ -212,7 +219,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} className="max-sm:hidden">Annulla</Button>
-            <Button onClick={save} disabled={uploading || upsert.isPending}>
+            <Button onClick={save} disabled={!canEdit || uploading || upsert.isPending}>
               {(uploading || upsert.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salva
             </Button>
           </DialogFooter>

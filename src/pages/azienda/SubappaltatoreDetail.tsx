@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
+import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
+import { SchedaCommessaDialog } from "@/components/sicurezza/SchedaCommessaDialog";
+import { PercorsiSubappaltatore } from "@/components/subappaltatori/PercorsiSubappaltatore";
+import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureSubDialog";
+import { FiscalReleaseDialog } from "@/components/fatturazione/FiscalReleaseDialog";
+import { VerbaleSalSubDialog } from "@/components/subappaltatori/VerbaleSalSubDialog";
+import { ContestoSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
+import { ImportaArchivioFascicolo } from "@/components/sicurezza/ImportaArchivioFascicolo";
+import { DocumentiMensiliSub } from "@/components/subappaltatori/DocumentiMensiliSub";
+import { SubcontractorSupplierLink } from "@/components/suppliers/SubcontractorSupplierLink";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format, differenceInDays, parseISO } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +38,8 @@ import {
   Alert, AlertDescription,
 } from '@/components/ui/alert';
 import {
-  ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
-  Check, Upload, Trash2, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
+  ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, ExternalLink,
+  Upload, Trash2, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
 } from 'lucide-react';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 import type {
@@ -41,13 +54,16 @@ import { extractDurcExpiryFromPdf } from '@/lib/sicurezza/durcExpiry';
 import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialog';
 import { ContrattiSubappalto, LavoriSubappaltatore, chiaviContratti, useContrattiSubappaltatore, type ContrattoCompleto } from '@/components/subappaltatori/ContrattiSubappalto';
 import { parseDecimalIT } from '@/lib/parseDecimalIT';
+import { OperaiSubappaltatore } from '@/components/subappaltatori/OperaiSubappaltatore';
+import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
+import { FascicoloDocumenti } from '@/components/sicurezza/FascicoloDocumenti';
 
 /** Con più contratti (una commessa ciascuno), su quale si guardano SAL e ritenute. */
 function SceltaContratto({ contratti, valore, onCambia }: { contratti: ContrattoCompleto[]; valore: string; onCambia: (id: string) => void }) {
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
       <span className="text-muted-foreground">Contratto:</span>
-      <select className="h-9 rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
+      <select className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
         {contratti.map((c) => (
           <option key={c.id} value={c.id}>{[c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || 'Contratto'}</option>
         ))}
@@ -73,17 +89,6 @@ function DurcBadge({ scadenza, hasDoc }: { scadenza: string | null; hasDoc?: boo
   return <Badge className="bg-green-600 text-white">DURC OK</Badge>;
 }
 
-function SALStatoBadge({ stato }: { stato: StatoSALSub }) {
-  const map: Record<StatoSALSub, { label: string; className: string }> = {
-    ricevuto:   { label: 'Ricevuto',   className: 'bg-blue-500 text-white' },
-    verificato: { label: 'Verificato', className: 'bg-amber-500 text-white' },
-    pagato:     { label: 'Pagato',     className: 'bg-green-600 text-white' },
-    contestato: { label: 'Contestato', className: 'bg-red-600 text-white' },
-  };
-  const cfg = map[stato];
-  return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
-}
-
 // TIPO_DOC_LABELS e DOCUMENT_BUCKET sono definiti in
 // '@/lib/sicurezza/bulkDocumenti' e importati sopra (condivisi col
 // caricamento massivo BulkDocumentiUploadDialog).
@@ -100,43 +105,50 @@ function isMissingCampoLinkColumn(error: unknown) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function SubappaltatoreDetail() {
+  const schedaCommessa = useContext(ContestoSchedaCommessa);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
+  const permessi = usePermissions();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
 
   // ── Fetch subappaltatore ─────────────────────────────────────────────────
-  const { data: sub, isLoading: loadingSub } = useQuery({
-    queryKey: ['subappaltatore', id],
+  const { data: sub, isLoading: loadingSub, error: erroreSub, refetch: ricaricaSub } = useQuery({
+    queryKey: ['subappaltatore', id, companyId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('subappaltatori_sicurezza')
         .select('*')
         .eq('id', id!)
+        .eq('company_id', companyId)
         .single();
       if (error) throw error;
       return data as any;
     },
-    enabled: !!id,
+    enabled: !!id && !!companyId,
   });
 
   // ── Contratti: uno per ogni commessa; Contratto, SAL e Ritenute lavorano su
   // quello scelto (prima si vedeva solo il più recente) ──────────────────────
-  const { data: contratti = [] } = useContrattiSubappaltatore(id);
+  const { data: contratti = [], isLoading: caricoContratti, error: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(id);
   const [contrattoSelId, setContrattoSelId] = useState<string | null>(null);
+  const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(null);
   const [tabAttiva, setTabAttiva] = useState('anagrafica');
+  const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
+  const [vistaContabilita, setVistaContabilita] = useState('sal');
   const contratto = (contratti.find((c) => c.id === contrattoSelId) ?? contratti[0] ?? null) as unknown as ContrattoSubappalto | null;
 
   // ── Fetch SAL ────────────────────────────────────────────────────────────
-  const { data: salList = [] } = useQuery({
-    queryKey: ['sal-sub', contratto?.id],
+  const { data: salList = [], isLoading: salCaricamento, isError: salErrore, refetch: ricaricaSal } = useQuery({
+    queryKey: ['sal-sub', contratto?.id, companyId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('sal_subappaltatori')
         .select('*')
         .eq('contratto_id', contratto!.id)
+        .eq('company_id', companyId)
         .order('numero_sal');
       if (error) throw error;
       return (data ?? []) as SALSubappaltatore[];
@@ -145,12 +157,13 @@ export default function SubappaltatoreDetail() {
   });
 
   // ── Fetch ritenute ───────────────────────────────────────────────────────
-  const { data: ritenute = [] } = useQuery({
-    queryKey: ['ritenute-sub', contratto?.id],
+  const { data: ritenute = [], isLoading: ritenuteLoading, isError: ritenuteError, refetch: ricaricaRitenute } = useQuery({
+    queryKey: ['ritenute-sub', contratto?.id, companyId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('ritenute_garanzia')
         .select('*')
+        .eq('company_id', companyId)
         .eq('contratto_id', contratto!.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -479,6 +492,7 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success('Documento caricato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+      queryClient.invalidateQueries({ queryKey: ['sicurezza-documenti', companyId] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setDocDialog(false);
@@ -515,6 +529,7 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success('Documento eliminato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+      queryClient.invalidateQueries({ queryKey: ['sicurezza-documenti', companyId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -540,6 +555,9 @@ export default function SubappaltatoreDetail() {
 
   // ── Nuovo SAL ────────────────────────────────────────────────────────────
   const [salDialog, setSalDialog] = useState(false);
+  const [salLavori, setSalLavori] = useState<ContrattoCompleto | null>(null);
+  const [salControlloBase, setSalControlloBase] = useState(false);
+  const [salVerbale, setSalVerbale] = useState<SALSubappaltatore | null>(null);
   const [salForm, setSalForm] = useState({
     numero_sal: '',
     data_emissione: format(new Date(), 'yyyy-MM-dd'),
@@ -567,6 +585,7 @@ export default function SubappaltatoreDetail() {
     return null;
   };
 
+  const [salRichiestaId, setSalRichiestaId] = useState(() => crypto.randomUUID());
   const saveSalMutation = useMutation({
     mutationFn: async () => {
       if (!contratto?.id) throw new Error('Contratto non trovato');
@@ -576,43 +595,22 @@ export default function SubappaltatoreDetail() {
       if (!(importoLordo > 0)) throw new Error('Scrivi l\'importo del SAL');
       // Lo 0% è una ritenuta valida: prima `|| 5` la trasformava in 5%.
       const ritenutaPct = salForm.ritenuta_pct.trim() ? parseDecimalIT(salForm.ritenuta_pct) : Number(contratto.ritenuta_garanzia_pct ?? 0);
-      const importoRitenuta = Math.round(importoLordo * ritenutaPct) / 100;
+      const numero = Number(salForm.numero_sal);
+      if (!Number.isInteger(numero) || numero < 1) throw new Error('Indica un numero SAL intero e positivo');
+      if (!Number.isFinite(ritenutaPct) || ritenutaPct < 0 || ritenutaPct > 100) throw new Error('Ritenuta non valida');
+      const { data, error } = await supabase.rpc('sal_sub_registra_con_garanzia' as never, {
+        p_company: companyId, p_contratto: contratto.id, p_id: salRichiestaId,
+        p_numero: numero, p_data: salForm.data_emissione, p_lordo: importoLordo,
+        p_ritenuta: ritenutaPct, p_stato: salForm.stato, p_note: salForm.note.trim() || null,
+      } as never);
+      if (error) throw new Error(error.message);
+      const esito = data as unknown;
+      if (!esito || typeof esito !== 'object' || !('id' in esito) || esito.id !== salRichiestaId) throw new Error('Registrazione SAL non confermata: rileggi i dati prima di riprovare');
 
-      const { data: salData, error: salError } = await (supabase as any)
-        .from('sal_subappaltatori')
-        .insert({
-          company_id: companyId,
-          contratto_id: contratto.id,
-          subappaltatore_id: id!,
-          // La commessa è quella del contratto (lo garantisce anche il database).
-          order_id: contratto.order_id,
-          numero_sal: parseInt(salForm.numero_sal) || (salList.length + 1),
-          data_emissione: salForm.data_emissione,
-          importo_lordo: importoLordo,
-          ritenuta_pct: ritenutaPct,
-          stato: salForm.stato,
-          note: salForm.note.trim() || null,
-        })
-        .select('id')
-        .single();
-      if (salError) throw new Error(salError.message);
-
-      // Auto-create ritenuta record if ritenuta > 0
-      if (importoRitenuta > 0 && salData?.id) {
-        const { error: ritError } = await (supabase as any)
-          .from('ritenute_garanzia')
-          .insert({
-            company_id: companyId,
-            contratto_id: contratto.id,
-            sal_id: salData.id,
-            importo: importoRitenuta,
-            stato: 'trattenuta',
-          });
-        if (ritError) throw new Error(ritError.message);
-      }
     },
     onSuccess: () => {
-      toast.success('SAL aggiunto');
+      toast.success('SAL e relativa garanzia registrati');
+      setSalRichiestaId(crypto.randomUUID());
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
@@ -624,22 +622,9 @@ export default function SubappaltatoreDetail() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // ── Svincola ritenuta ─────────────────────────────────────────────────────
-  const svincolaMutation = useMutation({
-    mutationFn: async (ritenutaId: string) => {
-      const { error } = await (supabase as any)
-        .from('ritenute_garanzia')
-        .update({ stato: 'svincolata', data_svincolo_effettiva: format(new Date(), 'yyyy-MM-dd') })
-        .eq('id', ritenutaId);
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
-    },
-    onSuccess: () => {
-      toast.success('Ritenuta svincolata');
-      queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
-      queryClient.invalidateQueries({ queryKey: ['ritenute-sub-tutte', id] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  // Lo svincolo usa anteprima/versione/riferimento del flusso fiscale condiviso.
+  const [ritenutaDaSvincolare, setRitenutaDaSvincolare] = useState<string | null>(null);
+
 
   // ── Approva / Contesta SAL ───────────────────────────────────────────────
   const [contestaNote, setContestaNote] = useState("");
@@ -685,40 +670,6 @@ export default function SubappaltatoreDetail() {
 
   // ── Registra pagamento SAL ───────────────────────────────────────────────
   const [paymentSAL, setPaymentSAL] = useState<SALSubappaltatore | null>(null);
-  const [paymentForm, setPaymentForm] = useState({
-    data_pagamento: format(new Date(), 'yyyy-MM-dd'),
-    payment_method: 'bonifico',
-    payment_reference: '',
-  });
-
-  const registraPagamentoMutation = useMutation({
-    mutationFn: async () => {
-      if (!paymentSAL) throw new Error('SAL non selezionato');
-      const bloccoDurc = durcBloccante();
-      if (bloccoDurc) throw new Error(bloccoDurc);
-      const { error } = await (supabase as any)
-        .from('sal_subappaltatori')
-        .update({
-          stato: 'pagato',
-          data_pagamento: paymentForm.data_pagamento || format(new Date(), 'yyyy-MM-dd'),
-          payment_method: paymentForm.payment_method || null,
-          payment_reference: paymentForm.payment_reference.trim() || null,
-        })
-        .eq('id', paymentSAL.id);
-      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
-    },
-    onSuccess: () => {
-      toast.success('Pagamento registrato');
-      if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
-      queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
-      queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
-      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
-      setPaymentSAL(null);
-      setPaymentForm({ data_pagamento: format(new Date(), 'yyyy-MM-dd'), payment_method: 'bonifico', payment_reference: '' });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   // ─────────────────────────────────────────────────────────────────────────
 
   if (loadingSub) {
@@ -733,18 +684,19 @@ export default function SubappaltatoreDetail() {
   if (!sub) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Subappaltatore non trovato</p>
-        <Button variant="link" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>Torna alla lista</Button>
+        <p className="text-muted-foreground">{erroreSub ? "Scheda non disponibile nell’azienda corrente. Verifica gli accessi o riprova." : "Subappaltatore non trovato"}</p>
+        {erroreSub && <Button variant="outline" onClick={()=>void ricaricaSub()}>Riprova</Button>}
+        <Button variant="link" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>{schedaCommessa ? "Torna alla commessa" : "Torna alla lista"}</Button>
       </div>
     );
   }
 
   // I SAL contestati non contano: né nell'eseguito né nelle ritenute.
-  const salValidi = salList.filter((s) => s.stato !== 'contestato');
-  const totaleLordo = salValidi.reduce((a, s) => a + Number(s.importo_lordo), 0);
-  const totaleRitenute = salValidi.reduce((a, s) => a + Number(s.ritenuta_importo), 0);
-  const totaleDaPagare = salList.filter((s) => s.stato !== 'pagato' && s.stato !== 'contestato').reduce((a, s) => a + (Number(s.importo_netto) || 0), 0);
-  const ritenuteTrattenute = ritenute.filter(r => r.stato === 'trattenuta');
+
+  const salGaranziaDaRiconciliare = salList.filter(s => Math.abs(
+    Math.round((s.stato === 'contestato' ? 0 : Number(s.ritenuta_importo)) * 100) -
+    ritenute.filter(r => r.sal_id === s.id && r.stato !== 'annullata').reduce((n,r) => n + Math.round(Number(r.importo) * 100), 0)
+  ) > 1);
   const appCantiere = campoAccess ?? inferredCampoAccess ?? null;
   const hasAppCantiere = Boolean(sub.campo_subappaltatore_id || appCantiere?.id);
 
@@ -769,9 +721,9 @@ export default function SubappaltatoreDetail() {
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:gap-2">
           <div className="flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>
+        {!schedaCommessa && <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>
           <ArrowLeft className="h-5 w-5" />
-        </Button>
+        </Button>}
         <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold truncate max-sm:text-lg max-sm:leading-tight">{sub.ragione_sociale}</h1>
               <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
@@ -783,6 +735,7 @@ export default function SubappaltatoreDetail() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <SubcontractorSupplierLink subcontractorId={id!} />
             {hasAppCantiere ? (
               <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 max-sm:hidden">
                 <Link2 className="mr-1 h-3 w-3" />
@@ -810,23 +763,19 @@ export default function SubappaltatoreDetail() {
       </div>
 
       <Tabs value={tabAttiva} onValueChange={setTabAttiva}>
-        {/* Mobile: Dati, Contratto e SAL; commessa e ritenute restano al desktop. */}
-        <TabsList className="w-full grid grid-cols-5 h-auto max-sm:grid-cols-3">
-          <TabsTrigger value="anagrafica" className="text-xs py-2">
-            <span className="hidden sm:inline">Anagrafica</span>
-            <span className="sm:hidden">Dati</span>
-          </TabsTrigger>
-          <TabsTrigger value="lavori" className="text-xs py-2 max-sm:hidden">Lavori</TabsTrigger>
-          <TabsTrigger value="contratto" className="text-xs py-2">Contratto</TabsTrigger>
-          <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-          <TabsTrigger value="ritenute" className="text-xs py-2 max-sm:hidden">
-            <span className="hidden sm:inline">Ritenute</span>
-            <span className="sm:hidden">Rit.</span>
-          </TabsTrigger>
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto">
+          <TabsTrigger value="anagrafica" className="shrink-0 py-2">Panoramica</TabsTrigger>
+          <TabsTrigger value="operai" className="shrink-0 py-2">Operai e squadre</TabsTrigger>
+          <TabsTrigger value="documenti" className="shrink-0 py-2">Documenti e sicurezza</TabsTrigger>
+          <TabsTrigger value="lavori" className="shrink-0 py-2">Commesse</TabsTrigger>
+          <TabsTrigger value="contratto" className="shrink-0 py-2">Contratti</TabsTrigger>
+          <TabsTrigger value="contabilita" className="shrink-0 py-2">Contabilità</TabsTrigger>
         </TabsList>
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
         <TabsContent value="anagrafica" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
+          <PercorsiSubappaltatore amministrazione={permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts} onApri={setTabAttiva} />
+          <div className="grid items-start gap-4 xl:grid-cols-2 [&>*]:min-w-0">
           <Card>
             <CardHeader className="pb-3 max-sm:hidden">
               <CardTitle className="text-base flex items-center gap-2">
@@ -909,6 +858,15 @@ export default function SubappaltatoreDetail() {
             </CardContent>
           </Card>
 
+          <IncarichiCantiere key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
+          </div>
+        </TabsContent>
+        <TabsContent value="operai" className="mt-4">
+          <OperaiSubappaltatore key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
+        </TabsContent>
+        <TabsContent value="documenti" className="mt-4 space-y-4">
+          <FascicoloDocumenti key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
+          <div className="rounded-lg border p-3 text-sm text-muted-foreground">Archivio precedente: i documenti già caricati restano disponibili qui sotto. Il nuovo fascicolo distingue impresa, operaio e commessa e registra le verifiche.</div>
           {/* Documenti */}
           {/* Mobile: niente import ZIP né spiegazione; «Carica» per fotografare
               o scegliere il documento. */}
@@ -959,6 +917,7 @@ export default function SubappaltatoreDetail() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
+                        <ImportaArchivioFascicolo fonte={doc} companyId={companyId} subId={id!} />
                         <Button variant="ghost" size="sm" onClick={() => openDocument(doc)}>
                             <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
@@ -1045,30 +1004,53 @@ export default function SubappaltatoreDetail() {
         {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
         <TabsContent value="lavori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           <LavoriSubappaltatore subId={id!}
-            onApriCommessa={(oid) => navigate(`/azienda/ordini/${oid}`)}
-            onApriContratto={(cid) => { setContrattoSelId(cid); setTabAttiva('contratto'); }} />
+            onApriCommessa={(oid) => {if (schedaCommessa) navigate(`/azienda/ordini/${oid}`); else setCommessaPopup(oid);}}
+            onApriContratto={(cid) => { setContrattoSelId(cid); setContrattoDaAprire(cid); setTabAttiva('contratto'); }} />
         </TabsContent>
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null}
-            onSeleziona={(cid) => setContrattoSelId(cid)} />
+          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)}
+            onSeleziona={(cid) => setContrattoSelId(cid)}
+            onApriContabilita={(cid) => {setContrattoDaAprire(null);setContrattoSelId(cid);setVistaContabilita('sal');setTabAttiva('contabilita');}} />
         </TabsContent>
 
         {/* ─── Tab 3: SAL Ricevuti ────────────────────────────────────────────── */}
-        <TabsContent value="sal" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          {contratti.length > 1 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
-          <div className={`flex justify-end ${!contratto ? 'max-sm:hidden' : ''}`}>
+        <TabsContent value="contabilita" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
+          <div className="rounded-xl border bg-background p-4 sm:p-5"><div className="mb-4"><h2 className="text-lg font-semibold">Contabilità dell’impresa</h2><p className="mt-1 text-sm text-muted-foreground">SAL, verbali e garanzie del contratto selezionato. Apri una scheda per consultare i dettagli.</p></div>
+            {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
+          </div>
+          <Tabs value={vistaContabilita} onValueChange={setVistaContabilita}>
+            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
+            {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">Caricamento contratti…</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">Contratti non disponibili. <Button variant="link" onClick={()=>void ricaricaContratti()}>Riprova</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}
+            <TabsContent value="sal" className="space-y-4 mt-4">
+          <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">SAL del contratto</h3>
             <Button
               size="sm"
-              disabled={!contratto}
-              onClick={() => {
-                setSalForm(f => ({ ...f, ritenuta_pct: contratto?.ritenuta_garanzia_pct != null ? contratto.ritenuta_garanzia_pct.toString() : '5', numero_sal: (salList.length + 1).toString() }));
+              disabled={!contratto || salCaricamento || salErrore || salControlloBase}
+              onClick={async () => {
+                if (!contratto || salControlloBase) return;
+                setSalControlloBase(true);
+                try {
+                  const {data, error} = await supabase.from('subappalto_quadri_lavori' as never).select('id').eq('company_id',companyId).eq('contratto_id',contratto.id).limit(1);
+                  if (error) throw error;
+                  if (data?.length) {
+                    const completo = contratti.find(c => c.id === contratto.id);
+                    if (!completo) throw Error('Contratto non disponibile');
+                    setSalLavori(completo); return;
+                  }
+                } catch {
+                  toast.error('Non è stato possibile verificare la base lavori. Riprova prima di registrare il SAL.');
+                  return;
+                } finally { setSalControlloBase(false); }
+
+                setSalRichiestaId(crypto.randomUUID());
+                setSalForm(f => ({ ...f, ritenuta_pct: contratto?.ritenuta_garanzia_pct != null ? contratto.ritenuta_garanzia_pct.toString() : '5', numero_sal: (Math.max(0, ...salList.map(s => s.numero_sal)) + 1).toString() }));
                 setSalDialog(true);
               }}
             >
               <Plus className="h-4 w-4 mr-1" />
-              Nuovo SAL
+              {salControlloBase ? 'Apertura…' : 'Nuovo SAL'}
             </Button>
           </div>
 
@@ -1076,225 +1058,38 @@ export default function SubappaltatoreDetail() {
             <Alert className="border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 dark:text-amber-200 max-sm:text-xs">
-                Vai prima nel tab <strong>Contratto</strong> per creare il contratto di subappalto.
+                Vai prima nel tab <strong>Contratti</strong> per creare il contratto di subappalto.
               </AlertDescription>
             </Alert>
           )}
 
-          {salList.length === 0 && contratto ? (
+          {salCaricamento ? <p role="status">Caricamento SAL…</p> : salErrore ? <p role="alert">SAL non disponibili. <Button variant="link" onClick={() => void ricaricaSal()}>Riprova</Button></p> : salList.length === 0 && contratto ? (
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-sm text-muted-foreground">Nessun SAL ricevuto ancora.</p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {salList.map((sal) => (
-                <Card key={sal.id}>
-                  <CardContent className="p-4 max-sm:p-3">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div>
-                        <p className="font-semibold">SAL #{sal.numero_sal}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(parseISO(sal.data_emissione), 'dd MMM yyyy', { locale: it })}
-                        </p>
-                      </div>
-                      <SALStatoBadge stato={sal.stato} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mt-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Lordo</p>
-                        <p className="text-sm font-medium">€{sal.importo_lordo.toLocaleString('it-IT')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Ritenuta ({sal.ritenuta_pct}%)</p>
-                        <p className="text-sm font-medium text-amber-600">-€{sal.ritenuta_importo.toLocaleString('it-IT')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Netto</p>
-                        <p className="text-sm font-bold text-green-600">€{sal.importo_netto.toLocaleString('it-IT')}</p>
-                      </div>
-                    </div>
-                    {sal.stato === 'pagato' && (
-                      <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800">
-                        <p className="font-medium flex items-center gap-1">
-                          <CreditCard className="h-3.5 w-3.5" />
-                          Pagato {sal.data_pagamento ? `il ${format(parseISO(sal.data_pagamento), 'dd/MM/yyyy')}` : ''}
-                        </p>
-                        {(sal.payment_method || sal.payment_reference) && (
-                          <p className="mt-1">
-                            {sal.payment_method ? `Metodo: ${sal.payment_method}` : ''}
-                            {sal.payment_reference ? ` · Rif: ${sal.payment_reference}` : ''}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {sal.note && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">{sal.note}</p>}
-                    {sal.stato === "ricevuto" && (
-                      <div className="flex gap-2 mt-2">
-                        <Button
-                          size="sm" variant="outline"
-                          className="text-green-700 border-green-300 hover:bg-green-50"
-                          onClick={() => approvaSALMutation.mutate(sal.id)}
-                          disabled={approvaSALMutation.isPending}
-                        >
-                          <Check className="h-3 w-3 mr-1" /> Approva
-                        </Button>
-                        <Button
-                          size="sm" variant="outline"
-                          className="text-red-700 border-red-300 hover:bg-red-50"
-                          onClick={() => setContestaId(sal.id)}
-                        >
-                          Contesta
-                        </Button>
-                      </div>
-                    )}
-                    {(sal.stato === 'ricevuto' || sal.stato === 'verificato') && (
-                      <div className="flex gap-2 mt-2">
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => {
-                            setPaymentSAL(sal);
-                            setPaymentForm({
-                              data_pagamento: format(new Date(), 'yyyy-MM-dd'),
-                              payment_method: sal.payment_method || 'bonifico',
-                              payment_reference: sal.payment_reference || '',
-                            });
-                          }}
-                        >
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          Registra pagamento
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* Totali */}
-              {salList.length > 0 && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="p-4">
-                    <p className="text-sm font-semibold mb-2">Totali</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Totale lordo</p>
-                        <p className="font-bold">€{totaleLordo.toLocaleString('it-IT')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Totale ritenute</p>
-                        <p className="font-bold text-amber-600">€{totaleRitenute.toLocaleString('it-IT')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Netto da pagare</p>
-                        <p className="font-bold text-green-600">€{totaleDaPagare.toLocaleString('it-IT')}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            <SALContabilita key={`${companyId}:${contratto?.id}`} sal={salList} contratto={contratto?.numero_contratto || 'Contratto'}
+              canWrite={permessi.canEditOrders && permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts && !permessi.solaLettura}
+              approvazioneInCorso={approvaSALMutation.isPending}
+              onVerbale={setSalVerbale} onApprova={sid => approvaSALMutation.mutate(sid)} onContesta={setContestaId}
+              onPagamento={setPaymentSAL} />
           )}
         </TabsContent>
 
         {/* ─── Tab 4: Ritenute & Pagamenti ──────────────────────────────────── */}
         <TabsContent value="ritenute" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          {contratti.length > 1 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
-          {/* Riepilogo */}
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">In garanzia</p>
-                <p className="text-xl font-bold text-amber-600">
-                  €{ritenuteTrattenute.reduce((a, r) => a + r.importo, 0).toLocaleString('it-IT')}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{ritenuteTrattenute.length} ritenute</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Svincolate</p>
-                <p className="text-xl font-bold text-green-600">
-                  €{ritenute.filter(r => r.stato === 'svincolata').reduce((a, r) => a + r.importo, 0).toLocaleString('it-IT')}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <p className="text-xs text-muted-foreground">Le ritenute seguono il contratto. Lo svincolo richiede un riferimento documentale e non registra un pagamento al subappaltatore.</p>
+          {ritenuteLoading ? <p role="status" className="text-sm text-muted-foreground">Caricamento garanzie…</p> : ritenuteError ? <Alert variant="destructive"><AlertDescription>Registro garanzie non disponibile. <Button variant="outline" size="sm" onClick={() => void ricaricaRitenute()}>Riprova</Button></AlertDescription></Alert> : <>
+          {salGaranziaDaRiconciliare.length > 0 && <Alert className="border-amber-400 bg-amber-50"><AlertTriangle className="h-4 w-4"/><AlertDescription>Registro da riconciliare per {salGaranziaDaRiconciliare.length} SAL: gli importi delle ritenute nei SAL non coincidono con le registrazioni di garanzia. I totali sotto descrivono soltanto il registro disponibile, non attestano il residuo effettivo. Verifica gli originali prima di registrare uno svincolo.</AlertDescription></Alert>}
+          {ritenute.length === 0 ? <Card><CardContent className="py-8 text-center"><p className="text-sm font-medium">Nessuna ritenuta nel registro</p><p className="mt-2 text-sm text-muted-foreground">I nuovi SAL registrano la relativa garanzia. Per gli importi storici mancanti occorre verificare e riconciliare il registro.</p></CardContent></Card> :
+            <RitenuteContabilita key={`${companyId}:${contratto?.id}`} ritenute={ritenute} sal={salList} contratto={contratto?.numero_contratto || 'Contratto'}
+              canRelease={permessi.isAdmin && !permessi.solaLettura} onSvincola={setRitenutaDaSvincolare} onVerbale={setSalVerbale}/>}
 
-          {/* Alert scadenze */}
-          {ritenuteTrattenute.filter(r => {
-            if (!r.data_svincolo_prevista) return false;
-            return differenceInDays(parseISO(r.data_svincolo_prevista), new Date()) <= 30;
-          }).length > 0 && (
-            <Alert className="border-amber-500/50 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 dark:text-amber-200">
-                Alcune ritenute hanno data di svincolo prevista entro 30 giorni.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Lista ritenute */}
-          {ritenute.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center">
-                <p className="text-sm text-muted-foreground">Nessuna ritenuta registrata. Le ritenute vengono create automaticamente alla registrazione dei SAL.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {ritenute.map((rit) => {
-                const daysToSvincolo = rit.data_svincolo_prevista
-                  ? differenceInDays(parseISO(rit.data_svincolo_prevista), new Date())
-                  : null;
-                return (
-                  <Card key={rit.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <div>
-                          <p className="font-semibold">€{rit.importo.toLocaleString('it-IT')}</p>
-                          {rit.data_svincolo_prevista && (
-                            <p className={`text-xs mt-0.5 ${daysToSvincolo === null ? 'text-muted-foreground' : daysToSvincolo < 0 ? 'text-red-600' : daysToSvincolo <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
-                              Svincolo previsto: {format(parseISO(rit.data_svincolo_prevista), 'dd/MM/yyyy')}
-                              {daysToSvincolo !== null && (daysToSvincolo < 0 ? ' (in ritardo)' : daysToSvincolo <= 30 ? ` (${daysToSvincolo}gg)` : '')}
-                            </p>
-                          )}
-                          {rit.data_svincolo_effettiva && (
-                            <p className="text-xs text-green-600 mt-0.5">
-                              Svincolata il {format(parseISO(rit.data_svincolo_effettiva), 'dd/MM/yyyy')}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={
-                            rit.stato === 'svincolata' ? 'bg-green-600 text-white text-xs' :
-                            rit.stato === 'persa' ? 'bg-red-600 text-white text-xs' :
-                            'bg-amber-500 text-white text-xs'
-                          }>
-                            {rit.stato === 'trattenuta' ? 'Trattenuta' :
-                             rit.stato === 'svincolata' ? 'Svincolata' : 'Persa'}
-                          </Badge>
-                          {rit.stato === 'trattenuta' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => svincolaMutation.mutate(rit.id)}
-                              disabled={svincolaMutation.isPending}
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Svincola
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          </>}
+        </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
@@ -1434,47 +1229,22 @@ export default function SubappaltatoreDetail() {
         subappaltatoreId={id ?? ''}
       />
 
+      {ritenutaDaSvincolare && <FiscalReleaseDialog key={ritenutaDaSvincolare} companyId={companyId} id={ritenutaDaSvincolare} onClose={() => setRitenutaDaSvincolare(null)} onReleased={async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({queryKey:['ritenute-sub',contratto?.id]}),
+          queryClient.invalidateQueries({queryKey:['ritenute-sub-tutte',id]}),
+          queryClient.invalidateQueries({queryKey:['order-subcontract-statistics',contratto?.order_id,companyId]}),
+        ]);
+      }} />}
+      {salLavori && <LavoriMisureSubDialog key={salLavori.id} companyId={companyId} contratto={salLavori} sezioneIniziale="sal" onApriStorico={() => setSalLavori(null)} onClose={() => setSalLavori(null)} onApriVerbale={async (salId) => {
+        const {data,error} = await supabase.from('sal_subappaltatori').select('*').eq('company_id',companyId).eq('contratto_id',salLavori.id).eq('id',salId).single();
+        if (error || !data) throw Error('SAL salvato, ma lettura del verbale non riuscita. Riprova.');
+        setSalLavori(null); setSalVerbale(data as SALSubappaltatore);
+      }} />}
+      {commessaPopup && <SchedaCommessaDialog contestoOrigine="impresa" key={commessaPopup} companyId={companyId} orderId={commessaPopup} destinazione={{to:`/azienda/ordini/${commessaPopup}`}} onClose={() => setCommessaPopup(null)} />}
+      {salVerbale && <VerbaleSalSubDialog key={`${companyId}:${salVerbale.id}`} companyId={companyId} sal={salVerbale} onClose={() => setSalVerbale(null)} />}
       {/* ── Dialog Pagamento SAL ──────────────────────────────────────────── */}
-      <Dialog open={!!paymentSAL} onOpenChange={() => setPaymentSAL(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Registra pagamento SAL</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">
-              {paymentSAL ? `Netto da pagare: €${paymentSAL.importo_netto.toLocaleString('it-IT')}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Data pagamento</Label>
-              <Input type="date" value={paymentForm.data_pagamento} onChange={(e) => setPaymentForm(f => ({ ...f, data_pagamento: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Modalità pagamento</Label>
-              <Select value={paymentForm.payment_method} onValueChange={(v) => setPaymentForm(f => ({ ...f, payment_method: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bonifico">Bonifico</SelectItem>
-                  <SelectItem value="assegno">Assegno</SelectItem>
-                  <SelectItem value="contanti">Contanti</SelectItem>
-                  <SelectItem value="rimessa_diretta">Rimessa diretta</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Riferimento pagamento</Label>
-              <Input value={paymentForm.payment_reference} onChange={(e) => setPaymentForm(f => ({ ...f, payment_reference: e.target.value }))} placeholder="CRO, distinta, note pagamento..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setPaymentSAL(null)} disabled={registraPagamentoMutation.isPending}>Annulla</Button>
-            <Button onClick={() => registraPagamentoMutation.mutate()} disabled={registraPagamentoMutation.isPending}>
-              {registraPagamentoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Segna pagato
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {paymentSAL && <SalPaymentDialog key={paymentSAL.id} sal={paymentSAL} onClose={()=>setPaymentSAL(null)} onSaved={()=>{refreshFinancialQueries(queryClient);void queryClient.invalidateQueries({queryKey:chiaviContratti.salTutti(id)});setPaymentSAL(null);}} />}
 
       {/* Dialog contestazione SAL */}
       <Dialog open={!!contestaSALId} onOpenChange={() => { setContestaId(null); setContestaNote(""); }}>
@@ -1581,7 +1351,6 @@ export default function SubappaltatoreDetail() {
                 <SelectContent>
                   <SelectItem value="ricevuto">Ricevuto</SelectItem>
                   <SelectItem value="verificato">Verificato</SelectItem>
-                  <SelectItem value="pagato">Pagato</SelectItem>
                   <SelectItem value="contestato">Contestato</SelectItem>
                 </SelectContent>
               </Select>

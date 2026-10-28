@@ -13,6 +13,7 @@ export function OrderDetailNavigation({operational=false}:{operational?:boolean}
   return (
     <div
       id="order-detail-sections"
+      data-order-navigation
       className="sticky top-0 z-20 -mx-3 bg-slate-50/95 px-3 py-1.5 backdrop-blur sm:-mx-6 sm:px-6 sm:py-2 scroll-mt-4"
     >
       <TabsList

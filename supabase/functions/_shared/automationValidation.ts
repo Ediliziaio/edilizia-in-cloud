@@ -1,5 +1,6 @@
 import { filterErrors } from "./automationFilters.ts";
 import { automationWebhookUrl } from "./automationWebhook.ts";
+import { AUTOMATION_NATIVE_FIELDS,customFieldId } from "./automationFieldContract.ts";
 
 export const conditionOperatorAliases: Record<string, string> = {
   uguale: "equals", diverso: "not_equals", contiene: "contains", non_contiene: "not_contains",
@@ -18,6 +19,7 @@ export function conditionConfigErrors(config: Record<string, any>): string[] {
   rows.forEach((row: any, index: number) => {
     if (!row || typeof row !== "object") { errors.push(`Criterio ${index + 1}: formato non valido.`); return; }
     const field = String(row.campo ?? row.variabile ?? "").trim();
+    if(field.startsWith("custom_field.")&&!customFieldId(field))errors.push(`Criterio ${index+1}: identificatore del campo personalizzato non valido.`);
     const operator = String(row.operatore ?? "uguale");
     if (["da_oggi", "prima_di_oggi"].includes(operator)) {
       if (!field) errors.push(`Criterio ${index + 1}: scegli un campo.`);
@@ -39,6 +41,10 @@ export function actionConfigErrors(config: Record<string, any>): string[] {
     if (value == null || value === "") return;
     if (typeof value === "boolean" || typeof value === "object" || !Number.isSafeInteger(Number(value)) || Number(value) < min || Number(value) > max) errors.push(`${key}: scegli un intero tra ${min} e ${max === Number.MAX_SAFE_INTEGER ? "il massimo consentito" : max}.`);
   };
+  if(["aggiorna_campo","update_field"].includes(id)){
+    const table=String(config.tabella??"contacts");const field=String(config.field_name||config.campo||"");
+    if(!customFieldId(field)&&!(AUTOMATION_NATIVE_FIELDS[table]??[]).includes(field))errors.push("Scegli un campo aggiornabile: per stati, importi e assegnazioni usa l’azione dedicata.");
+  }
   if (id === "wait_for_event") integer("timeout_days", 1, 365);
   if (id === "crea_cs_task") integer("scadenza_giorni", 0, 365);
   if (id === "crea_account_azienda") integer("trial_giorni", 0, 90);

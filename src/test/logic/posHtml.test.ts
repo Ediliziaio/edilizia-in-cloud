@@ -2,7 +2,7 @@
  * Il POS da stampare segue il modello del DI 9/9/2014: una bozza lo dice in
  * testa con le voci mancanti, il testo dell'utente non diventa HTML, le firme
  * dell'impresa affidataria e del CSE compaiono solo quando servono, i DPI
- * forniti si raccolgono dalle schede delle lavorazioni.
+ * previsti si raccolgono dalle schede; la consegna richiede evidenze.
  */
 import { describe, expect, it } from "vitest";
 import { costruisciHtmlPos } from "@/lib/sicurezza/posHtml";
@@ -77,4 +77,10 @@ describe("POS stampabile", () => {
     expect(elenco).toContain("<li>Imbracatura EN 361</li>");
     expect(elenco).toContain("<li>Guanti EN 388</li>");
   });
+});
+
+
+it("la copia ricostruita dichiara la propria origine anche nel documento stampato",()=>{
+  const html=costruisciHtmlPos({contenuto:base(),stato:"approvato",revisione:0,revisioni:[],avvisoCopia:"COPIA DAL CONTENUTO ARCHIVIATO <script>non eseguire</script>"});
+  expect(html).toContain("COPIA DAL CONTENUTO ARCHIVIATO");expect(html).toContain("&lt;script&gt;non eseguire&lt;/script&gt;");expect(html).not.toContain("<script>non eseguire");
 });

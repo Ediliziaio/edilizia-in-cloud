@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { readAllPages } from "@/lib/personale/readAllPages";
 import { differenceInMinutes, endOfMonth, format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -299,30 +300,26 @@ export function useLiveStatus() {
       if (!companyId) return [];
 
       // Get all active profili
-      const { data: profili, error: profiliError } = await supabase
+      const profili = await readAllPages((from, to) => supabase
         .from("hr_profili")
         .select("id, nome, cognome, colore_avatar, mansione, reparto")
         .eq("company_id", companyId)
         .eq("attivo", true)
-        .order("cognome");
-
-      if (profiliError) throw profiliError;
-      if (!profili) return [];
+        .order("cognome").order("id").range(from, to));
 
       // Get today's timbrature
-      const { data: timbrature, error: timbratureError } = await supabase
+      const timbrature = await readAllPages((from, to) => supabase
         .from("hr_timbrature")
         .select("profilo_id, tipo, timestamp, ora_evento")
         .eq("company_id", companyId)
         .eq("data_evento", today)
-        .order("timestamp", { ascending: false });
-
-      if (timbratureError) throw timbratureError;
+        .order("timestamp", { ascending: false }).order("id", { ascending: false }).range(from, to));
+      const latest = new Map<string, typeof timbrature[number]>();
+      for (const row of timbrature) if (!latest.has(row.profilo_id)) latest.set(row.profilo_id, row);
 
       // Map: for each profilo, find last timbratura
       return (profili as (Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione"> & { reparto?: string | null })[]).map((p) => {
-        const myTimbrature = (timbrature || []).filter((t) => t.profilo_id === p.id);
-        const last = myTimbrature[0];
+        const last = latest.get(p.id);
         return {
           ...p,
           last_tipo: last?.tipo || null,

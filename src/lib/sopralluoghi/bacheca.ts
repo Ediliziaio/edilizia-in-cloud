@@ -124,6 +124,7 @@ export interface FiltriBacheca {
   tecnico?: string; // id, "nessuno" o vuoto
   testo?: string;
   soloSenzaPreventivo?: boolean;
+  soloBozzeFerme?: boolean;
 }
 
 const t = (v: unknown) => String(v ?? "").trim().toLowerCase();
@@ -133,6 +134,7 @@ export function filtraBacheca(righe: SopralluogoBacheca[], f: FiltriBacheca, ade
   return righe.filter((s) => {
     const fase = fasePratica(s);
     if (fase === null) return false; // archiviati e annullati non stanno nella bacheca
+    if (f.soloBozzeFerme && (fase !== "da_pianificare" || (adesso.getTime() - new Date(s.created_at).getTime()) / GIORNO <= GIORNI_BOZZA_FERMA)) return false;
     if (f.fase && f.fase !== "tutte" && fase !== f.fase) return false;
     if (f.tecnico === "nessuno" ? !!s.technician_id : f.tecnico && f.tecnico !== "tutti" && s.technician_id !== f.tecnico) return false;
     if (f.soloSenzaPreventivo && (fase === "preventivo" || fase === "da_pianificare" || fase === "pianificato" || fase === "in_corso")) return false;

@@ -138,6 +138,9 @@ export function supplierPaymentSummary(input: {
     const cash = poolEntries.reduce((sum, e) => sum + (e.direction === 'uscita' ? cents(e.amount) : -cents(e.amount)), 0);
     // Due paid_amount and prima nota usually describe the same money, not two payments.
     const settled = poolDues.reduce((sum, d) => sum + Math.max(0, cents(d.paid_amount)), 0);
+    if (cash>0 && settled>0 && cash!==settled) {
+      group.review += total; group.reviewCount += pool.length; continue;
+    }
     const paid = Math.min(total, Math.max(0, cash, settled));
     if (cash > total || settled > total) { group.review += Math.max(cash, settled) - total; group.reviewCount++; }
     group.invoiced += total;

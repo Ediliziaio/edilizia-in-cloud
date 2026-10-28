@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +17,7 @@ import { NO_VALUE_OPERATORS } from "@/types/automationBuilder";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { filterRange } from "../../../../supabase/functions/_shared/automationFilters";
 import { useQuery } from "@tanstack/react-query";
+import { multipleFieldValues } from "@/lib/custom-fields/values";
 
 interface Props {
   field: TriggerFieldDef | undefined;
@@ -135,6 +136,10 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
 
   // Tags – multi-select from marketing_tags
   if (field.type === "tags") {
+    if(field.key.startsWith("custom_field.")&&field.options){
+      const selected=multipleFieldValues(value);
+      return <fieldset className="flex flex-wrap gap-2" aria-label="Scelte del campo personalizzato">{field.options.map(o=><label key={o.value} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={selected.includes(o.value)} onChange={e=>onChange(e.target.checked?[...selected,o.value]:selected.filter(v=>v!==o.value))}/>{o.label}</label>)}</fieldset>;
+    }
     return <TagMultiSelect value={value} onChange={onChange} companyId={companyId} hasError={hasError} />;
   }
 
@@ -189,25 +194,18 @@ function EntityFilterSelect({ field, value, onChange, companyId, hasError }: { f
 
 function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
+  const {data:tags=[],isError}=useQuery({
+    queryKey:["automation-filter-tags",companyId],enabled:open&&!!companyId,staleTime:60_000,
+    queryFn:async()=>{
+      const {data,error}=await supabase.from("marketing_tags").select("id,name,color").eq("company_id",companyId!).order("name");
+      if(error)throw error;
+      return data??[];
+    },
+  });
   const [search, setSearch] = useState("");
 
   const selectedTags: string[] = Array.isArray(value) ? value : value ? [value] : [];
 
-  useEffect(() => {
-    let active = true;
-    setTags([]);
-    if (!companyId) return;
-    supabase
-      .from("marketing_tags")
-      .select("id, name, color")
-      .eq("company_id", companyId)
-      .order("name")
-      .then(({ data }) => {
-        if (active && data) setTags(data);
-      });
-    return () => { active = false; };
-  }, [companyId]);
 
   const toggleTag = (tagName: string) => {
     const next = selectedTags.includes(tagName)
@@ -225,6 +223,7 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
 
   return (
     <div className="space-y-1">
+      {isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i tag. Riprova.</p>}
       {selectedTags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedTags.map((tag) => (

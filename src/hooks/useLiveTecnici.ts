@@ -33,24 +33,20 @@ interface GpsRow {
 export function useLiveTecnici(
   companyId: string,
   refreshIntervalMs = 15_000
-): { tecnici: TecnicoLivePosition[]; isLoading: boolean; refresh: () => void } {
+): { tecnici: TecnicoLivePosition[]; isLoading: boolean; isError: boolean; refresh: () => void } {
   const queryClient = useQueryClient();
 
   const queryKey = ["live-tecnici", companyId];
 
-  const { data: tecnici = [], isLoading } = useQuery({
+  const { data: tecnici = [], isLoading, isError } = useQuery({
     queryKey,
     queryFn: async (): Promise<TecnicoLivePosition[]> => {
       // Prende l'ultima posizione per ogni tecnico (DISTINCT ON emulato con subquery)
-      const { data: positions, error } = await (supabase
-        .from("gps_positions" as never)
-        .select("user_id, lat, lng, accuracy, speed, battery_level, recorded_at")
-        .eq("company_id", companyId)
-        .gte("recorded_at", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()) // ultime 8h
-        .order("recorded_at", { ascending: false })
-        .limit(200) as unknown as Promise<{ data: GpsRow[] | null; error: unknown }>);
+      const { data, error } = await supabase.rpc("hr_gps_ultime_posizioni" as never, { p_company: companyId } as never);
+      const positions = data as GpsRow[] | null;
 
-      if (error || !positions) return [];
+      if (error) throw error;
+      if (!positions) return [];
 
       // Dedup: tiene solo la posizione più recente per user
       const latestByUser = new Map<string, GpsRow>();
@@ -64,10 +60,11 @@ export function useLiveTecnici(
 
       // Carica profili
       const userIds = Array.from(latestByUser.keys());
-      const { data: profiles } = await (supabase
+      const { data: profiles, error: profileError } = await (supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .in("id", userIds) as unknown as Promise<{ data: ProfileRow[] | null }>);
+        .in("id", userIds) as unknown as Promise<{ data: ProfileRow[] | null; error: unknown }>);
+      if (profileError) throw profileError;
 
       const profileMap = new Map<string, ProfileRow>();
       (profiles ?? []).forEach((p) => profileMap.set(p.id, p));
@@ -124,7 +121,7 @@ export function useLiveTecnici(
     queryClient.invalidateQueries({ queryKey: ["live-tecnici", companyId] });
   }, [companyId, queryClient]);
 
-  return { tecnici, isLoading, refresh };
+  return { tecnici, isLoading, isError, refresh };
 }
 
 export { STALE_THRESHOLD_SEC };

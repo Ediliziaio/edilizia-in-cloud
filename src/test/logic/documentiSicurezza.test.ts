@@ -1,11 +1,12 @@
+import type { EvidenzaFascicolo } from "@/lib/sicurezza/fascicolo";
 import { describe, expect, it } from "vitest";
-import { daSistemare, listaControlloCommessa, statoScadenza, tipoDaSubappaltatore, tipoPerSubappaltatore, type DocumentoSicurezza } from "@/lib/sicurezza/documentiSicurezza";
+import { documentoDaEvidenza, daSistemare, listaControlloCommessa, statoScadenza, tipoDaSubappaltatore, tipoPerSubappaltatore, type DocumentoSicurezza } from "@/lib/sicurezza/documentiSicurezza";
 import { corpoDuvriHtml } from "@/lib/sicurezza/duvriHtml";
 
 const OGGI = "2026-10-21";
 const doc = (p: Partial<DocumentoSicurezza>): DocumentoSicurezza => ({
   id: Math.random().toString(36).slice(2), order_id: "o1", subappaltatore_id: null, tipo: "altro", titolo: "doc",
-  file_path: "x", file_name: "x.pdf", data_documento: null, data_scadenza: null, note: null, created_at: "2026-10-01T00:00:00Z", ...p,
+  file_path: "x", file_name: "x.pdf", data_documento: null, data_scadenza: null, note: null, created_at: "2026-10-01T00:00:00Z", stato_verifica:"verificato", ...p,
 });
 const base = { oggi: OGGI, documenti: [] as DocumentoSicurezza[], pos: [] as Array<{ status: string | null }>, subappaltatori: [] as Array<{ id: string; ragione_sociale: string | null; durc_scadenza: string | null }>, ponteggiMontati: false };
 
@@ -22,7 +23,7 @@ describe("lista di controllo della commessa", () => {
   it("una sola impresa: POS, patente a crediti e DURC; niente PSC né notifica", () => {
     const voci = listaControlloCommessa(base);
     expect(voci.map((v) => v.chiave)).toEqual(["pos", "patente", "durc"]);
-    expect(voci.every((v) => v.stato === "manca")).toBe(true);
+    expect(voci.filter(v=>v.chiave!=="patente").every((v) => v.stato === "manca")).toBe(true);expect(voci.find(v=>v.chiave==="patente")?.stato).toBe("in_corso");
   });
 
   it("con un subappaltatore servono PSC, coordinatori, notifica e i documenti dell'impresa", () => {
@@ -55,13 +56,13 @@ describe("lista di controllo della commessa", () => {
   it("idoneità tecnico-professionale: visura e DVR, anche se arrivano dalla scheda del subappaltatore", () => {
     const sub = [{ id: "s1", ragione_sociale: "Edil Rossi", durc_scadenza: null as string | null }];
     const soloVisura = listaControlloCommessa({ ...base, subappaltatori: sub, documenti: [doc({ tipo: "idoneita_tecnica", subappaltatore_id: "s1", fonte: "fascicolo" })] });
-    expect(soloVisura.find((v) => v.chiave === "itp-s1")).toMatchObject({ stato: "in_corso", dettaglio: "Manca: DVR" });
+    expect(soloVisura.find((v) => v.chiave === "itp-s1")).toMatchObject({ stato: "in_corso", dettaglio: "Da raccogliere / confermare secondo applicabilità: DVR" });
     const complete = listaControlloCommessa({ ...base, subappaltatori: sub, documenti: [
       doc({ tipo: "idoneita_tecnica", subappaltatore_id: "s1", fonte: "fascicolo" }),
       doc({ tipo: "dvr", subappaltatore_id: "s1", fonte: "subappaltatore" }),
       doc({ tipo: "pos_impresa", subappaltatore_id: "s1", fonte: "subappaltatore" }),
     ] });
-    expect(complete.find((v) => v.chiave === "itp-s1")?.stato).toBe("ok");
+    expect(complete.find((v) => v.chiave === "itp-s1")?.stato).toBe("in_corso");
     expect(complete.find((v) => v.chiave === "pos-s1")?.stato).toBe("ok");
   });
 
@@ -91,4 +92,42 @@ describe("DUVRI stampabile", () => {
   it("un contenuto vecchio, solo testo, resta testo", () => {
     expect(corpoDuvriHtml("Documento libero")).toContain("Documento libero");
   });
+});
+
+
+describe('Evidenze native e archivio precedente nella stessa lista',()=>{
+  const evidenza=(p:Partial<EvidenzaFascicolo>):EvidenzaFascicolo=>({id:'e1',company_id:'az',subappaltatore_id:'s1',operaio_id:null,order_id:null,tipo:'durc',titolo:'Evidenza',origine_requisito:'da_verificare',riferimento_requisito:null,stato:'ricevuto',file_path:'az/e1/prova.pdf',file_name:'prova.pdf',data_rilascio:null,data_scadenza:null,competenza:null,revisione:null,termine:null,referente:null,verificato_da:null,verificato_il:null,note:null,updated_at:'2026-10-26T12:00:00Z',...p});
+  const sub=[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null}];
+  it('un upload non diventa verifica, ma resta visibile come attività da completare',()=>{
+    const d=documentoDaEvidenza(evidenza({}));expect(d?.bucket).toBe('fascicoli-cantiere');
+    expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:[d!]}).find(v=>v.chiave==='durc-s1')?.stato).toBe('in_corso');
+    const verificato=documentoDaEvidenza(evidenza({stato:'verificato'}));
+    expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:[verificato!]}).find(v=>v.chiave==='durc-s1')?.stato).toBe('ok');
+  });
+  it('un POS precedente senza ambito documentato non chiude il controllo del cantiere',()=>{
+    expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:[doc({tipo:'pos_impresa',subappaltatore_id:'s1',ambito_da_verificare:true})]}).find(v=>v.chiave==='pos-s1')?.stato).toBe('in_corso');
+  });
+  it('visura e DVR ricevuti richiedono ancora la verifica e una qualificazione generica non vale come visura',()=>{
+    const docs=[documentoDaEvidenza(evidenza({tipo:'visura'}))!,documentoDaEvidenza(evidenza({tipo:'dvr'}))!];
+    expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:docs}).find(v=>v.chiave==='itp-s1')?.stato).toBe('in_corso');
+    expect(documentoDaEvidenza(evidenza({tipo:'qualificazione'}))?.tipo).toBe('altro');
+  });
+  it('superato e non applicabile non sono documenti verificati sostitutivi',()=>{
+    expect(documentoDaEvidenza(evidenza({stato:'superato'}))).toBeNull();
+    expect(documentoDaEvidenza(evidenza({stato:'non_applicabile'}))).toBeNull();
+  });
+});
+
+
+describe('Presenza dei file distinta dalla verifica',()=>{
+ it('il file precedente senza esito non diventa verificato',()=>{const v=listaControlloCommessa({...base,documenti:[doc({tipo:'durc',stato_verifica:undefined})]});expect(v.find(x=>x.chiave==='durc')).toMatchObject({stato:'in_corso',dettaglio:expect.stringMatching(/verifica non è documentata/)});});
+ it('la sola data della scheda non dimostra che il DURC sia stato acquisito e verificato',()=>{const v=listaControlloCommessa({...base,subappaltatori:[{id:'s',ragione_sociale:'Impresa',durc_scadenza:'2027-01-01'}]});expect(v.find(x=>x.chiave==='durc-s')?.stato).toBe('in_corso');});
+ it('un record verificato privo di file non chiude il controllo',()=>{expect(listaControlloCommessa({...base,documenti:[doc({tipo:'durc',file_path:''})]}).find(x=>x.chiave==='durc')?.stato).toBe('in_corso');});
+});
+
+describe('Promemoria documenti specifici del cantiere',()=>{
+ it('non considera un PSC generico, di altro cantiere o della sola ditta come PSC di questa commessa',()=>{
+  const voci=listaControlloCommessa({...base,orderId:'o1',subappaltatori:[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null}],documenti:[doc({tipo:'psc',order_id:null}),doc({tipo:'psc',order_id:'altro'}),doc({tipo:'psc',order_id:'o1',subappaltatore_id:'s1'})]});
+  expect(voci.find(v=>v.chiave==='psc')?.stato).toBe('manca');
+ });
 });

@@ -3,6 +3,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { HrFestivita } from "@/types/hr";
 import { toast } from "sonner";
+import { isoDay, missingItalianHolidays } from "@/lib/personale/calendarioLavorativo";
+
+export function useImportHrFestivita() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (year: number) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase.rpc("hr_importa_festivita" as never, { p_company: companyId, p_anno: year, p_festivita: missingItalianHolidays([], year) } as never);
+      if (error) throw error;
+      return Number(data);
+    },
+    onSuccess: (count) => { void qc.invalidateQueries({ queryKey: ["hr-festivita", companyId] }); toast.success(count ? `${count} festività aggiunte` : "Calendario già aggiornato"); },
+    onError: () => toast.error("Importazione non riuscita: nessuna festività del lotto è stata salvata. Riprova."),
+  });
+}
 
 export function useHrFestivita() {
   const companyId = useEffectiveCompanyId();
@@ -31,6 +47,8 @@ export function useCreateHrFestivita() {
   return useMutation({
     mutationFn: async (data: Partial<HrFestivita>) => {
       if (!companyId) throw new Error("companyId required");
+      isoDay(data.data || "");
+      if (!data.descrizione?.trim()) throw new Error("Descrizione obbligatoria");
       const { error } = await supabase.from("hr_festivita").insert({
         company_id: companyId,
         data: data.data!,

@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone, AlertTriangle } from "lucide-react";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { HrQueryError } from "@/components/hr/HrQueryError";
+import { HrPager } from "@/components/hr/HrPager";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type ScadCount = { scaduti: number; inScadenza: number };
 
@@ -27,10 +30,13 @@ const CONTRATTO_LABELS: Record<string, string> = {
 };
 
 export function TabProfili() {
-  const { data: profili = [], isLoading } = useAllHrProfili();
-  const { data: scadCounts } = useHrScadenzeCounts();
+  const { data: profili = [], isLoading, isError, refetch } = useAllHrProfili();
+  const { data: scadCounts, isError: errorScadenze, refetch: retryScadenze } = useHrScadenzeCounts();
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
+  const [paging, setPaging] = useState({ key: "", page: 0 });
   const [search, setSearch] = useState("");
-  const [filterStato, setFilterStato] = useState<"tutti" | "attivi" | "cessati">("tutti");
+  const [filterStato, setFilterStato] = useState<"tutti" | "attivi" | "cessati">("attivi");
   const [filterReparto, setFilterReparto] = useState<string>("tutti");
   const [selectedProfilo, setSelectedProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -63,12 +69,18 @@ export function TabProfili() {
     attivi: profili.filter((p) => p.attivo).length,
     cessati: profili.filter((p) => !p.attivo).length,
   }), [profili]);
+  const filterKey = JSON.stringify([search, filterStato, filterReparto]);
+  const page = paging.key === filterKey ? paging.page : 0;
+  const setPage = (value: number) => setPaging({ key: filterKey, page: value });
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
+  const visible = filtered.slice(currentPage * 20, (currentPage + 1) * 20);
 
-  const handleNew = () => { setSelectedProfilo(null); setSheetOpen(true); };
+  const handleNew = () => { if (!canEdit) return; setSelectedProfilo(null); setSheetOpen(true); };
   const handleEdit = (p: HrProfilo) => { setSelectedProfilo(p); setSheetOpen(true); };
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
+      {errorScadenze && <HrQueryError label="Badge scadenze non disponibili" onRetry={retryScadenze} />}
       {/* KPI — mobile no: il numero di persone sta nel bottone «Mostra» dei filtri. */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 max-sm:hidden">
         <Card>
@@ -101,7 +113,7 @@ export function TabProfili() {
           filtriAttivi={nFiltriMobile}
           onApriFiltri={() => setFiltriMobileAperti(true)}
         />
-        <Button size="icon" onClick={handleNew} aria-label="Nuovo profilo" className="tap-compact h-9 w-9 shrink-0">
+        <Button disabled={!canEdit} size="icon" onClick={handleNew} aria-label="Nuovo profilo" className="tap-compact h-9 w-9 shrink-0">
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -132,7 +144,7 @@ export function TabProfili() {
               </SelectContent>
             </Select>
           )}
-          <Button size="sm" onClick={handleNew} className="shrink-0">
+          <Button disabled={!canEdit} size="sm" onClick={handleNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline ml-1">Nuovo Profilo</span>
           </Button>
@@ -142,22 +154,23 @@ export function TabProfili() {
       {/* List */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-      ) : filtered.length === 0 ? (
+      ) : isError ? <HrQueryError label="Profili non disponibili" onRetry={refetch} /> : filtered.length === 0 ? (
         <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">Nessun profilo trovato.</CardContent></Card>
       ) : (
         <>
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
-            {filtered.map((p) => (
+            {visible.map((p) => (
               <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
             ))}
           </div>
           <div className="space-y-2 max-sm:hidden">
-            {filtered.map((p) => (
+            {visible.map((p) => (
               <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
             ))}
           </div>
         </>
       )}
+      {!isError && <HrPager total={filtered.length} page={currentPage} onPage={setPage} />}
 
       <HrProfiloSheet open={sheetOpen} onOpenChange={setSheetOpen} profilo={selectedProfilo} allProfili={profili} />
 
@@ -193,7 +206,7 @@ export function TabProfili() {
 
 function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void }) {
   return (
-    <Card className={`cursor-pointer hover:shadow-md transition-shadow ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
+    <Card role="button" tabIndex={0} aria-label={`Apri profilo di ${p.nome} ${p.cognome}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} className={`cursor-pointer hover:shadow-md transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
       <CardContent className="p-3 flex items-center gap-3">
         {/* Avatar */}
         <div

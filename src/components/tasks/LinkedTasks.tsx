@@ -3,7 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2, Wallet, ChevronDown } from "lucide-react";
+import {
+  Plus,
+  CheckSquare,
+  CalendarDays,
+  AlertTriangle,
+  Lock,
+  Building2,
+  Wallet,
+  ChevronDown,
+} from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +22,7 @@ import { TaskDialog } from "./TaskDialog";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 
 interface LinkedTasksProps {
   orderId?: string;
@@ -31,6 +41,8 @@ interface LinkedTasksProps {
   compatta?: boolean;
   editable?: boolean;
   excludeOffice?: boolean;
+  title?: string;
+  description?: string;
 }
 
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
@@ -40,13 +52,32 @@ const SELECT_TASK =
 
 // PostgREST non espone sempre l'auto-relazione tasks -> tasks nella cache.
 // Carichiamo i predecessori in un'unica query, sempre nell'azienda corrente.
-async function withDependencies<T extends { bloccata_da_task_id?: string | null }>(tasks: T[], companyId: string) {
-  const ids = [...new Set(tasks.map(task => task.bloccata_da_task_id).filter((id): id is string => !!id))];
-  if (!ids.length) return tasks.map((task): T & { bloccata_da: null } => ({ ...task, bloccata_da: null }));
-  const { data, error } = await supabase.from('tasks').select('id,title').eq('company_id', companyId).in('id', ids);
+async function withDependencies<
+  T extends { bloccata_da_task_id?: string | null },
+>(tasks: T[], companyId: string) {
+  const ids = [
+    ...new Set(
+      tasks
+        .map((task) => task.bloccata_da_task_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  if (!ids.length)
+    return tasks.map((task): T & { bloccata_da: null } => ({
+      ...task,
+      bloccata_da: null,
+    }));
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id,title")
+    .eq("company_id", companyId)
+    .in("id", ids);
   if (error) throw error;
-  const byId = new Map((data ?? []).map(task => [task.id, task]));
-  return tasks.map(task => ({ ...task, bloccata_da: byId.get(task.bloccata_da_task_id ?? '') ?? null }));
+  const byId = new Map((data ?? []).map((task) => [task.id, task]));
+  return tasks.map((task) => ({
+    ...task,
+    bloccata_da: byId.get(task.bloccata_da_task_id ?? "") ?? null,
+  }));
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -56,7 +87,22 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta, editable = true, excludeOffice = false }: LinkedTasksProps) {
+export function LinkedTasks({
+  orderId,
+  stockItemId,
+  costId,
+  contactId,
+  opportunityId,
+  ticketId,
+  category,
+  companyId: propCompanyId,
+  embedded,
+  compatta,
+  editable = true,
+  excludeOffice = false,
+  title = "Attività",
+  description,
+}: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -67,9 +113,27 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const [expanded, setExpanded] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
+  const filterKey = orderId
+    ? `order-${orderId}`
+    : stockItemId
+      ? `stock-${stockItemId}`
+      : costId
+        ? `cost-${costId}`
+        : contactId
+          ? `contact-${contactId}`
+          : opportunityId
+            ? `opp-${opportunityId}`
+            : ticketId
+              ? `ticket-${ticketId}`
+              : "none";
 
-  const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
+  const {
+    data: allTasks = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: [...queryKeys.tasks.linked(filterKey), companyId, excludeOffice],
     queryFn: async () => {
       if (!companyId) return [];
@@ -105,7 +169,14 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         // Merge and deduplicate
         const allTasks = [...(contactRes.data || []), ...oppTasks];
         const seen = new Set<string>();
-        return withDependencies(allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; }), companyId);
+        return withDependencies(
+          allTasks.filter((t) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          }),
+          companyId,
+        );
       }
 
       if (opportunityId) {
@@ -139,7 +210,14 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         }
         const allTasks = [...(oppRes.data || []), ...contactTasks];
         const seen = new Set<string>();
-        return withDependencies(allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; }), companyId);
+        return withDependencies(
+          allTasks.filter((t) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          }),
+          companyId,
+        );
       }
 
       let query = supabase
@@ -158,13 +236,30 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (error) throw error;
       return withDependencies(data || [], companyId);
     },
-    enabled: !!companyId && !!(orderId || stockItemId || costId || contactId || opportunityId || ticketId),
+    enabled:
+      !!companyId &&
+      !!(
+        orderId ||
+        stockItemId ||
+        costId ||
+        contactId ||
+        opportunityId ||
+        ticketId
+      ),
   });
 
-  const tasks = excludeOffice ? allTasks.filter((t: any) => t.activity_scope !== "ufficio") : allTasks;
+  const tasks = excludeOffice
+    ? allTasks.filter((t: any) => t.activity_scope !== "ufficio")
+    : allTasks;
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+    mutationFn: async ({
+      id,
+      completed,
+    }: {
+      id: string;
+      completed: boolean;
+    }) => {
       if (!companyId) throw new Error("Missing company_id");
       if (!editable) throw new Error("Sola lettura");
       let query = supabase
@@ -178,13 +273,18 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (orderId) query = query.eq("order_id", orderId);
       const { data, error } = await query.select("id,status").maybeSingle();
       if (error) throw error;
-      if (!data || data.status !== (completed ? "completata" : "da_fare")) throw new Error("Attività non aggiornata");
+      if (!data || data.status !== (completed ? "completata" : "da_fare"))
+        throw new Error("Attività non aggiornata");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      invalidateOfficeWorkspace(queryClient, orderId);
       // I numeri di appuntamenti e attività sulle schede delle opportunità.
       if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
-      if (orderId) queryClient.invalidateQueries({ queryKey: ["order-next-task", orderId] });
+      if (orderId)
+        queryClient.invalidateQueries({
+          queryKey: ["order-next-task", orderId],
+        });
     },
     onError: () => toast.error("Attività non aggiornata. Riprova."),
   });
@@ -194,7 +294,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   // Ordine di lettura del flusso: prima quello che si puo' fare, poi quello che
   // aspetta il proprio turno, in fondo il chiuso.
   const tasksOrdinate = [...tasks].sort((a: any, b: any) => {
-    const peso = (t: any) => (t.status === "completata" ? 2 : t.status === "in_attesa" ? 1 : 0);
+    const peso = (t: any) =>
+      t.status === "completata" ? 2 : t.status === "in_attesa" ? 1 : 0;
     return peso(a) - peso(b);
   });
 
@@ -229,45 +330,72 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   // rilegge i campi quando cambia il `task` che riceve, e con un oggetto nuovo
   // ogni volta si svuotava da solo mentre si scriveva (bastava un aggiornamento
   // dell'elenco in sottofondo).
-  const attivitaNuova = useMemo(() => ({
-    title: "",
-    notes: "",
-    status: "da_fare",
-    priority: "normale",
-    due_date: null as string | null,
-    assigned_to: null as string | null,
-    order_id: orderId || null,
-    stock_item_id: stockItemId || null,
-    cost_id: costId || null,
-    contact_id: contactId || null,
-    opportunity_id: opportunityId || null,
-    ticket_id: ticketId || null,
-    category,
-  }), [orderId, stockItemId, costId, contactId, opportunityId, ticketId, category]);
+  const attivitaNuova = useMemo(
+    () => ({
+      title: "",
+      notes: "",
+      status: "da_fare",
+      priority: "normale",
+      due_date: null as string | null,
+      assigned_to: null as string | null,
+      order_id: orderId || null,
+      stock_item_id: stockItemId || null,
+      cost_id: costId || null,
+      contact_id: contactId || null,
+      opportunity_id: opportunityId || null,
+      ticket_id: ticketId || null,
+      category,
+    }),
+    [
+      orderId,
+      stockItemId,
+      costId,
+      contactId,
+      opportunityId,
+      ticketId,
+      category,
+    ],
+  );
 
-  const taskList = (
-    isLoading ? (
-      <p role="status" className="py-3 text-sm text-muted-foreground">Caricamento attività…</p>
-    ) : isError ? (
-      <div role="alert" className="space-y-2 rounded-lg border border-destructive/20 p-3 text-sm">
-        <p>Non riesco a caricare le attività. Non significa che siano assenti.</p>
-        <details className="text-xs text-muted-foreground"><summary>Dettagli tecnici</summary>{error?.message}</details>
-        <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
-      </div>
-    ) : tasks.length === 0 ? (
-      <p className={`text-muted-foreground text-center ${embedded ? "text-[11px] py-2" : "text-sm py-3"}`}>
-        Nessuna attività collegata
-      </p>
-    ) : (
-      <div className={embedded ? "space-y-1" : "space-y-2"}>
-        {tasksOrdinate.filter(task => !compatta || showCompleted || task.status !== "completata").map((task: any) => {
+  const taskList = isLoading ? (
+    <p role="status" className="py-3 text-sm text-muted-foreground">
+      Caricamento attività…
+    </p>
+  ) : isError ? (
+    <div
+      role="alert"
+      className="space-y-2 rounded-lg border border-destructive/20 p-3 text-sm"
+    >
+      <p>Non riesco a caricare le attività. Non significa che siano assenti.</p>
+      <details className="text-xs text-muted-foreground">
+        <summary>Dettagli tecnici</summary>
+        {error?.message}
+      </details>
+      <Button size="sm" variant="outline" onClick={() => refetch()}>
+        Riprova
+      </Button>
+    </div>
+  ) : tasks.length === 0 ? (
+    <p
+      className={`text-muted-foreground text-center ${embedded ? "text-[11px] py-2" : "text-sm py-3"}`}
+    >
+      Nessuna attività collegata
+    </p>
+  ) : (
+    <div className={embedded ? "space-y-1" : "space-y-2"}>
+      {tasksOrdinate
+        .filter(
+          (task) => !compatta || showCompleted || task.status !== "completata",
+        )
+        .map((task: any) => {
           const isCompleted = task.status === "completata";
           // Passo del flusso non ancora sbloccato: esiste, ma tocca a qualcun
           // altro prima. Si sblocca da solo (trigger DB sblocca_task_a_catena),
           // quindi qui la spunta va disattivata: chiuderla a mano salterebbe
           // il passaggio di consegne.
           const isBlocked = task.status === "in_attesa";
-          const isOverdue = task.due_date && !isCompleted && isPast(parseISO(task.due_date));
+          const isOverdue =
+            task.due_date && !isCompleted && isPast(parseISO(task.due_date));
 
           return (
             <div
@@ -276,7 +404,10 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
               onClick={() => handleEditTask(task)}
             >
               {isBlocked ? (
-                <div className="mt-0.5" title="Parte da sola quando si chiude il passo precedente">
+                <div
+                  className="mt-0.5"
+                  title="Parte da sola quando si chiude il passo precedente"
+                >
                   <Lock className="h-4 w-4 text-violet-500" />
                 </div>
               ) : (
@@ -284,25 +415,45 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                   className="mt-0.5"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (editable && !toggleMutation.isPending) toggleMutation.mutate({ id: task.id, completed: !isCompleted });
+                    if (editable && !toggleMutation.isPending)
+                      toggleMutation.mutate({
+                        id: task.id,
+                        completed: !isCompleted,
+                      });
                   }}
                 >
-                  <Checkbox checked={isCompleted} disabled={!editable || toggleMutation.isPending} aria-label={`Completa attività ${task.title}`} />
+                  <Checkbox
+                    checked={isCompleted}
+                    disabled={!editable || toggleMutation.isPending}
+                    aria-label={`Completa attività ${task.title}`}
+                  />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <button type="button" disabled={!editable} onClick={event => {event.stopPropagation(); handleEditTask(task);}}
-                  className={`block w-full break-words text-left font-medium ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                <button
+                  type="button"
+                  disabled={!editable}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleEditTask(task);
+                  }}
+                  className={`block w-full break-words text-left font-medium ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+                >
                   {task.title}
                 </button>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}>
+                  <Badge
+                    className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}
+                  >
                     {task.priority}
                   </Badge>
                   {/* L'ufficio viene prima della persona: e' lui a rispondere
                       del passo, la persona e' chi ci sta mettendo le mani. */}
                   {task.ufficio?.nome && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 gap-0.5"
+                    >
                       <Building2 className="h-2.5 w-2.5" /> {task.ufficio.nome}
                     </Badge>
                   )}
@@ -313,18 +464,26 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                   )}
                   {/* Nessuno deve chiedersi perché questa non la fa nessuno:
                       si chiude da sola quando arriva l'incasso. */}
-                  {task.chiudi_su_evento === "incasso_registrato" && !isCompleted && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-emerald-200 text-emerald-700">
-                      <Wallet className="h-2.5 w-2.5" /> si chiude all'incasso
-                    </Badge>
-                  )}
+                  {task.chiudi_su_evento === "incasso_registrato" &&
+                    !isCompleted && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 gap-0.5 border-emerald-200 text-emerald-700"
+                      >
+                        <Wallet className="h-2.5 w-2.5" /> si chiude all'incasso
+                      </Badge>
+                    )}
                   {isBlocked && (
                     <span className="text-[11px] text-violet-600">
-                      {task.bloccata_da?.title ? `dopo: ${task.bloccata_da.title}` : "in attesa"}
+                      {task.bloccata_da?.title
+                        ? `dopo: ${task.bloccata_da.title}`
+                        : "in attesa"}
                     </span>
                   )}
                   {task.due_date && (
-                    <span className={`text-[11px] flex items-center gap-0.5 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-[11px] flex items-center gap-0.5 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}
+                    >
                       {isOverdue && <AlertTriangle className="h-3 w-3" />}
                       <CalendarDays className="h-3 w-3" />
                       {format(parseISO(task.due_date), "dd/MM")}
@@ -335,8 +494,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
             </div>
           );
         })}
-      </div>
-    )
+    </div>
   );
 
   return (
@@ -346,64 +504,129 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-              <CheckSquare className="h-3.5 w-3.5" /> Attività
-              {activeTasks.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{activeTasks.length}</Badge>}
+              <CheckSquare className="h-3.5 w-3.5" /> {title}
+              {activeTasks.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                  {activeTasks.length}
+                </Badge>
+              )}
             </span>
-            <Button variant="ghost" size="sm" onClick={handleAddTask} className="h-6 text-[10px] text-primary px-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddTask}
+              className="h-6 text-[10px] text-primary px-1.5"
+            >
               <Plus className="h-3 w-3 mr-0.5" /> Nuova
             </Button>
           </div>
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
           {taskList}
         </div>
-      ) : compatta && isMobile && !isLoading && !isError && tasks.length === 0 ? (
-        // Da telefono una sezione vuota non c'è: l'attività si aggiunge
-        // dall'icona in testata alla commessa.
-        null
-      ) : compatta ? (
+      ) : compatta &&
+        isMobile &&
+        !isLoading &&
+        !isError &&
+        tasks.length ===
+          0 ? // Da telefono una sezione vuota non c'è: l'attività si aggiunge
+      // dall'icona in testata alla commessa.
+      null : compatta ? (
         // Una riga sola: il riquadro grande con «Nessuna attività collegata» al
         // centro era quasi tutto spazio vuoto in cima alle lavorazioni.
         <Card>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 sm:px-4">
             <span className="flex items-center gap-2 text-sm font-semibold">
               <CheckSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
-              Attività
+              {title}
             </span>
             {activeTasks.length > 0 && (
-              <Badge variant="secondary" className="text-xs">{activeTasks.length === 1 ? "1 da fare" : `${activeTasks.length} da fare`}</Badge>
+              <Badge variant="secondary" className="text-xs">
+                {activeTasks.length === 1
+                  ? "1 da fare"
+                  : `${activeTasks.length} da fare`}
+              </Badge>
             )}
-            {!isLoading && !isError && tasks.length === 0 && <span className="text-sm text-muted-foreground">nessuna</span>}
-            {!isLoading && !isError && tasks.length > 0 && activeTasks.length === 0 && <span className="text-sm text-emerald-700">tutte fatte</span>}
-            {tasks.length > 0 && <Button type="button" variant="ghost" size="sm" className="ml-auto min-h-10" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
-              {expanded ? "Nascondi attività" : "Mostra attività"}<ChevronDown className="ml-1 h-3.5 w-3.5" />
-            </Button>}
-            {editable && <Button variant="ghost" size="sm" onClick={handleAddTask} className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              <span className="ml-1">Aggiungi</span>
-            </Button>}
+            {!isLoading && !isError && tasks.length === 0 && (
+              <span className="text-sm text-muted-foreground">nessuna</span>
+            )}
+            {!isLoading &&
+              !isError &&
+              tasks.length > 0 &&
+              activeTasks.length === 0 && (
+                <span className="text-sm text-emerald-700">tutte fatte</span>
+              )}
+            {tasks.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto min-h-10"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {expanded ? "Nascondi attività" : "Mostra attività"}
+                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            )}
+            {editable && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAddTask}
+                className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                <span className="ml-1">Aggiungi</span>
+              </Button>
+            )}
           </div>
-          {(isError || isLoading || expanded) && <div className="border-t px-2 py-1.5 sm:px-3">
-            {taskList}
-            {expanded && !isError && !isLoading && tasks.length > activeTasks.length && <Button type="button" variant="ghost" size="sm" className="mt-1 min-h-10" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
-              {showCompleted ? "Nascondi completate" : `Mostra completate (${tasks.length - activeTasks.length})`}
-            </Button>}
-          </div>}
+          {description && <p className="px-3 pb-2 text-xs leading-relaxed text-muted-foreground sm:px-4">{description}</p>}
+          {(isError || isLoading || expanded) && (
+            <div className="border-t px-2 py-1.5 sm:px-3">
+              {taskList}
+              {expanded &&
+                !isError &&
+                !isLoading &&
+                tasks.length > activeTasks.length && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 min-h-10"
+                    aria-expanded={showCompleted}
+                    onClick={() => setShowCompleted((value) => !value)}
+                  >
+                    {showCompleted
+                      ? "Nascondi completate"
+                      : `Mostra completate (${tasks.length - activeTasks.length})`}
+                  </Button>
+                )}
+            </div>
+          )}
         </Card>
       ) : (
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
             <CardTitle className="text-base flex items-center gap-2 min-w-0">
               <CheckSquare className="h-4 w-4 shrink-0" />
-              <span>Attività</span>
+              <span>{title}</span>
               {activeTasks.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs shrink-0">{activeTasks.length}</Badge>
+                <Badge variant="secondary" className="ml-1 text-xs shrink-0">
+                  {activeTasks.length}
+                </Badge>
               )}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={handleAddTask} className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddTask}
+              className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950"
+            >
               <Plus className="h-4 w-4" />
               <span className="ml-1">Aggiungi</span>
             </Button>
           </CardHeader>
-          <CardContent className="pt-0">{taskList}</CardContent>
+          <CardContent className="pt-0">{description && <p className="mb-2 text-xs text-muted-foreground">{description}</p>}{taskList}</CardContent>
         </Card>
       )}
 
@@ -415,7 +638,10 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
           queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
           // I numeri di appuntamenti e attività sulle schede delle opportunità.
           if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
-          if (orderId) queryClient.invalidateQueries({ queryKey: ["order-next-task", orderId] });
+          if (orderId)
+            queryClient.invalidateQueries({
+              queryKey: ["order-next-task", orderId],
+            });
         }}
         defaultCategory={category}
         defaultOrderId={orderId}

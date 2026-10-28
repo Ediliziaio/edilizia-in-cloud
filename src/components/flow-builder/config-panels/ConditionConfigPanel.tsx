@@ -4,6 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAutomationFieldDefinitions } from "@/hooks/useAutomationFieldDefinitions";
+import { CUSTOM_TRIGGER_OBJECTS,customFieldId,customFilterType } from "../../../../supabase/functions/_shared/automationFieldContract";
+import { ConditionValueInput } from "@/components/marketing/automations/ConditionValueInput";
+import { conditionOperatorAliases } from "../../../../supabase/functions/_shared/automationValidation";
 
 const CAMPI = [
   { value: "contatto.first_name", label: "Nome contatto" },
@@ -46,15 +50,19 @@ const OPERATORI = [
 interface ConditionRow {
   campo: string;
   operatore: string;
-  valore: string;
+  valore: any;
 }
 
 interface ConditionConfigPanelProps {
   config: Record<string, any>;
   onChange: (field: string, value: any) => void;
+  companyId?: string;
+  triggerCategory?: string;
 }
 
-export function ConditionConfigPanel({ config, onChange }: ConditionConfigPanelProps) {
+export function ConditionConfigPanel({ config, onChange, companyId, triggerCategory }: ConditionConfigPanelProps) {
+  const scope=String(config.custom_object_type??CUSTOM_TRIGGER_OBJECTS[triggerCategory??""]??"contact");
+  const {data:customFields=[],isError}=useAutomationFieldDefinitions(companyId,scope);
   const condizioni: ConditionRow[] = config.condizioni || [{ campo: "", operatore: "uguale", valore: "" }];
   const logica = config.operatore_logico || "AND";
 
@@ -79,6 +87,9 @@ export function ConditionConfigPanel({ config, onChange }: ConditionConfigPanelP
 
   return (
     <div className="space-y-4">
+      <Label htmlFor="condition-custom-object">Campi personalizzati di</Label><select id="condition-custom-object" className="w-full rounded border bg-background p-2 text-sm" value={scope} onChange={e=>onChange("custom_object_type",e.target.value)}>{Object.entries({contact:"Contatto",opportunity:"Opportunità",appointment:"Appuntamento",order:"Commessa",quote:"Preventivo",task:"Task",employee:"Dipendente",warehouse:"Magazzino",ordini_variazione:"Variante",giornale_lavori:"Giornale lavori",duvri_document:"DUVRI"}).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
+      <p className="text-xs text-muted-foreground">Si legge il record del flusso o quello realmente collegato, non un record arbitrario.</p>
+      {isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
       {/* Logic toggle */}
       <div className="space-y-1.5">
         <Label className="text-xs">Logica</Label>
@@ -122,7 +133,9 @@ export function ConditionConfigPanel({ config, onChange }: ConditionConfigPanelP
                 <SelectValue placeholder="Seleziona campo..." />
               </SelectTrigger>
               <SelectContent>
+                {cond.campo&&!CAMPI.some(c=>c.value===cond.campo)&&!customFields.some(f=>f.id===customFieldId(cond.campo))&&<SelectItem value={cond.campo} disabled>Campo non disponibile</SelectItem>}
                 {CAMPI.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                {customFields.filter(f=>f.field_type!=="file").map(f=><SelectItem key={f.id} value={`custom_field.${f.id}`}>{f.name} · personalizzato</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={cond.operatore} onValueChange={v => updateRow(i, { operatore: v })}>
@@ -133,7 +146,10 @@ export function ConditionConfigPanel({ config, onChange }: ConditionConfigPanelP
                 {OPERATORI.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            {!noValueOps.includes(cond.operatore) && (
+            {!noValueOps.includes(cond.operatore) && customFieldId(cond.campo) && customFields.some(f=>f.id===customFieldId(cond.campo)) ? (()=>{
+              const field=customFields.find(f=>f.id===customFieldId(cond.campo))!;
+              return <ConditionValueInput field={{key:cond.campo,label:field.name,type:customFilterType(field.field_type),group:"Campi personalizzati",options:field.options?.map(v=>({value:v,label:v}))}} operator={conditionOperatorAliases[cond.operatore]??cond.operatore} value={cond.valore} companyId={companyId} onChange={v=>updateRow(i,{valore:v})} />;
+            })() : !noValueOps.includes(cond.operatore) && (
               <Input
                 value={cond.valore}
                 onChange={e => updateRow(i, { valore: e.target.value })}

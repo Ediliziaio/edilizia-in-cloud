@@ -292,3 +292,51 @@ scansione** (giro in magazzino/furgone: scansioni tutto ciò che c'è, il sistem
 - **Telefono** (regole mobile): da campo solo scansione + azioni rapide, niente gestione categorie o
   stampa etichette (quelle restano in ufficio).
 - Dati demo: le tre coppie "DEMO CFO · int/mix/sub" sono dati di prova duplicati, da ignorare/pulire.
+
+## 28 ottobre 2026 — Pianificazione nella commessa e popup delle fasi
+
+Implementato `PianoMezziCantiere`, usato nella commessa e nel popup della lavorazione. Sostituito il vecchio collegamento `#section-mezzi`, che spostava la pagina. La riga della tabella apre il dettaglio, con un pulsante accessibile da tastiera sul nome. Filtri Mezzi / Attrezzature / Noleggi, stato temporale e storico di terminati/annullati.
+
+- Anagrafica unica del parco: tipo e proprietà/leasing/noleggio rimangono nella scheda esistente. Dal popup si possono registrare mezzo o attrezzatura, senza uscire dalla commessa.
+- Assegnazione pianificata: tutta la commessa oppure una o più fasi, date iniziale/finale incluse, quantità per risorse gestite a quantità, note. Apertura dalla fase con selezione già compilata. Comando per copiare le date del cantiere o delle fasi, quando presenti; successive ripianificazioni non cambiano silenziosamente gli accordi di noleggio.
+- Tariffa per intera assegnazione (quantità inclusa): totale concordato, giorno, settimana di 7 giorni, mese convenzionale di 30 giorni. Periodici pro rata su giorni di calendario; extra trasporto/montaggio aggiunti una sola volta. Senza fine il costo periodico resta indeterminato; importo fisso utilizzabile anche con fine aperta. Valori netti IVA.
+- Presenza fisica, montaggi, rientri e viaggi esistenti conservati in un pannello secondario. Una prenotazione futura non sposta fisicamente il mezzo, non genera rapportini e non altera POS.
+- Costi previsti separati dai costi annui stimati del parco e dalle fatture: nessuna registrazione contabile automatica e nessun doppio addebito alla scelta della fase. Il nuovo totale non è ancora aggregato nell'Economia delle fasi o nel margine generale: queste viste mantengono le fonti precedenti.
+
+Database: migrazione **20281028023000_mezzi_piano_cantiere**, applicata e registro riallineato. Tabelle `mezzi_piani_cantiere` e `mezzi_piani_costi` separate per non trasmettere importi a chi legge solo l'organizzazione. Scritture dirette client revocate; RPC atomica `salva_piano_mezzo`, con controllo utente, blocco, sola lettura, permessi mezzi/commessa, visibilità commessa e costo. SECURITY DEFINER intenzionale per validare conflitti fra prenotazioni anche su commesse non visibili al chiamante senza rivelarne nomi/dati; advisory segnala questa esposizione autenticata, prevista e verificata. Nessun accesso anon. Lock sulla risorsa e sull'identificativo del piano; rifiuto sovrapposizioni per singole risorse e picchi oltre la quantità totale per quelle frazionabili. Le fasi e la risorsa devono appartenere alla stessa commessa/azienda. Nessuna tabella nuova scoperta dal controllo backup.
+
+Verifiche:
+
+- **58 test, 6 file**, calcolo importi/durate, confini date, filtri fase, precompilazione e riuso date, assenza costi nel payload senza permesso, errore costi che non cancella valori, lettura sola e regressioni mezzi precedenti.
+- **13 prove SQL reali tutte positive**, script `scripts/sql/mezzi-piano-cantiere-collaudo.sql`, transazione annullata: salvataggio atomico, fasi estranee, conflitti, date, rollback costo invalido, annullamento, quantità e negazioni operaio/anon/scrittura diretta.
+- Tipi: 5 file di produzione controllati, zero errori; lint dei tre file nuovi senza errori o avvisi; diff check pulito. Nessuna build completa o pubblicazione frontend in questo incremento.
+- Browser reale **Demo Azienda 2**, commessa `DEMO-APP-2810-A`: login separato su `mezzi.localhost`, apertura dalla fase, inserimento e riapertura/modifica, costo 5 × 100 + 70 = **570 €**, assegnazione generale e attrezzatura propria su fase. Due piani dimostrativi conservati con note `COLLAUDO DEMO UX mezzi 28/10`; nessun noleggio, fattura o movimento fisico reale. Screenshot in `outputs/mezzi-cantiere-2810/popup-risorse.png` della workspace della chat.
+
+Limiti espliciti: la disponibilità pianificata e quella fisica sono registri distinti; la riconciliazione all'arrivo/rientro resta un'azione dell'operatore. Non aggiunti ordini al noleggiatore, fatturazione automatica o alert di rientro. Nessun push/deploy frontend eseguito.
+
+## 28 ottobre 2026 — Economia, fornitori e responsabili delle risorse
+
+Superato il limite del precedente incremento sull'integrazione nel riepilogo economico. Il nuovo riquadro **Mezzi e noleggi della commessa** confronta il preventivo con le quote riconosciute nei costi già registrati. Non somma il preventivo al consuntivo e non crea costi/fatture/pagamenti. Rimane la stessa fonte canonica `v_ordine_marginalita` per costi e margine: il collegamento è una classificazione, non una seconda spesa. Rimossa dal riquadro storico la sottrazione automatica della stima annua dal margine, che poteva sovrapporsi a spese effettive.
+
+Il dettaglio della risorsa permette di collegare costi/fatture già attribuiti alla commessa oppure OdA emessi. Un OdA con costo/fattura usa un'unica fonte: somma dei `company_costs` associati, altrimenti imponibile OdA, come `marginalita_costo_oda`. Il costo diretto collegato a quell'OdA è escluso dall'elenco delle fonti dirette. Supportate quote parziali dello stesso documento su più risorse e costi ripartiti tra commesse, nei limiti delle attribuzioni canoniche. Nessun abbinamento automatico per semplice nome fornitore/importo: l'operatore riconosce la fonte. OdA in bozza/annullati esclusi. Fonti modificate, spostate, eliminate o ridotte da note di credito rendono esplicita la necessità di riconciliazione; il riepilogo non spaccia quote obsolete per importi validi.
+
+UX:
+
+- Menu risorsa, ambito, tariffa, fornitore e referente con ricerca e stile del gestionale: eliminati i menu nativi del sistema operativo. Ricerca letterale per termini sulle etichette, non sugli UUID, per evitare risultati estranei.
+- Fornitore da anagrafica condivisa; creazione nel popup con l'editor esistente, selezione immediata e invalidazione delle liste. Il pulsante di creazione segue i permessi; nessun duplicato anagrafico costruito solo per il noleggio. Conservati eventuali riferimenti testuali precedenti.
+- Referente operativo `responsabile_hr_id` per assegnazione: persone attive dell'azienda, con persone del cantiere evidenziate e comando **Usa il capocantiere**. Nessuna modifica automatica ad accessi, squadra, nomine sicurezza, patenti o abilitazioni; non è una certificazione all'uso della macchina.
+- **Gestisci risorse e spese** dal conto economico apre il popup, mantenendo la commessa. Le spese si collegano dal dettaglio dell'assegnazione. Le quote si possono scollegare senza eliminare il documento o il costo.
+
+Migrazione **20281028024000_mezzi_piani_economia_referenti**, applicata e versione riallineata: referente e fornitore con FK, tabella RLS `mezzi_piani_spese` (solo SELECT client), RPC atomiche di scrittura con controlli azienda/commessa/permessi/sola lettura e lock sulla fonte di costo. Quote fino a due decimali, non oltre il documento né la quota della commessa; nessuna scrittura diretta client o chiamata anon. Il contesto persone espone solo nomi, ID e appartenenza operativa, senza campi personali HR. SECURITY DEFINER delle tre RPC intenzionale, segnalato dagli advisor come esposizione autenticata: permessi e ambito verificati prima della lettura/scrittura. Nessuna nuova tabella senza RLS o scoperta dal backup.
+
+Letture di piani e prezzi paginate e ordinate stabilmente; cache prezzi dipendente dagli ID del piano. Fonti economiche aggiornate ogni 30 secondi con invalidazione del consuntivo quando cambiano; i collegamenti salvati aggiornano subito il riepilogo.
+
+Collaudo:
+
+- Test automatici su calcolo, attribuzioni, fonti aggiornate, annullamenti, quote parziali, composizione commessa, fascia finanziaria, selezione referente e regressioni fornitori.
+- **17 prove SQL nuove tutte positive**, `scripts/sql/mezzi-economia-referenti-collaudo.sql`, interamente annullate al termine: budget/referente/fornitore, negazioni altra azienda/commessa/operaio/anon, costi diretti e fatture ripartite, quote, fonte unica OdA/fattura, consuntivo invariato prima/dopo collegamento, annullamento e scollegamento. Ripetute anche le **13 prove precedenti** senza regressioni.
+- Browser Demo Azienda 2: ricerca risorse/fornitore, assegnazione del capocantiere, salvataggio e riapertura, apertura/annullamento creazione fornitore, collegamento costo, gestione dal riquadro economico senza navigazione. Nessuna nuova anagrafica fornitore necessaria al collaudo reale.
+- Nella sola commessa di prova `DEMO-APP-2810-A`, conservato un costo **simulato** da 570 € (`1bb12fb2-b7d7-4294-8b40-6cfc6f1ae627`), collegato al noleggio DEMO. Nome e note dichiarano il collaudo, nessuna fattura o pagamento reale, scadenza convenzionale nel 2210 per escludere solleciti attuali. Verifica database: consuntivo 570 €, quota mezzi 570 €, **una registrazione**, non 1.140 €. Fornitore esistente e capocantiere collegati al piano dimostrativo.
+- Evidenze e log nella workspace della chat `outputs/mezzi-economia-2810/`. Interfaccia verificata localmente; nessun push/deploy frontend o build completa in questo incremento.
+
+Rimangono distinti: preventivo, classificazione delle spese registrate, stima annua del parco e presenza fisica. Un importo senza fine o tariffa non viene inventato; la copertura incompleta è segnalata. Non introdotti ordini automatici al noleggiatore, approvazioni di spesa o avvisi di rientro.

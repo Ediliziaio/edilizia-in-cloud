@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
+import { readAllPages } from "@/lib/personale/readAllPages";
 
 export type CandidatoStato = "nuovo" | "in_valutazione" | "colloquio" | "offerta" | "assunto" | "scartato" | "archiviato";
 export type CandidatoFonte = "manuale" | "campagna" | "test_attitudinale" | "segnalazione" | "sito" | "altro";
@@ -110,13 +111,12 @@ export function useHrCandidati() {
     queryKey: chiavi.lista(companyId),
     enabled: !!companyId,
     staleTime: 60 * 1000,
-    queryFn: async (): Promise<HrCandidato[]> => {
-      const { data, error } = await db
+    queryFn: async ({ signal }): Promise<HrCandidato[]> => {
+      const data = await readAllPages<HrCandidato>((from,to) => db
         .from("hr_candidati")
         .select("*")
         .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+        .order("created_at", { ascending: false }).order("id").range(from,to).abortSignal(signal));
       return (data ?? []) as HrCandidato[];
     },
   });
@@ -260,51 +260,18 @@ export function useAssumiCandidato() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (candidato: HrCandidato) => {
-      if (candidato.hr_profilo_id) return candidato.hr_profilo_id;
-      const { data: profilo, error } = await db
-        .from("hr_profili")
-        .insert({
-          company_id: companyId,
-          nome: candidato.nome,
-          cognome: candidato.cognome,
-          email: candidato.email,
-          telefono: candidato.telefono,
-          mansione: candidato.ruolo,
-          data_assunzione: new Date().toLocaleDateString("en-CA"),
-          // Stessi default del flusso ufficiale (useCreateHrProfilo):
-          tipo_contratto: "indeterminato",
-          orario_tipo: "standard",
-          ore_settimanali: 40,
-          ore_giornaliere: 8,
-          attivo: true,
-          ccnl: "Edilizia",
-          nazionalita: "Italiana",
-          colore_avatar: "#0EA5E9",
-          pausa_pranzo_minuti: 60,
-          ferie_anno_giorni: 26,
-          ferie_residue: 26,
-          permessi_anno_ore: 32,
-          permessi_residui_ore: 32,
-          rol_anno_ore: 0,
-          rol_residuo_ore: 0,
-          note_interne: [candidato.note, "Creato dalla selezione candidati."].filter(Boolean).join("\n"),
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      const profiloId = (profilo as { id: string }).id;
-      const { error: linkErr } = await db
-        .from("hr_candidati")
-        .update({ stato: "assunto", hr_profilo_id: profiloId })
-        .eq("id", candidato.id);
-      if (linkErr) throw linkErr;
-      return profiloId;
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase.rpc("hr_collega_candidato" as never, { p_company: companyId, p_candidato: candidato.id } as never);
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Collegamento non confermato dal server");
+      return data as string;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-candidati"] });
       qc.invalidateQueries({ queryKey: ["hr-organigramma"] });
       qc.invalidateQueries({ queryKey: ["hr-profili-all"] });
-      toast.success("Profilo dipendente creato", { description: "Completa contratto e dettagli dall'Organigramma." });
+      qc.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
+      toast.success("Profilo HR collegato", { description: "Contratto, orario e saldi non sono presunti: completali dall'Organigramma." });
     },
     onError: (e) => toast.error("Profilo non creato", { description: e instanceof Error ? e.message : undefined }),
   });
@@ -329,50 +296,30 @@ const FASI_DEFAULT: Array<{ nome: string; colore: string }> = [
  */
 export function useFasiSelezione() {
   const companyId = useEffectiveCompanyId();
-  const qc = useQueryClient();
   return useQuery({
-    queryKey: ["hr-selezione-fasi", companyId],
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    queryKey: ["hr-selezione-fasi", companyId], enabled: !!companyId, staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<FaseSelezione[]> => {
-      const carica = async () => {
-        const { data, error } = await db
-          .from("hr_selezione_fasi")
-          .select("*")
-          .eq("company_id", companyId)
-          .order("posizione");
-        if (error) throw error;
-        return (data ?? []) as FaseSelezione[];
-      };
-      let fasi = await carica();
-      if (fasi.length === 0) {
-        const { error: seedErr } = await db
-          .from("hr_selezione_fasi")
-          .upsert(
-            FASI_DEFAULT.map((f, i) => ({ company_id: companyId, nome: f.nome, colore: f.colore, posizione: i })),
-            { onConflict: "company_id,nome", ignoreDuplicates: true },
-          );
-        if (seedErr) throw seedErr;
-        fasi = await carica();
-        // Backfill una tantum: gli stati legacy diventano fasi.
-        const perNome = new Map(fasi.map((f) => [f.nome, f.id]));
-        const mappa: Array<[string, string]> = [
-          ["nuovo", "Candidatura ricevuta"],
-          ["in_valutazione", "Screening CV"],
-          ["colloquio", "Primo colloquio"],
-          ["offerta", "Offerta"],
-        ];
-        for (const [stato, nomeFase] of mappa) {
-          const faseId = perNome.get(nomeFase);
-          if (!faseId) continue;
-          await db.from("hr_candidati").update({ fase_id: faseId }).eq("company_id", companyId).eq("stato", stato).is("fase_id", null);
-        }
-        // I candidati sono spesso GIÀ in cache quando il seed gira: senza
-        // invalidazione lo smistamento si vedrebbe solo al prossimo reload.
-        qc.invalidateQueries({ queryKey: ["hr-candidati"] });
-      }
-      return fasi;
+      const { data, error } = await db.from("hr_selezione_fasi").select("*").eq("company_id", companyId).order("posizione").order("id");
+      if (error) throw error;
+      return (data ?? []) as FaseSelezione[];
     },
+  });
+}
+
+/** Explicit setup; no candidate is silently reassigned on opening a tab. */
+export function useInizializzaFasi() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { error } = await db.from("hr_selezione_fasi").upsert(
+        FASI_DEFAULT.map((f,i)=>({company_id:companyId,nome:f.nome,colore:f.colore,posizione:i})),
+        {onConflict:"company_id,nome",ignoreDuplicates:true});
+      if (error) throw error;
+    },
+    onSuccess:()=>{ void qc.invalidateQueries({queryKey:["hr-selezione-fasi",companyId]}); },
+    onError:()=>toast.error("Configurazione delle fasi non riuscita"),
   });
 }
 

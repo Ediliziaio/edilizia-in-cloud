@@ -44,7 +44,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   sopralluoghi:           { title: "Modelli di sopralluogo",     description: "I modelli con cui si fa un sopralluogo: campi da compilare e foto da scattare. Attiva quelli che usi" },
   "qr-codici":            { title: "QR & Codici",              description: "Codici a barre e QR del magazzino: controlla le scansioni, prova un codice, crea QR che aprono una commessa o un documento" },
   tag:                    { title: "Tag",                      description: "Etichette per ritrovare contatti e opportunità" },
-  "campi-personalizzati": { title: "Campi personalizzati",     description: "Campi in più da compilare su contatti e opportunità" },
+  "campi-personalizzati": { title: "Campi personalizzati",     description: "Campi aziendali, variabili di sistema e definizioni di modelli e schede tecniche" },
   sequenze:               { title: "Pipeline di vendita",      description: "Le fasi per cui passa una trattativa, dal primo contatto alla firma" },
   "motivi-perdita":       { title: "Motivi di perdita",        description: "Organizza i motivi delle opportunità perse mantenendo lo storico" },
   "form-builder":         { title: "Moduli contatto del sito",   description: "Moduli da mettere sul tuo sito: chi li compila diventa un contatto" },

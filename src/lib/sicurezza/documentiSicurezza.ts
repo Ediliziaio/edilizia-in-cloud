@@ -1,17 +1,7 @@
-/**
- * I documenti di sicurezza di un cantiere e la lista di controllo della commessa:
- * cosa deve esserci, cosa c'è, cosa manca o è scaduto.
- *
- * Le regole seguono il D.Lgs. 81/08 (Titolo IV) nella forma che serve a
- * un'impresa edile, senza pretendere di sostituire il coordinatore:
- * - POS della propria impresa: sempre (art. 89, 96; contenuti Allegato XV 3.2).
- * - Con più imprese in cantiere (subappalti): PSC del committente (art. 100), nomina
- *   dei coordinatori (art. 90), notifica preliminare (art. 99), POS e DURC di ogni
- *   impresa, verifica dell'idoneità tecnico-professionale (Allegato XVII), fascicolo
- *   dell'opera (art. 91).
- * - Ponteggi montati: PiMUS (art. 136).
- * - Sempre, per l'impresa: patente a crediti (art. 27, dal 1° ottobre 2024) e DURC.
- */
+import type { EvidenzaFascicolo } from "./fascicolo";
+/** Promemoria documentali: la raccolta dei file non dimostra l’applicabilità
+ * di un obbligo né l’idoneità complessiva dell’impresa. Le scelte del caso
+ * concreto vengono registrate nel fascicolo, con soggetto e riferimenti. */
 
 export type TipoDocumentoSicurezza =
   | "psc" | "pss" | "pos_impresa" | "notifica_preliminare" | "fascicolo_opera" | "pimus"
@@ -21,7 +11,7 @@ export type TipoDocumentoSicurezza =
 
 export const TIPI_SICUREZZA: Record<TipoDocumentoSicurezza, { label: string; aiuto: string; scade?: boolean }> = {
   psc: { label: "PSC – Piano di sicurezza e coordinamento", aiuto: "Lo redige il coordinatore in progettazione (CSP) per il committente, quando in cantiere ci sono più imprese." },
-  pss: { label: "PSS – Piano sostitutivo di sicurezza", aiuto: "Negli appalti pubblici senza PSC." },
+  pss: { label: "PSS – Piano sostitutivo di sicurezza", aiuto: "Documento dell’archivio precedente: verificare il regime e il contratto applicabili." },
   pos_impresa: { label: "POS di un'altra impresa", aiuto: "Il POS di un subappaltatore o di un'impresa in cantiere, da verificare prima dell'ingresso." },
   notifica_preliminare: { label: "Notifica preliminare", aiuto: "Del committente all'ASL e all'Ispettorato (art. 99): copia affissa in cantiere." },
   fascicolo_opera: { label: "Fascicolo dell'opera", aiuto: "Per la manutenzione futura dell'opera, preparato dal coordinatore." },
@@ -31,7 +21,7 @@ export const TIPI_SICUREZZA: Record<TipoDocumentoSicurezza, { label: string; aiu
   durc: { label: "DURC", aiuto: "Regolarità contributiva: vale 120 giorni.", scade: true },
   idoneita_tecnica: { label: "Idoneità tecnico-professionale", aiuto: "Visura, dichiarazioni e documenti dell'Allegato XVII per le imprese in cantiere." },
   dvr: { label: "DVR – Valutazione dei rischi", aiuto: "Il documento di valutazione dei rischi dell'impresa." },
-  patente_crediti: { label: "Patente a crediti", aiuto: "Obbligatoria dal 1° ottobre 2024 per lavorare nei cantieri (art. 27).", scade: true },
+  patente_crediti: { label: "Patente a crediti", aiuto: "Verificare applicabilità ed eventuali esclusioni per il soggetto e i lavori; la sola presenza in cantiere non basta.", scade: true },
   piano_emergenza: { label: "Piano di emergenza", aiuto: "Gestione emergenze, primo soccorso, antincendio ed evacuazione." },
   schede_sicurezza: { label: "Schede di sicurezza prodotti", aiuto: "Delle sostanze e miscele pericolose usate in cantiere." },
   valutazione_rumore: { label: "Valutazione del rumore", aiuto: "Esito della valutazione del rischio rumore." },
@@ -47,9 +37,11 @@ export const TIPI_SICUREZZA: Record<TipoDocumentoSicurezza, { label: string; aiu
  * subappaltatore (caricamento singolo) o il suo fascicolo (caricamento in massa
  * e lettura AI). Un documento si carica UNA volta e si vede ovunque.
  */
-export type FonteDocumento = "sicurezza" | "subappaltatore" | "fascicolo";
+export type FonteDocumento = "sicurezza" | "subappaltatore" | "fascicolo" | "fascicolo_cantiere";
 
 export interface DocumentoSicurezza {
+  stato_verifica?: EvidenzaFascicolo["stato"];
+  ambito_da_verificare?: boolean;
   id: string;
   /** Assente = archivio della sicurezza. */
   fonte?: FonteDocumento;
@@ -83,6 +75,7 @@ export interface VoceControllo {
 }
 
 export interface DatiControllo {
+  orderId?: string;
   oggi: string; // yyyy-mm-dd
   /** Documenti della commessa più quelli di tutta l'azienda (order_id null). */
   documenti: DocumentoSicurezza[];
@@ -120,7 +113,11 @@ function voceDocumento(
   tipo: TipoDocumentoSicurezza, subappaltatoreId?: string,
 ): VoceControllo {
   if (!doc) return { chiave, titolo, perche, stato: "manca", tipo, subappaltatoreId };
-  const stato = statoScadenza(doc.data_scadenza, oggi);
+  const scadenza = statoScadenza(doc.data_scadenza, oggi);
+  if(doc.ambito_da_verificare) return {chiave,titolo,perche,stato:scadenza==='scaduto'?'scaduto':'in_corso',tipo,subappaltatoreId,dettaglio:'Associa e verifica il POS per questo cantiere: il caricamento precedente non ne documenta l’ambito.'};
+  if(!doc.file_path.trim()) return {chiave,titolo,perche,stato:'in_corso',tipo,subappaltatoreId,dettaglio:'Richiesta registrata: documento da ricevere e verificare.'};
+  if(doc.stato_verifica!=='verificato') return {chiave,titolo,perche,stato:scadenza==='scaduto'?'scaduto':'in_corso',tipo,subappaltatoreId,dettaglio:doc.stato_verifica?'Evidenza nel fascicolo: verifica documentale da completare.':'File nell’archivio precedente: la verifica non è documentata.'};
+  const stato = scadenza;
   return {
     chiave, titolo, perche, stato, tipo, subappaltatoreId,
     dettaglio: doc.data_scadenza ? `${stato === "scaduto" ? "Scaduto il" : "Scade il"} ${dataIT(doc.data_scadenza)}` : doc.file_name,
@@ -131,29 +128,32 @@ function voceDocumento(
 export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
   const voci: VoceControllo[] = [];
   const piuImprese = d.subappaltatori.length > 0;
+  const docsCantiere=d.documenti.filter(x=>!!x.order_id&&(!d.orderId||x.order_id===d.orderId)&&!x.subappaltatore_id);
 
   // POS della propria impresa: sempre.
   const posApprovato = d.pos.some((p) => p.status === "approvato" || p.status === "firmato" || p.status === "consegnato");
   voci.push({
-    chiave: "pos", titolo: "POS della tua impresa", perche: "Obbligatorio per ogni cantiere, prima di iniziare i lavori.",
+    chiave: "pos", titolo: "POS della tua impresa", perche: "Controlla il POS pertinente, la sua revisione e l’iter applicabile; l’approvazione nell’app non attesta firme o consegne.",
     stato: posApprovato ? "ok" : d.pos.length ? "in_corso" : "manca", nelPos: true,
     dettaglio: posApprovato ? "Approvato" : d.pos.length ? "In preparazione: completalo e approvalo" : undefined,
   });
 
   // Impresa: patente a crediti e DURC (anche caricati per tutta l'azienda).
   const docsImpresa = d.documenti.filter((x) => x.subappaltatore_id == null);
-  voci.push(voceDocumento("patente", "Patente a crediti dell'impresa", "Obbligatoria per lavorare nei cantieri dal 1° ottobre 2024.",
+  voci.push(voceDocumento("patente", "Patente a crediti dell'impresa", "Verifica applicabilità ed eventuali esclusioni per il soggetto e i lavori affidati.",
     ultimo(docsImpresa, "patente_crediti", undefined, true), d.oggi, "patente_crediti"));
+  const patente=voci.find(v=>v.chiave==='patente');
+  if(patente?.stato==='manca'){patente.stato='in_corso';patente.dettaglio='Applicabilità da confermare nel fascicolo; eventuale esclusione da motivare e documentare.';}
   voci.push(voceDocumento("durc", "DURC dell'impresa", "Regolarità contributiva, vale 120 giorni.",
     ultimo(docsImpresa, "durc", undefined, true), d.oggi, "durc"));
 
   if (piuImprese) {
-    voci.push(voceDocumento("psc", "PSC del committente", "Con più imprese in cantiere il committente deve far redigere il PSC.",
-      ultimo(d.documenti, "psc"), d.oggi, "psc"));
-    voci.push(voceDocumento("nomina", "Nomina dei coordinatori (CSP/CSE)", "Con più imprese il committente nomina i coordinatori.",
-      ultimo(d.documenti, "nomina_coordinatori"), d.oggi, "nomina_coordinatori"));
-    voci.push(voceDocumento("notifica", "Notifica preliminare", "Da affiggere in cantiere quando ci sono più imprese.",
-      ultimo(d.documenti, "notifica_preliminare"), d.oggi, "notifica_preliminare"));
+    voci.push(voceDocumento("psc", "PSC del committente", "Verifica il PSC previsto per il caso concreto e la revisione pertinente.",
+      ultimo(docsCantiere, "psc"), d.oggi, "psc"));
+    voci.push(voceDocumento("nomina", "Nomina dei coordinatori (CSP/CSE)", "Controlla gli incarichi dei coordinatori applicabili e i relativi atti.",
+      ultimo(docsCantiere, "nomina_coordinatori"), d.oggi, "nomina_coordinatori"));
+    voci.push(voceDocumento("notifica", "Notifica preliminare", "Verifica applicabilità, aggiornamenti e ricevute della notifica per il cantiere.",
+      ultimo(docsCantiere, "notifica_preliminare"), d.oggi, "notifica_preliminare"));
     for (const s of d.subappaltatori) {
       const nome = s.ragione_sociale || "Subappaltatore";
       voci.push(voceDocumento(`pos-${s.id}`, `POS di ${nome}`, "Ogni impresa in cantiere consegna il proprio POS prima di entrare.",
@@ -163,18 +163,20 @@ export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
       const durcVoce = voceDocumento(`durc-${s.id}`, `DURC di ${nome}`, "Da verificare prima dell'ingresso e a ogni scadenza.", durcDoc, d.oggi, "durc", s.id);
       if (!durcDoc && s.durc_scadenza) {
         const stato = statoScadenza(s.durc_scadenza, d.oggi);
-        Object.assign(durcVoce, { stato, dettaglio: `${stato === "scaduto" ? "Scaduto il" : "Scade il"} ${dataIT(s.durc_scadenza)} (dalla scheda)` });
+        Object.assign(durcVoce, { stato:stato==="scaduto"?stato:"in_corso", dettaglio: `${stato === "scaduto" ? "Scaduto il" : "Scade il"} ${dataIT(s.durc_scadenza)} (data dalla scheda; esito documentale da acquisire e verificare)` });
       }
       voci.push(durcVoce);
-      // Allegato XVII: visura camerale (qui «idoneità tecnica») e DVR; il DURC ha la sua voce.
+      // The archive categories are only pieces of an ITP dossier. Even two
+      // verified files cannot stand in for the assessment of the actual case.
       const visura = ultimo(d.documenti, "idoneita_tecnica", s.id);
       const dvr = ultimo(d.documenti, "dvr", s.id);
-      const mancanti = [!visura && "visura camerale", !dvr && "DVR"].filter(Boolean) as string[];
+      const mancanti = [!visura && "visura / documentazione tecnico-professionale", !dvr && "DVR"].filter(Boolean) as string[];
+      const scaduti=[visura,dvr].some(doc=>doc&&statoScadenza(doc.data_scadenza,d.oggi)==='scaduto');
       voci.push({
         chiave: `itp-${s.id}`, titolo: `Idoneità tecnico-professionale di ${nome}`,
-        perche: "Verifica dell'Allegato XVII: visura camerale, DVR e DURC.",
-        stato: !mancanti.length ? "ok" : mancanti.length === 2 ? "manca" : "in_corso",
-        dettaglio: !mancanti.length ? "Visura e DVR presenti" : mancanti.length === 1 ? `Manca: ${mancanti[0]}` : undefined,
+        perche: "La documentazione richiesta dipende dal soggetto e dai lavori. La valutazione complessiva non è dedotta dai file caricati.",
+        stato:scaduti?'scaduto':mancanti.length===2?'manca':'in_corso',
+        dettaglio:mancanti.length?`Da raccogliere / confermare secondo applicabilità: ${mancanti.join(", ")}`:'Documentazione presente; consulta nella scheda impresa l’esito della valutazione e il suo ambito.',
         tipo: visura ? "dvr" : "idoneita_tecnica", subappaltatoreId: s.id,
       });
     }
@@ -182,7 +184,7 @@ export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
 
   if (d.ponteggiMontati) {
     voci.push(voceDocumento("pimus", "PiMUS dei ponteggi", "Con ponteggi montati serve il piano di montaggio, uso e smontaggio.",
-      ultimo(d.documenti, "pimus"), d.oggi, "pimus"));
+      ultimo(docsCantiere, "pimus"), d.oggi, "pimus"));
   }
 
   // Ogni altro documento con scadenza superata o vicina (attestati, verifiche…).
@@ -225,4 +227,13 @@ export function tipoPerSubappaltatore(tipo: TipoDocumentoSicurezza): "durc" | "p
     case "idoneita_tecnica": return "visura_camerale";
     default: return "altro";
   }
+}
+
+
+/** Shared checklist reads native evidence without copying files or promoting uploads to verification. */
+export function documentoDaEvidenza(e:EvidenzaFascicolo):DocumentoSicurezza|null {
+  if(e.stato==='superato'||e.stato==='non_applicabile')return null;
+  const tipi:Record<string,TipoDocumentoSicurezza>={pos:'pos_impresa',visura:'idoneita_tecnica',dpi:'consegna_dpi',sds:'schede_sicurezza',attrezzatura:'libretti_macchine'};
+  const tipo=tipi[e.tipo]??(e.tipo in TIPI_SICUREZZA?e.tipo as TipoDocumentoSicurezza:'altro');
+  return {id:`evidenza-${e.id}`,fonte:'fascicolo_cantiere',bucket:'fascicoli-cantiere',order_id:e.order_id,subappaltatore_id:e.subappaltatore_id,tipo,titolo:e.titolo,file_path:e.file_path??'',file_name:e.file_name??'',data_documento:e.data_rilascio,data_scadenza:e.data_scadenza,note:e.note,created_at:e.updated_at,stato_verifica:e.stato};
 }

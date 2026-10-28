@@ -3,6 +3,7 @@ import { Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { HrPager } from "@/components/hr/HrPager";
 import type { LiveStatusProfilo } from "@/hooks/useTimbratura";
 import { ETICHETTA_STATO, statoPresenza, valoriDistinti, type StatoPresenza } from "@/lib/personale/timbrature";
 
@@ -13,7 +14,7 @@ const COLORE: Record<Gruppo, { punto: string; testo: string }> = {
   in_azienda: { punto: "bg-emerald-500", testo: "text-emerald-700" },
   in_pausa: { punto: "bg-amber-500", testo: "text-amber-700" },
   uscito: { punto: "bg-slate-400", testo: "text-slate-600" },
-  non_timbrato: { punto: "bg-red-400", testo: "text-red-700" },
+  non_timbrato: { punto: "bg-slate-400", testo: "text-slate-600" },
   assente_giustificato: { punto: "bg-sky-500", testo: "text-sky-700" },
 };
 const ORDINE: Gruppo[] = ["in_azienda", "in_pausa", "uscito", "non_timbrato", "assente_giustificato"];
@@ -35,6 +36,7 @@ export function PannelloPresenze({
 }) {
   const [reparto, setReparto] = useState(TUTTI);
   const [scelto, setScelto] = useState<Gruppo | null>(null);
+  const [paging, setPaging] = useState({ key: "", page: 0 });
 
   const reparti = useMemo(() => valoriDistinti(persone, "reparto"), [persone]);
   const visibili = useMemo(
@@ -59,6 +61,8 @@ export function PannelloPresenze({
   // Di serie: chi è in azienda; se non c'è nessuno, chi non ha timbrato.
   const attivo: Gruppo = scelto ?? ((perGruppo.get("in_azienda")?.length ?? 0) > 0 ? "in_azienda" : "non_timbrato");
   const elenco = perGruppo.get(attivo) ?? [];
+  const key = `${reparto}:${attivo}`;
+  const page = Math.min(paging.key === key ? paging.page : 0, Math.max(0, Math.ceil(elenco.length / 12) - 1));
 
   return (
     <Card>
@@ -115,7 +119,7 @@ export function PannelloPresenze({
               <p className="py-2 text-sm text-muted-foreground">Nessuno in questo stato{reparto !== TUTTI ? ` nel reparto ${reparto}` : ""}.</p>
             ) : (
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
-                {elenco.map((p) => (
+                {elenco.slice(page * 12, (page + 1) * 12).map((p) => (
                   <div key={p.id} className="flex items-center gap-2 rounded-lg border p-2">
                     <div
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -138,6 +142,8 @@ export function PannelloPresenze({
             )}
           </>
         )}
+        <HrPager total={elenco.length} pageSize={12} page={page} onPage={(value) => setPaging({ key, page: value })} />
+        <p className="text-xs text-muted-foreground">Nessuna timbratura non equivale a un’assenza ingiustificata. Verifica calendario e richieste.</p>
       </CardContent>
     </Card>
   );

@@ -27,6 +27,10 @@ export function isCommessaCampoQueryKey(key: readonly unknown[], orderId: string
   if (prefix === "orders") return ["detail", "diary-header"].includes(String(key[1])) && key[2] === orderId;
   if (prefix === "foto-cantiere") return key[1] === "order" && key[2] === companyId && key[3] === orderId;
   if (prefix === "mezzi") return ["commessa", "commessa-montaggi"].includes(String(key[1])) && key[2] === orderId;
+  if (["campo-avanzamento-fasi", "campo-sottofasi"].includes(prefix) && key[1] === companyId)
+    return key[3] == null || key[3] === orderId;
+  if (["campo-avanzamento-permessi", "campo-avanzamento-cantieri"].includes(prefix))
+    return key[1] === companyId && typeof key[3] === "string" && key[3].split(",").includes(orderId);
   if (prefix === "campo-sottofasi") return key[1] === "commessa" && key[2] === orderId;
   if (prefix === "order-messages") return key[1] === companyId && key[2] === orderId;
   return false;

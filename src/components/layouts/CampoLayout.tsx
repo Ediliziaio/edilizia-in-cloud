@@ -47,6 +47,7 @@ import { CampanellaCampo } from "@/components/campo/CampanellaCampo";
 import { NotificationsRealtime } from "@/hooks/useNotifications";
 import { linkPerCampo } from "@/lib/notifiche/linkCampo";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 import {
   Sidebar,
   SidebarContent,
@@ -83,6 +84,7 @@ export default function CampoLayout() {
   }, []);
   const { profile, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
+  const surveyAccess = useFieldSurveyAccess();
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
   const activeCompany = effectiveCompany ?? company;
   const location = useLocation();
@@ -97,7 +99,7 @@ export default function CampoLayout() {
   // si esce col back del wizard, non cambiando tab a metà compilazione.
   // (Il rapportino vocale resta fuori: è una schermata singola senza barra
   // propria, lì la bottom-nav serve ancora.)
-  const inFlussoCompilazione = /\/(rapportino|rapporto-fine-lavori|sicurezza)$/.test(location.pathname);
+  const inFlussoCompilazione = /\/(rapportino|rapporto-fine-lavori|sicurezza)$/.test(location.pathname) || (location.pathname.startsWith("/campo/sopralluoghi/") && new URLSearchParams(location.search).get("modifica")==="1");
 
   // Messaggi chat team non letti. Riusa l'hook condiviso (RPC
   // get_internal_chat_sidebar_state + realtime), come nell'app azienda: le
@@ -149,6 +151,7 @@ export default function CampoLayout() {
   ];
 
   const navItems = isOperaio ? operaioItems : subItems;
+  if (surveyAccess.data?.can_view) navItems.push({title:"Sopralluoghi",url:"/campo/sopralluoghi",icon:ClipboardCheck});
 
   return (
     <SidebarProvider>

@@ -35,6 +35,8 @@ import type { Node } from "@xyflow/react";
 import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
 import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
+import { UpdateFieldConfigPanel } from "./config-panels/UpdateFieldConfigPanel";
+import { useAutomationFieldDefinitions } from "@/hooks/useAutomationFieldDefinitions";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
 import { ModelloWhatsAppPasso } from "./config-panels/ModelloWhatsAppPasso";
 import { EmailBodyEditor } from "./config-panels/EmailBodyEditor";
@@ -58,7 +60,7 @@ const SPECIALIZED_PANELS = new Set([
   "attendi", "condition_se", "condition_multi",
   "crea_task", "aggiorna_task",
   "invia_email",
-  "aggiungi_tag", "rimuovi_tag",
+  "aggiungi_tag", "rimuovi_tag", "aggiorna_campo",
 ]);
 
 // Triggers where the enrolled entity IS a contact (or has a directly linked contact)
@@ -129,13 +131,13 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   cantiere_fase_completata: "construction",
   cantiere_in_ritardo: "construction",
   // Magazzino
-  scorta_minima: "order",
-  prodotto_esaurito: "order",
-  carico_magazzino: "order",
+  scorta_minima: "warehouse",
+  prodotto_esaurito: "warehouse",
+  carico_magazzino: "warehouse_movement",
   // HR
-  dipendente_creato: "contact",
-  contratto_in_scadenza: "contact",
-  ferie_richiesta: "contact",
+  dipendente_creato: "employee",
+  contratto_in_scadenza: "employee",
+  ferie_richiesta: "leave_request",
   // Schedulati
   cron_giornaliero: "system",
   cron_settimanale: "system",
@@ -253,7 +255,7 @@ export function FlowBuilderConfigPanel({
   const isSpecialized = SPECIALIZED_PANELS.has(itemId);
 
   // Determine trigger category for filter builder
-  const triggerCategory = TRIGGER_CATEGORY_MAP[itemId] || null;
+  const triggerCategory = itemId==="campo_custom_aggiornato" ? String(nodeData.object_type??"contact") : TRIGGER_CATEGORY_MAP[itemId] || null;
   const isTrigger = nodeType === "trigger" || catalog?.kind === "trigger";
 
   // Compute trigger entity type from the flow's trigger item
@@ -315,10 +317,10 @@ export function FlowBuilderConfigPanel({
             <DelayConfigPanel config={nodeData} onChange={handleChange} onPatch={handlePatch} />
           )}
           {(itemId === "condition_se" || itemId === "condition_multi") && (
-            <ConditionConfigPanel config={nodeData} onChange={handleChange} />
+            <ConditionConfigPanel config={nodeData} onChange={handleChange} companyId={companyId} triggerCategory={triggerEntityCategory ?? undefined} />
           )}
           {(itemId === "crea_task" || itemId === "aggiorna_task") && (
-            <TaskConfigPanel config={nodeData} onChange={handleChange} />
+            <TaskConfigPanel config={nodeData} onChange={handleChange} companyId={companyId} />
           )}
           {itemId === "invia_email" && (
             <EmailConfigPanel
@@ -329,6 +331,7 @@ export function FlowBuilderConfigPanel({
               companyId={companyId}
             />
           )}
+          {itemId === "aggiorna_campo" && <UpdateFieldConfigPanel config={nodeData} onPatch={handlePatch} companyId={companyId} />}
           {(itemId === "aggiungi_tag" || itemId === "rimuovi_tag") && (
             <TagActionPanel
               config={nodeData}
@@ -380,6 +383,7 @@ export function FlowBuilderConfigPanel({
           )}
 
           {/* Dynamic Filters section for triggers */}
+          {itemId==="campo_custom_aggiornato"&&<CustomChangedPicker companyId={companyId} objectType={String(nodeData.object_type??"contact")} value={nodeData.custom_field_id??""} onChange={v=>handleChange("custom_field_id",v)} />}
           {isTrigger && triggerCategory && (
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-2 border-t pt-4">
@@ -460,6 +464,11 @@ export function FlowBuilderConfigPanel({
       </AlertDialog>
     </div>
   );
+}
+
+function CustomChangedPicker({companyId,objectType,value,onChange}:{companyId?:string;objectType:string;value:string;onChange:(v:string)=>void}){
+  const {data:fields=[],isError}=useAutomationFieldDefinitions(companyId,objectType);
+  return <div className="space-y-2"><Label htmlFor="changed-custom-field">Campo che avvia il flusso</Label><select id="changed-custom-field" className="w-full rounded border bg-background p-2 text-sm" value={value} onChange={e=>onChange(e.target.value)}><option value="">Tutti i campi di questo oggetto</option>{value&&!fields.some(f=>f.id===value)&&<option value={value} disabled>Campo non disponibile</option>}{fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select>{isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi.</p>}</div>;
 }
 
 // ── Template pronti per i messaggi di notifica ──

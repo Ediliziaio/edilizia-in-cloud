@@ -12,12 +12,14 @@ import {
   type EsitoIncassi,
 } from "@/lib/fatturazione/incassi";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { validaBonifico } from "@/lib/fatturazione/bonificiParlanti";
 
 export interface MovimentoCassa {
   id: string;
   company_id: string;
   documento_id?: string;
   importo: number;
+  importo_netto_banca?: number | null;
   tipo: string;
   metodo?: string;
   riferimento?: string;
@@ -50,7 +52,8 @@ export function useMovimentiCassa(filters: MovimentiFilters = {}) {
       if (filters.data_da) query = query.gte("data_movimento", filters.data_da);
       if (filters.data_a) query = query.lte("data_movimento", filters.data_a);
       if (filters.tipo) query = query.eq("tipo", filters.tipo);
-      if (filters.documento_id) query = query.eq("documento_id", filters.documento_id);
+      if (filters.documento_id)
+        query = query.eq("documento_id", filters.documento_id);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -73,29 +76,82 @@ export function useCreateMovimento() {
       data_movimento: string;
       riferimento?: string;
       note?: string;
+      bonifico?: {
+        ritenuta: number;
+        commissioni: number;
+        netto: number;
+        banca: string;
+        confermato: boolean;
+        richiesta: string;
+      };
     }) => {
       if (!companyId) throw new Error("Nessuna azienda");
 
+      if (input.metodo === "bonifico_parlante") {
+        if (!input.bonifico)
+          throw new Error("Dettaglio della ritenuta obbligatorio");
+        const invalid = validaBonifico({
+          ...input.bonifico,
+          lordo: input.importo,
+          data: input.data_movimento,
+          riferimento: input.riferimento ?? "",
+        });
+        if (invalid) throw new Error(invalid);
+        const { error } = await supabase.rpc(
+          "registra_bonifico_parlante" as never,
+          {
+            p_company: companyId,
+            p_documento: input.documento_id,
+            p_lordo: input.importo,
+            p_ritenuta: input.bonifico.ritenuta,
+            p_commissioni: input.bonifico.commissioni,
+            p_netto: input.bonifico.netto,
+            p_data: input.data_movimento,
+            p_banca: input.bonifico.banca,
+            p_riferimento: input.riferimento,
+            p_richiesta: input.bonifico.richiesta,
+            p_confermato: input.bonifico.confermato,
+          } as never,
+        );
+        if (error) {
+          if (error.code === "PGRST202" || error.code === "42883")
+            throw new Error(
+              "Modulo ritenute bancarie non ancora attivato sul database. Nessun incasso registrato.",
+            );
+          throw error;
+        } // Never fall back to an ordinary/gross cash receipt.
+        return;
+      }
+
       // Single atomic RPC — insert movement + update invoice inside one DB transaction.
       // Eliminates the read-modify-write race condition of the previous two-step approach.
-      const { error } = await supabase.rpc("registra_incasso_atomico" as never, {
-        p_company_id:     companyId,
-        p_documento_id:   input.documento_id,
-        p_importo:        input.importo,
-        p_metodo:         input.metodo,
-        p_data_movimento: input.data_movimento,
-        p_riferimento:    input.riferimento ?? null,
-        p_note:           input.note ?? null,
-      } as never);
+      const { error } = await supabase.rpc(
+        "registra_incasso_atomico" as never,
+        {
+          p_company_id: companyId,
+          p_documento_id: input.documento_id,
+          p_importo: input.importo,
+          p_metodo: input.metodo,
+          p_data_movimento: input.data_movimento,
+          p_riferimento: input.riferimento ?? null,
+          p_note: input.note ?? null,
+        } as never,
+      );
 
       if (error) throw error;
     },
     onSuccess: () => {
-      invalidaStatisticheFatturazione(queryClient,companyId);
+      invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.documentiFiscali.all,
+      });
       // La rata della commessa legata alla fattura si muove con lei.
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      queryClient.invalidateQueries({ queryKey: ["ritenute-bonifici"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       toast.success("Incasso registrato");
     },
     onError: (err: Error) => {
@@ -114,17 +170,22 @@ export function useDeleteMovimento() {
 
       // Atomic RPC: deletes movement + reverses importo_pagato on the invoice
       // inside one DB transaction, preventing partial state.
-      const { error } = await supabase.rpc("storna_incasso_atomico" as never, {
-        p_company_id:   companyId,
-        p_movimento_id: id,
-      } as never);
+      const { error } = await supabase.rpc(
+        "storna_incasso_atomico" as never,
+        {
+          p_company_id: companyId,
+          p_movimento_id: id,
+        } as never,
+      );
 
       if (error) throw error;
     },
     onSuccess: () => {
-      invalidaStatisticheFatturazione(queryClient,companyId);
+      invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.documentiFiscali.all,
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success("Movimento eliminato");
     },
@@ -146,7 +207,10 @@ export function useSegnaPagata() {
 
   return useMutation({
     mutationFn: async (input: {
-      fatture: Pick<DocumentoFiscale, "id" | "numero" | "totale_da_pagare" | "importo_pagato">[];
+      fatture: Pick<
+        DocumentoFiscale,
+        "id" | "numero" | "totale_da_pagare" | "importo_pagato"
+      >[];
       metodo: string;
       data: string;
     }): Promise<EsitoIncassi> => {
@@ -154,21 +218,28 @@ export function useSegnaPagata() {
       return registraIncassi(
         supabase as unknown as ChiamataRpc,
         companyId,
-        input.fatture.map((d) => ({ id: d.id, numero: d.numero, residuo: residuoDaIncassare(d) })),
+        input.fatture.map((d) => ({
+          id: d.id,
+          numero: d.numero,
+          residuo: residuoDaIncassare(d),
+        })),
         { metodo: input.metodo, data: input.data },
       );
     },
     onSuccess: (esito) => {
-      invalidaStatisticheFatturazione(queryClient,companyId);
+      invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.documentiFiscali.all,
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       const r = descriviEsitoIncassi(esito);
       if (r.tutteRiuscite) toast.success(r.titolo);
-      else if (esito.registrati.length > 0) toast.warning(r.titolo, { description: r.dettaglio, duration: 10000 });
+      else if (esito.registrati.length > 0)
+        toast.warning(r.titolo, { description: r.dettaglio, duration: 10000 });
       else toast.error(r.titolo, { description: r.dettaglio, duration: 10000 });
     },
     onError: (err: Error) => {

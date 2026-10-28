@@ -47,7 +47,7 @@ const EMPTY_RESOLVER: ContactCustomFieldResolver = {
   isEmpty: true,
 };
 
-type FieldDef = { id: string; name: string; deleted_at: string | null };
+type FieldDef = { id: string; name: string; deleted_at: string | null; key_aliases?: string[] };
 
 /**
  * Core condiviso: dato l'elenco di definizioni custom field 'contact' già
@@ -66,7 +66,7 @@ async function buildResolverFromDefs(
   const referencedFieldIds: string[] = [];
   for (const d of defs) {
     if (d.deleted_at || !d.name) continue;
-    const keys = [toSnakeCase(d.name), `custom_${d.id.replace(/-/g, "")}`].filter(key => key && new RegExp(`\\{\\{\\s*(?:contact|contatto)\\.${escapeRegExp(key)}\\s*\\}\\}`).test(haystack));
+    const keys = [...new Set([toSnakeCase(d.name), `custom_${d.id.replace(/-/g, "")}`, ...(d.key_aliases ?? []).filter(k => /^[a-z0-9_]+$/.test(k))])].filter(key => key && new RegExp(`\\{\\{\\s*(?:contact|contatto)\\.${escapeRegExp(key)}\\s*\\}\\}`).test(haystack));
     if (!keys.length) continue;
     fieldKeyById.set(d.id, keys);
     referencedFieldIds.push(d.id);
@@ -120,7 +120,7 @@ export async function loadContactCustomFieldResolver(
 
     const { data: defs, error: defsErr } = await adminClient
       .from("marketing_custom_fields")
-      .select("id, name, deleted_at")
+      .select("id, name, deleted_at, key_aliases")
       .eq("company_id", companyId)
       .eq("object_type", "contact");
     if (defsErr && options?.strict) throw defsErr;
@@ -159,7 +159,7 @@ export async function loadContactCustomFieldResolverCrossCompany(
 
     const { data: defs, error: defsErr } = await adminClient
       .from("marketing_custom_fields")
-      .select("id, name, deleted_at, company_id")
+      .select("id, name, deleted_at, company_id, key_aliases")
       .in("company_id", companyIds)
       .eq("object_type", "contact");
     if (defsErr || !defs) return EMPTY_RESOLVER;

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, UserRoundSearch, Building2, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 // 2026-05-27 (perf fix P0): tab lazy-loaded.
 // PRIMA: 12 tab import statici → chunk PersonalePage 559KB (talent-profile,
 // charts, calendari, GPS, ecc. tutti caricati anche se l'utente apre solo
@@ -70,6 +71,11 @@ function TabFallback() {
 }
 
 export default function PersonalePage() {
+  const companyId = useEffectiveCompanyId();
+  return <PersonaleContent key={companyId || "no-company"} />;
+}
+
+function PersonaleContent() {
   const hasFleetTrack = useFleetTrackAccess();
   const { isScopriPlan } = useSubscriptionLimits();
   const isMobile = useIsMobile();

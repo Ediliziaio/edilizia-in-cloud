@@ -20,6 +20,8 @@ import { automationNextContext } from "../../../supabase/functions/_shared/autom
 import { nomeOpportunitaPulito } from "../../../supabase/functions/_shared/creaAggiornaOpportunita";
 import { PLATFORM_ADMIN_COMPANY_ID, PLATFORM_ACTION_IDS, COMPANY_ONLY_ACTION_IDS, PLATFORM_EVENTS, isPlatformCompany } from "../../../supabase/functions/_shared/platformAutomation";
 import { escapeEmailValue, emailContentEmpty } from "../../../supabase/functions/_shared/automationEmail";
+import { readAutomationCustomField, resolveAutomationCustomConfig, writeAutomationCustomField } from "../../../supabase/functions/_shared/automationCustomFields";
+import { AUTOMATION_NATIVE_FIELDS,customFieldId } from "../../../supabase/functions/_shared/automationFieldContract";
 import { platformSubscriptionPlan } from "../../../supabase/functions/_shared/platformSubscriptionPlan";
 
 const engine = fs.readFileSync("supabase/functions/process-automation/index.ts", "utf8");
@@ -37,6 +39,7 @@ function load(name: string, globals: Record<string, any> = {}, source = engine):
     jsonResponse: (body: any, status = 200) => ({ body, status }), completeExecutionRun: async () => {},
     fusoDelFlusso: (s: string) => s || "Europe/Rome", matchesAutomationTriggerConfig, evaluateAutomationFilters,
     resolveAutomationRecord, automationEntityType, loadAutomationCustomFields, automationEventEntity, automationEventPayload,
+    readAutomationCustomField,resolveAutomationCustomConfig,writeAutomationCustomField,AUTOMATION_NATIVE_FIELDS,customFieldId,
     actionConfigErrors, conditionConfigErrors, delayConfigErrors,
     automationWebhookUrl,
     automationNextContext,
@@ -93,6 +96,11 @@ function triggerDb(configs: any[], existing: any[] = [], connections: any[] = []
   });
 }
 describe("automation runtime regressions (isolated)", () => {
+  it.each(["issued","paid","sent_to_sdi",""])("generic field updates cannot alter a non-draft invoice: %s", async status=>{
+    const mock=db(q=>({data:q.table==="invoices"?{id,status}:[],error:null}));
+    const result=await action(mock,{item_id:"aggiorna_campo",tabella:"invoices",campo:"notes",valore:"new"},id,"company",{entity_type:"invoice"});
+    expect(result.success).toBe(false);expect(mock.calls.some(q=>has(q,"update"))).toBe(false);
+  });
   it("event triggers cannot enroll soft-deleted flows", async () => {
     const mock = triggerDb([{ item_id: "contatto_creato" }]);
     await load("handleTrigger")(mock, base);

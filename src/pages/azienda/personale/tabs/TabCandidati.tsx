@@ -18,11 +18,13 @@ import { toast } from "sonner";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 import { uploadHrFile, getHrFileUrl } from "@/hooks/useHrDocumenti";
 import {
   useHrCandidati, useUpsertCandidato, useDeleteCandidato,
   useColloquiCandidato, useAddColloquio, useDeleteColloquio,
-  useFasiSelezione, useUpsertFase, useDeleteFase, useScambiaFasi, useSpostaFase, useAssumiCandidato,
+  useFasiSelezione, useInizializzaFasi, useUpsertFase, useDeleteFase, useScambiaFasi, useSpostaFase, useAssumiCandidato,
   useCandidaturaForms, useUpsertCandidaturaForm, useDeleteCandidaturaForm, type CandidaturaForm, type StatoCampoModulo,
   STATI_CANDIDATO, FONTI_CANDIDATO, TIPI_COLLOQUIO, ESITI_COLLOQUIO,
   type HrCandidato, type CandidatoStato, type CandidatoFonte, type ColloquioTipo, type ColloquioEsito, type FaseSelezione,
@@ -843,8 +845,24 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 
 export function TabCandidati() {
-  const { data: candidati = [], isLoading } = useHrCandidati();
-  const { data: fasi = [], isLoading: fasiLoading } = useFasiSelezione();
+  const p = usePermissions();
+  if (p.isLoading) return <p role="status">Verifica accesso…</p>;
+  if (p.solaLettura || !(p.isAdmin || p.canViewPersone)) return <CandidatiSolaLettura />;
+  return <CandidatiGestione />;
+}
+
+function CandidatiSolaLettura() {
+  const query = useHrCandidati();
+  if (query.isError) return <HrQueryError label="Candidati non disponibili" onRetry={query.refetch} />;
+  return <div className="space-y-3"><p className="text-sm text-muted-foreground">Selezione · sola lettura. Nessuna decisione, modifica o invito è abilitato.</p>
+    {query.isLoading ? <Skeleton className="h-32" /> : (query.data || []).map(c=><Card key={c.id}><CardContent className="p-3"><p>{c.nome} {c.cognome}</p><p className="text-sm text-muted-foreground">{c.ruolo} · {STATI_CANDIDATO[c.stato]?.label || c.stato}</p></CardContent></Card>)}
+  </div>;
+}
+
+function CandidatiGestione() {
+  const { data: candidati = [], isLoading, isError, refetch } = useHrCandidati();
+  const { data: fasi = [], isLoading: fasiLoading, isError: fasiError, refetch: retryFasi } = useFasiSelezione();
+  const initialize = useInizializzaFasi();
   const upsert = useUpsertCandidato();
   const spostaFase = useSpostaFase();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -942,8 +960,15 @@ export function TabCandidati() {
     if (overId.startsWith("esito:")) {
       const esito = overId.slice(6) as Esito;
       const stato: CandidatoStato = esito === "in_selezione" ? "in_valutazione" : (esito as CandidatoStato);
-      upsert.mutate({ id: candidatoId, nome: candidato.nome, stato });
-      toast.success(`${candidato.nome} ${candidato.cognome}: ${ESITI[esito].label}`);
+      // Outcome changes require deliberate review in the candidate detail, not an accidental drop.
+      if (esito !== "in_selezione") {
+        setApertoId(candidatoId);
+        toast.info("Conferma l’esito dalla scheda del candidato");
+        return;
+      }
+      upsert.mutate({ id: candidatoId, nome: candidato.nome, stato }, {
+        onSuccess: () => toast.success(`${candidato.nome} ${candidato.cognome}: ${ESITI[esito].label}`),
+      });
     }
   };
 
@@ -1043,13 +1068,17 @@ export function TabCandidati() {
       </div>
 
       {/* Corpo */}
+      {!fasiLoading && !fasiError && fasi.length === 0 && vista !== "test" && <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-slate-50 p-3 text-sm">
+        <p className="flex-1">Nessuna fase configurata. Puoi creare la pipeline suggerita oppure configurarla con Gestisci fasi. I candidati non verranno spostati automaticamente.</p>
+        <Button variant="outline" size="sm" disabled={initialize.isPending} onClick={()=>initialize.mutate()}>Crea fasi suggerite</Button>
+      </div>}
       {vista === "test" ? (
         <Suspense fallback={<div className="space-y-3 py-2"><Skeleton className="h-9 w-2/3 max-w-xs" /><Skeleton className="h-56 w-full rounded-xl" /></div>}>
           <TabSelezioni embedded />
         </Suspense>
       ) : isLoading || fasiLoading ? (
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
-      ) : candidati.length === 0 ? (
+      ) : isError || fasiError ? <HrQueryError label="Selezione non disponibile" onRetry={()=>Promise.all([refetch(),retryFasi()])} /> : candidati.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
             <UserRoundSearch className="h-10 w-10 text-slate-300" />
@@ -1072,7 +1101,7 @@ export function TabCandidati() {
           </div>
           {/* Trascina qui per chiudere il percorso di un candidato */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] text-muted-foreground">Trascina un candidato su:</span>
+            <span className="text-[11px] text-muted-foreground">Trascina per aprire la scheda e confermare l’esito:</span>
             <TargetEsito esito="assunto" label="Assunto" icona={CheckCircle2} classe="border-emerald-300 bg-emerald-50 text-emerald-700" />
             <TargetEsito esito="scartato" label="Non idoneo" icona={XCircle} classe="border-red-300 bg-red-50 text-red-600" />
             <TargetEsito esito="archiviato" label="In archivio" icona={Archive} classe="border-slate-300 bg-slate-50 text-slate-600" />

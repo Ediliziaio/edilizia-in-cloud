@@ -168,7 +168,7 @@ afterEach(() => cleanup());
 describe("la finestra «Nuovo campo»", () => {
   it("non ha più «Sezione», «Campo obbligatorio» né «Testo di aiuto», e la pagina non ha la scheda «Cartelle»", async () => {
     monta();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Tutti i campi", "Campi eliminati"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Tutti i campi", "Campi eliminati", "Modelli e schede tecniche"]);
     expect(screen.queryByRole("tab", { name: "Cartelle" })).toBeNull();
 
     const finestra = await apriNuovoCampo();
@@ -233,11 +233,11 @@ describe("la finestra «Nuovo campo»", () => {
     const mostrati = within(await screen.findByRole("group", { name: "Compare nelle schede" }));
     const nascosti = within(screen.getByRole("group", { name: "Non compare ancora nelle schede" }));
     // Quelli che hanno davvero una sezione «Campi personalizzati» (verificato sulle schermate).
-    for (const voce of ["Contatto", "Opportunità", "Appuntamento", "Task", "Dipendente", "Magazzino", "Ordine di Variazione", "Giornale dei Lavori", "DUVRI – Sicurezza"]) {
+    for (const voce of ["Contatto", "Opportunità", "Appuntamento", "Task", "Dipendente", "Magazzino", "Ordine di Variazione", "Giornale dei Lavori", "DUVRI – Sicurezza", "Preventivo", "Ordine"]) {
       expect(mostrati.getByRole("option", { name: voce }), voce).toBeTruthy();
     }
     // Quelli che nessun form mostra.
-    for (const voce of ["Fattura", "Preventivo", "POS – Sicurezza", "Prodotto (Articolo)", "Famiglia Prodotto", "Tariffa / Manodopera", "Categoria Listino"]) {
+    for (const voce of ["Fattura", "POS – Sicurezza", "Prodotto (Articolo)", "Famiglia Prodotto", "Tariffa / Manodopera", "Categoria Listino"]) {
       expect(nascosti.getByRole("option", { name: voce }), voce).toBeTruthy();
       expect(mostrati.queryByRole("option", { name: voce }), voce).toBeNull();
     }
@@ -251,7 +251,7 @@ describe("la finestra «Nuovo campo»", () => {
     expect(voci).toEqual([
       "Testo breve", "Testo lungo", "Numero", "Importo", "Percentuale", "Data", "Ora",
       "Una scelta da un elenco", "Più scelte da un elenco", "Una sola scelta", "Spunta sì/no",
-      "Telefono", "Email", "Indirizzo web", "File",
+      "Telefono", "Email", "Indirizzo web", "File — area Documenti",
     ]);
     // Le chiavi dei tipi (salvate nel database) non sono cambiate.
     expect(FIELD_TYPES.map((t) => t.value)).toEqual([
@@ -259,7 +259,7 @@ describe("la finestra «Nuovo campo»", () => {
     ]);
   });
 
-  it("le opzioni si spiegano con un esempio; sul contatto un tipo che la scheda non distingue lo dice", async () => {
+  it("le opzioni si spiegano con un esempio; checkbox e opportunità hanno input tipizzati", async () => {
     monta();
     await apriNuovoCampo();
     expect(screen.queryByLabelText("Opzioni")).toBeNull();
@@ -270,7 +270,7 @@ describe("la finestra «Nuovo campo»", () => {
     expect(screen.queryByText(/si compila come testo semplice/)).toBeNull();
 
     await scegli("Tipo", "Spunta sì/no");
-    expect(screen.getByText("Sulla scheda del contatto questo tipo si compila come testo semplice.")).toBeTruthy();
+    expect(screen.queryByText(/si compila come testo semplice/)).toBeNull();
 
     // Sull'opportunità (CustomFieldInput) lo stesso tipo si distingue: la nota sparisce.
     await scegli("Dove compare *", "Opportunità");
@@ -316,13 +316,13 @@ describe("modificare un campo", () => {
     monta();
     fireEvent.click(await screen.findByRole("button", { name: "Modifica il campo «Tipo di caldaia»" }));
     expect(screen.getByText("Modifica campo")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Nome del campo *"), { target: { value: "Tipo di caldaia (principale)" } });
+    fireEvent.change(screen.getByLabelText("Nome del campo *"), { target: { value: "Tipo Di Caldaia" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Campo aggiornato"));
     const [aggiornamento] = chiamate("update");
     expect(argomenti(aggiornamento, "update")[0]).toEqual({
-      name: "Tipo di caldaia (principale)",
+      name: "Tipo Di Caldaia",
       field_type: "select",
       options: ["Condensazione", "Ibrida"],
       object_type: "contact",
@@ -405,24 +405,24 @@ describe("l'elenco dei campi", () => {
     await screen.findByText("Numero esterno");
     const cartellini = screen.getAllByText("Non compare nelle schede");
     expect(cartellini).toHaveLength(2);
-    expect(cartellini[0].getAttribute("title")).toBe("Il valore si salva e si usa nei testi e nelle automazioni, ma questa scheda ancora non lo mostra.");
+    expect(cartellini[0].getAttribute("title")).toBe("La definizione è salvata, ma questa scheda non permette ancora di compilare il valore. L’uso nei testi dipende dal relativo motore.");
     for (const nome of ["Tipo di caldaia", "Cantiere del giorno"]) {
       expect(within(screen.getByText(nome).closest("tr") as HTMLElement).queryByText("Non compare nelle schede"), nome).toBeNull();
     }
     expect(within(screen.getByText("Numero esterno").closest("tr") as HTMLElement).getByText("Non compare nelle schede")).toBeTruthy();
-    expect(screen.getByText(/2 campi sono su schede che ancora non li mostrano: i valori si salvano e si usano nei testi\./)).toBeTruthy();
+    expect(screen.getByText(/2 campi sono su schede che ancora non li mostrano/)).toBeTruthy();
     expect(screen.queryByText(/Solo API|solo API/)).toBeNull();
   });
 
   it("al singolare il riepilogo non sbaglia genere", async () => {
     db.stato.attivi = [campo({ id: "f3", name: "Numero esterno", object_type: "invoice", field_type: "text", options: [] })];
     monta();
-    expect(await screen.findByText(/1 campo è su una scheda che ancora non lo mostra: i valori si salvano e si usano nei testi\./)).toBeTruthy();
+    expect(await screen.findByText(/1 campo è su una scheda che ancora non lo mostra/)).toBeTruthy();
   });
 
   it("RENDERED_OBJECT_TYPES elenca esattamente gli oggetti con un form che li mostra", () => {
     expect([...RENDERED_OBJECT_TYPES].sort()).toEqual(
-      ["appointment", "contact", "duvri_document", "employee", "giornale_lavori", "opportunity", "ordini_variazione", "task", "warehouse"],
+      ["appointment", "contact", "duvri_document", "employee", "giornale_lavori", "opportunity", "order", "ordini_variazione", "quote", "task", "warehouse"],
     );
   });
 
@@ -432,7 +432,7 @@ describe("l'elenco dei campi", () => {
     const lettura = db.stato.chiamate.find((c) => c.tabella === "marketing_custom_fields" && !c.ops.some(([m]) => m === "not"))!;
     expect(ha(lettura, "eq", "company_id", "azienda-1")).toBe(true);
     expect(ha(lettura, "is", "deleted_at", null)).toBe(true);
-    expect(lettura.ops.filter(([m]) => m === "order").map(([, a]) => a[0])).toEqual(["position", "created_at"]);
+    expect(lettura.ops.filter(([m]) => m === "order").map(([, a]) => a[0])).toEqual(["position", "created_at", "id"]);
   });
 });
 
@@ -633,5 +633,43 @@ describe("le schede non leggono più i campi eliminati", () => {
     expect(ha(lettura, "eq", "company_id", "azienda-1")).toBe(true);
     expect(ha(lettura, "eq", "object_type", oggetto)).toBe(true);
     expect(ha(lettura, "is", "deleted_at", null)).toBe(true);
+  });
+});
+
+describe("protezione delle variabili esistenti", () => {
+  it("non accetta due etichette diverse che generano lo stesso slug", async () => {
+    db.stato.attivi = [campo({ name: "Codice-cliente", field_type: "text", options: [] })];
+    monta(); await apriNuovoCampo();
+    fireEvent.change(screen.getByLabelText("Nome del campo *"), { target: { value: "Codice cliente" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled()); expect(chiamate("insert")).toHaveLength(0);
+  });
+  it("non crea un campo custom con la chiave di una variabile di sistema", async () => {
+    monta(); await apriNuovoCampo();
+    fireEvent.change(screen.getByLabelText("Nome del campo *"), { target: { value: "email" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("variabile di sistema")));
+    expect(chiamate("insert")).toHaveLength(0);
+  });
+  it("non rinomina un campo usato rompendo i testi legacy; nessuna scrittura", async () => {
+    db.stato.attivi = [campo()]; db.stato.conteggi = { marketing_contact_field_values: 2 };
+    monta(); fireEvent.click(await screen.findByRole("button", { name: "Modifica il campo «Tipo di caldaia»" }));
+    fireEvent.change(screen.getByLabelText("Nome del campo *"), { target: { value: "Caldaia" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("alias storici")));
+    expect(chiamate("update")).toHaveLength(0);
+  });
+  it("l'eliminazione definitiva controlla anche i valori JSONB della famiglia nella stessa azienda", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    db.stato.eliminati = [campo({ id, name: "Campo tecnico", object_type: "family", deleted_at: "2026-10-01T10:00:00Z" })];
+    db.stato.conteggi = { article_families: 3 };
+    monta(); fireEvent.mouseDown(screen.getByRole("tab", { name: /Campi eliminati/ }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("button", { name: "Elimina definitivamente il campo «Campo tecnico»" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Elimina definitivamente" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("3 valori scritti")));
+    expect(chiamate("delete")).toHaveLength(0);
+    const read = chiamate("select", "article_families")[0];
+    expect(ha(read, "eq", "company_id", "azienda-1")).toBe(true);
+    expect(ha(read, "not", `custom_field_values->${id}`, "is", null)).toBe(true);
   });
 });

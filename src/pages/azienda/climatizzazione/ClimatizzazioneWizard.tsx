@@ -348,7 +348,7 @@ export default function ClimatizzazioneWizard() {
       setCreating(true);
       try {
         const created = await upsertMut.mutateAsync(await createInput());
-        navigate(`/azienda/climatizzazione/${created.id}/modifica`, { replace: true });
+        navigate(`/azienda/climatizzazione/${created.id}/modifica${searchParams.get("rilievo") ? `?rilievo=${encodeURIComponent(searchParams.get("rilievo")!)}` : ""}`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
           description: motivoSalvataggioNonRiuscito(e),

@@ -5,6 +5,8 @@
  * Errori user-friendly in italiano, log a console.error.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { withSurveyDoorProducts } from "@/lib/surveys/doorSurvey";
+import { withEnergySurveyProducts, shouldEnrichEnergySurvey } from "@/lib/surveys/energySurvey";
 import type {
   SurveyRow,
   SurveyTemplateRow,
@@ -35,7 +37,7 @@ export async function listTemplates(category?: string): Promise<SurveyTemplateRo
     let rows = (data ?? []) as Array<SurveyTemplateRow & { enabled_for_company: boolean }>;
     rows = rows.filter((r) => r.enabled_for_company);
     if (category) rows = rows.filter((r) => r.category === category);
-    return rows;
+    return rows.map(t => withEnergySurveyProducts(withSurveyDoorProducts(t)));
   } catch {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (supabase as any).from("survey_templates").select("*").eq("is_active", true);
@@ -47,11 +49,11 @@ export async function listTemplates(category?: string): Promise<SurveyTemplateRo
       console.error("[surveys] listTemplates failed", error);
       throw new Error("Impossibile caricare i template del rilievo");
     }
-    return (data ?? []) as SurveyTemplateRow[];
+    return ((data ?? []) as SurveyTemplateRow[]).map(t => withEnergySurveyProducts(withSurveyDoorProducts(t)));
   }
 }
 
-export async function getTemplate(id: string): Promise<SurveyTemplateRow> {
+export async function getTemplate(id: string, enrichEnergy = true): Promise<SurveyTemplateRow> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("survey_templates").select("*").eq("id", id).maybeSingle();
@@ -60,7 +62,8 @@ export async function getTemplate(id: string): Promise<SurveyTemplateRow> {
     throw new Error("Impossibile caricare il template");
   }
   if (!data) throw new Error("Template non trovato");
-  return data as SurveyTemplateRow;
+  const template=withSurveyDoorProducts(data as SurveyTemplateRow);
+  return enrichEnergy ? withEnergySurveyProducts(template) : template;
 }
 
 // ─── SURVEYS ────────────────────────────────────────────────────────────────
@@ -142,7 +145,7 @@ export interface SurveyDetail {
   media: SurveyMediaRow[];
 }
 
-export async function getSurvey(id: string): Promise<SurveyDetail> {
+export async function getSurvey(id: string, field = false): Promise<SurveyDetail> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const [{ data: survey, error: e1 }, { data: areas, error: e2 }, { data: elements, error: e3 }, { data: media, error: e4 }] =
@@ -160,7 +163,7 @@ export async function getSurvey(id: string): Promise<SurveyDetail> {
     console.error("[surveys] getSurvey related failed", e2 || e3 || e4);
     throw new Error("Errore caricamento dati sopralluogo");
   }
-  const template = await getTemplate((survey as SurveyRow).template_id);
+  const template = await getTemplate((survey as SurveyRow).template_id,shouldEnrichEnergySurvey(survey as SurveyRow,(elements??[]) as SurveyElementRow[]));
 
   // Rinfresca gli URL firmati: quelli salvati in DB scadono dopo 7 giorni e
   // non serviranno mai più per generare PDF / archivio storico. Rigenerare
@@ -172,11 +175,13 @@ export async function getSurvey(id: string): Promise<SurveyDetail> {
     const storagePath = (m as { storage_path?: string | null }).storage_path;
     if (!storagePath) return m;
     try {
-      const { data: signed } = await supabase.storage
+      const { data: signed, error } = await supabase.storage
         .from("surveys")
-        .createSignedUrl(storagePath, SURVEY_MEDIA_SIGNED_URL_TTL_SEC); // ri-firmato ad ogni get
+        .createSignedUrl(storagePath, field ? 300 : SURVEY_MEDIA_SIGNED_URL_TTL_SEC);
+      if (field && (error || !signed?.signedUrl)) throw new Error("Foto non più autorizzata");
       if (signed?.signedUrl) return { ...m, url: signed.signedUrl } as SurveyMediaRow;
     } catch (err) {
+      if (field) throw err;
       console.warn("[surveys] refresh signed url failed", storagePath, err);
     }
     return m;
@@ -193,7 +198,7 @@ export async function getSurvey(id: string): Promise<SurveyDetail> {
 
 export async function updateSurvey(id: string, patch: Partial<SurveyRow>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("surveys").update(patch).eq("id", id);
+  const { error } = await (supabase as any).from("surveys").update(patch).eq("id", id).select("id").single();
   if (error) {
     console.error("[surveys] updateSurvey failed", error);
     throw new Error("Salvataggio sopralluogo fallito");
@@ -376,13 +381,13 @@ export async function addArea(surveyId: string, area: Partial<SurveyAreaRow>): P
 
 export async function updateArea(id: string, patch: Partial<SurveyAreaRow>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("survey_areas").update(patch).eq("id", id);
+  const { error } = await (supabase as any).from("survey_areas").update(patch).eq("id", id).select("id").single();
   if (error) throw new Error("Modifica area fallita");
 }
 
 export async function deleteArea(id: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("survey_areas").delete().eq("id", id);
+  const { error } = await (supabase as any).from("survey_areas").delete().eq("id", id).select("id").single();
   if (error) throw new Error("Eliminazione area fallita");
 }
 
@@ -413,13 +418,13 @@ export async function addElement(
 
 export async function updateElement(id: string, patch: Partial<SurveyElementRow>): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("survey_elements").update(patch).eq("id", id);
+  const { error } = await (supabase as any).from("survey_elements").update(patch).eq("id", id).select("id").single();
   if (error) throw new Error("Modifica elemento fallita");
 }
 
 export async function deleteElement(id: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("survey_elements").delete().eq("id", id);
+  const { error } = await (supabase as any).from("survey_elements").delete().eq("id", id).select("id").single();
   if (error) throw new Error("Eliminazione elemento fallita");
 }
 
@@ -443,7 +448,11 @@ export interface UploadMediaOpts {
   elementId?: string | null;
   checklistKey?: string | null;
   checklistLabel?: string | null;
+  /** Editable provenance for an annotated copy; never replaces the source photo. */
+  annotations?: Record<string, unknown> | null;
   position?: number;
+  /** New element sheet: reject stale company/signed survey before any storage write. */
+  expectedCompanyId?: string;
 }
 
 export async function uploadMedia(surveyId: string, file: File, opts: UploadMediaOpts): Promise<SurveyMediaRow> {
@@ -456,6 +465,19 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const companyId = (profile as any)?.company_id;
   if (!companyId) throw new Error("Profilo senza azienda");
+
+  if (opts.expectedCompanyId) {
+    if (companyId !== opts.expectedCompanyId) throw new Error("Azienda cambiata: riapri il rilievo prima di caricare foto.");
+    const { data: survey, error: surveyError } = await supabase.from("surveys")
+      .select("id,client_signature_at,status").eq("id", surveyId).eq("company_id", companyId).maybeSingle();
+    if (surveyError || !survey) throw new Error("Sopralluogo non disponibile o permessi modificati.");
+    if (survey.client_signature_at || survey.status === "signed") throw new Error("Il rilievo contiene una firma: non aggiungo foto.");
+    if (opts.elementId) {
+      const { data: element, error: elementError } = await supabase.from("survey_elements")
+        .select("id,area_id").eq("id", opts.elementId).eq("survey_id", surveyId).maybeSingle();
+      if (elementError || !element || element.area_id !== (opts.areaId ?? null)) throw new Error("L’elemento è stato spostato o non appartiene al rilievo. Ricarica prima di caricare foto.");
+    }
+  }
 
   const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
   const subfolder =
@@ -475,10 +497,10 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
     throw new Error("Upload file fallito");
   }
 
-  // Ottieni URL firmato (storage privato → signed URL valido 7 giorni)
+  // Newly uploaded URLs expire quickly. getSurvey refreshes them after authorized reads.
   const { data: signed } = await supabase.storage
     .from("surveys")
-    .createSignedUrl(storagePath, SURVEY_MEDIA_SIGNED_URL_TTL_SEC);
+    .createSignedUrl(storagePath, 300);
   const url = signed?.signedUrl ?? "";
 
   // 2) Insert in survey_media (con rollback dello storage se il DB fallisce)
@@ -494,6 +516,7 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
       storage_path: storagePath,
       checklist_key: opts.checklistKey ?? null,
       checklist_label: opts.checklistLabel ?? null,
+      annotations: opts.annotations ?? null,
       filename: file.name,
       mime_type: file.type,
       size_bytes: file.size,
@@ -521,7 +544,7 @@ export async function deleteMedia(id: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storagePath = (existing as any)?.storage_path;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("survey_media").delete().eq("id", id);
+  const { error } = await (supabase as any).from("survey_media").delete().eq("id", id).select("id").single();
   if (error) throw new Error("Eliminazione media fallita");
   // Rimuovi il file dallo storage; se fallisce logga ma non bloccare:
   // la riga DB è già rimossa, il file orfano verrà ripulito dal cleanup job.
@@ -547,11 +570,11 @@ export async function logActivity(surveyId: string, eventType: string, eventData
 
 // ─── ASSIGNEES ──────────────────────────────────────────────────────────────
 
-export async function assignUser(surveyId: string, userId: string, role: "technician" | "subcontractor" | "employee" | "observer" = "technician"): Promise<void> {
+export async function assignUser(surveyId: string, userId: string, role: "technician" | "subcontractor" | "employee" | "observer" = "technician", fieldAuthorized = false): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("survey_assignees")
-    .insert({ survey_id: surveyId, user_id: userId, role });
+    .insert({ survey_id: surveyId, user_id: userId, role, field_authorized: fieldAuthorized });
   if (error) {
     console.error("[surveys] assignUser failed", error);
     throw new Error("Assegnazione utente fallita");
@@ -696,7 +719,7 @@ export async function listAssignees(surveyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("survey_assignees")
-    .select("user_id, role, assigned_at, assigned_by")
+    .select("user_id, role, assigned_at, assigned_by, field_authorized")
     .eq("survey_id", surveyId);
   if (error) throw new Error("Errore caricamento assegnatari");
   return data ?? [];

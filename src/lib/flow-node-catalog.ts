@@ -183,6 +183,14 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
   {
+    id:'campo_custom_aggiornato',label:'Campo personalizzato modificato',description:'Parte quando un valore personalizzato cambia davvero; non si riattiva sui flussi già attraversati dalla stessa catena.',
+    icon:'Edit',categoria:'crm',dbEvent:'UPDATE',
+    outputVariables:[{id:'custom_field_id',label:'ID del campo modificato',type:'uuid'},{id:'new_value',label:'Nuovo valore',type:'string'}],
+    configSchema:[{id:'object_type',label:'Oggetto dei campi',type:'select',required:true,defaultValue:'contact',options:[
+      {value:'contact',label:'Contatto'},{value:'opportunity',label:'Opportunità'},{value:'appointment',label:'Appuntamento'},{value:'order',label:'Commessa'},{value:'quote',label:'Preventivo'},{value:'task',label:'Task'},{value:'employee',label:'Dipendente'},{value:'warehouse',label:'Magazzino'},{value:'ordini_variazione',label:'Variante'},{value:'giornale_lavori',label:'Giornale lavori'},{value:'duvri_document',label:'DUVRI'},
+    ]}],
+  },
+  {
     id: 'contatto_assegnato',
     label: 'Contatto assegnato a agente',
     description: 'Scatta quando un contatto viene assegnato a un responsabile',
@@ -1836,11 +1844,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   {
     id: 'aggiorna_campo',
     label: 'Aggiorna campo entità',
-    description: 'Aggiorna un campo specifico su qualsiasi entità del sistema',
+    description: 'Aggiorna un campo consentito o personalizzato del record collegato; stati e importi protetti usano le azioni dedicate.',
     icon: 'Edit',
     categoria: 'crm',
     configSchema: [
-      { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true, options: [
+      { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true, defaultValue:'contacts', options: [
         { value: 'contacts', label: 'Contatto' }, { value: 'opportunities', label: 'Opportunità' },
         { value: 'tickets', label: 'Ticket assistenza' }, { value: 'tasks', label: 'Task' },
         { value: 'orders', label: 'Ordine' }, { value: 'invoices', label: 'Fattura' },
@@ -1848,7 +1856,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       // Niente «ID entità»: il motore lavora SEMPRE sull'entità con cui il
       // flusso è partito e ignorava questo campo — scriverci un altro id dava
       // l'illusione di agire altrove.
-      { id: 'campo', label: 'Nome campo DB', type: 'text', required: true, placeholder: 'Es: status, assigned_to, notes' },
+      { id: 'campo', label: 'Campo da aggiornare', type: 'text', required: true, placeholder: 'Scegli dal selettore del pannello; i campi personalizzati usano un ID stabile.' },
       { id: 'valore', label: 'Nuovo valore', type: 'text', required: true, supportsVariables: true },
     ],
   },

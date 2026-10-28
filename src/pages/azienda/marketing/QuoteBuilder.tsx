@@ -1,4 +1,5 @@
 import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
+import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import type { QuoteWizardProjectContext } from '@/components/quotes/dev/QuoteWizardProjectPanel';
@@ -2748,6 +2749,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         <div className="flex gap-6 items-start">
           {/* Left: items list */}
           <div className="flex-1 min-w-0 space-y-4">
+            {!localEditor && <QuoteCustomFieldsPanel />}
             {/* AI Quote Panel — anche su telefono (testo, voce, foto): generare le
                 righe con l'AI dal cantiere è il caso d'uso; lì è compatto. */}
               {companyId && !localEditor && (

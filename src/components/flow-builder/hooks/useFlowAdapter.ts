@@ -51,9 +51,14 @@ export function connectionsToEdges(dbConnections: AutomationConnection[]): Edge[
     sourceHandle: labelToSourceHandle(c.label),
     label: c.label ?? undefined,
     type: "addStep",
-    animated: true,
+    animated: false,
     style: { strokeWidth: 2 },
   }));
+}
+
+/** Il nuovo passo eredita il ramo di provenienza, non l'handle del vecchio target. */
+export function insertedStepIncomingEdge(edge: Edge, id: string, target: string): Edge {
+  return { ...edge, id, target, targetHandle: undefined };
 }
 
 // ── ReactFlow → DB ──

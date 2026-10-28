@@ -1,3 +1,5 @@
+import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
+import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
 /**
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
  * Verifica accesso tramite order_campo_assignments.
@@ -85,6 +87,7 @@ type CampoOrderItem = {
 
 type CampoRapportinoRow = {
   id: string;
+  autore?: { first_name: string | null; last_name: string | null } | null;
   user_id?: string | null;
   data_lavoro: string;
   pdf_url?: string | null;
@@ -519,20 +522,35 @@ export default function CampoLavoroDetail() {
   const faseAttuale = fasiCommessa.find((f) => f.status === "in_corso") ?? fasiCommessa.find((f) => f.status !== "completata");
   const faseAttualePct = faseAttuale ? (faseAttuale.status === "completata" ? 100 : faseAttuale.percentuale) : 0;
 
-  // Rapportini dell'utente su questo ordine
-  const { data: rapportini = [], isLoading: rapportiniLoading, isError: rapportiniError, refetch: ricaricaRapportini } = useQuery<CampoRapportinoRow[]>({
-    queryKey: ["campo-rapportini-ordine", orderId, currentUserId],
+  const { data: ruoloRapporti, isLoading: ruoloRapportiLoading, isError: ruoloRapportiError, refetch: ricaricaRuoloRapporti } = useQuery({
+    queryKey: ["campo-ruolo", orderId, user?.id, companyId],
+    enabled: !!orderId && !!user?.id && !!companyId,
+    staleTime: 300_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await supabase.rpc("campo_mio_ruolo", { p_order_id: orderId! });
+      if (error) throw error;
+      const r = leggiRuoloOperativoCampo(data);
+      return { isCapocantiere: !!r.capocantiere, esisteCapo: !!r.esiste_capo, isCaposquadra: !!r.caposquadra };
+    },
+  });
+  const vedeRapportiniCantiere = !ruoloRapportiError && !!ruoloRapporti?.isCapocantiere;
+
+  // Il capocantiere consulta i rapportini del suo cantiere; gli altri solo i propri.
+  // Ruolo verificato, cache distinta e RLS del server restano tre confini separati.
+  const { data: rapportini = [], isLoading: rapportiniLoading, isError: rapportiniError, refetch: ricaricaRapportini } = useQuery<CampoRapportinoRow[]>({
+    queryKey: ["campo-rapportini-ordine", orderId, currentUserId, companyId, vedeRapportiniCantiere ? "cantiere" : "personali"],
+    queryFn: async () => {
+      let query = supabase
         .from("campo_rapportini")
-        .select("*")
-        .eq("order_id", orderId!)
-        .eq("user_id", currentUserId!)
-        .order("data_lavoro", { ascending: false });
+        .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name,last_name)")
+        .eq("company_id", companyId!)
+        .eq("order_id", orderId!);
+      if (!vedeRapportiniCantiere) query = query.eq("user_id", currentUserId!);
+      const { data, error } = await query.order("data_lavoro", { ascending: false }).order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as CampoRapportinoRow[];
     },
-    enabled: !!orderId && !!currentUserId && (activeTab === "rapportini" || activeTab === "collaudo"),
+    enabled: !!orderId && !!currentUserId && !!companyId && !!ruoloRapporti && !ruoloRapportiError && !ruoloRapportiLoading && (activeTab === "rapportini" || activeTab === "collaudo"),
   });
   // Due elenchi che non si mescolano: i giornalieri nel tab Rapportini,
   // i rapporti firmati dal cliente nel tab Collaudo.
@@ -555,18 +573,7 @@ export default function CampoLavoroDetail() {
     enabled: !!orderId && !!currentUserId && activeTab === "collaudo",
   });
   const rapportiCliente = collaudiCommessa.filter(isClientReport);
-  const { data: ruoloRapporti, isLoading: ruoloRapportiLoading, isError: ruoloRapportiError, refetch: ricaricaRuoloRapporti } = useQuery({
-    queryKey: ["campo-ruolo", orderId, user?.id],
-    enabled: !!orderId && !!user?.id && !!companyId,
-    staleTime: 300_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("campo_mio_ruolo", { p_order_id: orderId! });
-      if (error) throw error;
-      const r = (data ?? {}) as { capocantiere?: boolean; esiste_capo?: boolean; caposquadra?: boolean };
-      return { isCapocantiere: !!r.capocantiere, esisteCapo: !!r.esiste_capo, isCaposquadra: !!r.caposquadra };
-    },
-  });
-  const puoCompilareCliente = !!ruoloRapporti && (ruoloRapporti.isCapocantiere || !ruoloRapporti.esisteCapo);
+  const puoCompilareCliente = !ruoloRapportiError && !!ruoloRapporti && (ruoloRapporti.isCapocantiere || !ruoloRapporti.esisteCapo);
   const regoleRapporti = useRegoleCampoOrdine(orderId);
   const protocolloRapporti = useRapportinoProtocollo(companyId ?? null, user?.id);
 
@@ -582,7 +589,7 @@ export default function CampoLavoroDetail() {
     mutationFn: async ({ rapportinoId, dataUrl }: { rapportinoId: string; dataUrl: string }) => {
       if (!companyId || !orderId || !currentUserId) throw new Error("Sessione non pronta: riprova.");
       const report = rapportini.find(r => r.id === rapportinoId);
-      if (!report || rapportinoDaRifare(statoRapportino(report))) throw new Error("Il rapporto va prima completato o corretto.");
+      if (!report || report.user_id !== currentUserId || rapportinoDaRifare(statoRapportino(report))) throw new Error("Il rapporto va prima completato o corretto.");
       const blob = await (await fetch(dataUrl)).blob();
       const path = `${companyId}/${orderId}/firme/${crypto.randomUUID()}_operaio.png`;
       const { data: up, error: upErr } = await supabase.storage
@@ -933,6 +940,7 @@ export default function CampoLavoroDetail() {
             )}
 
             {/* Con chi lavori: squadra, caposquadra, capocantiere */}
+            {orderId && <RuoloCantiereCampo orderId={orderId} ruolo={ruoloRapportiError ? undefined : ruoloRapporti} subappaltatore={isSubappaltatore} caricamento={ruoloRapportiLoading} errore={ruoloRapportiError} onRapportini={() => setActiveTab("rapportini")} onRiprova={() => void ricaricaRuoloRapporti()} />}
             {orderId && <ChiLavoraCampo orderId={orderId} />}
 
             {/* Fasi di lavoro della commessa */}
@@ -1033,7 +1041,7 @@ export default function CampoLavoroDetail() {
                 </p>
                 {/* Il cliente parla con una persona sola: il telefono lo vede
                     il capocantiere, gli altri passano da lui. */}
-                {assignment?.is_capocantiere ? (
+                {!ruoloRapportiError && ruoloRapporti?.isCapocantiere ? (
                   customer.phone && (
                     <a
                       href={`tel:${customer.phone}`}
@@ -1105,7 +1113,8 @@ export default function CampoLavoroDetail() {
               </button>
             )}
 
-            {rapportiniLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
+            {vedeRapportiniCantiere && <p className="text-sm text-muted-foreground">Rapportini del cantiere. Puoi firmare o correggere soltanto quelli compilati da te; l’approvazione spetta all’ufficio.</p>}
+            {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>Non riesco a verificare quali rapportini puoi consultare.</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Rileggi il ruolo</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
               <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
                 <p>Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.</p>
                 <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>Riprova lo storico</button>
@@ -1119,17 +1128,20 @@ export default function CampoLavoroDetail() {
                 </div>
               </div>
             ) : (
-              giornalieri.map((r) => (
-                <RapportinoCardCampo
+              giornalieri.map((r) => {
+                const mio = r.user_id === currentUserId;
+                const autore = [r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ");
+                return <RapportinoCardCampo
                   key={r.id}
                   r={r}
+                  autore={vedeRapportiniCantiere ? (mio ? "Tu" : autore || "Operatore del cantiere") : undefined}
                   pdfOccupato={pdfBusyId === r.id}
-                  onPdf={() => void apriPdfRapportino(r)}
-                  onFirma={() => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); }}
-                  onCorreggi={() => navigate(campoReportUrl(orderId!, isClientReport(r) ? "client" : "daily", r.data_lavoro))}
+                  onPdf={mio || r.pdf_url ? () => void apriPdfRapportino(r) : undefined}
+                  onFirma={mio ? () => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); } : undefined}
+                  onCorreggi={mio ? () => navigate(campoReportUrl(orderId!, "daily", r.data_lavoro)) : undefined}
                   nomiFasi={nomiFasi}
-                />
-              ))
+                />;
+              })
             )}
           </div>
         )}

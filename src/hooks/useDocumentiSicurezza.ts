@@ -1,3 +1,5 @@
+import {readAllPages} from "@/lib/personale/readAllPages";
+import {usePermissions} from "@/hooks/usePermissions";
 /**
  * I documenti di sicurezza, da UN posto solo per chi li guarda:
  * - archivio della sicurezza (`sicurezza_documenti`, bucket `sicurezza-documenti`):
@@ -22,7 +24,7 @@ export const BUCKET_SUBAPPALTATORI = "subappaltatori-documenti";
 export const chiaviDocumentiSicurezza = {
   tutti: ["sicurezza-documenti"] as const,
   elenco: (companyId: string | null | undefined, orderId?: string | null) =>
-    ["sicurezza-documenti", companyId, orderId ?? "tutti"] as const,
+    ["sicurezza-documenti", companyId, orderId ?? "tutti", "fonti-collegate-v2"] as const,
 };
 
 const COLONNE = "id, order_id, subappaltatore_id, tipo, titolo, file_path, file_name, data_documento, data_scadenza, note, created_at";
@@ -32,55 +34,72 @@ const s = (v: unknown) => (typeof v === "string" ? v : null);
 
 /** Con `orderId`: i documenti della commessa, quelli di tutta l'azienda e quelli dei suoi subappaltatori. */
 export function useDocumentiSicurezza(companyId: string | null | undefined, orderId?: string | null) {
+  const p=usePermissions();
   return useQuery({
     queryKey: chiaviDocumentiSicurezza.elenco(companyId, orderId),
-    queryFn: async (): Promise<DocumentoSicurezza[]> => {
+    queryFn:()=>leggiDocumentiSicurezza(companyId!,orderId),
+    enabled:!!companyId&&p.canViewSicurezzaCantiere,
+  });
+}
+
+export async function leggiDocumentiSicurezza(companyId:string,orderId?:string|null):Promise<DocumentoSicurezza[]> {
       let q = supabase.from("sicurezza_documenti" as never).select(COLONNE).eq("company_id", companyId!);
       if (orderId) q = q.or(`order_id.eq.${orderId},order_id.is.null`);
       let qs = supabase.from("subappaltatori_sicurezza").select("id, order_id, campo_subappaltatore_id").eq("company_id", companyId!);
       if (orderId) qs = qs.eq("order_id", orderId);
-      const [propri, subRes] = await Promise.all([q.order("created_at", { ascending: false }), qs]);
-      if (propri.error) throw propri.error;
-      if (subRes.error) throw subRes.error;
-      const documenti: DocumentoSicurezza[] = ((propri.data ?? []) as unknown as DocumentoSicurezza[]).map((d) => ({ ...d, fonte: "sicurezza" as const }));
+      const [propri, subRes, contratti, assegnazioni] = await Promise.all([
+        readAllPages((from,to)=>q.order("created_at",{ascending:false}).order("id").range(from,to)),
+        readAllPages((from,to)=>qs.order("id").range(from,to)),
+        orderId ? readAllPages((from,to)=>supabase.from("contratti_subappalto" as never).select("subappaltatore_id").eq("company_id",companyId).eq("order_id",orderId).order("id").range(from,to)) : Promise.resolve([]),
+        orderId ? readAllPages((from,to)=>supabase.from("subappaltatori_assegnazioni" as never).select("subappaltatore_id").eq("company_id",companyId).eq("order_id",orderId).order("id").range(from,to)) : Promise.resolve([]),
+      ]);
+      const documenti: DocumentoSicurezza[] = (propri as unknown as DocumentoSicurezza[]).map((d) => ({ ...d, fonte: "sicurezza" as const }));
 
-      const sub = (subRes.data ?? []) as Array<{ id: string; order_id: string | null; campo_subappaltatore_id: string | null }>;
+      const sub = subRes as Array<{ id: string; order_id: string | null; campo_subappaltatore_id: string | null }>;
+      const diretti=new Set(sub.map(x=>x.id));
+      const collegati=[...new Set([...contratti,...assegnazioni].map(x=>(x as Riga).subappaltatore_id).filter((id):id is string=>typeof id==="string"&&!diretti.has(id)))];
+      if(collegati.length) {
+        const altri=await readAllPages((from,to)=>supabase.from("subappaltatori_sicurezza").select("id, order_id, campo_subappaltatore_id").eq("company_id",companyId).in("id",collegati).order("id").range(from,to));
+        sub.push(...altri);
+      }
       if (!sub.length) return documenti;
       const sicIds = sub.map((x) => x.id);
       const perAnagrafica = new Map<string, typeof sub>();
       for (const x of sub) if (x.campo_subappaltatore_id) perAnagrafica.set(x.campo_subappaltatore_id, [...(perAnagrafica.get(x.campo_subappaltatore_id) ?? []), x]);
 
       const [scheda, fascicolo] = await Promise.all([
-        supabase.from("documenti_subappaltatore" as never)
+        readAllPages((from,to)=>supabase.from("documenti_subappaltatore" as never)
           .select("id, subappaltatore_id, tipo, nome_file, url, data_rilascio, data_scadenza, note, created_at")
-          .in("subappaltatore_id", sicIds),
+          .eq("company_id",companyId).in("subappaltatore_id", sicIds).order("id").range(from,to)),
         perAnagrafica.size
-          ? supabase.from("subappaltatori_documenti" as never)
+          ? readAllPages((from,to)=>supabase.from("subappaltatori_documenti" as never)
             .select("id, subappaltatore_id, tipo, storage_path, numero_protocollo, data_emissione, scadenza, status, created_at")
-            .in("subappaltatore_id", [...perAnagrafica.keys()]).in("status", ["active", "expired"])
-          : Promise.resolve({ data: [], error: null }),
+            .eq("company_id",companyId).in("subappaltatore_id", [...perAnagrafica.keys()]).in("status", ["active", "expired"]).order("id").range(from,to))
+          : Promise.resolve([]),
       ]);
-      // Gli archivi dei subappaltatori sono un di più: se uno non si legge, la sicurezza resta usabile.
-      const ordinePerSic = new Map(sub.map((x) => [x.id, x.order_id]));
-      for (const r of ((scheda.data ?? []) as Riga[])) {
+      // A failed archive is unknown, never an empty successful dossier.
+      const ordinePerSic = new Map(sub.map((x) => [x.id, orderId ?? x.order_id]));
+      for (const r of (scheda as Riga[])) {
         const sicId = s(r.subappaltatore_id)!;
         documenti.push({
           id: `scheda-${s(r.id)}`, fonte: "subappaltatore", bucket: BUCKET_SUBAPPALTATORI,
           order_id: ordinePerSic.get(sicId) ?? null, subappaltatore_id: sicId,
-          tipo: tipoDaSubappaltatore(s(r.tipo) ?? ""), titolo: s(r.note) || s(r.nome_file) || "Documento",
+          ambito_da_verificare: s(r.tipo)==="pos",
+          tipo: tipoDaSubappaltatore(s(r.tipo) ?? ""), titolo: s(r.nome_file) || s(r.note) || "Documento",
           file_path: s(r.url) ?? "", file_name: s(r.nome_file) ?? "",
-          data_documento: s(r.data_rilascio), data_scadenza: s(r.data_scadenza), note: null,
+          data_documento: s(r.data_rilascio), data_scadenza: s(r.data_scadenza), note: s(r.note),
           created_at: s(r.created_at) ?? "",
         });
       }
-      for (const r of ((fascicolo.data ?? []) as Riga[])) {
+      for (const r of (fascicolo as Riga[])) {
         const path = s(r.storage_path);
         if (!path) continue;
         // Un'anagrafica può lavorare in più commesse: il documento vale per ognuna.
         for (const x of perAnagrafica.get(s(r.subappaltatore_id) ?? "") ?? []) {
           documenti.push({
             id: `fascicolo-${s(r.id)}-${x.id}`, fonte: "fascicolo", bucket: BUCKET_SUBAPPALTATORI,
-            order_id: x.order_id, subappaltatore_id: x.id,
+            order_id: orderId ?? x.order_id, subappaltatore_id: x.id,
+            ambito_da_verificare: s(r.tipo)==="pos",
             tipo: tipoDaSubappaltatore(s(r.tipo) ?? ""),
             titolo: [s(r.tipo)?.toUpperCase(), s(r.numero_protocollo)].filter(Boolean).join(" ") || "Documento",
             file_path: path, file_name: path.split("/").pop() ?? "",
@@ -91,9 +110,6 @@ export function useDocumentiSicurezza(companyId: string | null | undefined, orde
         }
       }
       return documenti;
-    },
-    enabled: !!companyId,
-  });
 }
 
 export interface NuovoDocumentoSicurezza {

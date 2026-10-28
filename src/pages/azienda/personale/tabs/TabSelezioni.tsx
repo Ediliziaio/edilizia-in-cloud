@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -8,7 +8,7 @@ import { buildTalentReportDecision, buildTalentReportPayload, buildTalentReportP
 import { PremiumReportButton } from "@/features/talent-profile/components/PremiumReportButton";
 import { RichReportSections } from "@/features/talent-profile/components/RichReportSections";
 import { HeroReportVisual } from "@/features/talent-profile/components/HeroReportVisual";
-import { CACHE_VERSION as REPORT_CACHE_VERSION, computeDerivedReport, type CachedDerivedReport } from "@/features/talent-profile/lib/reportCache";
+import { CACHE_VERSION as REPORT_CACHE_VERSION, type CachedDerivedReport } from "@/features/talent-profile/lib/reportCache";
 import { TRAIT_LABELS, type TraitCode } from "@/features/talent-profile/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,6 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
   const [questionnaireCandidate, setQuestionnaireCandidate] = useState<TalentCandidate | null>(null);
   const [selectedReport, setSelectedReport] = useState<{ candidate: TalentCandidate; report: TalentReport } | null>(null);
   const [publicLink, setPublicLink] = useState<PublicLinkState | null>(null);
-  const [autoReportRunKey, setAutoReportRunKey] = useState("");
   const [form, setForm] = useState({
     nome: "",
     cognome: "",
@@ -285,13 +284,7 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
     },
   });
 
-  const autoReportKey = completedWithoutReports.map((candidate) => candidate.id).join("|");
-
-  useEffect(() => {
-    if (!autoReportKey || autoReportKey === autoReportRunKey || autoGenerateMissingReports.isPending) return;
-    setAutoReportRunKey(autoReportKey);
-    autoGenerateMissingReports.mutate(completedWithoutReports);
-  }, [autoGenerateMissingReports, autoReportKey, autoReportRunKey, completedWithoutReports]);
+  // Opening this view is read-only. Reports are generated only on explicit action.
 
   const stats = useMemo(() => {
     const completed = candidates.filter((candidate) => candidate.status === "completed").length;
@@ -332,6 +325,11 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
           )}
 
           <div className="flex flex-wrap gap-2">
+            {completedWithoutReports.length > 0 && <Button variant="outline" size="sm"
+              disabled={candidatesQuery.isLoading || reportsQuery.isLoading || candidatesQuery.isError || reportsQuery.isError || autoGenerateMissingReports.isPending}
+              onClick={() => autoGenerateMissingReports.mutate(completedWithoutReports)}>
+              {autoGenerateMissingReports.isPending ? "Generazione…" : `Genera ${completedWithoutReports.length} report mancanti`}
+            </Button>}
             <Button
               variant="outline"
               size="sm"
@@ -761,35 +759,7 @@ function ReportDecisionDialog({
     };
   }, [cacheReady, report.mappa_interiore, report.management_tips, report.management_closing, report.trait_narratives]);
 
-  const wroteCacheRef = useRef(false);
-  useEffect(() => {
-    if (!open || cacheReady || wroteCacheRef.current) return;
-    wroteCacheRef.current = true;
-    const derived = computeDerivedReport({
-      traits: report.traits_v5,
-      candidateName: candidate.nome,
-      candidateSesso: null,
-      candidateEta: null,
-      syndromes: (report.syndromes_detected || []) as never,
-    });
-    void talentDb
-      .from("hr_talent_reports")
-      .update({
-        mappa_interiore: derived.mappa_interiore,
-        management_tips: derived.management_tips,
-        management_closing: derived.management_closing,
-        trait_narratives: derived.trait_narratives,
-        cache_version: REPORT_CACHE_VERSION,
-      })
-      .eq("id", report.id)
-      .then((res) => {
-        if (res?.error) {
-          // Cache write failure: log silently, lo schema legacy continua a funzionare.
-          console.warn("[talent-cache] write failed", res.error.message);
-          wroteCacheRef.current = false;
-        }
-      });
-  }, [open, cacheReady, report.id, report.traits_v5, report.syndromes_detected, candidate.nome]);
+  // Legacy reports are derived in memory by the renderer, never persisted on view.
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1455,7 +1425,7 @@ function TalentQuestionnaireDialog({
 }) {
   const queryClient = useQueryClient();
   const [block, setBlock] = useState(1);
-  const [answers, setAnswers] = useState<Record<number, "A" | "B" | "C" | "D">>({});
+  const [draft, setDraft] = useState<{ candidateId: string; answers: Record<number, "A" | "B" | "C" | "D"> } | null>(null);
   const blocks = useMemo(() => Array.from(new Set(DOMANDE.map((domanda) => domanda.blocco_tematico))).sort((a, b) => a - b), []);
   const currentQuestions = useMemo(() => DOMANDE.filter((domanda) => domanda.blocco_tematico === block), [block]);
 
@@ -1474,15 +1444,11 @@ function TalentQuestionnaireDialog({
     },
   });
 
-  useEffect(() => {
-    if (!answersQuery.data) return;
-    setAnswers(
-      answersQuery.data.reduce<Record<number, "A" | "B" | "C" | "D">>((acc, answer) => {
-        acc[answer.question_id] = answer.answer_value;
-        return acc;
-      }, {}),
-    );
-  }, [answersQuery.data]);
+  const savedAnswers = useMemo(() => (answersQuery.data || []).reduce<Record<number, "A" | "B" | "C" | "D">>((acc, answer) => {
+    acc[answer.question_id] = answer.answer_value;
+    return acc;
+  }, {}), [answersQuery.data]);
+  const answers = draft?.candidateId === candidate.id ? draft.answers : savedAnswers;
 
   const answeredCount = Object.keys(answers).length;
   const progressPct = Math.round((answeredCount / DOMANDE.length) * 100);
@@ -1634,7 +1600,7 @@ function TalentQuestionnaireDialog({
                     <AnswerButtons
                       value={answers[domanda.id]}
                       custom={domanda.risposte_custom}
-                      onChange={(value) => setAnswers((prev) => ({ ...prev, [domanda.id]: value }))}
+                      onChange={(value) => setDraft({ candidateId: candidate.id, answers: { ...answers, [domanda.id]: value } })}
                     />
                   </div>
                 </div>

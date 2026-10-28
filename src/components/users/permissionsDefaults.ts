@@ -16,6 +16,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_tickets: false, can_edit_tickets: false,
   can_view_interventi: false, can_view_manutenzione: false,
   can_view_sicurezza_cantiere: false, can_view_subappaltatori: false,
+  can_view_subappaltatori_amministrazione: false,
   can_view_firma_elettronica: false,
   can_validate_bom: false, can_manage_purchasing: false,
   // Finanza
@@ -194,6 +195,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const FINANZA_SECTIONS: PermissionSectionDef[] = [
+  { label: "Documenti mensili subappaltatori", viewKey: "can_view_subappaltatori_amministrazione", editKey: null, description: "Fascicolo amministrativo riservato per contratto e mese: LUL, F24, Cassa Edile, UniEmens. Distinto dal permesso Sicurezza cantiere; chi lo vede lo gestisce salvo Sola lettura." },
   { label: "Fatturazione",               viewKey: "can_view_billing",           editKey: null, description: "Fatture, note di credito e documenti fiscali" },
   { label: "Scadenzario",                viewKey: "can_view_scadenzario",       editKey: null, description: "Scadenze attive e passive" },
   { label: "Tesoreria",                  viewKey: "can_view_tesoreria",         editKey: null, description: "Conti bancari, saldi e riconciliazione" },

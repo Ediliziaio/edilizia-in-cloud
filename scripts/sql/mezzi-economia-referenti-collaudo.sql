@@ -1,0 +1,54 @@
+-- Prove autenticate con rollback: nessuna fattura, costo o assegnazione di prova persistente.
+begin;set local lock_timeout='3s';set local statement_timeout='60s';
+create temporary table esiti_mezzi_economia(prova text,ok boolean);
+do $$
+declare c uuid:='d2000000-0000-4000-a000-000000000002'; a uuid:='ec5bff4e-c812-4c77-b94a-940eb3a213b1'; b uuid:='fe6705c5-7a14-4811-b0be-473e218b67b1';
+ admin_id uuid:='e592255e-0c82-86cd-7f7b-d3046317f9cd'; m uuid:=gen_random_uuid(); cc uuid:=gen_random_uuid(); wrong_cc uuid:=gen_random_uuid(); po uuid:=gen_random_uuid(); ccpo uuid:=gen_random_uuid(); alloc uuid:=gen_random_uuid();
+ p1 uuid;p2 uuid;pb uuid;h uuid;s uuid;sf uuid;hf uuid; j jsonb;f jsonb;before_cost numeric;after_cost numeric;cnt integer;val numeric;denied boolean;
+begin
+ select id into s from public.suppliers where company_id=c and is_active limit 1;
+ select id into h from public.hr_profili where company_id=c and attivo limit 1;
+ select id into sf from public.suppliers where company_id<>c and is_active limit 1;
+ select id into hf from public.hr_profili where company_id<>c and attivo limit 1;
+ if s is null or h is null or sf is null or hf is null then raise exception 'Fixture anagrafiche assenti';end if;
+ insert into public.mezzi(id,company_id,nome,tipo,possesso,stato) values(m,c,'COLLAUDO ECONOMIA TEMPORANEO','attrezzatura','noleggio_breve','in_servizio');
+ insert into public.company_costs(id,company_id,name,cost_type,amount,recurrence,order_id,supplier_id,due_date) values(cc,c,'COLLAUDO fattura noleggio temporanea','variable',600,'once',a,s,current_date),(wrong_cc,c,'COLLAUDO costo altra commessa','variable',100,'once',b,s,current_date);
+ insert into public.company_costs(id,company_id,name,cost_type,amount,recurrence,allocations,supplier_id,due_date) values(alloc,c,'COLLAUDO fattura ripartita','variable',1000,'once',jsonb_build_array(jsonb_build_object('order_id',a,'pct',50),jsonb_build_object('order_id',b,'pct',50)),s,current_date);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',admin_id,'role','authenticated')::text,true);execute 'set local role authenticated';
+ j:=jsonb_build_object('order_id',a,'mezzo_id',m,'dal','2210-01-01','al','2210-01-05','fase_ids','[]'::jsonb,'quantita',1,'responsabile_hr_id',h,'costo',jsonb_build_object('tariffa',600,'base','totale','extra',0,'supplier_id',s));
+ p1:=public.salva_piano_mezzo(j);p2:=public.salva_piano_mezzo(j||jsonb_build_object('dal','2210-02-01','al','2210-02-05'));pb:=public.salva_piano_mezzo(j||jsonb_build_object('order_id',b,'dal','2210-03-01','al','2210-03-05'));
+ execute 'reset role';insert into esiti_mezzi_economia values('salva referente e fornitore collegati',(select p.responsabile_hr_id=h and z.supplier_id=s from public.mezzi_piani_cantiere p join public.mezzi_piani_costi z on z.piano_id=p.id where p.id=p1));
+ execute 'set local role authenticated';denied:=false;begin perform public.salva_piano_mezzo(j||jsonb_build_object('id',p1,'responsabile_hr_id',hf));exception when others then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('referente di altra azienda respinto',denied);
+ execute 'set local role authenticated';denied:=false;begin perform public.salva_piano_mezzo(j||jsonb_build_object('id',p1,'costo',jsonb_build_object('tariffa',600,'base','totale','extra',0,'supplier_id',sf)));exception when others then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('fornitore di altra azienda respinto',denied);
+ execute 'set local role authenticated';select consuntivo into before_cost from public.v_ordine_marginalita where id=a;
+ perform public.collega_spesa_piano_mezzo(p1,'costo',cc,400);perform public.collega_spesa_piano_mezzo(p2,'costo',cc,200);
+ select consuntivo into after_cost from public.v_ordine_marginalita where id=a;
+ execute 'reset role';insert into esiti_mezzi_economia values('collegare la fattura non aumenta il consuntivo',before_cost=after_cost);
+ insert into esiti_mezzi_economia values('quote parziali una sola spesa di 600',(select sum(importo)=600 from public.mezzi_piani_spese where costo_id=cc));
+ execute 'set local role authenticated';denied:=false;begin perform public.collega_spesa_piano_mezzo(p2,'costo',cc,201);exception when others then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('non si può superare il costo con più quote',denied);
+ execute 'set local role authenticated';denied:=false;begin perform public.collega_spesa_piano_mezzo(p1,'costo',wrong_cc,10);exception when others then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('costo altra commessa respinto',denied);
+ execute 'set local role authenticated';perform public.collega_spesa_piano_mezzo(p1,'costo',alloc,500);perform public.collega_spesa_piano_mezzo(pb,'costo',alloc,500);
+ denied:=false;begin perform public.collega_spesa_piano_mezzo(p2,'costo',alloc,1);exception when others then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('fattura ripartita rispetta quota commessa e totale aziendale',denied and (select sum(importo)=1000 from public.mezzi_piani_spese where costo_id=alloc));
+ insert into public.purchase_orders(id,company_id,supplier_id,oda_number,status,order_id,subtotal,vat_total,total) values(po,c,s,'COLLAUDO-MEZZI-ECON-TEMP','inviato',a,700,154,854);
+ -- Simula la contabilizzazione della fattura: prevale sul valore iniziale dell'OdA.
+ delete from public.company_costs where purchase_order_id=po and company_id=c;
+ insert into public.company_costs(id,company_id,name,cost_type,amount,recurrence,order_id,supplier_id,purchase_order_id,due_date) values(ccpo,c,'COLLAUDO fattura collegata OdA','variable',650,'once',a,s,po,current_date);
+ execute 'set local role authenticated';f:=public.mezzi_piano_fonti(a);
+ select count(*) into cnt from jsonb_array_elements(f->'fonti') x where x->>'id'=ccpo::text;
+ select (x->>'importo')::numeric into val from jsonb_array_elements(f->'fonti') x where x->>'id'=po::text and x->>'tipo'='oda';
+ execute 'reset role';insert into esiti_mezzi_economia values('OdA e fattura sono una fonte sola, con importo aggiornato',cnt=0 and val=650);
+ execute 'set local role authenticated';select consuntivo into before_cost from public.v_ordine_marginalita where id=a;perform public.collega_spesa_piano_mezzo(p1,'oda',po,650);select consuntivo into after_cost from public.v_ordine_marginalita where id=a;
+ execute 'reset role';insert into esiti_mezzi_economia values('riconoscere la spesa OdA non raddoppia il margine',before_cost=after_cost);
+ update public.purchase_orders set status='annullato' where id=po;
+ execute 'set local role authenticated';f:=public.mezzi_piano_fonti(a);execute 'reset role';
+ insert into esiti_mezzi_economia values('OdA annullato sparisce dalle fonti ma conserva il legame da riconciliare',not exists(select 1 from jsonb_array_elements(f->'fonti') x where x->>'id'=po::text) and exists(select 1 from jsonb_array_elements(f->'legami') x where x->>'fonte_id'=po::text));
+ execute 'set local role authenticated';perform public.collega_spesa_piano_mezzo(p1,'oda',po,null);execute 'reset role';insert into esiti_mezzi_economia values('scollega la fonte annullata senza toccare il costo',(select count(*)=0 from public.mezzi_piani_spese where oda_id=po));
+ execute 'set local role authenticated';f:=public.mezzi_piano_persone(a);execute 'reset role';insert into esiti_mezzi_economia values('contesto persone non espone iban o dati sanitari',jsonb_array_length(f)>0 and not (f->0 ? 'iban') and not(f->0 ? 'codice_fiscale'));
+ perform set_config('request.jwt.claims','{"sub":"1dbe6ceb-6b04-4d43-a617-8a709cb22f07","role":"authenticated"}',true);execute 'set local role authenticated';
+ denied:=false;begin perform public.mezzi_piano_fonti(a);exception when insufficient_privilege then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('operaio non legge i costi',denied);
+ execute 'set local role authenticated';denied:=false;begin perform public.mezzi_piano_persone(a);exception when insufficient_privilege then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('operaio senza permesso mezzi non legge anagrafica operativa',denied);
+ execute 'set local role authenticated';denied:=false;begin perform public.collega_spesa_piano_mezzo(p1,'costo',cc,1);exception when insufficient_privilege then denied:=true;end;execute 'reset role';insert into esiti_mezzi_economia values('operaio non modifica attribuzioni economiche',denied);
+ insert into esiti_mezzi_economia values('nessuna scrittura diretta client o esecuzione anon',not has_table_privilege('authenticated','public.mezzi_piani_spese','INSERT') and not has_function_privilege('anon','public.mezzi_piano_fonti(uuid)','EXECUTE') and not has_function_privilege('anon','public.mezzi_piano_persone(uuid)','EXECUTE') and not has_function_privilege('anon','public.collega_spesa_piano_mezzo(uuid,text,uuid,numeric)','EXECUTE'));
+end $$;
+select * from esiti_mezzi_economia;
+rollback;

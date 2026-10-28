@@ -1,3 +1,5 @@
+import { registerExpensePayment } from "@/lib/orders/expensePayments";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths, endOfMonth, startOfMonth } from "date-fns";
@@ -7,7 +9,7 @@ import {
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
@@ -226,6 +228,7 @@ export default function CompanyCostsManager({
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   // La modifica segue la visibilità, come le altre aree operative (migration
   // 20280921220000, 21/09/2026): chi ha «Costi» in vista e non è in sola
@@ -555,7 +558,9 @@ export default function CompanyCostsManager({
         // ma se succede meglio fermarsi che corrompere un uuid.
         throw new Error("Gli stipendi non si riconciliano con la banca");
       default:
-        await mutations.markPaidMutation.mutateAsync({ id: cost.id, date, paymentMethod: "bonifico" });
+        await registerExpensePayment({costId:cost.id,requestId:crypto.randomUUID(),date,method:'bonifico',bankId:txId});
+        refreshFinancialQueries(queryClient);
+        return;
     }
 
     // La correzione vera della riconciliazione: il MOVIMENTO BANCARIO viene
@@ -566,7 +571,6 @@ export default function CompanyCostsManager({
     const { error: txError } = await supabase
       .from("bank_transactions")
       .update({
-        ...(origin.type === "manual" ? { linked_cost_id: cost.id } : {}),
         reconciliation_status: "reconciled",
         reconciled_at: new Date().toISOString(),
       } as never)

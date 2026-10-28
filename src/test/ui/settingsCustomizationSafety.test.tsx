@@ -11,7 +11,7 @@ vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsCustomization: state.write, isLoading: state.loading }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   let deleted = false;
-  const b = { select: () => b, eq: () => b, order: () => b, is: () => b, not: () => { deleted = true; return b; },
+  const b = { select: () => b, eq: () => b, order: () => b, range: () => b, abortSignal: () => b, is: () => b, not: () => { deleted = true; return b; },
     insert: () => { state.writes(); return b; }, update: () => { state.writes(); return b; }, delete: () => { state.writes(); return b; },
     then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: [], error: state.error || (deleted && state.deletedError) ? new Error("Rete indisponibile") : null }).then(ok) };
   return b;

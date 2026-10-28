@@ -10,7 +10,16 @@ const aliases: Record<string, string> = { pipeline: "pipeline_id", stage: "stage
 export function filterValue(payload: Record<string, any>, field: string): unknown {
   if (Object.prototype.hasOwnProperty.call(payload, field)) return payload[field];
   if (aliases[field] && Object.prototype.hasOwnProperty.call(payload, aliases[field])) return payload[aliases[field]];
-  if (field.startsWith("custom_field.")) return payload.custom_field?.[field.slice(13)];
+  if (field.startsWith("custom_field.")) {
+    const values = payload.custom_field;
+    if (!values || typeof values !== "object") return undefined;
+    const key = field.slice(13);
+    // Preserve exact legacy labels (including dots); renamed labels resolve
+    // through the normalized aliases retained by the database.
+    if (Object.prototype.hasOwnProperty.call(values, key)) return values[key];
+    const alias = key.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (alias && Object.prototype.hasOwnProperty.call(values, alias)) return values[alias];
+  }
   return undefined;
 }
 export function emptyFilterValue(value: unknown): boolean {
@@ -129,6 +138,8 @@ export function evaluateAutomationFilters(filters: FilterGroup | null | undefine
   try { return evaluate(filters); } catch { return false; }
 }
 export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payload: Record<string, any>, timeZone = "Europe/Rome"): boolean {
+    if(tcfg.custom_field_id && tcfg.custom_field_id!==payload.custom_field_id)return false;
+    if(tcfg.object_type && payload.custom_object_type && tcfg.object_type!==payload.custom_object_type)return false;
     if (automationTriggerConfigErrors(tcfg).length) return false;
     // Check if trigger filters match (basic evaluation).
     // Il flow-builder salva i filtri in `trigger_filters`; supportiamo anche `filters`.

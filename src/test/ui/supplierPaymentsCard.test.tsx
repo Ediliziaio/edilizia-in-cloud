@@ -28,7 +28,8 @@ describe('Scheda fornitori', () => {
     show();
     expect(screen.getByText('Fornitore DEMO')).toBeInTheDocument();
     expect(screen.getByText('In attesa di fattura')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /OdA #DEMO-001/ })).toHaveAttribute('href', '/azienda/ordini-acquisto/po1');
+    expect(screen.getByRole('button', { name: /OdA #DEMO-001/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name:/OdA #DEMO-001/})).toBeNull();
     expect(screen.queryByText('Da pagare')).not.toBeInTheDocument();
   });
   it('mostra fattura e pagamento parziale collegati anche senza budget', () => {

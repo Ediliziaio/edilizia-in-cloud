@@ -25,9 +25,56 @@ function area(tag: ts.Node) {
 }
 
 describe("contratto di composizione del dettaglio commessa", () => {
+  it("mantiene i campi aggiuntivi sotto il cliente e sposta le figure nell’organizzazione del cantiere", () => {
+    const assignments = named("IncarichiCantiere");
+    const fields = named("EntityCustomFieldsSection");
+    expect(assignments).toHaveLength(1);
+    expect(fields).toHaveLength(1);
+    // Un solo elemento condiviso dai due layout Cantiere (commessa e contratto).
+    let declaration: ts.Node | undefined = assignments[0].parent;
+    while (declaration && !ts.isVariableDeclaration(declaration)) declaration = declaration.parent;
+    expect(declaration && ts.isVariableDeclaration(declaration) ? declaration.name.getText(source) : undefined).toBe("figureResponsabilita");
+    expect(declaration?.getText(source)).toContain("section-figure-responsabilita");
+    expect(area(fields[0])).toBe("panoramica");
+    expect(named("OrdineCliente")[0].pos).toBeLessThan(fields[0].pos);
+    expect(fields[0].pos).toBeLessThan(named("OrderAttachments")[0].pos);
+    function column(node: ts.Node): ts.Node | undefined {
+      for (let parent = node.parent; parent; parent = parent.parent) {
+        if (ts.isJsxElement(parent) && parent.openingElement.tagName.getText(source) === "div") return parent;
+      }
+    }
+    expect(value(named("OrderWorkPhases")[0], "organizationContent")).toBe("{figureResponsabilita}");
+    const overview = named("TabsContent").find(tag => value(tag, "value") === '"panoramica"')!.parent.getText(source);
+    const site = named("TabsContent").find(tag => value(tag, "value") === '"cantiere"')!.parent.getText(source);
+    expect(overview).not.toContain("figureResponsabilita");
+    expect(site).toContain('aria-label="Organizzazione del contratto"');
+    expect(site).toContain("{figureResponsabilita}");
+    expect(column(fields[0])).toBe(column(named("OrdineCliente")[0]));
+    expect(value(assignments[0], "companyId")).toBe("{companyId}");
+    expect(value(assignments[0], "orderId")).toBe("{id}");
+    expect(value(fields[0], "entityType")).toBe('"order"');
+    expect(value(fields[0], "entityId")).toBe("{id}");
+  });
+
+  it("monta i sopralluoghi soltanto nella nuova vista e chiarisce la funzione delle attività operative", () => {
+    const surveys = named("OrderSurveysCard");
+    expect(surveys).toHaveLength(1);
+    let branch: ts.Node | undefined = surveys[0].parent;
+    while (branch && !ts.isBinaryExpression(branch)) branch = branch.parent;
+    expect(branch?.getText(source)).toContain('vistaCantiere === "sopralluoghi"');
+    expect(value(named("LinkedTasks")[0], "title")).toBe('"Attività operative del cantiere"');
+    expect(value(named("LinkedTasks")[0], "description")).toContain("distinti dalle fasi di lavoro");
+    expect(named("LinkedTasks")[0].attributes.getText(source)).toContain("excludeOffice");
+  });
+
   it("mostra gli incassi solo nel riepilogo comune, senza una seconda fascia in panoramica", () => {
     expect(named("OrderFinancialOverview")).toHaveLength(1);
     expect(area(named("OrderFinancialOverview")[0])).toBeUndefined();
+    for (let parent = named("OrderFinancialOverview")[0].parent; parent; parent = parent.parent) {
+      if (ts.isJsxElement(parent)) expect(parent.openingElement.tagName.getText(source)).not.toBe("OrderHeaderSummary");
+    }
+    expect(named("OrderHeaderSummary")).toHaveLength(0);
+    expect(named("OrderFinancialOverview")[0].pos).toBeLessThan(named("OrderDetailNavigation")[0].pos);
     expect(named("CassaVerdettoBand")).toHaveLength(0);
     expect(named("EsposizioneCommessa")).toHaveLength(1);
     expect(area(named("EsposizioneCommessa")[0])).toBe("finanza");
@@ -38,9 +85,23 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(named("OrderDetailNavigation")).toHaveLength(1);
   });
 
+  it("usa lo stesso effetto in ogni scheda e vista, senza animare intestazione e navigazione", () => {
+    expect(named("OrderViewTransition").map(tag => value(tag, "viewKey"))).toEqual([
+      '"panoramica"', "{activeMaterialiView}", "{activeEconomiaView}", "{vistaCantiere}",
+    ]);
+    for (const panel of named("TabsContent")) expect(value(panel, "className")).toContain("order-detail-tab-panel");
+    for (const name of ["OrderFinancialOverview", "OrderCommessaSummary", "OrderDetailNavigation", "OrderWorkspaceNav", "CantiereViewNav"]) {
+      for (const tag of named(name)) {
+        for (let parent = tag.parent; parent; parent = parent.parent) {
+          if (ts.isJsxElement(parent)) expect(parent.openingElement.tagName.getText(source)).not.toBe("OrderViewTransition");
+        }
+      }
+    }
+  });
+
   it.each([
-    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
+    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
+    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "PianoMezziCantiere", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
     ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
@@ -58,7 +119,8 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(overview).not.toContain("Organizzazione del cantiere");
     expect(overview).not.toContain("Note e strumenti della commessa");
     expect(overview).not.toContain("Comunicazioni e storico");
-    expect(named("OrderCommunicationsCard")).toHaveLength(1);
+    expect(named("OrderCommunicationsCard")).toHaveLength(0);
+    expect(overview).not.toContain("Comunicazioni cliente");
     expect(value(named("OrderAttachments")[0], "actions")).toContain("ContrattoAIDialog");
   });
 
@@ -81,6 +143,12 @@ describe("contratto di composizione del dettaglio commessa", () => {
       expect(named(name)).toHaveLength(1);
       expect(area(named(name)[0])).toBeUndefined();
       expect(named(name)[0].pos).toBeLessThan(named("OrderDetailNavigation")[0].pos);
+    }
+    for (let parent = named("OrderCommessaSummary")[0].parent; parent; parent = parent.parent) {
+      if (ts.isJsxElement(parent)) {
+        expect(parent.openingElement.tagName.getText(source)).not.toBe("details");
+        expect(parent.openingElement.tagName.getText(source)).not.toBe("OrderHeaderSummary");
+      }
     }
     const actions = named("OrderQuickActions")[0];
     expect(value(actions, "onCreateTask")).toContain("setTaskDialogOpen(true)");

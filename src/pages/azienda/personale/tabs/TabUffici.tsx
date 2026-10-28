@@ -7,7 +7,7 @@
  * ciò che tiene in piedi il flusso quando le persone cambiano.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useUffici, useSalvaUfficio, useEliminaUfficio, type Ufficio } from "@/hooks/useUffici";
@@ -29,6 +29,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Building2, Plus, Pencil, Trash2, UserRound, Users } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 
 const NESSUN_RESPONSABILE = "__nessuno__";
 
@@ -39,8 +41,11 @@ export function TabUffici() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: uffici = [], isLoading } = useUffici(companyId);
-  const { data: staff = [] } = useCompanyStaffUsers(companyId);
+  const { data: uffici = [], isLoading, isError, refetch } = useUffici(companyId);
+  const staffQuery = useCompanyStaffUsers(companyId);
+  const staff = staffQuery.data || [];
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && !permissions.solaLettura && permissions.isAdmin;
   const salva = useSalvaUfficio(companyId);
   const elimina = useEliminaUfficio(companyId);
 
@@ -62,6 +67,7 @@ export function TabUffici() {
 
   return (
     <div className="space-y-4">
+      {staffQuery.isError && <HrQueryError label="Membri aziendali non disponibili" onRetry={staffQuery.refetch} />}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
@@ -96,14 +102,14 @@ export function TabUffici() {
         <p className="text-sm text-muted-foreground">
           Un passo del flusso commessa può essere assegnato a un ufficio invece che a una persona.
         </p>
-        <Button size="sm" onClick={() => setNuovoAperto(true)}>
+        <Button disabled={!canEdit || staffQuery.isError || staffQuery.isLoading} size="sm" onClick={() => setNuovoAperto(true)}>
           <Plus className="h-4 w-4 mr-1" /> Nuovo ufficio
         </Button>
       </div>
 
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento…</div>
-      ) : uffici.length === 0 ? (
+      ) : isError ? <HrQueryError label="Uffici non disponibili" onRetry={refetch} /> : uffici.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -115,7 +121,7 @@ export function TabUffici() {
                   key={nome}
                   variant="outline"
                   size="sm"
-                  disabled={salva.isPending}
+                  disabled={!canEdit || salva.isPending}
                   onClick={() => salva.mutate({ nome, membri: [] })}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> {nome}
@@ -141,10 +147,10 @@ export function TabUffici() {
                     )}
                   </div>
                   <div className="flex shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setInModifica(u)} aria-label="Modifica ufficio">
+                    <Button disabled={!canEdit || staffQuery.isLoading || staffQuery.isError} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setInModifica(u)} aria-label="Modifica ufficio">
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setDaEliminare(u)} aria-label="Elimina ufficio">
+                    <Button disabled={!canEdit} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setDaEliminare(u)} aria-label="Elimina ufficio">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -179,6 +185,7 @@ export function TabUffici() {
 
       {(nuovoAperto || inModifica) && (
         <UfficioDialog
+          key={inModifica?.id ?? "nuovo"}
           ufficio={inModifica}
           staff={staff.map((p) => ({ id: p.id, nome: nomePersona.get(p.id) ?? "Utente" }))}
           salvataggioInCorso={salva.isPending}
@@ -201,7 +208,8 @@ export function TabUffici() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (daEliminare) elimina.mutate(daEliminare.id); setDaEliminare(null); }}
+              disabled={!canEdit || elimina.isPending}
+              onClick={(event) => { event.preventDefault(); if (daEliminare) elimina.mutate(daEliminare.id, { onSuccess: () => setDaEliminare(null) }); }}
             >
               Elimina
             </AlertDialogAction>
@@ -224,19 +232,11 @@ interface UfficioDialogProps {
 }
 
 function UfficioDialog({ ufficio, staff, salvataggioInCorso, onSalva, onClose }: UfficioDialogProps) {
-  const [nome, setNome] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [responsabile, setResponsabile] = useState<string>(NESSUN_RESPONSABILE);
-  const [attivo, setAttivo] = useState(true);
-  const [membri, setMembri] = useState<string[]>([]);
-
-  useEffect(() => {
-    setNome(ufficio?.nome ?? "");
-    setDescrizione(ufficio?.descrizione ?? "");
-    setResponsabile(ufficio?.responsabile_id ?? NESSUN_RESPONSABILE);
-    setAttivo(ufficio?.attivo ?? true);
-    setMembri(ufficio?.membri ?? []);
-  }, [ufficio]);
+  const [nome, setNome] = useState(ufficio?.nome ?? "");
+  const [descrizione, setDescrizione] = useState(ufficio?.descrizione ?? "");
+  const [responsabile, setResponsabile] = useState<string>(ufficio?.responsabile_id ?? NESSUN_RESPONSABILE);
+  const [attivo, setAttivo] = useState(ufficio?.attivo ?? true);
+  const [membri, setMembri] = useState<string[]>(ufficio?.membri ?? []);
 
   const togglMembro = (id: string) =>
     setMembri((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));

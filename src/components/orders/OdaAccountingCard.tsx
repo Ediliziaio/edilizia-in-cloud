@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 /**
  * Cosa e' successo a questo ordine dopo la merce: il costo e la fattura.
  *
@@ -7,11 +9,9 @@
  * righe se la fornitura e' stata contabilizzata, se e' arrivata la fattura e
  * se la fattura combacia con l'ordine.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Wallet, FileText, AlertTriangle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Wallet, FileText, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -43,7 +43,7 @@ export function OdaAccountingCard({
   totaleOrdine: number;
   stato: string;
 }) {
-  const queryClient = useQueryClient();
+  const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const { data } = useQuery({
     queryKey: ["oda-contabilita", odaId],
     queryFn: async () => {
@@ -69,86 +69,6 @@ export function OdaAccountingCard({
     enabled: !!odaId,
   });
 
-  // Il pagamento si registra da qui invece che andando a cercare il costo in
-  // un'altra pagina: e' il gesto che chiude il cerchio ordine → merce →
-  // fattura → soldi usciti. Il pagamento E' l'uscita dalla banca, quindi
-  // insieme a is_paid nasce anche la registrazione in Prima Nota — la stessa
-  // scrittura (auto_source company_cost_payment) che farebbe la pagina Costi,
-  // cosi' i due percorsi restano indistinguibili in contabilita'.
-  const segnaPagato = useMutation({
-    mutationFn: async () => {
-      const oggi = new Date().toLocaleDateString("en-CA");
-      const { data: pagati, error } = await (supabase as any)
-        .from("company_costs")
-        .update({ is_paid: true, paid_date: oggi })
-        .eq("purchase_order_id", odaId)
-        .eq("is_paid", false)
-        .select("id, name, amount, vat_rate, company_id, payment_method");
-      if (error) throw error;
-      const rows = (pagati ?? []) as Array<{
-        id: string; name: string | null; amount: number | string;
-        vat_rate: number | string | null;
-        company_id: string; payment_method: string | null;
-      }>;
-
-      // Uscita in Prima Nota, saltando i costi che ce l'hanno gia' (un costo
-      // ri-pagato dopo un "non pagato" non deve raddoppiare l'uscita). Se la
-      // scrittura contabile fallisce il pagamento resta valido: si avvisa,
-      // non si annulla.
-      let erroreContabile: string | null = null;
-      if (rows.length > 0) {
-        const { data: esistenti } = await (supabase as any)
-          .from("prima_nota_entries")
-          .select("cost_id")
-          .in("cost_id", rows.map((r) => r.id))
-          .eq("auto_source", "company_cost_payment");
-        const gia = new Set(((esistenti ?? []) as Array<{ cost_id: string }>).map((e) => e.cost_id));
-        const daScrivere = rows.filter((r) => !gia.has(r.id));
-        if (daScrivere.length > 0) {
-          // In cassa esce il LORDO: il bonifico al fornitore include l'IVA.
-          // I costi (company_costs.amount) sono imponibili per convenzione,
-          // e le entrate da rate sono gia' lorde: senza gross-up il saldo
-          // di Prima Nota sarebbe gonfiato dell'IVA sugli acquisti.
-          const lordo = (netto: number, iva: number) =>
-            Math.round(netto * (1 + iva / 100) * 100) / 100;
-          const { error: ePn } = await (supabase as any).from("prima_nota_entries").insert(
-            daScrivere.map((r) => ({
-              company_id: r.company_id,
-              direction: "uscita",
-              amount: lordo(Number(r.amount || 0), Number(r.vat_rate || 0)),
-              description: `Pagamento: ${r.name ?? "fornitura"}${Number(r.vat_rate || 0) > 0 ? ` (IVA ${Number(r.vat_rate)}% inclusa)` : ""}`,
-              entry_date: oggi,
-              category: "Costi Aziendali",
-              cost_id: r.id,
-              is_auto: true,
-              auto_source: "company_cost_payment",
-              ...(r.payment_method ? { payment_method: r.payment_method } : {}),
-            })),
-          );
-          if (ePn) erroreContabile = ePn.message ?? String(ePn);
-        }
-      }
-      return { n: rows.length, erroreContabile };
-    },
-    onSuccess: ({ n, erroreContabile }) => {
-      if (erroreContabile) {
-        toast.warning(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
-          description: `L'uscita in Prima Nota però non è stata scritta: ${erroreContabile}`,
-        });
-      } else {
-        toast.success(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
-          description: "Uscita in Prima Nota creata: cassa, tesoreria e contabilità vedono la stessa cosa.",
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ["oda-contabilita", odaId] });
-      // Due prefissi: le liste/saldo usano "prima-nota", il grafico 6 mesi
-      // usa "primaNota" (incoerenza storica del codebase).
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["primaNota"] });
-    },
-    onError: (e) => toast.error("Pagamento non registrato", { description: String(e) }),
-  });
-
   // Sulle bozze non c'e' niente da contabilizzare: mostrare due righe vuote
   // sarebbe solo rumore.
   if (stato === "bozza" || stato === "annullato") return null;
@@ -164,12 +84,14 @@ export function OdaAccountingCard({
   const scostamentoRilevante = Math.abs(scostamento) > 0.01;
 
   return (
+    <>
+    {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={()=>setPaymentCostId(null)} />}
     <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4" />}>
       <div className="space-y-2.5 text-sm">
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Costo registrato</span>
           {costi.length > 0 ? (
-            <Link to="/azienda/costi" className="text-right group">
+            <button type="button" onClick={()=>setPaymentCostId(costi[0]?.id??null)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
                 {formatCurrency(totaleCosti)}
                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
@@ -177,7 +99,7 @@ export function OdaAccountingCard({
               <span className="block text-[11px] text-slate-500">
                 {nonPagati > 0 ? `${nonPagati} da pagare` : "pagato"}
               </span>
-            </Link>
+            </button>
           ) : (
             <span className="text-right text-slate-400 text-xs max-w-[60%]">
               Nessuno: si crea quando l'ordine passa a "ricevuto"
@@ -188,7 +110,7 @@ export function OdaAccountingCard({
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Fattura fornitore</span>
           {fatture.length > 0 ? (
-            <Link to="/azienda/documenti/fatture-ricevute" className="text-right group">
+            <button type="button" disabled={!costi.length} onClick={()=>setPaymentCostId(costi[0]?.id??null)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
                 {formatCurrency(totaleFatture)}
                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
@@ -198,26 +120,25 @@ export function OdaAccountingCard({
                   ? `n. ${fatture[0].numero_fattura ?? "—"} del ${dataIt(fatture[0].data_fattura)}`
                   : `${fatture.length} fatture`}
               </span>
-            </Link>
+            </button>
           ) : (
             <span className="text-right text-slate-400 text-xs">Non ancora arrivata</span>
           )}
         </div>
 
-        {nonPagati > 0 && (
+        {costi.length > 0 && (
           <Button
             variant="outline"
             size="sm"
             className="w-full h-8"
-            disabled={segnaPagato.isPending}
-            onClick={() => segnaPagato.mutate()}
+            onClick={() => setPaymentCostId(costi.find(c => !c.is_paid)?.id ?? costi[0]?.id ?? null)}
           >
-            {segnaPagato.isPending
-              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-            Segna pagato al fornitore
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+            Pagamenti e residuo
           </Button>
         )}
+
+        {costi.length>1 && <div className="flex flex-wrap gap-2">{costi.map((c,i)=><Button key={c.id} size="sm" variant="outline" onClick={()=>setPaymentCostId(c.id)}>Costo {i+1} · {formatCurrency(Number(c.amount))}</Button>)}</div>}
 
         {fatture.length > 0 && (
           scostamentoRilevante ? (
@@ -245,5 +166,6 @@ export function OdaAccountingCard({
         )}
       </div>
     </QuoteCard>
+    </>
   );
 }

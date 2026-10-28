@@ -30,6 +30,7 @@ import {
 import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
 import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
 import { TimelineUso } from "@/components/mezzi/TimelineUso";
+import { ViaggiCommessa } from "@/components/mezzi/ViaggiMezzoWorkspace";
 
 interface Props {
   orderId: string;
@@ -245,6 +246,7 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
             ))}
           </ul>
         )}
+        <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!puoModificare} vedeCosti={vedeCosti} />
         {!error && !parcoError && !montaggiError && <details open={compact ? undefined : true} className={compact ? "rounded-lg border px-3 py-2" : ""}>
         {compact && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
         <div className={compact ? "mt-3 space-y-3" : "space-y-3"}>

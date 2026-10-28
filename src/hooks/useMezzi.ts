@@ -1,3 +1,4 @@
+import { invalidaFontiSicurezzaMezzi } from "@/lib/sicurezza/invalidaFontiMezzi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -218,7 +219,11 @@ async function utenteCorrente(): Promise<string | null> {
 
 function useInvalidaMezzi() {
   const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ["mezzi"] });
+  const companyId = useEffectiveCompanyId();
+  return () => Promise.all([
+    qc.invalidateQueries({ queryKey: ["mezzi"] }),
+    invalidaFontiSicurezzaMezzi(qc, companyId),
+  ]);
 }
 
 // «classe» la calcola il database dal tipo (colonna generata): non si scrive.
@@ -933,6 +938,7 @@ export function useInviaSegnalazione(mezzoId: string, aziendaDelMezzo?: string) 
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["mezzi"] });
+      void invalidaFontiSicurezzaMezzi(qc, companyId);
       toast.success(v.tipo === "km" ? "Km aggiornati" : "Segnalazione inviata all'ufficio");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Non ho inviato la segnalazione"),

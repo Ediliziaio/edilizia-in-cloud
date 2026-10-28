@@ -34,6 +34,8 @@ const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
+const CampoSopralluoghi = lazy(() => import("@/pages/campo/CampoSopralluoghi"));
+const CampoSopralluogo = lazy(() => import("@/pages/campo/CampoSopralluogo"));
 const CampoMezzi          = lazy(() => import("@/pages/campo/CampoMezzi"));
 const CampoAttrezzo       = lazy(() => import("@/pages/campo/CampoAttrezzo"));
 
@@ -95,6 +97,8 @@ export default function CampoRoutesContainer() {
         <Route path="profilo" element={<CampoProfilo />} />
         <Route path="impostazioni" element={<CampoImpostazioni />} />
         <Route path="attivita" element={<CampoAttivita />} />
+        <Route path="sopralluoghi" element={<CampoSopralluoghi />} />
+        <Route path="sopralluoghi/:id" element={<CampoSopralluogo />} />
         <Route path="menu" element={<CampoMenu />} />
         <Route path="*" element={<Navigate to="/campo" replace />} />
       </Route>

@@ -1,14 +1,30 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
-import { METODI_INCASSO, metodoIncassoDaCodice, residuoDaIncassare } from "@/lib/fatturazione/incassi";
+import {
+  METODI_INCASSO,
+  metodoIncassoDaCodice,
+  residuoDaIncassare,
+} from "@/lib/fatturazione/incassi";
 import { useSegnaPagata } from "@/hooks/useMovimentiCassa";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
@@ -30,22 +46,42 @@ const oggi = () => new Date().toLocaleDateString("en-CA");
 
 /** Il metodo della fattura; per una selezione, quello comune a tutte, altrimenti bonifico. */
 function metodoPredefinito(fatture: DocumentoFiscale[]): string {
-  const metodi = new Set(fatture.map((f) => metodoIncassoDaCodice(f.metodo_pagamento_codice)));
+  const metodi = new Set(
+    fatture.map((f) => metodoIncassoDaCodice(f.metodo_pagamento_codice)),
+  );
   return metodi.size === 1 ? [...metodi][0] : "bonifico";
 }
 
-export function SegnaPagataDialog({ open, onOpenChange, fatture, escluse = 0, onFatto }: Props) {
+export function SegnaPagataDialog({
+  open,
+  onOpenChange,
+  fatture,
+  escluse = 0,
+  onFatto,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         {/* Montato a ogni apertura: metodo e data ripartono dalla fattura e da oggi. */}
-        {open && <ModuloIncasso fatture={fatture} escluse={escluse} onOpenChange={onOpenChange} onFatto={onFatto} />}
+        {open && (
+          <ModuloIncasso
+            fatture={fatture}
+            escluse={escluse}
+            onOpenChange={onOpenChange}
+            onFatto={onFatto}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, "open"> & { escluse: number }) {
+function ModuloIncasso({
+  fatture,
+  escluse,
+  onOpenChange,
+  onFatto,
+}: Omit<Props, "open"> & { escluse: number }) {
   const segnaPagata = useSegnaPagata();
   const [metodo, setMetodo] = useState(() => metodoPredefinito(fatture));
   const [data, setData] = useState(oggi);
@@ -70,7 +106,11 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{una || fatture.length === 0 ? "Segna pagata" : `Segna pagate ${fatture.length} fatture`}</DialogTitle>
+        <DialogTitle>
+          {una || fatture.length === 0
+            ? "Segna pagata"
+            : `Segna pagate ${fatture.length} fatture`}
+        </DialogTitle>
         {/* Mobile: la spiegazione resta solo per i lettori di schermo. */}
         <DialogDescription className="max-sm:sr-only">
           {fatture.length === 0
@@ -99,27 +139,65 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
               </SelectTrigger>
               <SelectContent>
                 {METODI_INCASSO.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="incasso-data">Data<span className="max-sm:hidden"> dell'incasso</span></Label>
-            <Input id="incasso-data" type="date" value={data} max={oggi()} onChange={(e) => setData(e.target.value)} />
-            {!dataValida && <p className="text-xs text-destructive">Scegli una data non futura.</p>}
+            <Label htmlFor="incasso-data">
+              Data<span className="max-sm:hidden"> dell'incasso</span>
+            </Label>
+            <Input
+              id="incasso-data"
+              type="date"
+              value={data}
+              max={oggi()}
+              onChange={(e) => setData(e.target.value)}
+            />
+            {!dataValida && (
+              <p className="text-xs text-destructive">
+                Scegli una data non futura.
+              </p>
+            )}
           </div>
         </div>
       )}
 
+      {fatture.length > 0 && metodo === "bonifico" && (
+        <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">
+          Hai ricevuto un bonifico parlante con ritenuta?{" "}
+          <Link
+            className="font-medium underline"
+            to="/azienda/documenti?tab=incassi"
+            onClick={() => onOpenChange(false)}
+          >
+            Usa il dettaglio nel Registro incassi
+          </Link>{" "}
+          per distinguere lordo cliente e netto bancario.
+        </p>
+      )}
+
       <DialogFooter>
         {/* Mobile: «Annulla» no, c'è la X (resta «Chiudi» quando non c'è altro). */}
-        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={segnaPagata.isPending} className={fatture.length > 0 ? "max-sm:hidden" : undefined}>
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          disabled={segnaPagata.isPending}
+          className={fatture.length > 0 ? "max-sm:hidden" : undefined}
+        >
           {fatture.length === 0 ? "Chiudi" : "Annulla"}
         </Button>
         {fatture.length > 0 && (
-          <Button onClick={registra} disabled={segnaPagata.isPending || !dataValida}>
-            {segnaPagata.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+          <Button
+            onClick={registra}
+            disabled={segnaPagata.isPending || !dataValida}
+          >
+            {segnaPagata.isPending && (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            )}
             {una ? "Registra incasso" : `Registra ${fatture.length} incassi`}
           </Button>
         )}

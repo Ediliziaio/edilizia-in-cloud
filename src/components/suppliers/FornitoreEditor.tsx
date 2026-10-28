@@ -53,6 +53,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
+import { SUPPLIER_CATEGORY_SUGGESTIONS } from "@/lib/suppliers/partnerRelations";
 import {
   emptyForm,
   supplierToForm,
@@ -108,6 +109,9 @@ function FornitoreDialogAperta({
   const [formData, setFormData] = useState<SupplierFormData>(formIniziale);
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const categorie = [
+    ...new Set([...categorieEsistenti, ...SUPPLIER_CATEGORY_SUGGESTIONS]),
+  ];
   const scrollRef = useRef<HTMLDivElement>(null);
   const vaiASezione = (id: string) => {
     const contenitore = scrollRef.current;
@@ -131,10 +135,16 @@ function FornitoreDialogAperta({
     field: keyof SupplierFormData,
     value: string | number | boolean,
   ) => setFormData((prev) => ({ ...prev, [field]: value }));
-  const aggiornaReferente = (i: number, campo: keyof ReferenteFornitore, valore: string) =>
+  const aggiornaReferente = (
+    i: number,
+    campo: keyof ReferenteFornitore,
+    valore: string,
+  ) =>
     setFormData((prev) => ({
       ...prev,
-      altri_referenti: prev.altri_referenti.map((r, j) => (j === i ? { ...r, [campo]: valore } : r)),
+      altri_referenti: prev.altri_referenti.map((r, j) =>
+        j === i ? { ...r, [campo]: valore } : r,
+      ),
     }));
   const aggiungiReferente = () =>
     setFormData((prev) => ({
@@ -155,7 +165,10 @@ function FornitoreDialogAperta({
       ],
     }));
   const togliReferente = (i: number) =>
-    setFormData((prev) => ({ ...prev, altri_referenti: prev.altri_referenti.filter((_, j) => j !== i) }));
+    setFormData((prev) => ({
+      ...prev,
+      altri_referenti: prev.altri_referenti.filter((_, j) => j !== i),
+    }));
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -237,6 +250,9 @@ function FornitoreDialogAperta({
           <DialogDescription>
             Solo il nome è obbligatorio. Completa i contatti del referente, i
             dati fiscali e le condizioni d’acquisto quando sono disponibili.
+            Puoi registrare anche consulenti, professionisti e subappaltatori.
+            Dopo il salvataggio, apri la scheda «Contratti e ruoli» per
+            incarichi, scadenze e allegati privati.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -320,7 +336,7 @@ function FornitoreDialogAperta({
                               Nessuna categoria trovata
                             </CommandEmpty>
                             <CommandGroup>
-                              {categorieEsistenti
+                              {categorie
                                 .filter(
                                   (cat) =>
                                     !categorySearch ||
@@ -350,7 +366,7 @@ function FornitoreDialogAperta({
                                   </CommandItem>
                                 ))}
                               {categorySearch.trim() &&
-                                !categorieEsistenti.some(
+                                !categorie.some(
                                   (c) =>
                                     c.toLowerCase() ===
                                     categorySearch.toLowerCase(),
@@ -507,42 +523,99 @@ function FornitoreDialogAperta({
                     <div>
                       <p className="text-sm font-medium">Altri referenti</p>
                       <p className="text-xs text-muted-foreground">
-                        Chi segue gli ordini, chi le fatture e i pagamenti, chi riceve le consegne.
+                        Chi segue gli ordini, chi le fatture e i pagamenti, chi
+                        riceve le consegne.
                       </p>
                     </div>
-                    <Button type="button" size="sm" variant="outline" onClick={aggiungiReferente}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={aggiungiReferente}
+                    >
                       <Plus className="mr-1 h-4 w-4" />
                       Aggiungi referente
                     </Button>
                   </div>
                   {formData.altri_referenti.map((r, i) => (
-                    <div key={i} className="grid min-w-0 gap-2 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[180px_1fr_1fr_1fr_auto] lg:items-end">
+                    <div
+                      key={i}
+                      className="grid min-w-0 gap-2 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[180px_1fr_1fr_1fr_auto] lg:items-end"
+                    >
                       <div className="min-w-0 space-y-1">
-                        <Label htmlFor={`ref-ruolo-${i}`} className="text-xs">Ruolo</Label>
-                        <Select value={r.ruolo} onValueChange={(v) => aggiornaReferente(i, "ruolo", v)}>
+                        <Label htmlFor={`ref-ruolo-${i}`} className="text-xs">
+                          Ruolo
+                        </Label>
+                        <Select
+                          value={r.ruolo}
+                          onValueChange={(v) =>
+                            aggiornaReferente(i, "ruolo", v)
+                          }
+                        >
                           <SelectTrigger id={`ref-ruolo-${i}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {RUOLI_REFERENTE.map((x) => (
-                              <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>
+                              <SelectItem key={x.value} value={x.value}>
+                                {x.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="min-w-0 space-y-1">
-                        <Label htmlFor={`ref-nome-${i}`} className="text-xs">Nome</Label>
-                        <Input id={`ref-nome-${i}`} value={r.nome} maxLength={200} placeholder="Nome e cognome" onChange={(e) => aggiornaReferente(i, "nome", e.target.value)} />
+                        <Label htmlFor={`ref-nome-${i}`} className="text-xs">
+                          Nome
+                        </Label>
+                        <Input
+                          id={`ref-nome-${i}`}
+                          value={r.nome}
+                          maxLength={200}
+                          placeholder="Nome e cognome"
+                          onChange={(e) =>
+                            aggiornaReferente(i, "nome", e.target.value)
+                          }
+                        />
                       </div>
                       <div className="min-w-0 space-y-1">
-                        <Label htmlFor={`ref-email-${i}`} className="text-xs">Email</Label>
-                        <Input id={`ref-email-${i}`} type="email" value={r.email} maxLength={200} placeholder="nome@fornitore.it" onChange={(e) => aggiornaReferente(i, "email", e.target.value)} />
+                        <Label htmlFor={`ref-email-${i}`} className="text-xs">
+                          Email
+                        </Label>
+                        <Input
+                          id={`ref-email-${i}`}
+                          type="email"
+                          value={r.email}
+                          maxLength={200}
+                          placeholder="nome@fornitore.it"
+                          onChange={(e) =>
+                            aggiornaReferente(i, "email", e.target.value)
+                          }
+                        />
                       </div>
                       <div className="min-w-0 space-y-1">
-                        <Label htmlFor={`ref-tel-${i}`} className="text-xs">Telefono</Label>
-                        <Input id={`ref-tel-${i}`} type="tel" value={r.telefono} maxLength={25} placeholder="+39…" onChange={(e) => aggiornaReferente(i, "telefono", e.target.value)} />
+                        <Label htmlFor={`ref-tel-${i}`} className="text-xs">
+                          Telefono
+                        </Label>
+                        <Input
+                          id={`ref-tel-${i}`}
+                          type="tel"
+                          value={r.telefono}
+                          maxLength={25}
+                          placeholder="+39…"
+                          onChange={(e) =>
+                            aggiornaReferente(i, "telefono", e.target.value)
+                          }
+                        />
                       </div>
-                      <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => togliReferente(i)} aria-label={`Togli il referente ${i + 2}`}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => togliReferente(i)}
+                        aria-label={`Togli il referente ${i + 2}`}
+                      >
                         Togli
                       </Button>
                     </div>
@@ -618,7 +691,9 @@ function FornitoreDialogAperta({
                     <Input
                       id="codice_sdi"
                       value={formData.codice_sdi}
-                      onChange={(e) => updateField("codice_sdi", e.target.value)}
+                      onChange={(e) =>
+                        updateField("codice_sdi", e.target.value)
+                      }
                       placeholder="7 caratteri"
                       maxLength={7}
                     />
@@ -670,12 +745,15 @@ function FornitoreDialogAperta({
                     id="email_ordini"
                     type="email"
                     value={formData.email_ordini}
-                    onChange={(e) => updateField("email_ordini", e.target.value)}
+                    onChange={(e) =>
+                      updateField("email_ordini", e.target.value)
+                    }
                     placeholder="ordini@fornitore.it"
                     maxLength={200}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Gli ordini d’acquisto partono qui. Se è vuota: il referente degli ordini, poi l’email generale.
+                    Gli ordini d’acquisto partono qui. Se è vuota: il referente
+                    degli ordini, poi l’email generale.
                   </p>
                 </div>
               </div>
@@ -739,17 +817,24 @@ function FornitoreDialogAperta({
 
               {/* Ritiro / magazzino */}
               <div className="min-w-0 rounded-xl border p-4 lg:col-span-2">
-                <h3 className="text-sm font-semibold mb-1">Ritiro merce / magazzino</h3>
+                <h3 className="text-sm font-semibold mb-1">
+                  Ritiro merce / magazzino
+                </h3>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Solo se è diverso dalla sede: dove mandi il furgone a caricare.
+                  Solo se è diverso dalla sede: dove mandi il furgone a
+                  caricare.
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="ritiro_indirizzo">Indirizzo di ritiro</Label>
+                    <Label htmlFor="ritiro_indirizzo">
+                      Indirizzo di ritiro
+                    </Label>
                     <Input
                       id="ritiro_indirizzo"
                       value={formData.ritiro_indirizzo}
-                      onChange={(e) => updateField("ritiro_indirizzo", e.target.value)}
+                      onChange={(e) =>
+                        updateField("ritiro_indirizzo", e.target.value)
+                      }
                       placeholder="Via del Magazzino 10"
                       maxLength={200}
                     />
@@ -759,16 +844,22 @@ function FornitoreDialogAperta({
                     <Input
                       id="ritiro_citta"
                       value={formData.ritiro_citta}
-                      onChange={(e) => updateField("ritiro_citta", e.target.value)}
+                      onChange={(e) =>
+                        updateField("ritiro_citta", e.target.value)
+                      }
                       maxLength={100}
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-3">
-                    <Label htmlFor="ritiro_note">Orari e note per il ritiro</Label>
+                    <Label htmlFor="ritiro_note">
+                      Orari e note per il ritiro
+                    </Label>
                     <Input
                       id="ritiro_note"
                       value={formData.ritiro_note}
-                      onChange={(e) => updateField("ritiro_note", e.target.value)}
+                      onChange={(e) =>
+                        updateField("ritiro_note", e.target.value)
+                      }
                       placeholder="Es. lun-ven 7:30-12 / 13:30-17, chiedere di Marco in accettazione"
                       maxLength={300}
                     />
@@ -811,43 +902,60 @@ function FornitoreDialogAperta({
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
-                    <Label htmlFor="termini_giorni">Termini di pagamento (giorni)</Label>
+                    <Label htmlFor="termini_giorni">
+                      Termini di pagamento (giorni)
+                    </Label>
                     <Input
                       id="termini_giorni"
                       inputMode="numeric"
                       placeholder="Es. 60"
                       value={formData.termini_giorni}
-                      onChange={(e) => updateField("termini_giorni", e.target.value)}
+                      onChange={(e) =>
+                        updateField("termini_giorni", e.target.value)
+                      }
                     />
                   </div>
                   <div className="flex items-end">
-                    <label htmlFor="termini_fine_mese" className="flex h-10 cursor-pointer items-center gap-2 text-sm">
+                    <label
+                      htmlFor="termini_fine_mese"
+                      className="flex h-10 cursor-pointer items-center gap-2 text-sm"
+                    >
                       <Checkbox
                         id="termini_fine_mese"
                         checked={formData.termini_fine_mese}
-                        onCheckedChange={(c) => updateField("termini_fine_mese", c === true)}
+                        onCheckedChange={(c) =>
+                          updateField("termini_fine_mese", c === true)
+                        }
                       />
                       Fine mese
                     </label>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="codice_cliente">Il nostro codice cliente</Label>
+                    <Label htmlFor="codice_cliente">
+                      Il nostro codice cliente
+                    </Label>
                     <Input
                       id="codice_cliente"
                       value={formData.codice_cliente}
                       maxLength={50}
                       placeholder="Come ci chiama il fornitore"
-                      onChange={(e) => updateField("codice_cliente", e.target.value)}
+                      onChange={(e) =>
+                        updateField("codice_cliente", e.target.value)
+                      }
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sconto_percentuale">Sconto concordato (%)</Label>
+                    <Label htmlFor="sconto_percentuale">
+                      Sconto concordato (%)
+                    </Label>
                     <Input
                       id="sconto_percentuale"
                       inputMode="decimal"
                       placeholder="Sul listino del fornitore"
                       value={formData.sconto_percentuale}
-                      onChange={(e) => updateField("sconto_percentuale", e.target.value)}
+                      onChange={(e) =>
+                        updateField("sconto_percentuale", e.target.value)
+                      }
                     />
                   </div>
                 </div>

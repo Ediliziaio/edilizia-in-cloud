@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { useQuery } from "@tanstack/react-query";
 import { useTimbratureAdmin, useLiveStatus, scaricaTimbratureAdmin, LIMITE_ELENCO_TIMBRATURE, type LiveStatusProfilo, type TimbraturaAdminRow } from "@/hooks/useTimbratura";
 import { useRichieste } from "@/hooks/useRichieste";
 import { toast } from "sonner";
 import { PannelloPresenze } from "./PannelloPresenze";
+import { HrQueryError } from "@/components/hr/HrQueryError";
 import { filtraTimbrature, valoriDistinti, type Raggruppa, type RigaTimbratura } from "@/lib/personale/timbrature";
 import { esportaTimbratureCsv, esportaTimbratureXlsx } from "@/lib/personale/esportaTimbrature";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -57,22 +59,6 @@ type CampoOrfanaRow = Tables<"campo_timbrature"> & {
   order?: { order_code: string | null; description: string | null } | null;
 };
 
-function useLoadingTimeout(isLoading: boolean, delayMs = 8000) {
-  const [timedOut, setTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setTimedOut(false);
-      return;
-    }
-
-    const timer = window.setTimeout(() => setTimedOut(true), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [delayMs, isLoading]);
-
-  return timedOut;
-}
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Dati temporaneamente non disponibili";
 }
@@ -101,7 +87,7 @@ export function TabTimbrature() {
   const rangeTo = dateFrom <= dateTo ? dateTo : dateFrom;
 
   const { data: timbrature = [], isLoading, isError, error, refetch, isFetching } = useTimbratureAdmin(rangeFrom, rangeTo);
-  const { data: liveStatus = [] } = useLiveStatus();
+  const { data: liveStatus = [], isError: liveError, isLoading: liveLoading, refetch: retryLive } = useLiveStatus();
 
   const { data: orfane = [], isLoading: loadingOrfane } = useQuery({
     queryKey: ["campo-timbrature-orfane", companyId, rangeFrom, rangeTo],
@@ -217,12 +203,13 @@ export function TabTimbrature() {
     <div className="space-y-4 max-sm:space-y-3">
       {/* Live Status Panel (desktop) */}
       <div className="max-sm:hidden">
-        <PannelloPresenze persone={liveStatus as LiveStatusProfilo[]} assentiGiustificati={assentiGiustificati} />
+        {liveError ? <HrQueryError label="Presenze live non disponibili" onRetry={retryLive} /> : liveLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">Aggiornamento presenze…</p> : <PannelloPresenze persone={liveStatus as LiveStatusProfilo[]} assentiGiustificati={assentiGiustificati} />}
       </div>
 
       {/* Mobile: chi è presente a righe, chi non ha timbrato in una riga che si
           apre. Dopo il riquadro del desktop: da primo figlio nascosto lo sposterebbe. */}
-      {liveStatus.length > 0 && (
+      {liveError && <div className="sm:hidden"><HrQueryError label="Presenze live non disponibili" onRetry={retryLive} /></div>}
+      {!liveError && liveStatus.length > 0 && (
         <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden max-sm:!mt-0">
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-[13px] font-semibold">In azienda ora</span>
