@@ -1,17 +1,12 @@
 /**
  * Collegamento del conto corrente con Distyra (PSD2, sola lettura).
  *
- * Perche' accanto a Salt Edge: Salt Edge e' in beta e si abilita azienda per azienda,
- * Distyra parte subito (primo collegamento gratis, nessun minimo) e dichiara 333 banche
- * italiane. Finche' la prova e' in corso il pulsante si vede solo nelle aziende qui sotto.
+ * E' il canale in uso: Salt Edge non ha mai avuto credenziali configurate e non ha
+ * nessuna connessione viva. Distyra copre 333 banche italiane, il primo collegamento
+ * e' gratis e ogni successivo costa 5 euro al mese.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
-
-/** Aziende che vedono il collegamento Distyra. Demo Azienda 2: si prova li' prima di aprirlo a tutti. */
-export const AZIENDE_PROVA_DISTYRA = ["d2000000-0000-4000-a000-000000000002"] as const;
-export const distyraAbilitato = (companyId?: string | null): boolean =>
-  !!companyId && (AZIENDE_PROVA_DISTYRA as readonly string[]).includes(companyId);
 
 export async function invokeDistyra(companyId: string | null | undefined, body: Record<string, unknown>) {
   if (!companyId) throw new Error("Seleziona un'azienda per collegare il conto.");

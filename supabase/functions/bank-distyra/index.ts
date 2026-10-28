@@ -200,47 +200,97 @@ Deno.serve(async (req) => {
         .select("id, external_account_id").eq("connection_id", conn.id);
       const perConto = new Map((conti ?? []).map((c) => [c.external_account_id, c.id]));
 
-      // Da dove ripartire: l'ultimo movimento che abbiamo, meno qualche giorno,
-      // perché le banche registrano in ritardo. L'upsert toglie i doppioni.
+      // Da dove ripartire: l'ultimo movimento che abbiamo.
       const { data: ultimo } = await admin.from("bank_transactions")
         .select("booking_date").eq("company_id", companyId)
         .in("account_id", [...perConto.values()])
         .order("booking_date", { ascending: false }).limit(1).maybeSingle();
-      const da = ultimo?.booking_date
-        ? new Date(new Date(ultimo.booking_date).getTime() - GIORNI_DI_SICUREZZA * 86400000).toISOString().slice(0, 10)
-        : null;
+      const ultimoGiorno = ultimo?.booking_date ? String(ultimo.booking_date).slice(0, 10) : null;
+      const giorno = (d: string, delta: number) =>
+        new Date(new Date(d).getTime() + delta * 86400000).toISOString().slice(0, 10);
 
-      const q = new URLSearchParams({ enrich: "true", resumable: "true" });
-      if (da) q.set("date_from", da); else q.set("history", "all");
-      let continuazione: string | null = null, scritti = 0, giri = 0;
-      do {
-        if (continuazione) q.set("continuation", continuazione);
-        const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${q}`) as
-          { transactions?: Record<string, any>[]; complete?: boolean; continuation?: string | null };
-        const righe = (r.transactions ?? [])
-          .map((t) => {
-            const accId = perConto.get(String(t.account_id));
-            return accId ? mappaMovimento(t, companyId, accId) : null;
-          })
-          .filter((x): x is ReturnType<typeof mappaMovimento> => !!x && !!x.external_transaction_id);
-        // Due righe con la stessa chiave nello stesso upsert fanno fallire tutto
-        // («cannot affect row a second time»): si tiene l'ultima.
-        const uniche = [...new Map(righe.map((r) => [r.external_transaction_id, r])).values()];
-        if (uniche.length) {
-          const { error } = await admin.from("bank_transactions")
-            .upsert(uniche, { onConflict: "company_id,external_transaction_id" });
-          if (error) return errorResponse(`Movimenti non salvati: ${error.message}`, 500, corsH);
-          scritti += uniche.length;
-        }
-        continuazione = r.complete === false ? (r.continuation ?? null) : null;
-      } while (continuazione && ++giri < 20);
+      /**
+       * Scarica una finestra e salva.
+       *
+       * `arricchisci` costa: con la chiave di produzione OGNI movimento restituito con
+       * enrich=true conta sul tetto mensile, anche se lo avevamo gia' arricchito prima.
+       * Per questo le finestre sono due e non si sovrappongono nell'arricchimento:
+       * i giorni nuovi si arricchiscono una volta sola, il recupero dei ritardatari
+       * si scarica grezzo. `soloNuovi` protegge le righe gia' arricchite: inserisce i
+       * movimenti che mancano e non tocca quelli che ci sono gia'.
+       */
+      const scarica = async (par: Record<string, string>, arricchisci: boolean, soloNuovi: boolean) => {
+        const q = new URLSearchParams({ ...par, resumable: "true" });
+        if (arricchisci) q.set("enrich", "true");
+        let continuazione: string | null = null, n = 0, giri = 0;
+        do {
+          if (continuazione) q.set("continuation", continuazione);
+          const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${q}`) as
+            { transactions?: Record<string, any>[]; complete?: boolean; continuation?: string | null };
+          const righe = (r.transactions ?? [])
+            .map((t) => {
+              const accId = perConto.get(String(t.account_id));
+              return accId ? mappaMovimento(t, companyId, accId) : null;
+            })
+            .filter((x): x is ReturnType<typeof mappaMovimento> => !!x && !!x.external_transaction_id);
+          // Due righe con la stessa chiave nello stesso upsert fanno fallire tutto
+          // («cannot affect row a second time»): si tiene l'ultima.
+          const uniche = [...new Map(righe.map((x) => [x.external_transaction_id, x])).values()];
+          if (uniche.length) {
+            const { error } = await admin.from("bank_transactions").upsert(uniche, {
+              onConflict: "company_id,external_transaction_id",
+              ignoreDuplicates: soloNuovi,
+            });
+            if (error) throw new Error(`Movimenti non salvati: ${error.message}`);
+            n += uniche.length;
+          }
+          continuazione = r.complete === false ? (r.continuation ?? null) : null;
+        } while (continuazione && ++giri < 20);
+        return n;
+      };
 
-      const nomeBanca = testo(mia.aspsp_name);
+      let scritti = 0;
+      if (!ultimoGiorno) {
+        // Primo scarico: tutto lo storico che la banca concede. Distyra arricchisce da se'
+        // solo gli ultimi 90 giorni se non si chiede `enrich_history=all`, quindi il tetto
+        // mensile non se ne va in una volta su anni di movimenti.
+        scritti = await scarica({ history: "all" }, true, false);
+      } else {
+        // I giorni nuovi, arricchiti una volta sola.
+        scritti = await scarica({ date_from: giorno(ultimoGiorno, 1) }, true, false);
+        // I ritardatari: le banche registrano in ritardo, quindi si ripassa la finestra
+        // gia' vista, ma grezza e senza toccare le righe gia' salvate.
+        scritti += await scarica(
+          { date_from: giorno(ultimoGiorno, -GIORNI_DI_SICUREZZA), date_to: ultimoGiorno },
+          false,
+          true,
+        );
+      }
+
       await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("id", conn.id);
       return jsonResponse({ ok: true, movimenti: scritti }, 200, corsH);
     }
 
-    return errorResponse("Azione sconosciuta: usa start-link, finalize o sync", 400, corsH);
+    // ── 4. Staccare la banca ─────────────────────────────────────────────────
+    // Serve davvero: ogni connessione viva costa, quindi chi collega deve poter chiudere.
+    if (azione === "disconnect") {
+      const { data: conn } = await admin.from("bank_connections")
+        .select("id, provider_connection_id").eq("company_id", companyId)
+        .eq("id", String(corpo.connection_id ?? "")).maybeSingle();
+      if (!conn) return errorResponse("Collegamento non trovato", 404, corsH);
+      if (conn.provider_connection_id) {
+        // Se Distyra l'ha gia' chiusa per conto suo va bene lo stesso: quello che conta
+        // e' che da qui in poi non risulti piu' attiva.
+        try { await distyra(`/v1/connect/connections/${conn.provider_connection_id}`, { method: "DELETE" }); }
+        catch (e) { console.error("[bank-distyra] chiusura", e instanceof Error ? e.message : e); }
+      }
+      await admin.from("bank_connections")
+        .update({ status: "disconnected", error_message: null }).eq("id", conn.id);
+      await admin.from("bank_accounts").update({ is_active: false }).eq("connection_id", conn.id);
+      return jsonResponse({ ok: true }, 200, corsH);
+    }
+
+    return errorResponse("Azione sconosciuta: usa start-link, finalize, sync o disconnect", 400, corsH);
   } catch (e) {
     // requireAuth e requireCompanyAccess rispondono lanciando una Response gia' pronta.
     if (e instanceof Response) return e;

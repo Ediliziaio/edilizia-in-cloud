@@ -639,6 +639,15 @@ export default function PrivacyPolicy() {
             <td>UE / Regno Unito (decisione di adeguatezza)</td>
           </tr>
           <tr>
+            <td>Distyra (Brightfield Software) — Enable Banking Oy</td>
+            <td>
+              Accesso in sola lettura ai dati di conto corrente ai sensi della PSD2 (account
+              information), normalizzazione e categorizzazione dei movimenti bancari. Nessuna
+              disposizione di pagamento.
+            </td>
+            <td>UE (Francia, Germania; Finlandia per Enable Banking)</td>
+          </tr>
+          <tr>
             <td>Aruba S.p.A.</td>
             <td>
               Trasmissione e ricezione fatture elettroniche tramite SDI, conservazione digitale a

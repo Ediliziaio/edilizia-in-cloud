@@ -29,7 +29,7 @@ import { formatTreasuryCurrency } from "@/lib/treasury";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { invokeSaltEdge, validSaltWidgetUrl, BANKING_QUERY_KEYS } from "@/lib/banking/saltedge";
-import { invokeDistyra, validDistyraUrl, distyraAbilitato } from "@/lib/banking/distyra";
+import { invokeDistyra, validDistyraUrl } from "@/lib/banking/distyra";
 import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
 
 interface BankConnection {
@@ -95,13 +95,13 @@ export function useConnessioniBanca(abilitato = true) {
         .from("bank_connections")
         .select("id, institution_name, status, accounts_count, last_sync_at, expires_at, error_message, provider_slug, created_at")
         .eq("company_id", companyId!)
-        .eq("provider_slug", "saltedge")
+        .in("provider_slug", ["distyra", "saltedge"])
         .neq("status", "disconnected")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as BankConnection[];
     },
-    refetchInterval: query => query.state.data?.some(c => c.provider_slug === "saltedge" && c.status === "created" && c.created_at && Date.now() - Date.parse(c.created_at) < 15 * 60000) ? 5000 : false,
+    refetchInterval: query => query.state.data?.some(c => ((c.provider_slug === "saltedge" && c.status === "created") || (c.provider_slug === "distyra" && c.status === "pending")) && c.created_at && Date.now() - Date.parse(c.created_at) < 15 * 60000) ? 5000 : false,
   });
 }
 
@@ -192,10 +192,19 @@ export default function BankConnectionsCard({
     }
   };
 
-  const syncNow = async (connectionId: string) => {
+  const syncNow = async (connectionId: string, provider?: string) => {
     setSyncingId(connectionId);
     const t = toast.loading("Sincronizzazione movimenti…");
     try {
+      if (provider === "distyra") {
+        // Su Distyra il collegamento va prima confermato: il cliente torna dalla banca e
+        // solo allora sappiamo quali conti ha scelto. Se è già confermato non costa nulla.
+        await invokeDistyra(companyId, { action: "finalize", connection_id: connectionId }).catch((): null => null);
+        const esito = await invokeDistyra(companyId, { action: "sync", connection_id: connectionId });
+        toast.success(`Sincronizzati ${esito?.movimenti ?? 0} movimenti`, { id: t });
+        invalidateBanking();
+        return;
+      }
       const data = await invokeSaltEdge(companyId, { action: "sync", connection_id: connectionId });
       if (data?.processing) toast.info("La banca sta preparando i dati. Riprova fra poco.", { id: t });
       else toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`, { id: t });
@@ -211,7 +220,9 @@ export default function BankConnectionsCard({
     if (!disconnectId) return;
     setDisconnecting(true);
     try {
-      await invokeSaltEdge(companyId, { action: "disconnect", connection_id: disconnectId });
+      const riga = connections.find(x => x.id === disconnectId);
+      if (riga?.provider_slug === "distyra") await invokeDistyra(companyId, { action: "disconnect", connection_id: disconnectId });
+      else await invokeSaltEdge(companyId, { action: "disconnect", connection_id: disconnectId });
       toast.success("Conto disconnesso");
       invalidateBanking();
     } catch (e) {
@@ -228,7 +239,6 @@ export default function BankConnectionsCard({
   if (permsLoading) return null;
   if (!canViewTesoreria) return null;
 
-  // Distyra: strada separata da Salt Edge, accesa solo nelle aziende di prova.
   // Il server crea il link ospitato; qui si controlla solo che l'indirizzo sia davvero suo.
   async function collegaConDistyra() {
     try {
@@ -240,17 +250,12 @@ export default function BankConnectionsCard({
     }
   }
 
+  // Un solo pulsante: Distyra e' l'unico canale configurato. Le vecchie connessioni
+  // Salt Edge restano visibili e gestibili finche' ci sono, ma non se ne aprono di nuove.
   const pulsanteCollega = (
-    <div className="flex shrink-0 gap-2">
-      <Button size="sm" onClick={() => openConnect()} disabled={!canEditSettingsIntegrations} className="shrink-0">
-        <Plus className="h-4 w-4 mr-1" /> Collega conto
-      </Button>
-      {distyraAbilitato(companyId) && (
-        <Button size="sm" variant="outline" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations} className="shrink-0">
-          <Plus className="h-4 w-4 mr-1" /> Collega conto (prova)
-        </Button>
-      )}
-    </div>
+    <Button size="sm" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations} className="shrink-0">
+      <Plus className="h-4 w-4 mr-1" /> Collega conto
+    </Button>
   );
 
   const elenco = connections.length === 0 ? (
@@ -283,6 +288,15 @@ export default function BankConnectionsCard({
                   <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
                 </Button>
               )}
+              {c.provider_slug === "distyra" && (
+                <Button size="sm" variant="outline" onClick={() => syncNow(c.id, "distyra")} disabled={syncingId === c.id}>
+                  {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                  {c.status === "pending" ? "Verifica collegamento" : "Aggiorna movimenti"}
+                </Button>
+              )}
+              {canEditSettingsIntegrations && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+                <Unlink className="h-3.5 w-3.5" />
+              </Button>}
               {canEditSettingsIntegrations && c.provider_slug === "saltedge" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
                 <Unlink className="h-3.5 w-3.5" />
               </Button>}
