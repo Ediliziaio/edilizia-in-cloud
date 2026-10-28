@@ -24,7 +24,7 @@ vi.mock("@/components/sicurezza/AttrezzatureCommessa", () => ({
   ),
 }));
 vi.mock("@/components/sicurezza/ProfiliRequisitiDialog", () => ({
-  PulsanteProfiliRequisiti: () => null,
+  PulsanteProfiliRequisiti: () : null => null,
 }));
 vi.mock("@/components/sicurezza/DpiCommessa", () => ({
   DpiCommessa: ({
@@ -94,7 +94,7 @@ vi.mock("react-router-dom", async (importOriginal) => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-    data: queryKey[0] === "sicurezza-commessa-ponteggi" ? false : [],
+    data: queryKey[0] === "sicurezza-commessa-ponteggi" ? false : [] as never[],
     isLoading: false,
     isError: queryKey[0] === "sicurezza-commessa-verbali" && s.erroreVerbali,
     refetch: vi.fn(),
@@ -105,7 +105,7 @@ vi.mock("@/hooks/usePos", () => ({
   useCreaPos: () => ({ isPending: false, mutateAsync: s.crea }),
 }));
 vi.mock("@/hooks/useDocumentiSicurezza", () => ({
-  useDocumentiSicurezza: () => ({ data: [], isLoading: false, isError: false }),
+  useDocumentiSicurezza: () => ({ data: [] as never[], isLoading: false, isError: false }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/components/sicurezza/IncarichiCantiere", () => ({
@@ -119,8 +119,8 @@ vi.mock("@/components/sicurezza/ImpreseCommessa", () => ({
   ),
 }));
 vi.mock("@/components/sicurezza/DocumentiSicurezza", () => ({
-  DocumentiSicurezza: () => null,
-  CaricaDocumentoSicurezzaDialog: () => null,
+  DocumentiSicurezza: () : null => null,
+  CaricaDocumentoSicurezzaDialog: () : null => null,
 }));
 vi.mock("@/components/sicurezza/FascicoloDocumenti", () => ({
   FascicoloDocumenti: ({
@@ -137,7 +137,7 @@ vi.mock("@/components/sicurezza/FascicoloDocumenti", () => ({
 }));
 vi.mock("@/hooks/useFascicoloCantiere", () => ({
   useImpreseCommessa: () => ({
-    data: { imprese: [], assegnazioni: [], evidenze: [] },
+    data: { imprese: [] as never[], assegnazioni: [] as never[], evidenze: [] as never[] },
     isLoading: false,
     isError: false,
   }),
@@ -154,8 +154,8 @@ vi.mock("@/hooks/useFascicoloCantiere", () => ({
       {
         id: "e1",
         order_id: "ordine",
-        subappaltatore_id: null,
-        operaio_id: null,
+        subappaltatore_id: null as null,
+        operaio_id: null as null,
         tipo: "durc",
         titolo: "DURC fase iniziale",
         fase_id: "fase1",
@@ -169,8 +169,8 @@ vi.mock("@/hooks/useFascicoloCantiere", () => ({
       {
         id: "e2",
         order_id: "ordine",
-        subappaltatore_id: null,
-        operaio_id: null,
+        subappaltatore_id: null as null,
+        operaio_id: null as null,
         tipo: "durc",
         titolo: "DURC fase successiva",
         fase_id: "fase2",
@@ -372,7 +372,7 @@ it("un errore del registro verbali non viene presentato come nessun verbale", ()
   s.erroreVerbali = true;
   mostra();
   area(/^Apri Controlli e verbali$/);
-  fireEvent.click(screen.getByRole("button", { name: "Verbali", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Verbali" }));
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Verbali non disponibili",
   );

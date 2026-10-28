@@ -10,7 +10,7 @@ describe("Pianificazione mezzi cantiere", () => {
     tariffa: 100,
     base: "giorno" as const,
     extra: 70,
-    fornitore: null,
+    fornitore: null as null,
   };
   it("betoniera: cinque giorni compresi più trasporto una sola volta", () =>
     expect(costoPianoMezzo(periodo, costo)).toBe(570));

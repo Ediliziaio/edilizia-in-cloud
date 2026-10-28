@@ -1,9 +1,11 @@
 // Isolated import rehearsal. No credentials, network or remote writes.
 import { PGlite } from '@electric-sql/pglite';
-import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 const db = new PGlite();
-const sql = await readFile('work/sopralluoghi-campo-20261028/importazione/import.sql','utf8');
+const bundle = await build({ entryPoints: ['scripts/fixtures/prepareWindowImport.ts'], bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.sql': 'text' } });
+const { prepareWindowImport, windowImportSql } = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const sql = windowImportSql(prepareWindowImport());
 const cid='d2000000-0000-4000-a000-000000000002', tid='669ad79f-b13a-484c-9137-3388a2ae4a71', sid='094083a9-ae8e-4f12-b545-30d9ea1b2473';
 await db.exec(`
 create table companies(id uuid primary key,name text);

@@ -23,9 +23,23 @@ const verifica = (criteri: VerificaItp["criteri"]): VerificaItp =>
     order_id: "c1",
     subappaltatore_id: "sub",
     versione: 2,
+    fase_id: null,
+    precedente_id: null,
+    dal: "2026-10-27",
+    al: null,
+    esito: "da_integrare",
+    attivita: "Verifica dimostrativa",
+    responsabile: "Responsabile demo",
+    ruolo_responsabile: "Tecnico",
+    motivazione: "Verifica di prova",
+    completezza: false,
+    contesto: { impresa: { id: "sub", ragione_sociale: "Impresa demo", campo_subappaltatore_id: null }, commessa: { id: "c1", order_code: "C1", description: "Commessa demo" }, fase: null },
+    registrato_da: "utente-demo",
+    registrato_da_nome: "Utente demo",
+    registrato_il: "2026-10-27T12:00:00Z",
     criteri,
     evidenze: [prova],
-  }) as VerificaItp;
+  });
 describe("Applicabilità documentale registrata", () => {
   it("separa esclusioni motivate, esiti e prove, con ricerca per riferimento", () => {
     const v = verifica([

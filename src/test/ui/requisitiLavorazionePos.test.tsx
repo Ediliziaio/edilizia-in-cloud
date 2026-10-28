@@ -9,7 +9,7 @@ import {
 } from "../../../supabase/functions/_shared/posModello";
 const m = vi.hoisted(() => ({ cambiata: false, errore: false }));
 vi.mock("@/hooks/useFascicoloCantiere", () => ({
-  useFasiFascicolo: () => ({ data: [], isError: false }),
+  useFasiFascicolo: () => ({ data: [] as never[], isError: false }),
 }));
 vi.mock("@/hooks/useRequisitiAddetti", () => ({
   useStoricoAddetti: () => ({
@@ -18,7 +18,7 @@ vi.mock("@/hooks/useRequisitiAddetti", () => ({
     data: [
       {
         id: fontePropria().id,
-        fase_id: null,
+        fase_id: null as null,
         dal: "2026-11-10",
         al: "2026-11-15",
         versione: 1,

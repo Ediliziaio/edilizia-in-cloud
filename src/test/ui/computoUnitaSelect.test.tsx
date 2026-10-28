@@ -12,10 +12,10 @@ describe("unità del computo", () => {
   it("seleziona metri cubi e ore senza trasformarli in corpo", async () => {
     render(<Editor />);
     fireEvent.click(screen.getByRole("combobox", { name: "Unità di misura" }));
-    fireEvent.click(await screen.findByRole("option", { name: "mc - Metri cubi", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "mc - Metri cubi" }));
     expect(screen.getByLabelText("Unità salvata")).toHaveTextContent("mc");
     fireEvent.click(screen.getByRole("combobox", { name: "Unità di misura" }));
-    fireEvent.click(await screen.findByRole("option", { name: "h - Ore", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "h - Ore" }));
     expect(screen.getByLabelText("Unità salvata")).toHaveTextContent("h");
   });
   it("conserva un'unità fuori elenco e consente di modificarla o tornare a una standard", async () => {
@@ -24,7 +24,7 @@ describe("unità del computo", () => {
     fireEvent.change(screen.getByLabelText("Unità personalizzata"), { target: { value: "lotto" } });
     expect(screen.getByLabelText("Unità salvata")).toHaveTextContent("lotto");
     fireEvent.click(screen.getByRole("combobox", { name: "Unità di misura" }));
-    fireEvent.click(await screen.findByRole("option", { name: "cad - Cadauno", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "cad - Cadauno" }));
     expect(screen.getByLabelText("Unità salvata")).toHaveTextContent("cad");
     expect(screen.queryByLabelText("Unità personalizzata")).not.toBeInTheDocument();
   });

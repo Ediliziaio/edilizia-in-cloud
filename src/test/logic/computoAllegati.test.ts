@@ -33,7 +33,7 @@ describe("progetto e allegati del computo", () => {
     p.drawLine({ start: { x: 350, y: 70 }, end: { x: 350, y: 370 }, thickness: 2, color: rgb(.12, .23, .37) });
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
     const blob = await generaDocumentoComputo(voci(), { titolo: "Preventivo con progetto", azienda: "Edilizia in Cloud", presentazione: "preventivo", committente: "Cliente di prova", ivaModalita: "applicata", ivaAliquota: "22" }, [
-      { nome: "tavola.pdf", tipo: "planimetria", blob: new NodeBlob([await plan.save()], { type: "application/pdf" }) as unknown as Blob },
+      { nome: "tavola.pdf", tipo: "planimetria", blob: new NodeBlob([Uint8Array.from(await plan.save()).buffer], { type: "application/pdf" }) as unknown as Blob },
       { nome: "render.png", tipo: "render", blob: new NodeBlob([png], { type: "image/png" }) as unknown as Blob },
     ]);
     const bytes = await blob.arrayBuffer(); const pdf = await PDFDocument.load(new Uint8Array(bytes));

@@ -36,19 +36,19 @@ set app.actor='${U}';set app.company='${C}';set app.allowed='true';
 `);
   await db.exec(
     readFileSync(
-      "supabase/migrations/20261027084341_office_workspace_atomic_templates.sql",
+      "supabase/migrations/20261027085447_office_workspace_atomic_templates.sql",
       "utf8",
     ),
   );
   await db.exec(
     readFileSync(
-      "supabase/migrations/20261027090709_office_flow_application_atomic.sql",
+      "supabase/migrations/20261027091053_office_flow_application_atomic.sql",
       "utf8",
     ),
   );
   await db.exec(
     readFileSync(
-      "supabase/migrations/20261027093146_office_dependencies_release_consistent.sql",
+      "supabase/migrations/20261027093434_office_dependencies_release_consistent.sql",
       "utf8",
     ),
   );

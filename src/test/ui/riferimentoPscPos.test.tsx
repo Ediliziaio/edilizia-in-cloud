@@ -31,7 +31,7 @@ vi.mock(
 );
 vi.mock(
   "@/components/sicurezza/DocumentiSicurezza",
-  () => ({ CaricaDocumentoSicurezzaDialog: () => null }),
+  () => ({ CaricaDocumentoSicurezzaDialog: () : null => null }),
 );
 vi.mock("@/lib/storagePrivato", () => ({ apriFileRiservato: vi.fn() }));
 const fonte = {

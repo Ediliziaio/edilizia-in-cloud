@@ -8,7 +8,7 @@ const t = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/fatturazione/fiscalCommands", () => ({ fiscalCommand: t.rpc }));
 vi.mock("@/components/fatturazione/FiscalPeriodControl", () => ({
-  FiscalHistory: () => null,
+  FiscalHistory: () : null => null,
 }));
 import { FiscalReleaseDialog } from "@/components/fatturazione/FiscalReleaseDialog";
 function mostra() {

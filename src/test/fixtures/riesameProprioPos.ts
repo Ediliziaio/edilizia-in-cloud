@@ -10,7 +10,7 @@ export function fontePropria() {
     revisione: 1,
     dal: "2026-11-10",
     al: "2026-11-15",
-    fase_id: null,
+    fase_id: null as null,
     attivita: "TEST uso PLE",
     responsabile: "TEST tecnico",
     ruolo_responsabile: "TEST referente",
@@ -27,7 +27,7 @@ export function fontePropria() {
           {
             fonte: "campo",
             fonte_id: id(9),
-            fase_id: null,
+            fase_id: null as null,
             dal: "2026-11-10",
             al: "2026-11-11",
             senza_date: false,

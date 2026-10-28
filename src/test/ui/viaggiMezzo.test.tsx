@@ -55,7 +55,7 @@ vi.mock("@/hooks/useMezziViaggi", () => ({
       refetch: vi.fn(),
     };
   },
-  useViaggioStorico: () => ({ data: [], isPending: false, isError: false }),
+  useViaggioStorico: () => ({ data: [] as never[], isPending: false, isError: false }),
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({
   useEffectiveCompanyId: () => "c1",

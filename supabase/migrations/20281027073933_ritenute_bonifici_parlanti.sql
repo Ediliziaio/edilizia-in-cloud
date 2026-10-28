@@ -1,10 +1,11 @@
--- Prepared locally only. Runs after the existing invoice/receipt and fiscal-period guards.
+-- Runs after the existing invoice/receipt and fiscal-period guards.
 -- Gross settles the invoice; only net cash reaches prima nota. No F24 or invoice VAT mutation.
 set local lock_timeout='3s';
+set local statement_timeout='60s';
 create schema if not exists private;
 alter table public.movimenti_cassa_native add column if not exists importo_netto_banca numeric(15,2);
 
-create table public.ritenute_bonifici (
+create table if not exists public.ritenute_bonifici (
  id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id),
  documento_id uuid not null references public.documenti_fiscali(id),
  movimento_id uuid unique references public.movimenti_cassa_native(id) on delete set null,
@@ -20,10 +21,11 @@ create table public.ritenute_bonifici (
  attore uuid not null, creato_il timestamptz not null default now(),
  check(lordo=netto+ritenuta+commissioni), unique(company_id,richiesta_id)
 );
-create unique index ritenute_bonifici_contabile_attiva on public.ritenute_bonifici(company_id,lower(banca),upper(riferimento)) where stato<>'stornata';
-create index ritenute_bonifici_periodo on public.ritenute_bonifici(company_id,data_accredito desc,id);
-create index ritenute_bonifici_documento on public.ritenute_bonifici(documento_id);
+create unique index if not exists ritenute_bonifici_contabile_attiva on public.ritenute_bonifici(company_id,lower(banca),upper(riferimento)) where stato<>'stornata';
+create index if not exists ritenute_bonifici_periodo on public.ritenute_bonifici(company_id,data_accredito desc,id);
+create index if not exists ritenute_bonifici_documento on public.ritenute_bonifici(documento_id);
 alter table public.ritenute_bonifici enable row level security;
+drop policy if exists ritenute_bonifici_lettura on public.ritenute_bonifici;
 create policy ritenute_bonifici_lettura on public.ritenute_bonifici for select to authenticated using (
  not public.utente_bloccato() and not public.utente_e_cliente_esterno() and (
  public.e_amministratore_di(company_id) or public.has_role((select auth.uid()),'super_admin'::public.app_role)
@@ -31,7 +33,7 @@ create policy ritenute_bonifici_lettura on public.ritenute_bonifici for select t
 revoke all on public.ritenute_bonifici from public,anon,authenticated;
 grant select on public.ritenute_bonifici to authenticated;
 
-create function private.bonifico_periodo_aperto(p_company uuid,p_data date) returns void
+create or replace function private.bonifico_periodo_aperto(p_company uuid,p_data date) returns void
 language plpgsql security invoker set search_path='' as $$
 begin
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('fiscal-month:'||p_company||':'||date_trunc('month',p_data)::date,0));
@@ -41,7 +43,7 @@ begin
 end $$;
 revoke all on function private.bonifico_periodo_aperto(uuid,date) from public,anon,authenticated;
 
-create function public.registra_bonifico_parlante(p_company uuid,p_documento uuid,p_lordo numeric,p_ritenuta numeric,p_commissioni numeric,p_netto numeric,p_data date,p_banca text,p_riferimento text,p_richiesta uuid,p_confermato boolean)
+create or replace function public.registra_bonifico_parlante(p_company uuid,p_documento uuid,p_lordo numeric,p_ritenuta numeric,p_commissioni numeric,p_netto numeric,p_data date,p_banca text,p_riferimento text,p_richiesta uuid,p_confermato boolean)
 returns uuid language plpgsql security definer set search_path='' as $$
 declare r public.ritenute_bonifici; d public.documenti_fiscali; v_mov uuid; v_id uuid; v_aliquota numeric; v_prev numeric; v_count integer;
 begin
@@ -83,7 +85,7 @@ end $$;
 revoke all on function public.registra_bonifico_parlante(uuid,uuid,numeric,numeric,numeric,numeric,date,text,text,uuid,boolean) from public,anon;
 grant execute on function public.registra_bonifico_parlante(uuid,uuid,numeric,numeric,numeric,numeric,date,text,text,uuid,boolean) to authenticated;
 
-create function public.aggiorna_ritenuta_bonifico(p_company uuid,p_id uuid,p_revisione integer,p_azione text,p_riferimento text)
+create or replace function public.aggiorna_ritenuta_bonifico(p_company uuid,p_id uuid,p_revisione integer,p_azione text,p_riferimento text)
 returns void language plpgsql security definer set search_path='' as $$
 declare r public.ritenute_bonifici; d public.documenti_fiscali; v_date date; v_documento uuid; v_pagato numeric; v_totale numeric; v_stato text;
 begin
@@ -121,7 +123,7 @@ revoke all on function public.aggiorna_ritenuta_bonifico(uuid,uuid,integer,text,
 grant execute on function public.aggiorna_ritenuta_bonifico(uuid,uuid,integer,text,text) to authenticated;
 
 -- Existing deletion paths must not erase tax evidence or bypass the documented reversal.
-create function private.proteggi_incasso_parlante() returns trigger language plpgsql security definer set search_path='' as $$
+create or replace function private.proteggi_incasso_parlante() returns trigger language plpgsql security definer set search_path='' as $$
 declare r public.ritenute_bonifici;
 begin
  if tg_op='INSERT' then
@@ -139,4 +141,5 @@ begin
  return new;
 end $$;
 revoke all on function private.proteggi_incasso_parlante() from public,anon,authenticated;
+drop trigger if exists proteggi_incasso_parlante on public.movimenti_cassa_native;
 create trigger proteggi_incasso_parlante before insert or update or delete on public.movimenti_cassa_native for each row execute function private.proteggi_incasso_parlante();

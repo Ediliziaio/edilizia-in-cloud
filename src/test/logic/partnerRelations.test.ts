@@ -17,7 +17,7 @@ const identity = {
   company_id: "A",
   name: "Studio Édile S.r.l.",
   vat: "IT 01234567890",
-  fiscal: null,
+  fiscal: null as null,
 };
 const contract = {
   id: "c",
@@ -26,13 +26,13 @@ const contract = {
   title: "Consulenza",
   kind: "consulenza",
   status: "attivo",
-  signed_on: null,
+  signed_on: null as null,
   starts_on: "2026-10-01",
   ends_on: "2026-12-31",
   notice_days: 30,
   automatic_renewal: true,
-  conditions: null,
-  amount: null,
+  conditions: null as null,
+  amount: null as null,
   currency: "EUR",
   updated_at: "2026-10-27",
 } satisfies SupplierContract;
@@ -63,7 +63,7 @@ describe("identità partner senza fusioni implicite", () => {
     ).toHaveLength(2);
   });
   it("il nome coincidente senza identificativi resta da verificare", () => {
-    const a = { ...identity, vat: null };
+    const a = { ...identity, vat: null as null };
     const matches = partnerMatches(a, [
       { ...a, id: "b", name: "Studio edile srl" },
     ]);
@@ -117,9 +117,9 @@ describe("contratti e documenti", () => {
       company_id: "A",
       cedente_ragione_sociale: "Ditta",
       cedente_piva: "IT01234567890",
-      cedente_cf: null,
+      cedente_cf: null as null,
       cedente_paese: "IT",
-      fornitore_id: null,
+      fornitore_id: null as null,
     };
     const groups = receivedSupplierGroups([
       row,
@@ -138,9 +138,9 @@ describe("contratti e documenti", () => {
       company_id: "A",
       cedente_ragione_sociale: "Ditta",
       cedente_piva: "01234567890",
-      cedente_cf: null,
+      cedente_cf: null as null,
       cedente_paese: "IT",
-      fornitore_id: null,
+      fornitore_id: null as null,
     }));
     expect(
       receivedSupplierGroups(rows).map((r) => r.receiptIds.length),

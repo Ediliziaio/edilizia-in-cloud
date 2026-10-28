@@ -19,26 +19,26 @@ vi.mock("@/hooks/usePermissions", () => ({
   }),
 }));
 vi.mock("@/hooks/useProfiliRequisiti", () => ({
-  useProfiliRequisiti: () => ({ data: [], isLoading: false, isError: false }),
+  useProfiliRequisiti: () => ({ data: [] as never[], isLoading: false, isError: false }),
 }));
 vi.mock("@/hooks/useVerificheItp", () => ({
-  useSoggettiItp: () => ({ data: undefined, isLoading: false, isError: false }),
+  useSoggettiItp: () => ({ data: undefined as undefined, isLoading: false, isError: false }),
   leggiSoggettiItp: s.rileggi,
   useVerificheItp: () => ({
-    data: [],
+    data: [] as never[],
     isLoading: false,
     isError: false,
-    refetch: async () => ({ data: [] }),
+    refetch: async () => ({ data: [] as never[] }),
   }),
   useContestoItp: () => ({
-    data: undefined,
+    data: undefined as undefined,
     isLoading: false,
     isError: false,
     refetch: async () => ({
       data: {
         impresa: { id: "sub", ragione_sociale: "Impresa" },
         commessa: { id: "ordine", order_code: "ORD" },
-        fase: null,
+        fase: null as null,
       },
     }),
   }),
@@ -59,10 +59,10 @@ const operaio = (id: string) => ({
     {
       id: `ass${id}`,
       dal: "2026-11-01",
-      al: null,
+      al: null as null,
       attivita: "Posa",
-      fase_id: null,
-      area: null,
+      fase_id: null as null,
+      area: null as null,
       updated_at: "2026-10-27",
     },
   ],

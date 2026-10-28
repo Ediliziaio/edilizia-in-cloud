@@ -42,7 +42,7 @@ vi.mock("@/hooks/useProdottiSds", () => ({
   },
   useSalvaProdottoSds: () => ({ isPending: false, mutateAsync: s.save }),
   useStoricoProdottoSds: () => ({
-    data: [],
+    data: [] as never[],
     isError: false,
     isLoading: false,
     refetch: vi.fn(),
@@ -154,8 +154,8 @@ const props = {
       company_id: "azienda",
       order_id: "ordine",
       name: "Posa",
-      start_date: null,
-      end_date: null,
+      start_date: null as null,
+      end_date: null as null,
     },
   ],
 };

@@ -31,11 +31,11 @@ export function FiscalSourceViewer({
     enabled: open && !!company,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from(type === "acquisti" ? "fatture_ricevute" : "documenti_fiscali")
+        .from(type === "acquisti" ? "fatture_ricevute" : "fatture_vendite_iva" as never)
         .select(
           type === "acquisti"
             ? "id,numero_fattura,data_fattura,data_ricezione_sdi,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,xml_raw"
-            : "id,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,sdi_stato,stato",
+            : "id,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,origine",
         )
         .eq("company_id", company!)
         .eq("id", id)
@@ -135,7 +135,7 @@ export function FiscalSourceViewer({
                   )}
                 </pre>
               </details>
-              {type === "vendite" && (
+              {type === "vendite" && source.origine !== "importata" && (
                 <Button asChild variant="outline">
                   <Link to={`/azienda/documenti/${id}/dettaglio`}>
                     Apri documento completo

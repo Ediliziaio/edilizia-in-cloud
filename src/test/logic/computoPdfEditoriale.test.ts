@@ -36,8 +36,8 @@ describe("computo editoriale completo", () => {
     const bozza = computoCompletoDimostrativo();
     const doc = await generaComputoPdf(vociDaBozza({ ...bozza, voci: [bozza.voci[0]] }), { titolo: "Copertina sempre", impaginazione: "editoriale" });
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(2);
-    expect(doc.internal.pages[1].join(" ")).not.toContain("DESCRIZIONE DELLA LAVORAZIONE");
-    expect(doc.internal.pages[2].join(" ")).toContain("DESCRIZIONE DELLA LAVORAZIONE");
+    expect((doc.internal.pages as unknown as Record<number, string[]>)[1].join(" ")).not.toContain("DESCRIZIONE DELLA LAVORAZIONE");
+    expect((doc.internal.pages as unknown as Record<number, string[]>)[2].join(" ")).toContain("DESCRIZIONE DELLA LAVORAZIONE");
   });
   it("nasconde gli unitari senza perdere gli importi e le misure", async () => {
     const b = computoCompletoDimostrativo();

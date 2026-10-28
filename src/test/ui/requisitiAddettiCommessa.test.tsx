@@ -33,7 +33,7 @@ vi.mock("@/hooks/useProfiliRequisiti", () => ({
 }));
 vi.mock("@/hooks/useMezziPos", () => ({
   useMezziPos: () => ({
-    data: { fonti: [] },
+    data: { fonti: [] as never[] },
     refetch: m.rileggi,
     isError: false,
     isLoading: false,
@@ -41,7 +41,7 @@ vi.mock("@/hooks/useMezziPos", () => ({
   }),
 }));
 vi.mock("@/components/sicurezza/QualificheAddetto", () => ({
-  QualificheAddetto: () => null,
+  QualificheAddetto: () : null => null,
 }));
 vi.mock("@/hooks/useRequisitiAddetti", () => ({
   useAddettiCommessa: (
@@ -79,7 +79,7 @@ vi.mock("@/hooks/useRequisitiAddetti", () => ({
             {
               fonte: "commessa",
               fonte_id: "a",
-              fase_id: null,
+              fase_id: null as null,
               dal,
               al,
               senza_date: true,
@@ -97,10 +97,10 @@ vi.mock("@/hooks/useRequisitiAddetti", () => ({
           stato: "riesaminata",
           fonte_corrente: true,
           contesto_originale: {
-            order_id: null,
-            fase_id: null,
-            dal: null,
-            al: null,
+            order_id: null as null,
+            fase_id: null as null,
+            dal: null as null,
+            al: null as null,
           },
           dati: {
             titolo: "TEST PLE",
@@ -131,7 +131,7 @@ vi.mock("@/hooks/useRequisitiAddetti", () => ({
   }),
   useRegistraRiesameAddetti: () => ({ mutateAsync: m.salva, isPending: false }),
   useDettaglioRiesameAddetti: () => ({
-    data: [],
+    data: [] as never[],
     refetch: m.rileggi,
     isError: false,
     isLoading: false,
@@ -150,8 +150,8 @@ const profile = (id = "p", versione = 1, archiviato = false) => ({
     {
       id: "r",
       titolo: "TEST Requisito",
-      catalogo_id: null,
-      catalogo_versione: null,
+      catalogo_id: null as null,
+      catalogo_versione: null as null,
       riferimento: "TEST fonte",
       indicazioni: "TEST adattamento",
     },

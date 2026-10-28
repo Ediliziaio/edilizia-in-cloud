@@ -34,7 +34,7 @@ describe("anteprima computo con le protezioni di produzione", () => {
   });
   it("anche il popup di anteprima usa i byte originali senza rete", async () => {
     render(<ComputoNativoEditor storageKey="csp-computo" initialFase={3} />);
-    fireEvent.click(screen.getByRole("button", { name: "Anteprima", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Leggi byte anteprima" }));
     expect(await screen.findByText("%PDF-computo")).toBeInTheDocument(); expect(fetch).not.toHaveBeenCalled();

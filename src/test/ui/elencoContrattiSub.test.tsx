@@ -102,16 +102,16 @@ describe("Viste dei contratti del subappaltatore", () => {
         onApri={apri}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Fasi", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Fasi" }));
     const gruppo = screen
-      .getByRole("heading", { name: "Sospeso", exact: true })
+      .getByRole("heading", { name: "Sospeso" })
       .closest("section")!;
     expect(within(gruppo).getByText("SUB-2")).toBeTruthy();
     expect(within(gruppo).queryByText("SUB-1")).toBeNull();
     fireEvent.click(within(gruppo).getByRole("button"));
     expect(apri).toHaveBeenCalledWith("c2");
     fireEvent.click(
-      screen.getByRole("button", { name: "Schede", exact: true }),
+      screen.getByRole("button", { name: "Schede" }),
     );
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByText("SUB-3")).toBeTruthy();

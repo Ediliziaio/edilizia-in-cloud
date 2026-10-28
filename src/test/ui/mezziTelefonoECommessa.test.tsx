@@ -21,7 +21,7 @@ const stato = vi.hoisted(() => ({
   permessi: { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false, canViewCosts: true },
 }));
 // Il registro ha test propri: qui restano isolati documenti, assegnazioni e contatore.
-vi.mock("@/components/mezzi/ViaggiMezzoWorkspace", () => ({ ViaggiMezzoWorkspace: () => null, ViaggiCommessa: () => null }));
+vi.mock("@/components/mezzi/ViaggiMezzoWorkspace", () => ({ ViaggiMezzoWorkspace: () : null => null, ViaggiCommessa: () : null => null }));
 
 vi.mock("@/hooks/useMezzi", () => {
   const mutazione = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });

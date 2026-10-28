@@ -12,8 +12,8 @@ vi.mock("@/lib/computo/esportaComputo", () => ({
 beforeEach(() => { localStorage.clear(); esporta.mockClear(); genera.mockClear(); HTMLElement.prototype.scrollIntoView = vi.fn(); });
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
 const scegliFormato = async (name: string) => {
-  fireEvent.click(screen.getByRole("combobox", { name: "Documento PDF", exact: true }));
-  fireEvent.click(await screen.findByRole("option", { name, exact: true }));
+  fireEvent.click(screen.getByRole("combobox", { name: "Documento PDF" }));
+  fireEvent.click(await screen.findByRole("option", { name }));
 };
 
 describe("editor computo integrato", () => {
@@ -27,10 +27,10 @@ describe("editor computo integrato", () => {
     localStorage.setItem("ui-iva", JSON.stringify({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Scavo", quantita: "2", prezzo: "133" }] }));
     render(<ComputoNativoEditor initialFase={3} storageKey="ui-iva" />);
     fireEvent.click(screen.getByRole("combobox", { name: "Trattamento IVA" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Applica IVA", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "Applica IVA" }));
     expect(screen.getByText("324,52 €")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("combobox", { name: "Aliquota IVA", exact: true }));
-    fireEvent.click(await screen.findByRole("option", { name: "Personalizzata", exact: true }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Aliquota IVA" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Personalizzata" }));
     fireEvent.change(screen.getByLabelText("Aliquota IVA personalizzata"), { target: { value: "101" } });
     expect(screen.getByRole("button", { name: "Scarica documento" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Aliquota IVA personalizzata"), { target: { value: "10" } });
@@ -47,7 +47,7 @@ describe("editor computo integrato", () => {
     const { unmount } = render(<ComputoNativoEditor initialFase={3} storageKey="ui-parziale" />);
     const definitivo = screen.getByRole("button", { name: "Scarica preventivo" });
     expect(definitivo).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Anteprima", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
     expect(await screen.findByRole("heading", { name: "Anteprima bozza parziale" })).toBeInTheDocument();
     expect(genera.mock.calls[0][1].parziale).toContain("BOZZA PARZIALE");
     expect(definitivo).toBeDisabled(); expect(esporta).not.toHaveBeenCalled();

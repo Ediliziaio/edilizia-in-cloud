@@ -56,7 +56,7 @@ function RegistroContent() {
         supabase
           .from("fatture_vendite_iva" as never)
           .select(
-            "id,tipo,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,esigibilita_iva,sdi_stato",
+            "id,tipo,numero,data_emissione,cliente_snapshot,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,stato,esigibilita_iva",
           )
           .eq("company_id", company!)
           .is("deleted_at", null)

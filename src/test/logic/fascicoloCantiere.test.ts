@@ -75,7 +75,7 @@ describe("Fascicolo cantiere: periodi e pertinenza", () => {
     ).toBe(true);
   });
   it("include documenti personali solo per gli ID degli addetti assegnati", () => {
-    const e = { tipo: "formazione", order_id: null, operaio_id: "o1" };
+    const e = { tipo: "formazione", order_id: null as null, operaio_id: "o1" };
     expect(evidenzaPertinente(e, "c1", [])).toBe(false);
     expect(evidenzaPertinente(e, "c1", ["omonimo"])).toBe(false);
     expect(evidenzaPertinente(e, "c1", ["o1"])).toBe(true);

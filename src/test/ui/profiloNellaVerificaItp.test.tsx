@@ -23,16 +23,16 @@ const s = vi.hoisted(() => ({
         {
           id: "r1",
           titolo: "Criterio A",
-          catalogo_id: null,
-          catalogo_versione: null,
+          catalogo_id: null as null,
+          catalogo_versione: null as null,
           riferimento: "Rif A",
           indicazioni: "Guida A",
         },
         {
           id: "r2",
           titolo: "Criterio B",
-          catalogo_id: null,
-          catalogo_versione: null,
+          catalogo_id: null as null,
+          catalogo_versione: null as null,
           riferimento: "Rif B",
           indicazioni: "Guida B",
         },
@@ -54,23 +54,23 @@ vi.mock("@/hooks/useProfiliRequisiti", () => ({
   }),
 }));
 vi.mock("@/hooks/useVerificheItp", () => ({
-  useSoggettiItp:()=>({data:undefined,isError:false,isLoading:false}),
-  leggiSoggettiItp:async()=>({operai:[],incarichi:[]}),
+  useSoggettiItp:()=>({data: undefined as undefined,isError:false,isLoading:false}),
+  leggiSoggettiItp:async()=>({operai:[] as never[],incarichi:[] as never[]}),
   useVerificheItp: () => ({
-    data: [],
+    data: [] as never[],
     isError: false,
     isLoading: false,
-    refetch: async () => ({ data: [] }),
+    refetch: async () => ({ data: [] as never[] }),
   }),
   useContestoItp: () => ({
-    data: undefined,
+    data: undefined as undefined,
     isError: false,
     isLoading: false,
     refetch: async () => ({
       data: {
         impresa: { id: "sub", ragione_sociale: "Impresa" },
         commessa: { id: "ordine", order_code: "ORD" },
-        fase: null,
+        fase: null as null,
       },
     }),
   }),

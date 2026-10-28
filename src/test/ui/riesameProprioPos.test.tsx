@@ -34,7 +34,7 @@ vi.mock("@/hooks/useRiesameProprioPos", () => ({
           profilo_versione: 1,
           esito: "non_applicabile",
           motivazione: "TEST motivazione",
-          qualifica: null,
+          qualifica: null as null,
         },
       ],
     },

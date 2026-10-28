@@ -9,7 +9,7 @@ import { ConfrontoFontiPos } from '@/components/sicurezza/pos/ConfrontoFontiPos'
 function render(ui:ReactNode){const qc=new QueryClient({defaultOptions:{queries:{retry:false}}});return renderBase(ui,{wrapper:({children})=><QueryClientProvider client={qc}>{children}</QueryClientProvider>});}
 afterEach(cleanup);beforeEach(()=>vi.clearAllMocks());
 function props(){return {companyId:'azienda',posId:'pos',bozza:posVuoto(),onClose:vi.fn(),onApplica:vi.fn()};}
-function risposta(){return {contenuto:posVuoto(),contesto:{avvisi:[],mezzi:[],subappaltatori:[]}};}
+function risposta(){return {contenuto:posVuoto(),contesto:{avvisi:[] as string[],mezzi:[] as never[],subappaltatori:[] as never[]}};}
 describe('Confronto fonti prima del riallineamento',()=>{
  it('mostra differenze senza preselezione e applica soltanto quelle scelte alla bozza',async()=>{
   const r=risposta();r.contenuto.impresa.ragione_sociale='Nuova società';r.contenuto.opera.cantiere.via='Via nuova';s.leggi.mockResolvedValue(r);const p=props();render(<ConfrontoFontiPos {...p}/>);

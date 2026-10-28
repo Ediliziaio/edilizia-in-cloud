@@ -12,7 +12,7 @@ function Misure() {
 describe("inserimento misure responsive", () => {
   it("aggiunge, calcola e duplica una misura senza condividere i campi", () => {
     render(<Misure />);
-    fireEvent.click(screen.getByRole("button", { name: "Misura", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Misura" }));
     fireEvent.change(screen.getByLabelText("descrizione misura 1"), { target: { value: "Bagno" } });
     fireEvent.change(screen.getByLabelText("parti misura 1"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("lunghezza misura 1"), { target: { value: "3,5" } });
@@ -28,7 +28,7 @@ describe("inserimento misure responsive", () => {
   });
   it("usa la formula in alternativa alle dimensioni e segnala una formula non valida", () => {
     render(<Misure />);
-    fireEvent.click(screen.getByRole("button", { name: "Misura", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Misura" }));
     fireEvent.change(screen.getByLabelText("formula misura 1"), { target: { value: "2*(3+4)" } });
     expect(screen.getByLabelText("Quantità misura 1")).toHaveTextContent("14");
     expect(screen.getByLabelText("lunghezza misura 1")).toBeDisabled();

@@ -8,7 +8,7 @@ vi.mock("@/hooks/useMezziPianoEconomia", () => ({
   }),
   useMezziPianoEconomia: () => ({
     fonti: {
-      data: { fonti: [], legami: [] },
+      data: { fonti: [] as never[], legami: [] as never[] },
       isLoading: false,
       isError: false,
     },
@@ -16,7 +16,7 @@ vi.mock("@/hooks/useMezziPianoEconomia", () => ({
   }),
 }));
 vi.mock("@/components/orders/SupplierSelect", () => ({
-  SupplierSelect: () => null,
+  SupplierSelect: () : null => null,
 }));
 vi.mock("@/components/mezzi/ViaggioSelect", () => ({
   ViaggioSelect: ({
@@ -126,10 +126,10 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 vi.mock("@/components/mezzi/MezziCommessaCard", () => ({
-  MezziCommessaCard: () => null,
+  MezziCommessaCard: () : null => null,
 }));
 vi.mock("@/components/mezzi/MezzoFormDialog", () => ({
-  MezzoFormDialog: () => null,
+  MezzoFormDialog: () : null => null,
 }));
 import { PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
 afterEach(cleanup);

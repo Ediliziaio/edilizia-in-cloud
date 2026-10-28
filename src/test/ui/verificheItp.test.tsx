@@ -6,8 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-vi.mock('@/hooks/useProfiliRequisiti',()=>({useProfiliRequisiti:()=>({data:[],isLoading:false,isError:false})}));
-vi.mock('@/components/sicurezza/ProfiliPerVerifica',()=>({ProfiliPerVerifica:()=>null}));
+vi.mock('@/hooks/useProfiliRequisiti',()=>({useProfiliRequisiti:()=>({data:[] as never[],isLoading:false,isError:false})}));
+vi.mock('@/components/sicurezza/ProfiliPerVerifica',()=>({ProfiliPerVerifica:(): null =>null}));
 const s = vi.hoisted(() => ({
   readonly: false,
   error: false,
@@ -19,10 +19,10 @@ const s = vi.hoisted(() => ({
     impresa: {
       id: "sub",
       ragione_sociale: "Impresa",
-      campo_subappaltatore_id: null,
+      campo_subappaltatore_id: null as null,
     },
-    commessa: { id: "ordine", order_code: "ORD", description: null },
-    fase: null,
+    commessa: { id: "ordine", order_code: "ORD", description: null as null },
+    fase: null as null,
   },
   history: [] as unknown[],
 }));
@@ -33,8 +33,8 @@ vi.mock("@/hooks/usePermissions", () => ({
   }),
 }));
 vi.mock("@/hooks/useVerificheItp", () => ({
-  useSoggettiItp:()=>({data:undefined,isError:false,isLoading:false}),
-  leggiSoggettiItp:async()=>({operai:[],incarichi:[]}),
+  useSoggettiItp:()=>({data: undefined as undefined,isError:false,isLoading:false}),
+  leggiSoggettiItp:async()=>({operai:[] as never[],incarichi:[] as never[]}),
   useVerificheItp: () => ({
     data: s.history,
     isLoading: false,

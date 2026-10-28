@@ -33,10 +33,10 @@ describe("Invii idempotenti dei viaggi", () => {
       dati: {
         partenza: "2020-01-01T00:00:00Z",
         arrivo: "2020-01-01T01:00:00Z",
-        contatore_inizio: null,
-        contatore_fine: null,
+        contatore_inizio: null as null,
+        contatore_fine: null as null,
         note: "",
-        tratte: [],
+        tratte: [] as never[],
       },
     };
     rpc.mockResolvedValue({ data: null, error: { message: "Rete assente" } });

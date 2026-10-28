@@ -106,7 +106,7 @@ function open() {
 async function move() {
   await screen.findByText("Controllo test");
   fireEvent.click(
-    screen.getByRole("button", { name: "Pipeline", exact: true }),
+    screen.getByRole("button", { name: "Pipeline" }),
   );
   fireEvent.pointerDown(
     await screen.findByRole("button", { name: "Sposta Controllo test" }),

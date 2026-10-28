@@ -34,6 +34,8 @@ vi.mock("@/hooks/usePos", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useModelliPos: () => ({ data: [] as never[], isLoading: false, isError: false }),
+  useArchiviaModelloPos: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreaPos: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEliminaPos: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -195,7 +197,7 @@ describe("POS integrato", () => {
     state.pos = [pos()];
     open(<PosElencoTab orders={orders} />);
     expect(screen.queryByRole("button", { name: "Apri POS" })).toBeNull();
-    const pdf = screen.getByRole("button", { name: "Scarica il PDF" });
+    const pdf = screen.getByRole("button", { name: "PDF conservato o anteprima" });
     expect(pdf.closest("[data-pipeline-card-actions]")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Elimina il POS" }));
     expect(screen.getByRole("alertdialog")).toHaveTextContent(

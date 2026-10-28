@@ -5,7 +5,7 @@ import {
   windowImportSql,
   DEMO_COMPANY,
   IMPORT_SURVEY,
-} from "../../../work/sopralluoghi-campo-20261028/prepareWindowImport";
+} from "../../../scripts/fixtures/prepareWindowImport";
 
 describe("Importazione dimostrativa serramenti autorizzata", () => {
   it("mantiene tutte le 16 schede e i 6 ambienti senza link o approvazioni inventati", async () => {

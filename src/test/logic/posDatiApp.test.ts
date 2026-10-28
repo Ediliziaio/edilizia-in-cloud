@@ -169,7 +169,7 @@ describe("POS preparato dai dati dell'app", () => {
   });
   it("un errore in una fonte obbligatoria interrompe la preparazione",async()=>{
     const db=dbFinto(base());
-    const guasto={from:(tab:string)=>tab==='sicurezza_incarichi'?{select:()=>({eq:()=>({eq:()=>({order:async()=>({data:null,error:{message:'fonte indisponibile'}})})})})}:db.from(tab)};
+    const guasto={from:(tab:string)=>tab==='sicurezza_incarichi'?{select:()=>({eq:()=>({eq:()=>({order:async()=>({data:null as null,error:{message:'fonte indisponibile'}})})})})}:db.from(tab)};
     await expect(preparaPosDaApp(guasto,AZ,ORD)).rejects.toThrow(/Fonte POS non disponibile/);
   });
   it("non tratta una prenotazione futura di ponteggio come presenza in cantiere",async()=>{

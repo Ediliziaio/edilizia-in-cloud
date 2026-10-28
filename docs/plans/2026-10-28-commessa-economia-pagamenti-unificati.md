@@ -265,3 +265,7 @@ Il ciclo chiude la registrazione condivisa nei percorsi descritti; non conclude 
 - percorsi storici derivati da articoli, commissioni, squadre esterne e incassi di fatture esterne vanno migrati con lo stesso criterio, senza cambiare i registri fiscali per deduzione;
 - i 9 casi storici segnalati nell'audit non sono stati “riparati” aggiungendo cassa;
 - frontend modificato e verificato in locale, **non pubblicato su main in questo ciclo**. Schema e Edge sopra indicati sono aggiornati sul backend. Il checkout contiene molte altre modifiche pregresse: nessun push globale o staging indiscriminato.
+
+### Riallineamento del rilascio, 28 ottobre 2026
+
+Integrati i 30 commit upstream successivi al punto di partenza locale, preservando il nuovo collegamento Distyra e le fatture importate nel registro IVA. Migrazioni office rinominate secondo il registro reale, senza ripetere DDL; parità verificata su 5.277 versioni. Attivata e collaudata anche la migrazione dei bonifici parlanti, con rollback completo delle prove demo. Rimosse dal rilascio le cache di analisi; spostato in una fixture mantenuta l’helper dei collaudi serramenti. Verificati build di produzione e test critici; ulteriori regressioni dei nuovi flussi incluse nel controllo esteso del rilascio.

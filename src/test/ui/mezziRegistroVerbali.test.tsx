@@ -6,9 +6,9 @@ vi.mock('@/hooks/useVerbaliTecniciMezzo', () => ({ useVerbaliTecniciMezzo: () =>
   isError: m.error, refetch: m.retry,
   data: { registrazioni: [{ id: 'copia', documento_id: 'documento', manutenzione_id: 'intervento-rimosso', titolo: 'TEST verifica conservata', categoria: 'verifica_periodica', data_intervento: '2026-11-01', registrato_il: '2026-11-02T08:00:00Z', disponibile: true }] },
 }) }));
-vi.mock('@/components/mezzi/VerbaleTecnicoDialog', () => ({ VerbaleTecnicoDialog: () => null }));
+vi.mock('@/components/mezzi/VerbaleTecnicoDialog', () => ({ VerbaleTecnicoDialog: () : null => null }));
 vi.mock('@/hooks/useMezzi', () => ({
- useMezzoManutenzioni: () => ({ data: [], isLoading: false }),
+ useMezzoManutenzioni: () => ({ data: [] as never[], isLoading: false }),
  useSalvaManutenzioneMezzo: () => ({}), useEliminaManutenzioneMezzo: () => ({}),
  caricaFileMezzo: vi.fn(), linkFileMezzo: vi.fn(), rimuoviFileMezzo: vi.fn(),
 }));

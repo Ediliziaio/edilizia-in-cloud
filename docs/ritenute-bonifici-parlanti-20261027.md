@@ -49,3 +49,7 @@ Ritenute di garanzia, IVA della fattura, XML e versamento F24 1039 rimangono sep
 - Agenzia Entrate, circolare 40/E del 28 luglio 2010: scorporo convenzionale IVA e non cumulabilità con altre ritenute sugli stessi corrispettivi; aliquote storiche da contestualizzare.
 - ANCE, focus ritenute sui bonifici: applicazione dello scorporo all'aliquota ordinaria del 22%. Si arrotonda la ritenuta finale, non la base a euro interi.
 - Agenzia Entrate, codice 1039: adempimento dell'intermediario, non un nuovo versamento dell'impresa beneficiaria.
+
+## Attivazione e collaudo del 28 ottobre 2026
+
+Migrazione applicata e registro riallineato alla versione `20281027073933`. Verificati nello schema reale su Demo Azienda 2, con rollback integrale: registrazione 100 € lordi / 90,98 € netti, retry idempotente, una sola riga di cassa netta, saldo fattura lordo, certificazione e storno con ripristino saldo. Nessun incasso di prova conservato. Il rilascio frontend è incluso nel riallineamento a main; restano valide le estensioni non implementate elencate sopra.

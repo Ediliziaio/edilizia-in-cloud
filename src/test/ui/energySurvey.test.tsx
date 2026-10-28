@@ -25,8 +25,8 @@ const m = vi.hoisted(() => ({
   save: vi.fn(),
   upload: vi.fn(),
 }));
-vi.mock("@/components/computo/VoiceComputoDialog",()=>({VoiceComputoDialog:()=>null}));
-vi.mock("@/components/computo/ComputoUploadModal",()=>({ComputoUploadModal:()=>null}));
+vi.mock("@/components/computo/VoiceComputoDialog",()=>({VoiceComputoDialog:(): null =>null}));
+vi.mock("@/components/computo/ComputoUploadModal",()=>({ComputoUploadModal:(): null =>null}));
 vi.mock("@/hooks/useSurveyDetail", () => ({
   useSurveyDetail: () => ({
     allowed: true,
@@ -43,20 +43,20 @@ vi.mock("@/hooks/useTermoidraulicoProgetto", () => ({
   useSaveComputo: () => ({ mutateAsync: m.save, isPending: false }),
 }));
 vi.mock("@/hooks/useClimatizzazioneListino", () => ({
-  useListinoVociSearch: () => ({ data: [], isLoading: false }),
+  useListinoVociSearch: () => ({ data: [] as never[], isLoading: false }),
 }));
 vi.mock("@/hooks/useTermoidraulicoListino", () => ({
-  useListinoVociSearch: () => ({ data: [], isLoading: false }),
+  useListinoVociSearch: () => ({ data: [] as never[], isLoading: false }),
 }));
 vi.mock("@/lib/api/surveys", async (original) => ({
   ...(await original<typeof import("@/lib/api/surveys")>()),
   uploadMedia: m.upload,
 }));
 vi.mock("@/components/climatizzazione/ComputoEditor/ComputoEditor", () => ({
-  default: () => null,
+  default: () : null => null,
 }));
 vi.mock("@/components/termoidraulico/ComputoEditor/ComputoEditor", () => ({
-  default: () => null,
+  default: () : null => null,
 }));
 beforeEach(() => {
   vi.clearAllMocks();

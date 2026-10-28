@@ -14,7 +14,7 @@ import type { SupplierRfq, ContatoriRichiesta } from "@/hooks/useSupplierRfqs";
 import type { DDTRicezioneWithJoins, DDTStato } from "@/hooks/useDDTRicezione";
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: null, effectiveCompany: null }),
+  useAuth: () => ({ user: null as null, effectiveCompany: null as null }),
 }));
 
 vi.mock("@/hooks/usePipelineTransition", () => ({
@@ -178,12 +178,12 @@ describe("Richieste d’offerta", () => {
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Elenco", exact: true }),
+      screen.getByRole("button", { name: "Elenco" }),
     );
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=active");
     fireEvent.click(
-      screen.getByRole("button", { name: "Pipeline", exact: true }),
+      screen.getByRole("button", { name: "Pipeline" }),
     );
     fireEvent.click(
       within(
@@ -194,7 +194,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.getByText("Materiale b")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=history");
     fireEvent.click(
-      screen.getByRole("button", { name: "Elenco", exact: true }),
+      screen.getByRole("button", { name: "Elenco" }),
     );
     expect(
       screen.getByRole("table", { name: "Elenco richieste d’offerta" }),

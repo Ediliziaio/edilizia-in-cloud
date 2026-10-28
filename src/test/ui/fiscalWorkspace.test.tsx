@@ -47,7 +47,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         state.calls.push(table);
         return Promise.resolve({
           data:
-            table === "documenti_fiscali"
+            table === "fatture_vendite_iva"
               ? [
                   {
                     id: "s",
@@ -120,7 +120,7 @@ describe("registro fiscale reale, senza scritture", () => {
     expect(screen.queryByText(/^IVA documentale /)).toBeNull();
     expect(screen.getByText("0 documenti da verificare")).toBeVisible();
     expect(new Set(state.calls)).toEqual(
-      new Set(["documenti_fiscali", "fatture_ricevute_periodo_iva"]),
+      new Set(["fatture_vendite_iva", "fatture_ricevute_periodo_iva"]),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Registro acquisti" }));
     expect(screen.getByTestId("url").textContent).toContain(

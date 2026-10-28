@@ -57,7 +57,7 @@ beforeEach(() => {
 const sub = {
   id: "s",
   company_id: "c",
-  order_id: null,
+  order_id: null as null,
   campo_subappaltatore_id: "campo",
 };
 const doc = {

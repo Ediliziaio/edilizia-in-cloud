@@ -17,12 +17,12 @@ const stato = vi.hoisted(() => ({
   salva: vi.fn(),
 }));
 
-vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[],isPending:false,isError:false,isFetching:false,refetch:vi.fn()}),identificaPsc:vi.fn()}));
-vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:()=>null}));
+vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[] as never[],isPending:false,isError:false,isFetching:false,refetch:vi.fn()}),identificaPsc:vi.fn()}));
+vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:(): null =>null}));
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
 vi.mock("@/hooks/useEmissioniPos",()=>({
- useEmissioniPos:()=>({data:[],isLoading:false,isError:false}),
- useContenutiPerEmissione:()=>({data:[],isLoading:false,isError:false}),
+ useEmissioniPos:()=>({data:[] as never[],isLoading:false,isError:false}),
+ useContenutiPerEmissione:()=>({data:[] as never[],isLoading:false,isError:false}),
  usePreparaEmissione:()=>({mutate:vi.fn(),isPending:false}),
  apriEmissionePos:vi.fn(),
 }));
@@ -140,7 +140,7 @@ describe('Verifica umana della formazione',()=>{
     expect(conferma).toHaveAttribute('aria-checked','false');
     expect(screen.queryByText(/Attestati nell.app: Attestato sintetico/)).toBeNull();
     expect(screen.getByText(/Riga senza collegamento HR univoco/)).toBeTruthy();
-    expect(screen.getByRole('checkbox',{name:'Base',exact:true})).toHaveAttribute('aria-checked','false');
+    expect(screen.getByRole('checkbox',{name:'Base'})).toHaveAttribute('aria-checked','false');
   });
 });
 
@@ -160,7 +160,7 @@ describe('Conferma di una lavorazione riutilizzata',()=>{
 
 describe('Bozze precedenti e controllo tecnico aggiornato',()=>{
   it('propone il riesame prodotti di una bozza precedente senza cambiare il record salvato',()=>{
-    const p=posVuoto();p.lavorazioni=[{...lavorazioneVuota('l1'),sostanze:'Sigillante'}];stato.pos={...riga(p),contenuto:p};mostra();expect(screen.getByText(/Controlli aggiornati proposti/)).toBeTruthy();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));expect(screen.getByText(/identifica i singoli prodotti/)).toBeTruthy();expect(stato.salva).not.toHaveBeenCalled();expect(stato.approva).not.toHaveBeenCalled();expect((stato.pos as {contenuto:PosContenuto}).contenuto.versione_prodotti).toBeUndefined();fireEvent.click(screen.getByRole('button',{name:'Chiudi',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Annulla',exact:true}));expect(screen.getByText('Modifiche non salvate')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));expect(screen.getByText(/identifica i singoli prodotti/)).toBeTruthy();expect(stato.approva).not.toHaveBeenCalled();
+    const p=posVuoto();p.lavorazioni=[{...lavorazioneVuota('l1'),sostanze:'Sigillante'}];stato.pos={...riga(p),contenuto:p};mostra();expect(screen.getByText(/Controlli aggiornati proposti/)).toBeTruthy();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));expect(screen.getByText(/identifica i singoli prodotti/)).toBeTruthy();expect(stato.salva).not.toHaveBeenCalled();expect(stato.approva).not.toHaveBeenCalled();expect((stato.pos as {contenuto:PosContenuto}).contenuto.versione_prodotti).toBeUndefined();fireEvent.click(screen.getByRole('button',{name:'Chiudi'}));fireEvent.click(screen.getByRole('button',{name:'Annulla'}));expect(screen.getByText('Modifiche non salvate')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));expect(screen.getByText(/identifica i singoli prodotti/)).toBeTruthy();expect(stato.approva).not.toHaveBeenCalled();
   });
 
   it('propone i controlli v2 senza salvare automaticamente e richiede la verifica della formazione',()=>{
@@ -188,6 +188,6 @@ describe('La conferma riguarda il documento effettivamente letto',()=>{
  });
  it('le modifiche inserite durante il salvataggio restano da salvare e fermano l’approvazione',async()=>{
   const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;let termina:(v:typeof originale)=>void=()=>{};stato.salva.mockImplementation(()=>new Promise(resolve=>{termina=resolve;}));mostra();fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Prima modifica'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledOnce());fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Seconda modifica durante la richiesta'}});await act(async()=>{termina({...originale,updated_at:'2026-10-27T12:03:00Z'});});expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();expect((screen.getByLabelText('Datore di lavoro') as HTMLInputElement).value).toBe('Seconda modifica durante la richiesta');
-  stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:04:00Z'});fireEvent.click(screen.getByRole('button',{name:'Salva',exact:true}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledTimes(2));expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe('2026-10-27T12:03:00Z');
+  stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:04:00Z'});fireEvent.click(screen.getByRole('button',{name:'Salva'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledTimes(2));expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe('2026-10-27T12:03:00Z');
  });
 });

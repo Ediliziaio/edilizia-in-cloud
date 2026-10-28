@@ -160,7 +160,7 @@ describe("Schede interne alla commessa", () => {
       target: { value: "Modifica" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Chiudi", exact: true }),
+      screen.getByRole("button", { name: "Chiudi" }),
     );
     expect(await screen.findByRole("alertdialog")).toHaveTextContent(
       "Uscire senza salvare?",
@@ -193,13 +193,13 @@ describe("Schede interne alla commessa", () => {
       screen.getByRole("button", { name: "Scheda precedente" }),
     ).toBeDisabled();
     fireEvent.click(
-      screen.getByRole("button", { name: "Chiudi", exact: true }),
+      screen.getByRole("button", { name: "Chiudi" }),
     );
     expect(screen.getByText("Editor POS pos1")).toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("Termina salvataggio"));
     fireEvent.click(
-      screen.getByRole("button", { name: "Chiudi", exact: true }),
+      screen.getByRole("button", { name: "Chiudi" }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

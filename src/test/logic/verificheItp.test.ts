@@ -11,10 +11,10 @@ const contesto = {
   impresa: {
     id: "sub",
     ragione_sociale: "Impresa",
-    campo_subappaltatore_id: null,
+    campo_subappaltatore_id: null as null,
   },
-  commessa: { id: "ordine", order_code: "ORD", description: null },
-  fase: null,
+  commessa: { id: "ordine", order_code: "ORD", description: null as null },
+  fase: null as null,
 };
 const dati = (): DatiVerificaItp => ({
   fase_id: null,

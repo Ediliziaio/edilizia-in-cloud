@@ -44,7 +44,7 @@ vi.mock("@/hooks/useDpiEsterni", () => ({
   },
   useSalvaDpiEsterni: () => ({ isPending: false, mutateAsync: s.save }),
   useStoricoDpiEsterni: () => ({
-    data: [],
+    data: [] as never[],
     isError: false,
     isLoading: false,
     refetch: vi.fn(),

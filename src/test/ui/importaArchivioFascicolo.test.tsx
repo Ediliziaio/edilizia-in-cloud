@@ -8,12 +8,12 @@ const stato = vi.hoisted(() => ({
     id: "00000000-0000-4000-a000-000000000001",
     company_id: "azienda",
     subappaltatore_id: "ditta",
-    tipo: "visura_camerale",
+    tipo: "visura_camerale" as const,
     nome_file: "visura.pdf",
     url: "azienda/ditta/file.pdf",
-    data_rilascio: null,
-    data_scadenza: null,
-    note: null,
+    data_rilascio: null as null,
+    data_scadenza: null as null,
+    note: null as null,
     created_at: "2026-10-27",
   },
   dest: null as Record<string, unknown> | null,
@@ -65,25 +65,25 @@ vi.mock(
           if (table === "documenti_subappaltatore") {
             return {
               data: { ...stato.fonte },
-              error: null,
+              error: null as null,
             };
           }
           if (operazione === "insert") {
             stato.dest = { ...dati };
-            return { data: { id: dati.id }, error: null };
+            return { data: { id: dati.id }, error: null as null };
           }
           if (operazione === "update") {
             if (stato.fallisceUpdate) {
               stato.fallisceUpdate = false;
               return {
-                data: null,
+                data: null as null,
                 error: new Error("TEST errore metadata dopo upload"),
               };
             }
             stato.dest = { ...stato.dest, ...dati };
-            return { data: { id: stato.fonte.id }, error: null };
+            return { data: { id: stato.fonte.id }, error: null as null };
           }
-          return { data: stato.dest, error: null };
+          return { data: stato.dest, error: null as null };
         }
         return q;
       },
@@ -99,9 +99,9 @@ vi.mock(
                   url: "azienda/ditta/cambiato.pdf",
                 };
               }
-              return { data, error: null };
+              return { data, error: null as null };
             }
-            return { data: stato.oggetto, error: null };
+            return { data: stato.oggetto, error: null as null };
           },
           upload: async (_path: string, blob: Blob) => {
             stato.uploads++;
@@ -111,7 +111,7 @@ vi.mock(
               };
             }
             stato.oggetto = blob;
-            return { error: null };
+            return { error: null as null };
           },
         }),
       },
@@ -133,7 +133,7 @@ const args = () => ({
   destinazione: {
     companyId: "azienda",
     subId: "ditta",
-    orderId: null,
+    orderId: null as null,
     titolo: "Visura",
   },
 });

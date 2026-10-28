@@ -10,7 +10,7 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{auth:{getSession:async(
  const filters:Record<string,unknown>={};let update:Record<string,unknown>|null=null;
  const q={select:()=>q,eq:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},is:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},update:(v:Record<string,unknown>)=>{update=v;return q;},maybeSingle:async()=>{
   if(filters.company_id!=='azienda-a'||s.conflitto)return {data:null,error:null};
-  return {data:{id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[],contenuto:update?.contenuto||{},iter:update?.iter||{},approvato_da_nome:null,approvato_il:null,created_at:'2026-10-27T00:00:00Z',updated_at:`2026-10-27T00:00:0${++s.clock}Z`,document_type:'pos',commessa:null},error:null};
+  return {data:{id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[] as never[],contenuto:update?.contenuto||{},iter:update?.iter||{},approvato_da_nome:null as null,approvato_il:null as null,created_at:'2026-10-27T00:00:00Z',updated_at:`2026-10-27T00:00:0${++s.clock}Z`,document_type:'pos',commessa:null as null},error:null as null};
  }};return q;
 }}}));
 import { usePos, useSalvaPos, useApprovaPos, type PosRiga } from '@/hooks/usePos';

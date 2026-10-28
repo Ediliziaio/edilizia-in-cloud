@@ -50,7 +50,7 @@ describe("proiezione propria per POS", () => {
     const f = fontePropria();
     f.riscontri[0].esito = "non_applicabile";
     expect(() => leggi(f)).toThrow();
-    const v = { ...f, riscontri: [{ ...f.riscontri[0], qualifica: null }] };
+    const v = { ...f, riscontri: [{ ...f.riscontri[0], qualifica: null as null }] };
     expect(leggi(v).riscontri[0].esito).toBe("non_applicabile");
     expect(() =>
       leggi({ ...v, riscontri: [{ ...v.riscontri[0], motivazione: " " }] }),

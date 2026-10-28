@@ -22,7 +22,7 @@ const fonte: DocumentoSubappaltatore = {
 const target = {
   companyId: "azienda",
   subId: "ditta",
-  orderId: null,
+  orderId: null as null,
   titolo: "Visura",
 };
 describe("Originali dell’archivio precedente", () => {

@@ -73,7 +73,7 @@ describe("Contabilità del subappalto", () => {
     fireEvent.click(popup.getByRole("button", { name: "Registra pagamento" }));
     expect(p.onPagamento).toHaveBeenCalledWith(base);
     fireEvent.click(
-      popup.getByRole("button", { name: "Torna ai SAL", exact: true }),
+      popup.getByRole("button", { name: "Torna ai SAL" }),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Apri SAL 1" })).toBeTruthy();

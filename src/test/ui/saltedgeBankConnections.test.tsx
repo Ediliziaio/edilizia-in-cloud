@@ -18,13 +18,13 @@ vi.mock("sonner", () => ({ toast: state.toast }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   functions: { invoke: (...args: unknown[]) => state.invoke(...args) },
   from: (table: string) => {
-    const q: any = { select: () => q, eq: () => q, neq: () => q, order: () => q,
+    const q: any = { select: () => q, eq: () => q, neq: () => q, in: () => q, order: () => q,
       then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: table === "bank_connections" ? state.connections : [], error: null }).then(resolve) };
     return q;
   },
 } }));
 beforeEach(() => {
-  cleanup(); vi.clearAllMocks(); state.company = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"; state.canManage = true; state.ready = true; state.connections = [];
+  cleanup(); vi.clearAllMocks(); state.company = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"; state.canManage = true; state.ready = true; state.connections = [{ id: "salt-storico", institution_name: "Banca storica", status: "expired", provider_slug: "saltedge", expires_at: null }];
   state.invoke.mockImplementation(async (_name, options) => ({ error: null, data: options.body.action === "status" ? { ready: state.ready, mode: "pending", error: state.ready ? null : "Beta non abilitata" } : { ok: true, imported: 3 } }));
 });
 function mount(element = <BankConnectionsCard />, route = "/azienda/impostazioni/integrazioni") {
@@ -32,9 +32,9 @@ function mount(element = <BankConnectionsCard />, route = "/azienda/impostazioni
   return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[route]}>{element}</MemoryRouter></QueryClientProvider>);
 }
 
-describe("Collegamento Salt Edge nell'interfaccia reale", () => {
+describe("Ricollegamento Salt Edge storico nell'interfaccia reale", () => {
   it("mostra Pending come banche simulate e richiede conferma esplicita", async () => {
-    mount(); fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    mount(); fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText(/Beta con banche simulate/);
     expect(screen.getByRole("button", { name: "Continua con Salt Edge" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
@@ -42,7 +42,7 @@ describe("Collegamento Salt Edge nell'interfaccia reale", () => {
     expect(state.invoke.mock.calls.every(([, o]) => o.body.company_id === state.company)).toBe(true);
   });
   it("se la beta non e' configurata offre Riprova e non avvia collegamenti", async () => {
-    state.ready = false; mount(); fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    state.ready = false; mount(); fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText("Beta non abilitata");
     expect(screen.getByRole("button", { name: "Continua con Salt Edge" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Riprova" })).toBeEnabled();
@@ -50,14 +50,14 @@ describe("Collegamento Salt Edge nell'interfaccia reale", () => {
   });
   it("mostra un errore comprensibile se il backend beta non e' raggiungibile", async () => {
     state.invoke.mockResolvedValue({ error: new Error("Failed to send a request to the Edge Function"), data: null });
-    mount(); fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    mount(); fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText(/Collegamento Salt Edge non disponibile/);
     expect(screen.getByRole("button", { name: "Continua con Salt Edge" })).toBeDisabled();
     expect(screen.queryByText(/Failed to send/)).not.toBeInTheDocument();
   });
   it("a tunnel chiuso non avvia nuovi consensi, senza invalidare i dati gia' importati", async () => {
     state.invoke.mockResolvedValue({ error: null, data: { ready: true, mode: "pending", connectReady: false, connectError: "Riattiva HTTPS beta" } });
-    mount(); fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    mount(); fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText("Riattiva HTTPS beta");
     fireEvent.click(screen.getByRole("checkbox"));
     expect(screen.getByRole("button", { name: "Continua con Salt Edge" })).toBeDisabled();
@@ -65,7 +65,7 @@ describe("Collegamento Salt Edge nell'interfaccia reale", () => {
   });
   it("rifiuta link di ritorno esterni e mantiene il modulo utilizzabile", async () => {
     state.invoke.mockImplementation(async (_name, options) => ({ error: null, data: options.body.action === "status" ? { ready: true, mode: "pending" } : { url: "https://evil.invalid/" } }));
-    mount(); fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    mount(); fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText(/Beta con banche simulate/); fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Continua con Salt Edge" }));
     await waitFor(() => expect(state.toast.error).toHaveBeenCalledWith("Il servizio non ha restituito un indirizzo di collegamento valido."));
@@ -74,11 +74,11 @@ describe("Collegamento Salt Edge nell'interfaccia reale", () => {
   it("mantiene Tesoreria come destinazione quando il collegamento parte da quella pagina", async () => {
     state.invoke.mockImplementation(async (_name, options) => ({ error: null, data: options.body.action === "status" ? { ready: true, mode: "pending" } : { url: "https://invalid.test" } }));
     mount(<BankConnectionsCard redirectPath="/azienda/tesoreria" />);
-    fireEvent.click(screen.getByRole("button", { name: "Collega conto" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ricollega" }));
     await screen.findByText(/Beta con banche simulate/);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Continua con Salt Edge" }));
-    await waitFor(() => expect(state.invoke).toHaveBeenCalledWith("bank-saltedge", { body: expect.objectContaining({ action: "start-auth", redirect_path: "/azienda/tesoreria" }) }));
+    await waitFor(() => expect(state.invoke).toHaveBeenCalledWith("bank-saltedge", { body: expect.objectContaining({ action: "reconnect", connection_id: "salt-storico", redirect_path: "/azienda/tesoreria" }) }));
   });
   it("finalizza il ritorno anche senza montare la scheda Connessioni", async () => {
     function Root() { useSaltEdgeReturn(state.company); return <div>Panoramica</div>; }

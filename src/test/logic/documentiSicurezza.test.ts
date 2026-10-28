@@ -97,7 +97,7 @@ describe("DUVRI stampabile", () => {
 
 describe('Evidenze native e archivio precedente nella stessa lista',()=>{
   const evidenza=(p:Partial<EvidenzaFascicolo>):EvidenzaFascicolo=>({id:'e1',company_id:'az',subappaltatore_id:'s1',operaio_id:null,order_id:null,tipo:'durc',titolo:'Evidenza',origine_requisito:'da_verificare',riferimento_requisito:null,stato:'ricevuto',file_path:'az/e1/prova.pdf',file_name:'prova.pdf',data_rilascio:null,data_scadenza:null,competenza:null,revisione:null,termine:null,referente:null,verificato_da:null,verificato_il:null,note:null,updated_at:'2026-10-26T12:00:00Z',...p});
-  const sub=[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null}];
+  const sub=[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null as null}];
   it('un upload non diventa verifica, ma resta visibile come attività da completare',()=>{
     const d=documentoDaEvidenza(evidenza({}));expect(d?.bucket).toBe('fascicoli-cantiere');
     expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:[d!]}).find(v=>v.chiave==='durc-s1')?.stato).toBe('in_corso');

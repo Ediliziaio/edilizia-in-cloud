@@ -11,7 +11,7 @@ beforeEach(() => { localStorage.clear(); HTMLElement.prototype.scrollIntoView = 
 describe("computo a capitoli come il flusso Ristrutturazione", () => {
   it("Aggiungi lavorazione apre il listino e conserva quantità, prezzo e unità originali", async () => {
     render(<ComputoNativoEditor storageKey="listino-volume" consentiListini initialFase={2} />);
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" }));
     fireEvent.click(await screen.findByRole("button", { name: "Scegli voce a volume" }));
     expect(screen.getByRole("combobox", { name: "Unità di misura" })).toHaveTextContent("mc - Metri cubi");
     expect(screen.getByLabelText("Quantità")).toHaveValue("2");
@@ -21,13 +21,13 @@ describe("computo a capitoli come il flusso Ristrutturazione", () => {
   it("crea un capitolo dal menu dei capitoli frequenti senza aggiungere voci fittizie", async () => {
     render(<ComputoNativoEditor storageKey="capitoli-rapidi" initialFase={2} />);
     fireEvent.click(screen.getByRole("combobox", { name: "Capitoli frequenti" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Impianti elettrici", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "Impianti elettrici" }));
     expect(screen.getByRole("heading", { name: "Impianti elettrici" })).toBeInTheDocument();
     await waitFor(() => expect(leggiBozzaComputo(localStorage.getItem("capitoli-rapidi")!).voci).toEqual([]));
   });
   it("crea e conserva un capitolo vuoto senza aggiungere prezzi o lavorazioni fittizie", async () => {
     const { unmount } = render(<ComputoNativoEditor storageKey="capitoli" initialFase={2} />);
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi capitolo", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi capitolo" }));
     fireEvent.change(screen.getByLabelText("Nome del capitolo"), { target: { value: "Demolizioni" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea capitolo" }));
     expect(screen.getByRole("heading", { name: "Demolizioni" })).toBeInTheDocument();

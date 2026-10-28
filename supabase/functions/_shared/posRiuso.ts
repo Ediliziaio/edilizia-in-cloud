@@ -7,7 +7,7 @@ export function lavorazioniRiutilizzabili(contenuto: unknown): Lavorazione[] {
     id: `riuso-${i + 1}`, titolo: l.titolo, descrizione: l.descrizione,
     modalita: l.modalita, sostanze: l.sostanze, opere_provvisionali: l.opere_provvisionali,
     macchine: l.macchine, impianti: l.impianti, rischi: l.rischi, misure: l.misure, dpi: l.dpi,
-    turni: "", durata_giorni: null, svolgimento: "diretto", svolgimento_con: "",
+    turni: "", durata_giorni: null as null, svolgimento: "diretto", svolgimento_con: "",
     origine: "modello", verificata: false,
     ...(l.tecnica ? {tecnica:tecnicaPosRiutilizzabile(l.tecnica)} : {}),
   }));

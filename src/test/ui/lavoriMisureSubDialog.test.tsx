@@ -45,7 +45,7 @@ const c = {
 };
 const voce = {
   id: "v",
-  fase_id: null,
+  fase_id: null as null,
   descrizione: "Bagno a corpo",
   base: "corpo",
   unita: "quota",
@@ -275,10 +275,10 @@ describe("flusso lavori e quantità sub", () => {
     );
     expect(screen.getByText("Bagno a corpo")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Verifica", exact: true }),
+      screen.getByRole("button", { name: "Verifica" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Annulla", exact: true }),
+      screen.getByRole("button", { name: "Annulla" }),
     ).toBeEnabled();
   });
   it("da Nuovo SAL apre subito la preparazione e indica il passo utile se mancano misure", async () => {
@@ -308,7 +308,7 @@ describe("flusso lavori e quantità sub", () => {
       screen.getByRole("button", { name: "Rilevazioni e verifiche" }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByRole("button", { name: "Verifica", exact: true }),
+      screen.getByRole("button", { name: "Verifica" }),
     ).toBeEnabled();
   });
   it("consente di consultare il verbale dalla rilevazione già contabilizzata", async () => {

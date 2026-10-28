@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { lavorazioneVuota, posVuoto } from "../../../supabase/functions/_shared/posModello";
 const mocks=vi.hoisted(()=>({crea:vi.fn(),salva:vi.fn()}));
 vi.mock("@/hooks/usePos",()=>({useCreaPos:()=>({mutateAsync:mocks.crea,isPending:false}),useSalvaModelloPos:()=>({mutateAsync:mocks.salva,isPending:false})}));
-vi.mock("@/hooks/useFascicoloCantiere",()=>({useCommesseFascicolo:()=>({data:[],isLoading:false,isError:false})}));
+vi.mock("@/hooks/useFascicoloCantiere",()=>({useCommesseFascicolo:()=>({data:[] as never[],isLoading:false,isError:false})}));
 import { RiusoPosDialog } from "@/components/sicurezza/pos/RiusoPosDialog";
 import type { PosRiga } from "@/hooks/usePos";
 afterEach(()=>{cleanup();vi.clearAllMocks();});

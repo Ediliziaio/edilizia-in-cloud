@@ -29,7 +29,7 @@ vi.mock("@/hooks/useAnagraficheNative", () => ({
   },
 }));
 vi.mock("@/components/fatturazione/PartnerReconciliationPanel", () => ({
-  PartnerReconciliationPanel: () => null,
+  PartnerReconciliationPanel: () : null => null,
 }));
 import AnagraficheList from "@/pages/azienda/fatturazione/AnagraficheList";
 function Path() {

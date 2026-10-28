@@ -18,7 +18,7 @@ const payload: ViaggioPayload = {
     da: `P${i}`,
     a: `P${i + 1}`,
     km,
-    minuti: null,
+    minuti: null as null,
     fonte: "dichiarati",
     destinazione: "commessa",
     order_id: i < 3 ? "A" : "B",
@@ -59,7 +59,7 @@ describe("Registro viaggi, multi tratta e attribuzioni", () => {
   it("non trasforma km assenti in zero e lascia lo scarto sconosciuto con tratte incomplete", () => {
     const v = {
       ...payload,
-      tratte: payload.tratte.map((t) => ({ ...t, km: null })),
+      tratte: payload.tratte.map((t) => ({ ...t, km: null as null })),
     };
     expect(riepilogoViaggio(v)).toMatchObject({
       km: null,
@@ -149,7 +149,7 @@ describe("Registro viaggi, multi tratta e attribuzioni", () => {
         {
           ...payload.tratte[0],
           destinazione: "da_attribuire" as const,
-          order_id: null,
+          order_id: null as null,
         },
       ],
     };

@@ -13,10 +13,10 @@ import { OperaiSubappaltatore } from "@/components/subappaltatori/OperaiSubappal
 import { FascicoloDocumenti } from "@/components/sicurezza/FascicoloDocumenti";
 import { ImpreseCommessa } from "@/components/sicurezza/ImpreseCommessa";
 vi.mock("@/components/sicurezza/VerificaItpImpresa", () => ({
-  VerificaItpImpresa: () => null,
+  VerificaItpImpresa: () : null => null,
 }));
 vi.mock("@/components/sicurezza/DpiEsterni", () => ({
-  DpiEsterni: () => null,
+  DpiEsterni: () : null => null,
 }));
 const state = vi.hoisted(() => ({
   readonly: false,

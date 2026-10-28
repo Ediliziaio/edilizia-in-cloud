@@ -84,7 +84,7 @@ describe("Lettura documenti macchina", () => {
   });
   it("l’apertura richiede un URL temporaneo risolto dal servizio, senza path dal documento", async () => {
     const finestra = {
-      opener: undefined,
+      opener: undefined as undefined,
       location: { href: "" },
       close: vi.fn(),
     };
@@ -109,7 +109,7 @@ describe("Lettura documenti macchina", () => {
     "https://esempio.supabase.co/storage/v1/object/sign/mezzi-documenti/altro/privato.pdf",
   ])("rifiuta un URL estraneo e chiude la scheda: %s", async (url) => {
     const finestra = {
-      opener: undefined,
+      opener: undefined as undefined,
       location: { href: "" },
       close: vi.fn(),
     };
