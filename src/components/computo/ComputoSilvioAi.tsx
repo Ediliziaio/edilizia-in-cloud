@@ -65,7 +65,9 @@ export function vociDaRigheChat(righe: NativeComputoRow[], prima: VoceEditor[], 
  */
 export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazione, open, onOpenChange, onApply }: {
   bozza: BozzaComputo; companyId: string; draftId: string; intestazione: IntestazioneComputo;
-  open: boolean; onOpenChange: (open: boolean) => void; onApply: (voci: VoceEditor[]) => void;
+  open: boolean; onOpenChange: (open: boolean) => void;
+  /** `titolo`: quello che la chat ha dato al lavoro («Campo da tennis in resina»), se diverso da quello di partenza. */
+  onApply: (voci: VoceEditor[], titolo?: string) => void;
 }) {
   const titolo = bozza.titolo.trim() || "Preventivo con computo";
   const [seme] = useState(() => {
@@ -146,6 +148,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazion
     preview={anteprima} review={(bozzaChat, capitoli) => riconcilia(bozzaChat, capitoli)} listinoSourceId={QUOTE_LISTINO_SOURCES[MODULO].id}
     onApply={async (bozzaChat, capitoli) => {
       const r = riconcilia(bozzaChat, capitoli);
-      onApply(vociDaRigheChat(await enrichComputoRowsFromListino(MODULO, r.rows), bozza.voci, r.daCompletare));
+      const titoloChat = bozzaChat.title?.trim();
+      onApply(vociDaRigheChat(await enrichComputoRowsFromListino(MODULO, r.rows), bozza.voci, r.daCompletare), titoloChat && titoloChat !== titolo ? titoloChat.slice(0, 160) : undefined);
     }} />;
 }

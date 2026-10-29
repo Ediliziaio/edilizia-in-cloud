@@ -111,7 +111,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const totale = risultati.reduce((s, r) => s + (r.importo ?? 0), 0);
   const erroreIva = bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false ? calcolaIvaComputo(totale, bozza).errore : "";
   const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
-    stato: "BOZZA LOCALE - non inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
+    stato: "Bozza - non ancora inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
     numero: bozza.numero, ivaModalita: bozza.ivaModalita, ivaAliquota: bozza.ivaAliquota, ivaNota: bozza.ivaNota,
     indirizzoIntervento: bozza.mostraDatiCliente === false ? "" : bozza.indirizzo,
     nascondiCliente: bozza.mostraDatiCliente === false, condizioni: bozza.mostraCondizioni === false ? "" : bozza.condizioni,
@@ -191,7 +191,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         const blob = await generaDocumentoComputo(voci, { ...intestazione, parziale }, allegati);
         setAnteprimaParziale(!!parziale);
         setAnteprima(blob);
-      } else await esportaComputoPdf(voci, intestazione, allegati);
+      // Il documento scaricato è quello che va al cliente: niente «Bozza» stampato sopra.
+      } else await esportaComputoPdf(voci, { ...intestazione, stato: "" }, allegati);
       setDocumentoPronto(!invalide && !erroreIva);
       setErrore("");
     } catch (e) { setErrore(e instanceof Error ? e.message : "PDF non generato. Riprova."); }
@@ -405,12 +406,15 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         ? <ComputoUploadModal open intent="computo" onOpenChange={open => { if (!open) setAiAperta(null); }} onConfirmVoci={daAi} confirmLabel="Aggiungi al computo" />
         : <ComputoSilvioAi open bozza={bozza} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}
           onOpenChange={open => { if (!open) setAiAperta(null); }}
-          onApply={voci => { setAiAperta(null); cambia({ ...bozza, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
+          onApply={(voci, titolo) => {
+            // Il titolo di Silvio vale solo se quello del preventivo è ancora quello di partenza: uno scritto a mano non si tocca.
+            const titoloNuovo = titolo && (!bozza.titolo.trim() || bozza.titolo === bozzaVuota().titolo) ? { titolo } : {};
+            setAiAperta(null); cambia({ ...bozza, ...titoloNuovo, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
     </Suspense>}
     {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
       <DialogContent className="flex h-[90dvh] max-w-5xl flex-col">
-        <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza locale, non inviata."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza, non ancora inviata."}</DialogDescription></DialogHeader>
         {anteprima && <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderAnteprima} depsKey="computo" debounceMs={0} downloadFileName={anteprimaParziale ? "bozza-parziale-computo.pdf" : "preventivo-computo.pdf"} showDownloadOnMobile /></div>}
       </DialogContent>
     </Dialog>

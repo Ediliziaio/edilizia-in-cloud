@@ -7,6 +7,8 @@ import { calcolaIvaComputo } from "./ivaComputo";
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
+  // Stato stampato in testa e a piè di pagina: vuoto nel documento definitivo, «Bozza…» nelle anteprime e se non detto.
+  const stato = i.stato ?? "Bozza locale - non inviata";
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
   const m = 40, right = W - m, width = W - m * 2, bottom = H - 48;
   const t = creaTema({ primario: i.colore });
@@ -30,7 +32,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const continuation = () => {
     doc.addPage(); y = m;
     font(9, true, t.inchiostroMarca); doc.text(short(i.azienda || "Computo metrico", width - 110), m, y);
-    font(8, false, t.grigio); doc.text(short(i.numero || "BOZZA", 100), right, y, { align: "right" });
+    font(8, false, t.grigio); doc.text(short(i.numero || (stato ? "BOZZA" : ""), 100), right, y, { align: "right" });
     y += 12; font(7.5, false, t.grigio); doc.text(short(i.titolo, width), m, y);
     doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y + 7, right, y + 7); y += 24;
     ripetiIntestazioneTabella?.();
@@ -66,7 +68,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   };
   // Prima pagina: identità e perimetro, senza ripetere il prezzo finale.
   font(25, true); const titolo = wrap(i.titolo, width - 38);
-  font(8); const metadati = wrap([i.numero, i.dataDocumento, i.revisione && `Rev. ${i.revisione}`].filter(Boolean).join("  |  ") || "BOZZA LOCALE", width - 38);
+  font(8); const metadati = wrap([i.numero, i.dataDocumento, i.revisione && `Rev. ${i.revisione}`].filter(Boolean).join("  |  ") || (stato ? "BOZZA" : " "), width - 38);
   font(13, true); const aziendaH = wrap(i.azienda || "Preventivo con computo metrico").length * 17.55;
   font(8); const dettagliH = i.dettagliAzienda ? wrap(i.dettagliAzienda).length * 10.8 : 0;
   const heroH = Math.max(235, m + aziendaH + dettagliH + 63 + titolo.length * 30 + metadati.length * 11);
@@ -80,7 +82,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   font(8, false, t.bianco);
   metadati.forEach((line, k) => doc.text(line, m, y + 1 + k * 11));
   y = heroH + 25;
-  paragraph(i.stato || "Bozza locale - non inviata", 8, t.grigio); y += 12;
+  if (stato) { paragraph(stato, 8, t.grigio); y += 12; }
   const anagrafica: [string, string][] = [];
   if (!i.nascondiCliente) {
     anagrafica.push(["Committente", i.committente?.trim() || "Da definire"]);
@@ -120,7 +122,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     font(6.5, true, t.inchiostroMarca); doc.text("MISURAZIONI", m + 6, y + 1);
     ["PARTI", "LUNG.", "LARG.", "H/PESO", "QUANTITÀ"].forEach((s, k) => doc.text(s, m + [282, 329, 376, 423, width - 7][k], y + 1, { align: "right" })); y += 18;
   };
-  const metaVoce = (v: VoceComputo) => [i.mostraCodici === false ? "" : tariffaVoce(v), v.a_corpo ? "A corpo" : "A misura", v.is_sicurezza && "Sicurezza", v.is_detrazione && "Detrazione", i.mostraFonti !== false && v.fonte_prezzo && `Fonte [${fonti.indexOf(v.fonte_prezzo.trim()) + 1}]`].filter(Boolean).join("  /  ");
+  // «A misura» è il caso normale: scritto su ogni voce era solo rumore sopra la descrizione (29/10/2026).
+  const metaVoce = (v: VoceComputo) => [i.mostraCodici === false ? "" : tariffaVoce(v), v.a_corpo && "A corpo", v.is_sicurezza && "Sicurezza", v.is_detrazione && "Detrazione", i.mostraFonti !== false && v.fonte_prezzo && `Fonte [${fonti.indexOf(v.fonte_prezzo.trim()) + 1}]`].filter(Boolean).join("  /  ");
   const colonne = [
     { titolo: "N.", larghezza: 24, destra: false },
     { titolo: "DESCRIZIONE DELLA LAVORAZIONE", larghezza: width - 24 - 30 - 58 - (mostraUnitari ? 73 : 0) - (mostraImporti ? 79 : 0), destra: false },
@@ -165,7 +168,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     }
   };
   const altezzaVoce = (v: VoceComputo) => {
-    font(8.5); const descr = wrap(`${metaVoce(v)}\n${v.descrizione_estesa || v.descrizione_breve}`, colonne[1].larghezza - 10).length * 11.5;
+    font(8.5); const descr = wrap([metaVoce(v), v.descrizione_estesa || v.descrizione_breve].filter(Boolean).join("\n"), colonne[1].larghezza - 10).length * 11.5;
     let h = descr + 34;
     if (v.misure.length && i.dettaglioMisure !== false) {
       h += 18;
@@ -187,7 +190,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     }
     comunePrecedente = v.descrizione_comune || "";
     rigaTabella([
-      numeroVoce(v), `${metaVoce(v)}\n${v.descrizione_estesa || v.descrizione_breve}`,
+      numeroVoce(v), [metaVoce(v), v.descrizione_estesa || v.descrizione_breve].filter(Boolean).join("\n"),
       v.unita_misura || "-", num(v.quantita),
       ...(mostraUnitari ? [money(v.prezzo_unitario_computo)] : []),
       ...(mostraImporti ? [money(v.importo_computo)] : []),
@@ -294,7 +297,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   }
   for (let p = 1; !i.senzaPiede && p <= endPage; p++) {
     doc.setPage(p); doc.setDrawColor(t.filetto); doc.line(m, H - 37, right, H - 37);
-    font(7, false, t.grigio); doc.text("Bozza locale - non inviata", m, H - 23);
+    font(7, false, t.grigio); doc.text(stato || i.azienda || "", m, H - 23);
     doc.text(`Pagina ${p} di ${endPage}`, right, H - 23, { align: "right" });
   }
   doc.setPage(endPage);
