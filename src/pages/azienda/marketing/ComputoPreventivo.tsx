@@ -5,6 +5,7 @@ import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
 import ComputoCloudEditor from "@/components/computo/ComputoCloudEditor";
 import { computoCloudAttivo } from "@/lib/computo/cloudComputo";
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
+import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
 
 export default function ComputoPreventivo() {
   const { effectiveCompany, user } = useAuth();
@@ -23,7 +24,8 @@ export default function ComputoPreventivo() {
   const key = chiaveBozzaComputo(effectiveCompany.id, user.id, `preventivo:${id}`);
   const dettagli = [effectiveCompany.legal_address, effectiveCompany.legal_city,
     effectiveCompany.vat_number && `P.IVA ${effectiveCompany.vat_number}`, effectiveCompany.email, effectiveCompany.phone].filter(Boolean).join(" | ");
-  const editorProps = { storageKey: key, consentiListini: true, azienda: effectiveCompany.business_name || effectiveCompany.name,
+  const editorProps = { storageKey: key, consentiListini: true,
+    ai: consentiPreventivoConversazionale(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id } : undefined, azienda: effectiveCompany.business_name || effectiveCompany.name,
     dettagliAzienda: dettagli, colore: effectiveCompany.brand_primary_color ?? undefined, fase,
     onFaseChange: (n: number) => { const next = new URLSearchParams(params); next.set("fase", String(n + 1)); setParams(next); },
     onBack: () => { void navigate("/azienda/marketing/preventivi"); } };

@@ -12,7 +12,7 @@ describe("elenco computi cloud", () => {
     mocks.list.mockResolvedValue([{ id: "draft", titolo: "Computo remoto", committente: "Cliente", numeroVoci: 4 }]);
     render(<MemoryRouter><ComputiPreventivoLocali /></MemoryRouter>);
     expect(await screen.findByRole("link", { name: /Computo remoto/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/computo?bozza=draft");
-    expect(screen.getByText(/Con copia Supabase/)).toBeVisible();
+    expect(screen.getByText(/· Salvato$/)).toBeVisible();
   });
   it("non contatta Supabase per altre aziende", () => {
     mocks.company = "altra-azienda";

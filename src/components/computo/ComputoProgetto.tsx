@@ -28,34 +28,49 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy }: {
     })();
     return () => { disposed = true; Object.values(locali).forEach(URL.revokeObjectURL); };
   }, [scope, allegati]);
+  const [sopra, setSopra] = useState(false);
+  // Più file insieme, uno alla volta: ognuno si salva prima del successivo, e il primo errore ferma i restanti.
+  const carica = async (files: File[]) => {
+    if (!files.length || busy) return;
+    setBusy(true); onBusy(true); setErrore("");
+    let elenco = allegati;
+    try {
+      for (const file of files) {
+        if (elenco.length >= 20) throw new Error("Massimo 20 allegati per preventivo.");
+        if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) throw new Error(`«${file.name}»: si caricano solo JPG, PNG e PDF.`);
+        if (elenco.reduce((s, a) => s + a.dimensione, 0) + file.size > 50 * 1024 * 1024) throw new Error("Gli allegati del preventivo superano il limite complessivo di 50 MB.");
+        const meta = await caricaAllegatoLocale(scope, file, tipo);
+        elenco = [...elenco, meta];
+        if (attivo.current) onChange(elenco);
+      }
+    } catch (e) { if (attivo.current) setErrore(e instanceof Error ? e.message : "File non salvato: riprova."); }
+    finally { if (attivo.current) { setBusy(false); onBusy(false); } }
+  };
   return <section className="space-y-4" aria-label="Progetto e allegati">
-    <h2 className="text-lg font-semibold">Foto e tavole del progetto</h2>
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="w-full space-y-2 sm:w-52"><Label htmlFor="allegato-tipo">Tipo di allegato</Label>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0"><h2 className="text-base font-semibold">Foto e tavole del progetto</h2>
+        <p className="text-xs text-muted-foreground">Facoltative: quelle con «Includi nel PDF» vanno in fondo al documento. {allegati.length}/20 allegati.</p></div>
+      <div className="w-full space-y-1 sm:w-44"><Label htmlFor="allegato-tipo" className="text-xs">I prossimi file sono</Label>
         <Select value={tipo} disabled={busy} onValueChange={value => setTipo(value as typeof tipo)}>
-          <SelectTrigger id="allegato-tipo"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="foto">Foto</SelectItem><SelectItem value="planimetria">Planimetria</SelectItem><SelectItem value="render">Render</SelectItem></SelectContent>
+          <SelectTrigger id="allegato-tipo" className="h-9"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="foto">Foto</SelectItem><SelectItem value="planimetria">Planimetrie</SelectItem><SelectItem value="render">Render</SelectItem></SelectContent>
         </Select>
       </div>
-      <Button variant="outline" disabled={busy || allegati.length >= 20} onClick={() => input.current?.click()}>
-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}Carica file
-      </Button>
-      <span className="pb-2 text-xs text-muted-foreground">{allegati.length}/20 allegati · file in questo browser</span>
     </div>
-    <input ref={input} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={async e => {
-      const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
-      setBusy(true); onBusy(true); setErrore("");
-      try {
-        if (allegati.reduce((s, a) => s + a.dimensione, 0) + file.size > 50 * 1024 * 1024) throw new Error("Gli allegati del preventivo superano il limite complessivo di 50 MB.");
-        const meta = await caricaAllegatoLocale(scope, file, tipo);
-        if (attivo.current) onChange([...allegati, meta]);
-      } catch (e) { if (attivo.current) setErrore(e instanceof Error ? e.message : "File non salvato: riprova."); }
-      finally { if (attivo.current) { setBusy(false); onBusy(false); } }
+    <button type="button" disabled={busy || allegati.length >= 20} onClick={() => input.current?.click()}
+      onDragOver={e => { e.preventDefault(); setSopra(true); }} onDragLeave={() => setSopra(false)}
+      onDrop={e => { e.preventDefault(); setSopra(false); void carica(Array.from(e.dataTransfer.files)); }}
+      className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${allegati.length ? "py-4" : "py-8"} ${sopra ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50/40"}`}>
+      {busy ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <ImagePlus className="h-6 w-6 text-orange-500" />}
+      <span className="text-sm font-medium text-slate-900">{busy ? "Salvo i file…" : "Trascina qui i file o fai clic per sceglierli"}</span>
+      <span className="text-xs text-muted-foreground">JPG, PNG o PDF · fino a 20 file e 50 MB in tutto</span>
+    </button>
+    <input ref={input} type="file" multiple accept="image/jpeg,image/png,application/pdf" hidden aria-label="Carica file" onChange={e => {
+      const files = Array.from(e.target.files ?? []); e.target.value = ""; void carica(files);
     }} />
     {errore && <p role="alert" className="text-sm text-rose-700">{errore}</p>}
-    {!allegati.length && <div className="border-y py-10 text-center text-sm text-muted-foreground">Nessun allegato al progetto</div>}
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{allegati.map((a, index) => <article key={a.id} className="min-w-0 overflow-hidden rounded-lg border">
-      <div className="flex h-40 items-center justify-center bg-slate-50">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{allegati.map((a, index) => <article key={a.id} className="min-w-0 overflow-hidden rounded-lg border">
+      <div className="flex h-32 items-center justify-center bg-slate-50">
         {urls[a.id] && a.mime.startsWith("image/") ? <img src={urls[a.id]} alt={a.nome} className="h-full w-full object-contain" /> : <FileText className="h-10 w-10 text-slate-400" />}
       </div>
       <div className="space-y-2 p-3"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words text-sm font-medium">{a.nome}</h3><p className="text-xs capitalize text-muted-foreground">{a.tipo} · {(a.dimensione / 1024 / 1024).toFixed(2)} MB</p></div>

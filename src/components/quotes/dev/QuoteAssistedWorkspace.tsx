@@ -297,7 +297,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     } catch (e) { if (ownerGeneration === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Allegato non valido." }); }
     finally { attaching.current = false; setPreparingAttachment(false); }
   };
-  const send = async (text = input, intent?: 'budget' | 'vision' | 'schedule') => {
+  const send = async (text = input, intent?: 'budget' | 'vision' | 'schedule', testoMostrato?: string) => {
     if (attaching.current) return;
     if (embedded && isEmbeddedWizardContextCommand(text)) {
       appendDiagnostic({ role: 'assistant', text: 'Il modello, il cliente e le impostazioni fiscali vengono dal wizard aperto. Puoi cambiarli lì dopo aver chiuso questa finestra.' }); return;
@@ -674,7 +674,8 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     if (components.length) evidence.push(`MEMORIA UTENTE DEI COMPONENTI, decisioni di ambito NON prezzi o inclusioni. Non estendere una restrizione all’intero impianto.\n${describeQuoteComponents(components)}`);
     try { request.messages = quoteEvidenceMessages(conversation, evidence); }
     catch (error) { appendDiagnostic({ role: 'assistant', text: (error as Error).message }); return; }
-    append({ role: "user", text }); setInput("");
+    // La bolla mostra quello che l'utente ha scelto; al modello arriva il testo completo (vedi `choose`).
+    append({ role: "user", text: testoMostrato ?? text, ...(testoMostrato && testoMostrato !== text ? { sent: text } : {}) }); setInput("");
     if (measurementReceipt) appendDiagnostic({ role: "assistant", text: measurementReceipt });
     if (!simulated && !transport) { append({ role: "assistant", text: "Backend AI locale non configurato. Nessuna chiamata o modifica eseguita." }); return; }
     if (budgetOnly) { pendingBudgetApproval.current = null; setSavedBudget(null); }
@@ -792,8 +793,11 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     choosing.current = true;
     setMessages(prev => prev.map((m, i) => i === index ? { ...m, selectedChoiceId: choice.id } : m));
     try {
-      // Always natural-language chat, never execute a model-authored local command.
-      await send(`Rispondo alla proposta dell’assistente: ${choice.reply}`, message.scheduleFollowUp ? 'schedule' : undefined);
+      // Always natural-language chat, never execute a model-authored local command: il prefisso tiene
+      // la risposta (scritta dall'AI) fuori dai comandi locali di `send`, ancorati all'inizio del testo
+      // («Conferma modifiche proposte · revisione N», «IVA 22% …»). Nella bolla però si vede solo la
+      // scelta: «Rispondo alla proposta dell'assistente:» davanti a ogni clic sembrava scritto da un robot (29/10/2026).
+      await send(`Rispondo alla proposta dell’assistente: ${choice.reply}`, message.scheduleFollowUp ? 'schedule' : undefined, choice.reply);
     } finally { choosing.current = false; }
   };
   const customize = () => { setInput(value => value.trim() ? value : "Preferisco un’altra soluzione: "); composer.current?.querySelector("textarea")?.focus(); };

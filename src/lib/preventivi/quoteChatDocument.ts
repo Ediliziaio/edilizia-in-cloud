@@ -61,7 +61,13 @@ export function applyChatResult(doc: ChatDocument, raw: unknown, turnId: string,
     const issues = ref ? assessCatalogueMatch(p, ref) : [];
     const stable = old ? { ...p, id: old.id } : p;
     if (old && old.id !== p.id) notices.push(`«${old.title}»: riutilizzata la voce esistente, nessun doppione creato.`);
-    const row: ChatLine = { ...stable, ...(proposedCalculation ? { quantity: old && unitaCompatibili(old.unit, p.unit) ? old.quantity : null, proposedCalculation } : {}), price: compatible && !issues.length ? ref.price : null, included: false, manual: false,
+    // Il prezzo che l'utente ha scritto in chat (il server ha già controllato che la frase sia sua).
+    // Si usa solo senza un riferimento di listino e se l'unità della frase non contraddice la voce.
+    const dettato = !ref && p.userPrice ? prezzoDettato(p.userPrice, p.unit) : null;
+    if (!ref && p.userPrice && !dettato) notices.push(`«${p.title}»: il prezzo che hai scritto è per un'altra unità di misura, lasciato da definire.`);
+    const row: ChatLine = { ...stable, ...(proposedCalculation ? { quantity: old && unitaCompatibili(old.unit, p.unit) ? old.quantity : null, proposedCalculation } : {}),
+      price: compatible && !issues.length ? ref.price : dettato?.price ?? null, included: false, manual: false,
+      ...(dettato ? { pricing: dettato.pricing } : {}),
       reference: ref ?? null, original: { ...stable } };
     if (ref && !compatible) notices.push(`«${p.title}»: unità non compatibile, prezzo lasciato da definire.`);
     else if (issues.length) notices.push(`«${p.title}»: prezzo non applicato: ${issues.join("; ")}.`);
@@ -71,6 +77,23 @@ export function applyChatResult(doc: ChatDocument, raw: unknown, turnId: string,
   const title = doc.title && doc.title !== "Preventivo in composizione" ? doc.title : result.turn.title || doc.title;
   const unchanged = title === doc.title && JSON.stringify(next) === JSON.stringify(doc.lines);
   return { document: unchanged ? doc : { revision: doc.revision + 1, title, lines: next }, result, notices };
+}
+/** «12 euro al mc»: l'unità scritta accanto al prezzo, quando c'è. */
+const UNITA_DETTATE: Array<[RegExp, string]> = [
+  [/\b(?:al|a|per)\s+(?:mq|m2|m²|metro quadr[oa]|metri quadr[ai])\b/i, "m²"],
+  [/\b(?:al|a|per)\s+(?:mc|m3|m³|metro cub[oa]|metri cubi)\b/i, "m³"],
+  [/\b(?:al|a|per)\s+(?:ml|m|metro|metro lineare|metri lineari)\b/i, "m"],
+  [/\b(?:al|a|per)\s+(?:kg|chilo|chilogrammo)\b/i, "kg"],
+  [/\b(?:cad|cadauno|cadauna|l'uno|ciascuno|al pezzo|a pezzo)\b/i, "cad"],
+  [/\ba\s+corpo\b/i, "corpo"],
+  [/\b(?:all'ora|l'ora|ora|orari[oa])\b/i, "h"],
+];
+function prezzoDettato(prezzo: { amount: number; quote: string }, unita: string): { price: number; pricing: QuotePriceProvenance } | null {
+  const scritta = UNITA_DETTATE.find(([re]) => re.test(prezzo.quote))?.[1];
+  // «a corpo» e «corpo» sono la stessa unità, ma `unitaCompatibili` non lo sa.
+  const unitaVoce = unita.trim().replace(/^a\s+/i, "");
+  if (scritta && unitaVoce && !unitaCompatibili(scritta, unitaVoce)) return null;
+  return { price: prezzo.amount, pricing: { origin: "manual", basis: `Prezzo scritto da te in chat: «${prezzo.quote.slice(0, 300)}». Non è un prezzo di listino.` } };
 }
 export function patchChatLine(doc: ChatDocument, id: string, patch: Partial<Pick<ChatLine, "title" | "description" | "quantity" | "unit" | "price" | "included">>): ChatDocument {
   const numeric = (v: number | null | undefined) => v == null || !Number.isFinite(v) || v < 0.01 || v > 1_000_000 ? null : v;

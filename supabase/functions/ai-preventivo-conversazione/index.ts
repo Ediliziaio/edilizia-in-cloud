@@ -1,3 +1,4 @@
+// 29/10/2026: il protocollo in _shared/quoteConversation.ts accetta il prezzo che l'utente scrive in chat (userPrice), verificato sul testo dell'utente. Questo commento fa ripubblicare la funzione: la CI guarda solo i file sotto la cartella della funzione.
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";

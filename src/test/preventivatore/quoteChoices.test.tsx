@@ -61,6 +61,9 @@ describe("Alternative nella chat, non azioni automatiche sul documento", () => {
     fireEvent.click(pick); fireEvent.click(pick);
     await waitFor(() => expect(call).toHaveBeenCalledTimes(2));
     expect(call.mock.calls[1][0].messages.at(-1)?.text).toBe("Rispondo alla proposta dell’assistente: Rinomina preventivo: Titolo ostile");
+    // Nella conversazione si vede solo la scelta, senza il prefisso tecnico.
+    expect(screen.getByText("Rinomina preventivo: Titolo ostile")).toBeInTheDocument();
+    expect(screen.queryByText(/Rispondo alla proposta dell’assistente/)).not.toBeInTheDocument();
     expect(call.mock.calls[1][0].context?.currentTitle).toBe("Progetto");
     expect(screen.getByRole("button", { name: "Nuovo in sovrapposizione" })).toBeDisabled();
     const r = call.mock.calls[1][0]; resolve({ version: 1, revision: r.revision, turnId: r.turnId, simulated: false, model: "Stub", references: [], turn: { ...turn, message: "Scelta ricevuta, dati da verificare.", choices: [] } });

@@ -30,11 +30,12 @@ export function buildQuoteChatContext(document: ChatDocument, brief: string, pla
       rectangle: rectangle && rectangle.roomId === selected?.id ? rectangle : null } : null };
 }
 /** Keep the last user turn intact; older turns are bounded, never silently trim the latest request. */
-export function quoteChatHistory(history: Array<QuoteChatMessage & { diagnostic?: boolean; benchmarkRaw?: unknown; receipt?: string }>, latest: string): QuoteChatMessage[] {
+export function quoteChatHistory(history: Array<QuoteChatMessage & { diagnostic?: boolean; benchmarkRaw?: unknown; receipt?: string; sent?: string }>, latest: string): QuoteChatMessage[] {
   const result: QuoteChatMessage[] = [{ role: "user", text: latest }]; let chars = latest.length;
   const project = history.filter(m => !m.diagnostic && !m.benchmarkRaw && !/^(?:Confronta (?:i )?modelli|Avvia confronto sintetico modelli|Posso confrontare Haiku 5\.5 e Sonnet 5\.5|Confronto (?:completato|interrotto))/i.test(m.text));
   for (const message of project.slice(-7).reverse()) {
-    const text = (message.role === "assistant" && message.receipt ? coherentQuoteReply(message.text) : message.text).slice(0, 3000).trim(); if (!text || chars + text.length > 10_000) break;
+    // Al modello va il testo inviato davvero: una scelta cliccata conserva il prefisso che la distingue da un testo scritto.
+    const text = (message.role === "assistant" && message.receipt ? coherentQuoteReply(message.text) : message.sent ?? message.text).slice(0, 3000).trim(); if (!text || chars + text.length > 10_000) break;
     result.unshift({ role: message.role, text }); chars += text.length;
   }
   return result;

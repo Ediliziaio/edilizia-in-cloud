@@ -26,6 +26,27 @@ describe("inserimento misure responsive", () => {
     expect(screen.getByLabelText("lunghezza misura 1")).toHaveValue("4");
     expect(screen.queryByLabelText("lunghezza misura 2")).not.toBeInTheDocument();
   });
+  it("Invio passa alla riga sotto; dall'ultima ne apre una nuova col cursore sul riferimento", () => {
+    render(<Misure />);
+    fireEvent.click(screen.getByRole("button", { name: "Misura" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi riga" }));
+    fireEvent.keyDown(screen.getByLabelText("lunghezza misura 1"), { key: "Enter" });
+    expect(screen.getByLabelText("lunghezza misura 2")).toHaveFocus();
+    expect(screen.queryByLabelText("descrizione misura 3")).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByLabelText("lunghezza misura 2"), { key: "Enter" });
+    expect(screen.getByLabelText("descrizione misura 3")).toHaveFocus();
+  });
+  it("somma le righe arrotondate e dice quando ne manca qualcuna", () => {
+    render(<Misure />);
+    fireEvent.click(screen.getByRole("button", { name: "Misura" }));
+    fireEvent.change(screen.getByLabelText("lunghezza misura 1"), { target: { value: "5,5" } });
+    fireEvent.change(screen.getByLabelText("altezza misura 1"), { target: { value: "5,55" } });
+    expect(screen.getByLabelText("Quantità misura 1")).toHaveTextContent("30,53");
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi riga" }));
+    expect(screen.getByText("Righe da completare")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("formula misura 2"), { target: { value: "15,45*4,7" } });
+    expect(screen.getByText(/Sommano/)).toHaveTextContent("Sommano 103,15");
+  });
   it("usa la formula in alternativa alle dimensioni e segnala una formula non valida", () => {
     render(<Misure />);
     fireEvent.click(screen.getByRole("button", { name: "Misura" }));

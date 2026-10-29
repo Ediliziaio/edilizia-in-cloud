@@ -15,7 +15,9 @@ import { readPreliminaryQuoteBudget, QUOTE_ADVANCED_MODELS, type PreliminaryQuot
 import { readQuoteComponentDecisions, type QuoteComponentDecision } from './quoteComponentMemory';
 import { readQuoteDossier, type QuoteDossierPage } from './quoteDossier';
 import { readQuoteCadState, type QuoteCadState } from './quoteCad';
-export type LocalChatMessage = QuoteChatMessage & { editorSummary?: string; scheduleFollowUp?: boolean; picker?: 'simulations' | 'templates'; preliminaryBudget?: PreliminaryQuoteBudget; budgetRevision?: number; budgetModel?: string; diagnostic?: boolean; questions?: string[]; warnings?: string[]; actions?: string[]; actionRevision?: number; receipt?: string; benchmarkRaw?: QuoteChatTurn[]; sources?: import('./quoteSourcePresentation').QuoteChatSource[]; choices?: QuoteChatChoice[]; choiceRevision?: number; selectedChoiceId?: string; catalogueRefs?: QuoteChatReference[] };
+export type LocalChatMessage = QuoteChatMessage & { editorSummary?: string; scheduleFollowUp?: boolean; picker?: 'simulations' | 'templates'; preliminaryBudget?: PreliminaryQuoteBudget; budgetRevision?: number; budgetModel?: string; diagnostic?: boolean; questions?: string[]; warnings?: string[]; actions?: string[]; actionRevision?: number; receipt?: string; benchmarkRaw?: QuoteChatTurn[]; sources?: import('./quoteSourcePresentation').QuoteChatSource[]; choices?: QuoteChatChoice[]; choiceRevision?: number; selectedChoiceId?: string; catalogueRefs?: QuoteChatReference[];
+  /** Il testo davvero inviato al modello, quando la bolla ne mostra un altro (una risposta cliccata, senza il prefisso). */
+  sent?: string };
 export type SavedQuoteBudget = { preliminaryBudget: PreliminaryQuoteBudget; budgetRevision: number; budgetModel: string };
 export type LocalQuoteSnapshot = {
   version: 1; document: ChatDocument; messages: LocalChatMessage[]; input: string; sessionId: string;
@@ -99,6 +101,7 @@ export function readLocalQuoteSnapshot(raw: unknown): LocalQuoteSnapshot {
       message.picker = m.picker as LocalChatMessage['picker'];
     }
     if (m.receipt != null) { if (m.role !== "assistant") throw new Error("Riscontro azioni non valido."); message.receipt = str(m.receipt, 2400); }
+    if (m.sent != null) { if (m.role !== "user") throw new Error("Testo inviato non valido."); message.sent = str(m.sent, 3000); }
     if (m.benchmarkRaw != null) { if (m.role !== "assistant") throw new Error("Confronto salvato non valido."); message.benchmarkRaw = bounded(m.benchmarkRaw, 2).map(readQuoteChatTurn); }
     if (m.actionRevision != null) { if (m.role !== "assistant" || !Number.isSafeInteger(m.actionRevision) || Number(m.actionRevision) < 0) throw new Error("Revisione azioni non valida."); message.actionRevision = Number(m.actionRevision); }
     for (const name of ["questions", "warnings", "actions"] as const) if (m[name] != null) message[name] = bounded(m[name], 100).map(v => str(v, 1000));

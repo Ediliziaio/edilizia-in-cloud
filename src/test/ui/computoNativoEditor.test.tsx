@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { fireEvent, render as renderRtl, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
 import { bozzaVuota, leggiBozzaComputo, voceVuota } from "@/lib/computo/editorNativo";
 
+// Il passo Dati cerca i contatti del CRM dell'azienda: qui basta un'azienda qualsiasi.
+vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda-test" }));
+const render = (ui: ReactElement) => renderRtl(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
 const esporta = vi.fn().mockResolvedValue(undefined);
 const genera = vi.fn().mockResolvedValue(new Blob(["%PDF-test"], { type: "application/pdf" }));
 vi.mock("@/lib/computo/esportaComputo", () => ({
@@ -12,8 +17,7 @@ vi.mock("@/lib/computo/esportaComputo", () => ({
 beforeEach(() => { localStorage.clear(); esporta.mockClear(); genera.mockClear(); HTMLElement.prototype.scrollIntoView = vi.fn(); });
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
 const scegliFormato = async (name: string) => {
-  fireEvent.click(screen.getByRole("combobox", { name: "Documento PDF" }));
-  fireEvent.click(await screen.findByRole("option", { name }));
+  fireEvent.click(await screen.findByRole("radio", { name: new RegExp(`^${name}`) }));
 };
 
 describe("editor computo integrato", () => {
@@ -58,7 +62,6 @@ describe("editor computo integrato", () => {
     localStorage.setItem("ui-varianti", JSON.stringify(b));
     render(<ComputoNativoEditor initialFase={3} storageKey="ui-varianti" />);
     await scegliFormato("Riepilogo per capitoli");
-    fireEvent.click(screen.getByText("Dettagli tecnici nel PDF"));
     expect(screen.getByRole("switch", { name: "Dettaglio delle misure" })).not.toBeChecked();
     expect(screen.getByRole("switch", { name: "Prezzi unitari" })).toBeDisabled();
     await scegliFormato("Computo dettagliato con prezzi e misure");
@@ -114,7 +117,7 @@ describe("editor computo integrato", () => {
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" }));
     change("Descrizione della lavorazione", "Posa pavimento"); change("Quantità", "12,5"); change("Prezzo unitario", "20");
     expect(screen.getByRole("button", { name: "Scarica preventivo" })).toBeEnabled();
-    await waitFor(() => expect(screen.getByRole("status", { name: "Salvataggio bozza" })).toHaveTextContent("salvata in questo browser"));
+    await waitFor(() => expect(screen.getByRole("status", { name: "Salvataggio bozza" })).toHaveTextContent("Salvato su questo computer"));
     expect(leggiBozzaComputo(localStorage.getItem("ui-test")!).voci[0].quantita).toBe("12,5");
     fireEvent.click(screen.getByRole("button", { name: "Scarica preventivo" }));
     await waitFor(() => expect(esporta).toHaveBeenCalled());
@@ -126,9 +129,10 @@ describe("editor computo integrato", () => {
     render(<ComputoNativoEditor initialFase={2} storageKey="ui-test" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" })); change("Descrizione della lavorazione", "Muratura");
     fireEvent.click(screen.getByRole("button", { name: "Duplica voce" }));
-    expect(screen.getByText(/2 voci/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Elimina voce" })); expect(screen.getByText(/1 voci/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Annulla ultima modifica" })); expect(screen.getByText(/2 voci/)).toBeInTheDocument();
+    const riepilogo = () => screen.getByLabelText("Riepilogo del computo");
+    expect(riepilogo()).toHaveTextContent(/^2 voci/);
+    fireEvent.click(screen.getByRole("button", { name: "Elimina voce" })); expect(riepilogo()).toHaveTextContent(/^1 voce\b/);
+    fireEvent.click(screen.getByRole("button", { name: "Annulla ultima modifica" })); expect(riepilogo()).toHaveTextContent(/^2 voci/);
   });
   it("una formula errata blocca il PDF e si può correggere", () => {
     render(<ComputoNativoEditor initialFase={2} storageKey="ui-test" />);
@@ -152,7 +156,8 @@ describe("editor computo integrato", () => {
       fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" }));
       await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Salvataggio locale non riuscito"));
       expect(screen.getByLabelText("Descrizione della lavorazione")).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Copia bozza" })).toBeEnabled();
+      // La copia di sicurezza compare nell'avviso, dove l'occhio già sta.
+      expect(screen.getByRole("button", { name: "Scarica una copia della bozza" })).toBeEnabled();
     } finally { spy.mockRestore(); }
   });
   it("conflitti fra schede bloccano la modifica invece di perdere dati", () => {

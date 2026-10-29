@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { arrotonda, valutaFormula } from "./computoStrutturato";
+import { valutaFormula } from "./computoStrutturato";
 import type { VoceComputo } from "./alberoComputo";
 
 const testo = z.string().max(30000);
@@ -24,6 +24,14 @@ const allegatoSchema = z.object({
 export const bozzaComputoSchema = z.object({
   versione: z.literal(1), titolo: z.string().max(160), committente: z.string().max(160), oggetto: z.string().max(500),
   numero: z.string().max(80).default(""), indirizzo: z.string().max(300).default(""),
+  // Il cliente come negli altri preventivi (29/10/2026): il contatto del CRM, i recapiti, il cointestatario e
+  // l'indirizzo dei lavori in quattro campi. `indirizzo` resta il testo che va nel PDF, ricomposto dai quattro.
+  clienteId: z.string().max(80).default(""), clienteEmail: z.string().max(200).default(""), clienteTelefono: z.string().max(60).default(""),
+  cointestatario_nome: z.string().max(120).default(""), cointestatario_cognome: z.string().max(120).default(""),
+  cointestatario_codice_fiscale: z.string().max(40).default(""), cointestatario_email: z.string().max(200).default(""),
+  cointestatario_telefono: z.string().max(60).default(""),
+  cantiere_indirizzo: z.string().max(200).default(""), cantiere_citta: z.string().max(120).default(""),
+  cantiere_cap: z.string().max(10).default(""), cantiere_provincia: z.string().max(10).default(""),
   condizioni: z.string().max(12000).default(""),
   dataDocumento: z.string().max(40).default(""), revisione: z.string().max(80).default(""),
   tecnico: z.string().max(300).default(""), riferimentoPrezzi: z.string().max(2000).default(""),
@@ -71,32 +79,60 @@ export function numeroEditor(s: string): number | null {
   return Number.isFinite(n) && Math.abs(n) <= 1e12 ? n : null;
 }
 
+/**
+ * Arrotondamento commerciale in decimale: la metà va lontano dallo zero.
+ *
+ * `arrotonda` aggiunge solo `Number.EPSILON`, che basta vicino a 1 ma non
+ * oltre: 15,45 × 4,7 in binario è 72,6149999…, e moltiplicato per 100 torna
+ * 7261,4999…, quindi diventerebbe 72,61 dove PriMus stampa 72,62. Il numero
+ * va ripulito DOPO la moltiplicazione.
+ */
+export function arrotondaDecimale(n: number, decimali = 2): number {
+  const f = 10 ** decimali;
+  const scalato = Number((Math.abs(n) * f).toPrecision(15));
+  return (Math.sign(n) * Math.round(scalato)) / f;
+}
+
+/**
+ * Quantità di una riga di misura, arrotondata a 2 decimali come in PriMus.
+ *
+ * PriMus arrotonda ogni riga prima di sommarla, e la quantità della voce è la
+ * somma delle righe arrotondate: così le righe stampate sommano esattamente
+ * al totale stampato. Senza, un computo importato da PriMus non tornava al
+ * centesimo con quello del progettista (Genzano, 29/10/2026: 13 voci su 226).
+ */
 export function quantitaMisura(m: MisuraEditor): number | null {
   if (m.formula.trim()) {
     if (m.formula.length > 500) return null;
     const n = valutaFormula(m.formula);
-    return n === null || Math.abs(n) > 1e12 ? null : arrotonda(n, 6);
+    return n === null || Math.abs(n) > 1e12 ? null : arrotondaDecimale(n);
   }
   const campi = [m.parti, m.lunghezza, m.larghezza, m.altezza].filter(s => s.trim());
   if (!campi.length) return null;
   const numeri = campi.map(numeroEditor);
   if (numeri.some(n => n === null)) return null;
   const q = numeri.reduce<number>((a, n) => a * n!, 1);
-  return Number.isFinite(q) && Math.abs(q) <= 1e12 ? arrotonda(q, 6) : null;
+  return Number.isFinite(q) && Math.abs(q) <= 1e12 ? arrotondaDecimale(q) : null;
 }
+
+/** Con l'unità «%» il prezzo è una percentuale della quantità, che è un importo (sovrapprezzi, oneri). */
+export const ePercentuale = (unita: string) => unita.trim() === "%";
 
 export function calcolaVoce(v: VoceEditor, senzaPrezzi = false) {
   const errori: string[] = [];
   if (!v.descrizione.trim()) errori.push("Inserisci la descrizione.");
   if (!v.unita.trim()) errori.push("Inserisci l'unità di misura.");
   const misure = v.misure.map(quantitaMisura);
-  const q = v.misure.length ? (misure.some(n => n === null) ? null : arrotonda(misure.reduce<number>((s, n) => s + n!, 0), 6)) : numeroEditor(v.quantita);
+  const q = v.misure.length ? (misure.some(n => n === null) ? null : arrotondaDecimale(misure.reduce<number>((s, n) => s + n!, 0))) : numeroEditor(v.quantita);
   if (q === null) errori.push("Completa quantità o misure con numeri validi.");
   if (q !== null && Math.abs(q) > 1e12) errori.push("Quantità fuori limite.");
   const prezzo = numeroEditor(v.prezzo);
   if (!senzaPrezzi && (prezzo === null || prezzo < 0)) errori.push("Inserisci un prezzo unitario valido, anche zero.");
   const quantita = q === null ? null : v.detrazione ? -Math.abs(q) : q;
-  const importo = quantita === null || prezzo === null || prezzo < 0 ? null : arrotonda(quantita * prezzo);
+  // Fino al 29/10/2026 la «Percentuale» del selettore delle unità moltiplicava
+  // senza dividere per 100: l'importo usciva cento volte troppo grande.
+  const importo = quantita === null || prezzo === null || prezzo < 0 ? null
+    : arrotondaDecimale((quantita * prezzo) / (ePercentuale(v.unita) ? 100 : 1));
   if (importo !== null && (!Number.isFinite(importo) || Math.abs(importo) > 1e12)) errori.push("Importo fuori limite.");
   return { quantita, prezzo, importo, errori, misure };
 }

@@ -161,6 +161,14 @@ export function suggestedComputoChapter(title: string) {
     [/sanitar|rubinett|doccia|vasca|lavabo|bidet/i, "Sanitari e rubinetterie"],
     [/tintegg|pittur|rasatur|intonac/i, "Finiture"],
     [/collaud|certificaz|pulizia finale|consegna/i, "Collaudo e consegna"],
+    // Dopo le regole di sempre, così un titolo che trovava già il suo capitolo lo trova ancora
+    // («Rimozione infissi» resta nelle demolizioni). Prima di queste, cappotti, serramenti,
+    // scavi e campi sportivi finivano tutti in «Altre lavorazioni» (29/10/2026).
+    [/cappotto|isolament|\beps\b|\bxps\b|termoisol/i, "Isolamento e cappotto"],
+    [/infiss|serrament|finestr|portefinestr|persian|tapparell|scuri\b/i, "Serramenti"],
+    [/scav|sbancament|scotico|reinterr|movimento terra|misto stabilizzat|drenagg|drenant|pozzett/i, "Scavi, drenaggi e fondazioni"],
+    [/recinzion|cancell|\brete\b.*\bh\b|staccionat/i, "Recinzioni e cancelli"],
+    [/campo da (?:tennis|padel|calcio|basket|volley)|resina acrilica|erba sintetica|manto sportiv|tracciatur|binder|tappetino|conglomerato bituminoso|da gioco|attrezzatur[ae] sportiv/i, "Pavimentazioni e attrezzature sportive"],
   ];
   return (
     rules.find(([pattern]) => pattern.test(title))?.[1] ?? "Altre lavorazioni"

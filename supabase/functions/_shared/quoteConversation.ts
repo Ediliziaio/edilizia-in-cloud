@@ -10,7 +10,15 @@ export type QuoteChatMessage = { role: "user" | "assistant"; text: string };
 export type QuoteChatProposal = {
   id: string; title: string; description: string; unit: string;
   quantity: number | null; quantityBasis: string; referenceId: string | null;
+  /**
+   * Un prezzo unitario che l'UTENTE ha scritto in chat, con la sua frase
+   * copiata alla lettera. Non è un prezzo del modello: il server lo tiene solo
+   * se la frase compare davvero in un messaggio scritto dall'utente e contiene
+   * quel numero (vedi `prezzoDellUtenteVerificato`).
+   */
+  userPrice?: QuoteUserPrice | null;
 };
+export type QuoteUserPrice = { amount: number; quote: string };
 export type QuoteChatTurn = {
   nativeTurn?: NativeTurn | null;
   version: 1; message: string; title: string; questions: string[];
@@ -76,8 +84,44 @@ export function readQuoteChatProposal(v: unknown): QuoteChatProposal {
   if (q !== null && (typeof q !== "number" || !Number.isFinite(q) || q < 0.01 || q > 1_000_000)) throw new Error("Quantità non valida: non verrà sostituita con 1.");
   const basis = text(r.quantityBasis, 600);
   if (q !== null && !basis) throw new Error("Indica la provenienza della quantità proposta.");
+  let userPrice: QuoteUserPrice | null = null;
+  if (r.userPrice != null) {
+    const u = object(r.userPrice); const amount = u.amount;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0.01 || amount > 1_000_000) throw new Error("Prezzo dell’utente non valido.");
+    userPrice = { amount, quote: text(u.quote, 300, true) };
+  }
   return { id, title: text(r.title, 200, true), description: text(r.description, 3000), unit: text(r.unit, 24),
-    quantity: q as number | null, quantityBasis: basis, referenceId: r.referenceId == null ? null : uuid(r.referenceId) };
+    quantity: q as number | null, quantityBasis: basis, referenceId: r.referenceId == null ? null : uuid(r.referenceId),
+    ...(userPrice ? { userPrice } : {}) };
+}
+
+/** Testo confrontabile: maiuscole, spazi, apostrofi e virgolette tipografiche non contano. */
+const confrontabile = (s: string) => s.toLocaleLowerCase("it").replace(/[’‘`´]/g, "'").replace(/[“”«»]/g, '"').replace(/\s+/g, " ").trim();
+
+/** I numeri scritti in una frase italiana: «1.250», «12,5», «1250», «0,80». */
+export function numeriNellaFrase(frase: string): number[] {
+  return [...frase.matchAll(/\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?(?:\.\d+)?/g)].map(([m]) => {
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(m)) return Number(m.replace(/\./g, "").replace(",", "."));
+    return Number(m.replace(",", "."));
+  }).filter(Number.isFinite);
+}
+
+/** Il prefisso con cui parte una risposta cliccata fra quelle proposte: quel testo l'ha scritto l'AI, non l'utente. */
+export const PREFISSO_SCELTA = "Rispondo alla proposta dell’assistente:";
+
+/**
+ * Un prezzo «dell'utente» vale solo se l'utente l'ha scritto lui: la frase
+ * citata deve comparire alla lettera in un messaggio SCRITTO dall'utente (non
+ * in una risposta cliccata, il cui testo è dell'AI) e contenere quel numero.
+ * Così il modello può citare un prezzo, mai inventarlo: se cita male, il
+ * prezzo si scarta e la voce resta da prezzare.
+ */
+export function prezzoDellUtenteVerificato(prezzo: QuoteUserPrice, messaggi: QuoteChatMessage[]): boolean {
+  const frase = confrontabile(prezzo.quote);
+  if (frase.length < 3) return false;
+  const scritti = messaggi.filter(m => m.role === "user" && !m.text.trimStart().startsWith(PREFISSO_SCELTA)).map(m => confrontabile(m.text));
+  if (!scritti.some(t => t.includes(frase))) return false;
+  return numeriNellaFrase(prezzo.quote).some(n => Math.abs(n - prezzo.amount) < 0.005);
 }
 function proposals(v: unknown, max: number): QuoteChatProposal[] {
   const rows = array(v, max).map(readQuoteChatProposal);
@@ -173,7 +217,7 @@ export function readQuoteChatResult(v: unknown): QuoteChatResult {
 
 export const QUOTE_CONVERSATION_PROMPT = `Sei un assistente tecnico per preventivi, non un certificatore. Conversa in italiano, con frasi brevi e al massimo 3 domande pertinenti per turno. Adatta le domande a qualunque lavorazione richiesta, non usare un questionario fisso. Ricorda le risposte già date. Non promettere completezza se mancano dati.
 roomDecisions è memoria confermata dall’utente per ambiente e lavorazione. La regola specifica prevale sulla generale (*). Non estendere una decisione di cucina alla camera, né una decisione di pavimento alla tinteggiatura. preserved significa mantenere l’esistente, non nuova posa in sovrapposizione. Una decisione di ambito NON è un’inclusione/esclusione monetaria. Se l’ambiente o il riferimento è ambiguo chiedi chiarimento prima di proporre modifiche. Il riepilogo brief non può annullare questa memoria.
-Restituisci SOLO JSON: {version:1,message:string,title:string,questions:string[],proposals:[{id:string,title:string,description:string,unit:string,quantity:number|null,quantityBasis:string,referenceId:string|null}],warnings:string[],searches:string[],brief:string,excludeIds:string[],choices:[{id:string,label:string,reply:string}]}.
+Restituisci SOLO JSON: {version:1,message:string,title:string,questions:string[],proposals:[{id:string,title:string,description:string,unit:string,quantity:number|null,quantityBasis:string,referenceId:string|null,userPrice:{amount:number,quote:string}|null}],warnings:string[],searches:string[],brief:string,excludeIds:string[],choices:[{id:string,label:string,reply:string}]}.
 Quando proponi alternative o una domanda con risposte discrete (materiale, modalità di intervento, mantenere/rifare, sì/no), restituisci SEMPRE 2–4 choices coerenti con ciò che hai spiegato. label è breve e comprensibile (max 90 caratteri); reply è una risposta utente autosufficiente (max 600) che specifica ambiente, lavorazione e scelta, senza inventare misure o conferme tecniche. Chiedi una decisione per volta; misure libere non richiedono pulsanti. Non riproporre come alternativa un’opera già esclusa senza richiesta dell’utente. Se non c’è una scelta discreta usa choices:[]. I pulsanti inviano solo una risposta alla chat: non sono conferme di prezzi, inclusioni, invii, firme o comandi speciali. Non usare come reply comandi per rinominare, includere, cancellare o ricominciare. Una scelta già formulata come ipotesi deve restare tale; l’utente può rispondere liberamente senza scegliere.
 Esempio di JSON valido per una misura libera: {"version":1,"message":"Confermiamo le misure della cucina.","title":"","questions":["Qual è l’altezza netta delle pareti in metri?"],"proposals":[],"warnings":[],"searches":[],"brief":"Altezza cucina da rilevare.","excludeIds":[],"choices":[]}. Non usare commenti o nomi di tipo nel JSON. I campi message/questions possono usare grassetti Markdown sobri e paragrafi; questions contiene solo il testo, senza numeri o pallini.
 currentTitle è il titolo attuale: non cambiarlo per rispondere a una domanda. scopeFacts sono decisioni esplicite dell'utente persistite separatamente: prevalgono sul riepilogo brief del modello. Non richiedere lavori esclusi o mantenuti invariati; usa evidence per il loro ambito e non inventare conferme. Una scelta ipotetica, «forse» o «non ho deciso» non autorizza proposte di modifica o esclusione: rispondi con una spiegazione, proposals/excludeIds/searches vuoti. includedLineIds indica le sole voci già incluse: non riproporre di escludere voci già fuori dal totale.
@@ -183,7 +227,7 @@ Non riscrivere tutte le righe e il brief a ogni turno: restituisci solo le propo
 Se l'utente cambia idea e vuole togliere opere già presenti, proponi i loro ID esistenti in excludeIds (max 30). Il software mostrerà conferme esplicite per escluderle dal totale senza cancellarle: non dichiararle già escluse.
 excludeIds può contenere SOLO ID già presenti in lines, MAI ID di ambienti, testi OCR o allegati. Se bagno o terrazzi non hanno righe nel preventivo, basta ricordarne l'esclusione in brief: excludeIds resta vuoto.
 brief è la memoria sintetica aggiornata del progetto (max 3000 caratteri): conserva scelte, esclusioni, finiture, dati mancanti e correzioni dell'utente anche se risalenti. Non presentare il riepilogo come misura verificata. Le correzioni recenti dell'utente prevalgono sul riepilogo. Non perdere esclusioni come terrazzi o serramenti mantenuti.
-Ogni proposta usa un id stabile (lettere, numeri, _ o -); per correggere una voce esistente riusa il suo id. Al massimo 30 proposte, 3 searches (ricerche testuali brevi nel prezzario scelto), 8 warnings. Niente cancellazioni. Non fornire prezzi, IVA, margini, costi interni, totali o date contrattuali: li gestisce il software con dati verificati. referenceId deve appartenere ai riferimenti forniti dal server; senza corrispondenza usa null. Non inventare codici o prezzi dalla memoria.
+Ogni proposta usa un id stabile (lettere, numeri, _ o -); per correggere una voce esistente riusa il suo id. Al massimo 30 proposte, 3 searches (ricerche testuali brevi nel prezzario scelto), 8 warnings. Niente cancellazioni. Non fornire prezzi, IVA, margini, costi interni, totali o date contrattuali: li gestisce il software con dati verificati. UNICA ECCEZIONE: se l'utente ha SCRITTO lui un prezzo unitario per una lavorazione (es. «scavo 12 euro al mc»), mettilo in userPrice: amount è quel numero, quote è la frase dell'utente COPIATA ALLA LETTERA che lo contiene (es. «scavo 12 euro al mc»). Mai stimare, arrotondare, convertire unità o ricavare un prezzo da un totale; mai un prezzo tuo, del listino o di una risposta proposta da te. Senza un prezzo scritto dall'utente userPrice è null. Se l'utente chiede di chiudere o completare il preventivo, o ti dà i prezzi, non fare altre domande prima di proporre le voci: completale con ipotesi dichiarate in quantityBasis e al massimo una domanda alla fine. referenceId deve appartenere ai riferimenti forniti dal server; senza corrispondenza usa null. Non inventare codici o prezzi dalla memoria.
 searches è una ricerca full-text con tutti i termini obbligatori: usa 1–2 parole tecniche per ricerca (es. "demolizione pavimenti", "gres porcellanato", "battiscopa"). Regione ed edizione sono GIÀ filtrate dal server: non inserirle nei termini, né aggiungere misure, formati, spessori o opere accessorie. Confronta quelle specifiche DOPO aver ricevuto le descrizioni, senza allargare la fonte né assumere una corrispondenza esatta. Una ricerca senza risultati non significa che l'intero prezzario non contenga voci pertinenti.
 Un riferimento trovato è soltanto un candidato: prima di associarlo confronta oggetto, UM, fornitura/posa, impiego, formato, spessore, finitura, inclusioni ed esclusioni. RM è risorsa materiale, OC è opera compiuta nel listino Lombardia: una risorsa non copre da sola fornitura E posa. Un codice valido non rende equivalenti due voci diverse. Non associare un'alternativa approssimativa (es. 30x30 invece di 60x60, o un battiscopa diverso): presenta la differenza in chat e chiedi conferma prima. Senza corrispondenza tecnica usa referenceId:null e conserva il prezzo mancante. Non parlare di referenceId o UUID all'utente: mostra codice, unità e descrizione comprensibili. Le righe già esistenti vanno riutilizzate, non riproposte tutte a ogni domanda.
 Confronta le misure dopo aver convertito le unità: ad esempio spessore 0,8÷1 cm significa 8÷10 mm e COMPRENDE 9 mm; non scartarlo per quel motivo. Una ricerca limitata può soltanto dire "nessuna corrispondenza nei candidati recuperati", MAI "non esiste nel prezzario" o "formato assente dal catalogo". description contiene solo la specifica dell'opera: esiti di ricerca, dubbi e riferimenti mancanti vanno in message/warnings, non nel testo della lavorazione. Se l'utente conferma una nuova specifica, aggiorna la stessa riga e confronta la nuova richiesta senza trascinarti il vecchio formato/metodo rifiutato.
@@ -220,11 +264,13 @@ export function quoteChatResponseFormat(request: QuoteChatRequest, refs: QuoteCh
       } } },
       excludeIds: { type: "array", maxItems: Math.min(30, existingIds.length), items: existingIds.length ? { type: "string", enum: existingIds } : { type: "string" } },
       proposals: { type: "array", maxItems: readOnly || request.nativeContext ? 0 : 30, items: { type: "object", additionalProperties: false,
-        required: ["id", "title", "description", "unit", "quantity", "quantityBasis", "referenceId"],
+        required: ["id", "title", "description", "unit", "quantity", "quantityBasis", "referenceId", "userPrice"],
         properties: {
           id: { ...string(80), minLength: 1, pattern: "^[a-zA-Z0-9_-]+$" }, title: { ...string(200), minLength: 1 }, description: string(3000), unit: string(24),
           quantity: { anyOf: [{ type: "number", minimum: 0.01, maximum: 1000000 }, { type: "null" }] }, quantityBasis: string(600),
           referenceId: refs.length ? { anyOf: [{ type: "string", enum: refs.map(r => r.id) }, { type: "null" }] } : { type: "null" },
+          userPrice: { anyOf: [{ type: "object", additionalProperties: false, required: ["amount", "quote"], properties: {
+            amount: { type: "number", minimum: 0.01, maximum: 1000000 }, quote: { ...string(300), minLength: 3 } } }, { type: "null" }] },
         } } },
     },
   } } };
@@ -300,6 +346,12 @@ export async function runQuoteChat(request: QuoteChatRequest, services: QuoteCha
     // original specification too, not only the missing price.
     return { ...(previous && !assessProposedCatalogueMatch(p, ref).length ? previous : p), referenceId: null };
   });
+  // Un prezzo «dell'utente» che l'utente non ha scritto non entra: la voce resta da prezzare, e lo si dice.
+  const conPrezziVerificati = checkedProposals.map(p => {
+    if (!p.userPrice || prezzoDellUtenteVerificato(p.userPrice, request.messages)) return p;
+    matchingWarnings.push(`${p.title}: prezzo non applicato, non trovo «${p.userPrice.quote.slice(0, 120)}» con quella cifra nei tuoi messaggi.`.slice(0, 600));
+    return { ...p, userPrice: null };
+  });
   const existing = new Set(request.lines.map(r => r.id));
   if (turn.excludeIds?.some(id => !existing.has(id))) throw new Error("L’AI ha proposto l’esclusione di una voce inesistente.");
   // Internal IDs are not human catalogue codes. Ground any IDs cited in prose
@@ -315,6 +367,6 @@ export async function runQuoteChat(request: QuoteChatRequest, services: QuoteCha
     // An explanation/hypothesis is not a new confirmed project summary.
     ...(readOnly ? { brief: request.context?.brief ?? "" } : {}),
     excludeIds: readOnly ? [] : (turn.excludeIds ?? []).filter(id => !eligible || eligible.includes(id)),
-    message: readable(turn.message, 3000), questions: quoteRoomQuestions(quoteScopeQuestions(turn.questions, request.context?.scopeFacts ?? [], latest), request.context?.roomDecisions ?? []).map(q => readable(q, 500)), proposals: checkedProposals,
+    message: readable(turn.message, 3000), questions: quoteRoomQuestions(quoteScopeQuestions(turn.questions, request.context?.scopeFacts ?? [], latest), request.context?.roomDecisions ?? []).map(q => readable(q, 500)), proposals: conPrezziVerificati,
     warnings: [...matchingWarnings, ...turn.warnings].slice(0, 8).map(w => readable(w, 600)), searches: [] }, references: refs, model, simulated: false };
 }

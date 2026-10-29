@@ -39,7 +39,11 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   senzaPiede?: boolean;
   parziale?: string;
   nascondiCliente?: boolean;
-  impaginazione?: "editoriale";
+  /**
+   * «editoriale»: il preventivo per il cliente, una scheda per voce.
+   * «primus»: il computo metrico come lo stampa PriMus (colonne, SOMMANO, riporto), con la veste dell'azienda.
+   */
+  impaginazione?: "editoriale" | "primus";
   dettaglioMisure?: boolean;
   dataDocumento?: string;
   revisione?: string;
@@ -177,6 +181,10 @@ export async function esportaComputoXlsx(voci: VoceComputo[], intestazione: Inte
 export async function generaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo) {
   const mod = await import("jspdf");
   const JsPDF = mod.default ?? (mod as typeof mod & { jsPDF?: typeof mod.default }).jsPDF;
+  if (intestazione.impaginazione === "primus") {
+    const { disegnaComputoPrimus } = await import("./stampaPrimus");
+    return disegnaComputoPrimus(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+  }
   if (intestazione.presentazione === "preventivo" || intestazione.impaginazione === "editoriale") {
     const { disegnaPreventivoComputo } = await import("./preventivoComputoPdf");
     return disegnaPreventivoComputo(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);

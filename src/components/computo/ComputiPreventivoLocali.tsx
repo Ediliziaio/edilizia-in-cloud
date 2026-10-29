@@ -19,7 +19,7 @@ export default function ComputiPreventivoLocali() {
     void elencaComputiCloud(companyId).then(rows => {
       if (active) setCloud({ owner, rows, error: "", loading: false });
     }).catch(e => {
-      if (active) setCloud({ owner, rows: [], error: e instanceof Error ? e.message : "Elenco Supabase non disponibile.", loading: false });
+      if (active) setCloud({ owner, rows: [], error: e instanceof Error ? e.message : "Elenco dei computi salvati non disponibile.", loading: false });
     });
     return () => { active = false; };
   }, [attivo, companyId, userId, owner, retry]);
@@ -41,12 +41,12 @@ export default function ComputiPreventivoLocali() {
   if (!rows.length && !attivo) return null;
   return <details className="border-y border-orange-200 py-3" open>
     <summary className="cursor-pointer text-sm font-semibold text-slate-900">{attivo ? "Computi" : "Computi locali"} · {rows.length}</summary>
-    <p className="mt-1 text-xs text-muted-foreground">{attivo ? "Demo Azienda 2 · bozze locali e salvate su Supabase." : "Bozze in questo browser, non ancora sincronizzate con il gestionale."}</p>
-    {attivo && (cloud.owner !== owner || cloud.loading) && <p role="status" className="text-xs py-2">Caricamento computi Supabase…</p>}
+    <p className="mt-1 text-xs text-muted-foreground">{attivo ? "Demo Azienda 2 · i computi si salvano da soli nel gestionale." : "Bozze in questo browser, non ancora sincronizzate con il gestionale."}</p>
+    {attivo && (cloud.owner !== owner || cloud.loading) && <p role="status" className="text-xs py-2">Caricamento dei computi…</p>}
     {attivo && cloud.owner === owner && cloud.error && <p role="alert" className="text-sm text-amber-800">{cloud.error} <button className="underline" onClick={() => { setCloud({ owner, rows: [], error: "", loading: true }); setRetry(n => n + 1); }}>Riprova</button></p>}
     <ul className="mt-2 max-h-64 divide-y overflow-auto">{rows.map(({ id, titolo, committente, numeroVoci, remoto }) => <li key={id}>
       <Link className="flex items-center justify-between gap-3 py-2 text-sm hover:text-orange-600" to={`/azienda/marketing/preventivi/computo?bozza=${id}`}>
-        <span className="min-w-0"><span className="block break-words font-medium">{titolo || "Computo senza titolo"}</span><span className="block text-xs text-muted-foreground">{committente || "Cliente da definire"} · {numeroVoci} voci{attivo ? remoto ? " · Con copia Supabase" : " · Solo locale" : ""}</span></span>
+        <span className="min-w-0"><span className="block break-words font-medium">{titolo || "Computo senza titolo"}</span><span className="block text-xs text-muted-foreground">{committente || "Cliente da definire"} · {numeroVoci} voci{attivo ? remoto ? " · Salvato" : " · Solo su questo computer" : ""}</span></span>
         <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
       </Link>
     </li>)}</ul>

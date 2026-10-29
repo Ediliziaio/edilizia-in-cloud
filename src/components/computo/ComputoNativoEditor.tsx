@@ -1,21 +1,27 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, CloudUpload, Copy, Download, Eye, FileDown, FileSpreadsheet, Loader2, Plus, Trash2, Undo2, Upload } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, Download, Eye, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Plus, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuotePageHeader, QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { CorpoPreventivatore } from "@/components/preventivatore/CorpoPreventivatore";
 import { BarraFasi } from "@/components/preventivatore/BarraFasi";
 import ComputoProgetto from "./ComputoProgetto";
+import ComputoDati, { indirizzoDaCantiere } from "./ComputoDati";
 import ComputoCapitoli from "./ComputoCapitoli";
 import ComputoMisure from "./ComputoMisure";
 import ComputoUnitaSelect from "./ComputoUnitaSelect";
 import ComputoIva from "./ComputoIva";
+import ComputoImportPrimus, { type ComputoImportPrimusHandle } from "./ComputoImportPrimus";
+import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
+import { vociDaEstrazioneAi } from "@/lib/computo/importaComputo";
+import type { ComputoVoceLocal } from "@/types/computo";
 import { calcolaIvaComputo } from "@/lib/computo/ivaComputo";
-import { ComputoFormatoSelect, ComputoOpzione } from "./ComputoPdfControls";
+import { ComputoFormatoSchede, ComputoFormatoSelect, ComputoOpzione } from "./ComputoPdfControls";
 import type { PickedVoce } from "@/components/ristrutturazione/ComputoEditor/types";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { allegatiDaIncludere } from "@/lib/computo/allegatiLocali";
@@ -30,6 +36,10 @@ import {
 
 const desktopSnapshot = () => window.matchMedia("(min-width: 1280px)").matches;
 const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEditor/AddVocePicker"));
+// Gli stessi strumenti AI di Ristrutturazione e degli altri moduli; si caricano solo quando si aprono.
+const ComputoUploadModal = lazy(() => import("./ComputoUploadModal").then(m => ({ default: m.ComputoUploadModal })));
+const ComputoSilvioAi = lazy(() => import("./ComputoSilvioAi"));
+const MAX_VOCI_SILVIO = 100;
 const subscribeDesktop = (notify: () => void) => {
   const m = window.matchMedia("(min-width: 1280px)"); m.addEventListener("change", notify);
   return () => m.removeEventListener("change", notify);
@@ -41,11 +51,14 @@ function scaricaBozza(blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzienda, colore, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, cloud }: {
+export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzienda, colore, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, ai, cloud }: {
   storageKey: string; azienda?: string; dettagliAzienda?: string; colore?: string; onBack?: () => void;
   fase?: number; initialFase?: number; onFaseChange?: (fase: number) => void;
   consentiListini?: boolean;
-  cloud?: { status: string; disabled?: boolean; onSave: (bozza: BozzaComputo) => Promise<void>; onChange: (bozza: BozzaComputo) => void };
+  /** Silvio AI e «Importa con l'AI» (consumano crediti AI dell'azienda): l'azienda e la bozza su cui lavorano. */
+  ai?: { companyId: string; draftId: string };
+  /** Salvataggio nel gestionale (Demo 2): avviene da solo, qui arrivano solo lo stato da mostrare e le modifiche. */
+  cloud?: { status: string; onChange: (bozza: BozzaComputo) => void };
 }) {
   const [faseLocale, setFaseLocale] = useState(initialFase);
   const step = fase ?? faseLocale;
@@ -65,6 +78,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const [storico, setStorico] = useState<BozzaComputo[]>([]);
   const [scelta, setScelta] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ capitolo?: string } | null>(null);
+  const [aiAperta, setAiAperta] = useState<"file" | "chat" | null>(null);
   const [errore, setErrore] = useState(iniziale.errore);
   const [erroreLettura, setErroreLettura] = useState(!!iniziale.errore);
   const [salvato, setSalvato] = useState(!!iniziale.raw);
@@ -81,6 +95,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   }, [anteprima]);
   const precedente = useRef(iniziale.raw);
   const importInput = useRef<HTMLInputElement>(null);
+  const importPrimus = useRef<ComputoImportPrimusHandle>(null);
   const dettaglioRef = useRef<HTMLDivElement>(null);
   const apriVoce = (id: string) => {
     setScelta(id);
@@ -89,17 +104,20 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const modificato = useRef(false);
   const corrente = useRef(bozza);
   useEffect(() => { corrente.current = bozza; }, [bozza]);
-  const v = bozza.voci.find(r => r.id === scelta) ?? bozza.voci[0];
+  // `null`: nessuna scelta ancora, si apre la prima voce. `""`: l'utente le ha chiuse tutte.
+  const v = scelta === "" ? undefined : bozza.voci.find(r => r.id === scelta) ?? bozza.voci[0];
   const risultati = useMemo(() => bozza.voci.map(r => calcolaVoce(r, senzaPrezzi)), [bozza.voci, senzaPrezzi]);
   const invalide = risultati.filter(r => r.errori.length).length;
   const totale = risultati.reduce((s, r) => s + (r.importo ?? 0), 0);
   const erroreIva = bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false ? calcolaIvaComputo(totale, bozza).errore : "";
-  const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : bozza.committente, oggetto: bozza.oggetto,
+  const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
     stato: "BOZZA LOCALE - non inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
     numero: bozza.numero, ivaModalita: bozza.ivaModalita, ivaAliquota: bozza.ivaAliquota, ivaNota: bozza.ivaNota,
     indirizzoIntervento: bozza.mostraDatiCliente === false ? "" : bozza.indirizzo,
     nascondiCliente: bozza.mostraDatiCliente === false, condizioni: bozza.mostraCondizioni === false ? "" : bozza.condizioni,
-    impaginazione: "editoriale" as const, dettaglioMisure: bozza.mostraMisurePdf, dataDocumento: bozza.dataDocumento, revisione: bozza.revisione,
+    // Fino al 29/10/2026 era sempre «editoriale»: scegliere «Computo dettagliato» dava lo stesso documento del preventivo cliente.
+    impaginazione: bozza.formatoPdf === "tecnico" || bozza.formatoPdf === "senza-prezzi" ? "primus" as const : "editoriale" as const,
+    dettaglioMisure: bozza.mostraMisurePdf, dataDocumento: bozza.dataDocumento, revisione: bozza.revisione,
     tecnico: bozza.tecnico, riferimentoPrezzi: bozza.riferimentoPrezzi,
     mostraPrezziUnitari: bozza.mostraPrezziUnitariPdf, mostraImporti: bozza.mostraImportiPdf,
     mostraCodici: bozza.mostraCodiciPdf, mostraFonti: bozza.mostraFontiPdf, soloRiepilogo: bozza.formatoPdf === "riepilogo",
@@ -120,6 +138,12 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     setDocumentoPronto(false);
     setStorico(h => [...h.slice(-29), bozza]);
     setBozza(nuova); modificato.current = true; setSalvato(false);
+  };
+  /** Più modifiche nello stesso giro (il contatto del CRM riempie nome, recapiti e indirizzo): si sommano invece di cancellarsi. */
+  const cambiaParte = (patch: Partial<BozzaComputo>) => {
+    const nuova = { ...corrente.current, ...patch };
+    if (Object.keys(patch).some(k => k.startsWith("cantiere_"))) nuova.indirizzo = indirizzoDaCantiere(nuova);
+    corrente.current = nuova; cambia(nuova);
   };
   const modificaVoce = (patch: Partial<VoceEditor>) => v && cambia({ ...bozza, voci: bozza.voci.map(r => r.id === v.id ? { ...r, ...patch } : r) });
 
@@ -197,6 +221,13 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       tariffa: picked.codice_tariffa || "", fonte: picked.fonte || "", corpo: unita === "corpo" || unita === "a corpo" };
     cambia({ ...bozza, voci: [...bozza.voci, nuova] }); apriVoce(nuova.id); setPicker(null);
   };
+  const daAi = (estratte: ComputoVoceLocal[]) => {
+    setAiAperta(null);
+    if (!estratte.length) return;
+    if (bozza.voci.length + estratte.length > 5000) { setErrore(`Con queste voci il computo supererebbe le 5000 lavorazioni. Nessuna è stata aggiunta.`); return; }
+    cambia({ ...bozza, voci: [...bozza.voci, ...vociDaEstrazioneAi(estratte)] }); setScelta("");
+    toast.success(`${estratte.length} ${estratte.length === 1 ? "voce aggiunta" : "voci aggiunte"} al computo`, { description: "Controlla quantità e prezzi. Con «Annulla» si torna indietro." });
+  };
   const riordina = (delta: number) => {
     if (!v) return;
     const i = bozza.voci.indexOf(v); const j = i + delta;
@@ -204,29 +235,26 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const righe = [...bozza.voci]; [righe[i], righe[j]] = [righe[j], righe[i]];
     cambia({ ...bozza, voci: righe });
   };
-  const campo = (nome: string, key: "titolo" | "committente" | "oggetto" | "numero" | "indirizzo" | "dataDocumento" | "revisione" | "tecnico", max: number) => (
-    <div className="min-w-0 space-y-1"><Label htmlFor={`native-${key}`}>{nome}</Label>
-      <Input id={`native-${key}`} maxLength={max} value={bozza[key] ?? ""} onChange={e => cambia({ ...bozza, [key]: e.target.value })} /></div>
-  );
 
   return <section className="min-w-0 space-y-4" aria-label="Editor computo metrico">
     {onBack && <Button variant="ghost" size="sm" disabled={caricando || esportando} onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />Preventivi</Button>}
     <QuotePageHeader title="Preventivo con computo" numero={bozza.numero || "BOZZA"} subtitle={bozza.committente || "Nuovo preventivo"}
-      stato={<Badge variant="outline">{cloud ? "Demo 2 · Supabase" : "Bozza locale"}</Badge>} icon={<FileSpreadsheet className="h-5 w-5" />} actions={<>
-        {cloud && <Button variant="outline" size="sm" disabled={cloud.disabled || caricando || esportando || conflitto || erroreLettura} onClick={async () => {
-          setCaricando(true); setErrore("");
-          try { await cloud.onSave(bozza); } catch (e) { setErrore(e instanceof Error ? e.message : "Salvataggio Supabase non riuscito."); }
-          finally { setCaricando(false); }
-        }}><CloudUpload className="mr-1 h-4 w-4" />Salva su Supabase</Button>}
-        <Button variant="outline" size="sm" disabled={caricando || esportando} onClick={copiaBozza}><Download className="mr-1 h-4 w-4" />{erroreLettura ? "Conserva originale" : "Copia bozza"}</Button>
-        <Button variant="outline" size="sm" disabled={conflitto || caricando || esportando} onClick={() => importInput.current?.click()}><Upload className="mr-1 h-4 w-4" />Apri bozza</Button>
+      icon={<FileSpreadsheet className="h-5 w-5" />} actions={<>
+        {/* Le copie di sicurezza servono di rado: stanno qui. Quando c'è un problema compaiono nell'avviso. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={caricando || esportando}><MoreHorizontal className="mr-1 h-4 w-4" />Altro</Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => { void copiaBozza(); }}><Download className="mr-2 h-4 w-4" />Scarica una copia della bozza</DropdownMenuItem>
+            <DropdownMenuItem disabled={conflitto} onSelect={() => importInput.current?.click()}><Upload className="mr-2 h-4 w-4" />Riapri una copia salvata…</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button variant="outline" size="sm" disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
         <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !bozza.titolo.trim()} onClick={() => esporta()}>
           {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
         </QuotePrimaryButton>
       </>} />
       <p role="status" aria-label="Salvataggio bozza" className="text-xs text-muted-foreground">
-        {conflitto || erroreLettura ? "Salvataggio sospeso" : salvato ? cloud ? "Copia locale salvata" : "Bozza salvata in questo browser" : "Bozza locale"} · {cloud ? cloud.status : "non sincronizzata con il gestionale"}
+        {conflitto || erroreLettura ? "Salvataggio sospeso" : cloud ? cloud.status : salvato ? "Salvato su questo computer" : "Modifiche da salvare…"}
       </p>
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
@@ -241,50 +269,63 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       finally { setCaricando(false); }
     }} />
     {errore && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-      <span>{errore}</span>{conflitto && <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Ricarica versione salvata</Button>}
+      <span>{errore}</span>
+      <span className="flex flex-wrap gap-2">
+        {(erroreLettura || conflitto || errore.startsWith("Salvataggio locale")) && <Button variant="outline" size="sm" disabled={caricando} onClick={() => { void copiaBozza(); }}><Download className="mr-1 h-4 w-4" />{erroreLettura ? "Conserva il file originale" : "Scarica una copia della bozza"}</Button>}
+        {conflitto && <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Ricarica versione salvata</Button>}
+      </span>
     </div>}
     <CorpoPreventivatore className="px-0 py-0 sm:px-0" anteprima={<div className="flex h-[65dvh] min-h-[420px] flex-col gap-2">
       <ComputoFormatoSelect label="Variante anteprima PDF" value={bozza.formatoPdf} disabled={esportando || caricando || conflitto || erroreLettura} onChange={value => cambia(applicaVarianteComputo(bozza, value))} />
       <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderLive} depsKey={liveKey} debounceMs={900} enabled={desktop} downloadFileName="preventivo-computo.pdf" /></div>
     </div>}>
     <fieldset disabled={conflitto || erroreLettura || esportando || caricando} className="min-w-0 space-y-4">
-      {step === 0 && <div className="space-y-6">
-        <section className="space-y-4"><h2 className="text-lg font-semibold">Cliente e intervento</h2>
-          <div className="grid gap-4 sm:grid-cols-2">{campo("Titolo", "titolo", 160)}{campo("Committente", "committente", 160)}
-            {campo("Oggetto dei lavori", "oggetto", 500)}{campo("Indirizzo intervento", "indirizzo", 300)}</div>
-        </section>
-        <section className="space-y-4 border-t pt-5"><h3 className="text-sm font-semibold">Riferimenti del documento</h3>
-          <div className="grid gap-4 sm:grid-cols-2">{campo("Numero preventivo", "numero", 80)}{campo("Data del documento", "dataDocumento", 40)}
-            {campo("Revisione", "revisione", 80)}{campo("Tecnico o referente", "tecnico", 300)}</div>
-          <div className="space-y-2"><Label htmlFor="native-prezzi">Riferimenti dei prezzi</Label><Textarea id="native-prezzi" rows={2} maxLength={2000} value={bozza.riferimentoPrezzi} onChange={e => cambia({ ...bozza, riferimentoPrezzi: e.target.value })} /></div>
-        </section>
-      </div>}
+      {step === 0 && <ComputoDati bozza={bozza} onChange={cambiaParte} />}
       {step === 1 && <ComputoProgetto scope={storageKey} allegati={bozza.allegati ?? []} onBusy={setCaricando} onChange={allegati => cambia({ ...bozza, allegati })} />}
-      {step === 2 && <>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
-        <div className="flex flex-wrap gap-2">
-          {!!bozza.voci.length && <Button size="sm" disabled={bozza.voci.length >= 5000} onClick={() => consentiListini ? setPicker({}) : aggiungi()}><Plus className="mr-1 h-4 w-4" />Aggiungi lavorazione</Button>}
-          <Button variant="outline" size="icon" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
-            setBozza(storico.at(-1)!); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);
-          }}><Undo2 className="h-4 w-4" /></Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span>{bozza.voci.length} voci · {invalide ? `${invalide} da completare · parziale ` : "Totale "}<strong>{formatEuro(totale)} €</strong></span>
-        </div>
+      {step === 2 && <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0"><h2 className="text-base font-semibold">Computo metrico</h2>
+          <p className="text-xs text-muted-foreground">I totali si aggiornano mentre scrivi.</p></div>
+        <div aria-label="Riepilogo del computo" className="text-right text-sm tabular-nums"><span className="block text-xs text-muted-foreground">{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}{invalide ? ` · ${invalide} da completare` : ""}</span>
+          <strong className="text-lg">{formatEuro(totale)} €</strong>{!!invalide && <span className="block text-[11px] text-amber-700">parziale</span>}</div>
       </div>
-      <ComputoCapitoli voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} scelta={v?.id} onSelect={apriVoce} onAdd={aggiungi}
+      {/* Una riga sola (29/10/2026): prima erano un riquadro arancione con tre righe di spiegazione e, sotto, un'altra riga di pulsanti. */}
+      <div className="space-y-1.5">
+        <div role="group" aria-label="Parti da un computo che hai già" className="flex flex-wrap items-center gap-2">
+          {ai && <>
+            <Button size="sm" className="bg-blue-950 text-white hover:bg-blue-900" disabled={bozza.voci.length > MAX_VOCI_SILVIO}
+              title={bozza.voci.length > MAX_VOCI_SILVIO ? `Silvio lavora su preventivi fino a ${MAX_VOCI_SILVIO} voci: questo ne ha ${bozza.voci.length}.` : "Descrivi il lavoro, anche a voce: Silvio propone le voci e tu le rivedi"}
+              onClick={() => setAiAperta("chat")}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />Apri Silvio AI</Button>
+            <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="Fa leggere all'AI un PDF, un Excel o una foto" onClick={() => setAiAperta("file")}><Sparkles className="mr-1 h-4 w-4 text-orange-500" />Importa con l'AI</Button>
+          </>}
+          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PDF o XPWE di PriMus: voci e righe di misura esatte" onClick={() => importPrimus.current?.scegliFile()}><FileUp className="mr-1 h-4 w-4" />Importa da PriMus</Button>
+          <span className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
+              setBozza(storico.at(-1)!); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);
+            }}><Undo2 className="h-4 w-4" /><span className="ml-1 max-sm:hidden">Annulla</span></Button>
+            {!!bozza.voci.length && <Button size="sm" disabled={bozza.voci.length >= 5000} onClick={() => consentiListini ? setPicker({}) : aggiungi()}><Plus className="mr-1 h-4 w-4" />Aggiungi lavorazione</Button>}
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground">{ai ? "Con Silvio e con l'AI le voci le rivedi tu prima che entrino. " : ""}Da PriMus arrivano esatte, con le righe di misura.</p>
+      </div>
+      <ComputoImportPrimus ref={importPrimus} bozza={bozza} onBusy={setCaricando} onApplica={nuova => { cambia(nuova); setScelta(""); }} />
+      <ComputoCapitoli voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} aperta={v?.id}
+        onApri={id => (id ? apriVoce(id) : setScelta(""))} onAdd={aggiungi}
+        onModifica={(id, patch) => cambia({ ...bozza, voci: bozza.voci.map(r => r.id === id ? { ...r, ...patch } : r) })}
         onCapitoli={capitoli => cambia({ ...bozza, capitoli })}
         onRename={(prima, dopo) => cambia({ ...bozza, capitoli: (bozza.capitoli ?? []).map(n => n === prima ? dopo : n), voci: bozza.voci.map(r => (r.capitolo.trim() || "Opere edili") === prima ? { ...r, capitolo: dopo } : r) })}
-        onListino={consentiListini ? capitolo => setPicker({ capitolo }) : undefined} />
-          {v && <div ref={dettaglioRef} className="min-w-0 scroll-mt-24 space-y-4 rounded-lg border bg-white p-4">
-            <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">Voce {bozza.voci.indexOf(v) + 1}</h3><div className="flex gap-1">
+        onEliminaCapitolo={nome => { cambia({ ...bozza, capitoli: (bozza.capitoli ?? []).filter(n => n !== nome), voci: bozza.voci.filter(r => (r.capitolo.trim() || "Opere edili") !== nome) }); setScelta(""); }}
+        onListino={consentiListini ? capitolo => setPicker({ capitolo }) : undefined}
+        renderDettaglio={() => v && <div ref={dettaglioRef} className="min-w-0 scroll-mt-24 space-y-4">
+            <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {bozza.voci.indexOf(v) + 1}</h3><div className="flex gap-1">
               <Button variant="ghost" size="icon" aria-label="Sposta voce su" title="Sposta su" disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="Sposta voce giù" title="Sposta giù" disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="Duplica voce" title="Duplica voce" disabled={bozza.voci.length >= 5000} onClick={() => {
                 const copia = { ...v, id: crypto.randomUUID(), misure: v.misure.map(m => ({ ...m, id: crypto.randomUUID() })) };
-                cambia({ ...bozza, voci: [...bozza.voci, copia] }); setScelta(copia.id);
+                const i = bozza.voci.indexOf(v);
+                cambia({ ...bozza, voci: [...bozza.voci.slice(0, i + 1), copia, ...bozza.voci.slice(i + 1)] }); setScelta(copia.id);
               }}><Copy className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) })}><Trash2 className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
             </div></div>
             <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><Textarea id="voce-descrizione" rows={4} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([['Codice tariffa', 'tariffa'], ['Unità di misura', 'unita'], ['Quantità', 'quantita'], ['Prezzo unitario', 'prezzo']] as const).map(([label, key]) =>
@@ -292,6 +333,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
                 ? <ComputoUnitaSelect key={v.id} value={v.unita} onChange={unita => modificaVoce({ unita, corpo: unita === "corpo" || unita === "a corpo" })} />
                 : <Input id={`voce-${key}`} maxLength={key === "tariffa" ? 160 : 40} inputMode={key === "quantita" || key === "prezzo" ? "decimal" : "text"}
                   disabled={key === "quantita" && !!v.misure.length} value={key === "quantita" && v.misure.length ? String(calcolaVoce(v).quantita ?? "").replace(".", ",") : v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} />}</div>)}</div>
+            <ComputoMisure misure={v.misure} unita={v.unita} onChange={misure => modificaVoce({ misure })} />
             <details className="border-y py-3"><summary className="cursor-pointer text-sm font-medium">Classificazione e opzioni tecniche</summary><div className="mt-3 space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">{([['Capitolo', 'capitolo'], ['Categoria', 'categoria'], ['Sottocategoria', 'sottocategoria']] as const).map(([label, key]) =>
                 <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label><Input id={`voce-${key}`} maxLength={300} value={v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} /></div>)}</div>
@@ -301,49 +343,53 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
               <div>{([['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
                 <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
             </div></details>
-            <ComputoMisure misure={v.misure} onChange={misure => modificaVoce({ misure })} />
-            <div className="flex flex-wrap justify-between gap-3 border-t pt-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
-          </div>}
-      </>}
-      {step === 3 && <div className="space-y-6">
-        <section className="space-y-4 border-b pb-5" aria-label="Formato del documento">
-          <h2 className="text-lg font-semibold">Prepara il documento</h2>
-          <div className="space-y-2"><Label htmlFor="native-layout">Documento PDF</Label>
-            <ComputoFormatoSelect id="native-layout" label="Documento PDF" value={bozza.formatoPdf} disabled={conflitto || erroreLettura || esportando || caricando} onChange={value => cambia(applicaVarianteComputo(bozza, value))} />
-          </div>
+            <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
+          </div>} />
+      </div>}
+      {step === 3 && <div className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0"><h2 className="text-base font-semibold">Prepara il documento</h2>
+            <p className="text-xs text-muted-foreground">Scegli il documento e cosa mostrare: l'anteprima si aggiorna subito.</p></div>
+          <dl aria-label="Riepilogo del documento" className="flex gap-5 text-right text-sm tabular-nums">
+            <div><dt className="text-xs text-muted-foreground">Lavorazioni</dt><dd className="font-semibold">{bozza.voci.length}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Allegati nel PDF</dt><dd className="font-semibold">{(bozza.allegati ?? []).filter(a => a.includi).length}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{invalide ? "Parziale imponibile" : "Totale imponibile"}</dt><dd className="font-semibold">{formatEuro(totale)} €</dd></div>
+          </dl>
+        </div>
+        {(!bozza.titolo.trim() || !bozza.voci.length || !!invalide) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+          <h3 className="font-medium">Da completare prima del download</h3>
+          {!bozza.titolo.trim() && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(0)}>Inserisci il titolo del preventivo</Button>}
+          {!bozza.voci.length && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(2)}>Inserisci almeno una lavorazione</Button>}
+          {bozza.voci.flatMap((r, i) => risultati[i].errori.length ? [<div key={r.id} className="space-y-0.5">
+            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => { setScelta(r.id); cambiaFase(2); }}>Completa lavorazione {i + 1}</Button>
+            <p className="text-xs text-muted-foreground">{risultati[i].errori.join(" ")}</p>
+          </div>] : []).slice(0, 10)}
+          {invalide > 10 && <p className="text-muted-foreground">Altre {invalide - 10} lavorazioni da completare nel computo.</p>}
+        </div>}
+        <section className="space-y-2" aria-label="Formato del documento">
+          <h3 className="text-sm font-semibold">Documento PDF</h3>
+          <ComputoFormatoSchede value={bozza.formatoPdf} disabled={conflitto || erroreLettura || esportando || caricando} onChange={value => cambia(applicaVarianteComputo(bozza, value))} />
         </section>
-        <section aria-label="Contenuti da mostrare al cliente">
-          <h3 className="mb-1 text-sm font-semibold">Informazioni e importi</h3>
-          <ComputoOpzione label="Dati del cliente" checked={bozza.mostraDatiCliente !== false} onChange={value => cambia({ ...bozza, mostraDatiCliente: value })} />
-          <ComputoOpzione label="Prezzi unitari" disabled={bozza.formatoPdf === "senza-prezzi" || bozza.formatoPdf === "riepilogo"} checked={bozza.formatoPdf !== "senza-prezzi" && bozza.formatoPdf !== "riepilogo" && bozza.mostraPrezziUnitariPdf !== false} onChange={value => cambia({ ...bozza, mostraPrezziUnitariPdf: value })} />
-          <ComputoOpzione label="Importi e totale" disabled={bozza.formatoPdf === "senza-prezzi"} checked={bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false} onChange={value => cambia({ ...bozza, mostraImportiPdf: value })} />
-          <ComputoOpzione label="Note e condizioni nel PDF" checked={bozza.mostraCondizioni !== false} onChange={value => cambia({ ...bozza, mostraCondizioni: value })} />
-        </section>
-        <details className="group border-y py-3"><summary className="cursor-pointer py-1 text-sm font-medium">Dettagli tecnici nel PDF</summary>
-          <div className="mt-2">
+        <section aria-label="Contenuti da mostrare al cliente" className="rounded-lg border bg-white px-3">
+          <div className="grid sm:grid-cols-2 sm:gap-x-6">
+            <ComputoOpzione label="Dati del cliente" checked={bozza.mostraDatiCliente !== false} onChange={value => cambia({ ...bozza, mostraDatiCliente: value })} />
+            <ComputoOpzione label="Note e condizioni" checked={bozza.mostraCondizioni !== false} onChange={value => cambia({ ...bozza, mostraCondizioni: value })} />
+            <ComputoOpzione label="Prezzi unitari" disabled={bozza.formatoPdf === "senza-prezzi" || bozza.formatoPdf === "riepilogo"} checked={bozza.formatoPdf !== "senza-prezzi" && bozza.formatoPdf !== "riepilogo" && bozza.mostraPrezziUnitariPdf !== false} onChange={value => cambia({ ...bozza, mostraPrezziUnitariPdf: value })} />
+            <ComputoOpzione label="Importi e totale" disabled={bozza.formatoPdf === "senza-prezzi"} checked={bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false} onChange={value => cambia({ ...bozza, mostraImportiPdf: value })} />
             <ComputoOpzione label="Dettaglio delle misure" disabled={bozza.formatoPdf === "riepilogo"} checked={bozza.formatoPdf !== "riepilogo" && bozza.mostraMisurePdf} onChange={value => cambia({ ...bozza, mostraMisurePdf: value })} />
             <ComputoOpzione label="Codici tariffa" disabled={bozza.formatoPdf === "riepilogo"} checked={bozza.formatoPdf !== "riepilogo" && bozza.mostraCodiciPdf !== false} onChange={value => cambia({ ...bozza, mostraCodiciPdf: value })} />
             <ComputoOpzione label="Fonti e riferimenti dei prezzi" checked={bozza.mostraFontiPdf !== false} onChange={value => cambia({ ...bozza, mostraFontiPdf: value })} />
           </div>
-        </details>
-        <ComputoIva value={bozza} imponibile={totale} onChange={patch => cambia({ ...bozza, ...patch })} />
+        </section>
         {(bozza.mostraDatiCliente === false || bozza.formatoPdf === "senza-prezzi" || bozza.mostraImportiPdf === false) && (bozza.allegati ?? []).some(a => a.includi) && <p role="note" className="text-xs text-muted-foreground">Gli allegati mantengono il contenuto originale, inclusi eventuali prezzi o dati personali.</p>}
-        <div className="grid gap-3 border-y py-4 text-sm sm:grid-cols-3"><div><span className="block text-muted-foreground">Lavorazioni</span><strong>{bozza.voci.length}</strong></div><div><span className="block text-muted-foreground">Allegati nel PDF</span><strong>{(bozza.allegati ?? []).filter(a => a.includi).length}</strong></div><div><span className="block text-muted-foreground">{invalide ? "Parziale imponibile" : "Totale imponibile"}</span><strong>{formatEuro(totale)} €</strong></div></div>
-        {(!bozza.titolo.trim() || !bozza.voci.length || !!invalide) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 border-l-2 border-amber-400 pl-3 text-sm">
-          <h3 className="font-medium">Da completare prima del download</h3>
-          {!bozza.titolo.trim() && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(0)}>Inserisci il titolo del preventivo</Button>}
-          {!bozza.voci.length && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(2)}>Inserisci almeno una lavorazione</Button>}
-          {bozza.voci.flatMap((r, i) => risultati[i].errori.length ? [<div key={r.id} className="space-y-1">
-            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => { setScelta(r.id); cambiaFase(2); }}>Completa lavorazione {i + 1}</Button>
-            <p className="text-muted-foreground">{risultati[i].errori.join(" ")}</p>
-          </div>] : []).slice(0, 10)}
-          {invalide > 10 && <p className="text-muted-foreground">Altre {invalide - 10} lavorazioni da completare nel computo.</p>}
-        </div>}
-        <div className="space-y-1"><Label htmlFor="native-condizioni">Note e condizioni del preventivo</Label><Textarea id="native-condizioni" maxLength={12000} rows={4} value={bozza.condizioni} onChange={e => cambia({ ...bozza, condizioni: e.target.value })} /></div>
-        <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Inclusioni, esclusioni, tempi e pagamenti</summary><div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {([["Lavorazioni incluse", "inclusioni", 6000], ["Esclusioni e limiti", "esclusioni", 6000], ["Tempi di esecuzione", "tempi", 3000], ["Modalità di pagamento", "pagamenti", 3000]] as const).map(([label, key, max]) =>
-            <div key={key} className="space-y-1"><Label htmlFor={`native-${key}`}>{label}</Label><Textarea id={`native-${key}`} rows={3} maxLength={max} value={bozza[key]} onChange={e => cambia({ ...bozza, [key]: e.target.value })} /></div>)}
-        </div></details>
+        <ComputoIva value={bozza} imponibile={totale} onChange={patch => cambia({ ...bozza, ...patch })} />
+        <section aria-label="Condizioni" className="space-y-3 rounded-lg border bg-white p-3">
+          <div className="space-y-1"><Label htmlFor="native-condizioni" className="text-sm font-semibold">Note e condizioni del preventivo</Label><Textarea id="native-condizioni" maxLength={12000} rows={3} value={bozza.condizioni} onChange={e => cambia({ ...bozza, condizioni: e.target.value })} /></div>
+          <details><summary className="cursor-pointer text-sm font-medium">Inclusioni, esclusioni, tempi e pagamenti</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {([["Lavorazioni incluse", "inclusioni", 6000], ["Esclusioni e limiti", "esclusioni", 6000], ["Tempi di esecuzione", "tempi", 3000], ["Modalità di pagamento", "pagamenti", 3000]] as const).map(([label, key, max]) =>
+              <div key={key} className="space-y-1"><Label htmlFor={`native-${key}`} className="text-xs">{label}</Label><Textarea id={`native-${key}`} rows={3} maxLength={max} value={bozza[key]} onChange={e => cambia({ ...bozza, [key]: e.target.value })} /></div>)}
+          </div></details>
+        </section>
       </div>}
     </fieldset>
     <nav aria-label="Navigazione fasi" className="flex items-center justify-between border-t pt-4">
@@ -354,6 +400,13 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       </QuotePrimaryButton>}
     </nav>
     </CorpoPreventivatore>
+    {aiAperta && ai && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}>
+      {aiAperta === "file"
+        ? <ComputoUploadModal open intent="computo" onOpenChange={open => { if (!open) setAiAperta(null); }} onConfirmVoci={daAi} confirmLabel="Aggiungi al computo" />
+        : <ComputoSilvioAi open bozza={bozza} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}
+          onOpenChange={open => { if (!open) setAiAperta(null); }}
+          onApply={voci => { setAiAperta(null); cambia({ ...bozza, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
+    </Suspense>}
     {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
       <DialogContent className="flex h-[90dvh] max-w-5xl flex-col">
