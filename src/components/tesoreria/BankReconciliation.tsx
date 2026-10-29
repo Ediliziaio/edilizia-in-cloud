@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet, Siren, ShieldCheck, X } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
@@ -29,8 +30,10 @@ import {
   computeMatchScore,
   computePaymentReversal,
   detectReconAnomalies,
+  pickBestSuggestion,
+  rankMatches,
 } from "@/lib/finance/reconciliationAnalysis";
-import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
+import type { BestSuggestion, MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
 import {
   SELECT_FATTURE_INTERNE_DA_INCASSARE,
   STATI_INCASSABILI_DA_BANCA,
@@ -66,6 +69,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   const [searchTx, setSearchTx] = useState("");
   const [searchInv, setSearchInv] = useState("");
   const [activeInsightId, setActiveInsightId] = useState<string | null>(null);
+  // Filtro per conto corrente: con piu' conti (Materiali, IVA, Stipendi...)
+  // guardarne uno solo e' il modo normale di lavorare.
+  const [accountFilter, setAccountFilter] = useState("all");
 
   // Match dialog
   const [selectedTx, setSelectedTx] = useState<any>(null);
@@ -197,8 +203,30 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // Contarli tra i "da riconciliare" produce solo lavoro finto e allarmi finti.
   const isInternalTransfer = (t: any) =>
     /giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || ""));
-  const reconcilableTx = useMemo(() => transactions.filter((t) => !isInternalTransfer(t)), [transactions]);
-  const internalCount = transactions.length - reconcilableTx.length;
+  // Conti presenti nei movimenti ancora da riconciliare (entrate e uscite):
+  // l'elenco propone solo i conti che hanno davvero lavoro in sospeso.
+  const contiDisponibili = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of [...transactions, ...debitTxs]) {
+      if (!t.account_id || m.has(t.account_id)) continue;
+      m.set(t.account_id, t.bank_accounts?.display_name || t.bank_accounts?.account_name || "Conto");
+    }
+    return [...m.entries()]
+      .map(([id, nome]) => ({ id, nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+  }, [transactions, debitTxs]);
+
+  const nelConto = useCallback(
+    (t: any) => accountFilter === "all" || t.account_id === accountFilter,
+    [accountFilter],
+  );
+
+  // Il filtro conto si applica a monte: KPI, anomalie e suggerimenti parlano
+  // tutti del conto scelto, senza doverlo ripetere in ogni punto.
+  const txDelConto = useMemo(() => transactions.filter(nelConto), [transactions, nelConto]);
+  const reconcilableTx = useMemo(() => txDelConto.filter((t) => !isInternalTransfer(t)), [txDelConto]);
+  const internalCount = txDelConto.length - reconcilableTx.length;
+  const debitTxsVisibili = useMemo(() => debitTxs.filter(nelConto), [debitTxs, nelConto]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -232,11 +260,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   function openMatch(tx: any) {
     setSelectedTx(tx);
     setMatchNote("");
-    const matches = invoices
-      .map((inv) => computeMatchScore(tx, inv))
-      .filter(Boolean) as MatchSuggestion[];
-    matches.sort((a, b) => b.score - a.score);
-    setSuggestions(matches);
+    // Stesso ranking del suggerimento inline e dell'auto-match: un solo criterio
+    // di ordinamento in tutta la pagina.
+    setSuggestions(rankMatches(tx, invoices));
   }
 
   // Fattura interna, bonifico e rata della commessa si muovono insieme: dopo
@@ -588,19 +614,19 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     return list;
   }, [invoices, searchInv, activeInsight]);
 
-  // #2 — miglior candidato per ogni transazione, per il suggerimento inline 1-click.
+  // #2 — miglior candidato per ogni transazione, per il suggerimento inline.
+  // Calcolato su TUTTE le transazioni riconciliabili, non su quelle filtrate:
+  // dipendere da filteredTx rifaceva l'intero scoring (transazioni × fatture) a
+  // ogni tasto digitato nella ricerca. Porta con sé il flag di ambiguità, così
+  // l'abbinamento con un clic si offre solo quando il candidato è netto.
   const bestMatchByTx = useMemo(() => {
-    const map = new Map<string, MatchSuggestion>();
-    for (const tx of filteredTx) {
-      let best: MatchSuggestion | null = null;
-      for (const inv of invoices) {
-        const m = computeMatchScore(tx, inv);
-        if (m && (!best || m.score > best.score)) best = m;
-      }
-      if (best) map.set(tx.id, best);
+    const map = new Map<string, BestSuggestion>();
+    for (const tx of reconcilableTx) {
+      const sugg = pickBestSuggestion(tx, invoices);
+      if (sugg) map.set(tx.id, sugg);
     }
     return map;
-  }, [filteredTx, invoices]);
+  }, [reconcilableTx, invoices]);
 
   // Export reconciliations
   async function exportReconciliations(fmt: "csv" | "xlsx") {
@@ -700,9 +726,17 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 <Banknote className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Da riconciliare</p>
+                <p className="text-sm text-muted-foreground">Incassi da riconciliare</p>
                 <p className="text-xl font-bold">{kpis.unreconciledCount}</p>
                 <p className="text-xs text-muted-foreground">{fmtEur(kpis.unreconciledAmount)}</p>
+                {/* Il conteggio di testa riguardava i soli accrediti: con decine di
+                    addebiti liberi in attesa più sotto, il numero sottostimava il
+                    lavoro da fare. */}
+                {debitTxsVisibili.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    + {debitTxsVisibili.length} addebiti da abbinare
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -808,8 +842,23 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         </div>
       )}
 
-      {/* Auto-match button */}
-      <div className="flex justify-end">
+      {/* Filtro conto + Auto-match */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {contiDisponibili.length > 1 ? (
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-[220px] h-8 text-sm">
+              <SelectValue placeholder="Tutti i conti" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i conti</SelectItem>
+              {contiDisponibili.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : <span />}
+        {/* L'auto-match resta sull'intera azienda: riconcilia tutto quello che
+            puo', non solo il conto in vista. */}
         <Button onClick={runAutoMatch} disabled={autoMatching || transactions.length === 0} size="sm">
           {autoMatching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
           Auto-match
@@ -865,27 +914,49 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                     </p>
                   </div>
                   {(() => {
-                    const best = bestMatchByTx.get(tx.id);
-                    if (!best || best.score < 60) return null;
+                    const sugg = bestMatchByTx.get(tx.id);
+                    if (!sugg || sugg.best.score < 60) return null;
+                    const { best, ambiguous, candidates } = sugg;
                     const inv = best.invoice;
                     const label = inv.invoice_number ? `Fatt. ${inv.invoice_number}` : (inv.client_company_name || "fattura");
+                    // Candidato non netto (un'altra fattura a ridosso): niente
+                    // abbinamento con un clic, si apre l'elenco e sceglie l'utente.
+                    // Stesso criterio dell'auto-match, che qui mancava.
                     return (
                       <div
-                        className="mt-2 flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1"
+                        className={cn(
+                          "mt-2 flex items-center justify-between gap-2 rounded-md border px-2 py-1",
+                          ambiguous
+                            ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
+                            : "border-primary/20 bg-primary/5",
+                        )}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <span className="text-xs text-muted-foreground truncate">
                           → <span className="font-medium text-foreground">{label}</span> · {Math.min(best.score, 100)}%
-                          <span className="hidden sm:inline"> · {best.reasons[0]}</span>
+                          <span className="hidden sm:inline">
+                            {" · "}{ambiguous ? `${candidates} fatture compatibili` : best.reasons[0]}
+                          </span>
                         </span>
-                        <Button
-                          size="sm"
-                          className="h-6 text-xs px-2 shrink-0"
-                          disabled={matching}
-                          onClick={(e) => { e.stopPropagation(); confirmMatch(tx, inv, "manual"); }}
-                        >
-                          Collega
-                        </Button>
+                        {ambiguous ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs px-2 shrink-0"
+                            onClick={(e) => { e.stopPropagation(); openMatch(tx); }}
+                          >
+                            Scegli
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-6 text-xs px-2 shrink-0"
+                            disabled={matching}
+                            onClick={(e) => { e.stopPropagation(); confirmMatch(tx, inv, "manual"); }}
+                          >
+                            Collega
+                          </Button>
+                        )}
                       </div>
                     );
                   })()}
@@ -948,23 +1019,23 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       </div>
 
       {/* Uscite → scadenze fornitori (riconciliazione manuale) */}
-      {(debitTxs.length > 0 || scadenze.length > 0) && (
+      {(debitTxsVisibili.length > 0 || scadenze.length > 0) && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Banknote className="h-4 w-4 rotate-180" /> Uscite da riconciliare
               <span className="text-xs font-normal text-muted-foreground">
-                {debitTxs.length} addebiti liberi · {scadenze.length} scadenze fornitori aperte
+                {debitTxsVisibili.length} addebiti liberi · {scadenze.length} scadenze fornitori aperte
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="max-h-[380px] overflow-y-auto space-y-2">
-            {debitTxs.length === 0 ? (
+            {debitTxsVisibili.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 Nessun addebito libero: tutte le uscite sono già abbinate.
               </p>
             ) : (
-              debitTxs.map((tx) => (
+              debitTxsVisibili.map((tx) => (
                 <div
                   key={tx.id}
                   onClick={() => { setSelectedDebit(tx); setMatchNote(""); }}

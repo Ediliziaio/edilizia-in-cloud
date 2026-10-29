@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight, LineChart as LineChartIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -72,6 +73,9 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   const [nativeBalances, setNativeBalances] = useState<{ currency: string; total: number }[]>([]);
   const [multiCurrency, setMultiCurrency] = useState(false);
   const [balancesUnavailable, setBalancesUnavailable] = useState(false);
+  // Filtro per conto corrente: "all" = tutti i conti (comportamento di sempre).
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const requestSeqRef = useRef(0);
@@ -94,7 +98,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       setBalancesUnavailable(false);
       setLoading(false);
     }
-  }, [companyId, refreshKey]);
+  }, [companyId, refreshKey, accountFilter]);
 
   async function loadData() {
     const requestId = ++requestSeqRef.current;
@@ -105,25 +109,32 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       since.setDate(since.getDate() - 90);
       const sinceStr = since.toISOString().slice(0, 10);
 
+      // NULL = tutti i conti: le tre RPC accettano il conto come parametro
+      // opzionale, cosi' i numeri filtrati restano gli stessi del database e
+      // non una seconda definizione calcolata qui.
+      const conto = accountFilter === "all" ? null : accountFilter;
+
+      let recentiQ = supabase
+        .from("bank_transactions")
+        .select("id, booking_date, description, amount, currency, metadata, transaction_type, category, creditor_name, debtor_name")
+        .eq("company_id", companyId);
+      if (conto) recentiQ = recentiQ.eq("account_id", conto);
+
+      let trendQ = supabase
+        .from("bank_transactions")
+        .select("booking_date, amount")
+        .eq("company_id", companyId)
+        .gte("booking_date", sinceStr);
+      if (conto) trendQ = trendQ.eq("account_id", conto);
+
       const [summaryRes, cashFlowRes, catRes, txRes, trendRes, accountsRes] = await Promise.all([
-        supabase.rpc("get_treasury_summary", { p_company_id: companyId }),
-        supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6 }),
-        supabase.rpc("get_expenses_by_category", { p_company_id: companyId, p_months: 3 }),
-        supabase
-          .from("bank_transactions")
-          .select("id, booking_date, description, amount, currency, metadata, transaction_type, category, creditor_name, debtor_name")
-          .eq("company_id", companyId)
-          .order("booking_date", { ascending: false })
-          .limit(5),
+        supabase.rpc("get_treasury_summary", { p_company_id: companyId, p_account_id: conto } as never),
+        supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6, p_account_id: conto } as never),
+        supabase.rpc("get_expenses_by_category", { p_company_id: companyId, p_months: 3, p_account_id: conto } as never),
+        recentiQ.order("booking_date", { ascending: false }).limit(5),
         // Andamento saldo: movimenti ultimi 90 giorni, cumulati a ritroso dal
-        // saldo attuale (somma di tutti i conti) → serie giornaliera.
-        supabase
-          .from("bank_transactions")
-          .select("booking_date, amount")
-          .eq("company_id", companyId)
-          .gte("booking_date", sinceStr)
-          .order("booking_date", { ascending: true })
-          .limit(5000),
+        // saldo attuale → serie giornaliera (del conto scelto, se filtrato).
+        trendQ.order("booking_date", { ascending: true }).limit(5000),
         supabase.from("bank_accounts").select("*").eq("company_id", companyId),
       ]);
 
@@ -131,8 +142,12 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       setBalancesUnavailable(!!accountsRes.error);
       if (accountsRes.error) setError("Impossibile verificare le valute dei conti. Riprova.");
       else {
+        setAccounts(accountsRes.data || []);
         setMultiCurrency((accountsRes.data || []).some(a => a.currency !== "EUR"));
-        setNativeBalances(sumTreasuryByCurrency((accountsRes.data || []).filter(a => a.is_active), a => a.current_balance));
+        setNativeBalances(sumTreasuryByCurrency(
+          (accountsRes.data || []).filter(a => a.is_active && (accountFilter === "all" || a.id === accountFilter)),
+          a => a.current_balance,
+        ));
       }
 
       let hasBlockingError = false;
@@ -306,6 +321,31 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   // erano grafici di 1100px alti 300 e la pagina scorreva per quattro schermi.
   return (
     <div className="space-y-6 max-sm:space-y-3 xl:grid xl:grid-cols-2 xl:gap-6 xl:space-y-0">
+      {/* Con piu' conti, il totale d'azienda puo' nascondere un conto in
+          sofferenza: qui si guarda un conto per volta. */}
+      {accounts.filter((a) => a.is_active).length > 1 && (
+        <div className="flex items-center gap-2 xl:col-span-2">
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-[220px] h-8 text-sm">
+              <SelectValue placeholder="Tutti i conti" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i conti</SelectItem>
+              {accounts.filter((a) => a.is_active).map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.display_name || a.account_name || a.iban}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {accountFilter !== "all" && (
+            <span className="text-xs text-muted-foreground">
+              Saldo, movimenti e categorie del solo conto selezionato.
+            </span>
+          )}
+        </div>
+      )}
+
       {error && (
         <Card className="border-destructive/30 xl:col-span-2">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">

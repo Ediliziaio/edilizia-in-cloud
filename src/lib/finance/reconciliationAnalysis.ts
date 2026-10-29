@@ -43,7 +43,7 @@ export function invoiceNumberInCausale(description: string, invoiceNumber: strin
   // Numero "ricco" (>=3 char, es. 4152026): basta che compaia nella causale.
   if (inv.length >= 3 && desc.includes(inv)) return true;
   // Numero corto: serve un marcatore "fattura/fatt/ft/n." vicino al numero.
-  const m = description.toLowerCase().match(/(?:fattura|fatt\.?|ft\.?|n\.?)\s*0*([0-9]{1,6})(?:\s*[\/\-]\s*([0-9]{2,4}))?/);
+  const m = description.toLowerCase().match(/(?:fattura|fatt\.?|ft\.?|n\.?)\s*0*([0-9]{1,6})(?:\s*[/-]\s*([0-9]{2,4}))?/);
   if (m) {
     const candidate = norm(m[1] + (m[2] || ""));
     if (candidate === inv || norm(m[1]) === inv) return true;
@@ -87,22 +87,14 @@ export function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
     reasons.push(`Possibile acconto (residuo ${fmtEur(invTotal - txAmount)})`);
   }
 
-  // IBAN match
-  if (tx.creditor_iban && inv.bank_iban) {
-    const txIban = tx.creditor_iban.replace(/\s/g, "").toUpperCase();
-    const invIban = inv.bank_iban.replace(/\s/g, "").toUpperCase();
-    if (txIban === invIban) {
-      score += 30;
-      reasons.push("IBAN corrispondente");
-    }
-  }
-  if (tx.debtor_iban && inv.bank_iban) {
-    const txIban = tx.debtor_iban.replace(/\s/g, "").toUpperCase();
-    const invIban = inv.bank_iban.replace(/\s/g, "").toUpperCase();
-    if (txIban === invIban) {
-      score += 30;
-      reasons.push("IBAN corrispondente");
-    }
+  // IBAN match — l'IBAN della fattura può comparire come ordinante o come
+  // beneficiario del movimento: vale UNA volta sola. Contarlo su entrambi i lati
+  // gonfiava il punteggio a +60 (e ripeteva la motivazione) su un unico indizio.
+  const normIban = (s: unknown) => String(s || "").replace(/\s/g, "").toUpperCase();
+  const invIban = normIban(inv.bank_iban);
+  if (invIban && (normIban(tx.creditor_iban) === invIban || normIban(tx.debtor_iban) === invIban)) {
+    score += 30;
+    reasons.push("IBAN corrispondente");
   }
 
   // Name match
@@ -131,14 +123,45 @@ export const AUTO_MATCH_AMBIGUITY_MARGIN = 15;
  * sbagliata.
  */
 export function pickAutoMatch(tx: any, invoices: any[]): MatchSuggestion | null {
-  const ranked = invoices
-    .map((inv) => computeMatchScore(tx, inv))
-    .filter((m): m is MatchSuggestion => m !== null && m.score >= AUTO_MATCH_MIN_SCORE)
-    .sort((a, b) => b.score - a.score);
+  const ranked = rankMatches(tx, invoices).filter((m) => m.score >= AUTO_MATCH_MIN_SCORE);
   if (ranked.length === 0) return null;
   const [top, second] = ranked;
   if (second && top.score - second.score < AUTO_MATCH_AMBIGUITY_MARGIN) return null;
   return top;
+}
+
+/**
+ * Tutti i candidati compatibili con la transazione, dal più probabile al meno.
+ * Una sola passata di scoring, riusata da chi deve solo leggere (suggerimento
+ * inline, conteggio dei candidati) e da chi deve decidere (auto-match).
+ */
+export function rankMatches(tx: any, invoices: any[]): MatchSuggestion[] {
+  return invoices
+    .map((inv) => computeMatchScore(tx, inv))
+    .filter((m): m is MatchSuggestion => m !== null)
+    .sort((a, b) => b.score - a.score);
+}
+
+export interface BestSuggestion {
+  best: MatchSuggestion;
+  /** Un secondo candidato è troppo vicino: l'abbinamento va scelto a mano. */
+  ambiguous: boolean;
+  /** Quanti candidati compatibili esistono in tutto. */
+  candidates: number;
+}
+
+/**
+ * Miglior candidato per il suggerimento inline, con il flag di ambiguità.
+ * Usa lo STESSO margine dell'auto-match: se il secondo candidato è lì a ridosso,
+ * offrire l'abbinamento con un clic sarebbe un invito a sbagliare fattura — in
+ * quel caso chi usa la pagina deve scegliere dall'elenco.
+ */
+export function pickBestSuggestion(tx: any, invoices: any[]): BestSuggestion | null {
+  const ranked = rankMatches(tx, invoices);
+  if (ranked.length === 0) return null;
+  const [best, second] = ranked;
+  const ambiguous = !!second && best.score - second.score < AUTO_MATCH_AMBIGUITY_MARGIN;
+  return { best, ambiguous, candidates: ranked.length };
 }
 
 export interface PaymentApplication {

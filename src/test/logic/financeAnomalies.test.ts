@@ -3,7 +3,9 @@ import {
   fmtEur,
   fuzzyMatch,
   computeMatchScore,
+  invoiceNumberInCausale,
   pickAutoMatch,
+  pickBestSuggestion,
   autoMatchSummary,
   computePaymentApplication,
   computePaymentReversal,
@@ -145,6 +147,106 @@ describe("computeMatchScore", () => {
     expect(m).not.toBeNull();
     expect(m!.score).toBe(80); // 50 esatto + 30 IBAN
     expect(m!.reasons).toContain("IBAN corrispondente");
+  });
+
+  it("l'IBAN vale 30 punti UNA volta sola, anche se compare su entrambi i lati", () => {
+    // Regressione: ordinante e beneficiario uguali contavano +30 ciascuno (+60)
+    // e ripetevano la motivazione, gonfiando il punteggio su un indizio solo.
+    const m = computeMatchScore(
+      { amount: 1000, creditor_iban: "IT0012345678", debtor_iban: "IT0012345678" },
+      { total: 1000, paid_amount: 0, bank_iban: "IT0012345678" },
+    );
+    expect(m!.score).toBe(80);
+    expect(m!.reasons.filter((r) => r === "IBAN corrispondente")).toHaveLength(1);
+  });
+
+  it("IBAN diverso non aggiunge punti", () => {
+    const m = computeMatchScore(
+      { amount: 1000, creditor_iban: "IT9999999999" },
+      { total: 1000, paid_amount: 0, bank_iban: "IT0012345678" },
+    );
+    expect(m!.score).toBe(50);
+    expect(m!.reasons).not.toContain("IBAN corrispondente");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RICONCILIAZIONE — invoiceNumberInCausale (il segnale più forte: +60)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("invoiceNumberInCausale", () => {
+  it("riconosce il numero citato nella causale del bonifico", () => {
+    expect(invoiceNumberInCausale("SALDO FATTURA 415/2026", "415/2026")).toBe(true);
+    expect(invoiceNumberInCausale("Pagamento Fatt. 412-2026", "412/2026")).toBe(true);
+  });
+
+  it("numero corto: serve il marcatore fattura/ft/n. accanto", () => {
+    expect(invoiceNumberInCausale("ns. ft 5/2026", "5/2026")).toBe(true);
+    expect(invoiceNumberInCausale("pagamento fattura 37", "37")).toBe(true);
+  });
+
+  it("numero di una sola cifra: mai riconosciuto (troppi falsi positivi)", () => {
+    expect(invoiceNumberInCausale("bonifico importo 5000 euro", "5")).toBe(false);
+  });
+
+  it("numero assente nella causale → false", () => {
+    expect(invoiceNumberInCausale("BONIFICO SEPA DA MARIO ROSSI", "415/2026")).toBe(false);
+  });
+
+  it("stringhe vuote → false", () => {
+    expect(invoiceNumberInCausale("", "415/2026")).toBe(false);
+    expect(invoiceNumberInCausale("FATTURA 415", "")).toBe(false);
+  });
+
+  it("dentro computeMatchScore vale 60 punti anche se l'importo è un acconto", () => {
+    const m = computeMatchScore(
+      { amount: 500, description: "SALDO FATTURA 415/2026" },
+      { total: 1000, paid_amount: 0, invoice_number: "415/2026" },
+    );
+    expect(m).not.toBeNull();
+    expect(m!.reasons).toContain("N° fattura in causale");
+    expect(m!.score).toBe(70); // 60 n° fattura + 10 possibile acconto
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RICONCILIAZIONE — pickBestSuggestion (suggerimento inline, guard ambiguità)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("pickBestSuggestion", () => {
+  const inv = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    invoice_number: id,
+    total: 1000,
+    paid_amount: 0,
+    ...over,
+  });
+
+  it("nessun candidato → null", () => {
+    expect(pickBestSuggestion({ amount: 1000 }, [])).toBeNull();
+  });
+
+  it("candidato unico → non ambiguo", () => {
+    const r = pickBestSuggestion({ amount: 1000 }, [inv("A")]);
+    expect(r).not.toBeNull();
+    expect(r!.ambiguous).toBe(false);
+    expect(r!.candidates).toBe(1);
+  });
+
+  it("due fatture a pari merito → ambiguo (niente abbinamento con un clic)", () => {
+    const r = pickBestSuggestion({ amount: 1000 }, [inv("A"), inv("B")]);
+    expect(r!.ambiguous).toBe(true);
+    expect(r!.candidates).toBe(2);
+  });
+
+  it("vincitore netto (distacco ≥ 15) → non ambiguo e vince il migliore", () => {
+    // A: importo esatto (50) + nome (20) = 70 · B: importo esatto (50) = 50
+    const r = pickBestSuggestion(
+      { amount: 1000, creditor_name: "Mario Rossi" },
+      [inv("A", { client_company_name: "Mario Rossi" }), inv("B")],
+    );
+    expect(r!.best.invoice.id).toBe("A");
+    expect(r!.ambiguous).toBe(false);
   });
 });
 
