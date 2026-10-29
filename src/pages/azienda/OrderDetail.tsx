@@ -112,6 +112,7 @@ import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
 import { incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
+import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
 import { OrderAcceptanceReports } from "@/components/orders/OrderAcceptanceReports";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -1786,7 +1787,10 @@ function OrderDetailInner() {
             </div>}
             {activeMaterialiView === "fatture" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
               {permissions.canViewCosts
-                ? <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} />
+                ? <>
+                  <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} />
+                  <OrderCostiCommessaCard orderId={id!} puoModificare={permissions.canEditOrders} />
+                </>
                 : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare le fatture dei fornitori di questa commessa.</p>}
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
