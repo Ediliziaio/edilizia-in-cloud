@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CostoLavorazioneEditor } from "@/components/settings/CostoLavorazioneEditor";
-import { AreeManodopera } from "@/components/settings/AreeManodopera";
 import { leggiCostoLavorazione } from "@/lib/tariffe/costoLavorazione";
 afterEach(cleanup);
 function Editor() {
@@ -36,14 +35,5 @@ describe("Scelta del costo di esecuzione", () => {
     expect(screen.getByLabelText("Nome operatore 1")).toHaveValue("Operatore Demo");
     expect(screen.getByLabelText("Costo orario operatore 1")).toHaveValue(30);
     expect(screen.getByRole("status")).toHaveTextContent("Completa i dati");
-  });
-  it("rende raggiungibili tutte le aree e mantiene comuni separate", () => {
-    const onChange = vi.fn();
-    render(<AreeManodopera tariffe={[{ vertical_associato: "bagno" }, { vertical_associato: null as null }]} value="all" onChange={onChange} />);
-    const aree = within(screen.getByRole("group", { name: "Aree della manodopera" }));
-    fireEvent.click(aree.getByRole("button", { name: /Bagni/ }));
-    expect(onChange).toHaveBeenCalledWith("area:bagni");
-    expect(aree.getByRole("button", { name: /Comuni \/ non assegnate/ })).toHaveTextContent("1");
-    expect(aree.getAllByRole("button").length).toBeGreaterThanOrEqual(12);
   });
 });

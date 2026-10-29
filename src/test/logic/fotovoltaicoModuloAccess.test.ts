@@ -14,8 +14,9 @@ import { join, relative } from "node:path";
 const RADICE = join(__dirname, "../../..");
 const leggi = (percorso: string) => readFileSync(join(RADICE, percorso), "utf8");
 
+// La pagina d'ingresso del modulo (FotovoltaicoIndex) è stata ritirata: la rotta porta
+// all'elenco unico dei preventivi. Resta da tenere fermo il cancello della rotta.
 describe("la pagina del Fotovoltaico decide solo col piano", () => {
-  const pagina = leggi("src/pages/azienda/fotovoltaico/FotovoltaicoIndex.tsx");
   const rotte = leggi("src/routes/companyRoutes.tsx");
 
   it("l'accesso lo decide la rotta, con la funzione di piano", () => {
@@ -23,19 +24,6 @@ describe("la pagina del Fotovoltaico decide solo col piano", () => {
     expect(rotte).toMatch(
       /path="marketing\/fotovoltaico" element=\{\s*withCompanyPermission\(\s*"canViewMarketingOpportunities",\s*<FeatureRoute featureKey="modulo_fotovoltaico_attivo">/,
     );
-  });
-
-  it("dentro la pagina non c'è più un secondo cancello", () => {
-    expect(pagina).not.toContain("useFvModuloAttivo");
-    expect(pagina).not.toContain("showInactive");
-    expect(pagina).not.toContain("showSetup");
-    expect(pagina).not.toContain("Contatta il team Edilizia in Cloud per attivarlo");
-  });
-
-  it("chi non ha ancora progetti vede lo stato vuoto dell'elenco, coi passi per iniziare", () => {
-    expect(pagina).toContain("progettiQuery.isSuccess && progetti.length === 0");
-    expect(pagina).toContain('to="/azienda/marketing/fotovoltaico/componenti"');
-    expect(pagina).toContain('to="/azienda/impostazioni/tariffe"');
   });
 });
 

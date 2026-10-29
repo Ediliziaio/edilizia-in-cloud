@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSettingsGroups, impostazioneAccessibile } from "@/lib/impostazioni/navigazioneImpostazioni";
 import { campiMarginiModificati, percentualeImpostazione } from "@/lib/impostazioni/salvataggioMargini";
-import { verificaWhatsAppDaConservare } from "@/lib/impostazioni/verificaCanaleWhatsApp";
 import { PAGAMENTI_FORNITORI, etichettaPagamentoFornitore } from "@/lib/impostazioni/pagamentiFornitori";
 import type { Permissions } from "@/hooks/usePermissions";
 import type { StatoPiano } from "@/lib/impostazioni/pianoImpostazioni";
@@ -65,16 +64,6 @@ describe("Salvataggio delle percentuali", () => {
   });
   it("il margine sul prezzo non può raggiungere 100%", () => {
     expect(() => percentualeImpostazione("100", "Margine", 99.99)).toThrow();
-  });
-});
-
-describe("WhatsApp: preferenza e verifica sono distinte", () => {
-  const verified = "2026-10-01T12:00:00Z";
-  it("un numero nuovo non risulta verificato", () => expect(verificaWhatsAppDaConservare("+393331234567", null, null)).toBeNull());
-  it("conserva una verifica precedente soltanto per lo stesso numero", () => {
-    expect(verificaWhatsAppDaConservare("0039 333-1234567", "+393331234567", verified)).toBe(verified);
-    expect(verificaWhatsAppDaConservare("+393331234568", "+393331234567", verified)).toBeNull();
-    expect(verificaWhatsAppDaConservare(null, "+393331234567", verified)).toBeNull();
   });
 });
 

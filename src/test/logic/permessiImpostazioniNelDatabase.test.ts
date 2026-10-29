@@ -419,7 +419,6 @@ describe("8. billing-connect e la scheda fiscale", () => {
     const scrivono = visita("src").filter((file) =>
       /\.from\(\s*["']anagrafica_azienda["']\s*(?:as never)?\s*\)\s*\.(insert|update|upsert|delete)\(/.test(leggi(file)));
     expect(scrivono.sort()).toEqual([
-      "src/components/sdi-wizard/SDISetupWizard.tsx",
       "src/hooks/useDocumentiFiscali.ts",
       "src/pages/azienda/fatturazione/ImpostazioniFatturazione.tsx",
     ]);

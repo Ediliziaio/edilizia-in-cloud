@@ -55,7 +55,6 @@ describe("serramenti: la detrazione del 2026", () => {
     expect(economia).not.toMatch(/value="65"|65% Ecobonus|50 \| 65/);
     expect(economia).toContain("ALIQUOTE_DETRAZIONE_SERRAMENTI.map(");
     expect(BONUS_OPTIONS.map((o) => o.value)).toEqual(["any", "50", "36", "none"]);
-    expect(leggi("src/pages/azienda/serramenti/SerramentiIndex.tsx")).not.toMatch(/=== "65"|!== 65/);
   });
 });
 

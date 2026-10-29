@@ -1,9 +1,0 @@
-
-> vite_react_shadcn_ts@0.0.0 typecheck:ci
-> node scripts/typecheck-ratchet.mjs
-
-Errori di tipo: 655 (soglia: 703)
-
-Bene: 18 file migliorati, 48 errori in meno.
-Abbassa la soglia con:  node scripts/typecheck-ratchet.mjs --update
-EXIT 0

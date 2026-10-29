@@ -115,9 +115,6 @@ vi.mock("@/components/employees/ExternalTeamDialog", () => ({
 vi.mock("@/components/employees/ExternalTeamAttachments", () => ({
   ExternalTeamAttachments: (): null => null,
 }));
-vi.mock("@/components/employees/InternalTeamRosterDialog", () => ({
-  InternalTeamRosterDialog: (): null => null,
-}));
 vi.mock("@/components/settings/GoogleCalendarConnectionTab", () => ({
   default: () => <div>collegamento Google</div>,
 }));
