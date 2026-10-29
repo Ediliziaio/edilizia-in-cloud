@@ -29,7 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
-import { contrattoDiOggi } from "@/lib/appalto/contratti";
+import { contrattoDiOggi, oggiISO } from "@/lib/appalto/contratti";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
@@ -928,7 +928,7 @@ export default function CreateLavoroAppaltatore() {
                               onCheckedChange={(v) =>
                                 updateInstallment(inst.position, {
                                   is_paid: v,
-                                  paid_date: v ? (inst.paid_date || new Date().toISOString().slice(0, 10)) : null,
+                                  paid_date: v ? (inst.paid_date || oggiISO()) : null,
                                 })
                               }
                             />

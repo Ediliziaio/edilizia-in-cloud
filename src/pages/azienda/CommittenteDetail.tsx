@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { euro } from "@/lib/clienti/schedaCliente";
-import { contrattoDiOggi } from "@/lib/appalto/contratti";
+import { contrattoDiOggi, oggiISO } from "@/lib/appalto/contratti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -227,7 +227,7 @@ export default function CommittenteDetail() {
         company_id: companyId,
         committente_id: id,
         nome: (f.nome ?? "").trim(),
-        valido_dal: f.valido_dal || new Date().toISOString().slice(0, 10),
+        valido_dal: f.valido_dal || oggiISO(),
         valido_al: f.valido_al || null,
         giorni_pagamento: Number(f.giorni_pagamento ?? 30),
         ritenuta_pct: Number(f.ritenuta_pct ?? 0),
@@ -385,7 +385,7 @@ export default function CommittenteDetail() {
             {puoModificare && (
               <Button
                 size="sm"
-                onClick={() => setContrattoForm({ nome: `Accordo ${new Date().getFullYear()}`, valido_dal: new Date().toISOString().slice(0, 10), giorni_pagamento: 30, modo_fatturazione: "per_commessa", regime_iva: "ordinaria", attivo: true })}
+                onClick={() => setContrattoForm({ nome: `Accordo ${new Date().getFullYear()}`, valido_dal: oggiISO(), giorni_pagamento: 30, modo_fatturazione: "per_commessa", regime_iva: "ordinaria", attivo: true })}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Nuovo contratto
               </Button>

@@ -17,7 +17,7 @@ export interface ContrattoAppaltoMinimo {
 }
 
 /** Oggi in formato ISO, nel fuso locale: `new Date().toISOString()` darebbe UTC. */
-function oggiISO(): string {
+export function oggiISO(): string {
   return new Date().toLocaleDateString("en-CA");
 }
 
