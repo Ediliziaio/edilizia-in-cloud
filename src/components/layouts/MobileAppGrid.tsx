@@ -11,7 +11,7 @@
  */
 import { useMemo, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { X, Search, Clock } from "lucide-react";
+import { X, Search, Clock, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem } from "@/lib/sidebarConfig";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -95,6 +95,15 @@ interface AreaTone {
 }
 
 const AREA_TONES: Record<string, AreaTone> = {
+  area_impostazioni: {
+    iconBg: "bg-slate-100",
+    iconColor: "text-slate-600",
+    iconBorder: "border-slate-200",
+    activeBg: "bg-slate-600",
+    activeColor: "text-white",
+    activeBorder: "border-slate-600",
+    sectionLabel: "text-slate-600",
+  },
   area_cruscotto: {
     iconBg: "bg-blue-50",
     iconColor: "text-blue-600",
@@ -314,7 +323,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline]);
 
   const filteredAreas = useMemo(() => {
-    return macroAreas
+    const aree = macroAreas
       .map((area) =>
         MOBILE_HIDDEN_AREAS.has(area.id)
           ? { ...area, items: area.items.filter((item) => MOBILE_VISIBLE_IN_HIDDEN_AREAS.has(item.url)) }
@@ -329,6 +338,23 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return { ...area, items };
       })
       .filter((area) => area.items.length > 0);
+
+    /* Impostazioni: era solo la rotellina in alto, e dall'app mobile non si
+       raggiungeva da nessun'altra parte. Tolta la rotellina dall'intestazione
+       (troppe icone su un telefono), la voce vive qui, dove c'e' tutto il
+       resto. Niente permesso: l'hub /azienda/impostazioni mostra gia' solo
+       quello che l'utente puo' aprire. */
+    const vociImpostazioni: NavItem[] = [
+      { title: "Impostazioni", url: "/azienda/impostazioni", icon: SettingsIcon },
+    ];
+    const q = search.trim().toLowerCase();
+    const impostazioni = q
+      ? vociImpostazioni.filter((v) => v.title.toLowerCase().includes(q))
+      : vociImpostazioni;
+
+    return impostazioni.length > 0
+      ? [...aree, { id: "area_impostazioni", title: "Impostazioni", items: impostazioni }]
+      : aree;
   }, [filterNavItems, search]);
 
   /**

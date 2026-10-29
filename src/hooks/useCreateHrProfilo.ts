@@ -50,6 +50,21 @@ export function useCreateHrProfilo() {
           contatto_emergenza_telefono: data.contatto_emergenza_telefono,
           luogo_nascita: data.luogo_nascita,
           nazionalita: data.nazionalita || "Italiana",
+          /* Questi campi il modulo li chiede, e fino al 29/10/2026 la creazione
+             li buttava via in silenzio: chi compilava residenza, IBAN, sesso o
+             recapiti privati vedeva il profilo nascere senza. Si ritrovavano
+             solo riaprendo la scheda e riscrivendoli (li' l'update li salva). */
+          sesso: data.sesso,
+          stato_civile: data.stato_civile,
+          indirizzo: data.indirizzo,
+          citta_residenza: data.citta_residenza,
+          cap_residenza: data.cap_residenza,
+          telefono_privato: data.telefono_privato,
+          email_privata: data.email_privata,
+          iban: data.iban,
+          orario_inizio: data.orario_inizio,
+          orario_fine: data.orario_fine,
+          pin_timbratura: data.pin_timbratura,
           // Operaio di cantiere: il database gli crea anche la scheda del costo.
           lavora_in_cantiere: data.lavora_in_cantiere ?? false,
         } as any)

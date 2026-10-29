@@ -1,4 +1,5 @@
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { EditorContratto } from '@/components/preventivi/EditorContratto';
 import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
 import { SerramentiCoverLayoutPicker } from "./SerramentiCoverLayoutPicker";
@@ -1900,10 +1901,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                   <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/30 space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="h-11 w-11 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1 relative">
-                        {(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ? (
+                        {logoDellaCopertina({ logoCopertinaModello: form.pdf_cover_logo_url, logoChiaroAzienda: brand?.brand_logo_dark_url, logoModello: form.logo_url, logoAzienda: brand?.logo_url }) ? (
                           <ImgRiservata
                             loading="lazy"
-                            src={(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ?? ""}
+                            src={logoDellaCopertina({ logoCopertinaModello: form.pdf_cover_logo_url, logoChiaroAzienda: brand?.brand_logo_dark_url, logoModello: form.logo_url, logoAzienda: brand?.logo_url }) ?? ""}
                             alt="Logo copertina"
                             className="h-full w-full object-contain"
                           />
@@ -2868,7 +2869,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               moduleId={localModule?.id}
               template={form}
               companyName={form.ragione_sociale}
-              companyLogoUrl={form.logo_url}
+              /* Stessa catena del PDF vero: il logo del modello e, se non
+                 c'e', quello dell'azienda. Senza il ripiego l'anteprima usciva
+                 SENZA logo a un'azienda che il logo ce l'ha. */
+              companyLogoUrl={logoDelDocumento({ logoModello: form.logo_url, logoAzienda: brand?.logo_url })}
               companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
               companyBrandColor={brand?.brand_primary_color ?? null}
               companyIndirizzo={form.indirizzo_completo}
@@ -2891,7 +2895,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             onOpenChange={setPreviewOpen}
             template={form}
             companyName={form.ragione_sociale}
-            companyLogoUrl={form.logo_url}
+            companyLogoUrl={logoDelDocumento({ logoModello: form.logo_url, logoAzienda: brand?.logo_url })}
             companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
             companyBrandColor={brand?.brand_primary_color ?? null}
             companyIndirizzo={form.indirizzo_completo}

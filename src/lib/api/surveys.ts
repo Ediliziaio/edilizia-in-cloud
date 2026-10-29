@@ -137,6 +137,50 @@ export async function createSurvey(
   return data as SurveyRow;
 }
 
+/**
+ * Fissa il sopralluogo nel calendario del tecnico.
+ *
+ * Crea la riga di `appointments` e la lega al sopralluogo
+ * (`surveys.appointment_id`): il legame esiste nel database da sempre — il
+ * trigger `survey_segue_appuntamento` sposta il rilievo quando si sposta
+ * l'appuntamento — ma nessuno lo scriveva, quindi il rilievo non occupava
+ * nessuno slot e non compariva in agenda.
+ *
+ * Non lancia: se l'agenda non accetta la riga il sopralluogo resta comunque
+ * creato, e chi chiama avvisa. Restituisce l'id dell'appuntamento, o null.
+ */
+export async function fissaSopralluogoInAgenda(
+  surveyId: string,
+  riga: Record<string, unknown>,
+): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  // `appointments.created_by` e' NOT NULL e senza default: chi crea lo deve dire.
+  const { data: auth } = await supabase.auth.getUser();
+  const creatoDa = auth.user?.id ?? null;
+  if (!creatoDa) {
+    console.error("[surveys] appuntamento del sopralluogo: nessun utente in sessione");
+    return null;
+  }
+  const { data, error } = await sb
+    .from("appointments")
+    .insert({ ...riga, created_by: creatoDa })
+    .select("id")
+    .single();
+  if (error || !data?.id) {
+    console.error("[surveys] appuntamento del sopralluogo non creato", error);
+    return null;
+  }
+  const { error: errLegame } = await sb
+    .from("surveys")
+    .update({ appointment_id: data.id })
+    .eq("id", surveyId);
+  if (errLegame) {
+    console.error("[surveys] legame sopralluogo/appuntamento non scritto", errLegame);
+  }
+  return data.id as string;
+}
+
 export interface SurveyDetail {
   survey: SurveyRow;
   template: SurveyTemplateRow;

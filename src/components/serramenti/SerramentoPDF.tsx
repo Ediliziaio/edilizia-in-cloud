@@ -19,6 +19,7 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
+import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { TestoContrattoPdf } from '../preventivi/pdf/TestoContrattoPdf';
 import { FinitureSceltePdf, PresentazioneProdottoPdf, type FinituraPreventivoPdf } from "./PresentazioneProdottoPdf";
@@ -2215,8 +2216,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const materialiProposti = [...new Set(detail.serramenti.map(s => s.materiale).filter(Boolean))];
   const materialeConfronto = materialiProposti.length === 1 ? materialiProposti[0] : materialiProposti.length > 1 ? null : p.materiale_principale;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
-  const logoUrl = template?.logo_url || company?.logo_url || null;
-  const coverLogoUrl = template?.pdf_cover_logo_url ?? company?.brand_logo_dark_url ?? logoUrl;
+  /* La catena del logo sta in un posto solo: vedi `logoDelDocumento`. */
+  const logoUrl = logoDelDocumento({ logoModello: template?.logo_url, logoAzienda: company?.logo_url });
+  const coverLogoUrl = logoDellaCopertina({
+    logoCopertinaModello: template?.pdf_cover_logo_url,
+    logoChiaroAzienda: company?.brand_logo_dark_url,
+    logoModello: template?.logo_url,
+    logoAzienda: company?.logo_url,
+  });
   const primaryColor = coloreDelDocumento(template?.colore_primario, company?.brand_primary_color, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
   const C = makePalette(primaryColor);
   // Local intervention models have a compact, neutral layout. Existing company

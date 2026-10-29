@@ -10,6 +10,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { CostoPersonaHr } from "@/components/hr/CostoPersonaHr";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { accessoPiattaforma, ETICHETTA_ACCESSO, spiegazioneAccesso } from "@/lib/hr/accessoPiattaforma";
 import { useUpdateHrProfilo } from "@/hooks/useOrganigramma";
 import { useCreateHrProfilo } from "@/hooks/useCreateHrProfilo";
 import { useHrSedi } from "@/hooks/useHrSedi";
@@ -73,6 +76,10 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
   const { data: sedi = [] } = useHrSedi();
   const isEditing = !!profilo;
   const [tab, setTab] = useState("anagrafica");
+
+  const companyIdAttiva = useEffectiveCompanyId();
+  const { data: utentiAzienda } = useCompanyStaffUsers(companyIdAttiva);
+  const accesso = profilo ? accessoPiattaforma(profilo, utentiAzienda) : null;
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<Partial<HrProfilo>>({
     defaultValues: profilo || {},
@@ -223,6 +230,21 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                     {profilo.attivo ? "Attivo" : "Cessato"}
                   </Badge>
                 </div>
+                {/* Una scheda del personale non è un accesso: qui si legge se
+                    questa persona entra davvero nel gestionale. */}
+                {accesso && (
+                  <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+                    <span
+                      className={cn(
+                        "font-medium",
+                        accesso.stato === "entra" ? "text-emerald-700" : "text-slate-600",
+                      )}
+                    >
+                      {ETICHETTA_ACCESSO[accesso.stato]}
+                    </span>{" "}
+                    · {spiegazioneAccesso(accesso)}
+                  </p>
+                )}
               </div>
             </div>
           ) : (

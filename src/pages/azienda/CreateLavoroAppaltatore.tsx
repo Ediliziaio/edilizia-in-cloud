@@ -1,18 +1,26 @@
 /**
- * CreateLavoroAppaltatore — flusso "Nuovo lavoro per appaltatore"
+ * CreateLavoroAppaltatore — "Nuovo lavoro in appalto"
  * ─────────────────────────────────────────────────────────────────
- * Pagina sbloccata dal Modulo Appaltatori (feature flag
- * `appaltatore_module`). Usa lo stesso store `orders` con
- * `order_type='appaltatore_lavoro'` e i campi dedicati `work_*`.
+ * Pagina sbloccata dal Modulo Appaltatori (`appaltatore_module`). Usa lo stesso
+ * store `orders` con `order_type='appaltatore_lavoro'`, cosi' la commessa
+ * d'appalto eredita fasi, operai, calendario, materiali, allegati e permessi
+ * della commessa normale.
  *
- * Skeleton (Phase 5): solo i campi minimi indispensabili. Le
- * integrazioni (assegnazione operai, calendario lavori, riepilogo
- * finanziario completo) verranno collegate nelle fasi successive,
- * sfruttando le tabelle già esistenti (order_employees,
- * appointments, payments) — niente nuovi store da introdurre.
+ * Fase 2 (28/10/2026) — la pagina non chiede piu' un importo dato per certo.
+ * Prima si scelgono committente e contratto, poi il modo di valorizzazione, che
+ * decide tutto quello che viene dopo:
+ *
+ *   A CORPO    importo concordato prima → rate, come una commessa privata.
+ *   A MISURA   importo noto alla fine   → una stima e un tetto; le rate
+ *              nasceranno dal rendiconto, non da qui.
+ *
+ * Il contratto e' obbligatorio solo per le commesse a misura: senza il listino
+ * del committente non c'e' modo di trasformare giornate e viaggi in un importo.
+ *
+ * Vedi docs/piano-commessa-appalto.md.
  */
-import { useMemo, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, HardHat, Loader2, MapPin, FileText, Package,
@@ -21,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { contrattoDiOggi } from "@/lib/appalto/contratti";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
@@ -45,12 +54,34 @@ import {
 } from "@/lib/orderUtils";
 
 type LavoroPaymentMode = "single" | "installments";
+type Valorizzazione = "a_corpo" | "a_misura";
+
+/** Le date si scrivono come le legge chi le legge: 01/10/2026, non 2026-10-01. */
+const giornoIT = (iso: string | null | undefined): string => {
+  if (!iso) return "—";
+  const [a, m, g] = iso.slice(0, 10).split("-");
+  return g && m && a ? `${g}/${m}/${a}` : iso;
+};
 
 interface AppaltatoreOption {
   id: string;
   business_name: string | null;
   fiscal_code: string | null;
 }
+
+interface ContrattoOption {
+  id: string;
+  nome: string;
+  valido_dal: string;
+  valido_al: string | null;
+  attivo: boolean;
+  giorni_pagamento: number;
+  modo_fatturazione: "per_commessa" | "mensile_cumulativa";
+  include_fornitura: boolean;
+  riferimento_committente: string | null;
+}
+
+
 
 const toIsoDate = (d: string) => (d ? d : null);
 
@@ -64,7 +95,11 @@ export default function CreateLavoroAppaltatore() {
   const companyId = effectiveCompany?.id ?? null;
 
   // ── Form state (skeleton — niente RHF per la prima iterazione) ──
-  const [customerId, setCustomerId] = useState<string>("");
+  /* `?committente=…`: ci si arriva dall'avviso di «Nuova Commessa», quando il
+     cliente scelto li' e' un committente. Arrivare con la scelta gia' fatta
+     evita di ricercarlo in un menu di centocinquanta nomi. */
+  const [parametri] = useSearchParams();
+  const [customerId, setCustomerId] = useState<string>(parametri.get("committente") ?? "");
   const [orderCode, setOrderCode] = useState("");
   const [description, setDescription] = useState("");
   const [workAddress, setWorkAddress] = useState("");
@@ -74,6 +109,18 @@ export default function CreateLavoroAppaltatore() {
   const [workEndDate, setWorkEndDate] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
+
+  // ── Il contratto del committente e il modo di valorizzazione ────
+  /**
+   * Quello che l'utente ha scelto a mano. Il contratto EFFETTIVO si deriva
+   * (vedi `contrattoId` sotto): cambiato committente, una scelta che non
+   * appartiene al nuovo elenco smette da sola di valere. Prima era un effetto
+   * che riscriveva lo stato, cioè un render in più e un errore eslint.
+   */
+  const [contrattoManuale, setContrattoManuale] = useState<string>("");
+  const [valorizzazione, setValorizzazione] = useState<Valorizzazione>("a_corpo");
+  const [tetto, setTetto] = useState("");
+  const [rifCommittente, setRifCommittente] = useState("");
 
   // ── Pagamenti: rate / unica / acconto+saldo ─────────────────────
   const [paymentMode, setPaymentMode] = useState<LavoroPaymentMode>("single");
@@ -147,6 +194,33 @@ export default function CreateLavoroAppaltatore() {
     }));
   };
 
+  /**
+   * Il codice del lavoro: il riepilogo diceva «Auto» e poi non lo generava
+   * nessuno, cosi' il lavoro nasceva senza codice e in elenco, sul rendiconto e
+   * sulla scheda del committente si leggeva «—». Stessa RPC della commessa
+   * normale (`prossimo_numero_commessa`), stesso patto: il campo resta
+   * modificabile e quello scritto a mano vince.
+   */
+  const codiceSuggerito = useQuery({
+    queryKey: ["prossimo-numero-commessa", companyId],
+    enabled: !!companyId,
+    staleTime: 0,
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await (supabase as any).rpc("prossimo_numero_commessa", { p_company_id: companyId });
+      if (error) return null;
+      return (data as string | null) ?? null;
+    },
+  });
+  const codicePrecompilato = useRef(false);
+  useEffect(() => {
+    // Solo una stringa: un suggerimento storto non deve poter mandare in
+    // errore il campo (`orderCode.trim()` sta anche nel riepilogo).
+    const suggerito = typeof codiceSuggerito.data === "string" ? codiceSuggerito.data.trim() : "";
+    if (codicePrecompilato.current || !suggerito) return;
+    codicePrecompilato.current = true;
+    setOrderCode((attuale) => (attuale.trim() ? attuale : suggerito));
+  }, [codiceSuggerito.data]);
+
   // ── Lista appaltatori già censiti per la company corrente ─────
   const { data: appaltatori = [], isLoading: loadingAppaltatori } = useQuery({
     queryKey: ["appaltatori-list", companyId],
@@ -163,6 +237,37 @@ export default function CreateLavoroAppaltatore() {
     },
     enabled: !!companyId && featureEnabled,
   });
+
+  // ── Contratti del committente scelto ───────────────────────────
+  const { data: contratti = [], isLoading: loadingContratti } = useQuery({
+    queryKey: ["appalto-contratti-committente", companyId, customerId],
+    queryFn: async (): Promise<ContrattoOption[]> => {
+      if (!companyId || !customerId) return [];
+      const { data, error } = await (supabase as any)
+        .from("appalto_contratti")
+        .select("id, nome, valido_dal, valido_al, attivo, giorni_pagamento, modo_fatturazione, include_fornitura, riferimento_committente")
+        .eq("company_id", companyId)
+        .eq("committente_id", customerId)
+        .order("valido_dal", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ContrattoOption[];
+    },
+    enabled: !!companyId && !!customerId && featureEnabled,
+  });
+
+  /**
+   * Il contratto su cui la commessa nasce: quello scelto a mano se appartiene
+   * ancora a questo committente, altrimenti quello valido oggi.
+   */
+  const contrattoId = useMemo(() => {
+    if (contrattoManuale && contratti.some((c) => c.id === contrattoManuale)) return contrattoManuale;
+    return contrattoDiOggi(contratti)?.id ?? "";
+  }, [contrattoManuale, contratti]);
+
+  const contrattoScelto = useMemo(
+    () => contratti.find((c) => c.id === contrattoId) ?? null,
+    [contratti, contrattoId],
+  );
 
   // ── Validazione date (soft) ────────────────────────────────────
   const dateError = useMemo(() => {
@@ -195,12 +300,22 @@ export default function CreateLavoroAppaltatore() {
     return null;
   }, [totalNum, depositsSum]);
 
+  const aMisura = valorizzazione === "a_misura";
+
+  /**
+   * A misura il contratto serve davvero: l'importo nasce dalle tariffe del
+   * committente, e senza listino non c'e' niente da cui farlo nascere. A corpo
+   * no: un importo concordato a voce resta una commessa valida.
+   */
+  const contrattoMancante = aMisura && !contrattoId;
+
   const canSubmit =
     !!companyId &&
     !!customerId &&
     description.trim().length > 0 &&
     !dateError &&
-    !paymentError;
+    !contrattoMancante &&
+    (aMisura || !paymentError);
 
   // ── Mutation: insert orders + installments + redirect ──────────
   const createMutation = useMutation({
@@ -213,11 +328,17 @@ export default function CreateLavoroAppaltatore() {
         throw new Error("Importo non valido.");
       }
 
-      // Calcolo rate finali: saldo = totale - somma acconti
-      const installmentsForSave: Installment[] = installments.map((i) =>
-        i.type === "balance" ? { ...i, amount: balanceComputed } : i
-      );
-      const legacy = installmentsToLegacyColumns(installmentsForSave);
+      /**
+       * A misura non si scrivono rate: l'importo non c'e' ancora, e una rata
+       * sull'importo stimato diventerebbe una scadenza finta nel previsionale
+       * di cassa. La scadenza vera nasce sulla FATTURA del rendiconto, dai
+       * giorni di pagamento del contratto: metterla anche qui farebbe contare
+       * lo stesso incasso due volte.
+       */
+      const installmentsForSave: Installment[] = aMisura
+        ? []
+        : installments.map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i));
+      const legacy = aMisura ? {} : installmentsToLegacyColumns(installmentsForSave);
 
       const payload = {
         company_id: companyId,
@@ -227,9 +348,13 @@ export default function CreateLavoroAppaltatore() {
         total_amount: totalVal,
         ...legacy,
         vat_rate: 22,
-        payment_type: paymentMode === "single" ? "balance" : "standard",
+        payment_type: aMisura ? "balance" : paymentMode === "single" ? "balance" : "standard",
         // Campi specifici Modulo Appaltatori
         order_type: "appaltatore_lavoro",
+        valorizzazione,
+        appalto_contratto_id: contrattoId || null,
+        tetto_importo: tetto ? parseDecimalIT(tetto) : null,
+        riferimento_committente: rifCommittente.trim() || null,
         work_address: workAddress.trim() || null,
         work_description: workDescription.trim() || null,
         materials_location: materialsLocation.trim() || null,
@@ -343,8 +468,8 @@ export default function CreateLavoroAppaltatore() {
     <div className="space-y-6">
       <QuotePageHeader
         icon={<HardHat className="h-5 w-5" />}
-        title="Nuovo lavoro per appaltatore"
-        subtitle="Sola manodopera commissionata da un'impresa committente."
+        title="Nuovo lavoro in appalto"
+        subtitle="Il lavoro che un'impresa committente ti passa."
         chips={
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
             <HardHat className="h-3 w-3" />
@@ -370,12 +495,12 @@ export default function CreateLavoroAppaltatore() {
         <div className="lg:col-span-8 space-y-6">
         {/* ── Cliente appaltatore ────────────────────────────────── */}
         <QuoteCard
-          title="Appaltatore committente"
+          title="Committente"
           icon={<HardHat className="h-4 w-4" />}
-          subtitle="Impresa che ti commissiona il lavoro di manodopera."
+          subtitle="L'impresa che ti passa il lavoro, e il contratto da cui scendono listino e condizioni."
         >
           <div className="space-y-3">
-            <Label htmlFor="customer">Appaltatore *</Label>
+            <Label htmlFor="customer">Committente *</Label>
             <Select value={customerId} onValueChange={setCustomerId}>
               <SelectTrigger id="customer" disabled={loadingAppaltatori}>
                 <SelectValue placeholder={
@@ -395,23 +520,134 @@ export default function CreateLavoroAppaltatore() {
                 ))}
               </SelectContent>
             </Select>
+            {/* Il contratto: da qui la commessa prende il listino concordato.
+                Si presenta quello valido oggi, non si impone. */}
+            {customerId && (
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="contratto">
+                  Contratto {aMisura ? "*" : <span className="text-muted-foreground font-normal">(consigliato)</span>}
+                </Label>
+                {loadingContratti ? (
+                  <p className="text-xs text-muted-foreground">Caricamento contratti…</p>
+                ) : contratti.length === 0 ? (
+                  <Alert>
+                    <AlertDescription className="text-xs">
+                      Questo committente non ha ancora un contratto con il suo listino.
+                      <Button variant="link" className="px-1 h-auto"
+                        onClick={() => navigate(`/azienda/committenti/${customerId}`)}>
+                        Aprine uno dalla sua scheda
+                      </Button>
+                      — a misura serve, perché l'importo nasce dalle tariffe.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <Select value={contrattoId} onValueChange={setContrattoManuale}>
+                      <SelectTrigger id="contratto">
+                        <SelectValue placeholder="Seleziona il contratto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contratti.map((k) => (
+                          <SelectItem key={k.id} value={k.id}>
+                            {k.nome} · dal {giornoIT(k.valido_dal)}{k.attivo ? "" : " (non attivo)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {contrattoScelto && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Pagamento a {contrattoScelto.giorni_pagamento} giorni ·{" "}
+                        {contrattoScelto.modo_fatturazione === "mensile_cumulativa"
+                          ? "fattura mensile con le altre commesse"
+                          : "fattura per commessa"}{" "}
+                        · {contrattoScelto.include_fornitura ? "fornitura compresa" : "sola manodopera"}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {appaltatori.length === 0 && !loadingAppaltatori && (
               <Alert>
                 <AlertDescription className="text-xs">
-                  Per creare un lavoro hai bisogno di almeno un cliente di tipo
-                  <strong> Appaltatore </strong>in anagrafica. Vai su
+                  Per creare un lavoro in appalto serve almeno un
+                  <strong> committente </strong>in anagrafica. Vai su
                   <Button
                     variant="link"
                     className="px-1 h-auto"
-                    onClick={() => navigate("/azienda/clienti/nuovo")}
+                    onClick={() => navigate("/azienda/clienti/nuovo?tipo=committente")}
                   >
-                    Nuovo cliente
+                    Nuovo committente
                   </Button>
-                  e seleziona la categoria <em>Cliente appaltatore</em>.
+                  .
                 </AlertDescription>
               </Alert>
             )}
           </div>
+        </QuoteCard>
+
+        {/* ── Come si valorizza: la scelta che decide tutto il resto ── */}
+        <QuoteCard
+          title="Come viene pagato questo lavoro"
+          icon={<Wallet className="h-4 w-4" />}
+          subtitle="Da qui cambia il resto della pagina: non si può dedurre dopo."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([
+              {
+                v: "a_corpo" as const,
+                titolo: "A corpo",
+                riga: "L'importo è concordato: 1.450 € e basta.",
+                sotto: "Importo certo e rate. Il lavoro in più si rendiconta a parte.",
+              },
+              {
+                v: "a_misura" as const,
+                titolo: "A misura",
+                riga: "A giornata, al km, al metro quadro: si sa alla fine.",
+                sotto: "Una stima, un tetto, e l'importo dal rendiconto.",
+              },
+            ]).map((opz) => (
+              <button
+                key={opz.v}
+                type="button"
+                aria-pressed={valorizzazione === opz.v}
+                onClick={() => setValorizzazione(opz.v)}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  valorizzazione === opz.v
+                    ? "border-orange-400 bg-orange-50/60 ring-1 ring-orange-200"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <span className="flex items-center gap-2 font-semibold text-slate-900">
+                  {valorizzazione === opz.v
+                    ? <CheckCircle2 className="h-4 w-4 text-orange-500" />
+                    : <Circle className="h-4 w-4 text-slate-300" />}
+                  {opz.titolo}
+                </span>
+                <span className="mt-1 block text-xs text-slate-600">{opz.riga}</span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">{opz.sotto}</span>
+              </button>
+            ))}
+          </div>
+          {aMisura ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              L'importo che inserisci sotto resta una <strong>stima</strong>: serve a te per
+              sapere se il lavoro conviene, non è quello che fatturerai. Quello che fatturi
+              esce dal rendiconto: le giornate, i viaggi, i chilometri, i metri quadri che
+              hai segnato, ai prezzi del listino concordato.
+            </p>
+          ) : (
+            /* Il caso misto non e' una terza scelta: e' questa, piu' le righe
+               fuori contratto. Senza dirlo, chi prende un lavoro a corpo con
+               degli extra non sa dove metterli e li perde. */
+            <p className="mt-3 text-xs text-muted-foreground">
+              L'importo concordato resta quello. Il lavoro <strong>in più</strong> — la
+              giornata non prevista, il viaggio in più, l'imprevisto sotto il massetto — si
+              aggiunge nel rendiconto segnato <strong>fuori contratto</strong>: è quello che
+              si discute a fine lavori, e così resta scritto con la sua data.
+            </p>
+          )}
         </QuoteCard>
 
         {/* ── Identificazione lavoro ─────────────────────────────── */}
@@ -526,12 +762,17 @@ export default function CreateLavoroAppaltatore() {
         </QuoteCard>
 
         {/* ── Compenso pattuito + piano pagamenti ─────────────────── */}
-        <QuoteCard title="Compenso e pagamenti" icon={<Wallet className="h-4 w-4" />}>
+        <QuoteCard
+          title={aMisura ? "Stima e tetto" : "Compenso e pagamenti"}
+          icon={<Wallet className="h-4 w-4" />}
+        >
           <div className="space-y-5">
             {/* Importo totale */}
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="totalAmount">Importo totale (€) — netto</Label>
+                <Label htmlFor="totalAmount">
+                  {aMisura ? "Importo stimato (€)" : "Importo totale (€) — netto"}
+                </Label>
                 <Input
                   id="totalAmount"
                   type="text"
@@ -547,11 +788,64 @@ export default function CreateLavoroAppaltatore() {
                   placeholder="0,00"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Compenso pattuito per la sola manodopera (IVA esclusa).
+                  {aMisura
+                    ? "Quanto pensi di fare. Non è quello che fatturerai: quello esce dal rendiconto."
+                    : "Compenso pattuito con il committente (IVA esclusa)."}
+                </p>
+              </div>
+
+              {/* Il tetto: la cifra oltre la quale il rendicontato deve
+                  avvisare. Senza, si lavora oltre l'accordo in silenzio. */}
+              {aMisura && (
+                <div className="space-y-2">
+                  <Label htmlFor="tetto">Tetto concordato (€)</Label>
+                  <Input
+                    id="tetto"
+                    type="text"
+                    inputMode="decimal"
+                    value={tetto}
+                    onChange={(e) => setTetto(e.target.value)}
+                    onBlur={() => {
+                      const v = parseDecimalIT(tetto);
+                      setTetto(v > 0 ? formatDecimalIT(v) : "");
+                    }}
+                    placeholder="0,00"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="rifCommittente">Loro numero d'ordine</Label>
+                <Input
+                  id="rifCommittente"
+                  value={rifCommittente}
+                  onChange={(e) => setRifCommittente(e.target.value)}
+                  placeholder="ORD/2026/4471"
+                  maxLength={100}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.
+                  {contrattoScelto?.riferimento_committente && (
+                    <> Sul contratto c'è <strong>{contrattoScelto.riferimento_committente}</strong>:
+                    se questo cantiere ha un ordine suo, scrivi quello.</>
+                  )}
                 </p>
               </div>
             </div>
 
+            {aMisura ? (
+              <Alert>
+                <AlertDescription className="text-xs">
+                  Niente rate adesso: su una commessa a misura una scadenza
+                  sull'importo stimato diventerebbe una previsione di incasso
+                  falsa. La scadenza arriva con la fattura del rendiconto, calcolata
+                  sui giorni di pagamento del contratto.
+                </AlertDescription>
+              </Alert>
+            ) : (<>
             {/* Modalità pagamento */}
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -750,6 +1044,7 @@ export default function CreateLavoroAppaltatore() {
                 </div>
               </div>
             )}
+            </>)}
           </div>
         </QuoteCard>
 
@@ -771,9 +1066,21 @@ export default function CreateLavoroAppaltatore() {
           <QuoteCard title="Riepilogo lavoro" icon={<HardHat className="h-4 w-4" />} compact>
             <dl className="space-y-2.5 text-xs">
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Appaltatore</dt>
+                <dt className="text-slate-500 shrink-0">Committente</dt>
                 <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
                   {selectedAppaltatore?.business_name || <em className="text-muted-foreground font-normal">Da selezionare</em>}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">Contratto</dt>
+                <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
+                  {contrattoScelto?.nome || <em className="text-muted-foreground font-normal">Nessuno</em>}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">Pagato</dt>
+                <dd className="font-medium text-right text-slate-800">
+                  {aMisura ? "A misura" : "A corpo"}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
@@ -806,11 +1113,18 @@ export default function CreateLavoroAppaltatore() {
               )}
               {formattedTotal && (
                 <div className="flex items-start justify-between gap-3 pt-2 border-t border-slate-100">
-                  <dt className="text-slate-500 shrink-0">Compenso</dt>
-                  <dd className="font-bold text-right text-orange-600">{formattedTotal}</dd>
+                  <dt className="text-slate-500 shrink-0">{aMisura ? "Stima" : "Compenso"}</dt>
+                  <dd className="font-bold text-right text-orange-600">
+                    {formattedTotal}
+                    {aMisura && (
+                      <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        stimato
+                      </span>
+                    )}
+                  </dd>
                 </div>
               )}
-              {totalNum > 0 && (
+              {!aMisura && totalNum > 0 && (
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-slate-500 shrink-0">Pagamento</dt>
                   <dd className="font-medium text-right text-slate-800">
@@ -823,7 +1137,7 @@ export default function CreateLavoroAppaltatore() {
             </dl>
 
             {/* Mini-plan rate */}
-            {totalNum > 0 && installments.length > 0 && (
+            {!aMisura && totalNum > 0 && installments.length > 0 && (
               <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
                 {installments.map((inst) => {
                   const amt = inst.type === "balance" ? balanceComputed : inst.amount;
@@ -868,7 +1182,7 @@ export default function CreateLavoroAppaltatore() {
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Crea lavoro
+                    Crea il lavoro
                   </>
                 )}
               </QuotePrimaryButton>
@@ -884,14 +1198,16 @@ export default function CreateLavoroAppaltatore() {
               {!canSubmit && !createMutation.isPending && (
                 <p className="text-[11px] text-slate-500 text-center pt-1">
                   {!customerId
-                    ? "Seleziona un appaltatore per continuare."
-                    : !description.trim()
-                      ? "Inserisci una descrizione breve."
-                      : dateError
-                        ? "Correggi le date dei lavori."
-                        : paymentError
-                          ? "Acconti superiori al totale."
-                          : "Compila i campi obbligatori."}
+                    ? "Scegli il committente per continuare."
+                    : contrattoMancante
+                      ? "A misura serve il contratto: l'importo nasce dalle sue tariffe."
+                      : !description.trim()
+                        ? "Inserisci una descrizione breve."
+                        : dateError
+                          ? "Correggi le date dei lavori."
+                          : paymentError
+                            ? "Acconti superiori al totale."
+                            : "Compila i campi obbligatori."}
                 </p>
               )}
             </div>

@@ -46,6 +46,8 @@ export interface StaffUser {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  /** Serve a riconoscere chi ha gia' un account quando il legame manca. */
+  email?: string | null;
   roles?: StaffRole[];
 }
 
@@ -126,6 +128,7 @@ export function useCompanyStaffUsers(
               id: p.id,
               first_name: p.first_name,
               last_name: p.last_name,
+              email: p.email ?? null,
               roles: Array.isArray(p.roles) ? (p.roles as StaffRole[]) : undefined,
             }));
         }
@@ -161,7 +164,7 @@ export function useCompanyStaffUsers(
 
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, email")
         .in("id", staffUserIds)
         .order("last_name");
 
@@ -171,6 +174,7 @@ export function useCompanyStaffUsers(
           id: p.id,
           first_name: p.first_name,
           last_name: p.last_name,
+          email: p.email ?? null,
           roles: staffRolesMap.get(p.id),
         }));
     },

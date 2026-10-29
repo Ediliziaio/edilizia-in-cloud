@@ -38,8 +38,6 @@ import {
   FileStack,
   Search,
   ClipboardList,
-  Brain,
-  Settings as SettingsIcon,
   PanelLeft,
   PanelLeftClose,
 } from "lucide-react";
@@ -1734,23 +1732,13 @@ export function CompanyLayout() {
             {!/^\/azienda\/impostazioni(?:\/|$)/.test(location.pathname) && <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 hidden md:inline-flex" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>}
-            {/* v8.6.70 — Rotellina Impostazioni (mobile): apre l'hub griglia
-                /azienda/impostazioni (SettingsIndexRoute → SettingsMobileHub
-                su mobile, redirect a mio-profilo su desktop).
-                Nascosta in modalità commercialista — non deve accedere alle
-                impostazioni dell'azienda cliente. */}
-            {!isCommercialistaMode && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 shrink-0 md:hidden"
-                onClick={() => navigate("/azienda/impostazioni")}
-                title="Impostazioni"
-                aria-label="Impostazioni"
-              >
-                <SettingsIcon className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            )}
+            {/* 29/10/2026 — La rotellina Impostazioni non e' piu' qui.
+                L'intestazione del telefono aveva sette elementi in 375px
+                (indietro, logo, timbra, rotellina, cervello, chat, campanella)
+                e i nomi dell'azienda e della pagina finivano tagliati.
+                Impostazioni ora sta nella griglia «App», insieme a tutto il
+                resto (vedi MobileAppGrid, area_impostazioni). Su desktop non
+                c'era e non cambia niente. */}
             {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03)
                 v8.6.69 — Nascoste su mobile (icona inbox+badge); restano su md+.
                 Motivazione UX: header mobile sovraffollato, l'utente accede
@@ -1766,21 +1754,10 @@ export function CompanyLayout() {
             <div className="hidden md:block">
               <ChangelogDrawer />
             </div>
-            {/* v8.6.70 — Silvio chat header button (solo mobile).
-                Desktop usa il SilvioFAB in basso a destra; su mobile invece
-                serve un accesso veloce in alto perché lo schermo è ridotto. */}
-            {deferredRealtimeReady && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 shrink-0 md:hidden"
-                onClick={() => window.dispatchEvent(new Event("silvio:open-chat"))}
-                aria-label="Apri chat con Silvio"
-                title="Silvio"
-              >
-                <Brain className="h-4 w-4 text-orange-600" aria-hidden="true" />
-              </Button>
-            )}
+            {/* 29/10/2026 — Via anche il cervello di Silvio dall'intestazione:
+                sul telefono Silvio e' gia' il bottone grande al centro della
+                barra in basso, dove il pollice arriva. Due porte per la stessa
+                stanza, in una testata da 375px, erano una di troppo. */}
             {/* v8.6.71 — Chat Team header button (solo mobile).
                 Sostituisce SilvioBellPopover su mobile (che resta su desktop
                 accanto alla campanella notifiche). Mostra badge con il numero

@@ -60,6 +60,8 @@ import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
+import { RiepilogoAppaltoCommessa } from "@/components/orders/RiepilogoAppaltoCommessa";
+import { totaliCommessaAppalto, type RigaPerTotali } from "@/lib/appalto/rendiconto";
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
@@ -83,6 +85,7 @@ import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
+import { RendicontoAppalto } from "@/components/orders/RendicontoAppalto";
 import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
 import { OrderResourceStatistics } from "@/components/orders/OrderResourceStatistics";
 import { OrdineSAL } from "@/components/orders/OrdineSAL";
@@ -273,6 +276,11 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   work_address: string | null;
   work_description: string | null;
   materials_location: string | null;
+  /** Fase 2 del modulo: come viene pagato l'appalto e con quale contratto. */
+  valorizzazione?: "a_corpo" | "a_misura" | null;
+  appalto_contratto_id?: string | null;
+  tetto_importo?: number | null;
+  riferimento_committente?: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
   deposit_expected_date: string | null;
@@ -418,6 +426,64 @@ function OrderDetailInner() {
   });
 
   useCommessaCampoSync(id, companyId, !!order && !!user);
+
+  /**
+   * Il «Rendiconto» esiste solo sulle commesse in appalto: sulle altre non
+   * avrebbe niente da mostrare, e una vista vuota è peggio di una vista in meno.
+   */
+  const inAppalto = order?.order_type === "appaltatore_lavoro";
+
+  /**
+   * I conti del cantiere in appalto per l'intestazione. Query sua, leggera
+   * (cinque colonne), e solo quando serve: sulle commesse normali non parte.
+   */
+  const righeAppalto = useQuery({
+    /* Sotto la stessa radice del rendiconto: l'invalidazione di React Query
+       e' per prefisso, cosi' aggiungere o confermare una riga aggiorna anche
+       l'intestazione, senza che il rendiconto debba conoscerla. */
+    queryKey: ["appalto-rendiconto", id, "riepilogo-commessa"],
+    enabled: !!id && inAppalto && permissions.canViewOrderAmounts,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("appalto_rendiconto_righe")
+        .select("importo, costo_interno, margine, stato, extra_contratto, appalto_sal(stato)")
+        .eq("order_id", id!);
+      if (error) throw error;
+      /* Lo stato del rendiconto arriva annidato: lo appiattiamo qui, cosi' i
+         conti restano una funzione pura che si prova senza PostgREST. */
+      return ((data ?? []) as Array<RigaPerTotali & { appalto_sal?: { stato?: string | null } | null }>)
+        .map((r) => ({ ...r, sal_stato: r.appalto_sal?.stato ?? null }));
+    },
+  });
+  const totaliAppalto = useMemo(
+    () => totaliCommessaAppalto(righeAppalto.data ?? []),
+    [righeAppalto.data],
+  );
+
+  const visteEconomiche = useMemo(
+    () => (inAppalto ? ECONOMIA_VIEWS : ECONOMIA_VIEWS.filter(v => v.value !== "rendiconto")),
+    [inAppalto],
+  );
+
+  /**
+   * Il nome del contratto d'appalto. Query a parte invece di un join nel
+   * `select("*")`: `appalto_contratti` non e' nei tipi generati e la stringa di
+   * select tipizzata si rifiuterebbe.
+   */
+  const contrattoAppalto = useQuery({
+    queryKey: ["appalto-contratto-commessa", order?.appalto_contratto_id],
+    enabled: !!order?.appalto_contratto_id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async (): Promise<{ nome: string; modo_fatturazione: "per_commessa" | "mensile_cumulativa" } | null> => {
+      const { data, error } = await (supabase as any)
+        .from("appalto_contratti")
+        .select("nome, modo_fatturazione")
+        .eq("id", order!.appalto_contratto_id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { nome: string; modo_fatturazione: "per_commessa" | "mensile_cumulativa" } | null) ?? null;
+    },
+  });
   // Numeri accanto alle sotto-schede (Diario 16, Collaudo 1, Ordini d'acquisto 3…):
   // una sola richiesta, e solo a commessa caricata, così non compete con quelle
   // che servono per vedere la pagina.
@@ -1390,7 +1456,21 @@ function OrderDetailInner() {
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
-        {operationalIntervention || contractFinancePending ? contractFinanceNotice : <OrderFinancialOverview
+        {inAppalto ? (
+          <RiepilogoAppaltoCommessa
+            totali={totaliAppalto}
+            valorizzazione={order.valorizzazione ?? null}
+            /* A corpo il concordato e' l'importo della commessa, varianti
+               approvate comprese: e' quello che il committente ti deve. */
+            totalAmount={agreedAmount}
+            tettoImporto={order.tetto_importo ?? null}
+            committenteId={order.customer_id ?? null}
+            canViewAmounts={permissions.canViewOrderAmounts}
+            canViewMargins={permissions.canViewMargins}
+            caricamento={righeAppalto.isPending}
+            onApriRendiconto={() => navigateTo({ tab: "finanza", economiaView: "rendiconto" })}
+          />
+        ) : operationalIntervention || contractFinancePending ? contractFinanceNotice : <OrderFinancialOverview
           orderId={id!}
           totalAmount={agreedAmount}
           vatRate={order.vat_rate ?? 22}
@@ -1497,7 +1577,7 @@ function OrderDetailInner() {
 
             {/* Cantiere da organizzare: cosa manca a una commessa appena nata (indirizzo, date, fasi,
                 chi lavora, pagamenti), secondo le scelte dell'azienda. Sparisce da solo. */}
-            {contractLink.data?.workflow_kind !== "contratto" && order.status !== "completato" && order.order_type !== "appaltatore_lavoro" && (
+            {contractLink.data?.workflow_kind !== "contratto" && order.status !== "completato" && (
               <CantiereDaOrganizzare
                 orderId={id!}
                 indirizzo={order.indirizzo_lavori || order.work_address}
@@ -1507,6 +1587,9 @@ function OrderDetailInner() {
                 rate={installmentsPending || installmentsError ? null : displayInstallments.length}
                 puoModificare={permissions.canEditOrders}
                 puoConfigurare={permissions.canEditSettingsOrders}
+                /* L'appalto a misura non ha rate finche' non c'e' un rendiconto:
+                   chiederle sarebbe un promemoria che non si chiude mai. */
+                senzaRate={order.valorizzazione === "a_misura"}
                 onVai={vaiAvvio}
               />
             )}
@@ -1529,6 +1612,14 @@ function OrderDetailInner() {
                 materialsLocation={order.materials_location}
                 workStartDate={order.work_start_date}
                 workEndDate={order.work_end_date}
+                valorizzazione={order.valorizzazione}
+                tettoImporto={order.tetto_importo}
+                riferimentoCommittente={order.riferimento_committente}
+                nomeContratto={contrattoAppalto.data?.nome ?? null}
+                mostraImporti={permissions.canViewOrderAmounts}
+                onApriRendiconto={permissions.canViewOrderAmounts
+                  ? () => navigateTo({ tab: "finanza", economiaView: "rendiconto" })
+                  : undefined}
               />
             )}
 
@@ -1728,7 +1819,7 @@ function OrderDetailInner() {
           <TabsContent value="finanza" className="order-detail-tab-panel space-y-4 mt-4">
             {operationalIntervention || contractFinancePending ? contractFinanceNotice : <>
             <div id="economia-workspace" className="scroll-mt-24">
-              <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
+              <OrderWorkspaceNav label="Viste economiche" views={visteEconomiche} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
             <OrderViewTransition viewKey={activeEconomiaView}>
             {activeEconomiaView === "sal" && <details open className="rounded-xl border border-slate-300 bg-white">
@@ -1759,6 +1850,24 @@ function OrderDetailInner() {
                   workStartDate={order.work_start_date}
                   workEndDate={order.work_end_date}
                 />
+              </ErrorBoundary>
+            )}
+
+            {activeEconomiaView === "rendiconto" && inAppalto && (
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Rendiconto non disponibile. Ricarica la pagina per riprovare.</p>}>
+                <div id="section-rendiconto" className="scroll-mt-24">
+                  <RendicontoAppalto
+                    orderId={id!}
+                    contrattoId={order.appalto_contratto_id ?? null}
+                    committenteId={order.customer_id ?? null}
+                    modoFatturazione={contrattoAppalto.data?.modo_fatturazione ?? null}
+                    valorizzazione={order.valorizzazione}
+                    tettoImporto={order.tetto_importo}
+                    importoCommessa={order.total_amount}
+                    puoModificare={permissions.canEditOrders}
+                    vedeImporti={permissions.canViewOrderAmounts}
+                  />
+                </div>
               </ErrorBoundary>
             )}
 

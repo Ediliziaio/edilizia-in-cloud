@@ -245,6 +245,8 @@ const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/Setting
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const CreateLavoroAppaltatore = lazy(() => import("@/pages/azienda/CreateLavoroAppaltatore"));
+const CommittenteDetail = lazy(() => import("@/pages/azienda/CommittenteDetail"));
+const NumeriAppalto = lazy(() => import("@/pages/azienda/NumeriAppalto"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
 const OrderDiaryPage = lazy(() => import("@/pages/azienda/OrderDiaryPage"));
 const EditOrder = lazy(() => import("@/pages/azienda/EditOrder"));
@@ -645,6 +647,12 @@ export default function CompanyRoutesContainer() {
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
         <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel dettaglio cliente"><CompanyCustomerDetail /></ErrorBoundary>)} />
+        {/* La scheda del committente e' il centro del Modulo Appaltatori: contratto,
+            listino concordato e lavori che quel committente passa. Stessi permessi
+            dei clienti; i prezzi del listino li filtra la policy su appalto_tariffe. */}
+        {/* I numeri PRIMA di /:id, altrimenti "numeri" verrebbe letto come un id. */}
+        <Route path="committenti/numeri" element={withCompanyPermission("canViewOrderAmounts", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nei numeri dell'appalto"><NumeriAppalto /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="committenti/:id" element={withCompanyPermission("canViewCustomers", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella scheda committente"><CommittenteDetail /></ErrorBoundary></FeatureRoute>)} />
         
         {/* "Assistenza & Lavori" era una seconda pagina di assistenza che
             nessuna voce di menu raggiungeva: mostrava le stesse lavorazioni di

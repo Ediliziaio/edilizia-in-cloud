@@ -16,6 +16,18 @@ import {
 } from "@/components/ui/popover";
 import { SurveyCreatePicker } from "@/components/sopralluoghi/SurveyCreatePicker";
 import { surveyAppointment, surveyCreationError } from "@/lib/surveys/creation";
+import {
+  appuntamentoDelSopralluogo,
+  avvisoOrario,
+  calendarioDelTecnico,
+  durataSopralluogo,
+  type CalendarioAgenda,
+} from "@/lib/surveys/agendaSopralluogo";
+import {
+  calcolaSlotLiberi,
+  type Occupato,
+  type RegolaDisponibilita,
+} from "@/lib/opportunita/slotCalendario";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -24,9 +36,12 @@ import {
   listCrmContacts,
   listCrmOpportunities,
   nomeContatto,
+  fissaSopralluogoInAgenda,
 } from "@/lib/api/surveys";
 import { categorieConsigliate } from "@/lib/sopralluoghi/verticalTemplate";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,8 +108,25 @@ function SurveyCreateForm({
   const [address, setAddress] = useState(params.get("address") ?? "");
   const [city, setCity] = useState(params.get("city") ?? "");
   const [zip, setZip] = useState("");
+  /* L'indirizzo scelto dal cercatore: tiene anche coordinate e provincia, che
+     i tre campi liberi non avevano. `address`/`city`/`zip` restano come sono
+     perché è quello che il salvataggio scrive già. */
+  const [indirizzoCantiere, setIndirizzoCantiere] = useState<AddressData>({
+    address_line: params.get("address") ?? "",
+    address_city: params.get("city") ?? "",
+    address_postal_code: "",
+    address_province: "",
+    address_country: "IT",
+    address_notes: "",
+    formatted_address: "",
+    lat: null,
+    lng: null,
+    place_id: "",
+  });
   const [scheduledDay, setScheduledDay] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
+  /** Il calendario su cui fissare il rilievo, quando il tecnico ne ha piu' d'uno. */
+  const [calendarioId, setCalendarioId] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -165,29 +197,20 @@ function SurveyCreateForm({
       ? templatesOrdinati.find((t) => consigliate.includes(t.category))
       : undefined);
 
-  const { data: members } = useQuery({
-    queryKey: ["company-members-for-surveys", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        // Solo QUESTA azienda (il super admin e chi ha più aziende vedevano tutti).
-        .eq("company_id", companyId)
-        .order("first_name");
-      if (error) {
-        console.error("[NuovoSopralluogo] query membri fallita", error);
-        throw error;
-      }
-      return (data ?? []) as Array<{
-        id: string;
-        first_name: string | null;
-        last_name: string | null;
-        email: string | null;
-      }>;
-    },
-  });
+  /**
+   * Chi si puo' mandare in sopralluogo: lo STAFF, non tutti i profili.
+   *
+   * Prima la lista prendeva ogni riga di `profiles` con questo `company_id`.
+   * Ma i clienti sono profili anche loro: nel menu «Tecnico incaricato»
+   * comparivano «ZAHREBEER SOCIETA' SEMPLICE AGRICOLA» e mezzo archivio
+   * clienti, e il tecnico vero andava cercato in centinaia di nomi — col
+   * rischio di assegnare il rilievo a un cliente.
+   *
+   * `useCompanyStaffUsers` e' il filtro gia' usato da «Assegnato a» sulle
+   * commesse: esclude customer, referrer e il team della piattaforma. Stessa
+   * domanda, stessa risposta, in tutta l'applicazione.
+   */
+  const { data: members } = useCompanyStaffUsers(companyId);
 
   const { data: orders } = useQuery({
     queryKey: ["company-orders-for-surveys", companyId],
@@ -216,6 +239,163 @@ function SurveyCreateForm({
         client_address: string | null;
       }>;
     },
+  });
+
+  /* ── L'agenda del tecnico ────────────────────────────────────────────────
+     Il sopralluogo è un appuntamento come gli altri: deve rispettare le
+     impostazioni del calendario di chi ci va (fasce di lavoro, passo, margini,
+     preavviso, tetto al giorno) e occupare lo slot. Le stesse query della
+     scheda «Prenota appuntamento» delle opportunità. */
+  const { data: calendari = [] } = useQuery({
+    queryKey: ["marketing_calendars_active", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("marketing_calendars")
+        .select(
+          "id, name, owner_id, duration_minutes, slot_interval_min, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day",
+        )
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as CalendarioAgenda[];
+    },
+  });
+  /* Un tecnico puo' avere piu' calendari (per anno, per tipo di lavoro):
+     il ripiego e' il primo in ordine di nome, ma se ne ha piu' d'uno la
+     scelta la fa chi crea il rilievo, non un ordinamento alfabetico. */
+  const calendariDelTecnicoScelto = useMemo(
+    () => calendari.filter((c) => !!technicianId && c.owner_id === technicianId),
+    [calendari, technicianId],
+  );
+  const calendarioAgenda = useMemo(() => {
+    const scelto = calendariDelTecnicoScelto.find((c) => c.id === calendarioId);
+    return scelto ?? calendarioDelTecnico(calendari, technicianId);
+  }, [calendari, calendariDelTecnicoScelto, calendarioId, technicianId]);
+  const giornoScelto = useMemo(
+    () => (scheduledDay ? new Date(`${scheduledDay}T12:00:00`) : null),
+    [scheduledDay],
+  );
+
+  // Tutte le regole di quel giorno, anche quelle spente: una giornata speciale
+  // spenta (ferie) chiude il giorno, non ricade sulla regola settimanale.
+  const { data: regoleGiorno = [] } = useQuery({
+    queryKey: ["calendar_availability", calendarioAgenda?.id, scheduledDay],
+    enabled: !!calendarioAgenda?.id && !!scheduledDay,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("marketing_calendar_availability")
+        .select("*")
+        .eq("calendar_id", calendarioAgenda!.id)
+        .or(
+          `specific_date.eq.${scheduledDay},and(specific_date.is.null,day_of_week.eq.${giornoScelto!.getDay()})`,
+        );
+      if (error) throw error;
+      return (data ?? []) as RegolaDisponibilita[];
+    },
+  });
+
+  // Gli appuntamenti del giorno su TUTTI i calendari dello stesso tecnico.
+  const calendariDelTecnico = useMemo(
+    () =>
+      calendarioAgenda
+        ? calendari
+            .filter((c) => c.owner_id === calendarioAgenda.owner_id)
+            .map((c) => c.id)
+        : [],
+    [calendari, calendarioAgenda],
+  );
+  const { data: appuntamentiGiorno = [] } = useQuery({
+    queryKey: ["appointments_for_slot", calendarioAgenda?.id, scheduledDay],
+    enabled: calendariDelTecnico.length > 0 && !!scheduledDay,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("appointments")
+        .select("id, appointment_time, appointment_end_time")
+        .in("calendar_id", calendariDelTecnico)
+        .eq("appointment_date", scheduledDay)
+        .neq("status", "annullato");
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        appointment_time: string | null;
+        appointment_end_time: string | null;
+      }>;
+    },
+  });
+
+  // Gli impegni del tecnico su Google, Outlook e Apple Calendar.
+  const { data: occupatiEsterni = [] } = useQuery({
+    queryKey: ["calendar_busy_owner", calendarioAgenda?.owner_id, scheduledDay],
+    enabled: !!calendarioAgenda?.owner_id && !!giornoScelto,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Occupato[]> => {
+      const g = giornoScelto!;
+      const inizio = new Date(
+        g.getFullYear(),
+        g.getMonth(),
+        g.getDate(),
+      ).toISOString();
+      const fine = new Date(
+        g.getFullYear(),
+        g.getMonth(),
+        g.getDate(),
+        23,
+        59,
+        59,
+        999,
+      ).toISOString();
+      const leggi = async (tabella: string): Promise<Occupato[]> => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+          .from(tabella)
+          .select("start_at, end_at")
+          .eq("user_id", calendarioAgenda!.owner_id)
+          .lt("start_at", fine)
+          .gt("end_at", inizio);
+        return error ? [] : ((data ?? []) as Occupato[]);
+      };
+      const [gg, oo, aa] = await Promise.all([
+        leggi("google_calendar_busy_slots"),
+        leggi("outlook_calendar_busy_slots"),
+        leggi("apple_calendar_busy_slots"),
+      ]);
+      return [...gg, ...oo, ...aa];
+    },
+  });
+
+  const esitoSlot = useMemo(() => {
+    if (!calendarioAgenda || !giornoScelto) return null;
+    return calcolaSlotLiberi({
+      giorno: giornoScelto,
+      regole: regoleGiorno,
+      appuntamenti: appuntamentiGiorno.map((a) => ({
+        inizio: a.appointment_time,
+        fine: a.appointment_end_time,
+      })),
+      occupatiEsterni,
+      durataMin: durataSopralluogo(calendarioAgenda),
+      passoMin: calendarioAgenda.slot_interval_min,
+      bufferPrimaMin: calendarioAgenda.buffer_before_min ?? 0,
+      bufferDopoMin: calendarioAgenda.buffer_after_min ?? 0,
+      preavvisoMin: calendarioAgenda.min_notice_minutes ?? 0,
+      maxAlGiorno: calendarioAgenda.max_per_day,
+    });
+  }, [
+    calendarioAgenda,
+    giornoScelto,
+    regoleGiorno,
+    appuntamentiGiorno,
+    occupatiEsterni,
+  ]);
+  const avvisoAgenda = avvisoOrario({
+    ora: scheduledTime,
+    calendario: calendarioAgenda,
+    esito: esitoSlot,
+    haRegole: regoleGiorno.length > 0,
   });
 
   // Clienti dell'azienda (per la modalità «Cliente»), via hook canonico.
@@ -255,6 +435,20 @@ function SurveyCreateForm({
     }
   };
 
+  /* Precompilare l'indirizzo da un contatto, un'opportunità o una commessa
+     deve aggiornare anche il cercatore, altrimenti il campo resta vuoto a
+     video mentre i dati ci sono. */
+  const precompilaIndirizzo = (via: string | null, comune: string | null) => {
+    if (via) {
+      setAddress(via);
+      setIndirizzoCantiere((p) => ({ ...p, address_line: via }));
+    }
+    if (comune) {
+      setCity(comune);
+      setIndirizzoCantiere((p) => ({ ...p, address_city: comune }));
+    }
+  };
+
   // Scelta di un'opportunità: eredita in automatico il suo contatto e
   // precompila l'indirizzo se vuoto.
   const scegliOpportunita = (id: string | null) => {
@@ -262,8 +456,10 @@ function SurveyCreateForm({
     const opp = crmOpps.find((o) => o.id === id);
     if (opp?.contact) {
       setContactId(opp.contact.id);
-      if (!address && opp.contact.address) setAddress(opp.contact.address);
-      if (!city && opp.contact.city) setCity(opp.contact.city);
+      precompilaIndirizzo(
+        !address ? opp.contact.address ?? null : null,
+        !city ? opp.contact.city ?? null : null,
+      );
     }
   };
   const scegliContatto = (id: string | null) => {
@@ -273,8 +469,10 @@ function SurveyCreateForm({
       crmOpps.find((o) => o.contact?.id === id)?.contact ??
       null;
     if (c) {
-      if (!address && c.address) setAddress(c.address);
-      if (!city && c.city) setCity(c.city);
+      precompilaIndirizzo(
+        !address ? c.address ?? null : null,
+        !city ? c.city ?? null : null,
+      );
     }
   };
 
@@ -285,7 +483,7 @@ function SurveyCreateForm({
       if (!selectedModel) throw new Error("Seleziona un modello disponibile.");
       const error = surveyCreationError(zip, scheduledDay, scheduledTime);
       if (error) throw new Error(error);
-      return createSurvey(
+      const survey = await createSurvey(
         {
           template_id: selectedModel.id,
           client_id: linkMode === "cliente" ? clientId : null,
@@ -301,9 +499,38 @@ function SurveyCreateForm({
         },
         companyId,
       );
+      /* Il rilievo va in agenda: occupa lo slot e compare nel calendario.
+         Se l'agenda rifiuta la riga il sopralluogo resta creato comunque. */
+      let inAgenda = false;
+      if (calendarioAgenda && scheduledDay && technicianId) {
+        const id = await fissaSopralluogoInAgenda(
+          survey.id,
+          appuntamentoDelSopralluogo({
+            companyId,
+            calendario: calendarioAgenda,
+            technicianId,
+            giorno: scheduledDay,
+            ora: scheduledTime,
+            titolo: `Sopralluogo ${survey.code}`,
+            contactId: linkMode === "prospect" ? contactId : null,
+            opportunityId: linkMode === "prospect" ? opportunityId : null,
+            orderId,
+            indirizzo: indirizzoCantiere,
+            note: notes.trim() || null,
+          }),
+        );
+        inAgenda = !!id;
+      }
+      return { survey, inAgenda, conCalendario: !!calendarioAgenda };
     },
-    onSuccess: (survey) => {
-      toast.success(`Sopralluogo ${survey.code} creato`);
+    onSuccess: ({ survey, inAgenda, conCalendario }) => {
+      toast.success(`Sopralluogo ${survey.code} creato`, {
+        description: inAgenda
+          ? `In agenda il ${format(new Date(`${scheduledDay}T12:00:00`), "d MMMM", { locale: it })} alle ${scheduledTime}.`
+          : conCalendario
+            ? "Creato, ma non è stato possibile metterlo in agenda."
+            : undefined,
+      });
       navigate(`/azienda/sopralluoghi/${survey.id}?modifica=1`);
     },
     onError: (e) => {
@@ -842,7 +1069,7 @@ function SurveyCreateForm({
                               order.work_address ||
                               order.indirizzo_lavori ||
                               order.client_address;
-                            if (place && !address) setAddress(place);
+                            if (!address) precompilaIndirizzo(place ?? null, null);
                           }
                         }}
                       />
@@ -872,51 +1099,27 @@ function SurveyCreateForm({
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="survey-create-address">
-                      Indirizzo del cantiere
-                    </Label>
-                    <Input
-                      id="survey-create-address"
-                      autoComplete="street-address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Via e numero civico"
-                      className="min-h-11 rounded-xl"
-                    />
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_100px] gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="survey-create-city">Città</Label>
-                      <Input
-                        id="survey-create-city"
-                        autoComplete="address-level2"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        placeholder="Comune"
-                        className="min-h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="survey-create-zip">
-                        CAP{" "}
-                        <span className="font-normal text-slate-400">
-                          · fac.
-                        </span>
-                      </Label>
-                      <Input
-                        id="survey-create-zip"
-                        autoComplete="postal-code"
-                        inputMode="numeric"
-                        maxLength={5}
-                        value={zip}
-                        onChange={(e) => setZip(e.target.value)}
-                        placeholder="5 cifre"
-                        aria-invalid={!!zip && !/^\d{5}$/.test(zip.trim())}
-                        className="min-h-11 rounded-xl"
-                      />
-                    </div>
-                  </div>
+                  {/* Tre campi liberi — via, città, CAP — e nessuno che
+                      trovasse l'indirizzo vero: si scriveva «sdgasdg» e la
+                      bozza partiva con un cantiere che non esiste, senza
+                      coordinate, quindi senza mappa e senza navigatore per chi
+                      ci deve andare. Qui si usa lo stesso cercatore della
+                      commessa: scegli il suggerimento e città, CAP, provincia e
+                      coordinate vengono da soli. `editableSearch` lascia
+                      comunque scrivere a mano, perché il luogo si può
+                      completare durante il rilievo. */}
+                  <AddressAutocomplete
+                    label="Indirizzo del cantiere"
+                    searchPlaceholder="Cerca via, civico o città..."
+                    editableSearch
+                    value={indirizzoCantiere}
+                    onChange={(dati) => {
+                      setIndirizzoCantiere(dati);
+                      setAddress(dati.address_line || dati.formatted_address || "");
+                      setCity(dati.address_city || "");
+                      setZip(dati.address_postal_code || "");
+                    }}
+                  />
                   <p className="text-xs text-slate-500">
                     {address || city
                       ? "Puoi completare l’indirizzo anche durante il rilievo."
@@ -937,6 +1140,26 @@ function SurveyCreateForm({
                         Facoltativo · puoi organizzarlo anche dopo.
                       </p>
                     </div>
+                  </div>
+                  {/* Prima chi: è il suo calendario a dire quali orari esistono. */}
+                  <div className="space-y-2">
+                    <Label htmlFor="survey-create-technician">
+                      Tecnico incaricato
+                    </Label>
+                    <SurveyCreatePicker
+                      id="survey-create-technician"
+                      label="Tecnico"
+                      value={technicianId}
+                      options={(members || []).map((m) => ({
+                        id: m.id,
+                        label: person(m) || m.id.slice(0, 8),
+                      }))}
+                      emptyLabel="Da assegnare"
+                      onChange={(id) => {
+                        setTechnicianId(id);
+                        setCalendarioId(null);
+                      }}
+                    />
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
                     <div className="space-y-2">
@@ -1010,22 +1233,80 @@ function SurveyCreateForm({
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="survey-create-technician">
-                      Tecnico incaricato
-                    </Label>
-                    <SurveyCreatePicker
-                      id="survey-create-technician"
-                      label="Tecnico"
-                      value={technicianId}
-                      options={(members || []).map((m) => ({
-                        id: m.id,
-                        label: person(m) || m.id.slice(0, 8),
-                      }))}
-                      emptyLabel="Da assegnare"
-                      onChange={setTechnicianId}
-                    />
-                  </div>
+                  {calendariDelTecnicoScelto.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="survey-create-calendar">
+                        Su quale calendario
+                      </Label>
+                      <SurveyCreatePicker
+                        id="survey-create-calendar"
+                        label="Calendario"
+                        value={calendarioAgenda?.id ?? null}
+                        options={calendariDelTecnicoScelto.map((c) => ({
+                          id: c.id,
+                          label: c.name,
+                        }))}
+                        emptyLabel="Scegli il calendario"
+                        onChange={setCalendarioId}
+                      />
+                    </div>
+                  )}
+                  {/* Gli orari liberi del calendario del tecnico: stessi di
+                      tutti gli altri appuntamenti. L'ora a mano resta: un
+                      cliente che riceve solo di sabato esiste. */}
+                  {scheduledDay && calendarioAgenda && esitoSlot && (
+                    <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-600">
+                        Calendario «{calendarioAgenda.name}»
+                        {esitoSlot.fasce.length > 0
+                          ? ` · ${esitoSlot.fasce.map((f) => `${f.da}–${f.a}`).join(", ")}`
+                          : ""}
+                        {(calendarioAgenda.min_notice_minutes ?? 0) > 0
+                          ? ` · preavviso ${calendarioAgenda.min_notice_minutes} min`
+                          : ""}
+                        {` · ${durataSopralluogo(calendarioAgenda)} min`}
+                      </p>
+                      {esitoSlot.slot.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {esitoSlot.slot.map((s) => (
+                            <Button
+                              key={s}
+                              type="button"
+                              size="sm"
+                              variant={
+                                scheduledTime === s ? "default" : "outline"
+                              }
+                              className="rounded-lg"
+                              onClick={() => setScheduledTime(s)}
+                            >
+                              {s}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          {regoleGiorno.length === 0
+                            ? "Questo calendario non ha ancora orari di lavoro impostati: scegli l’ora a mano."
+                            : "Nessun orario libero quel giorno: puoi comunque scegliere l’ora a mano."}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {avvisoAgenda && (
+                    <p
+                      role="status"
+                      className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                    >
+                      {avvisoAgenda}
+                    </p>
+                  )}
+                  {scheduledDay && !calendarioAgenda && (
+                    <p className="text-xs text-slate-500">
+                      {technicianId
+                        ? "Questo tecnico non ha un calendario: l’ora resta libera e il rilievo non occupa nessuno slot."
+                        : "Scegli il tecnico per vedere i suoi orari liberi e fissare il rilievo nel suo calendario."}
+                    </p>
+                  )}
                 </section>
                 <details className="rounded-2xl border bg-white p-4 sm:p-5">
                   <summary className="cursor-pointer text-sm font-semibold">

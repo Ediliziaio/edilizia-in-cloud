@@ -12,6 +12,9 @@ export const CANTIERE_VIEWS = [
 ] as const;
 export type CantiereView = typeof CANTIERE_VIEWS[number]["value"];
 export const ECONOMIA_VIEWS = [
+  // Solo sulle commesse in appalto: OrderDetail la toglie dalle altre, dove
+  // non avrebbe niente da mostrare.
+  { value: "rendiconto", label: "Rendiconto", description: "Quello che hai fatto per il committente, tradotto in quello che devi fatturare." },
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
   { value: "manodopera", label: "Manodopera e subappalti", description: "Ore, tariffe, budget e costi registrati di dipendenti e ditte." },
   { value: "pagamenti", label: "Incassi e pagamenti", description: "Rate cliente, uscite ai fornitori e disponibilità di cassa." },
@@ -32,6 +35,7 @@ export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
   if (section === "section-manodopera-costi") return "manodopera";
   if (section === "section-pagamenti" || section === "esposizione-commessa" || section === "section-ritenute") return "pagamenti";
+  if (section === "section-rendiconto") return "rendiconto";
   if (section === "section-sal") return "sal";
   if (section === "section-varianti") return "varianti";
   if (section === "section-fatturazione") return "documenti";

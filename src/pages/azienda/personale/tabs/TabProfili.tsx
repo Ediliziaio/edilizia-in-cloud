@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone, AlertTriangle } from "lucide-react";
+import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone, AlertTriangle, KeyRound } from "lucide-react";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { HrQueryError } from "@/components/hr/HrQueryError";
 import { HrPager } from "@/components/hr/HrPager";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { accessoPiattaforma, ETICHETTA_ACCESSO, type EsitoAccesso, type StatoAccesso, type UtenteDiAzienda } from "@/lib/hr/accessoPiattaforma";
 
 type ScadCount = { scaduti: number; inScadenza: number };
 
@@ -33,16 +36,21 @@ export function TabProfili() {
   const { data: profili = [], isLoading, isError, refetch } = useAllHrProfili();
   const { data: scadCounts, isError: errorScadenze, refetch: retryScadenze } = useHrScadenzeCounts();
   const permissions = usePermissions();
+  /* Chi entra nel gestionale e chi è solo una scheda: l'elenco dello staff è
+     la stessa fonte usata ovunque per «chi è un utente dell'azienda». */
+  const companyId = useEffectiveCompanyId();
+  const { data: utentiAzienda } = useCompanyStaffUsers(companyId);
   const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   const [paging, setPaging] = useState({ key: "", page: 0 });
   const [search, setSearch] = useState("");
   const [filterStato, setFilterStato] = useState<"tutti" | "attivi" | "cessati">("attivi");
+  const [filterAccesso, setFilterAccesso] = useState<"tutti" | "entra" | "senza">("tutti");
   const [filterReparto, setFilterReparto] = useState<string>("tutti");
   const [selectedProfilo, setSelectedProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   // Mobile: stato e reparto in un pannello dal basso accanto alla ricerca.
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const nFiltriMobile = (filterStato !== "tutti" ? 1 : 0) + (filterReparto !== "tutti" ? 1 : 0);
+  const nFiltriMobile = (filterStato !== "tutti" ? 1 : 0) + (filterReparto !== "tutti" ? 1 : 0) + (filterAccesso !== "tutti" ? 1 : 0);
 
   // Unique reparti
   const reparti = useMemo(() => {
@@ -55,6 +63,12 @@ export function TabProfili() {
     if (filterStato === "attivi") list = list.filter((p) => p.attivo);
     if (filterStato === "cessati") list = list.filter((p) => !p.attivo);
     if (filterReparto !== "tutti") list = list.filter((p) => p.reparto === filterReparto);
+    if (filterAccesso !== "tutti" && utentiAzienda) {
+      list = list.filter((p) => {
+        const stato = accessoPiattaforma(p, utentiAzienda)?.stato;
+        return filterAccesso === "entra" ? stato === "entra" : stato !== "entra";
+      });
+    }
     if (search) {
       const s = search.toLowerCase();
       list = list.filter((p) =>
@@ -62,14 +76,17 @@ export function TabProfili() {
       );
     }
     return list;
-  }, [profili, search, filterStato, filterReparto]);
+  }, [profili, search, filterStato, filterReparto, filterAccesso, utentiAzienda]);
 
   const kpis = useMemo(() => ({
     totali: profili.length,
     attivi: profili.filter((p) => p.attivo).length,
     cessati: profili.filter((p) => !p.attivo).length,
-  }), [profili]);
-  const filterKey = JSON.stringify([search, filterStato, filterReparto]);
+    entrano: utentiAzienda
+      ? profili.filter((p) => p.attivo && accessoPiattaforma(p, utentiAzienda)?.stato === "entra").length
+      : null,
+  }), [profili, utentiAzienda]);
+  const filterKey = JSON.stringify([search, filterStato, filterReparto, filterAccesso]);
   const page = paging.key === filterKey ? paging.page : 0;
   const setPage = (value: number) => setPaging({ key: filterKey, page: value });
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
@@ -82,7 +99,7 @@ export function TabProfili() {
     <div className="space-y-4 max-sm:space-y-3">
       {errorScadenze && <HrQueryError label="Badge scadenze non disponibili" onRetry={retryScadenze} />}
       {/* KPI — mobile no: il numero di persone sta nel bottone «Mostra» dei filtri. */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 max-sm:hidden">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3 max-sm:hidden">
         <Card>
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
@@ -99,6 +116,17 @@ export function TabProfili() {
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><UserX className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
             <div><p className="text-xl sm:text-2xl font-bold">{kpis.cessati}</p><p className="text-xs text-muted-foreground">Cessati</p></div>
+          </CardContent>
+        </Card>
+        {/* Una scheda del personale non è un accesso: qui si vede quante
+            persone attive entrano davvero nel gestionale. */}
+        <Card>
+          <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><KeyRound className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
+            <div>
+              <p className="text-xl sm:text-2xl font-bold">{kpis.entrano ?? "—"}</p>
+              <p className="text-xs text-muted-foreground">Entrano nel gestionale</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -133,6 +161,14 @@ export function TabProfili() {
               <SelectItem value="cessati">Cessati</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterAccesso} onValueChange={(v) => setFilterAccesso(v as typeof filterAccesso)}>
+            <SelectTrigger className="w-[150px] shrink-0 h-9" aria-label="Accesso al gestionale"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Accesso: tutti</SelectItem>
+              <SelectItem value="entra">Entra nel gestionale</SelectItem>
+              <SelectItem value="senza">Senza accesso</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2">
           {reparti.length > 0 && (
@@ -160,12 +196,12 @@ export function TabProfili() {
         <>
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
             {visible.map((p) => (
-              <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
+              <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} />
             ))}
           </div>
           <div className="space-y-2 max-sm:hidden">
             {visible.map((p) => (
-              <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
+              <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} />
             ))}
           </div>
         </>
@@ -178,7 +214,7 @@ export function TabProfili() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
-        onAzzera={() => { setFilterStato("tutti"); setFilterReparto("tutti"); }}
+        onAzzera={() => { setFilterStato("tutti"); setFilterReparto("tutti"); setFilterAccesso("tutti"); }}
         risultati={filtered.length}
       >
         <PilloleFiltro<typeof filterStato>
@@ -189,6 +225,16 @@ export function TabProfili() {
             { value: "tutti", label: "Tutti", n: kpis.totali },
             { value: "attivi", label: "Attivi", n: kpis.attivi },
             { value: "cessati", label: "Cessati", n: kpis.cessati },
+          ]}
+        />
+        <PilloleFiltro<typeof filterAccesso>
+          titolo="Accesso al gestionale"
+          valore={filterAccesso}
+          onScegli={setFilterAccesso}
+          scelte={[
+            { value: "tutti", label: "Tutti" },
+            { value: "entra", label: "Entra", n: kpis.entrano ?? undefined },
+            { value: "senza", label: "Senza accesso" },
           ]}
         />
         {reparti.length > 0 && (
@@ -204,7 +250,27 @@ export function TabProfili() {
   );
 }
 
-function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void }) {
+/** Il colore dice la cosa giusta: verde entra, ambra c'è qualcosa da sistemare. */
+const TONO_ACCESSO: Record<StatoAccesso, string> = {
+  entra: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  da_collegare: "bg-amber-100 text-amber-700 border-amber-200",
+  revocato: "bg-amber-100 text-amber-700 border-amber-200",
+  nessuno: "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+function BadgeAccesso({ esito, compatto }: { esito: EsitoAccesso | null; compatto?: boolean }) {
+  // Senza l'elenco degli utenti non si sa: meglio niente di una risposta finta.
+  if (!esito) return null;
+  if (compatto && esito.stato === "nessuno") return null;
+  return (
+    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 gap-1 ${TONO_ACCESSO[esito.stato]}`}>
+      <KeyRound className="h-3 w-3" />
+      {ETICHETTA_ACCESSO[esito.stato]}
+    </Badge>
+  );
+}
+
+function ProfiloRow({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
   return (
     <Card role="button" tabIndex={0} aria-label={`Apri profilo di ${p.nome} ${p.cognome}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} className={`cursor-pointer hover:shadow-md transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
       <CardContent className="p-3 flex items-center gap-3">
@@ -222,6 +288,7 @@ function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: 
             <span className="font-medium text-sm">{p.nome} {p.cognome}</span>
             {p.matricola && <Badge variant="outline" className="text-xs font-mono">{p.matricola}</Badge>}
             {!p.attivo && <Badge variant="secondary" className="text-xs">Cessato</Badge>}
+            <BadgeAccesso esito={accessoPiattaforma(p, utenti)} />
             {scad && scad.scaduti > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 gap-1">
                 <AlertTriangle className="h-3 w-3" />{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}
@@ -254,7 +321,7 @@ function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: 
  * Mobile: una riga da ~52px (avatar, nome, mansione e reparto; documenti
  * scaduti o in scadenza a destra), senza badge, email e telefono.
  */
-function ProfiloRigaMobile({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void }) {
+function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
   return (
     <button
       type="button"
@@ -268,7 +335,12 @@ function ProfiloRigaMobile({ profilo: p, scad, onClick }: { profilo: HrProfilo; 
         {p.nome?.[0]}{p.cognome?.[0]}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold leading-tight">{p.nome} {p.cognome}</p>
+        <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold leading-tight">
+          {p.nome} {p.cognome}
+          {accessoPiattaforma(p, utenti)?.stato === "entra" && (
+            <KeyRound className="h-3 w-3 shrink-0 text-emerald-600" aria-label="Entra nel gestionale" />
+          )}
+        </p>
         <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
           {[p.mansione, p.reparto, !p.attivo ? "Cessato" : null].filter(Boolean).join(" · ") || (CONTRATTO_LABELS[p.tipo_contratto] || p.tipo_contratto)}
         </p>

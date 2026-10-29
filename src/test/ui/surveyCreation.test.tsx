@@ -213,7 +213,12 @@ describe("Nuovo sopralluogo: flusso e riepilogo", () => {
   it("mostra CAP errato senza inviare la bozza", async () => {
     render(<Page />);
     await details();
-    fireEvent.change(screen.getByLabelText(/CAP/), {
+    /* Il CAP non e' piu' un campo suo: sta nei dettagli del cercatore di
+       indirizzi, che si apre con «Modifica dettagli indirizzo». */
+    fireEvent.click(
+      screen.getByRole("button", { name: /Modifica dettagli indirizzo/ }),
+    );
+    fireEvent.change(screen.getByPlaceholderText("20100"), {
       target: { value: "abc" },
     });
     expect(screen.getByRole("alert")).toHaveTextContent("5 cifre");

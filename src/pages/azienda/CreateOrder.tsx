@@ -5,7 +5,7 @@ import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
@@ -732,6 +732,23 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // clienti in stato locale e li FONDIAMO nella lista renderizzata → il cliente
   // selezionato è SEMPRE visibile e selezionabile, a prescindere dalla cache.
   const [extraCustomers, setExtraCustomers] = useState<CompanyCustomer[]>([]);
+
+  /* Chi, fra i clienti, e' un committente. Serve solo a dirlo: il menu li
+     contiene tutti, e scegliendone uno da qui nascerebbe una commessa senza
+     contratto ne' rendiconto. Niente cambio di firma alla RPC del picker, che
+     e' usata da mezza applicazione: una query sua, leggera. */
+  const { data: idCommittenti = new Set<string>() } = useQuery({
+    queryKey: ["committenti-ids", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data } = await supabase
+        .from("profiles").select("id")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("customer_type", "appaltatore");
+      return new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id));
+    },
+  });
   const customerOptions = useMemo(() => {
     const byId = new Map<string, CompanyCustomer>();
     for (const c of customers) byId.set(c.id, c);
@@ -1514,6 +1531,25 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 </div>
                 {errors.customer_id && (
                   <p className="text-sm text-destructive">{errors.customer_id.message}</p>
+                )}
+                {/* Il menu dei clienti contiene anche i committenti: da qui
+                    nascerebbe una commessa normale, senza contratto, senza
+                    listino e senza rendiconto — e non comparirebbe fra i
+                    «Lavori che ti passa» sulla sua scheda. Non si blocca (un
+                    committente puo' anche comprarti qualcosa), ma si dice. */}
+                {idCommittenti.has(customerId || "") && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
+                    Questo è un <strong>committente</strong>: un'impresa che ti passa lavori. Se il
+                    lavoro te lo passa lui, aprilo come{" "}
+                    <Link
+                      to={`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${customerId}`}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      lavoro in appalto
+                    </Link>
+                    : avrà il suo listino, il rendiconto e la fattura col loro numero d'ordine.
+                    Da qui nasce una commessa normale, senza niente di tutto questo.
+                  </div>
                 )}
               </div>
 

@@ -62,6 +62,9 @@ export default function EditorDocumento() {
   const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
   const ordineParam = searchParams.get("ordine");
+  // Fatturare un rendiconto d'appalto: il documento nasce qui, e qui si chiude
+  // l'aggancio — prima non esiste un id da agganciare. Vedi SalAppalto.tsx.
+  const appaltoSalParam = searchParams.get("appalto_sal");
 
   // Leave dialog state
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
@@ -115,7 +118,18 @@ export default function EditorDocumento() {
     createMutationRef.current.mutate(
       { tipo: tipoParam, ...mergedPrefill },
       {
-        onSuccess: (doc) => {
+        onSuccess: async (doc) => {
+          if (appaltoSalParam) {
+            const { error } = await (supabase as any).rpc("appalto_sal_collega_fattura", {
+              p_sal_id: appaltoSalParam,
+              p_documento_id: doc.id,
+            });
+            // La bozza è nata: se l'aggancio non riesce non si butta via il
+            // documento, si dice che il rendiconto è rimasto scollegato.
+            if (error) {
+              toast.error("Fattura creata, ma non agganciata al rendiconto", { description: error.message });
+            }
+          }
           const newUrl = ordineParam
             ? `/azienda/documenti/${doc.id}?ordine_link=${ordineParam}`
             : `/azienda/documenti/${doc.id}`;
@@ -132,7 +146,7 @@ export default function EditorDocumento() {
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCreate, tipoParam, ordineParam, ordineDataFetched]);
+  }, [isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam]);
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";

@@ -61,7 +61,11 @@ export default function CreateCustomer() {
   //   - "appaltatore" → forza isBusiness=true, nasconde campi cantiere
   //                     personali, dialog success non offre portale
   // Aggiunto solo se il modulo Appaltatori è attivo.
-  const [customerType, setCustomerType] = useState<"privato" | "appaltatore">("privato");
+  // Arrivando dalla divisione Committenti dell'elenco (?tipo=committente) il
+  // tipo e' gia' quello: chi ha premuto «Nuovo» da li' non vuole un privato.
+  const [customerType, setCustomerType] = useState<"privato" | "appaltatore">(
+    new URLSearchParams(window.location.search).get("tipo") === "committente" ? "appaltatore" : "privato",
+  );
   const isAppaltatore = appaltatoreEnabled && customerType === "appaltatore";
 
   const [isBusiness, setIsBusiness] = useState(false);
@@ -381,7 +385,7 @@ export default function CreateCustomer() {
                 {appaltatoreEnabled && (
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      Categoria cliente
+                      Cliente o committente
                       <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
                         Modulo Appaltatori
                       </Badge>
@@ -393,17 +397,17 @@ export default function CreateCustomer() {
                       <TabsList className="grid grid-cols-2 w-full">
                         <TabsTrigger value="privato">
                           <UserIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Cliente privato
+                          Cliente
                         </TabsTrigger>
                         <TabsTrigger value="appaltatore">
                           <HardHat className="h-3.5 w-3.5 mr-1.5" />
-                          Cliente appaltatore
+                          Committente
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
                     <p className="text-[11px] text-muted-foreground">
                       {isAppaltatore
-                        ? "Impresa committente che ti passa lavori di sola manodopera. Solo dati aziendali."
+                        ? "Impresa che ti passa lavori in appalto: ha un contratto e un listino suoi. Solo dati aziendali."
                         : "Cliente finale per fornitura+posa (default, comportamento standard)."}
                     </p>
                   </div>
@@ -626,7 +630,7 @@ export default function CreateCustomer() {
                   <span className="text-muted-foreground shrink-0">Tipo</span>
                   <span className="font-medium text-right">
                     {isAppaltatore
-                      ? "Cliente appaltatore"
+                      ? "Committente"
                       : isBusiness
                         ? "Azienda"
                         : "Persona fisica"}

@@ -4,7 +4,7 @@ import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { agreedContractValue } from "@/lib/orders/contractValue";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, HardHat, MapPin, Package, FileText } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
@@ -88,6 +88,12 @@ interface OrderData {
   work_address: string | null;
   work_description: string | null;
   materials_location: string | null;
+  /* I campi che decidono come si valorizza il lavoro. C'erano alla creazione
+     e in modifica non si vedevano: chi sbagliava doveva rifare la commessa. */
+  valorizzazione?: "a_corpo" | "a_misura" | null;
+  tetto_importo?: number | null;
+  appalto_contratto_id?: string | null;
+  riferimento_committente?: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
   deposit_expected_date: string | null;
@@ -137,6 +143,9 @@ function EditOrderInner() {
   const [workDescription, setWorkDescription] = useState("");
   const [materialsLocation, setMaterialsLocation] = useState("");
   const [orderTypeState, setOrderTypeState] = useState<"cliente" | "appaltatore_lavoro">("cliente");
+  const [valorizzazione, setValorizzazione] = useState<"a_corpo" | "a_misura">("a_corpo");
+  const [tettoImporto, setTettoImporto] = useState("");
+  const [riferimentoCommittente, setRiferimentoCommittente] = useState("");
 
   // Financial state
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
@@ -301,6 +310,20 @@ function EditOrderInner() {
     enabled: !!id && !!user,
   });
 
+  /* Il nome del contratto d'appalto: solo per mostrarlo. Query a parte perche'
+     `appalto_contratti` non e' nei tipi generati. */
+  const { data: nomeContratto = null } = useQuery({
+    queryKey: ["appalto-contratto-nome", order?.appalto_contratto_id],
+    enabled: !!order?.appalto_contratto_id,
+    queryFn: async (): Promise<string | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("appalto_contratti").select("nome")
+        .eq("id", order!.appalto_contratto_id!).maybeSingle();
+      return (data?.nome as string | undefined) ?? null;
+    },
+  });
+
   // Fetch order items
   const { data: existingItems = EMPTY_ORDER_ITEMS } = useQuery({
     queryKey: ["order-items", id],
@@ -390,6 +413,9 @@ function EditOrderInner() {
       setWorkAddress(order.work_address || "");
       setWorkDescription(order.work_description || "");
       setMaterialsLocation(order.materials_location || "");
+      setValorizzazione(order.valorizzazione === "a_misura" ? "a_misura" : "a_corpo");
+      setTettoImporto(order.tetto_importo ? formatDecimalIT(order.tetto_importo) : "");
+      setRiferimentoCommittente(order.riferimento_committente || "");
       setDraftRestored(true);
       setDataLoaded(true);
       return;
@@ -420,6 +446,9 @@ function EditOrderInner() {
     setWorkAddress(order.work_address || "");
     setWorkDescription(order.work_description || "");
     setMaterialsLocation(order.materials_location || "");
+    setValorizzazione(order.valorizzazione === "a_misura" ? "a_misura" : "a_corpo");
+    setTettoImporto(order.tetto_importo ? formatDecimalIT(order.tetto_importo) : "");
+    setRiferimentoCommittente(order.riferimento_committente || "");
 
     // Load installments from DB table, or build from legacy
     if (dbInstallments.length > 0) {
@@ -641,6 +670,15 @@ function EditOrderInner() {
         campi.work_address = workAddress.trim() || null;
         campi.work_description = workDescription.trim() || null;
         campi.materials_location = materialsLocation.trim() || null;
+        /* Il tetto e il loro numero d'ordine si correggono anche dopo: alla
+           creazione c'erano e in modifica no, quindi un errore di battitura
+           costringeva a rifare la commessa. La valorizzazione invece NON si
+           tocca da qui: cambiarla a lavoro iniziato riscriverebbe il senso
+           delle righe gia' rendicontate e delle rate. */
+        campi.tetto_importo = valorizzazione === "a_misura" && tettoImporto.trim()
+          ? parseDecimalIT(tettoImporto)
+          : (valorizzazione === "a_misura" ? null : (order?.tetto_importo ?? null));
+        campi.riferimento_committente = riferimentoCommittente.trim() || null;
       }
 
       const rate = installmentsForSave.map((i, idx) => ({
@@ -939,6 +977,41 @@ function EditOrderInner() {
                 <Input id="orderCode" value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder="es. ORD-2026-001" />
               </div>
 
+              {/* Su un lavoro in appalto il committente NON si cambia.
+                  Il menu elencava tutti i clienti finali: spostando il lavoro
+                  da un committente a una famiglia restavano appesi al vecchio
+                  il contratto, il listino, ogni riga di rendiconto e i
+                  rendiconti gia' mandati — e il trigger dei prezzi avrebbe
+                  rifiutato ogni riga nuova («la tariffa appartiene a un altro
+                  contratto»). Si sbaglia una volta e non si torna indietro. */}
+              {orderTypeState === "appaltatore_lavoro" ? (
+                <div className="space-y-2">
+                  <Label>Committente</Label>
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+                    <HardHat className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="font-medium">
+                      {(() => {
+                        const c = allCustomers.find((x) => x.id === (customerId || order?.customer_id));
+                        return c
+                          ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email
+                          : "Committente";
+                      })()}
+                    </span>
+                    {(customerId || order?.customer_id) && (
+                      <Link
+                        to={`/azienda/committenti/${customerId || order?.customer_id}`}
+                        className="ml-auto text-xs font-medium text-blue-700 underline-offset-2 hover:underline"
+                      >
+                        Apri la sua scheda
+                      </Link>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Non si cambia: da lui scendono il contratto, il listino e tutte le righe già
+                    rendicontate. Se il lavoro è di un altro committente, aprine uno nuovo.
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
                 <div className="flex gap-2">
@@ -963,6 +1036,7 @@ function EditOrderInner() {
                   </Button>
                 </div>
               </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Descrizione Lavoro *</Label>
@@ -1002,6 +1076,53 @@ function EditOrderInner() {
             </div>
           </QuoteCard>
 
+          {/* A misura l'importo e' una STIMA e le rate non esistono: il wizard
+              di creazione lo dice e le toglie, la modifica invece mostrava
+              «Importo Totale *», IVA, bonus edilizio, acconti e saldo — cioe'
+              proprio quello che genera una previsione di incasso falsa.
+              Quello che fatturi esce dal rendiconto. */}
+          {orderTypeState === "appaltatore_lavoro" && valorizzazione === "a_misura" ? (
+            <QuoteCard
+              title="Quanto vale questo lavoro"
+              icon={<HardHat className="h-4 w-4" />}
+              subtitle="A misura: l'importo vero esce dal rendiconto, non da qui."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="stimaAppalto">Importo stimato (€)</Label>
+                  <Input
+                    id="stimaAppalto"
+                    inputMode="decimal"
+                    value={totalAmount}
+                    onChange={(e) => setTotalAmount(e.target.value)}
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Quanto pensi di fare. Serve a te per sapere se il lavoro conviene: non è
+                    quello che fatturerai.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tettoAppalto">Tetto concordato (€)</Label>
+                  <Input
+                    id="tettoAppalto"
+                    inputMode="decimal"
+                    value={tettoImporto}
+                    onChange={(e) => setTettoImporto(e.target.value)}
+                    placeholder="Nessun limite"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                Niente rate qui: su un lavoro a misura una scadenza sull'importo stimato
+                diventerebbe una previsione di incasso falsa. La scadenza arriva con la fattura del
+                rendiconto, calcolata sui giorni di pagamento del contratto.
+              </p>
+            </QuoteCard>
+          ) : (
           <FinancialSummary daContratto={order.workflow_kind === "contratto"}
             dateCommessa={{
               warehouse_arrival_date: warehouseArrivalDate ? warehouseArrivalDate.toLocaleDateString("en-CA") : null,
@@ -1033,6 +1154,7 @@ function EditOrderInner() {
             financingCost={financingCost}
             onFinancingCostChange={setFinancingCost}
           />
+          )}
           {variazioniApprovate !== 0 && (
             <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
               Varianti approvate: <strong className="text-foreground">{variazioniApprovate > 0 ? "+" : ""}{formatDecimalIT(variazioniApprovate)} €</strong> IVA esclusa.
@@ -1111,9 +1233,55 @@ function EditOrderInner() {
           <QuoteCard
             title="Lavoro per appaltatore"
             icon={<HardHat className="h-4 w-4" />}
-            subtitle="Sola manodopera — dettagli operativi del cantiere."
+            subtitle="Il lavoro che un'impresa committente ti ha passato."
           >
             <div className="space-y-4">
+              {/* Come viene pagato e con che contratto: alla creazione sono la
+                  scelta che decide tutto il resto, e in modifica non si
+                  vedevano nemmeno. Restano in sola lettura — cambiarli a
+                  lavoro iniziato riscriverebbe il senso delle righe gia'
+                  rendicontate — ma almeno si leggono. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border bg-muted/40 px-3 py-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Come viene pagato
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium">
+                    {valorizzazione === "a_misura" ? "A misura" : "A corpo"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {valorizzazione === "a_misura"
+                      ? "Vale quello che rendiconti. Non si cambia da qui: le righe già rendicontate cambierebbero senso."
+                      : "Importo concordato. Il lavoro in più si rendiconta a parte, segnato fuori contratto."}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/40 px-3 py-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Contratto
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium">
+                    {nomeContratto ?? (order?.appalto_contratto_id ? "—" : "Nessuno")}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Da qui scendono listino, ritenuta e regime IVA.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rifCommittente">Loro numero d'ordine</Label>
+                <Input
+                  id="rifCommittente"
+                  value={riferimentoCommittente}
+                  onChange={(e) => setRiferimentoCommittente(e.target.value)}
+                  placeholder="es. ORD-2026/118-A"
+                  maxLength={120}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="workAddress" className="flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5" />

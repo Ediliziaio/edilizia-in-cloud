@@ -21,6 +21,12 @@ interface Props {
   puoModificare: boolean;
   /** Chi può cambiare le impostazioni dell'azienda: può anche dire «non mi serve». */
   puoConfigurare: boolean;
+  /**
+   * Commesse che per come sono fatte non hanno un piano rate: l'appalto a
+   * misura, dove l'importo si sa alla fine e le rate nascono dal rendiconto.
+   * Senza questo il riquadro chiederebbe per sempre «come si paga».
+   */
+  senzaRate?: boolean;
   onVai: (chiave: ControlloAvvio) => void;
 }
 
@@ -30,7 +36,7 @@ interface Props {
  * a sistemarlo. Sparisce da solo quando non manca niente di quello che l'azienda ha scelto di
  * controllare, e chi lo ritiene inutile lo toglie per tutta l'azienda.
  */
-export function CantiereDaOrganizzare({ orderId, indirizzo, inizio, fine, fasi, rate, puoModificare, puoConfigurare, onVai }: Props) {
+export function CantiereDaOrganizzare({ orderId, indirizzo, inizio, fine, fasi, rate, puoModificare, puoConfigurare, senzaRate, onVai }: Props) {
   const confirm = useConfirm();
   const { data: accessi, isLoading: accessiInLettura, isError: accessiNonLetti } = useAccessiCommessa(orderId);
   const manodopera = useManodoperaPresenteCommessa(orderId);
@@ -41,7 +47,8 @@ export function CantiereDaOrganizzare({ orderId, indirizzo, inizio, fine, fasi, 
   // Workers without an app account and subcontracting companies still work here.
   // Never create fictitious access rights merely to dismiss this reminder.
   const persone = accessiNonLetti || manodopera.isError || manodopera.data ? 1 : accessi?.length ?? 0;
-  const mancanze = cosaManca({ indirizzo, inizio, fine, fasi, persone, rate }, controlli);
+  const controlliValidi = senzaRate ? senzaControllo(controlli, "pagamenti") : controlli;
+  const mancanze = cosaManca({ indirizzo, inizio, fine, fasi, persone, rate }, controlliValidi);
   if (mancanze.length === 0) return null;
 
   const nonServePiu = async (chiave: ControlloAvvio) => {

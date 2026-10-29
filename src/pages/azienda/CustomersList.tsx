@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,6 +8,7 @@ import {
   Calendar, UserCheck, ChevronLeft, ChevronRight,
   UserPlus, ShoppingBag, ShieldOff, Columns3, Filter, FileSpreadsheet,
   FileText, ChevronDown, X, CreditCard, HardHat, MapPin, StickyNote, Sparkles, MoreHorizontal,
+  TrendingUp,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarColor } from "@/lib/contactUtils";
@@ -20,6 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +83,26 @@ import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/Confe
 function CustomersListInner() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  /**
+   * Clienti e committenti sono due elenchi, non due filtri (28/10/2026).
+   * Un committente e' un'impresa che ti passa lavori in appalto: ha un
+   * contratto, un listino suo e una scheda sua. Finche' il Modulo Appaltatori
+   * e' spento la divisione non esiste e si vede solo «Clienti».
+   * La divisione sta nell'URL (?tipo=committenti) con UNA scrittura sola:
+   * due set di fila su useSearchParams si cancellano fra loro.
+   */
+  const moduloAppaltatori = useAppaltatoreModuleEnabled();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const divisione: "privato" | "appaltatore" =
+    moduloAppaltatori && searchParams.get("tipo") === "committenti" ? "appaltatore" : "privato";
+  const sonoCommittenti = divisione === "appaltatore";
+  const schedaBase = sonoCommittenti ? "/azienda/committenti" : "/azienda/clienti";
+  const cambiaDivisione = (v: "privato" | "appaltatore") => {
+    const next = new URLSearchParams(searchParams);
+    if (v === "appaltatore") next.set("tipo", "committenti"); else next.delete("tipo");
+    setSearchParams(next, { replace: true });
+    setPage(0);
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
   const [filterOrders, setFilterOrders] = useState<string>("all");
@@ -197,8 +219,10 @@ function CustomersListInner() {
     p_has_fiscal_code: filterHasFC,
     p_has_site_address: filterHasSite,
     p_portal_state: filterPortal,
+    p_customer_type: divisione,
   }), [
     effectiveCompany?.id,
+    divisione,
     searchQuery,
     filterSalesperson,
     filterOrders,
@@ -219,6 +243,7 @@ function CustomersListInner() {
       effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders,
       sortField, sortDir, page, pageSize,
       filterDateFrom, filterDateTo, filterHasPhone, filterHasFC, filterHasSite, filterPortal,
+      divisione,
     ),
     queryFn: async (): Promise<PaginatedResult> => {
       if (!effectiveCompany?.id) return { rows: [], total_count: 0 };
@@ -237,7 +262,7 @@ function CustomersListInner() {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   // Clear selection on page change / data change
-  useEffect(() => { setSelectedIds(new Set()); }, [page, pageSize, searchQuery, filterSalesperson, filterOrders, filterDateFrom, filterDateTo, filterHasPhone, filterHasFC, filterHasSite, filterPortal]);
+  useEffect(() => { setSelectedIds(new Set()); }, [page, pageSize, searchQuery, filterSalesperson, filterOrders, filterDateFrom, filterDateTo, filterHasPhone, filterHasFC, filterHasSite, filterPortal, divisione]);
 
   // ── Active filters count (for badge) ───────────────────
   const activeFiltersCount = useMemo(() => {
@@ -822,10 +847,35 @@ function CustomersListInner() {
               <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti</h1>
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+                {sonoCommittenti ? "Committenti" : "Clienti"}
+              </h1>
               <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
-                Gestisci anagrafica, ordini, accessi al portale e import da file o AI.
+                {sonoCommittenti
+                  ? "Le imprese che ti passano lavori in appalto: contratto, listino concordato e lavori che ti danno."
+                  : "Gestisci anagrafica, ordini, accessi al portale e import da file o AI."}
               </p>
+              {moduloAppaltatori && (
+                <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium shadow-sm">
+                  {([
+                    { v: "privato" as const, label: "Clienti" },
+                    { v: "appaltatore" as const, label: "Committenti" },
+                  ]).map(({ v, label }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={divisione === v}
+                      onClick={() => cambiaDivisione(v)}
+                      className={cn(
+                        "rounded-md px-3 py-1.5 transition-colors",
+                        divisione === v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -917,11 +967,23 @@ function CustomersListInner() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* I numeri dell'appalto: ha senso solo nella divisione committenti, e
+              solo per chi vede gli importi delle commesse (è la rotta a
+              chiederlo). */}
+          {sonoCommittenti && customerPermissions.canViewOrderAmounts && (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/azienda/committenti/numeri">
+                <TrendingUp className="mr-1.5 h-4 w-4" />
+                <span className="hidden sm:inline">I numeri</span>
+              </Link>
+            </Button>
+          )}
+
           {/* New customer — la rotta chiede canEditCustomers: senza, il bottone
               portava a una pagina «Accesso negato». */}
           {canEditCustomers ? (
             <Button asChild size="sm" variant="brand">
-              <Link to="/azienda/clienti/nuovo">
+              <Link to={sonoCommittenti ? "/azienda/clienti/nuovo?tipo=committente" : "/azienda/clienti/nuovo"}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 <span className="sm:hidden">Nuovo</span>
                 <span className="hidden sm:inline">Nuovo Cliente</span>
@@ -1250,7 +1312,7 @@ function CustomersListInner() {
                     <button
                       key={row.customer.id}
                       type="button"
-                      onClick={() => navigate(`/azienda/clienti/${row.customer.id}`)}
+                      onClick={() => navigate(`${schedaBase}/${row.customer.id}`)}
                       className={`rounded-lg border px-3 py-2 text-left transition hover:shadow-sm ${colorClass}`}
                     >
                       <div className="flex items-center gap-2">
@@ -1357,7 +1419,7 @@ function CustomersListInner() {
               ) : (
                 <>
                   <Button asChild>
-                    <Link to="/azienda/clienti/nuovo">
+                    <Link to={sonoCommittenti ? "/azienda/clienti/nuovo?tipo=committente" : "/azienda/clienti/nuovo"}>
                       <Plus className="mr-2 h-4 w-4" />
                       Aggiungi Cliente
                     </Link>
@@ -1389,7 +1451,7 @@ function CustomersListInner() {
                 // da telefono) e il badge «Anagrafica», che non serve per trovare
                 // un cliente.
                 <div key={customer.id} className="flex items-center hover:bg-muted/50 active:bg-muted transition-colors">
-                  <Link to={`/azienda/clienti/${customer.id}`} className="tap-compact flex flex-1 items-center gap-2.5 min-w-0 px-3 py-2">
+                  <Link to={`${schedaBase}/${customer.id}`} className="tap-compact flex flex-1 items-center gap-2.5 min-w-0 px-3 py-2">
                     <Avatar className={`h-8 w-8 shrink-0 ${avatarColor}`}>
                       <AvatarFallback className="text-[11px] font-bold text-white bg-transparent">
                         {initials}
@@ -1489,7 +1551,7 @@ function CustomersListInner() {
                     key={customer.id}
                     data-state={isSelected ? "selected" : undefined}
                     className="cursor-pointer hover:bg-muted/40 transition-colors"
-                    onClick={() => navigate(`/azienda/clienti/${customer.id}`)}
+                    onClick={() => navigate(`${schedaBase}/${customer.id}`)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -1722,7 +1784,7 @@ function CustomersListInner() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuLabel>Azioni cliente</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => navigate(`/azienda/clienti/${customer.id}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`${schedaBase}/${customer.id}`)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Apri scheda
                           </DropdownMenuItem>
