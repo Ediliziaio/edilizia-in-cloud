@@ -5,8 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { calcolaIvaComputo, type ImpostazioniIvaComputo } from "@/lib/computo/ivaComputo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 
-export default function ComputoIva({ value, imponibile, onChange }: {
+export default function ComputoIva({ value, imponibile, onChange, righePrima = [] }: {
   value: ImpostazioniIvaComputo; imponibile: number; onChange: (patch: ImpostazioniIvaComputo) => void;
+  /** Righe sopra l'imponibile, nel riquadro dei totali: il totale dei lavori e lo sconto. */
+  righePrima?: [string, string][];
 }) {
   const fiscale = calcolaIvaComputo(imponibile, value);
   const aliquote = ["0", "4", "5", "10", "22"];
@@ -36,7 +38,8 @@ export default function ComputoIva({ value, imponibile, onChange }: {
     {fiscale.errore && <p role="alert" className="text-sm text-amber-800">{fiscale.errore}</p>}
     </div>
     <dl className="space-y-2 self-end rounded-md bg-slate-50 p-3 text-sm tabular-nums">
-      <div className="flex justify-between gap-4"><dt>Imponibile</dt><dd>{formatEuro(imponibile)} €</dd></div>
+      {righePrima.map(([etichetta, valore]) => <div key={etichetta} className="flex justify-between gap-4 text-muted-foreground"><dt>{etichetta}</dt><dd>{valore}</dd></div>)}
+      <div className={`flex justify-between gap-4 ${righePrima.length ? "font-medium" : ""}`}><dt>Imponibile</dt><dd>{formatEuro(imponibile)} €</dd></div>
       <div className="flex justify-between gap-4"><dt>IVA</dt><dd>{fiscale.iva == null ? "Da definire" : `${formatEuro(fiscale.iva)} €`}</dd></div>
       <div className="flex justify-between gap-4 border-t pt-2 font-semibold"><dt>Totale{fiscale.modalita === "applicata" ? " IVA inclusa" : ""}</dt><dd>{fiscale.totale == null ? "Da definire" : `${formatEuro(fiscale.totale)} €`}</dd></div>
     </dl>

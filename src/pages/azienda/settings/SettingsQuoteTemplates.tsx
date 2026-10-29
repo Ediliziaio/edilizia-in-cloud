@@ -41,7 +41,8 @@ import {
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, FileSpreadsheet } from "lucide-react";
+import ComputoModelloPanel from "@/components/computo/ComputoModelloPanel";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
   LAYOUTS, FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES, SEZIONI_EDITOR_OFFERTA,
@@ -984,6 +985,10 @@ export default function SettingsQuoteTemplates() {
           <FileText className="h-3.5 w-3.5" />
           Preventivo generico
         </TabsTrigger>
+        <TabsTrigger value="computo" className="gap-1.5">
+          <FileSpreadsheet className="h-3.5 w-3.5" />
+          Computo metrico
+        </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
           {/* Da telefono le due linguette non stanno in 375 px: resta «Moduli». */}
@@ -992,6 +997,7 @@ export default function SettingsQuoteTemplates() {
         <TabsTrigger value="varianti" className="gap-1.5">Varianti e lavori extra</TabsTrigger>
       </TabsList>
 
+      <TabsContent value="computo"><ComputoModelloPanel key={effectiveCompany?.id} canEdit={puoModificare} /></TabsContent>
       <TabsContent value="varianti"><VariationTemplatesPanel key={effectiveCompany?.id} companyId={effectiveCompany?.id} canEdit={puoModificare} /></TabsContent>
 
       <TabsContent value="moduli-vendita" className="space-y-4">

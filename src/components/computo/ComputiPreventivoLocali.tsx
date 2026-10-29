@@ -41,7 +41,7 @@ export default function ComputiPreventivoLocali() {
   if (!rows.length && !attivo) return null;
   return <details className="border-y border-orange-200 py-3" open>
     <summary className="cursor-pointer text-sm font-semibold text-slate-900">{attivo ? "Computi" : "Computi locali"} · {rows.length}</summary>
-    <p className="mt-1 text-xs text-muted-foreground">{attivo ? "Demo Azienda 2 · i computi si salvano da soli nel gestionale." : "Bozze in questo browser, non ancora sincronizzate con il gestionale."}</p>
+    <p className="mt-1 text-xs text-muted-foreground">{attivo ? "I computi si salvano da soli nel gestionale." : "Bozze in questo browser, non ancora sincronizzate con il gestionale."}</p>
     {attivo && (cloud.owner !== owner || cloud.loading) && <p role="status" className="text-xs py-2">Caricamento dei computi…</p>}
     {attivo && cloud.owner === owner && cloud.error && <p role="alert" className="text-sm text-amber-800">{cloud.error} <button className="underline" onClick={() => { setCloud({ owner, rows: [], error: "", loading: true }); setRetry(n => n + 1); }}>Riprova</button></p>}
     <ul className="mt-2 max-h-64 divide-y overflow-auto">{rows.map(({ id, titolo, committente, numeroVoci, remoto }) => <li key={id}>

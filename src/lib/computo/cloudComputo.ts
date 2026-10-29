@@ -1,18 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { DEMO_COMPANY_2_ID } from "@/lib/constants/demoCompany";
 import { leggiBozzaComputo, type BozzaComputo } from "./editorNativo";
 import { leggiAllegatoLocale, salvaAllegatiRipristinati } from "./allegatiLocali";
 
 type Row = { id: string; company_id: string; created_by: string; revision: number; payload: Json; title: string | null; client_name: string | null; items_count: number; updated_at: string };
 type CloudDatabase = Omit<Database, "public"> & { public: Omit<Database["public"], "Tables"> & { Tables: Database["public"]["Tables"] & {
   computo_preventivo_drafts: { Row: Row; Insert: { id: string; company_id: string; payload: Json; revision?: number }; Update: { payload?: Json; revision?: number }; Relationships: [] };
+  computo_preventivo_costi: { Row: { company_id: string; draft_id: string; costi: Json; updated_at: string }; Insert: { company_id: string; draft_id: string; costi: Json; updated_at?: string }; Update: { costi?: Json; updated_at?: string }; Relationships: [] };
 } } };
 const db = supabase as unknown as SupabaseClient<CloudDatabase>;
 const BUCKET = "quote-materials";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const computoCloudAttivo = (companyId: string | undefined) => companyId === DEMO_COMPANY_2_ID;
+/** Dal 29/10/2026 il preventivo con computo si salva nel gestionale per ogni azienda (prima solo Demo Azienda 2). */
+export const computoCloudAttivo = (companyId: string | undefined) => !!companyId && uuid.test(companyId);
 export class ConflittoComputoCloud extends Error {
   constructor() { super("Il computo è stato modificato da un altro dispositivo. Le tue modifiche sono al sicuro su questo computer: scarica la tua copia e riapri la versione salvata."); }
 }
@@ -20,7 +21,8 @@ export type ComputoCloud = { id: string; revision: number; bozza: BozzaComputo; 
 export type RiepilogoComputoCloud = { id: string; titolo: string; committente: string; numeroVoci: number; updatedAt: string };
 
 function verifica(companyId: string, id?: string) {
-  if (companyId !== DEMO_COMPANY_2_ID || (id != null && !uuid.test(id))) throw new Error("Il salvataggio nel gestionale per questo computo è attivo solo per Demo Azienda 2.");
+  // L'azienda la controllano le policy del database; qui si rifiutano solo identificativi che non sono UUID (niente «../» nei percorsi).
+  if (!uuid.test(companyId) || (id != null && !uuid.test(id))) throw new Error("Azienda o computo non riconosciuti: ricarica la pagina.");
 }
 export function percorsoAllegatoComputo(companyId: string, draftId: string, fileId: string) {
   verifica(companyId, draftId);
@@ -31,11 +33,24 @@ export async function improntaComputo(bozza: BozzaComputo) {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(bozza)));
   return [...new Uint8Array(bytes)].map(n => n.toString(16).padStart(2, "0")).join("");
 }
+/**
+ * I costi stimati delle voci stanno in `computo_preventivo_costi` (29/10/2026), che legge solo chi ha il
+ * permesso dei costi: nella bozza, che legge chiunque veda i preventivi, la voce ha il costo vuoto.
+ * Qui si ricorda quali bozze avevano una riga di costi, per poterla svuotare quando si tolgono tutti.
+ */
+const costiPresenti = new Set<string>();
 export async function leggiComputoCloud(companyId: string, id: string): Promise<ComputoCloud | null> {
   verifica(companyId, id);
   const { data, error } = await db.from("computo_preventivo_drafts").select("id, revision, payload, updated_at").eq("company_id", companyId).eq("id", id).maybeSingle();
   if (error) throw new Error("Il gestionale non risponde. La copia su questo computer non è stata toccata.");
-  return data ? { id: data.id, revision: data.revision, bozza: leggiBozzaComputo(JSON.stringify(data.payload)), updatedAt: data.updated_at } : null;
+  if (!data) return null;
+  const bozza = leggiBozzaComputo(JSON.stringify(data.payload));
+  // Chi non ha il permesso riceve zero righe: la bozza resta senza costi, come deve.
+  const { data: riga } = await db.from("computo_preventivo_costi").select("costi").eq("company_id", companyId).eq("draft_id", id).maybeSingle();
+  const costi = riga?.costi && typeof riga.costi === "object" && !Array.isArray(riga.costi) ? riga.costi as Record<string, unknown> : null;
+  if (costi) costiPresenti.add(id);
+  return { id: data.id, revision: data.revision, updatedAt: data.updated_at,
+    bozza: costi ? { ...bozza, voci: bozza.voci.map(v => typeof costi[v.id] === "string" ? { ...v, costo: costi[v.id] as string } : v) } : bozza };
 }
 export async function elencaComputiCloud(companyId: string): Promise<RiepilogoComputoCloud[]> {
   verifica(companyId);
@@ -69,13 +84,20 @@ export async function salvaComputoCloud(companyId: string, id: string, scope: st
     caricati.add(meta.id);
   }
   allegatiCaricati.set(id, caricati);
-  const payload = valida as unknown as Json;
+  // I costi vanno nella loro tabella riservata, non nella bozza che leggono tutti.
+  const costi = Object.fromEntries(valida.voci.filter(v => (v.costo ?? "").trim()).map(v => [v.id, v.costo.trim()]));
+  const payload = { ...valida, voci: valida.voci.map(v => v.costo ? { ...v, costo: "" } : v) } as unknown as Json;
   const table = db.from("computo_preventivo_drafts");
   const result = revision === 0
     ? await table.insert({ id, company_id: companyId, payload, revision: 1 }).select("id,revision,updated_at").single()
     : await table.update({ payload, revision: revision + 1 }).eq("company_id", companyId).eq("id", id).eq("revision", revision).select("id,revision,updated_at").maybeSingle();
   if (result.error?.code === "23505" || (!result.error && !result.data)) throw new ConflittoComputoCloud();
   if (result.error || !result.data) throw new Error("Salvataggio non riuscito. Dati e allegati restano su questo computer.");
+  if (Object.keys(costi).length || costiPresenti.has(id)) {
+    const { error: erroreCosti } = await db.from("computo_preventivo_costi").upsert({ company_id: companyId, draft_id: id, costi, updated_at: new Date().toISOString() }, { onConflict: "company_id,draft_id" });
+    // Senza il permesso dei costi la scrittura è rifiutata: i costi restano su questo computer, la bozza è salva.
+    if (!erroreCosti) costiPresenti.add(id);
+  }
   return { id: result.data.id, revision: result.data.revision, bozza: valida, updatedAt: result.data.updated_at };
 }
 export async function preparaAllegatiCloud(companyId: string, id: string, scope: string, bozza: BozzaComputo) {

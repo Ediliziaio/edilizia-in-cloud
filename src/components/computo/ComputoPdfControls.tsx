@@ -7,6 +7,7 @@ const formati = [
   ["tecnico", "Computo dettagliato con prezzi e misure", "Come PriMus: righe di misura, riporti e riepilogo."],
   ["senza-prezzi", "Computo senza prezzi", "Le quantità per chiedere offerte, senza importi."],
   ["riepilogo", "Riepilogo per capitoli", "Una pagina: i capitoli con il loro importo."],
+  ["elenco-prezzi", "Elenco prezzi unitari", "Ogni voce col prezzo in cifre e in lettere, senza quantità."],
 ] as const;
 
 /** Il formato scelto a colpo d'occhio, nel passo Documento: quattro schede invece di una tendina. */

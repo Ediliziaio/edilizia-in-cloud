@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { valutaFormula } from "./computoStrutturato";
+import { cronoprogrammaSchema } from "./cronoprogrammaSchema";
+import { rataSchema } from "./pagamentiSchema";
+import { revisioneSchema } from "./revisioniSchema";
 import type { VoceComputo } from "./alberoComputo";
 
 const testo = z.string().max(30000);
@@ -11,6 +14,10 @@ const voceSchema = z.object({
   id: z.string(), capitolo: testo, categoria: testo, sottocategoria: testo, tariffa: testo,
   descrizione: testo, unita: testo, quantita: testo, prezzo: testo,
   fonte: z.string().max(500).default(""),
+  /** Costo unitario stimato dell'impresa: per i margini del passo Economia, mai nel PDF. */
+  costo: z.string().max(40).default(""),
+  /** Voce opzionale: si propone al cliente ma resta fuori dal totale (sezione a parte nel PDF). */
+  opzionale: z.boolean().default(false),
   noteMisure: testo.default(""),
   descrizioneComune: testo.default(""),
   sicurezza: z.boolean(), detrazione: z.boolean(), corpo: z.boolean(),
@@ -42,10 +49,32 @@ export const bozzaComputoSchema = z.object({
   capitoli: z.array(z.string().trim().min(1).max(300)).max(200).default([]),
   mostraMisurePdf: z.boolean().default(true),
   allegati: z.array(allegatoSchema).max(20).default([]),
-  formatoPdf: z.enum(["cliente", "tecnico", "senza-prezzi", "riepilogo"]).default("cliente"),
+  formatoPdf: z.enum(["cliente", "tecnico", "senza-prezzi", "riepilogo", "elenco-prezzi"]).default("cliente"),
   mostraPrezziUnitariPdf: z.boolean().default(true), mostraImportiPdf: z.boolean().default(true),
   mostraCodiciPdf: z.boolean().default(true), mostraFontiPdf: z.boolean().default(true),
   mostraDatiCliente: z.boolean().default(true), mostraCondizioni: z.boolean().default(true),
+  cronoprogramma: cronoprogrammaSchema.prefault({}), mostraCronoprogrammaPdf: z.boolean().default(true),
+  pianoPagamenti: z.object({ rate: z.array(rataSchema).max(24).default([]) }).prefault({}),
+  // Il passo Documento (29/10/2026, come Hausme): quali sezioni escono, quali capitoli, la detrazione fiscale
+  // e le condizioni contrattuali del modello dell'azienda.
+  sezioniPdf: z.object({
+    copertina: z.boolean().default(true), premessa: z.boolean().default(true), indice: z.boolean().default(true),
+    lavorazioni: z.boolean().default(true), riepilogo: z.boolean().default(true), cronoprogramma: z.boolean().default(true),
+    pagamenti: z.boolean().default(true), detrazione: z.boolean().default(true), contrattuali: z.boolean().default(true), firme: z.boolean().default(true),
+  }).prefault({}),
+  capitoliEsclusiPdf: z.array(z.string().max(300)).max(200).default([]),
+  detrazione: z.object({
+    tipo: z.enum(["nessuna", "ristrutturazione-prima-casa", "ristrutturazione-altre", "ecobonus-prima-casa", "ecobonus-altre", "sismabonus-prima-casa", "sismabonus-altre", "personalizzata"]).default("nessuna"),
+    percentuale: z.string().max(10).default(""), anni: z.number().int().min(1).max(20).default(10), nota: z.string().max(1000).default(""),
+    /** Tetto della DETRAZIONE scritto a mano (es. ecobonus serramenti 60.000 €); vuoto = quello del tipo. */
+    tetto: z.string().max(20).default(""),
+  }).prefault({}),
+  condizioniContrattuali: z.string().max(20000).default(""),
+  /** La foto o il render del passo Progetto che apre la copertina (id dell'allegato), vuoto = nessuna. */
+  fotoCopertina: z.string().max(80).default(""),
+  /** Le revisioni salvate, per confrontare cosa è cambiato (le più recenti in fondo). */
+  revisioni: z.array(revisioneSchema).max(20).default([]),
+  sconto: z.object({ tipo: z.enum(["nessuno", "percentuale", "importo"]).default("nessuno"), valore: z.string().max(40).default(""), descrizione: z.string().max(120).default("") }).prefault({}),
   voci: z.array(voceSchema).max(5000),
 }).superRefine((b, ctx) => {
   if (new Set(b.allegati.map(a => a.id)).size !== b.allegati.length) ctx.addIssue({ code: "custom", message: "Identificativo allegato duplicato." });

@@ -7,6 +7,7 @@ export function applicaVarianteComputo(bozza: BozzaComputo, formato: BozzaComput
     tecnico: { mostraMisurePdf: true, mostraCodiciPdf: true, mostraFontiPdf: true, mostraPrezziUnitariPdf: true, mostraImportiPdf: true },
     "senza-prezzi": { mostraMisurePdf: true, mostraCodiciPdf: true, mostraFontiPdf: false, mostraPrezziUnitariPdf: false, mostraImportiPdf: false },
     riepilogo: { mostraMisurePdf: false, mostraCodiciPdf: false, mostraFontiPdf: false, mostraPrezziUnitariPdf: false, mostraImportiPdf: true },
+    "elenco-prezzi": { mostraMisurePdf: false, mostraCodiciPdf: true, mostraFontiPdf: false, mostraPrezziUnitariPdf: true, mostraImportiPdf: false },
   };
   return { ...bozza, formatoPdf: formato, ...opzioni[formato] };
 }

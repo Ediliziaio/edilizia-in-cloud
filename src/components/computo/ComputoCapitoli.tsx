@@ -35,7 +35,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
   /** Toglie il capitolo e le sue voci (si torna indietro con «Annulla ultima modifica»). */
   onEliminaCapitolo: (nome: string) => void;
   /** L'editor completo della voce aperta, disegnato dentro la sua scheda. */
-  renderDettaglio: (voce: VoceEditor, indice: number) => ReactNode;
+  renderDettaglio?: (voce: VoceEditor, indice: number) => ReactNode;
 }) {
   const [ricerca, setRicerca] = useState("");
   const [chiusi, setChiusi] = useState<Set<string>>(() => new Set());
@@ -101,7 +101,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
     {visibili.map(c => {
       const apertoCapitolo = !!filtro || !chiusi.has(c.nome);
       const parziale = c.righe.some(r => r.calcolo.errori.length);
-      const totale = c.righe.reduce((s, r) => s + (r.calcolo.errori.length ? 0 : r.calcolo.importo ?? 0), 0);
+      const totale = c.righe.reduce((s, r) => s + (r.calcolo.errori.length || r.voce.opzionale ? 0 : r.calcolo.importo ?? 0), 0);
       return <div key={c.nome} className="overflow-hidden rounded-xl border border-l-4 border-l-orange-400 bg-white">
         <div className="flex items-center gap-2 bg-slate-50 px-3 py-2.5">
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`${apertoCapitolo ? "Chiudi" : "Apri"} capitolo ${c.nome}`} aria-expanded={apertoCapitolo} onClick={() => setChiusi(prev => { const next = new Set(prev); if (next.has(c.nome)) next.delete(c.nome); else next.add(c.nome); return next; })}>{apertoCapitolo ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Button>
@@ -115,7 +115,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
           {c.righeVisibili.map(({ voce, indice, calcolo }) => {
             const eAperta = aperta === voce.id;
             const daMisure = voce.misure.length > 0;
-            const segni = [daMisure && `${voce.misure.length} ${voce.misure.length === 1 ? "riga" : "righe"} di misura`, voce.corpo && "A corpo", voce.sicurezza && "Sicurezza", voce.detrazione && "Detrazione"].filter(Boolean) as string[];
+            const segni = [daMisure && `${voce.misure.length} ${voce.misure.length === 1 ? "riga" : "righe"} di misura`, voce.corpo && "A corpo", voce.sicurezza && "Sicurezza", voce.detrazione && "Detrazione", voce.opzionale && "Opzionale · fuori dal totale", voce.fonte?.startsWith("Stima di mercato di Silvio") && "Prezzo stimato da verificare"].filter(Boolean) as string[];
             return <div key={voce.id} className={`rounded-lg border bg-white transition-shadow ${eAperta ? "border-orange-300 shadow-sm" : "hover:border-slate-300"}`}>
               <div className="grid grid-cols-1 gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
                 <button type="button" aria-expanded={eAperta} aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} onClick={() => onApri(eAperta ? null : voce.id)} className="min-w-0 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
@@ -127,7 +127,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                   </span>}
                 </button>
                 <div className="flex flex-wrap items-center justify-end gap-1.5 text-sm tabular-nums">
-                  {!eAperta && <>
+                  {(!eAperta || !renderDettaglio) && <>
                     {daMisure
                       ? <span className="text-right" title="Dalle righe di misura">{calcolo.quantita == null ? "—" : quantitaTesto(calcolo.quantita)}</span>
                       : <Input aria-label={`Quantità voce ${indice + 1}`} inputMode="decimal" maxLength={40} className="h-8 w-20 text-right" placeholder="Qtà"
@@ -140,7 +140,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                   <strong className={`w-28 text-right ${calcolo.errori.length ? "font-medium text-amber-700" : ""}`}>{calcolo.errori.length ? "Da completare" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
                 </div>
               </div>
-              {eAperta && <div className="border-t bg-slate-50/50 p-3 sm:p-4">{renderDettaglio(voce, indice)}</div>}
+              {eAperta && renderDettaglio && <div className="border-t bg-slate-50/50 p-3 sm:p-4">{renderDettaglio(voce, indice)}</div>}
             </div>;
           })}
           <div className="flex flex-wrap gap-2 pt-1"><Button variant="ghost" size="sm" disabled={voci.length >= 5000} onClick={() => { setRicerca(""); onAdd(c.nome); }}><Plus className="mr-1 h-4 w-4" />Voce libera</Button>{onListino && <Button variant="ghost" size="sm" onClick={() => { setRicerca(""); onListino(c.nome); }}><Search className="mr-1 h-4 w-4" />Dal listino</Button>}</div>

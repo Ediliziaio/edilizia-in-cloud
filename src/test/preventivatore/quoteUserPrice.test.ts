@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { numeriNellaFrase, PREFISSO_SCELTA, prezzoDellUtenteVerificato, quoteChatResponseFormat, runQuoteChat, type QuoteChatProposal, type QuoteChatRequest, type QuoteChatTurn } from "../../../supabase/functions/_shared/quoteConversation";
+import { numeriNellaFrase, PREFISSO_SCELTA, prezzoDellUtenteVerificato, stimaDiMercatoRichiesta, quoteChatResponseFormat, runQuoteChat, type QuoteChatProposal, type QuoteChatRequest, type QuoteChatTurn } from "../../../supabase/functions/_shared/quoteConversation";
 import { applyChatResult, chatLineIssue, emptyChatDocument } from "@/lib/preventivi/quoteChatDocument";
 import { quoteChatHistory } from "@/lib/preventivi/quoteChatContext";
 
@@ -82,5 +82,40 @@ describe("la cronologia ricorda che una scelta cliccata è testo dell'AI", () =>
   it("al modello va il testo inviato, col prefisso, anche se la bolla mostra solo la scelta", () => {
     const storia = quoteChatHistory([{ role: "user", text: "Uso la resina", sent: `${PREFISSO_SCELTA} Uso la resina` }, { role: "assistant", text: "Bene" }], "E ora?");
     expect(storia[0].text).toBe(`${PREFISSO_SCELTA} Uso la resina`);
+  });
+});
+
+describe("prezzi indicativi di mercato, solo se l'utente li chiede", () => {
+  const stima = { low: 25, high: 35, basis: "fornitura e posa, sottofondo escluso" };
+  const conStima = (o: Partial<QuoteChatProposal> = {}) => proposta({ userPrice: null, marketPrice: stima, ...o });
+  it("chiesti in chat: la stima resta", async () => {
+    const r = await runQuoteChat(richiesta([{ role: "user", text: "Fammi il computo del padel con prezzi di mercato indicativi" }]), servizi(turno([conStima()])));
+    expect(r.turn.proposals[0].marketPrice).toEqual(stima);
+  });
+  it("chiesti cliccando la scelta proposta: vale anche quella", () => {
+    expect(stimaDiMercatoRichiesta([{ role: "user", text: `${PREFISSO_SCELTA} Usa prezzi indicativi di mercato per le voci senza prezzo` }])).toBe(true);
+  });
+  it("non chiesti: la stima si scarta e si dice perché", async () => {
+    const r = await runQuoteChat(richiesta([{ role: "user", text: "Fammi il computo del padel" }]), servizi(turno([conStima()])));
+    expect(r.turn.proposals[0].marketPrice).toBeNull();
+    expect(r.turn.warnings.join(" ")).toMatch(/si usano solo se li chiedi/);
+  });
+  it("il prezzo scritto dall'utente vince sulla stima", async () => {
+    const r = await runQuoteChat(richiesta([{ role: "user", text: `${scritto} Per il resto prezzi di mercato.` }]), servizi(turno([conStima({ userPrice: { amount: 12, quote: "scavo 12 euro al mc" } })])));
+    expect(r.turn.proposals[0].userPrice?.amount).toBe(12);
+    expect(r.turn.proposals[0].marketPrice).toBeNull();
+  });
+  it("un intervallo troppo largo non è una stima", async () => {
+    await expect(runQuoteChat(richiesta([{ role: "user", text: "prezzi di mercato" }]), servizi(turno([conStima({ marketPrice: { low: 10, high: 90, basis: "boh" } })])))).rejects.toThrow(/Prezzo indicativo non valido/);
+  });
+  it("nel client la voce prende il prezzo medio, dichiarato come stima da verificare", () => {
+    const { document } = applyChatResult(emptyChatDocument(), { version: 1, turnId: id, revision: 0, turn: turno([conStima({ unit: "m²" })]), references: [], model: "stub", simulated: false }, id, null);
+    expect(document.lines[0].price).toBe(30);
+    expect(document.lines[0].pricing).toMatchObject({ origin: "ai-estimate", low: 25, high: 35 });
+    expect(document.lines[0].pricing?.basis).toMatch(/Stima di mercato di Silvio, da verificare: 25,00-35,00 €\/m²/);
+  });
+  it("lo schema stretto chiede marketPrice a ogni voce", () => {
+    const f = quoteChatResponseFormat(richiesta([{ role: "user", text: "x" }])) as unknown as { json_schema: { schema: { properties: { proposals: { items: { required: string[] } } } } } };
+    expect(f.json_schema.schema.properties.proposals.items.required).toContain("marketPrice");
   });
 });

@@ -33,6 +33,27 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   azienda?: string;
   dettagliAzienda?: string;
   colore?: string;
+  /** La veste del modello del computo dell'azienda (Impostazioni → Modelli preventivi): copertina, logo, premessa, firme, piè di pagina. */
+  veste?: import("./modelloComputo").VesteComputo;
+  /** Il cronoprogramma dei lavori: se ha fasi, esce in una pagina sua dopo il riepilogo. */
+  cronoprogramma?: import("./cronoprogramma").Cronoprogramma | null;
+  /** Lo sconto sul totale dei lavori, prima dell'IVA (passo «Economia»). */
+  sconto?: import("./scontoComputo").ScontoComputo;
+  /** Le rate del piano dei pagamenti, già calcolate (passo «Economia»). */
+  ratePagamento?: import("./pianoPagamentiPdf").RataPdf[];
+  /** Le sezioni del documento scelte nel passo Documento: una sezione spenta non esce. */
+  sezioni?: Partial<Record<"copertina" | "indice" | "riepilogo" | "firme", boolean>>;
+  /** La detrazione fiscale già calcolata sul totale del documento. */
+  calcoloDetrazione?: import("./detrazioneComputo").CalcoloDetrazione | null;
+  /** Le condizioni contrattuali del modello dell'azienda, modificate nel singolo preventivo. */
+  condizioniContrattuali?: string;
+  /** Chi firma per il committente e l'eventuale cointestatario, separati: `committente` li ha già uniti con «e». */
+  firmaCommittente?: string;
+  /** Le voci opzionali, fuori dal totale: escono in una sezione a parte. */
+  vociOpzionali?: { descrizione: string; unita: string; quantita: number | null; prezzo: number | null; importo: number | null }[];
+  /** La foto della copertina, già ritagliata a misura (data URL JPEG). */
+  immagineCopertina?: { dati: string; larghezza: number; altezza: number } | null;
+  firmaCointestatario?: string;
   numero?: string;
   indirizzoIntervento?: string;
   condizioni?: string;
@@ -43,7 +64,7 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
    * «editoriale»: il preventivo per il cliente, una scheda per voce.
    * «primus»: il computo metrico come lo stampa PriMus (colonne, SOMMANO, riporto), con la veste dell'azienda.
    */
-  impaginazione?: "editoriale" | "primus";
+  impaginazione?: "editoriale" | "primus" | "elenco-prezzi";
   dettaglioMisure?: boolean;
   dataDocumento?: string;
   revisione?: string;
@@ -181,6 +202,10 @@ export async function esportaComputoXlsx(voci: VoceComputo[], intestazione: Inte
 export async function generaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo) {
   const mod = await import("jspdf");
   const JsPDF = mod.default ?? (mod as typeof mod & { jsPDF?: typeof mod.default }).jsPDF;
+  if (intestazione.impaginazione === "elenco-prezzi") {
+    const { disegnaElencoPrezzi } = await import("./stampaElencoPrezzi");
+    return disegnaElencoPrezzi(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+  }
   if (intestazione.impaginazione === "primus") {
     const { disegnaComputoPrimus } = await import("./stampaPrimus");
     return disegnaComputoPrimus(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);

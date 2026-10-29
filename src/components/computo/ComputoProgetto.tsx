@@ -7,8 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import type { AllegatoComputo } from "@/lib/computo/editorNativo";
 import { caricaAllegatoLocale, leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
 
-export default function ComputoProgetto({ scope, allegati, onChange, onBusy }: {
+export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fotoCopertina = "", onFotoCopertina }: {
   scope: string; allegati: AllegatoComputo[]; onChange: (a: AllegatoComputo[]) => void; onBusy: (busy: boolean) => void;
+  /** La foto che apre la copertina del PDF (id dell'allegato) e chi la cambia. */
+  fotoCopertina?: string; onFotoCopertina?: (id: string) => void;
 }) {
   const [tipo, setTipo] = useState<AllegatoComputo["tipo"]>("foto");
   const [busy, setBusy] = useState(false), [errore, setErrore] = useState("");
@@ -47,12 +49,12 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy }: {
     finally { if (attivo.current) { setBusy(false); onBusy(false); } }
   };
   return <section className="space-y-4" aria-label="Progetto e allegati">
-    <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0"><h2 className="text-base font-semibold">Foto e tavole del progetto</h2>
-        <p className="text-xs text-muted-foreground">Facoltative: quelle con «Includi nel PDF» vanno in fondo al documento. {allegati.length}/20 allegati.</p></div>
-      <div className="w-full space-y-1 sm:w-44"><Label htmlFor="allegato-tipo" className="text-xs">I prossimi file sono</Label>
+        <p className="text-xs text-muted-foreground">Facoltative · {allegati.length}/20 allegati</p></div>
+      <div className="flex w-full items-center gap-2 sm:w-auto"><Label htmlFor="allegato-tipo" className="shrink-0 text-xs text-muted-foreground">I prossimi file sono</Label>
         <Select value={tipo} disabled={busy} onValueChange={value => setTipo(value as typeof tipo)}>
-          <SelectTrigger id="allegato-tipo" className="h-9"><SelectValue /></SelectTrigger>
+          <SelectTrigger id="allegato-tipo" className="h-9 w-36"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="foto">Foto</SelectItem><SelectItem value="planimetria">Planimetrie</SelectItem><SelectItem value="render">Render</SelectItem></SelectContent>
         </Select>
       </div>
@@ -60,10 +62,10 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy }: {
     <button type="button" disabled={busy || allegati.length >= 20} onClick={() => input.current?.click()}
       onDragOver={e => { e.preventDefault(); setSopra(true); }} onDragLeave={() => setSopra(false)}
       onDrop={e => { e.preventDefault(); setSopra(false); void carica(Array.from(e.dataTransfer.files)); }}
-      className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${allegati.length ? "py-4" : "py-8"} ${sopra ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50/40"}`}>
-      {busy ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <ImagePlus className="h-6 w-6 text-orange-500" />}
-      <span className="text-sm font-medium text-slate-900">{busy ? "Salvo i file…" : "Trascina qui i file o fai clic per sceglierli"}</span>
-      <span className="text-xs text-muted-foreground">JPG, PNG o PDF · fino a 20 file e 50 MB in tutto</span>
+      className={`flex w-full items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${sopra ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50/40"}`}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50">{busy ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <ImagePlus className="h-5 w-5 text-orange-500" />}</span>
+      <span className="min-w-0"><span className="block text-sm font-medium text-slate-900">{busy ? "Salvo i file…" : "Trascina qui foto, planimetrie o render, o fai clic per sceglierli"}</span>
+        <span className="block text-xs text-muted-foreground">JPG, PNG o PDF · fino a 20 file e 50 MB in tutto · quelli con «Includi nel PDF» vanno in fondo al documento</span></span>
     </button>
     <input ref={input} type="file" multiple accept="image/jpeg,image/png,application/pdf" hidden aria-label="Carica file" onChange={e => {
       const files = Array.from(e.target.files ?? []); e.target.value = ""; void carica(files);
@@ -81,6 +83,8 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy }: {
             const next = [...allegati]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; onChange(next);
           }}>{delta < 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}</Button>)}</div>
         </div>
+        {onFotoCopertina && a.mime.startsWith("image/") && <Button type="button" size="sm" variant={fotoCopertina === a.id ? "default" : "outline"} className="h-7 w-full text-xs" aria-pressed={fotoCopertina === a.id}
+          onClick={() => onFotoCopertina(fotoCopertina === a.id ? "" : a.id)}>{fotoCopertina === a.id ? "In copertina · togli" : "Usa in copertina"}</Button>}
         {urls[a.id] && <a href={urls[a.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary" title="Apri allegato"><ExternalLink className="h-4 w-4" />Apri allegato</a>}
       </div>
     </article>)}</div>

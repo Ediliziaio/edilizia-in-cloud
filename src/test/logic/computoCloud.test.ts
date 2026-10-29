@@ -17,14 +17,15 @@ function table(result: unknown) {
   for (const key of ["insert", "update", "select", "eq"] as const) chain[key].mockReturnValue(chain);
   chain.single.mockResolvedValue(result); chain.maybeSingle.mockResolvedValue(result); api.from.mockReturnValue(chain); return chain;
 }
-describe("computo cloud riservato a Demo Azienda 2", () => {
-  it("si attiva soltanto per Demo 2 anche nella versione pubblicata", () => {
+describe("computo nel gestionale per ogni azienda", () => {
+  it("si attiva per ogni azienda con un identificativo valido", () => {
     expect(computoCloudAttivo(company)).toBe(true);
     expect(computoCloudAttivo(undefined)).toBe(false);
-    expect(computoCloudAttivo("altra-azienda")).toBe(false);
+    expect(computoCloudAttivo("altra-azienda")).toBe(false); // non è un identificativo
+    expect(computoCloudAttivo("2bcf5b54-858b-42f4-8aab-6a13b8d6587f")).toBe(true); // ogni azienda, non solo Demo 2
   });
   it("rifiuta altri tenant e percorsi non UUID prima di contattare Supabase", async () => {
-    await expect(leggiComputoCloud("altra-azienda", id)).rejects.toThrow(/solo per Demo/);
+    await expect(leggiComputoCloud("altra-azienda", id)).rejects.toThrow(/non riconosciuti/);
     expect(() => percorsoAllegatoComputo(company, "../altro", id)).toThrow();
     expect(() => percorsoAllegatoComputo(company, id, "../altro")).toThrow();
     expect(api.from).not.toHaveBeenCalled();

@@ -119,6 +119,8 @@ type WorkspaceProps = {
     preview: (document: ChatDocument) => ReactNode;
     /** Fonte di prezzi fissa fin dall'apertura (es. il listino aziendale del computo). */
     fixedSourceId?: string;
+    /** Un file da leggere subito, già allegato (es. la planimetria caricata nel passo Progetto del computo). */
+    initialFile?: File;
   };
 };
 export default function QuoteAssistedWorkspace(props: WorkspaceProps) {
@@ -149,7 +151,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   const [bagniDraft, setBagniDraft] = useState<LocalBagniDraft | undefined>(initial?.bagniDraft);
   const nativeBagniDraft: LocalBagniDraft | undefined = bagniModel ? bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } : undefined;
   const [editorOpen, setEditorOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(() => embedded && !initial ? [{ role: 'assistant', text: `Lavoriamo su **${embedded.title}**, con il modello già scelto nel preventivo. Descrivi cosa vuoi aggiungere o cambiare, oppure allega la planimetria. Le righe esistenti restano protette; applicherò le modifiche al preventivo solo dopo la tua conferma.` }] : initial ? [...initial.messages.map(m => {
+  const [messages, setMessages] = useState<Message[]>(() => embedded && !initial ? [{ role: 'assistant', text: `Lavoriamo su **${embedded.title}**. Dimmi cosa c'è da fare, anche a voce: ti propongo le voci con le quantità e da dove vengono. Puoi allegare una planimetria o una foto, dettarmi i tuoi prezzi («scavo 12 euro al mc») oppure chiedermi prezzi indicativi di mercato, che segno come stime da verificare. Le righe che ci sono restano protette e niente cambia nel preventivo finché non confermi.` }] : initial ? [...initial.messages.map(m => {
     const choices = m.role === "assistant" && m.choices == null ? legacyQuoteChoices(m.text) : [];
     return choices.length ? { ...m, choices, choiceRevision: initial.document.revision } : m;
   }), ...(initial.interrupted ? [{ role: "assistant" as const, text: "Ho ripreso la bozza. L’ultima operazione è stata interrotta dalla ricarica e non viene rilanciata automaticamente. Per la planimetria scrivi «leggi planimetria»." }] : [])].slice(-50) : scenario ? [{ role: "assistant", text: `**Simulazione: ${scenario.label}.**\n\nQuesta è una bozza locale separata dal progetto principale. Il testo di partenza è pronto nel campo messaggio: puoi cambiarlo prima di inviarlo all’AI. Tutte le voci restano modificabili; prezzi senza riferimento verificato restano da definire. Nessuna chiamata è stata avviata automaticamente, nessun invio ai clienti.`, actions: ["Mostra prezzari", "Mostra simulazioni", "Torna al progetto principale"] }] : newIntro(simulated, flow));
@@ -297,6 +299,14 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
     } catch (e) { if (ownerGeneration === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Allegato non valido." }); }
     finally { attaching.current = false; setPreparingAttachment(false); }
   };
+  // Il file passato dal preventivo (la pianta del passo Progetto) si allega da solo, una volta, all'apertura.
+  const fileIniziale = useRef(false);
+  useEffect(() => {
+    if (fileIniziale.current || !embedded?.initialFile) return;
+    fileIniziale.current = true;
+    void attach(embedded.initialFile);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta sola, all'apertura
+  }, []);
   const send = async (text = input, intent?: 'budget' | 'vision' | 'schedule', testoMostrato?: string) => {
     if (attaching.current) return;
     if (embedded && isEmbeddedWizardContextCommand(text)) {

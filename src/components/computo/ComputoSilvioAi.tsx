@@ -52,6 +52,9 @@ export function vociDaRigheChat(righe: NativeComputoRow[], prima: VoceEditor[], 
       unita: unita.slice(0, 40), prezzo: daCompletare.prezzo.has(r.id) ? "" : cifra(r.prezzo_unitario),
       quantita: tieniMisure || daCompletare.quantita.has(r.id) ? "" : cifra(r.quantita), misure: tieniMisure ? vecchia!.misure : [],
       fonte: r.fonte ?? vecchia?.fonte ?? "",
+      // Una voce agganciata al listino aziendale porta il suo costo (materiali + manodopera); le altre tengono quello che avevano.
+      costo: r.listino_voce_id && (r.costo_materiali || 0) + (r.costo_manodopera || 0) > 0
+        ? String(Math.round(((r.costo_materiali || 0) + (r.costo_manodopera || 0)) * 100) / 100).replace(".", ",") : vecchia?.costo ?? "",
       corpo: unita === "corpo" || unita === "a corpo",
     };
   });
@@ -63,8 +66,10 @@ export function vociDaRigheChat(righe: NativeComputoRow[], prima: VoceEditor[], 
  * bozza. Le modifiche restano nella chat finché l'utente non le rivede e le
  * applica; l'anteprima è il PDF di questo editor.
  */
-export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazione, open, onOpenChange, onApply }: {
+export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazione, open, onOpenChange, onApply, fileIniziale }: {
   bozza: BozzaComputo; companyId: string; draftId: string; intestazione: IntestazioneComputo;
+  /** Un file del passo Progetto (la planimetria) da far leggere subito. */
+  fileIniziale?: File;
   open: boolean; onOpenChange: (open: boolean) => void;
   /** `titolo`: quello che la chat ha dato al lavoro («Campo da tennis in resina»), se diverso da quello di partenza. */
   onApply: (voci: VoceEditor[], titolo?: string) => void;
@@ -145,7 +150,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazion
 
   return <QuoteWizardAiDialog open={open} onOpenChange={onOpenChange} companyId={companyId} title={titolo} document={seme.documento} project={progetto}
     fingerprint={wizardDraftFingerprint([seme.base, companyId, draftId])} commercial={{ draft: commerciale, defaultVat: aliquota, module: MODULO }} chapters
-    preview={anteprima} review={(bozzaChat, capitoli) => riconcilia(bozzaChat, capitoli)} listinoSourceId={QUOTE_LISTINO_SOURCES[MODULO].id}
+    preview={anteprima} review={(bozzaChat, capitoli) => riconcilia(bozzaChat, capitoli)} listinoSourceId={QUOTE_LISTINO_SOURCES[MODULO].id} initialFile={fileIniziale}
     onApply={async (bozzaChat, capitoli) => {
       const r = riconcilia(bozzaChat, capitoli);
       const titoloChat = bozzaChat.title?.trim();

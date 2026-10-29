@@ -65,6 +65,7 @@ describe("computo a capitoli come il flusso Ristrutturazione", () => {
     expect(screen.getByRole("button", { name: "Apri capitolo Finiture" })).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: "Espandi tutti i capitoli" }));
     expect(screen.getByRole("button", { name: "Chiudi capitolo Finiture" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Apri voce 1" }));
     expect(screen.getByLabelText("Descrizione della lavorazione")).toHaveValue("Tinteggiatura");
   });
 });

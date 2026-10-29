@@ -4,6 +4,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { bozzaVuota, chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import ComputoPreventivo from "@/pages/azienda/marketing/ComputoPreventivo";
 import ComputiPreventivoLocali from "@/components/computo/ComputiPreventivoLocali";
+// La pagina legge il modello del computo dell'azienda: qui non c'è, e si parte coi valori di serie.
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: false, canViewMargins: false }) }));
+vi.mock("@/lib/computo/modelloComputo", async (orig) => ({ ...(await orig<typeof import("@/lib/computo/modelloComputo")>()), useModelloComputo: () => ({ isLoading: false, data: undefined as undefined }) }));
 
 const stato = vi.hoisted(() => ({ company: "c1", user: "u1" }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: stato.user }, effectiveCompany: { id: stato.company, name: "Impresa di prova" } }) }));
@@ -24,11 +27,11 @@ describe("computo nel flusso Preventivi", () => {
     render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi/computo"]}><ComputoPreventivo /><Location /></MemoryRouter>);
     expect(screen.getByTestId("location").textContent).toMatch(/bozza=[0-9a-f-]{36}/);
   });
-  it("nella versione pubblicata blocca altre aziende anche con URL diretto", () => {
+  it("nella versione pubblicata un'azienda non riconosciuta non apre l'editor, anche con URL diretto", () => {
     vi.stubEnv("DEV", false);
     try {
       render(<MemoryRouter initialEntries={[`/azienda/marketing/preventivi/computo?bozza=${ID}`]}><ComputoPreventivo /></MemoryRouter>);
-      expect(screen.getByRole("alert")).toHaveTextContent("solo per Demo Azienda 2");
+      expect(screen.getByRole("alert")).toHaveTextContent("Azienda non riconosciuta");
       expect(screen.queryByTestId("storage-key")).not.toBeInTheDocument();
     } finally { vi.unstubAllEnvs(); }
   });

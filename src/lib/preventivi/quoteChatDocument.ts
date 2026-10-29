@@ -65,9 +65,11 @@ export function applyChatResult(doc: ChatDocument, raw: unknown, turnId: string,
     // Si usa solo senza un riferimento di listino e se l'unità della frase non contraddice la voce.
     const dettato = !ref && p.userPrice ? prezzoDettato(p.userPrice, p.unit) : null;
     if (!ref && p.userPrice && !dettato) notices.push(`«${p.title}»: il prezzo che hai scritto è per un'altra unità di misura, lasciato da definire.`);
+    // La stima di mercato (il server l'ha tenuta solo se l'utente l'ha chiesta): il prezzo medio dell'intervallo, dichiarato come stima.
+    const stima = !ref && !dettato && p.marketPrice ? prezzoStimato(p.marketPrice, p.unit) : null;
     const row: ChatLine = { ...stable, ...(proposedCalculation ? { quantity: old && unitaCompatibili(old.unit, p.unit) ? old.quantity : null, proposedCalculation } : {}),
-      price: compatible && !issues.length ? ref.price : dettato?.price ?? null, included: false, manual: false,
-      ...(dettato ? { pricing: dettato.pricing } : {}),
+      price: compatible && !issues.length ? ref.price : dettato?.price ?? stima?.price ?? null, included: false, manual: false,
+      ...(dettato ? { pricing: dettato.pricing } : stima ? { pricing: stima.pricing } : {}),
       reference: ref ?? null, original: { ...stable } };
     if (ref && !compatible) notices.push(`«${p.title}»: unità non compatibile, prezzo lasciato da definire.`);
     else if (issues.length) notices.push(`«${p.title}»: prezzo non applicato: ${issues.join("; ")}.`);
@@ -94,6 +96,12 @@ function prezzoDettato(prezzo: { amount: number; quote: string }, unita: string)
   const unitaVoce = unita.trim().replace(/^a\s+/i, "");
   if (scritta && unitaVoce && !unitaCompatibili(scritta, unitaVoce)) return null;
   return { price: prezzo.amount, pricing: { origin: "manual", basis: `Prezzo scritto da te in chat: «${prezzo.quote.slice(0, 300)}». Non è un prezzo di listino.` } };
+}
+function prezzoStimato(m: { low: number; high: number; basis: string }, unita: string): { price: number; pricing: QuotePriceProvenance } {
+  const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const u = unita.trim() || "unità";
+  return { price: Math.round((m.low + m.high) / 2 * 100) / 100,
+    pricing: { origin: "ai-estimate", low: m.low, high: m.high, basis: `Stima di mercato di Silvio, da verificare: ${euro(m.low)}-${euro(m.high)} €/${u}. ${m.basis}`.slice(0, 1000) } };
 }
 export function patchChatLine(doc: ChatDocument, id: string, patch: Partial<Pick<ChatLine, "title" | "description" | "quantity" | "unit" | "price" | "included">>): ChatDocument {
   const numeric = (v: number | null | undefined) => v == null || !Number.isFinite(v) || v < 0.01 || v > 1_000_000 ? null : v;

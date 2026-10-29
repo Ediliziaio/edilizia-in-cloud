@@ -1,8 +1,11 @@
 import type { jsPDF } from "jspdf";
+import { disegnaCronoprogramma } from "./stampaCronoprogramma";
 import type { IntestazioneComputo } from "./esportaComputo";
 import { alberoComputo, numeroVoce, tariffaVoce, type MisuraComputo, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import { formatEuro } from "./computoStrutturato";
 import { calcolaIvaComputo } from "./ivaComputo";
+import { calcolaSconto } from "./scontoComputo";
+import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
 
 /**
@@ -121,8 +124,15 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
   const intestazioneDocumento = () => {
     const banda = 64;
     doc.setFillColor(t.fondo); doc.rect(0, 0, W, banda, "F");
-    font(12, "bold", t.bianco); doc.text(accorcia(i.azienda || "", larghezza), m, 30);
-    if (i.dettagliAzienda) { font(7, "normal", t.bianco); doc.text(accorcia(i.dettagliAzienda, larghezza), m, 44); }
+    const logo = i.veste?.mostraLogo !== false ? i.veste?.logo : null;
+    if (logo) {
+      // Il logo a destra nella banda, su un fondo bianco: quasi nessun logo si legge sul colore del marchio.
+      const h = 40, w = Math.min(140, h * logo.larghezza / logo.altezza);
+      doc.setFillColor("#FFFFFF"); doc.roundedRect(destra - w - 8, 12, w + 8, h, 3, 3, "F");
+      try { doc.addImage(logo.dati, logo.formato, destra - w - 4, 14, w, h - 4); } catch { /* un logo illeggibile non ferma il computo */ }
+    }
+    font(12, "bold", t.bianco); doc.text(accorcia(i.azienda || "", larghezza - (logo ? 160 : 0)), m, 30);
+    if (i.dettagliAzienda) { font(7, "normal", t.bianco); doc.text(accorcia(i.dettagliAzienda, larghezza - (logo ? 160 : 0)), m, 44); }
     y = banda + 26;
     font(7, "bold", t.inchiostroMarca);
     doc.text((conPrezzi ? "COMPUTO METRICO ESTIMATIVO" : "COMPUTO METRICO").split("").join(" "), m, y);
@@ -314,7 +324,13 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     };
     riga("Totale dei lavori", `${formatEuro(totale)} €`, true);
     if (sicurezza) riga("di cui oneri della sicurezza", `${formatEuro(sicurezza)} €`, false, t.grigio);
-    const iva = calcolaIvaComputo(totale, i);
+    // Lo sconto è una riga del riepilogo: le voci restano ai loro prezzi, l'IVA si calcola sul netto.
+    const sconto = calcolaSconto(totale, i.sconto, sicurezza);
+    if (sconto.importo > 0) {
+      riga(`${sconto.etichetta}${sconto.percentuale != null ? ` ${due(sconto.percentuale).replace(",00", "")} %` : ""}`, `-${formatEuro(sconto.importo)} €`);
+      riga("Imponibile", `${formatEuro(totale - sconto.importo)} €`, true);
+    }
+    const iva = calcolaIvaComputo(totale - sconto.importo, i);
     if (iva.modalita === "applicata" && iva.iva !== null && iva.totale !== null) {
       riga(`IVA ${due(iva.aliquota ?? 0).replace(",00", "")} %`, `${formatEuro(iva.iva)} €`);
       serve(30); y += 4;
@@ -337,6 +353,9 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const fonti = i.mostraFonti === false ? [] : [...new Set(voci.map(v => v.fonte_prezzo?.trim()).filter((s): s is string => !!s))];
     const blocchi = ([
       ["Riferimenti dei prezzi", [i.riferimentoPrezzi, ...fonti.map((f, k) => `[${k + 1}] ${f}`)].filter(Boolean).join("\n")],
+      ["Voci opzionali, non comprese nel totale", (i.vociOpzionali ?? []).map(o => `${o.descrizione.split("\n")[0]} - ${o.quantita ?? "-"} ${o.unita}${conPrezzi && o.importo != null ? `: ${formatEuro(o.importo)} €` : ""}`).join("\n")],
+      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata")],
+      ["Modalità di pagamento", i.pagamenti ?? ""],
       ["Note e condizioni", i.condizioni ?? ""],
     ] as const).filter(([, s]) => s.trim());
     for (const [titolo, testo] of blocchi) {
@@ -370,6 +389,10 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
   // Finita la tabella non c'è più niente da riportare: la pagina del riepilogo non ripete colonne e RIPORTO.
   pagineTabella = false;
   if (conPrezzi) disegnaRiepilogo();
+  if (i.cronoprogramma?.fasi.length) {
+    const dopo = disegnaCronoprogramma(doc, i.cronoprogramma, { margine: m, colore: t.fondo, tinta: t.tinta, inchiostro: t.inchiostro, grigio: t.grigio, filetto: t.filetto, titolo: i.titolo });
+    if (dopo != null) y = dopo;
+  }
   disegnaNote();
   disegnaFirma();
 
@@ -379,7 +402,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     doc.setPage(p);
     y = H - 24; filetto(m, destra, t.filetto, 0.4);
     font(6.5, "normal", t.grigioChiaro);
-    doc.text(accorcia(i.parziale ? "Bozza parziale: lavorazioni da completare" : i.stato || i.azienda || "", larghezza - 80), m, H - 14);
+    doc.text(accorcia(i.parziale ? "Bozza parziale: lavorazioni da completare" : i.stato || i.veste?.piePagina?.trim() || i.azienda || "", larghezza - 80), m, H - 14);
     doc.text(`Pagina ${p} di ${pagine}`, destra, H - 14, { align: "right" });
   }
   return doc;

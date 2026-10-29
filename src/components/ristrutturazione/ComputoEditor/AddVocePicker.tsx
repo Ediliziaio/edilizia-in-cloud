@@ -231,7 +231,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
       }}
     >
       <DialogContent
-        className="overflow-hidden p-0 shadow-lg sm:max-w-2xl"
+        className="overflow-hidden p-0 shadow-lg sm:max-w-3xl"
         // Telefono: la tastiera non si apre da sola sopra l'elenco; si cerca toccando il campo.
         onOpenAutoFocus={(e) => { if (isMobile) e.preventDefault(); }}
       >
@@ -282,8 +282,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         {/* shouldFilter=false: la ricerca è server-side (typeahead), cmdk gestisce
             solo navigazione tastiera e selezione, NON il filtro dei risultati. */}
         <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground">
-      {/* Telefono: posto per la X di chiusura (ci finiva sopra il capitolo), nomi corti. */}
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2 max-sm:pr-12">
+      {/* Posto per la X di chiusura su ogni schermo: ci finiva sopra il capitolo (29/10/2026), nomi corti sul telefono. */}
+      <div className="flex items-center justify-between gap-2 border-b py-2 pl-3 pr-12">
         {/* Toggle sorgente: listino aziendale vs. prezzario regionale centrale. */}
         <ToggleGroup
           type="single"
@@ -301,8 +301,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
           </ToggleGroupItem>
         </ToggleGroup>
         {targetCapitolo && (
-          <Badge variant="outline" className="shrink-0 text-[10px] font-normal max-sm:hidden">
-            in {targetCapitolo}
+          <Badge variant="outline" title={`Le voci scelte vanno nel capitolo «${targetCapitolo}»`} className="min-w-0 max-w-[16rem] text-[10px] font-normal max-sm:hidden">
+            <span className="truncate">Va in: {targetCapitolo}</span>
           </Badge>
         )}
       </div>
@@ -339,7 +339,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
           })}
         </div>
       )}
-      <CommandList className="max-h-[60vh]">
+      <CommandList className="max-h-[62vh]">
         {nessunRisultato ? (
           <CommandEmpty className="py-8 text-sm text-muted-foreground">
             {mode === "azienda" ? (
@@ -527,6 +527,11 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
           </div>
         )}
       </CommandList>
+      {/* Come si usa, sempre sotto gli occhi: la tastiera basta, senza toccare il mouse. */}
+      <div className="flex items-center justify-between gap-2 border-t bg-slate-50 px-3 py-1.5 text-[11px] text-muted-foreground max-sm:hidden">
+        <span><kbd className="rounded border bg-white px-1">↑</kbd> <kbd className="rounded border bg-white px-1">↓</kbd> per scegliere · <kbd className="rounded border bg-white px-1">Invio</kbd> per aggiungere · <kbd className="rounded border bg-white px-1">Esc</kbd> per chiudere</span>
+        <span className="tabular-nums">{isFetching ? "Cerco…" : `${nTot} ${nTot === 1 ? "risultato" : "risultati"}`}</span>
+      </div>
         </Command>
         </>
         )}
