@@ -24,6 +24,7 @@ import {
   ibanEquivalenti,
 } from "../_shared/doc-validation.ts";
 import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
+import { jsonDalModello } from "./jsonDalModello.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -133,10 +134,16 @@ Deno.serve(async (req) => {
 
     // ── Visione PDF via OpenRouter (Sonnet). Formato content "file". ────────
     let visText = "{}";
+    let troncatoDalTetto = false;
     try {
       const vis = await callOpenRouter({
         model: SONNET_MODEL,
-        max_tokens: 1500,
+        // Lo schema chiesto nel prompt (un oggetto valore/conf per campo, più
+        // l'array delle righe) in bella copia supera i 1500 token: la risposta
+        // si troncava e l'estrazione finiva su parse_failed, ripagata a ogni
+        // giro (28/10/2026, cinque allegati, fino a 14 tentativi). Il tetto non
+        // costa: si paga l'uscita prodotta, non il massimo concesso.
+        max_tokens: 4000,
         temperature: 0,
         messages: [
           { role: "system", content: SYSTEM_ESTRAI },
@@ -147,6 +154,7 @@ Deno.serve(async (req) => {
         ],
       }, { task_kind: "email_estrai_allegato", company_id: att.company_id });
       visText = vis.content || "{}";
+      troncatoDalTetto = vis.finish_reason === "length";
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       // Credito OpenRouter esaurito (402 «requires at least $0.50 in balance for files»):
@@ -165,9 +173,16 @@ Deno.serve(async (req) => {
       return json({ error: "vision_error", detail }, 502, cors);
     }
     let extracted: any = {};
+    const { json: jsonGrezzo, troncato } = jsonDalModello(visText);
+    if (troncato || troncatoDalTetto) {
+      // Risposta interrotta a metà: riprovare lo stesso documento con lo stesso
+      // tetto dà lo stesso esito. Si registra il motivo, non il dump.
+      await segnaTentativo(supabase, att.inbox_id, "troncato",
+        `Risposta troncata (finish_reason=${troncatoDalTetto ? "length" : "graffe non bilanciate"}, ${visText.length} caratteri)`);
+      return json({ error: "troncato", reason: "La risposta del modello si è interrotta: documento troppo esteso per l'estrazione automatica." }, 502, cors);
+    }
     try {
-      const m = visText.match(/\{[\s\S]*\}/);
-      extracted = m ? JSON.parse(m[0]) : {};
+      extracted = jsonGrezzo ? JSON.parse(jsonGrezzo) : {};
     } catch {
       await segnaTentativo(supabase, att.inbox_id, "parse_failed", visText.slice(0, 200));
       return json({ error: "parse_failed", raw: visText.slice(0, 300) }, 502, cors);

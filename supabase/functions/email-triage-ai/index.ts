@@ -32,6 +32,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { salvaTriage, type TriageResult } from "./persistenza.ts";
+import { checkPaymentMethod } from "../_shared/requirePaymentMethod.ts";
 
 interface IngestBody {
   from: { email: string; name?: string };
@@ -457,7 +458,31 @@ async function processTriagePending(
   let triaged = 0;
   let failed = 0;
   let skipped = 0;
+  let senzaCarta = 0;
+
+  // Un'azienda senza metodo di pagamento non può usare l'AI: aiRouterComplete
+  // lancia subito, prima di qualunque chiamata al provider. Il gate si guarda
+  // UNA volta per azienda, non una per email: il poller richiama il triage a
+  // ogni scarico e ogni email bruciava i suoi tre tentativi contro un muro che
+  // in cinque minuti non si sposta — 322 righe di errore in 24 ore il
+  // 28/10/2026, e 1.884 email mai classificate dal 18/09/2026 (Innovasol, New
+  // Habitat, Palma, Dimora: tutte in prova e senza carta). Saltando l'azienda i
+  // tentativi restano interi: quando la carta arriva, le email ancora dentro la
+  // finestra dei tre giorni si classificano al primo giro utile.
+  const cartaPerAzienda = new Map<string, boolean>();
+  const puoPagare = async (companyId: string): Promise<boolean> => {
+    const giaVisto = cartaPerAzienda.get(companyId);
+    if (giaVisto !== undefined) return giaVisto;
+    const esito = await checkPaymentMethod(supa, companyId);
+    cartaPerAzienda.set(companyId, esito.allowed);
+    if (!esito.allowed) {
+      console.log(`[email-triage] azienda ${companyId} senza metodo di pagamento: triage saltato (${esito.message ?? "gate chiuso"})`);
+    }
+    return esito.allowed;
+  };
+
   for (const row of pending ?? []) {
+    if (!(await puoPagare(row.company_id))) { senzaCarta++; continue; }
     const outcome = await salvaTriage(supa, row.id, row.company_id, () => triageOneEmail(
       supa, row.id, row.company_id,
       row.subject ?? "", row.raw_text ?? "", row.from_email,
@@ -469,6 +494,7 @@ async function processTriagePending(
 
   return new Response(JSON.stringify({
     processed: triaged + failed, triaged, failed, skipped,
+    saltate_senza_carta: senzaCarta,
   }), { headers: { "Content-Type": "application/json" } });
 }
 
