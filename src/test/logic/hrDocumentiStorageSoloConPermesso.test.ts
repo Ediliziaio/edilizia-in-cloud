@@ -149,9 +149,13 @@ describe("chi nell'app nomina il bucket hr-documenti", () => {
     cammina(resolve(RADICE, cartella));
     return fuori;
   };
+  // Conta chi usa il bucket nel codice, non chi lo cita in un commento (le funzioni AI spiegano
+  // nel commento perché la chiave di servizio non arriva più a hr-documenti).
+  const senzaCommenti = (testo: string) =>
+    testo.split("\n").filter((riga) => !/^\s*(\/\/|\/\*|\*)/.test(riga)).join("\n");
   const chiNomina = (cartella: string) =>
     elenca(cartella)
-      .filter((p) => leggi(p).includes("hr-documenti"))
+      .filter((p) => senzaCommenti(leggi(p)).includes("hr-documenti"))
       .sort();
 
   it("dal browser sono sette file soli, ciascuno con la sua porta", () => {
