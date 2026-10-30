@@ -167,6 +167,17 @@ describe("pareti", () => {
     expect(Math.max(sopra.p1.x, sopra.p2.x)).toBe(510);
   });
 
+  it("spostare una parete porta con sé quelle che continuano dritte sulla stessa linea", () => {
+    // camera sopra, disimpegno sotto: la facciata a destra è fatta di due pareti in fila
+    let p = aggiungiStanza(piantaVuota(), rettangolo({ x: 0, y: 0 }, { x: 300, y: 400 })).pianta;
+    p = aggiungiStanza(p, rettangolo({ x: 0, y: 400 }, { x: 300, y: 600 })).pianta;
+    const sopra = p.muri.find((m) => m.p1.x === 300 && m.p2.x === 300 && Math.max(m.p1.y, m.p2.y) === 400)!;
+    const dopo = spostaParete(p, sopra.id, { x: 50, y: 0 });
+    const destra = dopo.muri.filter((m) => m.p1.x === 350 && m.p2.x === 350);
+    expect(destra).toHaveLength(2);
+    expect(dopo.muri.every((m) => m.p1.x === m.p2.x || m.p1.y === m.p2.y)).toBe(true);
+  });
+
   it("scrivere la lunghezza di una parete libera la allunga dalla fine", () => {
     const { pianta, id } = aggiungiParete(piantaVuota(), { x: 0, y: 0 }, { x: 300, y: 0 });
     const dopo = impostaLunghezzaParete(pianta, id!, 420);

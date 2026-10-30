@@ -269,7 +269,27 @@ function spostaPunti(pianta: Pianta, daSpostare: (p: Punto) => boolean, delta: P
 export function spostaParete(pianta: Pianta, id: string, delta: Punto): Pianta {
   const muro = pianta.muri.find((m) => m.id === id);
   if (!muro || (delta.x === 0 && delta.y === 0)) return pianta;
-  return spostaPunti(pianta, (p) => sulSegmento(p, muro.p1, muro.p2), delta);
+  const fila = pareteInFila(pianta, muro);
+  return spostaPunti(pianta, (p) => fila.some((m) => sulSegmento(p, m.p1, m.p2)), delta);
+}
+
+/**
+ * La parete e quelle che la continuano dritte, attaccate punta a punta: una facciata
+ * fatta di più pezzi si sposta tutta insieme, invece di storcersi dove finisce un pezzo.
+ */
+function pareteInFila(pianta: Pianta, muro: Muro): Muro[] {
+  const fila = [muro];
+  const allineato = (m: Muro) =>
+    distanzaDallaRetta(m.p1, muro.p1, muro.p2) < 0.5 && distanzaDallaRetta(m.p2, muro.p1, muro.p2) < 0.5;
+  for (let i = 0; i < fila.length; i++) {
+    const corrente = fila[i];
+    for (const m of pianta.muri) {
+      if (fila.includes(m) || !allineato(m)) continue;
+      const tocca = [m.p1, m.p2].some((p) => uguali(p, corrente.p1) || uguali(p, corrente.p2));
+      if (tocca) fila.push(m);
+    }
+  }
+  return fila;
 }
 
 /** Trascina un angolo (l'estremo di una o più pareti) in un punto nuovo. */
