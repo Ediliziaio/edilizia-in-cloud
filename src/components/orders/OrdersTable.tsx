@@ -3,7 +3,8 @@ import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Trash2, X, ChevronDown, HardHat, Layers, MoreVertical } from "lucide-react";
+import { Eye, Pencil, Trash2, X, ChevronDown, ChevronRight, HardHat, Layers, MoreVertical } from "lucide-react";
+import { raggruppaGenerali, sommaFiglie, type RigaAlbero } from "@/lib/orders/listaGenerali";
 import type { MappaGenerali } from "@/hooks/useCommesseGenerali";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
@@ -132,10 +133,45 @@ export const OrdersTable = React.memo(function OrdersTable({
     navigate(`/azienda/ordini/${orderId}`);
   };
 
-  const useVirtual = sortedItems.length > 50;
+  // Commesse generali ad albero: le commesse dentro stanno sotto la loro generale, che si apre e si chiude.
+  const [aperte, setAperte] = useState<Set<string>>(new Set());
+  const apriChiudi = (id: string) => setAperte((prima) => {
+    const dopo = new Set(prima);
+    if (dopo.has(id)) dopo.delete(id); else dopo.add(id);
+    return dopo;
+  });
+  const righe = useMemo<RigaAlbero<OrderWithDetails>[]>(
+    () => raggruppaGenerali(
+      sortedItems,
+      (id) => mappaGenerali.generaleDellaFiglia.get(id)?.id,
+      (id) => mappaGenerali.figliePerGenerale.has(id),
+      aperte,
+    ),
+    [sortedItems, mappaGenerali, aperte],
+  );
+  /** Per una generale i numeri sono la somma delle commesse dentro (più i costi registrati su di lei). */
+  const numeriRiga = (riga: RigaAlbero<OrderWithDetails>) => {
+    const order = riga.order;
+    const generale = mappaGenerali.figliePerGenerale.has(order.id);
+    if (!generale) {
+      return {
+        generale, totalIvato: getGrossOrderAmount(order), collected: getAmountCollected(order), due: getAmountDue(order),
+        variableCosts: orderCosts.get(order.id)?.variableCosts ?? 0,
+      };
+    }
+    return {
+      generale,
+      totalIvato: sommaFiglie(riga.figlie, getGrossOrderAmount),
+      collected: sommaFiglie(riga.figlie, getAmountCollected),
+      due: sommaFiglie(riga.figlie, getAmountDue),
+      variableCosts: sommaFiglie(riga.figlie, (f) => orderCosts.get(f.id)?.variableCosts ?? 0) + (orderCosts.get(order.id)?.variableCosts ?? 0),
+    };
+  };
+
+  const useVirtual = righe.length > 50;
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const virtualizer = useVirtualizer({
-    count: sortedItems.length,
+    count: righe.length,
     getScrollElement: () => (useVirtual ? tableBodyRef.current?.closest(".overflow-x-auto") as HTMLElement | null : null),
     estimateSize: () => 56,
     overscan: 10,
@@ -143,8 +179,8 @@ export const OrdersTable = React.memo(function OrdersTable({
   });
 
   const renderedItems = useVirtual
-    ? virtualizer.getVirtualItems().map(vr => ({ vr, order: sortedItems[vr.index] }))
-    : sortedItems.map((order, i) => ({ vr: { key: order.id, index: i, start: 0, size: 56 }, order }));
+    ? virtualizer.getVirtualItems().map(vr => ({ vr, riga: righe[vr.index] }))
+    : righe.map((riga, i) => ({ vr: { key: riga.order.id, index: i, start: 0, size: 56 }, riga }));
 
   const allSelected = orders.length > 0 && selectedIds.size === orders.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
@@ -186,11 +222,10 @@ export const OrdersTable = React.memo(function OrdersTable({
     <Card>
       {/* Mobile card list — shown only on xs */}
       <div className="sm:hidden divide-y">
-        {sortedItems.map((order) => {
-          const due = getAmountDue(order);
-          const collected = getAmountCollected(order);
-          const vatRate = order.vat_rate ?? 22;
-          const totalIvato = getGrossOrderAmount(order);
+        {righe.map((riga) => {
+          const order = riga.order;
+          const { generale, totalIvato, collected, due } = numeriRiga(riga);
+          const aperta = aperte.has(order.id);
           return (
             // Due colonne: a sinistra codice e stato, descrizione, cliente; a
             // destra il totale e quanto manda incassare. Prima tre righe con
@@ -198,8 +233,19 @@ export const OrdersTable = React.memo(function OrdersTable({
             <Link
               key={order.id}
               to={`/azienda/ordini/${order.id}`}
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors"
+              className={`flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors ${riga.livello === 1 ? "bg-muted/30 pl-7" : ""}`}
             >
+              {riga.figlie.length > 0 && (
+                <button
+                  type="button"
+                  className="-ml-1 flex h-8 w-6 shrink-0 items-center justify-center rounded text-muted-foreground"
+                  aria-expanded={aperta}
+                  aria-label={aperta ? "Chiudi le commesse dentro" : `Apri le ${riga.figlie.length} commesse dentro`}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); apriChiudi(order.id); }}
+                >
+                  {aperta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{order.order_code || "—"}</span>
@@ -207,7 +253,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {order.order_type === "appaltatore_lavoro" && (
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
-                  <SegnoGenerale order={order} mappa={mappaGenerali} compatto />
+                  {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
                   {order.status && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: order.status.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: order.status.color }} />
@@ -223,7 +269,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                 )}
               </div>
               <div className="shrink-0 text-right tabular-nums">
-                <p className="text-sm font-bold leading-tight">{mappaGenerali.figliePerGenerale.has(order.id) ? "—" : formatCurrency(totalIvato)}</p>
+                <p className="text-sm font-bold leading-tight">{generale && riga.figlie.length === 0 ? "—" : formatCurrency(totalIvato)}</p>
                 {due > 0 ? (
                   <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">da ricevere {formatCurrencyCompact(due)}</p>
                 ) : collected > 0 ? (
@@ -347,18 +393,23 @@ export const OrdersTable = React.memo(function OrdersTable({
             ref={tableBodyRef}
             style={useVirtual ? { height: `${virtualizer.getTotalSize()}px`, position: "relative", width: "100%" } : undefined}
           >
-            {renderedItems.map(({ vr, order }) => {
-              const due = getAmountDue(order);
-              const collected = getAmountCollected(order);
+            {renderedItems.map(({ vr, riga }) => {
+              const order = riga.order;
+              const { generale, totalIvato, collected, due, variableCosts } = numeriRiga(riga);
+              const aperta = aperte.has(order.id);
               const pending = getPendingPayments(order);
               const timing = orderPaymentTiming(order);
               const vatRate = order.vat_rate ?? 22;
-              const totalIvato = getGrossOrderAmount(order);
               const costs = orderCosts.get(order.id);
-              const variableCosts = costs?.variableCosts ?? 0;
-              const grossMargin = costs?.grossMargin ?? 0;
-              const marginPercent = costs?.marginPercent ?? 0;
-              const marginReliable = costs?.marginReliable ?? false;
+              // Generale: margine delle commesse dentro meno i costi registrati sulla generale (terreno, oneri…).
+              const ricaviFiglie = generale ? sommaFiglie(riga.figlie, contrattoPattuito) : 0;
+              const grossMargin = generale
+                ? sommaFiglie(riga.figlie, (f) => orderCosts.get(f.id)?.grossMargin ?? 0) - (costs?.variableCosts ?? 0)
+                : costs?.grossMargin ?? 0;
+              const marginPercent = generale ? (ricaviFiglie > 0 ? (grossMargin / ricaviFiglie) * 100 : 0) : costs?.marginPercent ?? 0;
+              const marginReliable = generale
+                ? riga.figlie.length > 0 && riga.figlie.every((f) => orderCosts.get(f.id)?.marginReliable)
+                : costs?.marginReliable ?? false;
               const isSelected = selectedIds.has(order.id);
 
               return (
@@ -366,7 +417,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   key={vr.key}
                   data-state={isSelected ? "selected" : undefined}
                   onClick={rowClick(order.id)}
-                  className="cursor-pointer"
+                  className={`cursor-pointer ${riga.livello === 1 ? "bg-muted/30" : ""}`}
                   style={useVirtual ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vr.start}px)` } : undefined}
                 >
                   <TableCell>
@@ -377,7 +428,19 @@ export const OrdersTable = React.memo(function OrdersTable({
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className={`flex items-center gap-1.5 min-w-0 ${riga.livello === 1 ? "pl-6" : ""}`}>
+                      {riga.figlie.length > 0 && (
+                        <button
+                          type="button"
+                          className="-ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                          aria-expanded={aperta}
+                          aria-label={aperta ? "Chiudi le commesse dentro" : `Apri le ${riga.figlie.length} commesse dentro`}
+                          onClick={(e) => { e.stopPropagation(); apriChiudi(order.id); }}
+                        >
+                          {aperta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      )}
+                      {riga.livello === 1 && <span className="text-muted-foreground" aria-hidden="true">└</span>}
                       <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
                         {order.order_code || "—"}
                       </Link>
@@ -391,7 +454,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                           <HardHat className="h-2.5 w-2.5" />
                         </Badge>
                       )}
-                      <SegnoGenerale order={order} mappa={mappaGenerali} />
+                      {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} />}
                     </div>
                   </TableCell>
                   {/* Colonne secondarie più avanti: con tutte le predefinite la tabella
@@ -421,8 +484,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("totalIvato") && (
-                    <TableCell className="hidden sm:table-cell text-right" title={mappaGenerali.figliePerGenerale.has(order.id) ? "Gli importi sono nelle commesse dentro" : undefined}>
-                      {mappaGenerali.figliePerGenerale.has(order.id) ? "—" : formatCurrency(totalIvato)}
+                    <TableCell className="hidden sm:table-cell text-right" title={generale ? "Somma delle commesse dentro" : undefined}>
+                      {generale && riga.figlie.length === 0 ? "—" : <span className={generale ? "italic" : undefined}>{formatCurrency(totalIvato)}</span>}
                     </TableCell>
                   )}
                   {visibleColumns.has("imponibile") && (
