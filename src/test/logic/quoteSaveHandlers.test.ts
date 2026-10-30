@@ -44,7 +44,7 @@ function fixture(failAttachment: boolean, legacy = false) {
     searchParams: new URLSearchParams(), items: [], selectedMaterials: [], bonusLines: [],
     totaliPro: { costo_totale: 0, overhead_totale: 0, margine_totale_pct: 100 },
     subtotal: 100, discountAmt: 0, vatAmount: 22, total: 122,
-    templateValues: {}, contractFields: [],
+    templateValues: {}, contractFields: [], tipoCliente: "privato",
     financingProposal: null, validityDays: 30, discountPercent: 0,
     clearQuoteDraft: noop, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia, isConflittoModifica,
     queryClient: { invalidateQueries: noop }, queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } },

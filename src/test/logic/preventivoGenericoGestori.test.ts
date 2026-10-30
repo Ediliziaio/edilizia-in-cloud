@@ -273,7 +273,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
       searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro,
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
-      templateValues: {}, contractFields: [], prezziVenditaCompleti,
+      templateValues: {}, contractFields: [], prezziVenditaCompleti, tipoCliente: "privato",
       normalizzaRigaSconto, clearQuoteDraft: () => {}, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia,
       isConflittoModifica, queryClient: { invalidateQueries: () => {} },
       queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } }, navigate: () => {}, toast, supabase,

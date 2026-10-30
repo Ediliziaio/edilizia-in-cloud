@@ -1,4 +1,5 @@
 import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
+import { avvisiDatiFiscali, type TipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
@@ -443,6 +444,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const [clientAddress, setClientAddress] = useState("");
   const [clientFiscalCode, setClientFiscalCode] = useState("");
   const [clientVatNumber, setClientVatNumber] = useState("");
+  // Privato o azienda: finché non si sceglie, lo dicono ragione sociale e partita IVA (anche quelle del contatto o di un preventivo riaperto).
+  const [tipoClienteScelto, setTipoClienteScelto] = useState<TipoCliente | null>(null);
+  const tipoCliente: TipoCliente = tipoClienteScelto ?? (clientCompany.trim() || clientVatNumber.trim() ? "azienda" : "privato");
+  const avvisiFiscali = avvisiDatiFiscali({ tipo: tipoCliente, codiceFiscale: clientFiscalCode, partitaIva: clientVatNumber });
   const [title, setTitle] = useState("Preventivo");
   const [description, setDescription] = useState("");
   const [validityDays, setValidityDays] = useState(30);
@@ -1034,6 +1039,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       setClientCompany(c.company_name || "");
       setClientFiscalCode(c.fiscal_code || "");
       setClientVatNumber(c.vat_number || "");
+      setTipoClienteScelto(null); // privato o azienda: lo dice il contatto scelto
       const addressParts = [c.address, c.postal_code, c.city, c.province].filter(Boolean);
       if (addressParts.length > 0) {
         setClientAddress(addressParts.join(", "));
@@ -1994,10 +2000,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         client_name: clientName || null,
         client_email: clientEmail || null,
         client_phone: clientPhone || null,
-        client_company: clientCompany || null,
+        // Un privato non ha ragione sociale né partita IVA, anche se erano state scritte prima di cambiare scelta.
+        client_company: tipoCliente === "azienda" ? clientCompany || null : null,
         client_address: clientAddress || null,
         client_fiscal_code: clientFiscalCode || null,
-        client_vat_number: clientVatNumber || null,
+        client_vat_number: tipoCliente === "azienda" ? clientVatNumber || null : null,
         title,
         description: description || null,
         notes: notes || null,
@@ -2516,23 +2523,31 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   <Label>Telefono</Label>
                   <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
                 </div>
-                <details className="col-span-2 rounded-lg border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">Dati fiscali e azienda <span className="font-normal text-muted-foreground">· facoltativi</span></summary>
-                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
-                  <Label>Azienda</Label>
-                  <Input value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder="Rossi Srl" />
-                </div>
-                <div>
-                  <Label>Codice Fiscale</Label>
-                  <Input value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} className="uppercase" />
-                </div>
-                <div>
-                  <Label>P.IVA</Label>
-                  <Input value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} />
-                </div>
+                {/* Privato o azienda (30/10/2026): i dati fiscali stavano in un riquadro chiuso «facoltativi»;
+                    ora il privato vede il codice fiscale, l'azienda ragione sociale e partita IVA. */}
+                <div className="col-span-2 space-y-3">
+                  <div role="radiogroup" aria-label="Tipo di cliente" className="inline-flex rounded-lg border bg-slate-50 p-0.5">
+                    {(["privato", "azienda"] as const).map(t => <button key={t} type="button" role="radio" aria-checked={tipoCliente === t}
+                      className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${tipoCliente === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                      onClick={() => setTipoClienteScelto(t)}>{t === "privato" ? "Privato" : "Azienda"}</button>)}
                   </div>
-                </details>
+                  <div className={`grid grid-cols-1 items-start gap-4 ${tipoCliente === "azienda" ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                    {tipoCliente === "azienda" && <div>
+                      <Label htmlFor="quote-client-company">Ragione sociale</Label>
+                      <Input id="quote-client-company" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder="Rossi Costruzioni S.r.l." />
+                    </div>}
+                    {tipoCliente === "azienda" && <div>
+                      <Label htmlFor="quote-client-vat">Partita IVA</Label>
+                      <Input id="quote-client-vat" inputMode="numeric" className="font-mono" value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} placeholder="11 cifre" />
+                      {avvisiFiscali.partitaIva && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.partitaIva}</p>}
+                    </div>}
+                    <div>
+                      <Label htmlFor="quote-client-cf">{tipoCliente === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale"}</Label>
+                      <Input id="quote-client-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} placeholder={tipoCliente === "azienda" ? "Di solito uguale alla partita IVA" : "16 caratteri"} />
+                      {avvisiFiscali.codiceFiscale && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.codiceFiscale}</p>}
+                    </div>
+                  </div>
+                </div>
                 <div className="col-span-2">
                   <Label>Indirizzo</Label>
                   <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
