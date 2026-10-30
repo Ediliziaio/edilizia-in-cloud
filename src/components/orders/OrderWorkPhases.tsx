@@ -38,7 +38,6 @@ import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
-import { RapportiniUfficio } from "./RapportiniUfficio";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
@@ -143,6 +142,7 @@ function statusMeta(status: PhaseStatus) {
 interface OrderWorkPhasesProps {
   orderId: string;
   orderCode?: string | null;
+  /** Non più usato: i rapportini stanno nella vista Rapportini (31/10/2026). */
   onOpenReports?: () => void;
   view?: "lavorazioni";
   /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
@@ -151,7 +151,7 @@ interface OrderWorkPhasesProps {
   organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -475,8 +475,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             </span>}
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
-              {!telefono && onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
-              {canEditOrders && <RapportiniUfficio orderId={orderId} />}
+              {/* Rapportini e «Scrivi rapportini» stanno solo nella vista Rapportini (31/10/2026). */}
               {!telefono && <DitteContrattiCommessa orderId={orderId} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });

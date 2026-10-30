@@ -60,8 +60,14 @@ async function excelInTesto(file: File): Promise<string> {
  * l'app. Entrano da approvare: all'approvazione le ore di ognuno diventano costo
  * col suo costo orario, come per il capocantiere.
  */
-export function RapportiniUfficio({ orderId, className }: { orderId: string; className?: string }) {
-  const [aperta, setAperta] = useState(false);
+export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onApertaChange }: {
+  orderId: string; className?: string;
+  /** Aperto da fuori: il menu «Silvio AI» della commessa porta qui per i rapportini dai documenti. */
+  aperta?: boolean; onApertaChange?: (v: boolean) => void;
+}) {
+  const [apertaDentro, setApertaDentro] = useState(false);
+  const aperta = apertaFuori ?? apertaDentro;
+  const setAperta = (v: boolean) => { setApertaDentro(v); onApertaChange?.(v); };
   return (
     <>
       <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>

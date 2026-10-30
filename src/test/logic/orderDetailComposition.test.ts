@@ -99,7 +99,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
 
   it.each([
     ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrdineTempistiche", "LinkedAppointments", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
+    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
     ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard", "OrderCostiCommessaCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
@@ -170,6 +170,12 @@ describe("contratto di composizione del dettaglio commessa", () => {
 
   it("gli allegati non diventano modificabili per chi non può editare la commessa", () => {
     expect(value(named("OrderAttachments")[0], "editable")).toBe("{permissions.canEditOrders}");
+  });
+  it("l'AI della commessa è un solo menu in testa, «Silvio AI», non un blocco in Lavorazioni", () => {
+    expect(named("SilvioCommessa")).toHaveLength(1);
+    expect(named("AllocazioneOperaiAIDialog")).toHaveLength(0);
+    expect(named("ChiediASilvio")).toHaveLength(0);
+    expect(named("RapportiniUfficio")).toHaveLength(1);
   });
   it("date e appuntamenti stanno in Panoramica, visibili e modificabili", () => {
     expect(named("OrdineCliente")[0].pos).toBeLessThan(named("OrdineTempistiche")[0].pos);

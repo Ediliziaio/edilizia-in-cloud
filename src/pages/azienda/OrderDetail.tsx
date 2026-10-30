@@ -46,7 +46,7 @@ import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTracki
 import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
-import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
+import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -75,7 +75,6 @@ import { SicurezzaCommessa } from "@/components/sicurezza/SicurezzaCommessa";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
-import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
@@ -394,6 +393,8 @@ function OrderDetailInner() {
   const { vertical } = useVertical();
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  // «Rapportini dai documenti» dal menu Silvio AI apre «Scrivi rapportini» nella vista Rapportini.
+  const [scriviRapportini, setScriviRapportini] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1412,13 +1413,15 @@ function OrderDetailInner() {
       invoiceDisabled={!isNativeBilling || permissions.solaLettura}
       invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
       askSilvio={
-        <ChiediASilvio
-          className="h-8 ml-auto"
-          ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
-            order.customer
-              ? `del cliente ${order.customer.first_name} ${order.customer.last_name} `
-              : ""
-          }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
+        <SilvioCommessa
+          className="ml-auto"
+          orderId={order.id}
+          companyId={companyId}
+          puoModificare={permissions.canEditOrders}
+          riferimento={`commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
+            order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
+          }(${order.description || "senza descrizione"})`}
+          onRapportiniDaDocumenti={() => { navigateTo({ tab: "cantiere", cantiereView: "diario" }); setScriviRapportini(true); }}
         />
       }
     />
@@ -2254,9 +2257,8 @@ function OrderDetailInner() {
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
-                organizationContent={figureResponsabilita}
-                onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
-              {permissions.canEditOrders && companyId && <details className="mt-3 rounded-lg border bg-white px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Supporto AI per le assegnazioni</summary><div className="mt-3"><AllocazioneOperaiAIDialog orderId={id!} companyId={companyId} /></div></details>}
+                organizationContent={figureResponsabilita} />
+              {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}
             {vistaCantiere === "sicurezza" && <div id="section-sicurezza" className="scroll-mt-24">
@@ -2290,7 +2292,7 @@ function OrderDetailInner() {
             </div>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
-              {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" /></div>}
+              {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" aperta={scriviRapportini} onApertaChange={setScriviRapportini} /></div>}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
               <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
             </div>

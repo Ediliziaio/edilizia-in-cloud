@@ -141,7 +141,8 @@ describe("Lavorazioni dal telefono", () => {
   it("dal computer resta tutto com'era", () => {
     state.mobile = false;
     render(<OrderWorkPhases orderId="order" view="lavorazioni" onOpenReports={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Vai ai rapportini" })).toBeInTheDocument();
+    // I rapportini stanno nella vista Rapportini, anche dal computer (31/10/2026).
+    expect(screen.queryByRole("button", { name: "Vai ai rapportini" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dettagli Opere murarie" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Filtri" })).not.toBeInTheDocument();
   });

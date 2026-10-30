@@ -6,7 +6,8 @@ export const CANTIERE_VIEWS = [
   { value: "sopralluoghi", label: "Rilievi e sopralluoghi", description: "Visite, misure e verifiche tecniche collegate a questa commessa." },
   { value: "ufficio", label: "Ufficio", description: "Le fasi dell’ufficio: contratto, ordini, pratiche, fatture, con chi le fa." },
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
-  { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
+  // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
+  { value: "diario", label: "Rapportini", description: "Rapportini, foto e aggiornamenti dal cantiere; anche scritti dall'ufficio." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
   { value: "sicurezza", label: "Sicurezza", description: "POS, PSC, notifica, PiMUS, DURC: cosa serve in questo cantiere e cosa manca." },
 ] as const;

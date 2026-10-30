@@ -246,9 +246,10 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.queryByText("Consuntivo iniziale (facoltativo)")).not.toBeInTheDocument();
     expect(screen.getByText(/Assegnare non registra una spesa/)).toBeInTheDocument();
   });
-  it("offre il collegamento ai rapportini nello stesso blocco", () => {
-    const open = vi.fn(); render(<OrderWorkPhases orderId="order" onOpenReports={open} />);
-    fireEvent.click(screen.getByRole("button", { name: "Vai ai rapportini" })); expect(open).toHaveBeenCalledOnce();
+  it("i rapportini non stanno in Lavorazioni: si leggono e si scrivono nella vista Rapportini", () => {
+    render(<OrderWorkPhases orderId="order" onOpenReports={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Vai ai rapportini" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scrivi rapportini" })).not.toBeInTheDocument();
   });
   it("filtra lavorazioni senza perdere le assegnazioni generali", () => {
     state.phases = setteFasi(); state.unassigned = [assignment()]; draw();
