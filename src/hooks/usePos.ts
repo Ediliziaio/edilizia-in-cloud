@@ -4,7 +4,8 @@
  * (crea, dati dell'app, lavorazioni proposte dall'AI, approvazione).
  */
 import { disegnaPdfPosNelBrowser } from "@/lib/sicurezza/disegnaPdfPos";
-import { anteprimaPdfConBrowser, emettiPdfConBrowser, ErroreDisegnoPos, type DipendenzePdfPos } from "@/lib/sicurezza/posPdfBrowser";
+import { anteprimaPdfConBrowser, emettiPdfConBrowser, ErroreAnnullato, ErroreDisegnoPos, type DipendenzePdfPos, type FasePdf, type OpzioniPdfPos } from "@/lib/sicurezza/posPdfBrowser";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { toast } from "sonner";
@@ -143,9 +144,18 @@ async function tokenPos(): Promise<string> {
   return token;
 }
 
+/** Senza rete `fetch` lancia «Failed to fetch» (o «Load failed» su iPhone): all'utente serve un testo che dica cosa fare. */
+async function fetchPos(init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(URL_GENERA_POS(), init);
+  } catch {
+    throw new ErrorePos("Non riesco a raggiungere il server: controlla la connessione e riprova");
+  }
+}
+
 async function rispostaServerPos(corpo: Record<string, unknown>): Promise<Response> {
   const token = await tokenPos();
-  return fetch(URL_GENERA_POS(), {
+  return fetchPos({
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...corpo, ...CAPACITA_CLIENT }),
@@ -195,10 +205,10 @@ async function caricaPdfServerPos(meta: Record<string, unknown>, pdf: Uint8Array
   modulo.set("meta", JSON.stringify({ ...meta, ...CAPACITA_CLIENT }));
   modulo.set("pdf", new Blob([pdf as BlobPart], { type: "application/pdf" }), "POS.pdf");
   // Nessun Content-Type scritto a mano: lo mette il browser, insieme al confine del multipart.
-  return leggiRispostaPos(await fetch(URL_GENERA_POS(), { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: modulo }));
+  return leggiRispostaPos(await fetchPos({ method: "POST", headers: { Authorization: `Bearer ${token}` }, body: modulo }));
 }
 
-const dipendenzePdfPos: DipendenzePdfPos = { chiama: chiamaServerPos, carica: caricaPdfServerPos, disegna: disegnaPdfPosNelBrowser };
+const dipendenzePdfPos: DipendenzePdfPos = { chiama: chiamaServerPos, carica: caricaPdfServerPos, disegna: (p, segnale) => disegnaPdfPosNelBrowser(p, { segnale }) };
 
 /**
  * Quando ripiegare sulle azioni di sempre (il PDF lo disegna il server): se il browser non è riuscito a disegnare, o se
@@ -208,13 +218,18 @@ const dipendenzePdfPos: DipendenzePdfPos = { chiama: chiamaServerPos, carica: ca
 const ripiegaSulServer = (e: unknown) =>
   e instanceof ErroreDisegnoPos || (e instanceof ErrorePos && e.status === 400 && /Azione non riconosciuta/i.test(e.message));
 
-/** Approva il POS, o emette una copia del contenuto archiviato (`snapshotId`), con il PDF disegnato dal browser. */
-export async function emettiPos(r: { companyId: string; posId: string; attesaUpdatedAt?: string | null; snapshotId?: string }):
-  Promise<{ gia?: true; emissioneId?: string; approvatoDaNome?: string }> {
+/**
+ * Approva il POS, o emette una copia del contenuto archiviato (`snapshotId`), con il PDF disegnato dal browser.
+ * Annullando risponde `{ annullato: true }`: non è un errore.
+ */
+export async function emettiPos(r: { companyId: string; posId: string; attesaUpdatedAt?: string | null; snapshotId?: string }, opz: OpzioniPdfPos = {}):
+  Promise<{ gia?: true; annullato?: true; emissioneId?: string; approvatoDaNome?: string }> {
   try {
-    return await emettiPdfConBrowser(dipendenzePdfPos, r);
+    return await emettiPdfConBrowser(dipendenzePdfPos, r, opz);
   } catch (e) {
+    if (e instanceof ErroreAnnullato) return { annullato: true };
     if (!ripiegaSulServer(e)) throw e;
+    opz.onFase?.("server");
     const server = await chiamaServerPos<{ approvato_da_nome?: string; emissione_id?: string }>(r.snapshotId
       ? { azione: "emetti", company_id: r.companyId, pos_id: r.posId, snapshot_id: r.snapshotId }
       : { azione: "approva", company_id: r.companyId, pos_id: r.posId, attesa_updated_at: r.attesaUpdatedAt });
@@ -244,17 +259,28 @@ export async function lavorazioniAiPos(companyId: string, posId: string) {
 export function useApprovaPos() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
-  return useMutation({
+  const [fase, setFase] = useState<FasePdf | null>(null);
+  const controllo = useRef<AbortController | null>(null);
+  const mutazione = useMutation({
     mutationFn: async ({posId,attesaUpdatedAt}:{posId:string;attesaUpdatedAt:string|null}) => {
       if(!companyId || attesaUpdatedAt===undefined) throw new Error("Ricarica il POS prima di approvarlo");
-      const r = await emettiPos({ companyId, posId, attesaUpdatedAt });
-      return { approvato_da_nome: r.approvatoDaNome ?? "" };
+      const c = new AbortController();
+      controllo.current = c;
+      try {
+        const r = await emettiPos({ companyId, posId, attesaUpdatedAt }, { segnale: c.signal, onFase: setFase });
+        return { approvato_da_nome: r.approvatoDaNome ?? "", annullato: r.annullato === true };
+      } finally {
+        controllo.current = null;
+        setFase(null);
+      }
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["pos"] });
-      toast.success("POS approvato");
+      if (!r.annullato) toast.success("POS approvato");
     },
   });
+  // `fase` dice a che punto è; `annulla` ferma l'operazione finché si prepara o si disegna (poi il server potrebbe aver già conservato).
+  return { ...mutazione, fase, annulla: () => controllo.current?.abort() };
 }
 
 // ── Scritture dirette (RLS: permesso Sicurezza Cantiere) ─────────────────────
@@ -487,11 +513,12 @@ export function useArchiviaModelloPos() {
 
 
 /** L'anteprima: il PDF lo disegna il browser; dove non può (o il server è quello di prima), lo disegna il server come sempre. */
-export async function pdfAnteprimaPos(companyId:string,posId:string): Promise<Blob> {
+export async function pdfAnteprimaPos(companyId:string,posId:string,opz:OpzioniPdfPos={}): Promise<Blob> {
   try {
-    return await anteprimaPdfConBrowser(dipendenzePdfPos,{companyId,posId});
+    return await anteprimaPdfConBrowser(dipendenzePdfPos,{companyId,posId},opz);
   } catch (e) {
     if(!ripiegaSulServer(e)) throw e;
+    opz.onFase?.("server");
     return pdfAnteprimaDalServer(companyId,posId);
   }
 }

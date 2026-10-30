@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { chiamaServerPos, pdfAnteprimaPos } from "@/hooks/usePos";
+import type { OpzioniPdfPos } from "@/lib/sicurezza/posPdfBrowser";
 
 /** Open synchronously with the click, then resolve the private document URL. */
 export async function apriUrlDocumentoPos(risolvi:()=>Promise<string>) {
@@ -16,8 +17,8 @@ export async function apriUrlDocumentoPos(risolvi:()=>Promise<string>) {
     }
   } catch(e){finestra?.close();throw e;}
 }
-export function apriAnteprimaPos(companyId:string,posId:string) {
-  return apriUrlDocumentoPos(async()=>URL.createObjectURL(await pdfAnteprimaPos(companyId,posId)));
+export function apriAnteprimaPos(companyId:string,posId:string,opz:OpzioniPdfPos={}) {
+  return apriUrlDocumentoPos(async()=>URL.createObjectURL(await pdfAnteprimaPos(companyId,posId,opz)));
 }
 /** A preserved emission wins. Absence gives a visibly watermarked preview, never a reconstructed original. */
 export function apriPdfPos(companyId:string,posId:string,revisione:number) {

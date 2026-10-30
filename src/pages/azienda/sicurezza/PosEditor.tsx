@@ -1,7 +1,9 @@
 import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
 import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos";
-import { apriAnteprimaPos } from "@/lib/sicurezza/apriPdfPos";
+import { useAnteprimaPos } from "@/hooks/useAnteprimaPos";
+import { AnnullaPdf, AnnunciaFasePdf } from "@/components/sicurezza/pos/PosPdfStato";
+import { etichettaFasePdf } from "@/lib/sicurezza/posPdfErrori";
 import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
 import { EmissioniPos } from "@/components/sicurezza/pos/EmissioniPos";
 import { RiusoPosDialog } from "@/components/sicurezza/pos/RiusoPosDialog";
@@ -167,7 +169,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const [avvisi, setAvvisi] = useState<string[]>(() =>
     [...(compilaSubito && datiApp ? datiApp.contesto.avvisi : ((location.state as { avvisi?: string[] } | null)?.avvisi ?? [])),
       ...(aggiornaControlli ? ["Controlli aggiornati proposti per questa bozza: verifica formazione, prodotti e il riferimento PSC della commessa; salva prima dell’approvazione. Lo storico approvato resta invariato."] : [])]);
-  const [anteprimando,setAnteprimando]=useState(false);
+  const anteprima=useAnteprimaPos();
   const [erroreApprovazione,setErroreApprovazione]=useState<string|null>(null);
   const [mancantiServer, setMancantiServer] = useState<VoceMancante[] | null>(null);
   const [revisioneAperta, setRevisioneAperta] = useState(false);
@@ -335,9 +337,8 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Riutilizza POS</span>
               </Button>
             )}
-            <Button variant="outline" className="max-sm:hidden" disabled={anteprimando||sporco||iterSporco||salva.isPending} title={sporco||iterSporco?"Salva le modifiche prima di preparare l’anteprima":"Anteprima del PDF con filigrana BOZZA"} onClick={async()=>{
-              setAnteprimando(true);try{await apriAnteprimaPos(pos.company_id,pos.id);}catch(e){toast.error(e instanceof Error?e.message:"Anteprima non disponibile");}finally{setAnteprimando(false);}
-            }}><FileDown className="mr-1 h-4 w-4"/>{anteprimando?"Preparazione…":"Anteprima PDF"}</Button>
+            <Button variant="outline" className="max-sm:hidden" disabled={anteprima.inCorso||sporco||iterSporco||salva.isPending} title={sporco||iterSporco?"Salva le modifiche prima di preparare l’anteprima":"Anteprima del PDF con filigrana BOZZA"} onClick={()=>void anteprima.apri(pos.company_id,pos.id)}><FileDown className="mr-1 h-4 w-4"/>{anteprima.inCorso?etichettaFasePdf(anteprima.fase)??"Preparazione…":"Anteprima PDF"}</Button>
+            <AnnullaPdf fase={anteprima.fase} onAnnulla={anteprima.annulla} className="max-sm:hidden"/>
             {!ro && (
               <Button variant="outline" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAggiornaAperto(true)}>
                 <RefreshCw className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Confronta dati dell’app</span>
@@ -352,8 +353,14 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
             {puoScrivere && !approvato && (
               <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending || proponendo} className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3">
                 {approva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1 h-4 w-4" />}
-                Approva e prepara PDF
+                {approva.isPending ? etichettaFasePdf(approva.fase) ?? "Approvazione…" : "Approva e prepara PDF"}
               </Button>
+            )}
+            {puoScrivere && !approvato && (
+              <>
+                <AnnullaPdf fase={approva.fase} onAnnulla={approva.annulla} />
+                <AnnunciaFasePdf fase={approva.fase} />
+              </>
             )}
             {puoScrivere && approvato && (
               <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3" disabled={iterSporco || salva.isPending}

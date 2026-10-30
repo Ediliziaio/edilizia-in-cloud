@@ -11,6 +11,7 @@ import vfs from "pdfmake/build/vfs_fonts.js";
 import { disegnaPdfPos, type ParametriDisegnoPos } from "../../../supabase/functions/_shared/posPdfBrowser";
 
 export type MessaggioPdfWorker =
+  | { tipo: "pronto" }
   | { tipo: "fatto"; bytes: Uint8Array }
   | { tipo: "errore"; messaggio: string };
 
@@ -21,6 +22,9 @@ const ctx = self as unknown as {
   postMessage: (m: MessaggioPdfWorker, trasferiti?: Transferable[]) => void;
   onmessage: ((ev: MessageEvent<ParametriDisegnoPos>) => void) | null;
 };
+
+// Dice che il file è caricato e le librerie pronte: senza questo messaggio la pagina sa che il Worker non è partito.
+ctx.postMessage({ tipo: "pronto" });
 
 ctx.onmessage = async (ev: MessageEvent<ParametriDisegnoPos>) => {
   try {

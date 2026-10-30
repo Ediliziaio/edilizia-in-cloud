@@ -3,7 +3,8 @@
  * e dove il browser non può — o il server in linea è ancora quello di prima — si ripiega sulle azioni di sempre, in cui
  * il PDF lo disegna il server. I conflitti e gli errori veri NON ripiegano: ripetere altrove nasconderebbe il motivo.
  */
-import { act, renderHook, cleanup } from "@testing-library/react";
+import { createHash } from "node:crypto";
+import { act, renderHook, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -12,8 +13,10 @@ vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/lib/sicurezza/disegnaPdfPos", () => ({ disegnaPdfPosNelBrowser: s.disegna }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { access_token: "token-di-prova" } } }) } } }));
+import { toast } from "sonner";
 import { pdfAnteprimaPos, useApprovaPos } from "@/hooks/usePos";
 import { usePreparaEmissione } from "@/hooks/useEmissioniPos";
+import { ErroreAnnullato } from "@/lib/sicurezza/posPdfBrowser";
 
 const html = "<html>modello</html>";
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 9, 8, 7]);
@@ -51,7 +54,9 @@ const contesto = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 };
-beforeEach(() => { s.disegna.mockReset(); s.disegna.mockResolvedValue(pdf); });
+beforeEach(() => { s.disegna.mockReset(); s.disegna.mockResolvedValue(pdf); vi.mocked(toast.success).mockClear(); vi.mocked(toast.error).mockClear(); });
+/** Un disegno che dura finché non lo si ferma: onora il segnale di annullamento come il Worker vero. */
+const disegnoLungo = () => s.disegna.mockImplementation((_p: unknown, o?: { segnale?: AbortSignal }) => new Promise((_ok, ko) => { o?.segnale?.addEventListener("abort", () => ko(new ErroreAnnullato())); }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Approvazione del POS", () => {
@@ -65,12 +70,15 @@ describe("Approvazione del POS", () => {
     expect(s.disegna).toHaveBeenCalledOnce();
     expect(richieste[1].multipart).toBe(true);
     expect(richieste[1].corpo).toMatchObject({ azione: "completa_emissione", company_id: "azienda-a", emissione_id: "emissione-1", token: "token-1", versione_client: 2 });
-    expect(richieste[1].corpo.pdf_sha256).toMatch(/^[0-9a-f]{64}$/);
+    // Il browser dichiara l'impronta del PDF, quella del modello da cui l'ha disegnato e la sua versione di layout: il server le confronta.
+    expect(richieste[1].corpo.pdf_sha256).toBe(createHash("sha256").update(pdf).digest("hex"));
+    expect(richieste[1].corpo.html_sha256).toBe(createHash("sha256").update(html).digest("hex"));
+    expect(richieste[1].corpo.layout).toBe("pos-pdf-9-riferimento-psc");
     expect(richieste[1].pdf).toEqual(pdf);
     expect(richieste[1].intestazioni.Authorization).toBe("Bearer token-di-prova");
     // Il Content-Type del multipart lo mette il browser, con il suo confine: scriverlo a mano lo rompe.
     expect(Object.keys(richieste[1].intestazioni).map((k) => k.toLowerCase())).not.toContain("content-type");
-    expect(esito).toEqual({ approvato_da_nome: "Mario Rossi" });
+    expect(esito).toEqual({ approvato_da_nome: "Mario Rossi", annullato: false });
   });
 
   it("un POS già approvato risponde senza disegnare e senza altre richieste", async () => {
@@ -105,7 +113,7 @@ describe("Approvazione del POS", () => {
     await act(async () => { esito = await h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "2026-10-30T09:00:00Z" }); });
     expect(azioni()).toEqual(["prepara_emissione", "approva"]);
     expect(richieste[1].corpo).toMatchObject({ azione: "approva", company_id: "azienda-a", pos_id: "pos-1", attesa_updated_at: "2026-10-30T09:00:00Z", versione_client: 2 });
-    expect(esito).toEqual({ approvato_da_nome: "Mario Rossi" });
+    expect(esito).toEqual({ approvato_da_nome: "Mario Rossi", annullato: false });
   });
 
   it("se il browser non riesce a disegnare libera la prenotazione e approva come prima", async () => {
@@ -146,7 +154,7 @@ describe("Anteprima del POS", () => {
     server({ anteprima_html: () => json(anteprima) });
     const blob = await pdfAnteprimaPos("azienda-a", "pos-1");
     expect(azioni()).toEqual(["anteprima_html"]);
-    expect(s.disegna).toHaveBeenCalledWith(expect.objectContaining({ html, anteprima: true, codice: "ORD-1" }));
+    expect(s.disegna).toHaveBeenCalledWith(expect.objectContaining({ html, anteprima: true, codice: "ORD-1" }), expect.anything());
     expect(blob.type).toBe("application/pdf");
   });
 
@@ -166,5 +174,64 @@ describe("Anteprima del POS", () => {
     server({ anteprima_html: () => json({ ok: false, error: "Il PDF richiede un font aggiuntivo per i caratteri U+6D4B" }, 422) });
     await expect(pdfAnteprimaPos("azienda-a", "pos-1")).rejects.toThrow(/font aggiuntivo/);
     expect(azioni()).toEqual(["anteprima_html"]);
+  });
+});
+
+describe("Avanzamento, annullamento e messaggi", () => {
+  it("la fase avanza (prepara, disegna, conserva) e a operazione finita torna vuota", async () => {
+    let finisciDisegno!: () => void, finisciCarico!: () => void;
+    s.disegna.mockImplementation(() => new Promise((ok) => { finisciDisegno = () => ok(pdf); }));
+    server({ prepara_emissione: () => json(prenotazione), completa_emissione: () => new Promise<Response>((ok) => { finisciCarico = () => ok(json({ ok: true, emissione_id: "emissione-1" })); }) });
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    expect(h.result.current.fase).toBeNull();
+    let esito!: Promise<unknown>;
+    act(() => { esito = h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" }); });
+    await waitFor(() => expect(h.result.current.fase).toBe("disegna"));
+    await act(async () => { finisciDisegno(); });
+    await waitFor(() => expect(h.result.current.fase).toBe("conserva"));
+    await waitFor(() => expect(finisciCarico).toBeTypeOf("function"));   // la richiesta multipart arriva al server finto dopo aver letto il file
+    await act(async () => { finisciCarico(); await esito; });
+    expect(h.result.current.fase).toBeNull();
+  });
+
+  it("annullando durante il disegno la prenotazione si libera, non si approva nulla, non si ripiega sul server e non compare «POS approvato»", async () => {
+    disegnoLungo();
+    server({ prepara_emissione: () => json(prenotazione), annulla_emissione: () => json({ ok: true }) });
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    let esito!: Promise<{ annullato?: boolean }>;
+    act(() => { esito = h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" }); });
+    await waitFor(() => expect(h.result.current.fase).toBe("disegna"));
+    act(() => { h.result.current.annulla(); });
+    expect((await esito).annullato).toBe(true);
+    expect(azioni()).toEqual(["prepara_emissione", "annulla_emissione"]);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("nel ripiego sulle azioni di sempre la fase dice «server», e lì non si può più annullare", async () => {
+    let finisciServer!: () => void;
+    server({ prepara_emissione: () => json({ ok: false, error: "Azione non riconosciuta" }, 400), approva: () => new Promise<Response>((ok) => { finisciServer = () => ok(json({ ok: true, approvato_da_nome: "Mario Rossi" })); }) });
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    let esito!: Promise<unknown>;
+    act(() => { esito = h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" }); });
+    await waitFor(() => expect(h.result.current.fase).toBe("server"));
+    await act(async () => { finisciServer(); await esito; });
+    expect(h.result.current.fase).toBeNull();
+  });
+
+  it("senza rete il messaggio è in italiano semplice, non «Failed to fetch»", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    await act(async () => { await expect(h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" })).rejects.toThrow(/connessione/i); });
+  });
+
+  it("senza rete nemmeno il caricamento del PDF mostra il messaggio tecnico, e la prenotazione si prova a liberare", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, o: RequestInit) => {
+      if (o.body instanceof FormData) throw new TypeError("Load failed");
+      const corpo = JSON.parse(o.body as string);
+      return corpo.azione === "prepara_emissione" ? json(prenotazione) : json({ ok: true });
+    }));
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    await act(async () => { await expect(h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" })).rejects.toThrow(/connessione/i); });
   });
 });

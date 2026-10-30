@@ -1,8 +1,10 @@
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apriUrlDocumentoPos } from "@/lib/sicurezza/apriPdfPos";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { chiamaServerPos, emettiPos } from "@/hooks/usePos";
+import type { FasePdf } from "@/lib/sicurezza/posPdfErrori";
 import { readAllPages } from "@/lib/personale/readAllPages";
 
 export interface EmissionePos {
@@ -32,12 +34,22 @@ export function useContenutiPerEmissione(companyId: string, posId: string, enabl
 }
 export function usePreparaEmissione(companyId: string, posId: string) {
   const qc=useQueryClient();
-  return useMutation({
-    mutationFn: async (snapshotId: string) => ({ emissione_id: (await emettiPos({ companyId, posId, snapshotId })).emissioneId ?? "" }),
-    onSuccess:()=>toast.success("Copia conservata con PDF, allegati e impronte"),
+  const [fase,setFase]=useState<FasePdf|null>(null);
+  const controllo=useRef<AbortController|null>(null);
+  const mutazione=useMutation({
+    mutationFn: async (snapshotId: string) => {
+      const c=new AbortController();
+      controllo.current=c;
+      try {
+        const r=await emettiPos({ companyId, posId, snapshotId },{ segnale:c.signal, onFase:setFase });
+        return { emissione_id: r.emissioneId ?? "", annullato: r.annullato===true };
+      } finally { controllo.current=null; setFase(null); }
+    },
+    onSuccess:(r)=>{ if(!r.annullato) toast.success("Copia conservata con PDF, allegati e impronte"); },
     onError:e=>toast.error(e instanceof Error?e.message:"Emissione non completata"),
     onSettled:()=>qc.invalidateQueries({queryKey:["pos"]}),
   });
+  return { ...mutazione, fase, annulla: () => controllo.current?.abort() };
 }
 export function apriEmissionePos(companyId: string, id: string, tipo: "pdf" | "zip") {
   return apriUrlDocumentoPos(async()=>{

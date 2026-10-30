@@ -16,11 +16,18 @@ const stato = vi.hoisted(() => ({
   pos: null as unknown,
   approva: vi.fn(),
   salva: vi.fn(),
+  // l'avanzamento del PDF: approvazione e anteprima
+  approvaInCorso: false,
+  fase: null as string | null,
+  annulla: vi.fn(),
+  anteprimaInCorso: false,
+  apriAnteprima: vi.fn(),
 }));
 
 vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[] as never[],isPending:false,isError:false,isFetching:false,refetch:vi.fn()}),identificaPsc:vi.fn()}));
 vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:(): null =>null}));
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
+vi.mock("@/hooks/useAnteprimaPos",()=>({useAnteprimaPos:()=>({apri:stato.apriAnteprima,inCorso:stato.anteprimaInCorso,fase:stato.anteprimaInCorso?stato.fase:null,annulla:stato.annulla})}));
 vi.mock("@/hooks/useEmissioniPos",()=>({
  useEmissioniPos:()=>({data:[] as never[],isLoading:false,isError:false}),
  useContenutiPerEmissione:()=>({data:[] as never[],isLoading:false,isError:false}),
@@ -36,7 +43,7 @@ vi.mock("@/hooks/usePos", () => {
     ErrorePos,
     usePos: () => ({ data: stato.pos, isLoading: false, error: stato.errore, refetch: vi.fn() }),
     useSalvaPos: () => ({mutate:stato.salva,mutateAsync:stato.salva,isPending:false}),
-    useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: false }),
+    useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: stato.approvaInCorso, fase: stato.approvaInCorso ? stato.fase : null, annulla: stato.annulla }),
     useNuovaRevisione: mut,
     datiAppPos: vi.fn(() => new Promise(() => {})),
     lavorazioniAiPos: vi.fn(),
@@ -61,7 +68,7 @@ beforeAll(() => {
     (globalThis as unknown as { structuredClone: unknown }).structuredClone = (v: unknown) => JSON.parse(JSON.stringify(v));
   }
 });
-afterEach(() => { cleanup(); stato.errore = null; stato.approva.mockReset(); stato.salva.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
+afterEach(() => { cleanup(); stato.errore = null; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
 
 function riga(contenuto: PosContenuto, status = "bozza") {
   // The complete fixture now includes a declared PSC original; this suite exercises save concurrency, not source verification.
@@ -290,5 +297,51 @@ describe("ricarica in background fallita", () => {
     mostra();
     expect(screen.getByText("Non riesco a caricare il POS.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Riprova" })).toBeTruthy();
+  });
+});
+
+
+describe("Avanzamento del PDF nell'editor", () => {
+  const apri = (status = "bozza") => { stato.pos = riga(esempioPdfPos().contenuto, status); mostra(); };
+
+  it("mentre si approva il pulsante dice a che punto è e, finché si disegna, c'è «Annulla» (a sola icona) che ferma tutto", () => {
+    stato.approvaInCorso = true; stato.fase = "disegna";
+    apri();
+    expect(screen.getByRole("button", { name: /Disegno il PDF…/ })).toBeDisabled();
+    const annulla = screen.getByRole("button", { name: "Annulla" });
+    expect(annulla.textContent).toBe("");
+    fireEvent.click(annulla);
+    expect(stato.annulla).toHaveBeenCalledOnce();
+  });
+
+  it("quando il documento sta partendo verso il server (si conserva) e quando lavora il server non c'è più «Annulla»", () => {
+    stato.approvaInCorso = true;
+    for (const [fase, testo] of [["conserva", /Lo conservo…/], ["server", /Lo preparo sul server…/]] as const) {
+      stato.fase = fase;
+      apri();
+      expect(screen.getByRole("button", { name: testo })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Annulla" })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("senza nulla in corso il pulsante è quello di sempre e «Annulla» non c'è", () => {
+    apri();
+    expect(screen.getByRole("button", { name: /Approva e prepara PDF/ })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Annulla" })).toBeNull();
+  });
+
+  it("l'anteprima mostra la fase nel suo pulsante e ha il suo «Annulla»", () => {
+    stato.anteprimaInCorso = true; stato.fase = "prepara";
+    apri();
+    expect(screen.getByRole("button", { name: /Preparo il documento…/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(stato.annulla).toHaveBeenCalledOnce();
+  });
+
+  it("«Anteprima PDF» apre l'anteprima di questo POS", () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: /Anteprima PDF/ }));
+    expect(stato.apriAnteprima).toHaveBeenCalledWith("az-1", "pos-1");
   });
 });
