@@ -59,6 +59,22 @@ describe("commesse generali nella lista", () => {
     expect(within(tabella()).getByText("in C-099")).toBeInTheDocument();
   });
 
+  it("caparre e acconti delle unità contano come incassato, senza sommarli due volte", () => {
+    cleanup();
+    render(
+      <MemoryRouter>
+        <OrdersTable
+          orders={[riga("u", "A1", 1000)]} onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()}
+          visibleColumns={new Set(["collected", "due"])}
+          mappaGenerali={{ figliePerGenerale: new Map(), generaleDellaFiglia: new Map(), incassiUnita: new Map([["u", 300]]) }}
+        />
+      </MemoryRouter>,
+    );
+    const r = within(tabella()).getByText("A1").closest("tr")!;
+    expect(r).toHaveTextContent(/300,00/);
+    expect(r).toHaveTextContent(/700,00/);
+  });
+
   it("senza generali la tabella non cambia", () => {
     cleanup();
     render(<MemoryRouter><OrdersTable orders={[riga("n", "C-020", 500)]} onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} /></MemoryRouter>);

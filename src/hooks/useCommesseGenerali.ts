@@ -203,6 +203,11 @@ export interface MappaGenerali {
   figliePerGenerale: Map<string, number>;
   /** Per ogni commessa dentro una generale: il codice (o il nome) della generale. */
   generaleDellaFiglia: Map<string, { id: string; etichetta: string }>;
+  /**
+   * Caparre, acconti e saldi registrati sulle unità (modulo Unità), per commessa: sono incassi veri
+   * che non passano da rate e fatture. Facoltativa: manca dove non ci sono unità.
+   */
+  incassiUnita?: Map<string, number>;
 }
 
 const MAPPA_VUOTA: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
@@ -239,7 +244,22 @@ export function useMappaGenerali(): MappaGenerali {
           figliePerGenerale.set(r.commessa_generale_id, (figliePerGenerale.get(r.commessa_generale_id) ?? 0) + 1);
           generaleDellaFiglia.set(r.id, { id: r.commessa_generale_id, etichetta: generali.get(r.commessa_generale_id)! });
         }
-        return { figliePerGenerale, generaleDellaFiglia };
+        // Gli incassi delle unità: due letture semplici, e se il modulo non c'è la mappa resta vuota.
+        const incassiUnita = new Map<string, number>();
+        try {
+          const [unita, movimenti] = await Promise.all([
+            db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId!).limit(5000),
+            db.from("unita_movimenti").select("unita_id, importo").eq("company_id", companyId!).in("tipo", ["caparra", "acconto", "saldo"]).limit(20000),
+          ]);
+          if (!unita.error && !movimenti.error) {
+            const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));
+            for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string }[]) {
+              const ordine = ordineDi.get(m.unita_id);
+              if (ordine) incassiUnita.set(ordine, (incassiUnita.get(ordine) ?? 0) + Number(m.importo || 0));
+            }
+          }
+        } catch { /* la lista funziona anche senza */ }
+        return { figliePerGenerale, generaleDellaFiglia, incassiUnita };
       } catch {
         return MAPPA_VUOTA;
       }

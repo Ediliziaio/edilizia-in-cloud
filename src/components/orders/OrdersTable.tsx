@@ -71,6 +71,18 @@ interface OrdersTableProps {
 
 const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
 
+/**
+ * Incassato di una commessa: rate e fatture, oppure caparre/acconti/saldi dell'unità (modulo Unità)
+ * se sono di più. Sono gli stessi soldi registrati in due posti: si prende il più alto, mai la somma.
+ */
+function incassatoConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
+  return Math.max(getAmountCollected(o), mappa.incassiUnita?.get(o.id) ?? 0);
+}
+function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
+  const inPiu = incassatoConUnita(o, mappa) - getAmountCollected(o);
+  return inPiu > 0 ? Math.max(0, getAmountDue(o) - inPiu) : getAmountDue(o);
+}
+
 export const OrdersTable = React.memo(function OrdersTable({
   canDelete = true,
   orders,
@@ -97,8 +109,8 @@ export const OrdersTable = React.memo(function OrdersTable({
     // Contratto più varianti, IVA inclusa: la stessa base di Incassato e Da ricevere.
     totalIvato: (o: OrderWithDetails) => getGrossOrderAmount(o),
     total_amount: (o: OrderWithDetails) => contrattoPattuito(o),
-    collected: (o: OrderWithDetails) => getAmountCollected(o),
-    due: (o: OrderWithDetails) => getAmountDue(o),
+    collected: (o: OrderWithDetails) => incassatoConUnita(o, mappaGenerali),
+    due: (o: OrderWithDetails) => daIncassareConUnita(o, mappaGenerali),
     variableCosts: (o: OrderWithDetails) => orderCosts.get(o.id)?.variableCosts ?? 0,
     grossMargin: (o: OrderWithDetails) => {
       const costs = orderCosts.get(o.id);
@@ -116,7 +128,7 @@ export const OrdersTable = React.memo(function OrdersTable({
     payment_type: (o: OrderWithDetails) => o.payment_type || "",
     deposit: (o: OrderWithDetails) => (o.deposit_amount || 0) + (o.deposit_2_amount || 0),
     balance: (o: OrderWithDetails) => o.balance_amount || 0,
-  }), [orderCosts, salespeopleMap, laborMap, supplierMap]);
+  }), [orderCosts, salespeopleMap, laborMap, supplierMap, mappaGenerali]);
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
 
@@ -150,20 +162,22 @@ export const OrdersTable = React.memo(function OrdersTable({
     [sortedItems, mappaGenerali, aperte],
   );
   /** Per una generale i numeri sono la somma delle commesse dentro (più i costi registrati su di lei). */
+  const incassato = (o: OrderWithDetails) => incassatoConUnita(o, mappaGenerali);
+  const daIncassare = (o: OrderWithDetails) => daIncassareConUnita(o, mappaGenerali);
   const numeriRiga = (riga: RigaAlbero<OrderWithDetails>) => {
     const order = riga.order;
     const generale = mappaGenerali.figliePerGenerale.has(order.id);
     if (!generale) {
       return {
-        generale, totalIvato: getGrossOrderAmount(order), collected: getAmountCollected(order), due: getAmountDue(order),
+        generale, totalIvato: getGrossOrderAmount(order), collected: incassato(order), due: daIncassare(order),
         variableCosts: orderCosts.get(order.id)?.variableCosts ?? 0,
       };
     }
     return {
       generale,
       totalIvato: sommaFiglie(riga.figlie, getGrossOrderAmount),
-      collected: sommaFiglie(riga.figlie, getAmountCollected),
-      due: sommaFiglie(riga.figlie, getAmountDue),
+      collected: sommaFiglie(riga.figlie, incassato),
+      due: sommaFiglie(riga.figlie, daIncassare),
       variableCosts: sommaFiglie(riga.figlie, (f) => orderCosts.get(f.id)?.variableCosts ?? 0) + (orderCosts.get(order.id)?.variableCosts ?? 0),
     };
   };
