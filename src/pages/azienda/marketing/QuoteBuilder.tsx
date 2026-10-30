@@ -449,7 +449,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // Privato o azienda: finché non si sceglie, lo dicono ragione sociale e partita IVA (anche quelle del contatto o di un preventivo riaperto).
   const [tipoClienteScelto, setTipoClienteScelto] = useState<TipoCliente | null>(null);
   const tipoCliente: TipoCliente = tipoClienteScelto ?? (clientCompany.trim() || clientVatNumber.trim() ? "azienda" : "privato");
-  const avvisiFiscali = avvisiDatiFiscali({ tipo: tipoCliente, codiceFiscale: clientFiscalCode, partitaIva: clientVatNumber });
+  const [clientCodiceUnivoco, setClientCodiceUnivoco] = useState("");
+  const avvisiFiscali = avvisiDatiFiscali({ tipo: tipoCliente, codiceFiscale: clientFiscalCode, partitaIva: clientVatNumber, codiceSdi: clientCodiceUnivoco });
   const [title, setTitle] = useState("Preventivo");
   const [description, setDescription] = useState("");
   const [validityDays, setValidityDays] = useState(30);
@@ -797,6 +798,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     setClientAddress,
     setClientFiscalCode,
     setClientVatNumber,
+    setClientTipo: setTipoClienteScelto,
+    setClientCodiceUnivoco,
     setTitle,
     setDescription,
     setValidityDays,
@@ -1737,7 +1740,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const draftSnapshot: QuoteDraft = {
     partialQuoteId,
     step, contactId, clientName, clientEmail, clientPhone, clientCompany,
-    clientAddress, clientFiscalCode, clientVatNumber, title, description, validityDays,
+    clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, title, description, validityDays,
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
     salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
     items, paymentMethod, paymentPhases, bonusLines, selectedRenders, selectedMaterials,
@@ -1808,6 +1811,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.clientAddress !== undefined) setClientAddress(d.clientAddress);
     if (d.clientFiscalCode !== undefined) setClientFiscalCode(d.clientFiscalCode);
     if (d.clientVatNumber !== undefined) setClientVatNumber(d.clientVatNumber);
+    if (d.clientCodiceUnivoco !== undefined) setClientCodiceUnivoco(d.clientCodiceUnivoco);
     if (d.title !== undefined) setTitle(d.title);
     if (d.description !== undefined) setDescription(d.description);
     if (d.validityDays !== undefined) setValidityDays(d.validityDays);
@@ -2007,6 +2011,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         client_address: clientAddress || null,
         client_fiscal_code: clientFiscalCode || null,
         client_vat_number: tipoCliente !== "privato" ? clientVatNumber || null : null,
+        // Il tipo si salva (una Pubblica Amministrazione non si riapre come «Azienda»), col codice univoco dell'ente.
+        client_tipo: tipoCliente,
+        client_codice_univoco: tipoCliente === "pa" ? clientCodiceUnivoco.replace(/\s+/g, "").toUpperCase() || null : null,
         title,
         description: description || null,
         notes: notes || null,
@@ -2530,7 +2537,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 {/* Privato o azienda (30/10/2026): i dati fiscali stavano in un riquadro chiuso «facoltativi»;
                     ora il privato vede il codice fiscale, l'azienda ragione sociale e partita IVA. */}
                 <div className="col-span-2 space-y-3">
-                  <div className={`grid grid-cols-1 items-start gap-4 ${tipoCliente !== "privato" ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                  <div className={`grid grid-cols-1 items-start gap-4 ${tipoCliente === "pa" ? "md:grid-cols-2 lg:grid-cols-4" : tipoCliente !== "privato" ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
                     {tipoCliente !== "privato" && <div>
                       <Label htmlFor="quote-client-company">{tipoCliente === "pa" ? "Ente" : "Ragione sociale"}</Label>
                       <Input id="quote-client-company" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder={tipoCliente === "pa" ? "Comune di …" : "Rossi Costruzioni S.r.l."} />
@@ -2545,6 +2552,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                       <Input id="quote-client-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} placeholder={tipoCliente === "azienda" ? "Di solito uguale alla partita IVA" : tipoCliente === "pa" ? "11 cifre dell'ente" : "16 caratteri"} />
                       {avvisiFiscali.codiceFiscale && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.codiceFiscale}</p>}
                     </div>
+                    {tipoCliente === "pa" && <div>
+                      <Label htmlFor="quote-client-univoco">Codice univoco ufficio</Label>
+                      <Input id="quote-client-univoco" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} value={clientCodiceUnivoco} onChange={(e) => setClientCodiceUnivoco(e.target.value)} placeholder="6 caratteri (IPA)" />
+                      {avvisiFiscali.codiceSdi && <p role="status" className="mt-1 text-[11px] text-amber-700">{avvisiFiscali.codiceSdi}</p>}
+                    </div>}
                   </div>
                 </div>
                 <div className="col-span-2">

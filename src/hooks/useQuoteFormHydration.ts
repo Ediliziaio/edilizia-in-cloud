@@ -37,6 +37,9 @@ export interface QuoteFormSetters {
   setClientAddress: (v: string) => void;
   setClientFiscalCode: (v: string) => void;
   setClientVatNumber: (v: string) => void;
+  /** Privato, azienda o pa: null = lo dicono ragione sociale e partita IVA (31/10/2026). */
+  setClientTipo?: (v: "privato" | "azienda" | "pa" | null) => void;
+  setClientCodiceUnivoco?: (v: string) => void;
   setTitle: (v: string) => void;
   setDescription: (v: string) => void;
   setValidityDays: (v: number) => void;
@@ -71,6 +74,8 @@ interface ExistingQuoteCore {
   client_address: string | null;
   client_fiscal_code: string | null;
   client_vat_number: string | null;
+  client_tipo?: string | null;
+  client_codice_univoco?: string | null;
   title: string | null;
   description: string | null;
   validity_days: number | null;
@@ -114,6 +119,8 @@ export function useQuoteFormHydration(
     s.setClientAddress(q.client_address || "");
     s.setClientFiscalCode(q.client_fiscal_code || "");
     s.setClientVatNumber(q.client_vat_number || "");
+    s.setClientTipo?.(q.client_tipo === "privato" || q.client_tipo === "azienda" || q.client_tipo === "pa" ? q.client_tipo : null);
+    s.setClientCodiceUnivoco?.(q.client_codice_univoco || "");
     s.setTitle(q.title || "Preventivo");
     s.setDescription(q.description || "");
     s.setValidityDays(q.validity_days || 30);

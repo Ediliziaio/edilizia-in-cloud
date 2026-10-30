@@ -134,7 +134,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -718,8 +718,17 @@ Deno.serve(async (req: Request) => {
     // Il nome del cliente dal progetto; se manca, dal titolo (la procedura guidata ci scrive il cliente).
     const titoloParts = (prog.titolo ?? "").trim().split(/\s+/);
     const conNome = Boolean(String(prog.cliente_nome ?? "").trim() || String(prog.cliente_cognome ?? "").trim());
-    const clienteNome = conNome ? String(prog.cliente_nome ?? "").trim() : titoloParts[0] ?? "";
-    const clienteCognome = conNome ? String(prog.cliente_cognome ?? "").trim() : titoloParts.slice(1).join(" ") || "";
+    // Un'azienda o un ente pubblico si intesta col suo nome (30/10/2026); i dati fiscali escono accanto al committente.
+    const ragioneSociale = (prog.cliente_tipo === "azienda" || prog.cliente_tipo === "pa") ? String(prog.cliente_ragione_sociale ?? "").trim() : "";
+    const clienteNome = ragioneSociale || (conNome ? String(prog.cliente_nome ?? "").trim() : titoloParts[0] ?? "");
+    const clienteCognome = ragioneSociale ? "" : conNome ? String(prog.cliente_cognome ?? "").trim() : titoloParts.slice(1).join(" ") || "";
+    const datiFiscaliCliente = (() => {
+      const pulito = (v: unknown) => String(v ?? "").replace(/\s+/g, "").toUpperCase();
+      const cf = pulito(prog.cliente_codice_fiscale), piva = pulito(prog.cliente_partita_iva).replace(/^IT/, ""), univoco = pulito(prog.cliente_codice_univoco);
+      if (prog.cliente_tipo === "pa") return [cf && `C.F. ${cf}`, piva && piva !== cf && `P.IVA ${piva}`, univoco && `Codice univoco ufficio ${univoco}`].filter(Boolean).join(" · ") || null;
+      if (prog.cliente_tipo === "azienda") return [piva && `P.IVA ${piva}`, cf && cf !== piva && `C.F. ${cf}`].filter(Boolean).join(" · ") || null;
+      return cf ? `C.F. ${cf}` : null;
+    })();
     // Preventivo cointestato: il secondo intestatario, accanto al cliente e con la sua firma.
     const cointestatario = [prog.cointestatario_nome, prog.cointestatario_cognome]
       .map((s: string | null) => String(s ?? "").trim()).filter(Boolean).join(" ") || null;
@@ -744,6 +753,7 @@ Deno.serve(async (req: Request) => {
         nome: clienteNome,
         cognome: clienteCognome,
         cf: null,
+        dati_fiscali: datiFiscaliCliente,
         cointestatario,
         cointestatario_cf: prog.cointestatario_codice_fiscale ?? null,
         indirizzo: prog.indirizzo ?? "",
@@ -937,7 +947,7 @@ Deno.serve(async (req: Request) => {
                 // Il nome dal progetto, altrimenti dal titolo (la procedura guidata ci scrive il cliente).
                 // Prima queste colonne non si leggevano: nel contratto usciva «per (di seguito il Committente)».
                 client_name: [
-                  [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim()
+                  ragioneSociale || [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim()
                     || [clienteNome, clienteCognome].filter(Boolean).join(" ").trim(),
                   cointestatario,
                 ].filter(Boolean).join(" e ") || undefined,
