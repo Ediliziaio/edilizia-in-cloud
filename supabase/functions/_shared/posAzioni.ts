@@ -2,6 +2,8 @@
 export const AZIONI_POS = [
   "apri_originale_addetto", "apri_documento_mezzo", "crea", "dati_app", "lavorazioni_ai", "approva",
   "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf",
+  // Il PDF lo disegna il browser (il server ha 2 s di CPU): l'HTML dell'anteprima, e le tre fasi di un'emissione.
+  "anteprima_html", "prepara_emissione", "completa_emissione", "annulla_emissione",
 ] as const;
 export type AzionePos = typeof AZIONI_POS[number];
 
@@ -10,5 +12,6 @@ export type AzionePos = typeof AZIONI_POS[number];
  * originali è lettura: prima le prime due erano trattate come scritture e chi era in sola lettura riceveva 403 anche
  * davanti al PDF di un POS già emesso, mentre lavorazioni_ai (credito AI) passava.
  */
-const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai"]);
+const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai",
+  "prepara_emissione", "completa_emissione", "annulla_emissione"]);
 export const scriveAzionePos = (azione: AzionePos): boolean => SCRIVONO.has(azione);

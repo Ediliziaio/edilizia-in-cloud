@@ -8,7 +8,7 @@ import { generaPdfPos } from "./posPdf.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
 import { ErroreEmissionePos } from "./posEmissione.ts";
-import { annullaEmissioneBrowser, completaEmissioneBrowser, LIMITE_PDF_BROWSER, preparaEmissioneBrowser } from "./posEmissioneBrowser.ts";
+import { anteprimaHtmlPos, annullaEmissioneBrowser, completaEmissioneBrowser, LIMITE_PDF_BROWSER, preparaEmissioneBrowser } from "./posEmissioneBrowser.ts";
 import type { FontiProdottiPos } from "./posPacchetto.ts";
 
 pdfMake.addVirtualFileSystem(vfs);
@@ -198,4 +198,15 @@ Deno.test("Annulla: con il token giusto libera subito la prenotazione; con uno s
   await annullaEmissioneBrowser(m.db, companyId, id, token);
   assert.equal(m.riga.stato, "errore");
   await annullaEmissioneBrowser(m.db, companyId, id, token); // ripetere non è un errore
+});
+
+Deno.test("Anteprima: l'HTML è quello della bozza con avvertenze, già controllato nei glifi, e non prenota nulla", () => {
+  const r = anteprimaHtmlPos({ ...dati(), stato: "approvato" }, "2026-10-30T09:00:00Z");
+  assert.match(r.html, /BOZZA/);                    // anche se il contenuto è già approvato, l'anteprima non si spaccia per l'originale
+  assert.equal(r.layout, "pos-pdf-9-riferimento-psc"); assert.equal(r.codice, "TEST-POS-2026"); assert.equal(r.revisione, 0); assert.equal(r.emessoIl, "2026-10-30T09:00:00Z");
+});
+
+Deno.test("Anteprima: un carattere senza glifo si ferma con il messaggio di sempre, prima che il browser lavori", () => {
+  const d = dati(); d.contenuto.impresa.datore_lavoro = "测试";
+  assert.throws(() => anteprimaHtmlPos(d, "2026-10-30T09:00:00Z"), /font aggiuntivo.*U\+/);
 });

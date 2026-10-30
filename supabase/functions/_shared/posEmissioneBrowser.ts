@@ -2,7 +2,7 @@ import { costruisciHtmlPos, type DatiStampaPos } from "./posHtml.ts";
 import { layoutPdfPos } from "./posPdfLayout.ts";
 import { fontsRiferimentoPos, verificaGlifiPos } from "./posGlifi.ts";
 import { leggiLegamePdfPos } from "./posPdfLegame.ts";
-import { LAYOUT_POS_VERSIONE, VERSIONE_RENDERER_POS_BROWSER } from "./posRenderer.ts";
+import { LAYOUT_POS_VERSIONE, LIMITE_PDF_BROWSER, VERSIONE_RENDERER_POS_BROWSER } from "./posRenderer.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
 import { strToU8 } from "fflate";
 import {
@@ -24,7 +24,7 @@ type Db = any;
  * Il server non rifà il PDF: lo lega al modello. Il PDF dichiara l'emissione e l'impronta dell'HTML (posPdfLegame.ts) e
  * il server le controlla; l'HTML resta congelato nello ZIP accanto al PDF e il manifest dice chi ha disegnato.
  */
-export const LIMITE_PDF_BROWSER = 25 * 1024 * 1024;
+export { LIMITE_PDF_BROWSER };
 
 export type PreparazioneBrowser =
   | { giaCompleta: true; emissione: RigaEmissionePos }
@@ -35,6 +35,15 @@ export function modelloHtmlPos(dati: DatiStampaPos, emessoIl: string, anteprima:
   const html = costruisciHtmlPos(anteprima ? { ...dati, stato: "bozza" } : dati);
   verificaGlifiPos(layoutPdfPos(html, dati.codiceCommessa || "Commessa", dati.revisione, emessoIl, anteprima).testo);
   return html;
+}
+
+/** L'anteprima di una bozza: l'HTML che il browser disegna con la filigrana. Non prenota niente e non scrive niente. */
+export function anteprimaHtmlPos(dati: DatiStampaPos, emessoIl: string) {
+  try {
+    return { html: modelloHtmlPos(dati, emessoIl, true), layout: LAYOUT_POS_VERSIONE, codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl };
+  } catch (err) {
+    throw err instanceof ErroreEmissionePos ? err : new ErroreEmissionePos(err instanceof Error ? err.message : "Anteprima non disponibile");
+  }
 }
 
 export async function preparaEmissioneBrowser(db: Db, userId: string, sorgente: SorgenteEmissione): Promise<PreparazioneBrowser> {

@@ -9,3 +9,5 @@ export const LAYOUT_POS_VERSIONE = "pos-pdf-9-riferimento-psc";
 /** Chi ha disegnato il PDF resta scritto nel manifest dell'emissione. */
 export const VERSIONE_RENDERER_POS = `${LAYOUT_POS_VERSIONE}/pdfmake-0.3.9`;
 export const VERSIONE_RENDERER_POS_BROWSER = `${LAYOUT_POS_VERSIONE}-browser/pdfmake-0.3.9`;
+/** Il PDF che il browser carica per un'emissione: un POS di 293 pagine pesa circa 2 MB. */
+export const LIMITE_PDF_BROWSER = 25 * 1024 * 1024;

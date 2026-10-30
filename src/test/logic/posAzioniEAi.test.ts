@@ -10,7 +10,7 @@ import { lavorazioniDaRispostaAi } from "../../../supabase/functions/_shared/pos
 
 describe("azioni di genera-pos", () => {
   it("aprire un PDF già emesso, l'anteprima o gli originali è lettura: vale anche in sola lettura", () => {
-    for (const a of ["scarica_emissione", "anteprima_pdf", "apri_originale_addetto", "apri_documento_mezzo", "dati_app"] as const) {
+    for (const a of ["scarica_emissione", "anteprima_pdf", "anteprima_html", "apri_originale_addetto", "apri_documento_mezzo", "dati_app"] as const) {
       expect(scriveAzionePos(a), a).toBe(false);
     }
   });
@@ -19,8 +19,13 @@ describe("azioni di genera-pos", () => {
       expect(scriveAzionePos(a), a).toBe(true);
     }
   });
+  it("preparare, completare e annullare un'emissione col PDF disegnato dal browser scrivono: chi è in sola lettura non approva", () => {
+    for (const a of ["prepara_emissione", "completa_emissione", "annulla_emissione"] as const) {
+      expect(scriveAzionePos(a), a).toBe(true);
+    }
+  });
   it("ogni azione è classificata", () => {
-    expect(AZIONI_POS.length).toBe(11);
+    expect(AZIONI_POS.length).toBe(15);
   });
 });
 
