@@ -967,6 +967,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Paginazione ─────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const valoreFiltrati = useMemo(() => filtered.reduce((t, r) => t + (r.totale != null && r.totale > 0 ? r.totale : 0), 0), [filtered]);
   const currentPage = Math.min(page, totalPages);
   const pageRows = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -1128,7 +1129,7 @@ export function UnifiedPreventiviList() {
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
       <div className="hidden md:grid md:grid-cols-4 gap-2 sm:gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
-        <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
+        <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={[kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline", conteggiVista.in_scadenza > 0 ? `${conteggiVista.in_scadenza} in scadenza` : null].filter(Boolean).join(" · ")} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
         <KpiCard label="Vinte" value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
         <KpiCard label="Ricavo firmato" value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
@@ -1336,10 +1337,12 @@ export function UnifiedPreventiviList() {
               <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Azzera</span>
             </Button>
           )}
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+          <span className="text-xs text-muted-foreground ml-auto tabular-nums" title={filtered.length !== allRows.length && valoreFiltrati > 0 ? `Valore dei ${filtered.length} preventivi mostrati: ${formatCurrency(valoreFiltrati)}` : undefined}>
             {filtered.length === allRows.length
               ? `${allRows.length} preventivi`
               : `${filtered.length} di ${allRows.length} preventivi`}
+            {/* Con un filtro acceso, quanto valgono i preventivi che si stanno guardando (31/10/2026). */}
+            {filtered.length !== allRows.length && valoreFiltrati > 0 && <> · <b className="font-semibold text-slate-700">{importoKpi(valoreFiltrati)}</b></>}
           </span>
         </CardContent>
       </Card>

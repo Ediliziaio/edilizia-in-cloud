@@ -17,6 +17,7 @@ import { X, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency } from "@/lib/formatters";
 import type { UnifiedRow, PreventivoTipo } from "./UnifiedPreventiviList";
 
 /** tipo preventivo → tabella su cui eseguire delete/update. */
@@ -84,6 +85,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
   const [confirm, setConfirm] = useState(false);
   const count = selectedRows.length;
   if (count === 0) return null;
+  const valoreSelezionati = selectedRows.reduce((t, r) => t + (r.totale != null && r.totale > 0 ? r.totale : 0), 0);
   // I computi non hanno cestino: si contano a parte e si dice che restano, invece di saltarli in silenzio.
   const daSpostare = selectedRows.filter((r) => TIPO_TABLE[r.tipo]);
   const computiEsclusi = count - daSpostare.length;
@@ -120,6 +122,8 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
         <div className="flex items-center gap-2 text-sm font-medium pr-2">
           <span className="inline-flex items-center justify-center h-6 min-w-6 px-2 rounded-full bg-white text-slate-900 text-xs font-bold tabular-nums">{count}</span>
           <span className="text-slate-200">{count === 1 ? "selezionato" : "selezionati"}</span>
+          {/* Quanto valgono, insieme (31/10/2026). */}
+          {valoreSelezionati > 0 && <span className="tabular-nums text-slate-300">· {formatCurrency(valoreSelezionati)}</span>}
         </div>
         <div className="flex-1" />
         {canDelete && (
