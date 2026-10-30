@@ -57,3 +57,17 @@ describe("rapportini dall'ufficio", () => {
     expect(erroriGiorni([{ ...primo, materiali: { i1: "0" } }], oggi)).toEqual(["Quantità dei materiali maggiore di zero."]);
   });
 });
+
+describe("più giorni insieme", () => {
+  const oggi = "2026-10-31";
+  it("un rapportino per giorno feriale, mai nel futuro, senza ripetere quelli già scritti", async () => {
+    const { giorniDaPeriodo, giornoVuoto } = await import("@/lib/campo/rapportiniUfficio");
+    const base = { ...giornoVuoto(oggi, "a"), descrizione: "Posa cartongesso", fasi: ["f1"], presenze: { "e:1": "8" }, foto: ["u"], materiali: { i1: "2" } };
+    // 26/10 lunedì → 2/11 lunedì (oltre oggi): feriali fino al 30/10, il 28 c'è già.
+    const giorni = giorniDaPeriodo(base, "2026-10-26", "2026-11-02", oggi, true, ["2026-10-28"]);
+    expect(giorni.map((g) => g.data)).toEqual(["2026-10-26", "2026-10-27", "2026-10-29", "2026-10-30"]);
+    expect(giorni[0]).toMatchObject({ descrizione: "Posa cartongesso", fasi: ["f1"], presenze: { "e:1": "8" }, foto: [], materiali: {} });
+    expect(giorniDaPeriodo(base, "2026-10-24", "2026-10-25", oggi, false).map((g) => g.data)).toEqual(["2026-10-24", "2026-10-25"]);
+    expect(giorniDaPeriodo(base, "2026-10-30", "2026-10-20", oggi, true)).toEqual([]);
+  });
+});

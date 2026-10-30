@@ -89,4 +89,20 @@ describe("Rapportini dall'ufficio", () => {
       materiali_usati: [{ nome: "Cemento", quantita: 3, unita: "q", order_item_id: "i1" }],
     });
   });
+
+  it("più giorni insieme: lo stesso lavoro su ogni giorno feriale del periodo", async () => {
+    stato.rpc.mockClear();
+    render(<QueryClientProvider client={new QueryClient()}><RapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Scrivi rapportini" }));
+    fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Posa cartongesso" } });
+    fireEvent.click(screen.getByRole("button", { name: /Tutti quelli della commessa/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Più giorni insieme" }));
+    fireEvent.change(screen.getByLabelText("Periodo dal"), { target: { value: "2026-10-19" } });
+    fireEvent.change(screen.getByLabelText("Periodo al"), { target: { value: "2026-10-25" } });
+    // 19-23 ottobre, lunedì-venerdì: cinque giorni nuovi, sabato e domenica no.
+    fireEvent.click(screen.getByRole("button", { name: "Crea 5 giorni" }));
+    expect(screen.getByLabelText("Giorno del rapportino 6")).toHaveValue("2026-10-23");
+    expect(screen.getByLabelText("Cosa si è fatto, rapportino 6")).toHaveValue("Posa cartongesso");
+    expect(screen.getByLabelText("Mario Rossi: ore", { selector: "section[aria-label='Rapportino 6'] input" })).toHaveValue("8");
+  });
 });

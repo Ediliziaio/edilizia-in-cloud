@@ -1,7 +1,7 @@
 // src/components/orders/RapportiniUfficio.tsx
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, Check, Hammer, Loader2, NotebookPen, Plus, Trash2, Users, X } from "lucide-react";
+import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,8 +19,38 @@ import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
 import {
-  METEO, caricoRapportini, erroriGiorni, giornoVuoto, type GiornoUfficio, type PersonaPresenza,
+  METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
+  type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
+
+/** Un file in base64, senza il prefisso «data:…;base64,». */
+const inBase64 = (b: Blob) => new Promise<string>((ok, ko) => {
+  const fr = new FileReader();
+  fr.onload = () => ok(String(fr.result).split(",")[1] ?? "");
+  fr.onerror = () => ko(fr.error);
+  fr.readAsDataURL(b);
+});
+
+/** Un foglio Excel in testo, riga per riga (le celle separate da « | »). */
+async function excelInTesto(file: File): Promise<string> {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.arrayBuffer());
+  const righe: string[] = [];
+  wb.eachSheet((foglio) => {
+    righe.push(`# ${foglio.name}`);
+    foglio.eachRow((riga) => {
+      const celle = (riga.values as unknown[]).slice(1).map((v) => {
+        if (v instanceof Date) return v.toISOString().slice(0, 10);
+        if (v && typeof v === "object" && "result" in (v as object)) return String((v as { result: unknown }).result ?? "");
+        if (v && typeof v === "object" && "text" in (v as object)) return String((v as { text: unknown }).text ?? "");
+        return v == null ? "" : String(v);
+      });
+      if (celle.some((c) => c.trim())) righe.push(celle.join(" | "));
+    });
+  });
+  return righe.join("\n");
+}
 
 /**
  * «Scrivi rapportini» dalla commessa (31/10/2026): l'ufficio scrive il rapportino
@@ -105,6 +135,10 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const [giorni, setGiorni] = useState<GiornoUfficio[]>(() => [giornoVuoto(oggi, "g0")]);
   const [tentato, setTentato] = useState(false);
   const [caricando, setCaricando] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<{ dal: string; al: string; feriali: boolean } | null>(null);
+  const [lettura, setLettura] = useState<{ stato: "legge" } | { stato: "letto"; n: number; avvisi: string[] } | null>(null);
+  // Il primo giorno ancora vuoto si sostituisce, invece di restare lì in cima.
+  const soloVuoto = giorni.length === 1 && !giorni[0].descrizione.trim() && !Object.keys(giorni[0].presenze ?? {}).length;
   const errori = erroriGiorni(giorni, oggi);
   const cambia = (chiave: string, patch: Partial<GiornoUfficio>) => setGiorni((gs) => gs.map((g) => (g.chiave === chiave ? { ...g, ...patch } : g)));
 
@@ -131,6 +165,53 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     if (falliti) toast.error(falliti === 1 ? "Una foto non è stata caricata" : `${falliti} foto non caricate`);
   };
 
+  // Più giorni insieme: lo stesso lavoro dell'ultimo giorno, per ogni giorno del periodo.
+  const daPeriodo = periodo ? giorniDaPeriodo(giorni[giorni.length - 1], periodo.dal, periodo.al, oggi, periodo.feriali,
+    soloVuoto ? [] : giorni.map((g) => g.data)) : [];
+  const creaPeriodo = () => {
+    if (!daPeriodo.length) return;
+    setGiorni((gs) => (soloVuoto ? daPeriodo : [...gs, ...daPeriodo]).slice(0, 31));
+    setPeriodo(null);
+  };
+
+  // Leggi da documenti: foto e PDF al modello come file, Excel e testo come testo.
+  const leggiDocumenti = async (files: FileList | null) => {
+    if (!files?.length || !companyId) return;
+    setLettura({ stato: "legge" });
+    try {
+      const allegati: Array<{ base64: string; mime: string; name: string }> = [];
+      const testi: string[] = [];
+      for (const f of Array.from(files).slice(0, 5)) {
+        const nome = f.name.toLowerCase();
+        if (/\.(xlsx|xlsm)$/.test(nome)) testi.push(`## ${f.name}\n${await excelInTesto(f)}`);
+        else if (/\.(csv|txt)$/.test(nome) || f.type.startsWith("text/")) testi.push(`## ${f.name}\n${await f.text()}`);
+        else if (f.type.startsWith("image/")) {
+          const blob = (await compressImage(f, 2000, 0.8).catch((): null => null)) ?? f;
+          allegati.push({ base64: await inBase64(blob), mime: blob === f ? f.type : "image/jpeg", name: f.name });
+        } else allegati.push({ base64: await inBase64(f), mime: f.type || "application/pdf", name: f.name });
+      }
+      const { data, error } = await supabase.functions.invoke("ai-rapportini-da-documento", {
+        body: { order_id: orderId, company_id: companyId, files: allegati, testo: testi.join("\n\n").slice(0, 60_000) },
+      });
+      if (error) {
+        let messaggio = "Non sono riuscito a leggere i documenti. Riprova.";
+        try {
+          const corpo = await (error as { context?: Response }).context?.json?.();
+          if (typeof corpo?.error === "string") messaggio = corpo.error;
+        } catch { /* messaggio generico */ }
+        throw new Error(messaggio);
+      }
+      const letti = ((data as { rapportini?: RapportinoLetto[] })?.rapportini ?? []);
+      const avvisi = ((data as { avvisi?: string[] })?.avvisi ?? []);
+      const nuovi = letti.map((r, i) => giornoDaLetto(r, `ai-${Date.now()}-${i}`));
+      if (nuovi.length) setGiorni((gs) => (soloVuoto ? nuovi : [...gs, ...nuovi]).slice(0, 31));
+      setLettura({ stato: "letto", n: nuovi.length, avvisi });
+    } catch (e) {
+      setLettura(null);
+      toast.error(e instanceof Error ? e.message : "Non sono riuscito a leggere i documenti.");
+    }
+  };
+
   const salva = useMutation({
     mutationFn: async () => {
       const carico = caricoRapportini(giorni, phases.map((p) => ({ id: p.id, percentuale: p.percentuale })), sottofasiDi,
@@ -151,6 +232,46 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" className="h-8" aria-expanded={!!periodo}
+          onClick={() => setPeriodo(periodo ? null : { dal: giorni[giorni.length - 1].data, al: oggi, feriali: true })}>
+          <CalendarRange className="mr-1.5 h-4 w-4" />Più giorni insieme
+        </Button>
+        <label className={cn("inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-sm hover:bg-slate-50", lettura?.stato === "legge" && "pointer-events-none opacity-60")}>
+          {lettura?.stato === "legge" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4 text-violet-600" />}
+          {lettura?.stato === "legge" ? "Leggo i documenti…" : "Leggi da documenti"}
+          <input type="file" multiple className="sr-only" aria-label="Documenti da leggere"
+            accept="image/*,application/pdf,.pdf,.xlsx,.xlsm,.csv,.txt"
+            onChange={(e) => { void leggiDocumenti(e.target.files); e.target.value = ""; }} />
+        </label>
+        <span className="text-xs text-muted-foreground">Foto di rapportini di carta, fogli presenze, PDF, Excel: fino a 5 file.</span>
+      </div>
+      {periodo && (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+          <label className="grid gap-1 text-xs text-muted-foreground">Dal
+            <Input type="date" max={oggi} value={periodo.dal} onChange={(e) => setPeriodo({ ...periodo, dal: e.target.value })} className="h-9 w-40" aria-label="Periodo dal" />
+          </label>
+          <label className="grid gap-1 text-xs text-muted-foreground">Al
+            <Input type="date" max={oggi} value={periodo.al} onChange={(e) => setPeriodo({ ...periodo, al: e.target.value })} className="h-9 w-40" aria-label="Periodo al" />
+          </label>
+          <label className="flex h-9 items-center gap-2 text-sm">
+            <input type="checkbox" checked={periodo.feriali} onChange={(e) => setPeriodo({ ...periodo, feriali: e.target.checked })} />
+            Senza sabato e domenica
+          </label>
+          <Button type="button" size="sm" className="h-9" disabled={!daPeriodo.length} onClick={creaPeriodo}>
+            {daPeriodo.length ? `Crea ${daPeriodo.length} ${daPeriodo.length === 1 ? "giorno" : "giorni"}` : "Nessun giorno nel periodo"}
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">Ogni giorno prende lo stesso lavoro, le stesse fasi, persone e mezzi dell'ultimo rapportino qui sotto: poi correggi i giorni diversi.</p>
+        </div>
+      )}
+      {lettura?.stato === "letto" && (
+        <div role="status" className="space-y-1 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950">
+          <p className="flex items-center gap-1.5 font-medium"><FileUp className="h-4 w-4" />
+            {lettura.n ? `Letti ${lettura.n} ${lettura.n === 1 ? "rapportino" : "rapportini"} dai documenti: controllali prima di salvare.` : "Nei documenti non ho trovato rapportini da creare."}
+          </p>
+          {lettura.avvisi.length > 0 && <ul className="list-disc pl-5 text-xs">{lettura.avvisi.map((a, i) => <li key={i}>{a}</li>)}</ul>}
+        </div>
+      )}
       {giorni.map((g, i) => {
         const presenze = g.presenze ?? {};
         // Con le fasi scelte, si propone chi lavora su quelle; senza, chi è sulla commessa (31/10/2026).

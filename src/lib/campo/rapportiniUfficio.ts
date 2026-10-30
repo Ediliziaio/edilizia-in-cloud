@@ -134,3 +134,69 @@ export function caricoRapportini(
     };
   });
 }
+
+/**
+ * Più giorni insieme (31/10/2026): un rapportino per ogni giorno da `dal` ad `al`
+ * (mai nel futuro, al massimo 31), con lo stesso lavoro del giorno di partenza —
+ * cosa si è fatto, fasi, chi c'era con le ore, mezzi, meteo. Foto e materiali no:
+ * sono di quel giorno. I giorni già presenti non si ripetono.
+ */
+export function giorniDaPeriodo(
+  base: GiornoUfficio,
+  dal: string,
+  al: string,
+  oggi: string,
+  soloFeriali: boolean,
+  giaPresenti: ReadonlyArray<string> = [],
+): GiornoUfficio[] {
+  if (!dal || !al || dal > al) return [];
+  const fine = al > oggi ? oggi : al;
+  const out: GiornoUfficio[] = [];
+  for (let d = dal; d <= fine && out.length < 31; d = piuUno(d)) {
+    const giorno = new Date(`${d}T12:00:00Z`).getUTCDay();
+    if (soloFeriali && (giorno === 0 || giorno === 6)) continue;
+    if (giaPresenti.includes(d)) continue;
+    out.push({
+      ...base, chiave: `p-${d}`, data: d, sottofasi: {},
+      presenze: { ...(base.presenze ?? {}) }, mezzi: { ...(base.mezzi ?? {}) }, percentuali: { ...(base.percentuali ?? {}) },
+      fasi: [...base.fasi], foto: [], materiali: {},
+    });
+  }
+  return out;
+}
+
+/** Un rapportino letto dai documenti (ai-rapportini-da-documento), già sugli id della commessa. */
+export interface RapportinoLetto {
+  data: string;
+  descrizione: string;
+  fasi: string[];
+  persone: Array<{ employee_id: string | null; nome: string; ore: number }>;
+  mezzi: Array<{ mezzo_id: string; ore: number | null }>;
+  materiali: Array<{ order_item_id: string | null; nome: string; quantita: number }>;
+  meteo: string | null;
+  note: string | null;
+}
+
+const virgola = (n: number) => String(n).replace(".", ",");
+
+/**
+ * Dal rapportino letto al giorno del popup, da controllare. Chi il documento
+ * nomina ma l'azienda non ha tra i dipendenti, e i materiali che non sono
+ * articoli della commessa, finiscono nelle note: l'ufficio decide.
+ */
+export function giornoDaLetto(r: RapportinoLetto, chiave: string): GiornoUfficio {
+  const sconosciuti = r.persone.filter((p) => !p.employee_id).map((p) => `${p.nome} ${virgola(p.ore)} h`);
+  const altriMateriali = r.materiali.filter((m) => !m.order_item_id).map((m) => `${m.nome} ${virgola(m.quantita)}`);
+  const note = [
+    r.note,
+    sconosciuti.length ? `Persone da verificare: ${sconosciuti.join(", ")}` : null,
+    altriMateriali.length ? `Materiali non in commessa: ${altriMateriali.join(", ")}` : null,
+  ].filter(Boolean).join(" · ");
+  return {
+    chiave, data: r.data, autore: "", descrizione: r.descrizione, note, fasi: [...r.fasi], sottofasi: {}, percentuali: {},
+    presenze: Object.fromEntries(r.persone.filter((p) => p.employee_id).map((p) => [`e:${p.employee_id}`, virgola(p.ore)])),
+    mezzi: Object.fromEntries(r.mezzi.map((m) => [m.mezzo_id, m.ore == null ? "" : virgola(m.ore)])),
+    materiali: Object.fromEntries(r.materiali.filter((m) => m.order_item_id).map((m) => [m.order_item_id!, virgola(m.quantita)])),
+    foto: [], meteo: r.meteo ?? "",
+  };
+}

@@ -50,6 +50,7 @@ const CON_REGOLE_CONDIVISE = [
   "ai-fattura-ricevuta-ocr",
   "ai-importa-condizioni",
   "ai-listino-extract",
+  "ai-rapportini-da-documento",
   "ai-tabella-finanziamento-extract",
   "ddt-ai-extract",
   "ddt-ocr-extract",
