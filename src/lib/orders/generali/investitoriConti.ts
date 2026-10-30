@@ -131,6 +131,11 @@ export interface NumeriOperazione {
   interessiNelPiano: boolean;
   /** Gli oneri finanziari già nel piano (per il margine prima del debito). */
   oneriNelPiano?: { previsto: number; stima: number };
+  /**
+   * Oneri finanziari già nel reale del piano senza una voce prevista (interessi e spese pagati che il
+   * piano legge dai movimenti delle fonti, 20281031170000): sono già nel margine stimato.
+   */
+  oneriRealiNelPiano?: number;
   /** Il capitale che l'operazione chiede mese per mese (meno il cumulato della cassa, mai sotto zero). */
   fabbisogno?: { mese: string; importo: number }[];
   /** TIR annuo del progetto dal piano. */
@@ -513,9 +518,11 @@ export function calcolaInvestitori(input: {
   );
   const euroAnni = basi.filter((b) => aPrestito(b.fonte.tipo)).reduce((t, b) => t + capitaleGiorni(b.futuri, b.fineConteggio) / 365, 0);
   const togli = numeri && !numeri.interessiNelPiano;
+  // Senza voce prevista, quello che il piano ha già nel reale (interessi e spese pagati) non si toglie di nuovo.
+  const giaNelReale = numeri?.oneriRealiNelPiano ?? 0;
   const interessiTolti = {
     previsto: togli ? arrotonda(interessi.previsto + spese.previsto) : 0,
-    stima: togli ? arrotonda(interessi.stima + spese.stima) : 0,
+    stima: togli ? arrotonda(Math.max(0, interessi.stima + spese.stima - giaNelReale)) : 0,
   };
   const utile = {
     previsto: numeri ? arrotonda(numeri.marginePrevisto - interessiTolti.previsto) : 0,
@@ -625,7 +632,7 @@ export function calcolaInvestitori(input: {
   if (!numeri && equity.length) avvisi.push("Il piano economico non c'è ancora: senza la stima finale l'utile da dividere è zero.");
 
   // Rendimenti: il progetto (prima del debito) contro i mezzi propri (dopo debito e investitori).
-  const oneri = numeri?.interessiNelPiano ? numeri.oneriNelPiano?.stima ?? 0 : 0;
+  const oneri = numeri?.interessiNelPiano ? numeri.oneriNelPiano?.stima ?? 0 : numeri?.oneriRealiNelPiano ?? 0;
   const margineProgetto = numeri ? arrotonda(numeri.margineStima + oneri) : 0;
   const capitaleProgetto = numeri?.capitaleMassimo ?? 0;
   const progetto = {
@@ -766,11 +773,13 @@ export function spiegaRegola(c: ContiInvestitori): string[] {
 
 /**
  * I numeri dell'operazione dal piano economico. Gli interessi sono «già nel piano» se il
- * piano ha una voce di oneri finanziari con un importo: in quel caso non si tolgono di nuovo.
+ * piano ha una voce di oneri finanziari prevista: in quel caso non si tolgono di nuovo.
+ * Senza voce prevista, gli oneri che il piano ha solo nel reale (pagati) sono già nel margine:
+ * si tolgono solo quelli ancora da pagare.
  */
 export function numeriDalPiano(
   n: NumeriInvestitori,
-  costi: { categoria: string; previsto: number; stima: number }[],
+  costi: { categoria: string; previsto: number; stima: number; reale?: number }[],
 ): NumeriOperazione {
   const mesi = n.flussoMensile.map((m) => m.mese).filter((m) => /^\d{4}-\d{2}/.test(m)).sort();
   const finanziari = costi.filter((r) => r.categoria === "finanziari");
@@ -783,8 +792,9 @@ export function numeriDalPiano(
     capitaleInvestitoOggi: n.capitaleInvestitoOggi,
     inizio: mesi[0] ?? null,
     fine: mesi[mesi.length - 1] ?? null,
-    interessiNelPiano: oneri.previsto > 0 || oneri.stima > 0,
+    interessiNelPiano: oneri.previsto > 0,
     oneriNelPiano: oneri,
+    oneriRealiNelPiano: oneri.previsto > 0 ? 0 : somma(finanziari.map((r) => r.reale ?? 0)),
     fabbisogno: n.flussoMensile
       .filter((m) => /^\d{4}-\d{2}/.test(m.mese))
       .map((m) => ({ mese: m.mese.slice(0, 7), importo: arrotonda(Math.max(0, -m.cumulato)) })),

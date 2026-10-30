@@ -193,7 +193,9 @@ function CostoDebito({ conti, numeri }: { conti: ContiInvestitori; numeri: Numer
       <p className="mt-2 text-xs text-muted-foreground">
         {numeri?.interessiNelPiano
           ? `Il piano ha già una voce «Oneri finanziari» (${euro(numeri.oneriNelPiano?.stima ?? 0)} a finire): l'utile da dividere non li toglie una seconda volta. Se il costo qui è diverso, aggiorna quella voce del piano.`
-          : "Il piano non ha una voce «Oneri finanziari»: questo costo si toglie dal margine del piano prima di dividere l'utile."}
+          : (numeri?.oneriRealiNelPiano ?? 0) > 0
+            ? `Il piano non ha una voce «Oneri finanziari», ma conta già ${euro(numeri!.oneriRealiNelPiano!)} di interessi e spese pagati: dal margine si toglie solo il resto, prima di dividere l'utile.`
+            : "Il piano non ha una voce «Oneri finanziari»: questo costo si toglie dal margine del piano prima di dividere l'utile."}
       </p>
     </section>
   );

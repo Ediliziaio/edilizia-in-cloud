@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { messaggioGenerale, useAggiornaGenerale, useImpostazioniCommesseGenerali } from "@/hooks/useCommesseGenerali";
+import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI, isModelloGenerale, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
@@ -40,12 +41,16 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
   const valoreSbagliato = valoreTesto.trim() !== "" && (valore === null || valore < 0);
   // Chi non vede gli importi non deve poter cancellare il valore senza saperlo.
   const importiVisibili = riepilogo.permessi.importi;
-  const puoSalvare = nome.trim().length > 0 && !valoreSbagliato && !aggiorna.isPending;
+  // Negli appalti col contratto compilato il valore lo calcola il contratto (base, ribasso, atti aggiuntivi):
+  // qui non si scrive, si cambia nella scheda «Contratto e SAL».
+  const contratto = useDatiContratto(g.id, g.modello === "appalto");
+  const valoreDalContratto = !!contratto.data?.contratto;
+  const puoSalvare = nome.trim().length > 0 && (valoreDalContratto || !valoreSbagliato) && !aggiorna.isPending;
 
   const salva = () => {
     if (!puoSalvare) return;
     aggiorna.mutate(
-      { nome: nome.trim(), modello, valore: importiVisibili ? valore : g.valore },
+      { nome: nome.trim(), modello, valore: importiVisibili && !valoreDalContratto ? valore : g.valore },
       {
         onSuccess: () => { toast.success("Commessa generale aggiornata"); onOpenChange(false); },
         onError: (e) => toast.error(messaggioGenerale(e, "le modifiche")),
@@ -75,7 +80,12 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
               </Select>
             </div>
           )}
-          {importiVisibili && (
+          {importiVisibili && valoreDalContratto && (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              Il valore viene dal contratto: si cambia nella scheda «Contratto e SAL» (importo, ribasso, atti aggiuntivi).
+            </p>
+          )}
+          {importiVisibili && !valoreDalContratto && (
             <div className="space-y-1.5">
               <Label htmlFor="mod-generale-valore">
                 {def.valore.etichetta} <span className="font-normal text-muted-foreground">(al netto dell'IVA)</span>

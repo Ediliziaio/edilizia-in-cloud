@@ -154,6 +154,10 @@ describe("ripartizione dell'utile", () => {
     expect(fuori.utile.stima).toBe(90_000);
     expect(fuori.fonti.find((c) => c.fonte.id === "P")!.rendimento.stima).toBe(90_000);
     expect(spiegaRegola(fuori)[0]).toContain("meno il costo del debito");
+    // Interessi già pagati e letti dal piano nel reale (senza voce prevista): si toglie solo il resto.
+    const pagati = calcolaInvestitori({ fonti, movimenti: m, numeri: numeri({ interessiNelPiano: false, oneriRealiNelPiano: 4_000 }), oggi: "2027-02-01" });
+    expect(pagati.utile.interessiTolti.stima).toBe(6_000);
+    expect(pagati.utile.stima).toBe(94_000);
   });
 
   it("previsto sull'impegno, stima sui versamenti veri; il già distribuito è «ad oggi»", () => {
@@ -233,7 +237,8 @@ describe("dal piano", () => {
   it("prende margine, capitale e mesi; gli interessi sono nel piano solo con una voce di oneri finanziari", () => {
     const o = numeriDalPiano(n, [{ categoria: "costruzione", previsto: 5, stima: 5 }]);
     expect(o).toMatchObject({ marginePrevisto: 200_000, margineStima: 130_000, capitaleMassimo: 500_000, inizio: "2027-01", fine: "2027-03", interessiNelPiano: false });
-    expect(numeriDalPiano(n, [{ categoria: "finanziari", previsto: 0, stima: 10 }]).interessiNelPiano).toBe(true);
+    expect(numeriDalPiano(n, [{ categoria: "finanziari", previsto: 0, stima: 10, reale: 10 }])).toMatchObject({ interessiNelPiano: false, oneriRealiNelPiano: 10 });
+    expect(numeriDalPiano(n, [{ categoria: "finanziari", previsto: 8, stima: 10, reale: 10 }]).interessiNelPiano).toBe(true);
     expect(numeriDalPiano({ ...n, flussoMensile: [] }, []).fine).toBeNull();
   });
 });

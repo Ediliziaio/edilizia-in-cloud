@@ -128,7 +128,11 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
     return calcolaChecklist({
       voci,
       generaleId,
-      figlie: r.figlie.map((f) => ({ id: f.id, incassato: r.permessi.importi ? f.incassato : null })),
+      // Per la fideiussione 122/2005 contano caparre e acconti dell'unità (modulo Unità) oltre alle fatture incassate.
+      figlie: r.figlie.map((f) => ({
+        id: f.id,
+        incassato: r.permessi.importi ? Math.max(f.acconti ?? 0, f.incassato ?? 0) : null,
+      })),
       allegati: dati.allegati,
       segni: dati.segni,
       oggi: oggiLocale(),

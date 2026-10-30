@@ -81,6 +81,10 @@ export interface FigliaGenerale {
   incassato: number | null;
   costo: number | null;
   margine: number | null;
+  /** Unità divisa in altre (modulo Unità): vale zero, si vendono le parti. Non è «in perdita». */
+  divisa?: boolean;
+  /** Caparre e acconti incassati sull'unità (modulo Unità); null = importi non visibili. */
+  acconti?: number | null;
 }
 
 export interface RiepilogoGenerale {
@@ -95,6 +99,8 @@ export interface RiepilogoGenerale {
     valore: number | null;
   };
   figlie: FigliaGenerale[];
+  /** Fatture registrate sulla generale stessa (es. SAL di contratto fatturato sul contratto). */
+  fattureGenerale?: { fatturato: number; incassato: number } | null;
   permessi: { importi: boolean; costi: boolean; margini: boolean };
 }
 
@@ -142,7 +148,14 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
         incassato: numero(f.incassato),
         costo: numero(f.costo),
         margine: numero(f.margine),
+        divisa: f.divisa === true,
+        acconti: numero(f.acconti),
       })),
+    fattureGenerale: (() => {
+      const fg = d?.fatture_generale as Record<string, unknown> | null | undefined;
+      if (!fg) return null;
+      return { fatturato: numero(fg.fatturato) ?? 0, incassato: numero(fg.incassato) ?? 0 };
+    })(),
     permessi: { importi: p.importi === true, costi: p.costi === true, margini: p.margini === true },
   };
 }
@@ -171,13 +184,15 @@ const somma = (valori: (number | null)[]): number | null =>
   valori.some((v) => v === null) ? null : arrotonda(valori.reduce<number>((t, v) => t + (v ?? 0), 0));
 
 /** I numeri della generale. Un totale è null se chi guarda non può vedere anche una sola delle sue parti. */
-export function totaliGenerale(r: Pick<RiepilogoGenerale, "figlie" | "generale" | "permessi">): TotaliGenerale {
+export function totaliGenerale(r: Pick<RiepilogoGenerale, "figlie" | "generale" | "permessi" | "fattureGenerale">): TotaliGenerale {
   const f = r.figlie;
   const importi = r.permessi.importi;
   const assegnato = importi ? somma(f.map((x) => x.importo)) : null;
   const eseguito = importi ? somma(f.map((x) => x.eseguito)) : null;
-  const fatturato = importi ? somma(f.map((x) => x.fatturato)) : null;
-  const incassato = importi ? somma(f.map((x) => x.incassato)) : null;
+  // Le fatture fatte sulla generale stessa (SAL di contratto) si sommano a quelle delle figlie.
+  const sulContratto = importi ? r.fattureGenerale ?? null : null;
+  const fatturato = importi ? somma([...f.map((x) => x.fatturato), sulContratto?.fatturato ?? 0]) : null;
+  const incassato = importi ? somma([...f.map((x) => x.incassato), sulContratto?.incassato ?? 0]) : null;
   const valore = importi ? r.generale.valore : null;
   const pesoTotale = f.reduce((t, x) => t + Math.max(0, x.importo ?? 0), 0);
   const avanzamento = f.length === 0
@@ -221,7 +236,8 @@ export function avvisiGenerale(r: RiepilogoGenerale, t: TotaliGenerale): AvvisoG
   if (t.daAssegnare !== null && t.daAssegnare < 0) {
     avvisi.push({ id: "oltre", testo: `Le commesse dentro superano ${def.valore.etichetta.toLowerCase()} di ${formattaEuro(-t.daAssegnare)}.`, tono: "attenzione" });
   }
-  const oltreCosto = r.figlie.filter((f) => f.margine !== null && f.margine < 0);
+  // Un'unità divisa vale zero e passa i costi alle parti: non è una perdita.
+  const oltreCosto = r.figlie.filter((f) => !f.divisa && f.margine !== null && f.margine < 0);
   if (r.permessi.margini && oltreCosto.length > 0) {
     avvisi.push({
       id: "perdita",

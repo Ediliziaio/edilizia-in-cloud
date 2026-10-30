@@ -79,6 +79,18 @@ describe("i numeri della commessa generale", () => {
     expect(avvisiGenerale(r, t)).toEqual(expect.arrayContaining([expect.objectContaining({ id: "perdita", tono: "attenzione" })]));
   });
 
+  it("le fatture fatte sul contratto (SAL di contratto) si sommano a quelle delle figlie", () => {
+    const conContratto = totaliGenerale({ ...r, fattureGenerale: { fatturato: 100_000, incassato: 40_000 } });
+    expect(conContratto.fatturato).toBe(1_294_000);
+    expect(conContratto.incassato).toBe(940_000);
+    expect(conContratto.daIncassare).toBe(354_000);
+  });
+
+  it("un'unità divisa non è «in perdita»: vale zero e i costi passano alle parti", () => {
+    const divisa = appalto([figlia({ id: "x", codice: "A1", importo: 0, margine: -20_000, divisa: true })]);
+    expect(avvisiGenerale(divisa, totaliGenerale(divisa)).map((a) => a.id)).not.toContain("perdita");
+  });
+
   it("generale vuota: il prossimo passo è aggiungere la prima commessa, non uno zero", () => {
     const vuota = appalto([]);
     const avvisi = avvisiGenerale(vuota, totaliGenerale(vuota));
@@ -102,9 +114,12 @@ describe("lettura della risposta del database", () => {
   it("numeri come testo, modello sconosciuto, avanzamento fuori scala", () => {
     const r = leggiRiepilogo({
       generale: { id: "g", nome: "Residenza", modello: "boh", valore: "3200000.00" },
-      figlie: [{ id: "a", nome: "A1", avanzamento: 140, importo: "450000.50", margine: null }, { nome: "senza id" }],
+      figlie: [{ id: "a", nome: "A1", avanzamento: 140, importo: "450000.50", margine: null, divisa: true, acconti: "30000" }, { nome: "senza id" }],
+      fatture_generale: { fatturato: "1000", incassato: 400 },
       permessi: { importi: true },
     });
+    expect(r?.figlie[0]).toMatchObject({ divisa: true, acconti: 30_000 });
+    expect(r?.fattureGenerale).toEqual({ fatturato: 1_000, incassato: 400 });
     expect(r?.generale.modello).toBe("appalto");
     expect(r?.generale.valore).toBe(3_200_000);
     expect(r?.figlie).toHaveLength(1);
