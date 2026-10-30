@@ -461,21 +461,33 @@ describe("Le sottofasi nel rapportino del capocantiere", () => {
     fireEvent.click(screen.getByRole("button", { name: "Impianto elettrico" }));
   };
 
-  it("al posto dello slider c'è la checklist: le già fatte sono ferme, le altre si spuntano e l'anteprima cresce", () => {
+  it("al posto dello slider: le già fatte sono ferme, le altre si dicono finite e l'anteprima cresce", () => {
     apri();
     expect(screen.queryByRole("slider")).toBeNull();
-    expect(screen.getByRole("checkbox", { name: "Tracce: già fatta" })).toBeDisabled();
+    expect(screen.getByText("Già fatta")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tracce: finita" })).toBeNull();
     expect(screen.getByText("33%")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cavi: finita" }));
     expect(screen.getByText("67%")).toBeInTheDocument();
   });
 
   it("il rapportino porta le spunte, dentro la voce della fase, e l'avanzamento che ne deriva", async () => {
     apri();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cavi: finita" }));
     invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
       fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"], nome: "Impianto elettrico" }],
+    })));
+  });
+
+  it("«ci ho lavorato» va nel rapportino come sottofase lavorata, senza cambiare l'avanzamento", async () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "Quadro: ci ho lavorato oggi" }));
+    expect(screen.getByRole("button", { name: "Quadro: ci ho lavorato oggi" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cavi: finita" }));
+    invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
+      fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"], sottofasi_lavorate: ["s3"], nome: "Impianto elettrico" }],
     })));
   });
 });

@@ -28,6 +28,9 @@ export interface Sottofase {
   in_parallelo?: boolean;
   /** Quante persone ci lavorano (31/10/2026). */
   risorse?: number | null;
+  /** Dai rapportini approvati: il primo giorno di lavoro e quanti giorni ci si è lavorato. */
+  iniziata_il?: string | null;
+  giorni_lavorati?: number;
 }
 
 const pesoValido = (peso: number): number => (Number.isFinite(peso) && peso >= 1 ? peso : 1);
@@ -86,7 +89,7 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
  * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
  * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
  */
-export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo, risorse)";
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo, risorse, iniziata_il, giorni_lavorati)";
 
 /** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
 export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {
@@ -109,6 +112,8 @@ export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
     data_fine: giornoValido(r.data_fine),
     giorni: giorniValidi(r.giorni),
     in_parallelo: r.in_parallelo === true,
+    iniziata_il: giornoValido(r.iniziata_il),
+    giorni_lavorati: Number.isInteger(Number(r.giorni_lavorati)) && Number(r.giorni_lavorati) > 0 ? Number(r.giorni_lavorati) : 0,
     risorse: Number.isInteger(Number(r.risorse)) && Number(r.risorse) >= 1 && Number(r.risorse) <= 99 ? Number(r.risorse) : null,
   };
 }
@@ -197,6 +202,8 @@ export type FaseLavorata = {
   percentuale: number;
   /** Solo per le fasi con sottofasi: quelle spuntate in questo rapportino. */
   sottofasi_fatte?: string[];
+  /** Quelle su cui si è lavorato senza finirle (31/10/2026): danno l'inizio reale. */
+  sottofasi_lavorate?: string[];
 };
 
 /**
@@ -210,21 +217,23 @@ export function fasiLavorateDelRapportino(
   dichiarate: Readonly<Record<string, number>>,
   sottofasi: ReadonlyMap<string, ReadonlyArray<Pick<Sottofase, "id" | "peso" | "fatta">>>,
   spunte: ReadonlyArray<string>,
+  lavorate: ReadonlyArray<string> = [],
 ): FaseLavorata[] {
   return Object.entries(dichiarate).map(([phase_id, percentuale]): FaseLavorata => {
     const delle = sottofasi.get(phase_id) ?? [];
     if (delle.length === 0) return { phase_id, percentuale };
     const nuove = delle.filter((s) => !s.fatta && spunte.includes(s.id)).map((s) => s.id);
     const anteprima = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s.id) }))) ?? percentuale;
-    return { phase_id, percentuale: anteprima, sottofasi_fatte: nuove };
+    const inCorso = delle.filter((s) => !s.fatta && !nuove.includes(s.id) && lavorate.includes(s.id)).map((s) => s.id);
+    return { phase_id, percentuale: anteprima, sottofasi_fatte: nuove, ...(inCorso.length ? { sottofasi_lavorate: inCorso } : {}) };
   });
 }
 
-/** Gli id delle sottofasi spuntate in un rapportino già salvato (per riaprirlo in modifica). */
-export function sottofasiSpuntate(fasiLavorate: unknown): string[] {
+/** Gli id delle sottofasi spuntate (o, con `chiave`, lavorate) in un rapportino già salvato (per riaprirlo in modifica). */
+export function sottofasiSpuntate(fasiLavorate: unknown, chiave: "sottofasi_fatte" | "sottofasi_lavorate" = "sottofasi_fatte"): string[] {
   if (!Array.isArray(fasiLavorate)) return [];
   return fasiLavorate.flatMap((voce) => {
-    const spunte = (voce as { sottofasi_fatte?: unknown } | null)?.sottofasi_fatte;
+    const spunte = (voce as Record<string, unknown> | null)?.[chiave];
     return Array.isArray(spunte) ? spunte.filter((x): x is string => typeof x === "string") : [];
   });
 }

@@ -17,6 +17,8 @@ export interface RigaTabella {
   inizio: string | null;
   fine: string | null;
   giorni: number | null;
+  /** Giorni di lavoro dai rapportini (solo sottofasi). */
+  giorniLavorati: number | null;
   risorse: number | null;
   quantita: number | null;
   unita: string | null;
@@ -32,7 +34,7 @@ export interface RigaTabella {
 export function righeTabellaCronoprogramma(
   fasi: ReadonlyArray<FaseCrono>,
   /** Tutte le sottofasi di ogni fase, anche senza date. */
-  sottofasi: ReadonlyMap<string, ReadonlyArray<{ id: string; name: string; fatta: boolean; giorni?: number | null; risorse?: number | null }>>,
+  sottofasi: ReadonlyMap<string, ReadonlyArray<{ id: string; name: string; fatta: boolean; giorni?: number | null; risorse?: number | null; giorni_lavorati?: number }>>,
   /** Le date (salvate o stimate) delle sottofasi che ne hanno. */
   sotto: ReadonlyMap<string, ReadonlyArray<SottofaseCrono>>,
   extra: {
@@ -48,7 +50,7 @@ export function righeTabellaCronoprogramma(
       id: f.id, numero, livello: 0, nome: f.nome,
       inizio: f.previstoInizio, fine: f.previstoFine,
       giorni: f.previstoInizio && f.previstoFine && f.previstoFine >= f.previstoInizio ? giorniFinestra(f.previstoInizio, f.previstoFine) : null,
-      risorse: null, quantita: null, unita: null,
+      giorniLavorati: null, risorse: null, quantita: null, unita: null,
       costoPrevisto: eco ? eco.costoPrevisto : null, costoConsuntivo: eco ? eco.costoConsuntivo : null, venduto: eco ? eco.venduto : null,
       avanzamento: f.avanzamento, stimata: false, ritardo: f.ritardoFine,
     });
@@ -59,7 +61,7 @@ export function righeTabellaCronoprogramma(
       righe.push({
         id: s.id, numero: `${numero}.${j + 1}`, livello: 1, nome: s.name,
         inizio: d?.previstoInizio ?? null, fine: d?.previstoFine ?? null, giorni: s.giorni ?? null,
-        risorse: s.risorse ?? null,
+        giorniLavorati: s.giorni_lavorati || null, risorse: s.risorse ?? null,
         quantita: v ? v.quantita : null, unita: v?.unita ?? null,
         costoPrevisto: v ? v.costo : null, costoConsuntivo: null, venduto: v?.importo ?? null,
         avanzamento: s.fatta ? 100 : 0, stimata: d?.stimata ?? false, ritardo: d?.ritardo ?? 0,

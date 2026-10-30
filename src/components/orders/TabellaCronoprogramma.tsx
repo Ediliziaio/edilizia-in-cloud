@@ -43,7 +43,7 @@ export function TabellaCronoprogramma({ righe, vediCosti, vediVenduto, onEsporta
           <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-2 py-2">N.</th><th className="px-2 py-2">Attività</th><th className="px-2 py-2">Inizio</th><th className="px-2 py-2">Fine</th>
-              <th className="px-2 py-2 text-right">GG</th><th className="px-2 py-2 text-right">Pers.</th><th className="px-2 py-2 text-right">Quantità</th><th className="px-2 py-2">U.M.</th>
+              <th className="px-2 py-2 text-right">GG</th><th className="px-2 py-2 text-right" title="Giorni di lavoro dai rapportini">GG lav.</th><th className="px-2 py-2 text-right">Pers.</th><th className="px-2 py-2 text-right">Quantità</th><th className="px-2 py-2">U.M.</th>
               {vediCosti && <><th className="px-2 py-2 text-right">Costo previsto</th><th className="px-2 py-2 text-right">Consuntivo</th></>}
               {vediVenduto && <th className="px-2 py-2 text-right">Venduto</th>}
               <th className="px-2 py-2 text-right">Avanz.</th>
@@ -60,6 +60,7 @@ export function TabellaCronoprogramma({ righe, vediCosti, vediVenduto, onEsporta
                 <td className="px-2 py-1.5 tabular-nums">{data(r.inizio)}</td>
                 <td className="px-2 py-1.5 tabular-nums">{data(r.fine)}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{r.giorni ?? "—"}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{r.giorniLavorati ?? ""}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{r.risorse ?? "—"}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{numero(r.quantita)}</td>
                 <td className="px-2 py-1.5">{r.unita ?? "—"}</td>
@@ -71,7 +72,7 @@ export function TabellaCronoprogramma({ righe, vediCosti, vediVenduto, onEsporta
           </tbody>
           {(vediCosti || vediVenduto) && <tfoot className="border-t-2 bg-slate-50 font-semibold">
             <tr>
-              <td className="px-2 py-2" colSpan={8}>Totale fasi</td>
+              <td className="px-2 py-2" colSpan={9}>Totale fasi</td>
               {vediCosti && <><td className="px-2 py-2 text-right tabular-nums">{euro(tot("costoPrevisto"))}</td><td className="px-2 py-2 text-right tabular-nums">{euro(tot("costoConsuntivo"))}</td></>}
               {vediVenduto && <td className="px-2 py-2 text-right tabular-nums">{euro(tot("venduto"))}</td>}
               <td />

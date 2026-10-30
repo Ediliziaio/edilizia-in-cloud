@@ -217,7 +217,9 @@ describe("Cronoprogramma", () => {
     expect(screen.getByTestId("sottofase-s3")).toHaveTextContent("+8 gg");
     expect(screen.getByTestId("sottofase-barra-s3").getAttribute("title")).toContain("fuori dalle date della fase");
     // senza date: nessuna riga
-    expect(screen.queryByTestId("sottofase-s4")).not.toBeInTheDocument();
+    // Anche la sottofase senza date ha la sua riga (31/10/2026), senza barra.
+    expect(within(screen.getByTestId("sottofase-s4")).getByText("senza date")).toBeInTheDocument();
+    expect(screen.queryByTestId("sottofase-barra-s4")).toBeNull();
     expect(screen.getByLabelText(/^Pavimenti: In corso, 33%/)).toBeInTheDocument();
     // si possono nascondere
     fireEvent.click(screen.getByRole("checkbox", { name: "Sottofasi" }));

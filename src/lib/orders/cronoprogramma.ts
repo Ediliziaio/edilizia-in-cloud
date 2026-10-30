@@ -390,6 +390,10 @@ export interface SottofaseCrono {
   fuoriDallaFase: boolean;
   /** Senza date salvate: messa in fila dai suoi giorni, dopo la sottofase precedente. */
   stimata: boolean;
+  /** Il primo giorno di lavoro dai rapportini approvati. */
+  realeInizio: string | null;
+  /** Giorni di rapportino in cui ci si è lavorato. */
+  giorniLavorati: number;
   /** Il giorno in cui è stata spuntata, se fatta. */
   realeFine: string | null;
   /** Giorni tra la fine prevista e quella reale: > 0 dopo, < 0 prima. */
@@ -403,7 +407,7 @@ export interface SottofaseCrono {
  */
 export function sottofasiCronoprogramma(
   fase: Pick<FaseCrono, "previstoInizio" | "previstoFine">,
-  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; fatta_il?: string | null; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null; in_parallelo?: boolean }>,
+  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; fatta_il?: string | null; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null; in_parallelo?: boolean; iniziata_il?: string | null; giorni_lavorati?: number }>,
   oggi: string,
   lavorativo: GiornoLavorativo = tuttiIGiorni,
 ): SottofaseCrono[] {
@@ -441,6 +445,8 @@ export function sottofasiCronoprogramma(
       ritardo: s.fatta || stimata ? 0 : Math.max(0, giorniTra(a, oggi)),
       fuoriDallaFase: !!((fase.previstoInizio && da < fase.previstoInizio) || (fase.previstoFine && a > fase.previstoFine)),
       stimata,
+      realeInizio: planningDay(s.iniziata_il) || null,
+      giorniLavorati: s.giorni_lavorati ?? 0,
       realeFine: reale?.finita ?? null,
       scarto: reale?.scarto ?? 0,
     });

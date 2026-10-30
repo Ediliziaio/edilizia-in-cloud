@@ -15,6 +15,7 @@ export async function esportaCronoprogrammaExcel(righe: ReadonlyArray<RigaTabell
     { header: "Inizio", key: "inizioData", width: 12 },
     { header: "Fine", key: "fineData", width: 12 },
     { header: "GG previsti", key: "giorni", width: 11 },
+    { header: "GG lavorati", key: "giorniLavorati", width: 11 },
     { header: "Persone", key: "risorse", width: 9 },
     { header: "Quantità", key: "quantita", width: 11 },
     { header: "U.M.", key: "unita", width: 8 },

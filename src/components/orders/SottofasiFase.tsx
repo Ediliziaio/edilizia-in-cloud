@@ -1,6 +1,6 @@
 // src/components/orders/SottofasiFase.tsx
 import { useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, CalendarRange, Layers, ListChecks, Pencil, Plus, Scale, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, CalendarRange, Layers, ListChecks, MoreHorizontal, Pencil, Plus, Scale, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,9 @@ export function SottofasiFase({
   const [inModifica, setInModifica] = useState<string | null>(null);
   const [bozza, setBozza] = useState("");
   const [inPiano, setInPiano] = useState<string | null>(null);
+  // Semplice di base (31/10/2026): i comandi di una riga dietro «⋯», giorni e persone solo in «Pianifica».
+  const [menu, setMenu] = useState<string | null>(null);
+  const [pianifica, setPianifica] = useState(false);
   const { fatte, totale } = riepilogoSottofasi(sottofasi);
   const pesi = pesiDaGiorni(sottofasi);
   // I giorni scritti sulle righe e non ancora salvati.
@@ -90,7 +93,7 @@ export function SottofasiFase({
     const n = Number(b);
     return { ...s, giorni: b !== "" && Number.isInteger(n) && n >= 1 && n <= 3650 ? n : null };
   });
-  const pianoAttivo = puoModificare && !!onPianificaTutte && totale > 0;
+  const pianoAttivo = pianifica && puoModificare && !!onPianificaTutte && totale > 0;
   const piano = pianoAttivo ? pianoInSequenza(dateFase ?? { start_date: null, end_date: null }, conGiorni, giornoLocale(new Date().toISOString()), calendario?.lavorativo) : null;
   const passoDi = new Map(piano?.passi.map((p) => [p.id, p]) ?? []);
   const daSalvare = piano?.passi.filter((p) => {
@@ -149,15 +152,20 @@ export function SottofasiFase({
         <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />Sottofasi
         </h4>
-        {totale > 0 && (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {fatte} di {totale} · {avanzamentoDaSottofasi(sottofasi)}%
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {totale > 0 && (
+            <span className="text-xs tabular-nums text-muted-foreground" title="L'avanzamento della fase si calcola dalle sottofasi fatte">
+              {fatte} di {totale} · {avanzamentoDaSottofasi(sottofasi)}%
+            </span>
+          )}
+          {puoModificare && onPianificaTutte && totale > 0 && (
+            <Button type="button" size="sm" variant={pianifica ? "secondary" : "outline"} className="h-7 px-2 text-xs" aria-pressed={pianifica}
+              onClick={() => setPianifica(!pianifica)}>
+              <CalendarRange className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{pianifica ? "Fine" : "Pianifica i giorni"}
+            </Button>
+          )}
+        </div>
       </div>
-      {totale > 0 && (
-        <p className="text-xs text-muted-foreground">L'avanzamento di questa fase si calcola dalle sottofasi fatte.</p>
-      )}
       {totale === 0 && avviata && (
         <p role="note" className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
           {avviata.chiusa
@@ -165,110 +173,117 @@ export function SottofasiFase({
             : `Questa fase è già al ${avviata.percentuale}%. Dividendola in sottofasi, l'avanzamento si calcola da quelle fatte: segna subito quelle già completate.`}
         </p>
       )}
-      <ul className="space-y-0.5">
-        {sottofasi.map((s, i) => (
-          <li key={s.id} className="flex min-h-9 flex-wrap items-center gap-2 rounded-md px-1">
-            <Checkbox
-              checked={s.fatta}
-              disabled={!puoSegnare}
-              onCheckedChange={(v) => onSegna(s.id, v === true)}
-              aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
-            />
-            {inModifica === s.id ? (
-              <Input
-                autoFocus
-                value={bozza}
-                aria-label={`Nome della sottofase ${s.name}`}
-                onChange={(e) => setBozza(e.target.value)}
-                onBlur={() => conferma(s)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); conferma(s); }
-                  else if (e.key === "Escape") setInModifica(null);
-                }}
-                className="h-8 min-w-0 flex-1 text-sm"
+      <ul className="divide-y rounded-md border">
+        {sottofasi.map((s, i) => {
+          const p = passoDi.get(s.id);
+          const testo = p ? testoPiano(p) : testoPiano(s);
+          const reale = realeSottofase(s);
+          const v = voci?.get(s.id);
+          const euro = (n: number) => `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" as unknown as boolean }).format(n)} €`;
+          // Una riga sola di informazioni: piano, reale, lavoro dai rapportini.
+          const info = [
+            s.in_parallelo && i > 0 ? "in parallelo" : null,
+            testo ? `${testo}${p?.oltreLaFase ? " · oltre la fase" : ""}` : null,
+            s.iniziata_il && !s.fatta ? `lavorata dal ${breve(s.iniziata_il)}${s.giorni_lavorati ? `, ${s.giorni_lavorati} gg` : ""}` : null,
+          ].filter(Boolean).join(" · ");
+          return (
+          <li key={s.id} className="px-2 py-1.5">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={s.fatta}
+                disabled={!puoSegnare}
+                onCheckedChange={(v) => onSegna(s.id, v === true)}
+                aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
               />
-            ) : (
-              <span className="min-w-[9rem] flex-1 break-words text-sm">
-                <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
-                {(() => {
-                  const p = passoDi.get(s.id);
-                  const testo = p ? testoPiano(p) : testoPiano(s);
-                  const reale = realeSottofase(s);
-                  return <>
-                    {testo && <span className={cn("ml-2 whitespace-nowrap text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{s.in_parallelo && i > 0 ? "in parallelo · " : ""}{testo}{p?.oltreLaFase ? " · oltre la fase" : ""}</span>}
-                    {reale && intervalloSottofase(s) && <span className={cn("ml-2 whitespace-nowrap text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
-                      finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
-                    </span>}
-                    {(() => {
-                      const v = voci?.get(s.id);
-                      if (!v) return null;
-                      const euro = (n: number) => `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" as unknown as boolean }).format(n)} €`;
-                      const qta = `${v.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${v.unita ? ` ${v.unita}` : ""}`;
-                      return <span className="block text-[11px] tabular-nums text-muted-foreground">
-                        {qta} · {v.costo > 0 ? <>costo previsto {euro(v.costo)}</> : <span className="text-amber-700">senza costo nel listino</span>}
-                        {vediVenduto && v.importo != null && <> · venduto {euro(v.importo)}</>}
-                        {s.risorse && s.giorni ? <> · {s.risorse * s.giorni} giorni-uomo</> : null}
-                      </span>;
-                    })()}
-                  </>;
-                })()}
-              </span>
-            )}
-            {inModifica !== s.id && (pianoAttivo || puoModificare) && <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
-            {pianoAttivo && !passoDi.get(s.id)?.ferma && (
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <Input type="number" inputMode="numeric" min={1} max={3650} placeholder="—" aria-label={`Giorni per ${s.name}`}
-                  value={giorniBozza[s.id] ?? (s.giorni ? String(s.giorni) : "")}
-                  onChange={(e) => setGiorniBozza({ ...giorniBozza, [s.id]: e.target.value })}
-                  className="h-7 w-14 px-1.5 text-right text-sm tabular-nums" />gg
-              </label>
-            )}
-            {puoModificare && onRisorse && (
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title="Quante persone ci lavorano">
-                <Input type="number" inputMode="numeric" min={1} max={99} placeholder="—" aria-label={`Persone per ${s.name}`}
-                  defaultValue={s.risorse ?? ""} key={`${s.id}-${s.risorse ?? ""}`}
-                  onBlur={(e) => {
-                    const n = e.target.value === "" ? null : Number(e.target.value);
-                    if (n !== null && (!Number.isInteger(n) || n < 1 || n > 99)) return;
-                    if (n !== (s.risorse ?? null)) onRisorse(s.id, n);
+              {inModifica === s.id ? (
+                <Input
+                  autoFocus
+                  value={bozza}
+                  aria-label={`Nome della sottofase ${s.name}`}
+                  onChange={(e) => setBozza(e.target.value)}
+                  onBlur={() => conferma(s)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); conferma(s); }
+                    else if (e.key === "Escape") setInModifica(null);
                   }}
-                  className="h-7 w-12 px-1.5 text-right text-sm tabular-nums" />pers.
-              </label>
+                  className="h-8 min-w-0 flex-1 text-sm"
+                />
+              ) : (
+                <div className="min-w-0 flex-1 text-sm">
+                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</p>
+                  {info && <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>}
+                  {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
+                    finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
+                  </p>}
+                  {v && <p className="text-[11px] tabular-nums text-muted-foreground">
+                    {`${v.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${v.unita ? ` ${v.unita}` : ""}`} · {v.costo > 0 ? <>costo previsto {euro(v.costo)}</> : <span className="text-amber-700">senza costo nel listino</span>}
+                    {vediVenduto && v.importo != null && <> · venduto {euro(v.importo)}</>}
+                    {s.risorse && s.giorni ? <> · {s.risorse * s.giorni} giorni-uomo</> : null}
+                  </p>}
+                </div>
+              )}
+              {puoModificare && inModifica !== s.id && (
+                <Button variant="ghost" size="icon" className={cn("h-8 w-8 shrink-0 text-muted-foreground", menu === s.id && "bg-slate-100")}
+                  aria-label={`Altro per ${s.name}`} aria-expanded={menu === s.id} onClick={() => setMenu(menu === s.id ? null : s.id)}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {pianoAttivo && !p?.ferma && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 pl-6 text-[11px] text-muted-foreground">
+                <label className="flex items-center gap-1">
+                  <Input type="number" inputMode="numeric" min={1} max={3650} placeholder="—" aria-label={`Giorni per ${s.name}`}
+                    value={giorniBozza[s.id] ?? (s.giorni ? String(s.giorni) : "")}
+                    onChange={(e) => setGiorniBozza({ ...giorniBozza, [s.id]: e.target.value })}
+                    className="h-8 w-16 px-1.5 text-right text-sm tabular-nums" />giorni
+                </label>
+                {onRisorse && (
+                  <label className="flex items-center gap-1" title="Quante persone ci lavorano">
+                    <Input type="number" inputMode="numeric" min={1} max={99} placeholder="—" aria-label={`Persone per ${s.name}`}
+                      defaultValue={s.risorse ?? ""} key={`${s.id}-${s.risorse ?? ""}`}
+                      onBlur={(e) => {
+                        const n = e.target.value === "" ? null : Number(e.target.value);
+                        if (n !== null && (!Number.isInteger(n) || n < 1 || n > 99)) return;
+                        if (n !== (s.risorse ?? null)) onRisorse(s.id, n);
+                      }}
+                      className="h-8 w-14 px-1.5 text-right text-sm tabular-nums" />persone
+                  </label>
+                )}
+                {onParallelo && i > 0 && (
+                  <button type="button" aria-pressed={!!s.in_parallelo} aria-label={`${s.name} insieme alla precedente`}
+                    onClick={() => onParallelo(s.id, !s.in_parallelo)}
+                    className={cn("flex h-8 items-center gap-1 rounded-md border px-2", s.in_parallelo ? "border-sky-500 bg-sky-50 text-sky-900" : "border-border")}>
+                    <Layers className="h-3.5 w-3.5" aria-hidden="true" />Insieme alla precedente
+                  </button>
+                )}
+              </div>
             )}
-            {puoModificare && inModifica !== s.id && (
-              <>
+            {menu === s.id && puoModificare && inModifica !== s.id && (
+              <div role="group" aria-label={`Comandi di ${s.name}`} className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
                 {onRiordina && sottofasi.length > 1 && <>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" aria-label={`Sposta su ${s.name}`} disabled={i === 0} onClick={() => sposta(i, -1)}>
-                    <ArrowUp className="h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta su ${s.name}`} disabled={i === 0} onClick={() => sposta(i, -1)}>
+                    <ArrowUp className="mr-1 h-3.5 w-3.5" />Su
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" aria-label={`Sposta giù ${s.name}`} disabled={i === sottofasi.length - 1} onClick={() => sposta(i, 1)}>
-                    <ArrowDown className="h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta giù ${s.name}`} disabled={i === sottofasi.length - 1} onClick={() => sposta(i, 1)}>
+                    <ArrowDown className="mr-1 h-3.5 w-3.5" />Giù
                   </Button>
                 </>}
-                {onParallelo && i > 0 && (
-                  <Button variant="ghost" size="icon" className={cn("h-7 w-7 text-muted-foreground", s.in_parallelo && "bg-sky-100 text-sky-800")}
-                    aria-label={`${s.name} insieme alla precedente`} aria-pressed={!!s.in_parallelo}
-                    title={s.in_parallelo ? "Parte insieme alla precedente: clic per metterla dopo" : "Falla partire insieme alla precedente"}
-                    onClick={() => onParallelo(s.id, !s.in_parallelo)}>
-                    <Layers className="h-3.5 w-3.5" />
-                  </Button>
-                )}
                 {onPianifica && (
-                  <Button variant="ghost" size="icon" className={cn("h-7 w-7 text-muted-foreground", inPiano === s.id && "bg-slate-100")} aria-label={`Date e giorni di ${s.name}`}
+                  <Button size="sm" variant="outline" className={cn("h-8 px-2 text-xs", inPiano === s.id && "bg-slate-100")} aria-label={`Date e giorni di ${s.name}`}
                     aria-expanded={inPiano === s.id} onClick={() => setInPiano(inPiano === s.id ? null : s.id)}>
-                    <CalendarDays className="h-3.5 w-3.5" />
+                    <CalendarDays className="mr-1 h-3.5 w-3.5" />Date
                   </Button>
                 )}
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" aria-label={`Rinomina ${s.name}`}
-                  onClick={() => { setBozza(s.name); setInModifica(s.id); }}>
-                  <Pencil className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Rinomina ${s.name}`}
+                  onClick={() => { setBozza(s.name); setInModifica(s.id); setMenu(null); }}>
+                  <Pencil className="mr-1 h-3.5 w-3.5" />Rinomina
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" aria-label={`Elimina ${s.name}`} onClick={() => onElimina(s.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-8 px-2 text-xs text-rose-700" aria-label={`Elimina ${s.name}`} onClick={() => { onElimina(s.id); setMenu(null); }}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />Elimina
                 </Button>
-              </>
+              </div>
             )}
-            </div>}
             {inPiano === s.id && onPianifica && (
               <PianoRiga
                 sottofase={s}
@@ -279,7 +294,8 @@ export function SottofasiFase({
               />
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
       {piano && (piano.passi.length > 0 || Object.keys(giorniBozza).length > 0) && (
         <RiepilogoPiano
@@ -307,7 +323,7 @@ export function SottofasiFase({
         </div>
       )}
       {dalleVoci}
-      {puoModificare && onPesa && pesi.length > 0 && (
+      {pianoAttivo && onPesa && pesi.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-muted-foreground">
           <span>Le sottofasi hanno tutte i giorni: una da 10 giorni può contare più di una da 1.</span>
           <Button size="sm" variant="outline" className="h-7" onClick={() => onPesa(pesi)}>

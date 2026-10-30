@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, CalendarRange, FileSignature, Loader2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight, FileSignature, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -14,7 +14,7 @@ import { useSottofasi } from "@/hooks/useSottofasi";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { TabellaCronoprogramma } from "./TabellaCronoprogramma";
 import { righeTabellaCronoprogramma } from "@/lib/orders/tabellaCronoprogramma";
-import { vociDelleSottofasi } from "@/lib/orders/sottofasi";
+import { realeSottofase, vociDelleSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
@@ -157,11 +157,33 @@ function Griglia({ asse, segni, oggi }: { asse: Asse; segni: ReturnType<typeof t
 }
 
 /** Una sottofase sotto la sua fase: barra sottile, verde se fatta, rossa se passata la fine e non fatta. */
-function RigaSottofase({ s, asse, segni, oggi }: { s: SottofaseCrono; asse: Asse; segni: ReturnType<typeof tacche>; oggi: string }) {
-  const b = barra(s.previstoInizio, s.previstoFine, asse);
+/** Una riga di sottofase: con le date (salvate o stimate) o, se non ne ha, solo il suo reale. */
+type RigaSotto = Omit<SottofaseCrono, "previstoInizio" | "previstoFine"> & { previstoInizio: string | null; previstoFine: string | null };
+
+/** Le sottofasi di una fase per il grafico: tutte, anche senza date (31/10/2026). */
+function righeSottofasi(tutte: ReadonlyArray<Sottofase>, conDate: ReadonlyArray<SottofaseCrono>): RigaSotto[] {
+  const perId = new Map(conDate.map((d) => [d.id, d]));
+  return tutte.map((s): RigaSotto => {
+    const d = perId.get(s.id);
+    if (d) return d;
+    const reale = realeSottofase(s);
+    return {
+      id: s.id, nome: s.name, fatta: s.fatta, previstoInizio: null, previstoFine: null, giorni: s.giorni ?? null,
+      ritardo: 0, fuoriDallaFase: false, stimata: false, realeInizio: s.iniziata_il ?? null,
+      giorniLavorati: s.giorni_lavorati ?? 0, realeFine: reale?.finita ?? null, scarto: 0,
+    };
+  });
+}
+
+function RigaSottofase({ s, asse, segni, oggi }: { s: RigaSotto; asse: Asse; segni: ReturnType<typeof tacche>; oggi: string }) {
+  const b = s.previstoInizio && s.previstoFine ? barra(s.previstoInizio, s.previstoFine, asse) : null;
   const r = s.realeFine ? barra(s.realeFine, s.realeFine, asse) : null;
+  // Il lavoro vero dai rapportini: dal primo giorno alla fine (o a oggi, se è ancora aperta).
+  const lavoro = s.realeInizio ? barra(s.realeInizio, s.realeFine ?? (oggi > s.realeInizio ? oggi : s.realeInizio), asse) : null;
   const reale = s.realeFine ? ` · finita il ${lunga(s.realeFine)}${s.scarto > 0 ? `, ${giorni(s.scarto)} dopo` : s.scarto < 0 ? `, ${giorni(-s.scarto)} prima` : ", in tempo"}` : "";
-  const quando = `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${giorni(s.giorni)} necessari` : ""}`;
+  const quando = s.previstoInizio && s.previstoFine
+    ? `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${giorni(s.giorni)} necessari` : ""}`
+    : "senza date";
   return (
     <div data-testid={`sottofase-${s.id}`} className="flex border-b bg-slate-50/40 last:border-b-0">
       <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center gap-1.5 border-r bg-white py-1 pl-7 pr-2 text-[11px]">
@@ -171,14 +193,19 @@ function RigaSottofase({ s, asse, segni, oggi }: { s: SottofaseCrono; asse: Asse
       </div>
       <div className="relative h-7 flex-1">
         <Griglia asse={asse} segni={segni} oggi={oggi} />
-        {b.width > 0 && (
+        {!b && !lavoro && !r && <span className="absolute left-2 top-1.5 text-[10px] italic text-muted-foreground">senza date{s.fatta ? " · fatta" : ""}</span>}
+        {b && b.width > 0 && (
           <span
             data-testid={`sottofase-barra-${s.id}`}
             className={cn("absolute top-2 h-3 rounded-sm", s.fatta ? "bg-emerald-400" : s.ritardo > 0 ? "bg-rose-300" : "bg-sky-300",
               s.stimata && "border border-dashed border-sky-500 bg-sky-100", s.fuoriDallaFase && "ring-1 ring-amber-500")}
             style={{ left: `${b.left}%`, width: `${b.width}%` }}
-            title={`${s.nome}: ${quando}${s.fatta ? reale || " · fatta" : ""}${s.stimata ? " · stimata dai giorni, date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
+            title={`${s.nome}: ${quando}${s.realeInizio ? ` · lavorata dal ${lunga(s.realeInizio)}, ${giorni(s.giorniLavorati)} di lavoro` : ""}${s.fatta ? reale || " · fatta" : ""}${s.stimata ? " · stimata dai giorni, date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
           />
+        )}
+        {lavoro && lavoro.width > 0 && (
+          <span data-testid={`sottofase-lavoro-${s.id}`} aria-hidden="true" className="absolute top-[22px] h-1 rounded-full bg-slate-700"
+            style={{ left: `${lavoro.left}%`, width: `${lavoro.width}%` }} />
         )}
         {r && (
           <span
@@ -234,6 +261,9 @@ export function CronoprogrammaCommessa({
   const crono = useCronoprogramma(orderId, order.quote_id ?? null);
   const { perFase: sottofasiDi } = useSottofasi(orderId);
   const [conSottofasi, setConSottofasi] = useState(true);
+  // Le fasi di cui si sono chiuse le sottofasi (clic sulla freccia della fase).
+  const [chiuse, setChiuse] = useState<ReadonlySet<string>>(new Set());
+  const apriChiudi = (id: string) => setChiuse((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const { lavorativo } = useCalendarioCantiere();
   const isMobile = useIsMobile();
   const [periodoScelto, setPeriodo] = useState<"previsto" | "confronto" | null>(null);
@@ -280,8 +310,11 @@ export function CronoprogrammaCommessa({
   const nelGrafico = fasi.filter((f) => previsto(f) || f.realeInizio || f.realeFine);
   const senzaDate = fasi.filter((f) => !previsto(f) && !f.realeInizio && !f.realeFine);
   const dateSottofasi = useMemo(
-    () => (conSottofasi ? [...sotto.values()].flat().flatMap((s) => [s.previstoInizio, s.previstoFine, ...(s.realeFine ? [s.realeFine] : [])]) : []),
-    [sotto, conSottofasi],
+    () => (conSottofasi ? [
+      ...[...sotto.values()].flat().flatMap((s) => [s.previstoInizio, s.previstoFine, ...(s.realeFine ? [s.realeFine] : [])]),
+      ...[...sottofasiDi.values()].flat().flatMap((s) => [s.iniziata_il, realeSottofase(s)?.finita]).filter((d): d is string => !!d),
+    ] : []),
+    [sotto, sottofasiDi, conSottofasi],
   );
   // La tabella: fasi e sottofasi con date, giorni, persone, quantità e costi della voce del computo.
   const righeTabella = useMemo(() => righeTabellaCronoprogramma(fasi, sottofasiDi, sotto, {
@@ -399,7 +432,7 @@ export function CronoprogrammaCommessa({
               <option value="adatta">Adatta al riquadro</option><option value="mesi">Mesi</option><option value="settimane">Settimane</option>
             </select>
           </label>}
-          {vista === "grafico" && sotto.size > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {vista === "grafico" && [...sottofasiDi.values()].some((l) => l.length > 0) && <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={conSottofasi} onChange={e => setConSottofasi(e.target.checked)} className="h-4 w-4 accent-orange-600" />Sottofasi
           </label>}
           <Button size="sm" variant="outline" onClick={() => setVista(vista === "grafico" ? "elenco" : "grafico")}>{vista === "grafico" ? "Elenco fasi" : "Grafico"}</Button>
@@ -481,11 +514,20 @@ export function CronoprogrammaCommessa({
               <Fragment key={f.id}>
               <div className="flex border-b last:border-b-0">
                 <div className="sticky left-0 z-10 w-56 shrink-0 border-r bg-white px-2 py-1.5">
+                  <div className="flex items-start">
+                  {conSottofasi && (sottofasiDi.get(f.id)?.length ?? 0) > 0 && (
+                    <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={!chiuse.has(f.id)}
+                      aria-label={`${chiuse.has(f.id) ? "Mostra" : "Nascondi"} le sottofasi di ${f.nome}`}
+                      title={`${sottofasiDi.get(f.id)!.length} sottofasi`}
+                      className="mt-0.5 flex h-6 shrink-0 items-center rounded px-0.5 text-[10px] text-muted-foreground hover:bg-slate-100">
+                      {chiuse.has(f.id) ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}{sottofasiDi.get(f.id)!.length}
+                    </button>
+                  )}
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+                        className="flex w-full min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
                         aria-label={`${f.nome}: ${ETICHETTA_STATO[f.stato]}, ${f.avanzamento}%${rit ? `, ${!aperta ? "scostamento storico" : rit.su === "fine" ? "in ritardo" : "inizio in ritardo"} di ${giorni(rit.giorni)}` : ""}`}
                       >
                         <span
@@ -504,6 +546,7 @@ export function CronoprogrammaCommessa({
                       <Dettaglio fase={f} oggi={oggi} economia={eco} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} />
                     </PopoverContent>
                   </Popover>
+                  </div>
                   <p className="flex items-center gap-2 px-1 text-[11px] text-muted-foreground tabular-nums">
                     <span>{f.avanzamento}%</span>
                     {canViewCosts && eco && costoSforato(eco) && <span className="font-medium text-rose-700">costo +{formatCurrency(eco.scostamento)}</span>}
@@ -543,7 +586,7 @@ export function CronoprogrammaCommessa({
                   </span>}
                 </div>
               </div>
-              {conSottofasi && (sotto.get(f.id) ?? []).map((s) => (
+              {conSottofasi && !chiuse.has(f.id) && righeSottofasi(sottofasiDi.get(f.id) ?? [], sotto.get(f.id) ?? []).map((s) => (
                 <RigaSottofase key={s.id} s={s} asse={asse} segni={segni} oggi={oggi} />
               ))}
               </Fragment>
@@ -561,6 +604,7 @@ export function CronoprogrammaCommessa({
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-amber-500" />Scostamento storico, fase chiusa</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-500" />Chiusura senza inizio rilevato</span>
         {sotto.size > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300" />Sottofase prevista (verde se fatta)</span>}
+        {[...sottofasiDi.values()].flat().some(s => s.iniziata_il) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-1 w-6 rounded-full bg-slate-700" />Sottofase: lavoro dai rapportini</span>}
         {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm border border-dashed border-sky-500 bg-sky-100" />Sottofase stimata dai giorni</span>}
         {[...sotto.values()].some(r => r.some(s => s.realeFine)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-600" />Sottofase finita (rosso se dopo la fine prevista)</span>}
         {[...sotto.values()].some(r => r.some(s => s.fuoriDallaFase)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300 ring-1 ring-amber-500" />Sottofase oltre le date della fase</span>}

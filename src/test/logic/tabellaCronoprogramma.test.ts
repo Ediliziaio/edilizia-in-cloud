@@ -34,7 +34,7 @@ describe("esportazione in Excel", () => {
   it("il file si riapre: intestazioni, fasi in grassetto, date vere, costi solo se si vedono", async () => {
     const { esportaCronoprogrammaExcel } = await import("@/lib/orders/esportaCronoprogramma");
     const ExcelJS = (await import("exceljs")).default;
-    const riga: RigaTabella = { id: "f1", numero: "1", livello: 0, nome: "Tetto", inizio: "2026-10-02", fine: "2026-11-10", giorni: 40, risorse: null, quantita: null, unita: null, costoPrevisto: 542.75, costoConsuntivo: 0, venduto: 22120, avanzamento: 10, stimata: false, ritardo: 0 };
+    const riga: RigaTabella = { id: "f1", numero: "1", livello: 0, nome: "Tetto", inizio: "2026-10-02", fine: "2026-11-10", giorni: 40, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: 542.75, costoConsuntivo: 0, venduto: 22120, avanzamento: 10, stimata: false, ritardo: 0 };
     const sotto: RigaTabella = { ...riga, id: "s1", numero: "1.1", livello: 1, nome: "Smontaggio manto", giorni: 4, risorse: 3, quantita: 109.45, unita: "m²", costoPrevisto: 436.71, venduto: 3360 };
     const leggi = async (costi: boolean) => {
       const blob = await esportaCronoprogrammaExcel([riga, sotto], "Prova", { costi, venduto: costi });
@@ -43,11 +43,11 @@ describe("esportazione in Excel", () => {
       return wb.getWorksheet("Cronoprogramma")!;
     };
     const ws = await leggi(true);
-    expect((ws.getRow(1).values as unknown[]).filter(Boolean)).toEqual(["N.", "Attività", "Inizio", "Fine", "GG previsti", "Persone", "Quantità", "U.M.", "Costo previsto", "Costo consuntivo", "Venduto", "Avanzamento %"]);
+    expect((ws.getRow(1).values as unknown[]).filter(Boolean)).toEqual(["N.", "Attività", "Inizio", "Fine", "GG previsti", "GG lavorati", "Persone", "Quantità", "U.M.", "Costo previsto", "Costo consuntivo", "Venduto", "Avanzamento %"]);
     expect(ws.getRow(2).font?.bold).toBe(true);
     expect(ws.getRow(3).getCell(2).value).toBe("   Smontaggio manto");
     expect(ws.getRow(3).getCell(3).value).toBeInstanceOf(Date);
-    expect(ws.getRow(3).getCell(9).value).toBe(436.71);
+    expect(ws.getRow(3).getCell(10).value).toBe(436.71);
     expect((await leggi(false)).getRow(1).values).not.toContain("Costo previsto");
   });
 });
