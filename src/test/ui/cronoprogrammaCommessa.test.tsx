@@ -214,11 +214,13 @@ describe("Cronoprogramma", () => {
       sf("s4", "Pulizia", {}),
     ]]]);
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByTestId("sottofase-barra-s1").getAttribute("title")).toBe("Massetto: 17/08/2026 → 19/08/2026 · 3 giorni necessari · fatta");
+    expect(screen.getByTestId("sottofase-barra-s1").getAttribute("title")).toBe("Massetto: previsto 17/08/2026 → 19/08/2026 · 3 giorni necessari · fatta");
     // inizio + giorni: la fine la si ricava (20 → 24/08)
-    expect(screen.getByTestId("sottofase-barra-s2").getAttribute("title")).toBe("Posa: 20/08/2026 → 24/08/2026 · 5 giorni necessari");
+    expect(screen.getByTestId("sottofase-barra-s2").getAttribute("title")).toBe("Posa: previsto 20/08/2026 → 24/08/2026 · 5 giorni necessari");
     // finita prima della fase, non fatta e già passata: in ritardo, e segnalata fuori dalle date della fase
-    expect(screen.getByTestId("sottofase-s3")).toHaveTextContent("+8 gg");
+    // Il «+N gg» sta sulla fase; la sottofase ha la coda rossa e lo dice al passaggio del mouse.
+    expect(screen.getByTestId("sottofase-oltre-s3")).toBeInTheDocument();
+    expect(screen.getByTestId("sottofase-barra-s3").getAttribute("title")).toContain("+8 giorni oltre la fine prevista");
     expect(screen.getByTestId("sottofase-barra-s3").getAttribute("title")).toContain("fuori dalle date della fase");
     // senza date: nessuna riga
     // Anche la sottofase senza date ha la sua riga (31/10/2026), senza barra.
