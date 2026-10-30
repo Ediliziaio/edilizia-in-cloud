@@ -3,6 +3,7 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import { generateXML } from "../_shared/generateXML.ts";
+import { allegatiPerInvioSdi } from "../_shared/allegatiSdi.ts";
 import { datiReaMancanti } from "../_shared/datiSocietari.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
@@ -255,6 +256,16 @@ Deno.serve(async (req) => {
     // due chiamate concorrenti (doppio click / retry / due tab) → l'altra riceve
     // claimed=false e abortisce qui SENZA inviare. Va PRIMA del ProgressivoInvio
     // così il "perdente" non consuma un progressivo né genera/trasmette XML.
+    // Gli allegati scelti per l'invio (fattura_allegati): letti PRIMA del claim, così
+    // un file mancante non lascia il documento «in invio» né consuma un progressivo.
+    const allegatiInvio = await allegatiPerInvioSdi(supabase, doc.company_id, doc.id);
+    if (allegatiInvio.errore) {
+      return new Response(
+        JSON.stringify({ error: allegatiInvio.errore, code: "allegati" }),
+        { status: 422, headers: getCorsHeaders(req) },
+      );
+    }
+
     const claim = await claimDocumentoPerInvio(supabase, doc.id);
     if (!claim.claimed) {
       const esito = valutaPreInvio({
@@ -293,6 +304,8 @@ Deno.serve(async (req) => {
         .select("numero, data_emissione").eq("id", doc.documento_correlato_id).maybeSingle();
       if (originale?.numero) docXml = { ...doc, fattura_collegata: { numero: originale.numero, data: originale.data_emissione } };
     }
+
+    if (allegatiInvio.allegati.length) docXml = { ...docXml, allegati: allegatiInvio.allegati };
 
     // Generate XML
     const xml = generateXML(docXml, azienda, progressivoInvio);

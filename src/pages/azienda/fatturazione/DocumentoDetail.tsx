@@ -19,6 +19,7 @@ import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -460,6 +461,18 @@ export default function DocumentoDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Allegati: contabili, DDT, contratti. Finché il documento si può (ri)mandare
+              allo SDI, si sceglie quali partono dentro l'XML con la fattura. */}
+          <Card>
+            <CardContent className="pt-4 max-sm:p-3">
+              <AllegatiFattura
+                companyId={effectiveCompany?.id}
+                madre={{ documentoFiscaleId: doc.id }}
+                invioSdi={modificabile && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo}
+              />
+            </CardContent>
+          </Card>
 
           {/* Linked Documents */}
           {doc.documento_correlato_id && (

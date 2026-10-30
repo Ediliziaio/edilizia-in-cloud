@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -264,7 +265,7 @@ export function RiepilogoFatturaRicevuta({
     <Sheet open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
-        className={isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"}
+        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
@@ -329,7 +330,7 @@ export function RiepilogoFatturaRicevuta({
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-muted-foreground">Non in anagrafica</span>
                       {d.candidatiFornitore.length === 1 ? (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato}
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => collegaFornitore.mutate(d.candidatiFornitore[0].id)}>
                           Collega a {d.candidatiFornitore[0].name}
                           {d.daCollegareStessoCedente.length > 1 ? ` (con le altre ${d.daCollegareStessoCedente.length - 1})` : ""}
@@ -341,7 +342,7 @@ export function RiepilogoFatturaRicevuta({
                       ) : d.candidatiFornitore.length > 1 ? (
                         <span className="text-xs text-muted-foreground">{d.candidatiFornitore.length} schede con questa partita IVA: scegli in Anagrafiche</span>
                       ) : (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato}
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => aggiungiFornitore.mutate()}>
                           Aggiungi ai fornitori
                           {d.daCollegareStessoCedente.length > 1 ? ` (e collega le sue ${d.daCollegareStessoCedente.length} fatture)` : ""}
@@ -359,7 +360,7 @@ export function RiepilogoFatturaRicevuta({
                     </Link>
                   ))}
                   {azioni.onCollegaOrdine && f.stato !== "contabilizzata" ? (
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={azioni.onCollegaOrdine}>
+                    <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaOrdine}>
                       {d.ordini.length ? "Cambia" : "Collega"}
                     </Button>
                   ) : null}
@@ -386,7 +387,7 @@ export function RiepilogoFatturaRicevuta({
                               <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
                             )) : <span className="text-muted-foreground">Nessuna</span>}
                           {sceglibile && !scegliCommessa ? (
-                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
                               {uniche.length ? "Cambia" : "Scegli commessa"}
                             </Button>
                           ) : null}
@@ -396,7 +397,7 @@ export function RiepilogoFatturaRicevuta({
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
                             <span className="text-muted-foreground">L'AI suggerisce</span>
                             <Badge variant="outline" className="border-dashed">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
-                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
                               Collega
                             </Button>
                           </div>
@@ -428,7 +429,7 @@ export function RiepilogoFatturaRicevuta({
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-muted-foreground">Non ancora contabilizzata</span>
                       {azioni.onContabilizza && f.stato !== "rifiutata" ? (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={azioni.onContabilizza}>Contabilizza</Button>
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onContabilizza}>Contabilizza</Button>
                       ) : null}
                     </span>
                   )}
@@ -443,6 +444,9 @@ export function RiepilogoFatturaRicevuta({
               </dl>
               {azioni.extraCollegamenti?.(d)}
             </section>
+
+            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
+            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {/* Righe */}
             <section className="space-y-2">

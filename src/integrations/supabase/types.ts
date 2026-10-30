@@ -36506,6 +36506,57 @@ export type Database = {
           },
         ]
       }
+      fattura_allegati: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          documento_fiscale_id: string | null
+          fattura_ricevuta_id: string | null
+          file_name: string
+          id: string
+          includi_nell_invio: boolean
+          invoice_id: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          tipo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          documento_fiscale_id?: string | null
+          fattura_ricevuta_id?: string | null
+          file_name: string
+          id?: string
+          includi_nell_invio?: boolean
+          invoice_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          tipo?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          documento_fiscale_id?: string | null
+          fattura_ricevuta_id?: string | null
+          file_name?: string
+          id?: string
+          includi_nell_invio?: boolean
+          invoice_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       fatture_ricevute: {
         Row: {
           aggancio_oda_manuale: boolean
