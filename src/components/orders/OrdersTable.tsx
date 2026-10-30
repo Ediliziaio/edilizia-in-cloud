@@ -620,6 +620,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                       >
                         {order.status.name}
                       </Badge>
+                    ) : generale && riga.figlie.length > 0 ? (
+                      <StatiFiglie figlie={riga.figlie} />
                     ) : (
                       "—"
                     )}
@@ -680,6 +682,26 @@ function SegnoGenerale({ order, mappa, compatto = false }: { order: OrderWithDet
   return (
     <span className="min-w-0 truncate text-[10px] text-muted-foreground" title={`Fa parte di ${g.etichetta}`}>
       in {g.etichetta}
+    </span>
+  );
+}
+
+/** Generale senza stato suo: gli stati delle commesse dentro, il più frequente in vista e gli altri nel titolo. */
+function StatiFiglie({ figlie }: { figlie: OrderWithDetails[] }) {
+  const conti = new Map<string, { n: number; colore: string | undefined }>();
+  for (const f of figlie) {
+    const nome = f.status?.name ?? "Senza stato";
+    const prima = conti.get(nome);
+    conti.set(nome, { n: (prima?.n ?? 0) + 1, colore: f.status?.color ?? prima?.colore });
+  }
+  const ordinati = [...conti.entries()].sort((a, b) => b[1].n - a[1].n);
+  const [nome, { n, colore }] = ordinati[0];
+  const titolo = ordinati.map(([k, v]) => `${v.n} ${k}`).join(" · ");
+  return (
+    <span className="inline-flex items-center gap-1 text-xs" title={titolo}>
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colore ?? "hsl(var(--muted-foreground))" }} aria-hidden="true" />
+      <span className="truncate">{n === figlie.length ? `Tutte: ${nome}` : `${n} ${nome}`}</span>
+      {ordinati.length > 1 && <span className="text-muted-foreground">+{figlie.length - n}</span>}
     </span>
   );
 }

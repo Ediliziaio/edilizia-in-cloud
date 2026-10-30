@@ -81,3 +81,20 @@ export function totaleFatturato(documenti: ReadonlyArray<DocumentoFatturato>): n
   return documenti.reduce((somma, d) =>
     isTipoVendita(d.tipo) && isDocumentoEmesso(d.stato) ? somma + importoConSegno(d.tipo, importoFatturatoCommessa(d)) : somma, 0);
 }
+
+/**
+ * Commessa di un'unità in vendita (commesse generali, modulo Unità): caparre, acconti e saldi
+ * registrati sull'unità sono incassi veri che non passano dalle rate. Si prende il più alto tra
+ * i due (sono gli stessi soldi registrati in due posti), mai la somma.
+ */
+export function conIncassiUnita(i: IncassiCommessa, incassatoUnitaLordo: number, vatRate: number): IncassiCommessa {
+  if (!(incassatoUnitaLordo > i.incassatoLordo)) return i;
+  const iva = Number.isFinite(vatRate) ? vatRate : 22;
+  const incassatoLordo = Math.round(incassatoUnitaLordo * 100) / 100;
+  return {
+    ...i,
+    incassatoLordo,
+    daIncassareLordo: Math.max(0, i.totaleLordo - incassatoLordo),
+    incassatoNetto: grossToNetAmount(incassatoLordo, iva),
+  };
+}

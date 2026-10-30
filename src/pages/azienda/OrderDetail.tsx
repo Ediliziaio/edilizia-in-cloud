@@ -110,7 +110,8 @@ import { RapportiniUfficio } from "@/components/orders/RapportiniUfficio";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { OreEPersone } from "@/components/orders/OreEPersone";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
-import { incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { conIncassiUnita, incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
@@ -382,6 +383,8 @@ function OrderDetailInner() {
   });
   const schedaPronta = !!id && !!companyId && (scheda.isSuccess || scheda.isError);
   const contractLink = useOrderContractLink(schedaPronta ? id : undefined);
+  // Commessa di un'unità in vendita: caparre, acconti e saldi registrati sull'unità contano come incassato.
+  const incassiUnita = useIncassiUnita(id);
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
   const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
@@ -1317,14 +1320,14 @@ function OrderDetailInner() {
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
-  const incassi = incassiDellaCommessa({
+  const incassi = conIncassiUnita(incassiDellaCommessa({
     installments: displayInstallments,
     totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
     varianti: variantiDatate,
-  });
+  }), incassiUnita.data ?? 0, order.vat_rate ?? 22);
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
   const cashTotalGross = incassi.totaleLordo;

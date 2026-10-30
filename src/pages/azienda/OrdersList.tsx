@@ -63,7 +63,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
 import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
-import { leggiIdGenerali, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
+import { leggiIdGenerali, leggiIncassiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 // MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
@@ -285,12 +285,14 @@ function OrdersListInner() {
       const rows = isYearCorrente ? currentManagementScope(allRows,currentYear,lastStatusId,supportStatusId,ticketIds) : allRows;
       // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
       const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
+      // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
+      const incassiUnita = generaliConfigurate ? await leggiIncassiUnita(effectiveCompany.id) : undefined;
       const generali = new Set(generaliIds);
       const righeCheContano = generali.size ? rows.filter(order => !generali.has(order.id)) : rows;
       const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
-      const annual = orderEconomics(annualRows);
-      const previous = orderEconomics(previousRows);
+      const annual = orderEconomics(annualRows, incassiUnita);
+      const previous = orderEconomics(previousRows, incassiUnita);
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
       const reasons = {work:0,support:0,payment:0};
       Object.values(previousReasons).forEach(values => {

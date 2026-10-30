@@ -18,13 +18,21 @@ export function currentManagementScope<T extends OrderWithDetails>(orders: T[], 
   return orders.filter(order => orderYear(order) === year || previousOrderReasons(order, year, completedId, supportId, ticketIds).length > 0);
 }
 
-export function orderEconomics(orders: OrderWithDetails[]) {
-  return orders.reduce((total, order) => ({
-    count: total.count + 1,
-    sold: total.sold + getGrossOrderAmount(order),
-    collected: total.collected + getAmountCollected(order),
-    pending: total.pending + getAmountDue(order),
-  }), {count: 0, sold: 0, collected: 0, pending: 0});
+/**
+ * `incassiUnita`: caparre, acconti e saldi delle unità in vendita (commesse generali), per commessa.
+ * Si prende il più alto tra rate/fatture e incassi dell'unità (stessi soldi, mai sommati).
+ */
+export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: ReadonlyMap<string, number>) {
+  return orders.reduce((total, order) => {
+    const daRate = getAmountCollected(order);
+    const inPiu = Math.max(0, (incassiUnita?.get(order.id) ?? 0) - daRate);
+    return {
+      count: total.count + 1,
+      sold: total.sold + getGrossOrderAmount(order),
+      collected: total.collected + daRate + inPiu,
+      pending: total.pending + Math.max(0, getAmountDue(order) - inPiu),
+    };
+  }, {count: 0, sold: 0, collected: 0, pending: 0});
 }
 
 export type OrderScopeGroup = "all" | "annual" | "previous";

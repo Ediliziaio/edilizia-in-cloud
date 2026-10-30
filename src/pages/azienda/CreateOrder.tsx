@@ -335,7 +335,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setCantiereAddressData(null);
     cantiereTouchedRef.current = false;
     lastCantiereCustomerRef.current = null;
-    const draft = loadDraft();
+    // Un ordine creato da una commessa generale parte pulito: la bozza è di un'altra commessa nuova.
+    const draft = searchParams.get("generale") ? null : loadDraft();
     if (!draft) return;
     reset({
       customer_id: draft.customerId || "",

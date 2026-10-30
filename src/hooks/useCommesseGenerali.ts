@@ -244,21 +244,7 @@ export function useMappaGenerali(): MappaGenerali {
           figliePerGenerale.set(r.commessa_generale_id, (figliePerGenerale.get(r.commessa_generale_id) ?? 0) + 1);
           generaleDellaFiglia.set(r.id, { id: r.commessa_generale_id, etichetta: generali.get(r.commessa_generale_id)! });
         }
-        // Gli incassi delle unità: due letture semplici, e se il modulo non c'è la mappa resta vuota.
-        const incassiUnita = new Map<string, number>();
-        try {
-          const [unita, movimenti] = await Promise.all([
-            db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId!).limit(5000),
-            db.from("unita_movimenti").select("unita_id, importo").eq("company_id", companyId!).in("tipo", ["caparra", "acconto", "saldo"]).limit(20000),
-          ]);
-          if (!unita.error && !movimenti.error) {
-            const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));
-            for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string }[]) {
-              const ordine = ordineDi.get(m.unita_id);
-              if (ordine) incassiUnita.set(ordine, (incassiUnita.get(ordine) ?? 0) + Number(m.importo || 0));
-            }
-          }
-        } catch { /* la lista funziona anche senza */ }
+        const incassiUnita = await leggiIncassiUnita(companyId!);
         return { figliePerGenerale, generaleDellaFiglia, incassiUnita };
       } catch {
         return MAPPA_VUOTA;
@@ -402,4 +388,48 @@ export function useCostiSullaGenerale(generaleId: string | undefined, enabled = 
       }
     },
   });
+}
+
+/** Caparre, acconti e saldi registrati sull'unità di questa commessa (0 se non è un'unità). */
+export function useIncassiUnita(orderId: string | undefined) {
+  const { effectiveCompany } = useAuth();
+  const { configurata } = useImpostazioniCommesseGenerali();
+  return useQuery({
+    queryKey: ["incassi-unita", effectiveCompany?.id, orderId],
+    enabled: !!orderId && !!effectiveCompany?.id && configurata,
+    staleTime: 30_000,
+    meta: { silent: true },
+    queryFn: async (): Promise<number> => {
+      try {
+        const { data: u, error } = await db.from("unita_immobiliari").select("id").eq("order_id", orderId!).maybeSingle();
+        if (error || !u) return 0;
+        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo").eq("unita_id", (u as { id: string }).id).in("tipo", ["caparra", "acconto", "saldo"]);
+        if (e2) return 0;
+        return ((m ?? []) as { importo: number | string }[]).reduce((t, x) => t + Number(x.importo || 0), 0);
+      } catch {
+        return 0;
+      }
+    },
+  });
+}
+
+/**
+ * Caparre, acconti e saldi delle unità in vendita, per commessa dell'unità. Due letture semplici;
+ * mappa vuota se il modulo Unità non c'è o la lettura fallisce (la lista funziona lo stesso).
+ */
+export async function leggiIncassiUnita(companyId: string): Promise<Map<string, number>> {
+  const incassi = new Map<string, number>();
+  try {
+    const [unita, movimenti] = await Promise.all([
+      db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId).limit(5000),
+      db.from("unita_movimenti").select("unita_id, importo").eq("company_id", companyId).in("tipo", ["caparra", "acconto", "saldo"]).limit(20000),
+    ]);
+    if (unita.error || movimenti.error) return incassi;
+    const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));
+    for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string }[]) {
+      const ordine = ordineDi.get(m.unita_id);
+      if (ordine) incassi.set(ordine, (incassi.get(ordine) ?? 0) + Number(m.importo || 0));
+    }
+  } catch { /* la lista funziona anche senza */ }
+  return incassi;
 }
