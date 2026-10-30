@@ -106,6 +106,7 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { RapportiniUfficio } from "@/components/orders/RapportiniUfficio";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { OreEPersone } from "@/components/orders/OreEPersone";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
@@ -2301,6 +2302,7 @@ function OrderDetailInner() {
             </>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
+              {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" /></div>}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
               <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
             </div>

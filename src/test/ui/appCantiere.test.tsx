@@ -37,12 +37,14 @@ beforeEach(() => {
 });
 
 describe("Nell'app: chi vede il cantiere", () => {
-  it("organizzazione chiusa mostra il responsabile senza un editor o spiegazioni lunghe", () => {
+  it("organizzazione chiusa: il capocantiere si sceglie lì, senza aprire Gestisci", () => {
     state.accessi = [persona("u1", "Mario", {is_capocantiere: true})];
     const manage = vi.fn(), shifts = vi.fn();
     render(<AppCantiere orderId="o1" modificabile nomiSquadre={new Map()} gestione organizzazione={{aperta: false, riepilogo: "Squadra commessa: Muratori", onGestione: manage, onTurni: shifts}} />);
     expect(screen.getByText("Mario Rossi")).toBeInTheDocument(); expect(screen.getByText(/Squadra commessa: Muratori/)).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", {name: "Capocantiere"})).not.toBeInTheDocument();
+    // 31/10/2026: la tendina sta nella riga chiusa; il pannello completo non si apre da solo.
+    expect(screen.getByRole("combobox", {name: "Capocantiere"})).toHaveTextContent("Mario Rossi");
+    expect(screen.queryByText(/accessi Campo/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: "Gestisci"})); expect(manage).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", {name: "Pianifica turni"})); expect(shifts).toHaveBeenCalledOnce();
     expect(state.scegli).not.toHaveBeenCalled(); expect(state.togli).not.toHaveBeenCalled();
