@@ -190,6 +190,30 @@ describe("SottofasiFase", () => {
     expect(setSabato).toHaveBeenCalledWith(true);
   });
 
+  it("ogni sottofase mostra la sua voce del computo: quantità, costo previsto, venduto e giorni-uomo", () => {
+    const voci = new Map([["s1", { quantita: 109.45, unita: "m²", costo: 436.71, importo: 3360 }], ["s2", { quantita: 2, unita: "gg", costo: 0, importo: null }]]);
+    const { rerender } = render(<SottofasiFase nomeFase="Tetto" puoModificare puoSegnare {...azioni()} voci={voci} vediVenduto onRisorse={vi.fn()}
+      sottofasi={[riga({ id: "s1", name: "Smontaggio manto", giorni: 4, risorse: 3 }), riga({ id: "s2", name: "Attesa maturazione" })]} />);
+    const testo = (atteso: RegExp) => screen.getByText((_, el) => el?.tagName === "SPAN" && atteso.test(el.textContent ?? "") && ![...el.children].some(c => atteso.test(c.textContent ?? "")));
+    expect(testo(/109,45 m² · costo previsto 436,71 € · venduto 3\.360,00 € · 12 giorni-uomo/)).toBeInTheDocument();
+    expect(screen.getByText("senza costo nel listino")).toBeInTheDocument();
+    rerender(<SottofasiFase nomeFase="Tetto" puoModificare puoSegnare {...azioni()} voci={voci} vediVenduto={false}
+      sottofasi={[riga({ id: "s1", name: "Smontaggio manto" })]} />);
+    expect(screen.queryByText(/venduto/)).not.toBeInTheDocument();
+  });
+
+  it("una fase con le voci del computo si divide in sottofasi con un clic, e le persone si salvano uscendo dal campo", () => {
+    const onSottofasiDalleVoci = vi.fn();
+    const { rerender } = render(<SottofasiFase nomeFase="Tetto" puoModificare puoSegnare {...azioni()} sottofasi={[]} vociSenzaSottofase={12} onSottofasiDalleVoci={onSottofasiDalleVoci} />);
+    fireEvent.click(screen.getByRole("button", { name: "Dividi nelle 12 voci del computo" }));
+    expect(onSottofasiDalleVoci).toHaveBeenCalled();
+    const onRisorse = vi.fn();
+    rerender(<SottofasiFase nomeFase="Tetto" puoModificare puoSegnare {...azioni()} sottofasi={[riga()]} onRisorse={onRisorse} />);
+    fireEvent.change(screen.getByLabelText("Persone per Tracce"), { target: { value: "3" } });
+    fireEvent.blur(screen.getByLabelText("Persone per Tracce"));
+    expect(onRisorse).toHaveBeenCalledWith("s1", 3);
+  });
+
   it("pesa per giorni quando tutte le sottofasi hanno i giorni", () => {
     const a = { ...azioni(), onPesa: vi.fn() };
     const { rerender } = render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga({ giorni: 10 }), riga({ id: "s2", name: "Cavi" })]} />);

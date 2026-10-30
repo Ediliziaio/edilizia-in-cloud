@@ -12,6 +12,9 @@ import { planningDay } from "@/lib/orders/planning";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
+import { TabellaCronoprogramma } from "./TabellaCronoprogramma";
+import { righeTabellaCronoprogramma } from "@/lib/orders/tabellaCronoprogramma";
+import { vociDelleSottofasi } from "@/lib/orders/sottofasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
@@ -235,7 +238,7 @@ export function CronoprogrammaCommessa({
   const isMobile = useIsMobile();
   const [periodoScelto, setPeriodo] = useState<"previsto" | "confronto" | null>(null);
   const [scala, setScala] = useState<"adatta" | "mesi" | "settimane">("adatta");
-  const [vista, setVista] = useState<"grafico" | "elenco">("grafico");
+  const [vista, setVista] = useState<"grafico" | "elenco" | "tabella">("grafico");
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
@@ -280,6 +283,10 @@ export function CronoprogrammaCommessa({
     () => (conSottofasi ? [...sotto.values()].flat().flatMap((s) => [s.previstoInizio, s.previstoFine, ...(s.realeFine ? [s.realeFine] : [])]) : []),
     [sotto, conSottofasi],
   );
+  // La tabella: fasi e sottofasi con date, giorni, persone, quantità e costi della voce del computo.
+  const righeTabella = useMemo(() => righeTabellaCronoprogramma(fasi, sottofasiDi, sotto, {
+    economia: economia.perFase, voci: vociDelleSottofasi(vociPreviste ?? []).perSottofase,
+  }), [fasi, sottofasiDi, sotto, economia, vociPreviste]);
   const asse = useMemo(() => intervalloCronoprogramma(fasi, traguardi, oggi, periodo, dateSottofasi), [fasi, traguardi, oggi, periodo, dateSottofasi]);
   const segni = useMemo(() => {
     const tutti = tacche(asse, scala === "adatta" ? undefined : scala);
@@ -396,6 +403,7 @@ export function CronoprogrammaCommessa({
             <input type="checkbox" checked={conSottofasi} onChange={e => setConSottofasi(e.target.checked)} className="h-4 w-4 accent-orange-600" />Sottofasi
           </label>}
           <Button size="sm" variant="outline" onClick={() => setVista(vista === "grafico" ? "elenco" : "grafico")}>{vista === "grafico" ? "Elenco fasi" : "Grafico"}</Button>
+          {vista !== "tabella" && <Button size="sm" variant="outline" onClick={() => setVista("tabella")}>Tabella</Button>}
         </div>}
         <div className="flex flex-wrap gap-2">
           {!isMobile && vista === "grafico" && !riepilogo.tutteChiuse && oggi >= asse.da && oggi <= asse.a && <Button size="sm" variant="ghost" onClick={() => {
@@ -561,6 +569,14 @@ export function CronoprogrammaCommessa({
       </div>
       </>}
 
+      {!isMobile && vista === "tabella" && <TabellaCronoprogramma righe={righeTabella} vediCosti={canViewCosts} vediVenduto={canViewOrderAmounts}
+        onEsporta={async () => {
+          const { esportaCronoprogrammaExcel } = await import("@/lib/orders/esportaCronoprogramma");
+          const blob = await esportaCronoprogrammaExcel(righeTabella, "Cronoprogramma", { costi: canViewCosts, venduto: canViewOrderAmounts });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "cronoprogramma.xlsx"; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }} />}
       {(isMobile || vista === "elenco") && <div aria-label="Agenda delle fasi" className="grid min-w-0 gap-3 lg:grid-cols-2">
         {fasi.map(f => <article key={f.id} className="min-w-0 rounded-lg border p-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="min-w-0 break-words text-sm font-semibold">{f.nome}</h3><span className="rounded bg-slate-100 px-2 py-0.5 text-xs">{ETICHETTA_STATO[f.stato]}</span></div>

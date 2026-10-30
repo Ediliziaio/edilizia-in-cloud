@@ -108,6 +108,27 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // Quante persone ci lavorano.
+  const risorse = useMutation({
+    mutationFn: async ({ id, risorse: n }: { id: string; risorse: number | null }) => {
+      const { error } = await db.from("order_work_subphases").update({ risorse: n }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // Una sottofase per ogni voce del computo che non ce l'ha (sottofasi_dalle_voci).
+  const dalleVoci = useMutation({
+    mutationFn: async (phaseId: string) => {
+      const { data, error } = await db.rpc("sottofasi_dalle_voci", { p_phase_id: phaseId });
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+    onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["voci-previste-fasi"] }); },
+    onError,
+  });
+
   // Il peso di ogni sottofase diventa il suo tempo necessario (pesiDaGiorni).
   const pesa = useMutation({
     mutationFn: async (pesi: ReadonlyArray<{ id: string; peso: number }>) => {
@@ -129,5 +150,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

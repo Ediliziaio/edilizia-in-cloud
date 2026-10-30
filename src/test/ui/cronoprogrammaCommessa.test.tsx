@@ -185,6 +185,21 @@ describe("Cronoprogramma", () => {
     expect(screen.getByText(/servono le fasi di lavoro/)).toBeInTheDocument();
   });
 
+  it("la vista Tabella: fasi numerate e sottofasi sotto, come un Excel", () => {
+    stato.phases = [fase({ id: "f3", name: "Pavimenti", start_date: "2026-08-17", end_date: "2026-09-05" })];
+    stato.sottofasi = new Map([["f3", [
+      { id: "s1", phase_id: "f3", name: "Massetto", position: 0, peso: 1, fatta: false, fatta_il: null as string | null, data_inizio: "2026-08-17", data_fine: "2026-08-19", giorni: 3, risorse: 2 },
+      { id: "s2", phase_id: "f3", name: "Posa", position: 1, peso: 1, fatta: false, fatta_il: null as string | null },
+    ]]]);
+    render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
+    fireEvent.click(screen.getByRole("button", { name: "Tabella" }));
+    const tabella = screen.getByRole("table", { name: "Tabella del cronoprogramma" });
+    expect(within(tabella).getByTestId("riga-1")).toHaveTextContent("Pavimenti");
+    expect(within(tabella).getByTestId("riga-1.1")).toHaveTextContent("Massetto+1 gg17/08/202619/08/202632");
+    expect(within(tabella).getByTestId("riga-1.2")).toHaveTextContent("Posa");
+    expect(screen.getByRole("button", { name: "Esporta Excel" })).toBeInTheDocument();
+  });
+
   it("una fase con 3 sottofasi datate: una barra per sottofase sotto la fase, l'avanzamento della fase non cambia", () => {
     const sf = (id: string, name: string, extra: Record<string, unknown>) => ({ id, phase_id: "f3", name, position: 0, peso: 1, fatta: false, fatta_il: null as string | null, ...extra });
     stato.phases = [fase({ id: "f3", name: "Pavimenti", status: "in_corso", start_date: "2026-08-17", end_date: "2026-09-05", percentuale: 33 })];

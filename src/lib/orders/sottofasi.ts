@@ -26,6 +26,8 @@ export interface Sottofase {
   giorni?: number | null;
   /** Parte insieme alla precedente invece che dopo (31/10/2026). */
   in_parallelo?: boolean;
+  /** Quante persone ci lavorano (31/10/2026). */
+  risorse?: number | null;
 }
 
 const pesoValido = (peso: number): number => (Number.isFinite(peso) && peso >= 1 ? peso : 1);
@@ -84,7 +86,7 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
  * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
  * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
  */
-export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo)";
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo, risorse)";
 
 /** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
 export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {
@@ -107,6 +109,7 @@ export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
     data_fine: giornoValido(r.data_fine),
     giorni: giorniValidi(r.giorni),
     in_parallelo: r.in_parallelo === true,
+    risorse: Number.isInteger(Number(r.risorse)) && Number(r.risorse) >= 1 && Number(r.risorse) <= 99 ? Number(r.risorse) : null,
   };
 }
 
@@ -360,4 +363,38 @@ export function fasiDaSpostare(
   if (!fineFase || sovrapposte.length === 0) return { sovrapposte: [], giorni: 0, daSpostare: [] };
   const prima = sovrapposte.reduce((m, f) => (f.start_date! < m ? f.start_date! : m), sovrapposte[0].start_date!);
   return { sovrapposte: sovrapposte.map((f) => f.name), giorni: giorniFinestra(prima, fineFase), daSpostare: datate.map((f) => f.id) };
+}
+
+/** I numeri della voce del computo che una sottofase misura (31/10/2026). */
+export interface VoceSottofase {
+  quantita: number;
+  unita: string | null;
+  /** Costo previsto senza IVA: quantità × (manodopera + materiali) unitari. */
+  costo: number;
+  /** Venduto della voce. */
+  importo: number | null;
+}
+
+/**
+ * Dalle voci previste della commessa: i numeri di ogni sottofase che ne ha una, e
+ * per ogni fase quante voci non hanno ancora la loro sottofase.
+ */
+export function vociDelleSottofasi(voci: ReadonlyArray<{
+  phase_id: string; subphase_id?: string | null; quantita: number; unita: string | null;
+  costo_manodopera: number; costo_materiali: number; importo: number | null;
+}>): { perSottofase: Map<string, VoceSottofase>; senzaSottofase: Map<string, number> } {
+  const perSottofase = new Map<string, VoceSottofase>();
+  const senzaSottofase = new Map<string, number>();
+  for (const v of voci) {
+    if (v.subphase_id) {
+      perSottofase.set(v.subphase_id, {
+        quantita: v.quantita, unita: v.unita,
+        costo: Math.round(v.quantita * ((v.costo_manodopera || 0) + (v.costo_materiali || 0)) * 100) / 100,
+        importo: v.importo,
+      });
+    } else {
+      senzaSottofase.set(v.phase_id, (senzaSottofase.get(v.phase_id) ?? 0) + 1);
+    }
+  }
+  return { perSottofase, senzaSottofase };
 }

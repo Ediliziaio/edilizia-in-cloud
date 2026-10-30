@@ -10,7 +10,7 @@ import type { CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, fasiDaSpostare, pesiDaGiorni, pianoInSequenza, realeSottofase, riepilogoSottofasi, type Sottofase,
+  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, fasiDaSpostare, pesiDaGiorni, pianoInSequenza, realeSottofase, riepilogoSottofasi, type Sottofase, type VoceSottofase,
 } from "@/lib/orders/sottofasi";
 
 export interface PianoSottofase {
@@ -56,6 +56,15 @@ interface SottofasiFaseProps {
   fasiDopo?: Array<{ id: string; name: string; start_date: string | null; end_date: string | null }>;
   /** Sposta di `giorni` le fasi successive (id). */
   onSpostaFasiDopo?: (giorni: number, ids: string[]) => void;
+  /** I numeri della voce del computo di ogni sottofase (id sottofase); solo per chi vede i costi. */
+  voci?: Map<string, VoceSottofase>;
+  /** Chi vede gli importi di vendita: il venduto della voce. */
+  vediVenduto?: boolean;
+  /** Voci del computo di questa fase senza sottofase, e il comando che le crea. */
+  vociSenzaSottofase?: number;
+  onSottofasiDalleVoci?: () => void;
+  /** Quante persone ci lavorano. */
+  onRisorse?: (id: string, risorse: number | null) => void;
   /** Pesa le sottofasi per i loro giorni. */
   onPesa?: (pesi: Array<{ id: string; peso: number }>) => void;
   onElimina: (id: string) => void;
@@ -64,7 +73,7 @@ interface SottofasiFaseProps {
 
 /** I passi di una fase: spuntati, ne decidono l'avanzamento. */
 export function SottofasiFase({
-  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, onPesa, onElimina, className,
+  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className,
 }: SottofasiFaseProps) {
   const [nuova, setNuova] = useState("");
   const [aperta, setAperta] = useState(false);
@@ -103,11 +112,21 @@ export function SottofasiFase({
   if (totale === 0 && !puoModificare) return null;
 
   // Una fase senza sottofasi resta com'era: solo un invito discreto a dividerla.
+  const dalleVoci = puoModificare && onSottofasiDalleVoci && vociSenzaSottofase >= 2 ? (
+    <Button type="button" variant="outline" size="sm" className="h-8 w-fit px-2 text-xs" onClick={onSottofasiDalleVoci}>
+      <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{totale === 0 ? "Dividi" : "Aggiungi"} nelle {vociSenzaSottofase} voci del computo
+    </Button>
+  ) : null;
+
   if (totale === 0 && !aperta) {
     return (
-      <Button type="button" variant="ghost" size="sm" className={cn("h-8 w-fit px-2 text-xs text-muted-foreground", className)} onClick={() => setAperta(true)}>
-        <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Dividi in sottofasi
-      </Button>
+      <div className={cn("flex flex-wrap items-center gap-1", className)}>
+        <Button type="button" variant="ghost" size="sm" className="h-8 w-fit px-2 text-xs text-muted-foreground" onClick={() => setAperta(true)}>
+          <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Dividi in sottofasi
+        </Button>
+        {dalleVoci}
+        {dalleVoci && avviata && <span className="text-[11px] text-amber-800">La fase è già al {avviata.percentuale}%: con le sottofasi l'avanzamento si calcola da quelle fatte.</span>}
+      </div>
     );
   }
 
@@ -180,17 +199,40 @@ export function SottofasiFase({
                     {reale && intervalloSottofase(s) && <span className={cn("ml-2 whitespace-nowrap text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
                       finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
                     </span>}
+                    {(() => {
+                      const v = voci?.get(s.id);
+                      if (!v) return null;
+                      const euro = (n: number) => `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" as unknown as boolean }).format(n)} €`;
+                      const qta = `${v.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${v.unita ? ` ${v.unita}` : ""}`;
+                      return <span className="block text-[11px] tabular-nums text-muted-foreground">
+                        {qta} · {v.costo > 0 ? <>costo previsto {euro(v.costo)}</> : <span className="text-amber-700">senza costo nel listino</span>}
+                        {vediVenduto && v.importo != null && <> · venduto {euro(v.importo)}</>}
+                        {s.risorse && s.giorni ? <> · {s.risorse * s.giorni} giorni-uomo</> : null}
+                      </span>;
+                    })()}
                   </>;
                 })()}
               </span>
             )}
-            {inModifica !== s.id && (pianoAttivo || puoModificare) && <div className="ml-auto flex shrink-0 items-center gap-1">
+            {inModifica !== s.id && (pianoAttivo || puoModificare) && <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
             {pianoAttivo && !passoDi.get(s.id)?.ferma && (
               <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Input type="number" inputMode="numeric" min={1} max={3650} placeholder="—" aria-label={`Giorni per ${s.name}`}
                   value={giorniBozza[s.id] ?? (s.giorni ? String(s.giorni) : "")}
                   onChange={(e) => setGiorniBozza({ ...giorniBozza, [s.id]: e.target.value })}
                   className="h-7 w-14 px-1.5 text-right text-sm tabular-nums" />gg
+              </label>
+            )}
+            {puoModificare && onRisorse && (
+              <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title="Quante persone ci lavorano">
+                <Input type="number" inputMode="numeric" min={1} max={99} placeholder="—" aria-label={`Persone per ${s.name}`}
+                  defaultValue={s.risorse ?? ""} key={`${s.id}-${s.risorse ?? ""}`}
+                  onBlur={(e) => {
+                    const n = e.target.value === "" ? null : Number(e.target.value);
+                    if (n !== null && (!Number.isInteger(n) || n < 1 || n > 99)) return;
+                    if (n !== (s.risorse ?? null)) onRisorse(s.id, n);
+                  }}
+                  className="h-7 w-12 px-1.5 text-right text-sm tabular-nums" />pers.
               </label>
             )}
             {puoModificare && inModifica !== s.id && (
@@ -264,6 +306,7 @@ export function SottofasiFase({
           )}
         </div>
       )}
+      {dalleVoci}
       {puoModificare && onPesa && pesi.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-muted-foreground">
           <span>Le sottofasi hanno tutte i giorni: una da 10 giorni può contare più di una da 1.</span>

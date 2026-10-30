@@ -40,7 +40,7 @@ import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
-import { faseHaSottofasi, fineDaGiorni, type Sottofase } from "@/lib/orders/sottofasi";
+import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
 import { useCalendarioCantiere, type CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
@@ -213,7 +213,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -225,6 +225,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   // Le voci del preventivo da cui sono nate le fasi: il previsto dove nessuno l'ha scritto.
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
+  // Le voci del computo per sottofase (quantità, costo, venduto) e quelle ancora senza sottofase.
+  const vociSottofasi = useMemo(() => vociDelleSottofasi(vociPreviste ?? []), [vociPreviste]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -648,6 +650,11 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                   onParallelo: (id, inParallelo) => paralleloSottofase.mutate({ id, in_parallelo: inParallelo }),
                   onElimina: (id) => eliminaSottofase.mutate(id),
                   calendario,
+                  voci: vociSottofasi.perSottofase,
+                  vediVenduto: canViewOrderAmounts,
+                  vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
+                  onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
+                  onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
                   fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
                   // Le fasi dopo scorrono tutte dello stesso tanto: le squadre che le seguono con loro.
                   onSpostaFasiDopo: (giorni, ids) => {
@@ -793,6 +800,11 @@ interface PhaseCardProps {
     onParallelo: (id: string, inParallelo: boolean) => void;
     onElimina: (id: string) => void;
     calendario: CalendarioCantiere;
+    voci: Map<string, VoceSottofase>;
+    vediVenduto: boolean;
+    vociSenzaSottofase: number;
+    onSottofasiDalleVoci: () => void;
+    onRisorse: (id: string, risorse: number | null) => void;
     fasiDopo: Array<{ id: string; name: string; start_date: string | null; end_date: string | null }>;
     onSpostaFasiDopo: (giorni: number, ids: string[]) => void;
   };
