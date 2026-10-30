@@ -111,7 +111,7 @@ export default function AIOperatePage() {
     },
     { value: "chief", label: "Coordinatore", icon: Activity },
     { value: "personas", label: "Assistenti del team", icon: Users },
-    { value: "memory", label: "Memoria", icon: Brain },
+    { value: "memory", label: "Memoria Admin", icon: Brain },
     { value: "cervello", label: "Mappa 3D", icon: Network },
     { value: "learning", label: "Apprendimento", icon: Zap },
   ];
