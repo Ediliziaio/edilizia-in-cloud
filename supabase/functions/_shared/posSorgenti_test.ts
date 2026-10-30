@@ -8,7 +8,7 @@ const companyId = "11111111-1111-4111-8111-111111111111", posId = "22222222-2222
 const snapshotId = "77777777-7777-4777-8777-777777777777";
 const prenotazione = (extra: Partial<RigaEmissionePos> = {}): RigaEmissionePos => ({ id: "33333333-3333-4333-8333-333333333333", company_id: companyId, pos_id: posId, revisione: 2,
   stato: "preparazione", token: "44444444-4444-4444-8444-444444444444", emesso_il: "2026-10-26T12:00:00+00:00", origine: "approvazione_corrente", snapshot_id: null,
-  manifest: null, manifest_sha256: null, zip_sha256: null, ...extra });
+  manifest: null, manifest_sha256: null, zip_sha256: null, sorgente_updated_at: "2026-10-26T11:00:00+00:00", ...extra });
 
 /** Un database finto che registra i filtri di ogni lettura: le letture devono restare dentro l'azienda. */
 function tabelle(righe: Record<string, Record<string, unknown> | null>) {
@@ -64,4 +64,36 @@ Deno.test("Sorgente: una copia da archivio che non esiste più non si prepara", 
   const { db } = tabelle({ pos_documents: posRiga({ status: "approvato" }), pos_contenuti_archiviati: null });
   const e = prenotazione({ origine: "ricostruzione_da_contenuto_archiviato", snapshot_id: snapshotId });
   await assert.rejects(() => sorgenteDaPrenotazione(db, { companyId, userId: "u", e, rilevaFonti }), (x: unknown) => x instanceof ErroreEmissionePos && x.status === 404);
+});
+
+const conVersione = (aggiornato: string | null, prenotata: string | null) => ({
+  ...tabelle({ pos_documents: posRiga({ updated_at: aggiornato }), profiles: { first_name: "Mario", last_name: "Rossi", email: "m@x.it" } }),
+  e: prenotazione({ sorgente_updated_at: prenotata }),
+});
+
+Deno.test("Versione prenotata: lo stesso istante scritto in un altro formato è la stessa versione", async () => {
+  for (const [aggiornato, prenotata] of [["2026-10-26T11:00:00+00:00", "2026-10-26T11:00:00+00:00"], ["2026-10-26T11:00:00.123456+00:00", "2026-10-26T11:00:00.123456Z"],
+    ["2026-10-26 12:00:00.5+01", "2026-10-26T11:00:00.500000+00:00"], [null, null]] as Array<[string | null, string | null]>) {
+    const c = conVersione(aggiornato, prenotata);
+    const s = await sorgenteDaPrenotazione(c.db, { companyId, userId: "u", e: c.e, rilevaFonti });
+    assert.equal(s.nomeAutore, "Mario Rossi", `${aggiornato} = ${prenotata}`);
+  }
+});
+
+Deno.test("Versione prenotata: se il POS è cambiato dopo la prenotazione non si ricostruisce il modello dalla bozza corrente (nemmeno di un microsecondo)", async () => {
+  for (const [aggiornato, prenotata] of [["2026-10-26T11:00:01+00:00", "2026-10-26T11:00:00+00:00"], ["2026-10-26T11:00:00.000001+00:00", "2026-10-26T11:00:00+00:00"],
+    ["2026-10-26T11:00:00+00:00", null], [null, "2026-10-26T11:00:00+00:00"], ["non è una data", "2026-10-26T11:00:00+00:00"]] as Array<[string | null, string | null]>) {
+    const c = conVersione(aggiornato, prenotata);
+    await assert.rejects(() => sorgenteDaPrenotazione(c.db, { companyId, userId: "u", e: c.e, rilevaFonti: async () => { throw new Error("non rileggere le fonti: la versione è cambiata"); } }),
+      (x: unknown) => x instanceof ErroreEmissionePos && x.status === 409 && /cambiato/.test(x.message), `${aggiornato} ≠ ${prenotata}`);
+  }
+});
+
+Deno.test("Versione prenotata: una copia da contenuto archiviato non dipende dalla bozza (il contenuto archiviato non cambia)", async () => {
+  const archivio = { id: snapshotId, revisione: 1, fonte: "approvazione", acquisito_il: "2026-10-01T10:00:00+00:00",
+    snapshot: { status: "approvato", contenuto: posVuoto(), revisioni: [], approvato_da_nome: "Lucia Bianchi", approvato_il: "2026-10-01T09:00:00+00:00" } };
+  const { db } = tabelle({ pos_documents: posRiga({ status: "approvato", updated_at: "2027-01-01T00:00:00+00:00" }), pos_contenuti_archiviati: archivio, orders: { order_code: "ORD-OLD" } });
+  const e = prenotazione({ origine: "ricostruzione_da_contenuto_archiviato", snapshot_id: snapshotId, revisione: 1, sorgente_updated_at: "2026-10-26T11:00:00+00:00" });
+  const s = await sorgenteDaPrenotazione(db, { companyId, userId: "u", e, rilevaFonti });
+  assert.equal(s.dati.codiceCommessa, "ORD-OLD");
 });

@@ -4,11 +4,12 @@ import { supportaMezziPos } from "../_shared/posMezzi.ts";
 import { supportaFontiTecnichePos } from "../_shared/posFontiTecniche.ts";
 import { supportaTecnicaPos } from "../_shared/posTecnica.ts";
 import { supportaProdottiPos } from "../_shared/posProdotti.ts";
-import { verificaVersionePos } from "../_shared/posVersione.ts";
 import { percorsoStorageSicuro } from "../_shared/posPercorsi.ts";
 import { oggiRoma } from "../_shared/posData.ts";
-import { AZIONI_POS, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
+import { AZIONI_POS, eAzioneBrowserPos, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
 import { lavorazioniDaRispostaAi } from "../_shared/posAi.ts";
+import { controlliApprovazione } from "../_shared/posApprovazione.ts";
+import { leggiRichiestaPos } from "../_shared/posRichiesta.ts";
 /**
  * genera-pos — Piano Operativo di Sicurezza sul modello ufficiale
  * (DI 9 settembre 2014, Allegato I; Allegato XV punto 3.2.1 del D.Lgs 81/2008).
@@ -24,13 +25,10 @@ import { lavorazioniDaRispostaAi } from "../_shared/posAi.ts";
  *   approva        { company_id, pos_id } → approva solo se non manca nessuno dei
  *                  contenuti minimi. È l'unica strada: il database rifiuta
  *                  l'approvazione fatta da un utente direttamente.
- *
- *   anteprima_html / prepara_emissione / completa_emissione / annulla_emissione
- *                  Il PDF lo disegna il browser (il server ha 2 s di CPU per richiesta e pdfmake ne chiede
- *                  fino a oltre 2): il server costruisce il modello HTML, il browser lo disegna, il server
- *                  riceve il PDF, lo lega all'emissione e lo conserva (upload, rilettura, completamento).
- *                  Le azioni anteprima_pdf, approva ed emetti, dove il PDF lo disegna il server, restano per
- *                  le app già installate e per i POS piccoli.
+ *   anteprima_html, prepara_emissione, completa_emissione, annulla_emissione
+ *                  Il PDF lo disegna il browser (il server ha 2 s di CPU per richiesta): vedi
+ *                  _shared/posAzioniBrowser.ts. anteprima_pdf, approva ed emetti, dove il PDF lo
+ *                  disegna il server, restano per le app già installate.
  *
  * Chi chiama deve avere il permesso Sicurezza Cantiere nell'azienda; per le
  * azioni che scrivono non deve essere in sola lettura.
@@ -41,10 +39,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { colonneRiassunto, preparaPosDaApp } from "../_shared/posDatiApp.ts";
-import { normalizzaLavorazione, normalizzaPos, vociMancanti, type Lavorazione } from "../_shared/posModello.ts";
+import { normalizzaLavorazione, normalizzaPos, type Lavorazione } from "../_shared/posModello.ts";
 
 import { applicaRiusoPos, lavorazioniRiutilizzabili } from "../_shared/posRiuso.ts";
-import { leggiRichiestaPos } from "../_shared/posRichiesta.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -174,34 +171,6 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   return { lavorazioni, modalita_organizzative: typeof modalita === "string" ? modalita.trim() : "" };
 }
 
-/**
- * I controlli che precedono ogni approvazione, comunque si disegni il PDF (approva, che lo disegna il server, e
- * prepara_emissione, che lo fa disegnare al browser): la stessa funzione, così le due strade non possono divergere.
- * Restituisce la risposta da dare (errore, o «già approvato») oppure il contenuto normalizzato da approvare.
- */
-// deno-lint-ignore no-explicit-any
-function controlliApprovazione(pos: any, body: Record<string, any>, cors: Record<string, string>): Response | ReturnType<typeof normalizzaPos> {
-  // check the editor token before any approval, rendering or replay.
-  verificaVersionePos(pos,body);
-  if (pos.contenuto?.versione_controlli === 2 && body.versione_client !== 2) return errorResponse("Questo POS richiede l’editor aggiornato: ricarica l’app prima di approvare",409,cors);
-  if (pos.status === "approvato") return jsonResponse({ ok: true, gia_approvato: true }, 200, cors);
-  if(pos.status!=="bozza") return errorResponse("Apri una bozza prima di approvare il POS",409,cors);
-  if(body.versione_client===2 && pos.contenuto?.versione_controlli!==2) return errorResponse("Apri il POS nell’editor aggiornato, verifica i controlli e salva la bozza prima di approvare",409,cors);
-  const contenuto = normalizzaPos(pos.contenuto);
-  if (contenuto.versione_prodotti===1 && !supportaProdottiPos(body)) return errorResponse("Ricarica l’editor per riesaminare i prodotti di questo POS",409,cors);
-  if(contenuto.versione_tecnica===1&&!supportaTecnicaPos(body)) return errorResponse("Ricarica l’editor per riesaminare le schede tecniche di questo POS",409,cors);
-  if(contenuto.versione_mezzi===1&&!supportaMezziPos(body))return errorResponse("Ricarica l’editor per verificare le attrezzature",409,cors);
-  if(contenuto.versione_fonti_tecniche===1&&!supportaFontiTecnichePos(body))return errorResponse("Ricarica l’editor per verificare le fonti tecniche",409,cors);
-  if(contenuto.versione_requisiti_addetti===1&&!supportaRequisitiAddettiPos(body))return errorResponse("Ricarica l’editor per i riscontri nominativi della propria impresa",409,cors);
-  if(contenuto.versione_documenti_mezzi===1&&!supportaDocumentiMezziPos(body))return errorResponse("Ricarica l’editor per verificare documenti e controlli delle attrezzature",409,cors);
-  if(contenuto.versione_psc===1 && body.versione_psc_client!==1)return errorResponse("Ricarica l’editor per il riferimento originale del PSC",409,cors);
-  const mancanti = vociMancanti(contenuto);
-  if (mancanti.length) {
-    return jsonResponse({ ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti }, 422, cors);
-  }
-  return contenuto;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
   const cors = getCorsHeaders(req);
@@ -245,19 +214,10 @@ Deno.serve(async (req: Request) => {
       const r=await scaricaEmissionePos(db,companyId,String(body.emissione_id||""),body.tipo);
       return jsonResponse({ok:true,...r},200,cors);
     }
-    if (azione === "completa_emissione") {
-      if (!pdf) return errorResponse("Manca il PDF da conservare", 400, cors);
-      const {completaEmissioneBrowser}=await import("../_shared/posEmissioneBrowser.ts");
-      const {sorgenteDaPrenotazione}=await import("../_shared/posSorgenti.ts");
-      let nome: string | undefined;
-      const r=await completaEmissioneBrowser(db,userId,{companyId,emissioneId:String(body.emissione_id||""),token:String(body.token||""),pdf,pdfSha256:String(body.pdf_sha256||""),
-        sorgente:async e=>{const s=await sorgenteDaPrenotazione(db,{companyId,userId,e});nome=s.nomeAutore;return s;}});
-      return jsonResponse({ok:true,emissione_id:r.id,...(nome?{approvato_da_nome:nome}:{})},200,cors);
-    }
-    if (azione === "annulla_emissione") {
-      const {annullaEmissioneBrowser}=await import("../_shared/posEmissioneBrowser.ts");
-      await annullaEmissioneBrowser(db,companyId,String(body.emissione_id||""),String(body.token||""));
-      return jsonResponse({ok:true},200,cors);
+    if (eAzioneBrowserPos(azione)) {
+      const { gestisciAzioneBrowserPos } = await import("../_shared/posAzioniBrowser.ts");
+      const r = await gestisciAzioneBrowserPos({ azione, db, userId, companyId, body, pdf, caricaPos: (id) => caricaPos(db, companyId, id, cors) });
+      return jsonResponse(r.corpo, r.status, cors);
     }
     if (azione === "archivia_modello") {
       const {data,error}=await db.from("pos_modelli_aziendali").update({archiviato:true}).eq("company_id",companyId).eq("id",body.modello_id).select("id").maybeSingle();
@@ -362,29 +322,6 @@ Deno.serve(async (req: Request) => {
       const pdf=await generaPdfPos(datiDaSnapshotPos(pos,pos.revisione??0,ordine?.order_code||""),new Date().toISOString(),{anteprima:true});
       return new Response(new Uint8Array(pdf.bytes),{status:200,headers:{...cors,"Content-Type":"application/pdf","Content-Disposition":"inline; filename=POS-anteprima.pdf","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
-    if(azione === "anteprima_html") {
-      const {data:ordine,error:ordineErr}=await db.from("orders").select("order_code").eq("company_id",companyId).eq("id",pos.order_id).maybeSingle();
-      if(ordineErr) return errorResponse("Codice commessa non disponibile",503,cors);
-      const {anteprimaHtmlPos}=await import("../_shared/posEmissioneBrowser.ts");
-      const {datiDaSnapshotPos}=await import("../_shared/posEmissione.ts");
-      return jsonResponse({ok:true,...anteprimaHtmlPos(datiDaSnapshotPos(pos,pos.revisione??0,ordine?.order_code||""),new Date().toISOString())},200,cors);
-    }
-    if(azione === "prepara_emissione") {
-      const {preparaEmissioneBrowser}=await import("../_shared/posEmissioneBrowser.ts");
-      const {sorgenteApprovazione,sorgenteArchivio,nomeDiChiApprova}=await import("../_shared/posSorgenti.ts");
-      let sorgente;
-      if(typeof body.snapshot_id==="string"&&body.snapshot_id) {
-        // Una copia del contenuto già approvato e archiviato: la stessa strada di «emetti».
-        sorgente=await sorgenteArchivio(db,{companyId,pos,snapshotId:body.snapshot_id});
-      } else {
-        const verificato=controlliApprovazione(pos,body,cors);
-        if(verificato instanceof Response) return verificato;
-        sorgente=await sorgenteApprovazione(db,{companyId,pos,nomeAutore:await nomeDiChiApprova(db,userId)});
-      }
-      const p=await preparaEmissioneBrowser(db,userId,sorgente);
-      if(p.giaCompleta) return jsonResponse({ok:true,gia_completa:true,emissione_id:p.emissione.id},200,cors);
-      return jsonResponse({ok:true,emissione_id:p.emissioneId,token:p.token,emesso_il:p.emessoIl,html:p.html,layout:p.layout,codice:p.codice,revisione:p.revisione},200,cors);
-    }
     if(azione === "emetti") {
       const q=db.from("pos_contenuti_archiviati").select("id,revisione,snapshot,fonte,acquisito_il").eq("company_id",companyId).eq("pos_id",posId);
       const {data:a,error:err}=await (body.snapshot_id?q.eq("id",body.snapshot_id):q.eq("revisione",pos.revisione??0)).maybeSingle();
@@ -416,9 +353,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // approva: i controlli sono gli stessi di prepara_emissione (controlliApprovazione).
-    const verificato = controlliApprovazione(pos, body, cors);
-    if (verificato instanceof Response) return verificato;
-    const contenuto = verificato;
+    const verificato = controlliApprovazione(pos, body);
+    if (verificato.tipo === "risposta") return jsonResponse(verificato.corpo, verificato.status, cors);
+    const contenuto = verificato.contenuto;
     // Il nome di chi approva resta nel PDF immutabile e in approvato_da_nome: se il profilo non si legge, si riprova.
     const { data: profilo, error: profiloError } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
     if (profiloError) return errorResponse("Profilo di chi approva non leggibile: riprova tra poco", 503, cors);

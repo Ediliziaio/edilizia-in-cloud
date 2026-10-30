@@ -1,9 +1,15 @@
+/**
+ * Il PDF lo disegna il browser (il server ha 2 s di CPU per richiesta): l'HTML dell'anteprima, e le tre fasi di
+ * un'emissione. Le gestisce posAzioniBrowser.ts; le vecchie anteprima_pdf, approva ed emetti restano per le app già installate.
+ */
+export const AZIONI_BROWSER_POS = ["anteprima_html", "prepara_emissione", "completa_emissione", "annulla_emissione"] as const;
+export const eAzioneBrowserPos = (a: string): a is (typeof AZIONI_BROWSER_POS)[number] => (AZIONI_BROWSER_POS as readonly string[]).includes(a);
+
 /** Le azioni di genera-pos e quali di esse scrivono (o consumano credito) e quindi non spettano a chi è in sola lettura. */
 export const AZIONI_POS = [
   "apri_originale_addetto", "apri_documento_mezzo", "crea", "dati_app", "lavorazioni_ai", "approva",
   "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf",
-  // Il PDF lo disegna il browser (il server ha 2 s di CPU): l'HTML dell'anteprima, e le tre fasi di un'emissione.
-  "anteprima_html", "prepara_emissione", "completa_emissione", "annulla_emissione",
+  ...AZIONI_BROWSER_POS,
 ] as const;
 export type AzionePos = typeof AZIONI_POS[number];
 

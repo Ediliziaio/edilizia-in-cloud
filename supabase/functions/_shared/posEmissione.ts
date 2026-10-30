@@ -21,6 +21,8 @@ export interface RigaEmissionePos {
   snapshot_id: string | null; manifest: ManifestEmissionePos | null; manifest_sha256: string | null; zip_sha256: string | null;
   /** Fino a quando la prenotazione è di chi l'ha fatta (5 minuti dalla prenotazione). */
   riservata_fino?: string;
+  /** La versione (updated_at) del POS che si è prenotato: il PDF si fa solo da quella, mai dalla bozza di dopo. */
+  sorgente_updated_at?: string | null;
 }
 export interface SorgenteEmissione {
   posId: string; companyId: string; attesoUpdatedAt: string | null; snapshotId?: string;

@@ -4,7 +4,7 @@ import type {DocumentazioneMezzoPos} from "./posDocumentiMezzi.ts";
 import type { SceltaMezzoPos } from "./posMezzi.ts";
 import type { FontiTecnicheScheda } from "./posFontiTecniche.ts";
 import { zipSync, strToU8 } from "fflate";
-import { VERSIONE_RENDERER_POS } from "./posRenderer.ts";
+import { LAYOUT_POS_VERSIONE } from "./posRenderer.ts";
 import type { ProdottoPos } from "./posProdotti.ts";
 import type { DatiStampaPos } from "./posHtml.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
@@ -26,10 +26,19 @@ export interface FileEmissionePos {
   mezzo_id?: string; persona_id?: string;
   evidenza_id?: string; impronta_metadati?: string;
 }
+/**
+ * Come si rifà il PDF di un'emissione: dal modello HTML congelato (il file con ruolo modello_html) e da questi parametri,
+ * con pdfmake della stessa versione. Chi verifica dopo lo rifà e ne confronta l'impronta con `pdfSha256`: lo stesso PDF, byte per byte.
+ */
+export interface RenderEmissionePos {
+  disegnatoDa: "server" | "browser"; generatore: string; layout: string;
+  codice: string; revisione: number; emessoIl: string; htmlSha256: string; pdfSha256: string;
+}
 export interface ManifestEmissionePos {
   versione: 1; emissioneId: string; companyId: string; posId: string; revisione: number;
   preparataIl: string; origine: IdentitaEmissionePos["origine"]; snapshotId?: string;
   generatore: string; contenutoSha256: string; fonts: Array<{ nome: string; sha256: string }>;
+  render?: RenderEmissionePos;
   file: FileEmissionePos[];
   avvertenza: string;
   psc?: RiferimentoPsc;
@@ -171,7 +180,9 @@ export async function preparaPacchettoPos(
     await aggiungi(`allegati/FORMAZIONE-${String(i+1).padStart(3,'0')}-${nomeSicuro(a.nome)}`,bytes,"allegato","application/octet-stream",{tipo:"qualifica_addetto",nomeOriginale:a.nome,evidenza_id:a.evidenza_id,persona_id:a.persona_id,impronta_metadati:a.impronta,fonte:{bucket:a.bucket,path:a.path}});
   }
   // pdfmake si carica solo se il PDF lo disegna il server: un avvio a freddo che non lo usa non ne paga l'importazione.
-  const pdf = pdfPronto ?? await (await import("./posPdf.ts")).generaPdfPos(dati, identita.emessoIl);
+  const server = pdfPronto ? null : await import("./posPdf.ts");
+  const pdf = pdfPronto ?? await server!.generaPdfPos(dati, identita.emessoIl);
+  const generatore = pdfPronto?.generatore ?? server!.VERSIONE_RENDERER_POS;
   await aggiungi("POS.pdf", pdf.bytes, "pdf", "application/pdf");
   await aggiungi("modello.html", strToU8(pdf.html), "modello_html", "text/html");
   await aggiungi("fonti.json", strToU8(jsonCanonico(fonti)), "fonti", "application/json");
@@ -183,7 +194,9 @@ export async function preparaPacchettoPos(
     ...(prodottiSds?{prodotti_sds:{versione:1 as const,prodotti:prodottiSds.prodotti}}:{}),
     ...(requisitiAddetti?{requisiti_addetti:{versione:1 as const,collegamenti:requisitiAddetti.collegamenti}}:{}),
     ...(documentiMezzi?{documenti_mezzi:{versione:1 as const,collegamenti:documentiMezzi.collegamenti}}:{}),...(fontiMezzi?{mezzi_pos:fontiMezzi}:{}),...(fontiTecniche?{fonti_tecniche:{versione:1 as const,collegamenti:fontiTecniche.collegamenti}}:{}),
-    generatore: pdfPronto?.generatore ?? VERSIONE_RENDERER_POS, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    generatore, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    render: { disegnatoDa: pdfPronto ? "browser" : "server", generatore, layout: LAYOUT_POS_VERSIONE, codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl: identita.emessoIl,
+      htmlSha256: file.find(f => f.ruolo === "modello_html")!.sha256, pdfSha256: file.find(f => f.ruolo === "pdf")!.sha256 },
     avvertenza: identita.origine === "approvazione_corrente"
       ? "L’approvazione interna non sostituisce le firme. Gli allegati sono conservati separatamente nei byte originali, senza fusione o modifica."
       : "Copia preparata ora dal contenuto archiviato. Non ricostruisce i byte di un PDF o di allegati storici non conservati all’epoca; non attesta firme precedenti.",

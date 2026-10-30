@@ -16,8 +16,6 @@ export interface ParametriDisegnoPos {
   revisione: number;
   emessoIl: string;
   anteprima: boolean;
-  /** Un'emissione vera dichiara nel PDF a quale emissione e a quale HTML appartiene; l'anteprima no. */
-  legame?: { emissioneId: string; htmlSha256: string };
   /** Il layout con cui il server ha costruito l'HTML: se non è quello di questo codice, non si disegna. */
   layoutServer?: string;
 }
@@ -26,7 +24,7 @@ export async function disegnaPdfPos(motore: MotorePdf, p: ParametriDisegnoPos): 
   if (p.layoutServer !== undefined && p.layoutServer !== LAYOUT_POS_VERSIONE) {
     throw new Error("Il documento è stato preparato con un modello di stampa diverso da quello di questa app: aggiorna l'app e riprova.");
   }
-  const layout = layoutPdfPos(p.html, p.codice, p.revisione, p.emessoIl, p.anteprima, p.legame);
+  const layout = layoutPdfPos(p.html, p.codice, p.revisione, p.emessoIl, p.anteprima);
   // Una copia semplice: il buffer di pdfmake nel browser è una sottoclasse di Uint8Array.
   const bytes = new Uint8Array(await motore.createPdf(layout.definizione as never).getBuffer());
   if (bytes.length < 5 || new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") throw new Error("Il generatore non ha prodotto un PDF");

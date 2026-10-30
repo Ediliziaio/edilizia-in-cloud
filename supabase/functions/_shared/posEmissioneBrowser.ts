@@ -1,7 +1,6 @@
 import { costruisciHtmlPos, type DatiStampaPos } from "./posHtml.ts";
 import { layoutPdfPos } from "./posPdfLayout.ts";
 import { fontsRiferimentoPos, verificaGlifiPos } from "./posGlifi.ts";
-import { leggiLegamePdfPos } from "./posPdfLegame.ts";
 import { LAYOUT_POS_VERSIONE, LIMITE_PDF_BROWSER, VERSIONE_RENDERER_POS_BROWSER } from "./posRenderer.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
 import { strToU8 } from "fflate";
@@ -21,8 +20,11 @@ type Db = any;
  *                             con confronto SHA-256, completamento atomico (immutabile)
  *   annullaEmissioneBrowser   libera subito la prenotazione se il browser non riesce a disegnare
  *
- * Il server non rifà il PDF: lo lega al modello. Il PDF dichiara l'emissione e l'impronta dell'HTML (posPdfLegame.ts) e
- * il server le controlla; l'HTML resta congelato nello ZIP accanto al PDF e il manifest dice chi ha disegnato.
+ * Il server non rifà il PDF e non lo interpreta: controlla che sia un PDF intero (%PDF-, %%EOF), che stia nel tetto di
+ * dimensione e che abbia l'impronta dichiarata; il browser dichiara anche da quale modello HTML l'ha disegnato e con quale
+ * versione di layout, e il server li confronta con quelli che ricostruisce dalla versione PRENOTATA del POS. Il modello
+ * resta congelato nello ZIP accanto al PDF e il blocco `render` del manifest dice chi ha disegnato e con quali parametri:
+ * chi verifica dopo rifà il PDF dal modello e ne confronta l'impronta (il PDF è una funzione pura di quei parametri).
  */
 export { LIMITE_PDF_BROWSER };
 
@@ -60,7 +62,9 @@ export async function preparaEmissioneBrowser(db: Db, userId: string, sorgente: 
 
 export interface CompletamentoBrowser {
   companyId: string; emissioneId: string; token: string;
-  pdf: Uint8Array; pdfSha256: string;
+  pdf: Uint8Array;
+  /** Ciò che il browser dichiara: l'impronta del PDF, l'impronta del modello HTML da cui l'ha disegnato e la versione del layout. */
+  dichiarato: { pdfSha256: string; htmlSha256: string; layout: string };
   /** Ricostruisce dal database la sorgente dell'emissione data la sua prenotazione (contenuto, autore, fonti dell'app). */
   sorgente: (e: RigaEmissionePos) => Promise<SorgenteEmissione>;
 }
@@ -76,15 +80,13 @@ export async function completaEmissioneBrowser(db: Db, userId: string, c: Comple
     if (!e.riservata_fino || Date.parse(e.riservata_fino) < Date.now()) throw new ErroreEmissionePos("Preparazione scaduta: riprova", 409);
     if (c.pdf.length > LIMITE_PDF_BROWSER) throw new ErroreEmissionePos("Il PDF è troppo grande per essere conservato", 413);
     if (c.pdf.length < 5 || new TextDecoder().decode(c.pdf.subarray(0, 5)) !== "%PDF-") throw new ErroreEmissionePos("Il file ricevuto non è un PDF");
-    if (await sha256Hex(c.pdf) !== c.pdfSha256.toLowerCase()) throw new ErroreEmissionePos("L'impronta del PDF ricevuto non corrisponde a quella dichiarata: riprova");
-    const legame = leggiLegamePdfPos(c.pdf);
-    if (!legame) throw new ErroreEmissionePos("Il PDF non dichiara a quale emissione appartiene: riprova dall'editor");
-    if (legame.layout !== LAYOUT_POS_VERSIONE) throw new ErroreEmissionePos("Il PDF è stato disegnato con un modello di stampa diverso da quello del server: aggiorna l'app e riprova", 409);
-    if (legame.emissioneId !== e.id) throw new ErroreEmissionePos("Il PDF è stato disegnato per un'altra emissione: riprova", 409);
+    if (!new TextDecoder("latin1").decode(c.pdf.subarray(Math.max(0, c.pdf.length - 1024))).includes("%%EOF")) throw new ErroreEmissionePos("Il PDF ricevuto è incompleto: riprova");
+    if (await sha256Hex(c.pdf) !== c.dichiarato.pdfSha256.toLowerCase()) throw new ErroreEmissionePos("L'impronta del PDF ricevuto non corrisponde a quella dichiarata: riprova");
+    if (c.dichiarato.layout !== LAYOUT_POS_VERSIONE) throw new ErroreEmissionePos("Il PDF è stato disegnato con un modello di stampa diverso da quello del server: aggiorna l'app e riprova", 409);
     const sorgente = await c.sorgente(e);
     const dati = datiEmissionePos(e, sorgente);
     const html = costruisciHtmlPos(dati);
-    if (legame.htmlSha256 !== await sha256Hex(strToU8(html))) throw new ErroreEmissionePos("Il POS è cambiato durante la preparazione del PDF: ricaricalo e riprova", 409);
+    if (c.dichiarato.htmlSha256.toLowerCase() !== await sha256Hex(strToU8(html))) throw new ErroreEmissionePos("Il POS è cambiato durante la preparazione del PDF: ricaricalo e riprova", 409);
     const fonti = await raccogliFontiEmissione(db, userId, e, sorgente, dati);
     const pacchetto = await pacchettoEmissionePos(db, e, sorgente, dati, fonti, { bytes: c.pdf, html, fonts: await fontsRiferimentoPos(), generatore: VERSIONE_RENDERER_POS_BROWSER });
     traccia.daRipulire = pacchetto.oggetti.map(f => f.path);

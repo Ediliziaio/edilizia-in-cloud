@@ -2,7 +2,6 @@ import {SEGNALI_POS,segnalePosSvg} from "./posSegnaletica.ts";
 import { ICONE_POS, iconaPosSvg } from "./posIcone.ts";
 import { parse } from "parse5";
 import { testoPerPdf } from "./posTestoPdf.ts";
-import { LAYOUT_POS_VERSIONE } from "./posRenderer.ts";
 
 interface HtmlNode {
   nodeName: string;
@@ -66,12 +65,8 @@ function tabella(n: HtmlNode): PdfBlock {
     layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => "#c3cbd6", vLineColor: () => "#c3cbd6" }, margin: [0, 4, 0, 10] };
 }
 
-/**
- * Same semantic content as the browser preview, with page-aware tables and a generated index.
- * `legame`: un PDF disegnato dal browser per un'emissione dichiara nel dizionario Info a quale emissione e a quale HTML
- * appartiene (posPdfLegame.ts); quello del server, e l'anteprima, no.
- */
-export function layoutPdfPos(html: string, codice: string, revisione: number, dataEmissione: string, anteprima=false, legame?: { emissioneId: string; htmlSha256: string }): {
+/** Same semantic content as the browser preview, with page-aware tables and a generated index. */
+export function layoutPdfPos(html: string, codice: string, revisione: number, dataEmissione: string, anteprima=false): {
   definizione: Record<string, unknown>; testo: string; sezioni: string[];
 } {
   const root = parse(html) as unknown as HtmlNode;
@@ -124,8 +119,7 @@ export function layoutPdfPos(html: string, codice: string, revisione: number, da
     definizione: {
       pageSize: "A4", pageMargins: [40, 46, 40, 48],
       defaultStyle: { font: "Roboto", fontSize: 9.5, lineHeight: 1.12 },
-      info: { title: `POS ${codice} — revisione ${revisione}`, author: "Edilizia in Cloud", creator: "Edilizia in Cloud — POS 1", creationDate: new Date(dataEmissione), modDate: new Date(dataEmissione),
-        ...(legame ? { PosEmissione: legame.emissioneId, PosHtmlSha256: legame.htmlSha256, PosLayout: LAYOUT_POS_VERSIONE } : {}) },
+      info: { title: `POS ${codice} — revisione ${revisione}`, author: "Edilizia in Cloud", creator: "Edilizia in Cloud — POS 1", creationDate: new Date(dataEmissione), modDate: new Date(dataEmissione) },
       footer: (corrente: number, totale: number) => ({ id:"pos-footer",text: `POS ${codice} · Rev. ${revisione}    |    Pagina ${corrente} di ${totale}`, alignment: "center", fontSize: 8, color: "#42566d", margin: [40, 14, 40, 0] }),
       pageBreakBefore: (node: { headlineLevel?: number; startPosition?:{pageInnerHeight:number;verticalRatio:number} }, container: { getFollowingNodesOnPage: () => Array<{id?:string;headlineLevel?:number;text?:unknown;table?:unknown;ul?:unknown}> }) => node.headlineLevel === 1 && ((node.startPosition && node.startPosition.pageInnerHeight*(1-node.startPosition.verticalRatio)<110) || !container.getFollowingNodesOnPage().some(n=>n.id!=="pos-footer"&&(n.table||n.ul||(n.text&&!n.headlineLevel)))),
       ...(anteprima ? {watermark:{text:"BOZZA — ANTEPRIMA",color:"#b91c1c",opacity:0.1,bold:true,angle:-45}} : {}),

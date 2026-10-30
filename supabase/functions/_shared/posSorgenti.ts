@@ -12,6 +12,24 @@ type PosRiga = any;
  * nulla che il browser possa aver cambiato nel frattempo: rilegge il POS, o la copia, dell'azienda e della prenotazione).
  */
 
+/**
+ * Lo stesso istante, comunque scritto («…+00:00», «…Z», «… 12:00:00.5+01»), con i microsecondi: il token di versione del POS
+ * è un timestamp del database e due letture dello stesso valore possono avere forme diverse. Ciò che non si riconosce si
+ * confronta com'è; null è uguale solo a null.
+ */
+function istante(t: string | null | undefined): string | null {
+  if (t == null) return null;
+  const testo = String(t).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?\s*(Z|[+-]\d{2}(?::?\d{2})?)$/.exec(testo);
+  if (!m) return testo;
+  const [, anno, mese, giorno, ore, minuti, secondi, frazione = "", fuso] = m;
+  const f = fuso === "Z" ? [0, 0] : /^(\d{2}):?(\d{2})?$/.exec(fuso.slice(1))!.slice(1).map(x => Number(x ?? 0));
+  const segno = fuso.startsWith("-") ? -1 : 1;
+  const secondiEpoca = Date.UTC(+anno, +mese - 1, +giorno, +ore, +minuti, +secondi) / 1000 - segno * (f[0] * 3600 + f[1] * 60);
+  return `${secondiEpoca}.${frazione.padEnd(6, "0")}`;
+}
+const stessaVersione = (a: string | null | undefined, b: string | null | undefined) => istante(a) === istante(b);
+
 /** Il nome di chi approva resta nel PDF immutabile e in approvato_da_nome: se il profilo non si legge, si riprova. */
 export async function nomeDiChiApprova(db: Db, userId: string): Promise<string> {
   const { data: profilo, error } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
@@ -52,5 +70,8 @@ export async function sorgenteDaPrenotazione(db: Db, p: { companyId: string; use
   if (!pos || (pos.document_type && pos.document_type !== "pos")) throw new ErroreEmissionePos("POS non trovato", 404);
   if (e.origine === "ricostruzione_da_contenuto_archiviato") return sorgenteArchivio(db, { companyId, pos, snapshotId: e.snapshot_id ?? undefined });
   if (pos.status !== "bozza") throw new ErroreEmissionePos("Il POS non è più una bozza: ricaricalo e riprova", 409);
+  // Il modello si ricostruisce dalla versione che si è prenotata, mai dalla bozza di dopo: se nel frattempo è stata
+  // salvata un'altra versione, il PDF che il browser ha disegnato non vale più e si ricomincia.
+  if (!stessaVersione(pos.updated_at, e.sorgente_updated_at)) throw new ErroreEmissionePos("Il POS è cambiato dopo la preparazione del PDF: ricaricalo e riprova", 409);
   return sorgenteApprovazione(db, { companyId, pos, nomeAutore: await nomeDiChiApprova(db, userId), rilevaFonti: p.rilevaFonti });
 }
