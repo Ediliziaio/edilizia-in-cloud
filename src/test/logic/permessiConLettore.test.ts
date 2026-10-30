@@ -118,15 +118,19 @@ describe("ogni interruttore dell'editor ha un lettore", () => {
 
 describe("i permessi senza effetto non sono più nell'editor, ma restano", () => {
   /** I lettori ammessi di un permesso nascosto, col motivo: oltre questi, ha un effetto e va rimesso nell'editor. */
-  const LETTORI_AMMESSI: Record<string, string[]> = {
-    can_view_interventi: ["src/components/layouts/MobileBottomNav.tsx"], // sceglie solo la barra in basso sul telefono
-  };
+  const LETTORI_AMMESSI: Record<string, string[]> = {};
 
-  it("sono i cinque trovati nel controllo, nessuno di più", () => {
+  // Dei cinque trovati il 09/10 due hanno ritrovato un lettore e sono tornati
+  // nell'editor: Interventi (lo strato interventi del Calendario lavori) e
+  // Attività (i campi personalizzati delle attività, EntityCustomFieldsSection).
+  it("sono i tre rimasti dei cinque trovati nel controllo, nessuno di più", () => {
     expect(PERMESSI_SENZA_EFFETTO.map((p) => p.chiave).sort()).toEqual([
       "can_approve_orders", "can_edit_settings_scontistica", "can_manage_warehouse_items",
-      "can_view_interventi", "can_view_marketing_activities",
     ]);
+  });
+
+  it("Interventi e Attività sono di nuovo nell'editor", () => {
+    expect(chiaviDegliEditor).toEqual(expect.arrayContaining(["can_view_interventi", "can_view_marketing_activities"]));
   });
 
   it.each(PERMESSI_SENZA_EFFETTO.map((p) => [p.chiave, p.etichetta] as const))("%s (%s) non è nell'editor", (chiave) => {

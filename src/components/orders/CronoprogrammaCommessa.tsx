@@ -396,7 +396,9 @@ export function CronoprogrammaCommessa({
             // Oltre la fine prevista, in rosso: fino alla chiusura reale, o fino a
             // oggi se la fase è ancora aperta (anche senza rapportini: è passata la
             // fine e non è chiusa). Parte da dove è cominciato il lavoro, se dopo.
-            const fineOltre = aperta && r ? oggi : r?.[1] ?? null;
+            // Il 14/10 era diventato `aperta && r`: la fase mai iniziata restava
+            // «in ritardo» nel riepilogo ma senza la parte rossa nel grafico.
+            const fineOltre = aperta ? oggi : r?.[1] ?? null;
             const oltre = p && !f.dateIncoerenti && fineOltre && fineOltre > p[1]
               ? barra(r && r[0] > p[1] ? r[0] : aggiungiGiorni(p[1], 1), fineOltre, asse)
               : null;

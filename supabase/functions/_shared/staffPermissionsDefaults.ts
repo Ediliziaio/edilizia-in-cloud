@@ -27,6 +27,9 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_tickets: false, can_edit_tickets: false,
   can_view_interventi: false, can_view_manutenzione: false,
   can_view_sicurezza_cantiere: false, can_view_subappaltatori: false,
+  // Fascicolo mensile riservato dei subappaltatori (LUL, F24, Cassa Edile): senza
+  // questa chiave le create-* scartavano in silenzio il permesso dato dall'editor.
+  can_view_subappaltatori_amministrazione: false,
   can_view_firma_elettronica: false,
   can_validate_bom: false, can_manage_purchasing: false,
   // Finanza

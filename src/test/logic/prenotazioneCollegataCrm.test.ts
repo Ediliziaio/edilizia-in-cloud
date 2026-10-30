@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { comeUguaglianzaIlike, ultimeNoveCifre } from "../../../supabase/functions/_shared/contattoPrenotazione";
 import { romaVersoUtc } from "../../../supabase/functions/_shared/appuntamentiPubblici";
 import { indirizzoModuloPrenotazione } from "@/lib/calendar/indirizzoModuloPrenotazione";
+import { matchesAutomationTriggerConfig } from "../../../supabase/functions/_shared/automationFilters";
 
 const leggi = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 
@@ -57,12 +58,25 @@ describe("il motore delle automazioni e gli appuntamenti", () => {
   });
 
   it("«sposta opportunità» resta nella pipeline della fase scelta", () => {
-    expect(motore).toContain('.eq("pipeline_id", fase.pipeline_id).is("deleted_at", null)');
+    // Dal 01/10 l'azione legge la fase dell'azienda e, senza opportunità esplicita,
+    // sposta solo le aperte del contatto nella pipeline di quella fase (mai le cestinate).
+    const azione = motore.slice(motore.indexOf('case "move_opportunity": {'), motore.indexOf('case "create_task": {'));
+    expect(azione).toContain('.eq("company_id", companyId).is("deleted_at", null)');
+    expect(azione).toContain('.eq("status", "open").eq("pipeline_id", fase.pipeline_id)');
   });
 
   it("i trigger degli appuntamenti si filtrano per calendario, quelli delle opportunità per pipeline", () => {
-    expect(motore).toContain('String(ep?.calendar_id ?? "") !== tcfg.calendario_id');
-    expect(motore).toContain('String(ep.pipeline_id ?? "") !== tcfg.pipeline_id');
+    // Il filtro è passato in _shared/automationFilters (matchesAutomationTriggerConfig):
+    // lo si prova sul comportamento, non sul testo.
+    expect(motore).toContain("matchesAutomationTriggerConfig(candidate.config_json ?? {}, enrichedPayload");
+    const cal = "11111111-1111-4111-8111-111111111111";
+    const altro = "22222222-2222-4222-8222-222222222222";
+    expect(matchesAutomationTriggerConfig({ calendario_id: cal }, { calendar_id: cal })).toBe(true);
+    expect(matchesAutomationTriggerConfig({ calendario_id: cal }, { calendar_id: altro })).toBe(false);
+    // Un evento senza calendario (più vecchio del 22/09) non passa.
+    expect(matchesAutomationTriggerConfig({ calendario_id: cal }, {})).toBe(false);
+    expect(matchesAutomationTriggerConfig({ pipeline_id: cal }, { pipeline_id: cal })).toBe(true);
+    expect(matchesAutomationTriggerConfig({ pipeline_id: cal }, { pipeline_id: altro })).toBe(false);
   });
 
   it("{{link_riprogramma}} e {{link_sposta}} portano alla pagina per spostare, {{link_call}} alla videochiamata", () => {

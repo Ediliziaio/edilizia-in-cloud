@@ -108,11 +108,10 @@ export default function CampoAvanzamento() {
   const fasiQuery = useQuery({
     queryKey: ["campo-avanzamento-fasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Fase[]> => {
-      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il");
+      // La chiave della query aveva già l'azienda, la query no.
+      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il").eq("company_id", companyId!);
       if (orderFilter) query = query.eq("order_id", orderFilter);
       const { data, error } = await query
-        // La chiave della query aveva già l'azienda, la query no.
-        .eq("company_id", companyId!)
         // Stesso ordine completo della lettura delle sottofasi: oltre il
         // massimo di righe per lettura le due prendono le stesse fasi.
         .order("position", { ascending: true })
@@ -150,10 +149,9 @@ export default function CampoAvanzamento() {
   const sottofasiQuery = useQuery({
     queryKey: ["campo-sottofasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Sottofase[]> => {
-      let query = db.from("order_work_phases").select(`id, ${SOTTOFASI_NELLA_FASE}`);
+      let query = db.from("order_work_phases").select(`id, ${SOTTOFASI_NELLA_FASE}`).eq("company_id", companyId!);
       if (orderFilter) query = query.eq("order_id", orderFilter);
       const { data, error } = await query
-        .eq("company_id", companyId!)
         .order("position", { ascending: true })
         .order("id", { ascending: true });
       if (error) throw error;

@@ -268,7 +268,7 @@ describe("Customer OS — contract tests", () => {
   describe("UI Founder Cockpit", () => {
     it("CockpitTab integra 6 sezioni chiave", () => {
       expect(cockpitTabSrc).toContain("Daily Brief");
-      expect(cockpitTabSrc).toContain("at-risk");
+      expect(cockpitTabSrc).toContain("Clienti a rischio");
       expect(cockpitTabSrc).toContain("Upsell");
       expect(cockpitTabSrc).toContain("Onboarding stalled");
       expect(cockpitTabSrc).toContain("Approva");

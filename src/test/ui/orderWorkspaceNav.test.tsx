@@ -17,7 +17,8 @@ function Harness() {
     <button onClick={() => navigate(-1)}>Indietro</button>
     {activeTab === "finanza" && <div id="economia-workspace">
       <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
-      {activeEconomiaView === "documenti" && <OrderDisclosure id="section-sal" title="SAL" description="Avanzamento"><p>Verbali SAL</p></OrderDisclosure>}
+      {/* Dal 28/10 «Varianti, SAL e documenti» sono tre viste: i SAL hanno la loro, come in OrderDetail. */}
+      {activeEconomiaView === "sal" && <OrderDisclosure id="section-sal" title="SAL" description="Avanzamento"><p>Verbali SAL</p></OrderDisclosure>}
     </div>}
     {activeTab === "articoli" && <div id="materiali-workspace">
       <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} />
@@ -65,7 +66,7 @@ describe("Viste materiali ed economia", () => {
   });
   it("il collegamento SAL apre la vista documenti e il dettaglio senza click aggiuntivi", async () => {
     mount("?tab=articoli&vista_economia=margini#section-sal");
-    expect(screen.getByRole("button", { name: "Varianti, SAL e documenti" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "SAL" })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(screen.getByText("Verbali SAL")).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: "Margini e costi" }));
     expect(screen.queryByText("Verbali SAL")).not.toBeInTheDocument();

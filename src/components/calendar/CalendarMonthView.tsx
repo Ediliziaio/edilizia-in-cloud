@@ -36,6 +36,7 @@ import {
   etichettaCommessa,
   WEEK_DAYS_IT,
   mapAppointmentToEditData,
+  appuntamentoAnnullato,
   type CalendarEventColors,
 } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
@@ -397,7 +398,15 @@ export function CalendarMonthView({
                         {eventTime(event) || "Giorno"}
                       </span>
                       <span className="min-w-0 text-sm">
-                        <span className="line-clamp-2">
+                        <span
+                          className={cn(
+                            "line-clamp-2",
+                            // Annullato: resta nel calendario, barrato (bf92b7566).
+                            event.appointment &&
+                              appuntamentoAnnullato(event.appointment.status) &&
+                              "line-through opacity-70",
+                          )}
+                        >
                           {previewLabel(event)}
                         </span>
                         {event.order?.order_code && (
@@ -540,7 +549,15 @@ export function CalendarMonthView({
                               {eventTime(event)}
                             </span>
                           )}
-                          <span className="line-clamp-2 min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "line-clamp-2 min-w-0 flex-1",
+                              // Annullato: resta nel calendario, barrato (bf92b7566).
+                              event.appointment &&
+                                appuntamentoAnnullato(event.appointment.status) &&
+                                "line-through opacity-70",
+                            )}
+                          >
                             {previewLabel(event)}
                           </span>
                           {event.order?.order_code && (

@@ -87,8 +87,9 @@ describe("leggiFatturaRicevuta", () => {
     expect(f.imponibile_totale).toBe(1002);
     expect(f.iva_totale).toBe(100);
     expect(f.riepilogo_iva).toEqual([
-      { aliquota: "10", natura: null, imponibile: 1000, imposta: 100 },
-      { aliquota: "0", natura: "N1", imponibile: 2, imposta: 0 },
+      // Senza EsigibilitaIVA nel riepilogo vale «I» (immediata).
+      { aliquota: "10", natura: null, imponibile: 1000, imposta: 100, esigibilita: "I" },
+      { aliquota: "0", natura: "N1", imponibile: 2, imposta: 0, esigibilita: "I" },
     ]);
     expect(f.righe[1]).toMatchObject({ natura_iva: "N1" });
   });

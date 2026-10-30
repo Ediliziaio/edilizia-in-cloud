@@ -50,15 +50,21 @@ describe("Il motore agisce sull'entità del flusso", () => {
   const motore = readFileSync(resolve(process.cwd(), "supabase/functions/process-automation/index.ts"), "utf8");
   const blocco = (caso: string) => {
     const i = motore.indexOf(`case "${caso}": {`);
-    return motore.slice(i, i + 2600);
+    return motore.slice(i, i + 4000);
   };
 
   it("add_tag / remove_tag / update_field usano entityId, non un id dalla configurazione", () => {
-    for (const caso of ["add_tag", "remove_tag", "update_field"]) {
+    for (const caso of ["add_tag", "remove_tag"]) {
       const b = blocco(caso);
       expect(b, caso).toContain('.eq("id", entityId)');
       expect(b, caso).not.toMatch(/ncfg\.(contact_id|entity_id)/);
     }
+    // update_field scrive anche su opportunità, ticket, ordini… (dal 01/10): il
+    // record si ricava dall'entità del flusso, poi si aggiorna per il suo id.
+    const uf = blocco("update_field");
+    expect(uf).toContain("resolveAutomationRecord(supabase, requested, entityId, companyId, queueItem)");
+    expect(uf).toContain('.eq("id", target.id)');
+    expect(uf).not.toMatch(/ncfg\.(contact_id|entity_id)/);
   });
 
   it("il lead Facebook avvia il flusso con l'id del contatto appena creato", () => {

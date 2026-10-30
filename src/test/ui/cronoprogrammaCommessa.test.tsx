@@ -5,7 +5,12 @@ import { CronoprogrammaCommessa } from "@/components/orders/CronoprogrammaCommes
 /**
  * Cronoprogramma della commessa (06/10/2026): il Gantt con contratto, fasi
  * previste e reali, oggi, ritardi e i numeri economici secondo i permessi.
+ * Dal 14/10 i ritardi del riepilogo sono solo quelli ANCORA APERTI: una fase
+ * chiusa oltre la fine prevista è uno «scostamento storico», in ambra.
  */
+
+/** Il riepilogo in cima (i traguardi si ripetono anche nell'elenco in fondo). */
+const riepilogo = () => screen.getByRole("region", { name: "Cronoprogramma della commessa" }).firstElementChild as HTMLElement;
 
 const stato = vi.hoisted(() => ({
   permessi: { canViewOrderAmounts: true, canViewCosts: true, canViewMargins: true },
@@ -64,9 +69,10 @@ afterEach(() => {
 describe("Cronoprogramma", () => {
   it("in cima: contratto firmato, lavori previsti, fasi in ritardo", () => {
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByText("Contratto firmato").nextSibling).toHaveTextContent("12/07/2026");
-    expect(screen.getByText("Lavori previsti").nextSibling).toHaveTextContent("03/08 → 05/09");
-    expect(screen.getByText("2 fasi in ritardo, fino a 4 giorni")).toBeInTheDocument();
+    expect(within(riepilogo()).getByText("Contratto firmato").nextSibling).toHaveTextContent("12/07/2026");
+    expect(within(riepilogo()).getByText("Lavori previsti").nextSibling).toHaveTextContent("03/08/2026 → 05/09/2026");
+    // Demolizioni è chiusa (scostamento storico): in ritardo resta solo Impianti.
+    expect(screen.getByText("1 fase in ritardo, fino a 2 giorni")).toBeInTheDocument();
     // la media delle fasi, come la testata della commessa: (100 + 40 + 0 + 0) / 4
     expect(screen.getByLabelText("Avanzamento 35%")).toBeInTheDocument();
   });
@@ -74,8 +80,11 @@ describe("Cronoprogramma", () => {
   it("senza firma del preventivo dice quando è stata aperta la commessa", () => {
     stato.firma = null;
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByText("Commessa aperta").nextSibling).toHaveTextContent("14/07/2026");
-    expect(screen.getByTitle("Commessa aperta: 14/07/2026")).toHaveTextContent("Commessa aperta 14/07");
+    expect(within(riepilogo()).getByText("Commessa aperta").nextSibling).toHaveTextContent("14/07/2026");
+    // Fuori dal grafico (che dal 14/10 segue i lavori, non le date amministrative):
+    // l'apertura sta tra i traguardi della commessa.
+    const traguardi = screen.getByText(/^Traguardi della commessa/).closest("details")!;
+    expect(within(traguardi).getByText("Commessa aperta").nextSibling).toHaveTextContent("14/07/2026");
     expect(screen.queryByText(/^Contratto/)).not.toBeInTheDocument();
   });
 
@@ -89,7 +98,7 @@ describe("Cronoprogramma", () => {
     // non ancora iniziata: solo la prevista
     expect(screen.getByTestId("previsto-f3")).toBeInTheDocument();
     expect(screen.queryByTestId("reale-f3")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Demolizioni: Completata, 100%, in ritardo di 4 giorni$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Demolizioni: Completata, 100%, scostamento storico di 4 giorni$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Pavimenti: Da iniziare, 0%$/ })).toBeInTheDocument();
   });
 
@@ -119,7 +128,7 @@ describe("Cronoprogramma", () => {
   it("tutto in tempo: nessuna fase in ritardo", () => {
     stato.phases = [fase({ id: "k1", name: "Pavimenti", start_date: "2026-08-25", end_date: "2026-09-05" })];
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByText("Nessuna fase in ritardo")).toBeInTheDocument();
+    expect(screen.getByText("Nessun ritardo aperto rilevato")).toBeInTheDocument();
   });
 
   it("le fasi senza date sono elencate a parte, con la strada per aggiungerle", () => {
@@ -133,7 +142,10 @@ describe("Cronoprogramma", () => {
 
   it("i traguardi: contratto, inizio e fine lavori", () => {
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByTitle("Contratto firmato: 12/07/2026")).toBeInTheDocument();
+    // Il contratto precede i lavori: il grafico non si allarga fin lì, resta tra i traguardi.
+    const traguardi = screen.getByText(/^Traguardi della commessa/).closest("details")!;
+    expect(within(traguardi).getByText("Contratto firmato").nextSibling).toHaveTextContent("12/07/2026");
+    expect(screen.queryByTitle("Contratto firmato: 12/07/2026")).not.toBeInTheDocument();
     expect(screen.getByTitle("Inizio lavori previsto: 03/08/2026")).toBeInTheDocument();
     expect(screen.getByTitle("Fine lavori prevista: 05/09/2026")).toBeInTheDocument();
   });
@@ -146,7 +158,7 @@ describe("Cronoprogramma", () => {
     expect(within(dettaglio).getByText("dal 03/08/2026 al 10/08/2026 (8 giorni)")).toBeInTheDocument();
     expect(within(dettaglio).getByText("dal 04/08/2026 al 14/08/2026")).toBeInTheDocument();
     expect(within(dettaglio).getByText("inizio +1 giorno · fine +4 giorni")).toBeInTheDocument();
-    expect(within(dettaglio).getByText("8 h dai rapportini")).toBeInTheDocument();
+    expect(within(dettaglio).getByText("8 h dichiarate nei rapportini inviati/approvati")).toBeInTheDocument();
     expect(within(dettaglio).getByText("3.000,00 €")).toBeInTheDocument();
     expect(within(dettaglio).getByText("1.200,00 € (+200,00 €)")).toBeInTheDocument();
   });

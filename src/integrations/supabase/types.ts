@@ -29479,6 +29479,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "documento_fields_template_company_fk"
+            columns: ["template_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "documento_templates"
+            referencedColumns: ["id", "company_id"]
+          },
+          {
             foreignKeyName: "documento_template_fields_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
