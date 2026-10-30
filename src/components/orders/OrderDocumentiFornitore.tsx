@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
+import { CaricaFatturaCommessaButton, collegaFatturaACommessa } from "./CaricaFatturaCommessa";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 /**
  * Materiali e acquisti → «Bolle e DDT» e «Fatture fornitori» della commessa.
  *
@@ -280,8 +284,24 @@ const LEGAME: Record<RigaFattura["legame"], string> = {
   suggerita: "Suggerita, da collegare",
 };
 
-export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean }) {
+export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean }) {
   const [paymentCostId,setPaymentCostId] = useState<string|null>(null);
+  const [collegando, setCollegando] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // Suggerita dall'AI → costo di questa commessa (contabilizzata se serve).
+  const collega = async (f: RigaFattura) => {
+    setCollegando(f.id);
+    try {
+      await collegaFatturaACommessa(f.id, orderId);
+      toast.success(`Fattura ${f.numero ?? ""} messa fra i costi della commessa`);
+      refreshFinancialQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["margin"] });
+    } catch (e) {
+      toast.error("Fattura non collegata", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCollegando(null);
+    }
+  };
   const { data = [], isLoading, isError, refetch } = useFattureFornitoriCommessa(orderId);
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
@@ -296,6 +316,11 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
         )}
       </div>
       {mostraImporti && <div className="flex items-center gap-3"><p className="shrink-0 text-sm font-semibold tabular-nums">{f.totale == null ? "—" : formatCurrency(f.totale)}</p>{f.costId && <Button variant="outline" size="sm" onClick={()=>setPaymentCostId(f.costId)}>Pagamenti e residuo</Button>}</div>}
+      {puoModificare && f.legame === "suggerita" && (
+        <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={collegando !== null} onClick={() => void collega(f)}>
+          {collegando === f.id ? "Collego…" : "Collega a questa commessa"}
+        </Button>
+      )}
     </li>
   );
   return (
@@ -307,8 +332,9 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />Fatture dei fornitori
           {collegate.length > 0 && <Badge variant="outline">{collegate.length}</Badge>}
           {mostraImporti && collegate.length > 0 && <span className="text-sm font-normal text-muted-foreground">· {formatCurrency(totale)} IVA inclusa</span>}
+          {puoModificare && <span className="ml-auto"><CaricaFatturaCommessaButton orderId={orderId} /></span>}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">Le fatture arrivate per questa commessa, collegate all’ordine d’acquisto o al costo registrato.</p>
+        <p className="text-sm text-muted-foreground">Le fatture arrivate per questa commessa, collegate all’ordine d’acquisto o al costo registrato.{puoModificare ? " Da qui puoi caricarne una (XML dallo SDI, PDF o foto): diventa un costo della commessa." : ""}</p>
       </CardHeader>
       <CardContent className="space-y-3">
         {isError ? (
@@ -318,7 +344,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
         ) : (
           <>
             {collegate.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nessuna fattura collegata. Si collegano dalla fattura ricevuta, scegliendo l’ordine d’acquisto o la commessa.</p>
+              <p className="text-sm text-muted-foreground">Nessuna fattura collegata. Caricala da qui, oppure collegala dalla fattura ricevuta scegliendo l’ordine d’acquisto o la commessa.</p>
             ) : <ul className="divide-y" aria-label="Fatture collegate">{collegate.map(riga)}</ul>}
             {suggerite.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">

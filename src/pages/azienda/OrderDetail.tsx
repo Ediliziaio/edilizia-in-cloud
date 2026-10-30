@@ -1788,7 +1788,7 @@ function OrderDetailInner() {
             {activeMaterialiView === "fatture" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
               {permissions.canViewCosts
                 ? <>
-                  <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} />
+                  <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} puoModificare={permissions.canEditOrders} />
                   <OrderCostiCommessaCard orderId={id!} puoModificare={permissions.canEditOrders} />
                 </>
                 : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare le fatture dei fornitori di questa commessa.</p>}
