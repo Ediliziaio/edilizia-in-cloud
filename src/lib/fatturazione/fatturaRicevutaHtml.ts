@@ -26,7 +26,7 @@ const dataIt = (iso: string | null | undefined): string => {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 };
 
-const TIPI_DOCUMENTO: Record<string, string> = {
+export const TIPI_DOCUMENTO: Record<string, string> = {
   TD01: "Fattura", TD02: "Acconto/anticipo su fattura", TD03: "Acconto/anticipo su parcella",
   TD04: "Nota di credito", TD05: "Nota di debito", TD06: "Parcella",
   TD16: "Integrazione fattura reverse charge interno", TD17: "Integrazione/autofattura per acquisto servizi dall'estero",

@@ -6,6 +6,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
+import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -254,7 +255,8 @@ export default function FattureRicevutePage() {
   // dall'anno corrente, gli altri restano un clic più in là.
   const annoCorrente = String(new Date().getFullYear());
   const [annoFilter, setAnnoFilter] = useState(annoCorrente);
-  const [xmlPreview, setXmlPreview] = useState<string | null>(null);
+  // La fattura aperta nel riepilogo leggibile (righe, totali, collegamenti).
+  const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
   const [esportando, setEsportando] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
@@ -524,6 +526,7 @@ export default function FattureRicevutePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       toast.success("Stato aggiornato");
     },
     onError: (e) => toast.error(`Errore: ${e.message}`),
@@ -544,6 +547,7 @@ export default function FattureRicevutePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       toast.success("Aggancio automatico riattivato", {
         description: "Al prossimo aggiornamento degli importi il sistema riproverà a trovare l'ordine.",
       });
@@ -562,6 +566,7 @@ export default function FattureRicevutePage() {
     },
     onSuccess: (esito, _id) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       // NB: la chiave e' quella del registro condiviso — ["company-costs"]
       // scritta a mano non corrisponde a nessuna query e la pagina Costi
       // restava ferma sui dati vecchi.
@@ -625,6 +630,7 @@ export default function FattureRicevutePage() {
     },
     onSuccess: ({ fatte, fallite }) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       // NB: la chiave e' quella del registro condiviso — ["company-costs"]
       // scritta a mano non corrisponde a nessuna query e la pagina Costi
       // restava ferma sui dati vecchi.
@@ -661,6 +667,7 @@ export default function FattureRicevutePage() {
     },
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
       queryClient.invalidateQueries({ queryKey: ["fatture-quote-ordini"] });
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
       setCollegaFattura(null);
@@ -762,6 +769,7 @@ export default function FattureRicevutePage() {
     invalidaStatisticheFatturazione(queryClient,companyId);
     queryClient.invalidateQueries({ queryKey:["anagrafiche-native",companyId] });
     queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["fatture-emesse-importate", companyId] });
     queryClient.invalidateQueries({ queryKey: ["emessa-importata-dettaglio", companyId] });
@@ -777,32 +785,6 @@ export default function FattureRicevutePage() {
   };
 
   // ─── Mark as read on view ──────────────────────────────
-
-  // L'XML si va a prendere adesso, per QUESTA fattura: è il pezzo pesante e
-  // serve solo quando lo si guarda.
-  const handleViewXml = async (f: FatturaRicevuta) => {
-    if (f.stato === "non_letta") {
-      updateStatoMutation.mutate({ id: f.id, stato: "letta" });
-    }
-    const { data, error } = await supabase
-      .from("fatture_ricevute" as never)
-      .select("xml_raw" as never)
-      .eq("id", f.id)
-      .eq("company_id", companyId!)
-      .maybeSingle();
-    const xml = (data as { xml_raw: string | null } | null)?.xml_raw ?? null;
-    if (error) {
-      toast.error("Impossibile leggere l'XML", { description: error.message });
-      return;
-    }
-    if (!xml) {
-      toast.info("Nessun XML per questa fattura", {
-        description: "Arriva dal gestionale, che espone i dati ma non il file originale.",
-      });
-      return;
-    }
-    setXmlPreview(xml);
-  };
 
   // La fattura leggibile (righe, totali, fornitore) con «Stampa / Salva PDF»:
   // prima per le ricevute c'era solo l'XML grezzo.
@@ -835,6 +817,36 @@ export default function FattureRicevutePage() {
       return;
     }
     setFatturaVista(vista);
+  };
+
+  // Il file originale nell'archivio se c'è; altrimenti l'XML salvato con la fattura
+  // (le fatture importate a mano non sempre hanno la copia in archivio).
+  const handleScaricaOriginale = async (f: FatturaRicevuta) => {
+    try {
+      let data: Blob | null = null;
+      if (f.xml_url) {
+        const r = await supabase.storage.from("fatture-xml").download(f.xml_url);
+        if (r.error) throw r.error;
+        data = r.data;
+      } else {
+        const r = await supabase.from("fatture_ricevute" as never).select("xml_raw" as never)
+          .eq("id", f.id).eq("company_id", companyId!).maybeSingle();
+        const xml = (r.data as { xml_raw: string | null } | null)?.xml_raw;
+        if (!xml) throw new Error("Nessun file disponibile per questa fattura");
+        data = new Blob([xml], { type: "application/xml" });
+      }
+      if (!data) throw new Error("File non trovato");
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = f.xml_url?.split("/").pop() ?? `${f.cedente_piva ?? "fattura"}_${String(f.numero_fattura).replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error("Impossibile scaricare l'XML", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
   };
 
   // ─── Esporta ────────────────────────────────────────────
@@ -1280,7 +1292,9 @@ export default function FattureRicevutePage() {
                 >
                   <TableCell>
                     <div>
-                      <div className="font-medium">{f.cedente_ragione_sociale}</div>
+                      <button type="button" className="text-left font-medium hover:underline underline-offset-2" onClick={() => setRiepilogoId(f.id)}>
+                        {f.cedente_ragione_sociale}
+                      </button>
                       <div className="text-xs text-muted-foreground">
                         {f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf}
                       </div>
@@ -1398,18 +1412,10 @@ export default function FattureRicevutePage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Vedi la fattura (stampa / PDF)" aria-label="Vedi la fattura"
-                        onClick={() => void handleViewFattura(f)}
+                        title="Apri la fattura: righe, totali e collegamenti" aria-label="Apri la fattura"
+                        onClick={() => setRiepilogoId(f.id)}
                       >
                         <FileText className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Anteprima XML" aria-label="Anteprima XML"
-                        onClick={() => void handleViewXml(f)}
-                      >
-                        <Eye className="h-4 w-4" />
                       </Button>
                       {/* Niente export su telefono. */}
                       {!isMobile && (
@@ -1417,35 +1423,7 @@ export default function FattureRicevutePage() {
                           variant="ghost"
                           size="icon"
                           title="Scarica il file originale" aria-label="Scarica il file originale"
-                          onClick={async () => {
-                            try {
-                              // Il file nell'archivio se c'è; altrimenti l'XML salvato con la fattura
-                              // (le fatture importate a mano non sempre hanno la copia in archivio).
-                              let data: Blob | null = null;
-                              if (f.xml_url) {
-                                const r = await supabase.storage.from("fatture-xml").download(f.xml_url);
-                                if (r.error) throw r.error;
-                                data = r.data;
-                              } else {
-                                const r = await supabase.from("fatture_ricevute" as never).select("xml_raw" as never)
-                                  .eq("id", f.id).eq("company_id", companyId!).maybeSingle();
-                                const xml = (r.data as { xml_raw: string | null } | null)?.xml_raw;
-                                if (!xml) throw new Error("Nessun file disponibile per questa fattura");
-                                data = new Blob([xml], { type: "application/xml" });
-                              }
-                              if (!data) throw new Error("File non trovato");
-                              const url = URL.createObjectURL(data);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = f.xml_url?.split("/").pop() ?? `${f.cedente_piva ?? "fattura"}_${String(f.numero_fattura).replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            } catch (err) {
-                              toast.error("Impossibile scaricare l'XML", {
-                                description: err instanceof Error ? err.message : undefined,
-                              });
-                            }
-                          }}
+                          onClick={() => void handleScaricaOriginale(f)}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -1542,7 +1520,7 @@ export default function FattureRicevutePage() {
               <Button
                 variant="outline"
                 className="mt-4 h-10 w-full"
-                onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); void handleViewFattura(f); }}
+                onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); setRiepilogoId(f.id); }}
               >
                 <FileText className="h-4 w-4 mr-1" /> Vedi la fattura
               </Button>
@@ -1713,20 +1691,22 @@ export default function FattureRicevutePage() {
         </DialogContent>
       </Dialog>
 
-      {/* XML Preview Dialog */}
-      <Dialog open={!!xmlPreview} onOpenChange={() => setXmlPreview(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Anteprima XML FatturaPA
-            </DialogTitle>
-          </DialogHeader>
-          <pre className="overflow-auto bg-muted p-4 rounded-md text-xs font-mono max-h-[60vh] whitespace-pre-wrap">
-            {xmlPreview}
-          </pre>
-        </DialogContent>
-      </Dialog>
+      {/* La fattura leggibile, anche senza XML: righe, totali e a cosa è collegata. */}
+      <RiepilogoFatturaRicevuta
+        fatturaId={riepilogoId}
+        companyId={companyId}
+        onClose={() => setRiepilogoId(null)}
+        azioni={(() => {
+          const f = fatture.find((x) => x.id === riepilogoId);
+          if (!f) return {};
+          return {
+            onCollegaOrdine: () => setCollegaFattura(f),
+            onContabilizza: () => setContabilizzaFattura(f),
+            onVersioneCompleta: () => void handleViewFattura(f),
+            onScaricaOriginale: () => void handleScaricaOriginale(f),
+          };
+        })()}
+      />
     </div>
   );
 }
