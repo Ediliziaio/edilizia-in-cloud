@@ -1,0 +1,1091 @@
+{
+ "modello": "oracolo",
+ "prompt": "p1",
+ "nota": "collaudo catena",
+ "spesa_usd": 0,
+ "risultati": [
+  {
+   "id": "g01-bilocale",
+   "generata": true,
+   "stanze_vere": 4,
+   "stanze_trovate": 4,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.001,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 4,
+    "trovate": 4
+   },
+   "finestre": {
+    "vere": 3,
+    "trovate": 3
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 25.32,
+     "area_generata": 25.32,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera",
+     "generata": "Camera",
+     "area_vera": 13.69,
+     "area_generata": 13.7,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 3.38,
+     "area_generata": 3.37,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 4.61,
+     "area_generata": 4.61,
+     "scarto": 0.001
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 3,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g02-trilocale",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.003,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "finestre": {
+    "vere": 5,
+    "trovate": 5
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 9.91,
+     "area_generata": 9.96,
+     "scarto": 0.005
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 11.21,
+     "area_generata": 11.28,
+     "scarto": 0.006
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 26.07,
+     "area_generata": 26.21,
+     "scarto": 0.005
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 5.34,
+     "area_generata": 5.34,
+     "scarto": 0
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.03,
+     "area_generata": 5.03,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 14.53,
+     "area_generata": 14.54,
+     "scarto": 0.001
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 1,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g03-quadrilocale",
+   "generata": true,
+   "stanze_vere": 8,
+   "stanze_trovate": 8,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 8,
+    "trovate": 8
+   },
+   "finestre": {
+    "vere": 7,
+    "trovate": 7
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 12.8,
+     "area_generata": 12.79,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 12.8,
+     "area_generata": 12.79,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Bagno 1",
+     "generata": "Bagno 1",
+     "area_vera": 4.13,
+     "area_generata": 4.12,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 7.7,
+     "area_generata": 7.68,
+     "scarto": 0.003
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 16.06,
+     "area_generata": 16.07,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 29.98,
+     "area_generata": 29.98,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera 3",
+     "generata": "Camera 3",
+     "area_vera": 11.06,
+     "area_generata": 11.05,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Bagno 2",
+     "generata": "Bagno 2",
+     "area_vera": 4.87,
+     "area_generata": 4.84,
+     "scarto": 0.006
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g04-trilocale-lungo",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "finestre": {
+    "vere": 5,
+    "trovate": 5
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 17.25,
+     "area_generata": 17.26,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.18,
+     "area_generata": 5.16,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 10.64,
+     "area_generata": 10.68,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 12.2,
+     "area_generata": 12.22,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 5.49,
+     "area_generata": 5.5,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 27.73,
+     "area_generata": 27.75,
+     "scarto": 0.001
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 1,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g05-monolocale",
+   "generata": true,
+   "stanze_vere": 3,
+   "stanze_trovate": 3,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 3,
+    "trovate": 3
+   },
+   "finestre": {
+    "vere": 3,
+    "trovate": 3
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Camera",
+     "generata": "Camera",
+     "area_vera": 9.88,
+     "area_generata": 9.9,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 3.64,
+     "area_generata": 3.65,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 18.02,
+     "area_generata": 18.05,
+     "scarto": 0.002
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g06-trilocale-pdf",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.003,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "finestre": {
+    "vere": 5,
+    "trovate": 5
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.08,
+     "area_generata": 5.08,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 10.73,
+     "area_generata": 10.77,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 11.05,
+     "area_generata": 11.05,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 14.57,
+     "area_generata": 14.66,
+     "scarto": 0.006
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 5.06,
+     "area_generata": 5.1,
+     "scarto": 0.007
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 25.72,
+     "area_generata": 25.74,
+     "scarto": 0.001
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "g07-quadrilocale-pdf",
+   "generata": true,
+   "stanze_vere": 7,
+   "stanze_trovate": 7,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 7,
+    "trovate": 7
+   },
+   "finestre": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 11.99,
+     "area_generata": 12.01,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 11.75,
+     "area_generata": 11.77,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 6.23,
+     "area_generata": 6.21,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Bagno 1",
+     "generata": "Bagno 1",
+     "area_vera": 5.96,
+     "area_generata": 5.98,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 16.12,
+     "area_generata": 16.14,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Bagno 2",
+     "generata": "Bagno 2",
+     "area_vera": 4.34,
+     "area_generata": 4.33,
+     "scarto": 0.003
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 31.49,
+     "area_generata": 31.51,
+     "scarto": 0.001
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 1,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "c01-catastale-bilocale",
+   "generata": true,
+   "stanze_vere": 4,
+   "stanze_trovate": 4,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 4,
+    "trovate": 4
+   },
+   "finestre": {
+    "vere": 3,
+    "trovate": 3
+   },
+   "scala_confermata_da_utente": true,
+   "correzioni": 1,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Camera",
+     "generata": "Camera",
+     "area_vera": 13.32,
+     "area_generata": 13.31,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 4.1,
+     "area_generata": 4.11,
+     "scarto": 0.003
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 3.26,
+     "area_generata": 3.25,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 21.24,
+     "area_generata": 21.24,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "c02-catastale-trilocale",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.002,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "finestre": {
+    "vere": 5,
+    "trovate": 5
+   },
+   "scala_confermata_da_utente": true,
+   "correzioni": 1,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 27.07,
+     "area_generata": 27.07,
+     "scarto": 0
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 4.78,
+     "area_generata": 4.8,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 14.66,
+     "area_generata": 14.68,
+     "scarto": 0.002
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.18,
+     "area_generata": 5.17,
+     "scarto": 0.003
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 9.59,
+     "area_generata": 9.62,
+     "scarto": 0.003
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 10.83,
+     "area_generata": 10.83,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "c03-catastale-quadrilocale",
+   "generata": true,
+   "stanze_vere": 7,
+   "stanze_trovate": 7,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0.003,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 7,
+    "trovate": 7
+   },
+   "finestre": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "scala_confermata_da_utente": true,
+   "correzioni": 1,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Bagno 1",
+     "generata": "Bagno 1",
+     "area_vera": 6.51,
+     "area_generata": 6.54,
+     "scarto": 0.005
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 6.51,
+     "area_generata": 6.54,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Bagno 2",
+     "generata": "Bagno 2",
+     "area_vera": 4.96,
+     "area_generata": 4.94,
+     "scarto": 0.004
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 30.6,
+     "area_generata": 30.62,
+     "scarto": 0.001
+    },
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 12.97,
+     "area_generata": 13.03,
+     "scarto": 0.005
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 12.06,
+     "area_generata": 12.06,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 20.44,
+     "area_generata": 20.48,
+     "scarto": 0.002
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [],
+   "esito": "ok"
+  },
+  {
+   "id": "s01-schizzo-bilocale",
+   "generata": true,
+   "stanze_vere": 4,
+   "stanze_trovate": 4,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 4,
+    "trovate": 4
+   },
+   "finestre": {
+    "vere": 3,
+    "trovate": 3
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 3.15,
+     "area_generata": 3.15,
+     "scarto": 0
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 3.99,
+     "area_generata": 3.99,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera",
+     "generata": "Camera",
+     "area_vera": 12.25,
+     "area_generata": 12.25,
+     "scarto": 0
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 22.23,
+     "area_generata": 22.23,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  },
+  {
+   "id": "s02-schizzo-trilocale",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 6,
+    "trovate": 6
+   },
+   "finestre": {
+    "vere": 4,
+    "trovate": 4
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Camera 1",
+     "generata": "Camera 1",
+     "area_vera": 14.45,
+     "area_generata": 14.45,
+     "scarto": 0
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 8.67,
+     "area_generata": 8.67,
+     "scarto": 0
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 23.36,
+     "area_generata": 23.36,
+     "scarto": 0
+    },
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.03,
+     "area_generata": 5.03,
+     "scarto": 0
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 4.27,
+     "area_generata": 4.27,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera 2",
+     "generata": "Camera 2",
+     "area_vera": 10.24,
+     "area_generata": 10.24,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  },
+  {
+   "id": "s03-schizzo-senza-misure",
+   "generata": true,
+   "stanze_vere": 5,
+   "stanze_trovate": 5,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": {
+    "vere": 5,
+    "trovate": 5
+   },
+   "finestre": {
+    "vere": 4,
+    "trovate": 4
+   },
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "Bagno",
+     "generata": "Bagno",
+     "area_vera": 5.32,
+     "area_generata": 5.32,
+     "scarto": 0
+    },
+    {
+     "vera": "Camera",
+     "generata": "Camera",
+     "area_vera": 13.16,
+     "area_generata": 13.16,
+     "scarto": 0
+    },
+    {
+     "vera": "Soggiorno",
+     "generata": "Soggiorno",
+     "area_vera": 22.91,
+     "area_generata": 22.91,
+     "scarto": 0
+    },
+    {
+     "vera": "Disimpegno",
+     "generata": "Disimpegno",
+     "area_vera": 4.24,
+     "area_generata": 4.24,
+     "scarto": 0
+    },
+    {
+     "vera": "Cucina",
+     "generata": "Cucina",
+     "area_vera": 10.87,
+     "area_generata": 10.87,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 1,
+   "avvisi": [
+    "Alcune stanze non avevano misure scritte sullo schizzo: le loro dimensioni sono stimate.",
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  },
+  {
+   "id": "t01-bilocale-testo",
+   "generata": true,
+   "stanze_vere": 4,
+   "stanze_trovate": 4,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": null,
+   "finestre": null,
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "soggiorno",
+     "generata": "soggiorno",
+     "area_vera": 22.5,
+     "area_generata": 22.5,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 14,
+     "area_generata": 14,
+     "scarto": 0
+    },
+    {
+     "vera": "bagno",
+     "generata": "bagno",
+     "area_vera": 5,
+     "area_generata": 5,
+     "scarto": 0
+    },
+    {
+     "vera": "disimpegno",
+     "generata": "disimpegno",
+     "area_vera": null,
+     "area_generata": 4,
+     "scarto": null
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [
+    "Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.",
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  },
+  {
+   "id": "t02-trilocale-testo",
+   "generata": true,
+   "stanze_vere": 6,
+   "stanze_trovate": 6,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": null,
+   "finestre": null,
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "soggiorno",
+     "generata": "soggiorno",
+     "area_vera": 25,
+     "area_generata": 25,
+     "scarto": 0
+    },
+    {
+     "vera": "cucina",
+     "generata": "cucina",
+     "area_vera": 10.5,
+     "area_generata": 10.5,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 14,
+     "area_generata": 14,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 9,
+     "area_generata": 9,
+     "scarto": 0
+    },
+    {
+     "vera": "bagno",
+     "generata": "bagno",
+     "area_vera": 5,
+     "area_generata": 5,
+     "scarto": 0
+    },
+    {
+     "vera": "disimpegno",
+     "generata": "disimpegno",
+     "area_vera": null,
+     "area_generata": 4,
+     "scarto": null
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 1,
+   "avvisi": [
+    "Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.",
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  },
+  {
+   "id": "t03-quadrilocale-testo",
+   "generata": true,
+   "stanze_vere": 9,
+   "stanze_trovate": 9,
+   "stanze_in_piu": 0,
+   "scarto_area_medio": 0,
+   "stanze_fuori_tolleranza": 0,
+   "porte": null,
+   "finestre": null,
+   "scala_confermata_da_utente": false,
+   "correzioni": 0,
+   "corretta": true,
+   "dettaglio": [
+    {
+     "vera": "soggiorno",
+     "generata": "soggiorno",
+     "area_vera": 28,
+     "area_generata": 28,
+     "scarto": 0
+    },
+    {
+     "vera": "cucina",
+     "generata": "cucina",
+     "area_vera": 12,
+     "area_generata": 12,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 14,
+     "area_generata": 14,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 11,
+     "area_generata": 11,
+     "scarto": 0
+    },
+    {
+     "vera": "camera",
+     "generata": "camera",
+     "area_vera": 9,
+     "area_generata": 9,
+     "scarto": 0
+    },
+    {
+     "vera": "bagno",
+     "generata": "bagno",
+     "area_vera": 5,
+     "area_generata": 5,
+     "scarto": 0
+    },
+    {
+     "vera": "bagno",
+     "generata": "bagno",
+     "area_vera": 3.5,
+     "area_generata": 3.5,
+     "scarto": 0
+    },
+    {
+     "vera": "disimpegno",
+     "generata": "disimpegno",
+     "area_vera": null,
+     "area_generata": 4,
+     "scarto": null
+    },
+    {
+     "vera": "balcone",
+     "generata": "balcone",
+     "area_vera": 6,
+     "area_generata": 6,
+     "scarto": 0
+    }
+   ],
+   "modello": "oracolo",
+   "costo_usd": 0,
+   "tentativi": 1,
+   "durata_ms": 0,
+   "avvisi": [
+    "Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.",
+    "Altezza dei locali non scritta: ho messo 2,70 m."
+   ],
+   "esito": "ok"
+  }
+ ]
+}

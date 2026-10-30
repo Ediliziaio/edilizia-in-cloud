@@ -59,7 +59,7 @@ export interface Problema {
 /** Tutti i problemi della pianta, in tutti i livelli e in tutti gli stati. */
 export function controllaPlanimetria(p: Planimetria): Problema[] {
   const forma = validaPlanimetria(p);
-  if (!forma.ok) return forma.errori.map(messaggio => ({ gravita: "errore", codice: "forma_non_valida", messaggio }));
+  if (forma.ok === false) return forma.errori.map(messaggio => ({ gravita: "errore", codice: "forma_non_valida", messaggio }));
 
   const problemi: Problema[] = [];
   for (const livello of p.livelli) {

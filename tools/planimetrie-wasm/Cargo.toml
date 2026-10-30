@@ -1,0 +1,42 @@
+# Fase 0 Planimetrie: prova dei crate di cadcraft compilati in WebAssembly.
+# Esito e misure: docs/planimetrie/fase0-esito.md. Build: tools/planimetrie-wasm/build.sh
+[package]
+name = "planimetrie-wasm"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Esportazione PDF in scala (krilla): misurata a parte perché pesa sul .wasm.
+pdf = []
+
+# cadcraft (https://github.com/storytold/cadcraft), MIT OR Apache-2.0, fissato a un commit.
+[dependencies]
+cadcraft-geom = { git = "https://github.com/storytold/cadcraft", rev = "f536bf406f01541006c81deec47ec842acc83158" }
+cadcraft-color = { git = "https://github.com/storytold/cadcraft", rev = "f536bf406f01541006c81deec47ec842acc83158" }
+cadcraft-doc = { git = "https://github.com/storytold/cadcraft", rev = "f536bf406f01541006c81deec47ec842acc83158" }
+cadcraft-io = { git = "https://github.com/storytold/cadcraft", rev = "f536bf406f01541006c81deec47ec842acc83158" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"
+
+# Le stesse patch del Cargo.toml radice di cadcraft: Cargo ignora le patch delle dipendenze.
+[patch.crates-io]
+krilla = { version = "=0.8.2", git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[package.metadata.wasm-pack.profile.release]
+# Rust >= 1.87 emette bulk-memory e affini: il wasm-opt di wasm-pack va avvisato.
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue"]
