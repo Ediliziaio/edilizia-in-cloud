@@ -9,6 +9,7 @@ import type { FaseModello } from "@/lib/orders/modelliFasi";
 import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { invalidaSquadreCollegate } from '@/lib/manodopera/cacheSquadre';
+import type { OrigineCostoDitta } from "@/lib/orders/costoDitta";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -27,6 +28,12 @@ export interface PhaseAssignment {
   cost_consuntivo: number; // = total_cost (sorgente di verità letta da margine/dashboard)
   /** Ditte: aliquota con cui sono scritti gli importi (IVA inclusa). */
   vat_rate?: number | null;
+  /** Ditte: da dove viene il costo previsto (tariffa × quantità, voci del preventivo, a mano). */
+  tariffa_id?: string | null;
+  quantita?: number | null;
+  /** Senza IVA. */
+  costo_unitario?: number | null;
+  costo_origine?: OrigineCostoDitta | null;
   hours: number | null;
   is_paid: boolean;
   paid_date: string | null;
@@ -78,6 +85,9 @@ export interface PhaseMaterial {
   unit_price: number | null;
   discount_percent: number | null;
   standard_cost: number | null;
+  /** L'unità della riga: i posati dei rapportini si confrontano solo nella stessa unità. */
+  unita_misura?: string | null;
+  stock_item_id?: string | null;
   readiness: MaterialReadiness;
   odaNumber: string | null;
 }
@@ -291,6 +301,13 @@ export interface AddAssignmentPayload {
   is_paid: boolean;
   paid_date: string | null;
   notes: string | null;
+  /** Solo ditte: da dove viene il costo previsto, per ricalcolarlo e spiegarlo. */
+  origine_costo?: {
+    costo_origine: OrigineCostoDitta;
+    tariffa_id: string | null;
+    quantita: number | null;
+    costo_unitario: number | null;
+  } | null;
 }
 
 export function useOrderWorkPhases(orderId: string | null | undefined) {
@@ -311,7 +328,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       const [phasesRes, empRes, teamRes] = await Promise.all([
         db.from("order_work_phases").select("*").eq("order_id", orderId!).eq("company_id", companyId!).order("position", { ascending: true }),
         db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes, employee:employees(first_name,last_name,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!),
-        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, vat_rate, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
+        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, vat_rate, tariffa_id, quantita, costo_unitario, costo_origine, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
       ]);
       if (phasesRes.error) throw phasesRes.error;
       if (empRes.error) throw empRes.error;
@@ -344,6 +361,10 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         cost_preventivo: Number(t.cost_preventivo) || 0,
         cost_consuntivo: Number(t.total_cost) || 0,
         vat_rate: t.vat_rate == null ? null : Number(t.vat_rate),
+        tariffa_id: (t.tariffa_id as string) ?? null,
+        quantita: t.quantita == null ? null : Number(t.quantita),
+        costo_unitario: t.costo_unitario == null ? null : Number(t.costo_unitario),
+        costo_origine: (t.costo_origine as OrigineCostoDitta) ?? null,
         hours: null,
         is_paid: Boolean(t.is_paid),
         paid_date: (t.paid_date as string) ?? null,
@@ -422,7 +443,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     queryFn: async () => {
       const { data: items, error } = await db
         .from("order_items")
-        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost")
+        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost, unita_misura")
         .filter("natura_riga", "eq", "materiale")
         .eq("order_id", orderId!);
       if (error) throw error;
@@ -584,11 +605,16 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       } else {
         if (a.subappaltatore_id) {
           if (!orderId || !companyId || a.external_team_id) throw new Error('Contesto della ditta non valido.');
-          const { error } = await db.rpc('commessa_assegna_subappaltatore', {
+          const { data: assegnazione, error } = await db.rpc('commessa_assegna_subappaltatore', {
             p_order_id: orderId, p_subappaltatore_id: a.subappaltatore_id, p_phase_id: a.phase_id,
             p_cost_preventivo: a.cost_preventivo, p_cost_consuntivo: a.cost_consuntivo, p_notes: a.notes,
           });
           if (error) throw error;
+          // La RPC non conosce l'origine del costo: la si scrive dopo, sulla riga che ha creato.
+          if (a.origine_costo && assegnazione) {
+            const { error: origineError } = await db.from("order_external_teams").update(a.origine_costo).eq("id", assegnazione);
+            if (origineError) toast.warning("Ditta assegnata, ma non ho salvato da dove viene il costo previsto.");
+          }
           void qc.invalidateQueries({ queryKey: ['assignment-companies', companyId] });
           void invalidaSquadreCollegate(qc);
           return;
@@ -611,6 +637,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           is_paid: a.is_paid,
           paid_date: a.paid_date,
           notes: a.notes,
+          ...(a.origine_costo ?? {}),
         });
         if (error) throw error;
       }
@@ -624,6 +651,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       const table = source === "employee" ? "order_employees" : "order_external_teams";
       const row: Record<string, unknown> = {};
       if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
+      // Previsto riscritto a mano: tariffa e quantità non lo spiegano più.
+      if (patch.cost_preventivo !== undefined && source === "team") row.costo_origine = "manuale";
       if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
       if (patch.hours !== undefined && source === "employee") row.hours_worked = patch.hours;
       // is_paid/paid_date esistono su entrambe le tabelle: gestione uniforme

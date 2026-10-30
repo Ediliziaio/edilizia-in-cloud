@@ -63,6 +63,29 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // Date e tempo necessario: fine e giorni mancanti li completa il database, e la
+  // fase si allarga se la sottofase esce dalle sue date (20281029213000).
+  const pianifica = useMutation({
+    mutationFn: async ({ id, data_inizio, data_fine, giorni }: { id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }) => {
+      const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // Il peso di ogni sottofase diventa il suo tempo necessario (pesiDaGiorni).
+  const pesa = useMutation({
+    mutationFn: async (pesi: ReadonlyArray<{ id: string; peso: number }>) => {
+      for (const { id, peso } of pesi) {
+        const { error } = await db.from("order_work_subphases").update({ peso }).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
   const elimina = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await db.from("order_work_subphases").delete().eq("id", id);
@@ -72,5 +95,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pesa, elimina };
 }

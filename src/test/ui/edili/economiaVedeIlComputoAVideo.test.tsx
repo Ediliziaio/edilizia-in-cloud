@@ -47,7 +47,7 @@ const { DETAIL, VOCE_NUOVA, stato } = vi.hoisted(() => {
   };
 });
 
-vi.mock("react-router-dom", () => ({ useParams: () => ({ id: stato.id }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
+vi.mock("react-router-dom", () => ({ useParams: () => ({ id: stato.id }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()], useInRouterContext: () => false }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, effectiveCompany: { id: "c1", name: "Bianchi Impianti" } }) }));
 vi.mock("@/integrations/supabase/client", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -31,7 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -43,22 +43,26 @@ import {
   spiegazioneFase, type AzioneFase, type AzionePrincipale, type PermessiMateriali, type PillolaValidazione,
 } from "@/lib/distinta/statiFase";
 import {
-  contaStati, descrizioneVisibile, ETICHETTA_STATO_MATERIALE, faseCompleta, infoStato, quantitaLeggibile, riassuntoStati, SCALA_STATI,
-  STATI_DA_ORDINARE, type InfoStatoMateriale, type StatoMateriale,
+  contaStati, descrizioneVisibile, ETICHETTA_STATO_MATERIALE, faseCompleta, infoStato, passiScegliibili, quantitaLeggibile, riassuntoStati,
+  SCALA_STATI, STATI_DA_ORDINARE, type ConteggioStati, type InfoStatoMateriale, type StatoMateriale,
 } from "@/lib/distinta/statoMateriale";
 import { ETICHETTA_FONTE_PREZZO, prezzoAttuale, totaleStimato, type FontePrezzo, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
 import {
   allegatoOda, dettaglioAccontoSaldo, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
 } from "@/lib/distinta/elencoArticoli";
-import { ODA_STATUS_LABELS } from "@/lib/odaStatus";
+import { ODA_STATI_EMESSI, ODA_STATUS_LABELS } from "@/lib/odaStatus";
 import { OrderItemsList, STATUS_CONFIG, statusConfig, type OrderItem, type OrderItemStatus, type RichiestaArticolo } from "@/components/orders/OrderItemsList";
 import { OrderItemAttachments } from "@/components/orders/OrderItemAttachments";
 import { openAttachmentInTab } from "@/components/orders/filePreviewUtils";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { COLORE_BARRA, COLORE_STATO } from "./coloriStato";
+import { bilancioPosa, consumiPerArticolo, type ConsumoArticolo } from "@/lib/distinta/consumiMateriali";
+import { useConsumiMateriali } from "@/hooks/useConsumiMateriali";
 
 const GeneraMaterialiDialog = lazy(() => import("./GeneraMaterialiDialog"));
 const PlanimetrieDialog = lazy(() => import("./PlanimetrieDialog"));
+const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
 
 /** Quello che serve per aggiungere e modificare gli articoli (dettaglio commessa). */
 export interface EditorArticoli {
@@ -70,14 +74,29 @@ export interface EditorArticoli {
   onAddLabor?: (labor: { external_team_id: string; total_cost: number; notes: string }) => void;
 }
 
-const COLORE_STATO: Record<StatoMateriale, string> = {
-  da_ordinare: "border-border bg-muted text-muted-foreground",
-  in_offerta: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  in_bozza_oda: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  ordinato: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200",
-  consegnato: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  installato: "border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-700",
-};
+
+
+/** Sei tacche, piene fino al passo della riga: dove sta il materiale si legge senza leggere. */
+function ScalaMini({ stato }: { stato: StatoMateriale }) {
+  const i = SCALA_STATI.indexOf(stato);
+  return (
+    <span className="flex w-full max-w-[7.5rem] gap-0.5" aria-hidden>
+      {SCALA_STATI.map((s, k) => <span key={s} className={cn("h-1 flex-1 rounded-full", k <= i ? COLORE_BARRA[stato] : "bg-muted")} />)}
+    </span>
+  );
+}
+
+/** La fase in una barra: quanti materiali per stato, in proporzione. */
+function BarraFase({ conteggio }: { conteggio: ConteggioStati }) {
+  if (!conteggio.totale) return null;
+  return (
+    <span className="flex h-1.5 w-20 overflow-hidden rounded-full bg-muted" aria-hidden>
+      {SCALA_STATI.filter((s) => conteggio[s] > 0).map((s) => (
+        <span key={s} className={COLORE_BARRA[s]} style={{ width: `${(conteggio[s] / conteggio.totale) * 100}%` }} />
+      ))}
+    </span>
+  );
+}
 
 const COLORE_PILLOLA: Record<PillolaValidazione, string> = {
   bozza: "bg-muted text-muted-foreground",
@@ -217,9 +236,97 @@ function OrdineArrivo({ m, info, oda }: { m: MaterialeFase; info: InfoStatoMater
   );
 }
 
+/** Quanto il cantiere ha posato, dai rapportini approvati: per fase al passaggio. */
+function Posa({ m, consumo, rientrati, nomeFase, onInstallato, onRientro }: {
+  m: MaterialeFase; consumo: ConsumoArticolo | undefined; rientrati: number; nomeFase: (id: string | null) => string; onInstallato?: () => void;
+  /** Con questo, quello che avanza si fa rientrare in magazzino. */
+  onRientro?: (avanzano: number, posati: number) => void;
+}) {
+  if (!consumo && !rientrati) return null;
+  const posati = consumo?.posati ?? 0;
+  const b = bilancioPosa(m.quantity, m.unita_misura, posati, rientrati);
+  const unita = quantitaLeggibile(1, m.unita_misura).unita;
+  const dettaglio = [
+    ...[...(consumo?.perFase ?? new Map()).entries()].map(([f, q]) => `${nomeFase(f)}: ${numero(q)} ${unita}`),
+    ...[...(consumo?.altreUnita ?? new Map()).entries()].map(([u, q]) => `In un'altra unità: ${numero(q)} ${u}`),
+    ...[...(consumo?.componenti ?? new Map()).entries()].map(([k, c]) => `${k.split("|")[0]}: ${numero(c.quantita)} ${c.unita}`),
+    rientrati ? `Rientrati in magazzino: ${numero(rientrati)} ${unita}` : null,
+    consumo ? `Da ${consumo.rapportini} ${consumo.rapportini === 1 ? "rapportino approvato" : "rapportini approvati"}` : null,
+  ].filter(Boolean).join("\n");
+  const altre = [...(consumo?.altreUnita ?? new Map()).entries()];
+  const testo = b.confrontabile && (posati > 0 || rientrati > 0)
+    ? <>Posati {numero(posati)} di {numero(m.quantity)}{b.avanzano > 0 && <span className="text-amber-700 dark:text-amber-400"> · {numero(b.avanzano)} avanzano</span>}{b.oltre && <span className="text-red-700 dark:text-red-400"> · oltre il previsto</span>}</>
+    : altre.length ? <>Usati {altre.map(([u, q]) => `${numero(q)} ${u}`).join(", ")}</>
+    : consumo?.componenti.size ? <>{consumo.componenti.size} {consumo.componenti.size === 1 ? "prodotto posato" : "prodotti posati"}</> : null;
+  if (!testo) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted-foreground tabular-nums">
+      <Suggerimento testo={dettaglio}><span tabIndex={0} className="underline decoration-dotted underline-offset-2">{testo}</span></Suggerimento>
+      {b.avanzano > 0 && posati > 0 && onRientro && (
+        <button type="button" onClick={() => onRientro(b.avanzano, posati)} className="tap-compact font-medium text-foreground underline underline-offset-2">
+          Fai rientrare {numero(b.avanzano)}
+        </button>
+      )}
+      {b.tuttoPosato && onInstallato && (
+        <button type="button" onClick={onInstallato} className="tap-compact font-medium text-emerald-700 underline underline-offset-2 dark:text-emerald-400">
+          Segna installato
+        </button>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Lo stato della riga. Chi può modificare la commessa la clicca e sceglie il
+ * passo; quelli che decide un documento (offerta, ordine) restano spenti con
+ * il motivo accanto.
+ */
+function PillolaStato({ info, m, spiegazione, onCambia }: {
+  info: InfoStatoMateriale; m: MaterialeFase; spiegazione: string; onCambia?: (status: string) => void;
+}) {
+  const classe = cn("inline-flex items-center gap-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium", COLORE_STATO[info.stato]);
+  const etichetta = ETICHETTA_STATO_MATERIALE[info.stato];
+  if (!onCambia) {
+    return spiegazione
+      ? <Suggerimento testo={spiegazione}><span tabIndex={0} className={classe}>{etichetta}</span></Suggerimento>
+      : <span className={classe}>{etichetta}</span>;
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className={cn(classe, "tap-compact hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+          aria-label={`Stato di ${m.name}: ${etichetta}. Cambia`}>
+          {etichetta}<ChevronDown className="h-3 w-3 opacity-70" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {spiegazione && <DropdownMenuLabel className="whitespace-pre-line text-xs font-normal text-muted-foreground">{spiegazione}</DropdownMenuLabel>}
+        {spiegazione && <DropdownMenuSeparator />}
+        {passiScegliibili(info, !!m.supplier_rfq_item_id).map((p) => (
+          <DropdownMenuItem key={p.stato} disabled={!p.status || p.attuale} onSelect={() => p.status && onCambia(p.status)}
+            className="flex-col items-start gap-0">
+            <span className="flex items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-full", COLORE_BARRA[p.stato])} aria-hidden />
+              {ETICHETTA_STATO_MATERIALE[p.stato]}
+              {p.attuale && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-label="attuale" />}
+            </span>
+            {p.motivo && !p.attuale && <span className="pl-4 text-[11px] text-muted-foreground">{p.motivo}</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function RigaMateriale({
-  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni, oda,
+  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni, oda, onCambiaStato, etichettaFase, posa,
 }: {
+  /** Con questo la pillola dello stato si clicca e propone i passi scegliibili. */
+  onCambiaStato?: (status: string) => void;
+  /** La fase scritta sopra il nome, quando la fase ha solo questa riga e non ha un'intestazione. */
+  etichettaFase?: ReactNode;
+  /** Quanto il cantiere ha posato (rapportini approvati) e quanto è rientrato in magazzino. */
+  posa?: ReactNode;
   /** L'ordine d'acquisto allegato alla riga, se c'è: si scarica con un clic. */
   oda: { file_name: string; file_url: string } | null;
   m: MaterialeFase;
@@ -246,7 +353,6 @@ function RigaMateriale({
   const oltre = (m.ordinata ?? 0) > m.quantity && m.quantity > 0;
   const descrizione = descrizioneVisibile(m.name, m.description);
   const qta = quantitaLeggibile(m.quantity, m.unita_misura, info.unitaDaVerificare?.unitaOrdine);
-  const fornitore = nomeFornitore ?? (materiale ? <span className="text-muted-foreground">Da scegliere</span> : null);
   const tooltipStato = [
     info.dettaglio,
     m.status ? `Riga: ${statusConfig(m.status).label}` : null,
@@ -262,16 +368,20 @@ function RigaMateriale({
         <Checkbox checked={selezionato} onCheckedChange={(v) => onSeleziona(!!v)} aria-label={`Seleziona ${m.name}`} />
       </td>
       <td className="min-w-0 flex-1 max-lg:!order-2 max-lg:basis-[calc(100%-3.75rem)]">
-        <p className="line-clamp-2 break-words text-sm font-medium text-foreground">
+        {etichettaFase}
+        {/* Due linee per riga: il nome, poi fornitore e dettagli su una riga sola (il resto al
+            passaggio). Sul telefono il nome può andare a capo. */}
+        <p className="line-clamp-2 break-words text-sm font-medium text-foreground lg:truncate lg:break-normal" title={m.name}>
           {m.name}
           {!materiale && <span className="ml-2 rounded bg-muted px-1.5 text-[11px] font-normal text-muted-foreground">{ETICHETTA_NATURA[m.natura_riga ?? ""] ?? m.natura_riga}</span>}
         </p>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          {m.specifiche && <span className="max-w-full truncate">{m.specifiche}</span>}
+        <div className="flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-xs text-muted-foreground [&>*]:shrink-0">
+          {materiale && (nomeFornitore
+            ? <span className="max-w-[12rem] truncate text-foreground/80">{nomeFornitore}</span>
+            : info.stato === "da_ordinare" ? <span>Fornitore da scegliere</span> : null)}
+          {m.specifiche && <span className="min-w-0 truncate !shrink">{m.specifiche}</span>}
           {descrizione && (
-            descrizione.length > 60
-              ? <Suggerimento testo={descrizione} lato="bottom"><span tabIndex={0} className="max-w-[18rem] truncate">{descrizione}</span></Suggerimento>
-              : <span>{descrizione}</span>
+            <Suggerimento testo={descrizione} lato="bottom"><span tabIndex={0} className="min-w-0 truncate !shrink">{descrizione}</span></Suggerimento>
           )}
           <Provenienza m={m} />
           {m.stock_item_id && <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><Warehouse className="h-3 w-3" aria-hidden />Da giacenza</span>}
@@ -280,7 +390,6 @@ function RigaMateriale({
               <span tabIndex={0} className="underline decoration-dotted underline-offset-2">{m.posizioni.length} posizioni</span>
             </Suggerimento>
           )}
-          {nomeFornitore && <span className="truncate xl:hidden">{nomeFornitore}</span>}
           {m.avviso && (
             <Suggerimento testo={m.avviso}>
               <span tabIndex={0} className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400" aria-label={`Attenzione: ${m.avviso}`}>
@@ -310,23 +419,14 @@ function RigaMateriale({
         )}
         {calcolata != null && <span className="block text-[11px] text-muted-foreground">calcolata {numero(calcolata)}</span>}
       </td>
-      <td className="hidden truncate text-sm xl:table-cell" title={nomeFornitore ?? undefined}>{fornitore}</td>
       <td className="min-w-0">{materiale ? <OrdineArrivo m={m} info={info} oda={oda} /> : null}</td>
       <td>
         {materiale ? (
-          <div className="flex flex-col items-start gap-0.5">
-            {tooltipStato ? (
-              <Suggerimento testo={tooltipStato}>
-                <span tabIndex={0} className={cn("inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium", COLORE_STATO[info.stato])}>
-                  {ETICHETTA_STATO_MATERIALE[info.stato]}
-                </span>
-              </Suggerimento>
-            ) : (
-              <span className={cn("inline-flex whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium", COLORE_STATO[info.stato])}>
-                {ETICHETTA_STATO_MATERIALE[info.stato]}
-              </span>
-            )}
+          <div className="flex flex-col items-start gap-1">
+            <PillolaStato info={info} m={m} spiegazione={tooltipStato} onCambia={onCambiaStato} />
+            <ScalaMini stato={info.stato} />
             {info.dettaglio && <span className="text-[11px] text-muted-foreground">{info.dettaglio}</span>}
+            {posa}
           </div>
         ) : (
           <span className="text-xs text-muted-foreground">{statusConfig(m.status).label}</span>
@@ -358,11 +458,13 @@ interface SezioneProps {
   onAggiungi?: () => void;
   azioniRiga: (m: MaterialeFase) => ReactNode;
   allegatoOdaDi: (m: MaterialeFase) => { file_name: string; file_url: string } | null;
+  cambiaStatoDi: (m: MaterialeFase) => ((status: string) => void) | undefined;
+  posaDi: (m: MaterialeFase) => ReactNode;
 }
 
 function SezioneFase({
   fase, righe, colonne, permessi, canViewCosts, selezione, setSelezione, nomeFornitore, onAzione, onOrdina, onQuantita, aperta, onApri, proposte,
-  onAggiungi, azioniRiga, allegatoOdaDi,
+  onAggiungi, azioniRiga, allegatoOdaDi, cambiaStatoDi, posaDi,
 }: SezioneProps) {
   const stato = fase.validazione?.stato ?? null;
   // Conteggi, validazione e importi contano i materiali: lavorazioni e descrizioni no.
@@ -393,6 +495,46 @@ function SezioneFase({
     if (v) s.add(id); else s.delete(id);
     setSelezione(s);
   };
+  const riga = (m: MaterialeFase, etichettaFase?: ReactNode) => (
+    <RigaMateriale
+      key={m.id}
+      m={m}
+      selezionato={selezione.has(m.id)}
+      onSeleziona={(v) => seleziona(m.id, v)}
+      modificabile={modificabile && infoStato(m).stato === "da_ordinare" && eMateriale(m)}
+      tecnico={tecnico}
+      nomeFornitore={nomeFornitore(m.supplier_id)}
+      onQuantita={(q) => onQuantita(m, q, tecnico)}
+      canViewCosts={canViewCosts}
+      proposto={proposte.get(m.id)}
+      azioni={azioniRiga(m)}
+      oda={allegatoOdaDi(m)}
+      onCambiaStato={cambiaStatoDi(m)}
+      etichettaFase={etichettaFase}
+      posa={eMateriale(m) ? posaDi(m) : null}
+    />
+  );
+
+  // Una fase con un solo materiale e niente da decidere non ha bisogno di
+  // un'intestazione da aprire: la riga dice già tutto, con la fase sopra il nome.
+  const compatta = righe.length === 1 && fase.materiali.length === 1 && !pillola && !principale && secondarie.length === 0;
+  if (compatta) {
+    return (
+      <tbody aria-label={`Fase ${fase.nome}`} className="block border-t first:border-t-0 lg:table-row-group">
+        {riga(righe[0], (
+          <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="truncate">{fase.nome}</span>
+            {onAggiungi && (
+              <button type="button" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}
+                className="tap-compact inline-flex h-4 w-4 items-center justify-center rounded hover:bg-muted hover:text-foreground">
+                <Plus className="h-3 w-3" aria-hidden />
+              </button>
+            )}
+          </span>
+        ))}
+      </tbody>
+    );
+  }
 
   return (
     <tbody aria-label={`Fase ${fase.nome}`} className="block border-t first:border-t-0 lg:table-row-group">
@@ -414,9 +556,10 @@ function SezioneFase({
               {aperta ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
               <span className="truncate text-sm font-semibold text-foreground">{fase.nome}</span>
             </button>
+            <BarraFase conteggio={conteggio} />
             <span className="text-xs text-muted-foreground tabular-nums">
               {conteggio.totale} {conteggio.totale === 1 ? "materiale" : "materiali"}{altre > 0 ? ` · ${altre} ${altre === 1 ? "altra riga" : "altre righe"}` : ""}
-              {riassunto ? <span className="max-sm:hidden"> · {riassunto}</span> : null}
+              {riassunto ? ` · ${riassunto}` : null}
             </span>
             {canViewCosts && stima.totale > 0 && (
               <span className="text-xs font-medium tabular-nums text-foreground">{stima.proposto > 0 ? "stima " : ""}{formatCurrency(stima.totale)}</span>
@@ -464,22 +607,7 @@ function SezioneFase({
           )}
         </th>
       </tr>
-      {aperta && (righe.length ? righe.map((m) => (
-        <RigaMateriale
-          key={m.id}
-          m={m}
-          selezionato={selezione.has(m.id)}
-          onSeleziona={(v) => seleziona(m.id, v)}
-          modificabile={modificabile && infoStato(m).stato === "da_ordinare" && eMateriale(m)}
-          tecnico={tecnico}
-          nomeFornitore={nomeFornitore(m.supplier_id)}
-          onQuantita={(q) => onQuantita(m, q, tecnico)}
-          canViewCosts={canViewCosts}
-          proposto={proposte.get(m.id)}
-          azioni={azioniRiga(m)}
-          oda={allegatoOdaDi(m)}
-        />
-      )) : (
+      {aperta && (righe.length ? righe.map((m) => riga(m)) : (
         <tr className="block border-t lg:table-row">
           <td colSpan={colonne} className="block px-3 py-2 text-sm text-muted-foreground lg:table-cell">
             {fase.materiali.length ? "Nessuna riga con questo filtro." : "Nessuna riga in questa fase."}
@@ -517,6 +645,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
   const [richiesta, setRichiesta] = useState<RichiestaArticolo | null>(null);
   const [allegatiDi, setAllegatiDi] = useState<MaterialeFase | null>(null);
   const [daTogliere, setDaTogliere] = useState<MaterialeFase | null>(null);
+  const [rientroDi, setRientroDi] = useState<{ id: string; nome: string; unita: string; avanzano: number; posati: number; quantita: number; rientrati: number; daGiacenza: boolean } | null>(null);
 
   const nomeFornitore = (id: string | null) => (id ? suppliers.find((s: { id: string }) => s.id === id)?.name ?? "Fornitore" : null);
   const tutteRighe = useMemo(() => fasi.flatMap((f) => f.materiali), [fasi]);
@@ -531,16 +660,41 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
   const { proposte } = usePrezziProposti(orderId, tuttiMateriali, canViewCosts);
   const applicaPrezzi = useApplicaPrezziProposti(orderId);
   const stima = totaleStimato(tuttiMateriali, proposte);
+  const consumi = useConsumiMateriali(orderId);
+  const perArticolo = useMemo(
+    () => consumiPerArticolo(consumi.data?.rapportini ?? [], new Map(tuttiMateriali.map((m) => [m.id, { unita: m.unita_misura, stock: m.stock_item_id }]))),
+    [consumi.data, tuttiMateriali],
+  );
   const puoScrivere = !!editor && permessi.canEditOrders;
   const nuovo = (phaseId: string | null) => setRichiesta({ tipo: "nuovo", phaseId, nonce: Date.now() });
   const inEditor = (m: MaterialeFase) => !!editor?.items.some((i) => i.id === m.id);
-  const colonne = canViewCosts ? 8 : 7;
+  // Le colonne vere: un colSpan più largo crea una colonna vuota in fondo alla tabella.
+  const colonne = canViewCosts ? 7 : 6;
 
   // Unità dell'ordine diverse da quella della riga: un riepilogo solo, non un avviso per riga.
   const unitaDaVerificare = tuttiMateriali.filter((m) => infoStato(m).unitaDaVerificare);
   const allineabili = permessi.canEditOrders
     ? unitaDaVerificare.filter((m) => infoStato(m).allineaA && puoModificareMateriali(faseDi(m)?.validazione?.stato ?? null, permessi))
     : [];
+
+  const cambiaStatoDi = (m: MaterialeFase) => {
+    const item = puoScrivere ? editor?.items.find((i) => i.id === m.id) : undefined;
+    if (!item || !eMateriale(m)) return undefined;
+    return (status: string) => editor!.onItemUpdate({ ...item, status: status as OrderItemStatus });
+  };
+
+  const nomeFase = (id: string | null) => (id ? fasi.find((f) => f.id === id)?.nome ?? "Fase tolta" : "Senza fase");
+  const posaDi = (m: MaterialeFase) => {
+    const cambia = cambiaStatoDi(m);
+    return (
+      <Posa m={m} consumo={perArticolo.get(m.id)} rientrati={consumi.data?.rientrati.get(m.id) ?? 0} nomeFase={nomeFase}
+        onInstallato={cambia && infoStato(m).stato !== "installato" ? () => cambia("installato") : undefined}
+        // Rientra solo ciò che è passato da un ordine emesso o dal magazzino: il costo delle righe pagate con una fattura sta lì.
+        onRientro={puoScrivere && (m.stock_item_id || infoStato(m).ordini.some((o) => (ODA_STATI_EMESSI as string[]).includes(o.stato)))
+          ? (avanzano, posati) => setRientroDi({ id: m.id, nome: m.name, unita: quantitaLeggibile(1, m.unita_misura).unita, avanzano, posati, quantita: m.quantity, rientrati: consumi.data?.rientrati.get(m.id) ?? 0, daGiacenza: !!m.stock_item_id })
+          : undefined} />
+    );
+  };
 
   // Gli allegati arrivano con gli articoli dell'editor (dettaglio commessa).
   const allegatoOdaDi = (m: MaterialeFase) => allegatoOda(editor?.items.find((i) => i.id === m.id)?.attachments);
@@ -566,14 +720,15 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
             <>
               <DropdownMenuItem onSelect={() => setRichiesta({ tipo: "modifica", id: m.id, nonce: Date.now() })}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setRichiesta({ tipo: "duplica", id: m.id, nonce: Date.now() })}><Copy className="mr-2 h-4 w-4" />Duplica</DropdownMenuItem>
-              <DropdownMenuSub>
+              {/* Lo stato dei materiali si cambia dalla pillola; qui resta per lavorazioni e descrizioni. */}
+              {!eMateriale(m) && <DropdownMenuSub>
                 <DropdownMenuSubTrigger>Stato della riga: {statusConfig(m.status).label}</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuRadioGroup value={m.status ?? "da_ordinare"} onValueChange={(v) => item && editor.onItemUpdate({ ...item, status: v as OrderItemStatus })}>
                     {Object.entries(STATUS_CONFIG).map(([k, c]) => <DropdownMenuRadioItem key={k} value={k}>{c.label}</DropdownMenuRadioItem>)}
                   </DropdownMenuRadioGroup>
                 </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              </DropdownMenuSub>}
               <DropdownMenuItem onSelect={() => setAllegatiDi(m)}><Paperclip className="mr-2 h-4 w-4" />Allegati{allegati ? ` (${allegati})` : ""}</DropdownMenuItem>
             </>
           ) : (
@@ -641,6 +796,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
               {SCALA_STATI.filter((s) => conteggio[s] > 0).map((s) => (
                 <button key={s} type="button" className={chip(filtroStato === s)} aria-pressed={filtroStato === s}
                   onClick={() => setFiltroStato(filtroStato === s ? null : s)}>
+                  <span className={cn("h-2 w-2 rounded-full", COLORE_BARRA[s])} aria-hidden />
                   {conteggio[s]} {ETICHETTA_STATO_MATERIALE[s]}
                 </button>
               ))}
@@ -808,11 +964,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                 <tr>
                   <th scope="col" className="w-9 py-1.5 pl-3"><span className="sr-only">Selezione</span></th>
                   <th scope="col" className="px-2 py-1.5 text-left font-medium">Materiale</th>
-                  <th scope="col" className="w-28 px-2 py-1.5 text-right font-medium">Q.tà</th>
-                  <th scope="col" className="hidden w-36 px-2 py-1.5 text-left font-medium xl:table-cell">Fornitore</th>
-                  <th scope="col" className="w-36 px-2 py-1.5 text-left font-medium">Ordine / arrivo</th>
-                  <th scope="col" className="w-32 px-2 py-1.5 text-left font-medium">Stato</th>
-                  {canViewCosts && <th scope="col" className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>}
+                  <th scope="col" className="w-32 px-2 py-1.5 text-right font-medium">Q.tà</th>
+                  <th scope="col" className="w-40 px-2 py-1.5 text-left font-medium">Ordine / arrivo</th>
+                  <th scope="col" className="w-40 px-2 py-1.5 text-left font-medium">Stato</th>
+                  {canViewCosts && <th scope="col" className="w-32 px-2 py-1.5 text-right font-medium">Importo</th>}
                   <th scope="col" className="w-10 py-1.5 pr-2"><span className="sr-only">Azioni</span></th>
                 </tr>
               </thead>
@@ -840,6 +995,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
                   onAggiungi={puoScrivere && puoModificareMateriali(f.validazione?.stato ?? null, permessi) ? () => nuovo(f.id) : undefined}
                   azioniRiga={azioniRiga}
                   allegatoOdaDi={allegatoOdaDi}
+                  cambiaStatoDi={cambiaStatoDi}
+                  posaDi={posaDi}
                 />
               ))}
             </table>
@@ -952,6 +1109,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
         <Suspense fallback={null}>
           {genera && <GeneraMaterialiDialog orderId={orderId} open={genera} onOpenChange={setGenera} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
+          {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}
         </Suspense>
       </div>
     </TooltipProvider>

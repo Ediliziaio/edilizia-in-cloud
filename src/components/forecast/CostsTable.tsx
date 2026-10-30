@@ -1,3 +1,4 @@
+import { etichettaMetodoCosto } from "@/lib/costi/metodiPagamento";
 import { useMemo, useState } from "react";
 import { format, addDays, differenceInCalendarDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
@@ -225,7 +226,23 @@ export function CostsTable({
   const allSelected = allSelectableIds.length > 0 && allSelectableIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
 
+  // Il metodo accanto allo stato anche quando il debito è ANCORA DA PAGARE.
+  // Prima compariva solo sui costi pagati, cioè quando non serve più: una RiBa
+  // in arrivo e un bonifico da fare erano la stessa riga. Per una RiBa è la
+  // differenza fra «la paghi tu quando vuoi» e «la banca la addebita da sola».
   const getStatusBadge = (cost: UnifiedCost) => {
+    const badge = badgeStato(cost);
+    const metodo = etichettaMetodoCosto((cost as { payment_method?: string | null }).payment_method);
+    if (cost.is_paid || !metodo) return badge;
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {badge}
+        <span className="text-xs text-muted-foreground">{metodo}</span>
+      </div>
+    );
+  };
+
+  const badgeStato = (cost: UnifiedCost) => {
     const dueDate = parseCostDate(cost.due_date);
     const uscita = statoUscitaById?.get(cost.id);
 
@@ -236,8 +253,10 @@ export function CostsTable({
           <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
             <Check className="h-3 w-3" /> {paidLabel}
           </Badge>
-          {(cost as any).payment_method && (
-            <span className="text-xs text-muted-foreground">({(cost as any).payment_method})</span>
+          {etichettaMetodoCosto((cost as { payment_method?: string | null }).payment_method) && (
+            <span className="text-xs text-muted-foreground">
+              ({etichettaMetodoCosto((cost as { payment_method?: string | null }).payment_method)})
+            </span>
           )}
         </div>
       );

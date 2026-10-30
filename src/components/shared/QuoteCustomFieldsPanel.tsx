@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { useInRouterContext, useLocation } from "react-router-dom";
+// Da `react-router`, non da `-dom`: è lo stesso contesto (il -dom lo riesporta), ma i test
+// dei wizard sostituiscono `react-router-dom` con un finto che non ha questo hook, e il
+// pannello, che sta nel guscio comune, li faceva cadere tutti.
+import { useInRouterContext, useLocation } from "react-router";
 import { useEntityCustomFields } from "@/hooks/useEntityCustomFields";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";

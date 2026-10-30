@@ -133,7 +133,8 @@ describe("blocchi del preventivo: dal modello al PDF degli edili", () => {
     expect(edile).toMatch(/<View fixed style=\{\{ flexGrow: 1 \}\} render=/);
     expect(edile).toContain("subPageNumber !== subPageTotalPages) return null;");
     const serramenti = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length, moduloLocale)");
+    // Dal 27/10/2026 l'altezza misurata ha un tetto (altezzaFotoMax) quando il blocco divide la pagina.
+    expect(serramenti).toContain("height: Math.min(altezzaFotoMax ?? Infinity, altezzaFotoBlocco(blocco, foto.length, moduloLocale))");
   });
 });
 

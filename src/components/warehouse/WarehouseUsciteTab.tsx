@@ -3,19 +3,22 @@
  * "doppio controllo": ogni uscita registrata può poi diventare un DDT (Fase 2)
  * tramite il bottone "Crea DDT" (RPC create_ddt_from_uscita).
  *
- * Le uscite con DDT già creato mostrano il link al documento.
+ * Le uscite con DDT già creato mostrano il link al documento. In testa, quante
+ * uscite non hanno ancora il documento: al 29/10/2026 erano 53 su 53, perché
+ * il secondo passo non lo ricordava nessuno.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { ArrowUpFromLine, FileText, Loader2, User, HardHat, PencilLine, ExternalLink, Truck } from "lucide-react";
+import { ArrowUpFromLine, FileText, User, HardHat, PencilLine, ExternalLink, Truck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useBillingMode } from "@/contexts/BillingModeContext";
-import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
-import { useWarehouseUscite, useCreateDdtFromUscita, type UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
+import { useWarehouseUscite, type UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
+import { CreaDdtDaUscitaDialog } from "@/components/warehouse/CreaDdtDaUscitaDialog";
+import { destinatarioLabel, uscitaPerDdt, type UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
+
+type Filtro = "tutte" | "senza_ddt" | "con_ddt";
 
 const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default" | "secondary" | "outline" }> = {
   registrata: { label: "Registrata", variant: "secondary" },
@@ -25,44 +28,23 @@ const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default
 
 const TIPO_ICON = { cliente: User, cantiere: HardHat, libero: PencilLine } as const;
 
-function destinatarioLabel(u: UscitaRow): string {
-  return (
-    u.cliente_snapshot?.ragione_sociale ||
-    u.destinatario_libero?.ragione_sociale ||
-    (u.destinatario_tipo === "cantiere" ? "Cantiere/commessa" : u.destinatario_tipo === "cliente" ? "Cliente" : "Destinatario libero")
-  );
-}
-
 export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: string | null }) {
   const navigate = useNavigate();
-  const { isNative } = useBillingMode();
-  const { generate: generateDDT } = useShipmentDDTPDF();
   const { data: uscite = [], isLoading } = useWarehouseUscite(warehouseFilter);
-  const createDdt = useCreateDdtFromUscita();
   const [search, setSearch] = useState("");
-  const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<Filtro>("tutte");
+  const [perDdt, setPerDdt] = useState<UscitaPerDdt | null>(null);
+
+  const senzaDdt = useMemo(() => uscite.filter((u) => u.stato === "registrata").length, [uscite]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return uscite;
-    return uscite.filter((u) => `${u.numero} ${destinatarioLabel(u)}`.toLowerCase().includes(q));
-  }, [uscite, search]);
-
-  const handleCreateDdt = async (u: UscitaRow) => {
-    setCreatingId(u.id);
-    try {
-      const res = await createDdt.mutateAsync({ uscitaId: u.id });
-      toast.success(`DDT ${res.numero_ddt} creato dalla uscita ${u.numero}`);
-      if (res.documento_id) {
-        if (isNative) navigate(`/azienda/documenti/${res.documento_id}`);
-        else void generateDDT(res.documento_id);
-      }
-    } catch (e) {
-      toast.error(`Errore creazione DDT: ${(e as Error).message}`);
-    } finally {
-      setCreatingId(null);
-    }
-  };
+    return uscite.filter((u) => {
+      if (filtro === "senza_ddt" && u.stato !== "registrata") return false;
+      if (filtro === "con_ddt" && u.stato !== "ddt_creato") return false;
+      return !q || `${u.numero} ${destinatarioLabel(u)}`.toLowerCase().includes(q);
+    });
+  }, [uscite, search, filtro]);
 
   return (
     <Card>
@@ -73,14 +55,46 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
         <CardDescription>
           Le uscite registrate. Da qui crei il <strong>DDT</strong> quando vuoi (doppio controllo): prima registri l'uscita, poi generi il documento.
         </CardDescription>
-        <Input className="mt-2 max-w-xs" placeholder="Cerca per numero o destinatario…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Input className="max-w-xs" placeholder="Cerca per numero o destinatario…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div role="group" aria-label="Filtra le uscite" className="flex gap-1">
+            {([
+              ["tutte", `Tutte · ${uscite.length}`],
+              ["senza_ddt", `Senza DDT · ${senzaDdt}`],
+              ["con_ddt", `Con DDT · ${uscite.length - senzaDdt}`],
+            ] as const).map(([valore, etichetta]) => (
+              <Button
+                key={valore}
+                size="sm"
+                variant={filtro === valore ? "default" : "outline"}
+                aria-pressed={filtro === valore}
+                className="h-8 text-xs"
+                onClick={() => setFiltro(valore)}
+              >
+                {etichetta}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {senzaDdt > 0 && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {senzaDdt === 1
+              ? "1 uscita è partita senza DDT."
+              : `${senzaDdt} uscite sono partite senza DDT.`}{" "}
+            La merce che viaggia su strada deve avere il suo documento: crealo con «Crea DDT».
+          </p>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y">
           {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">Caricamento…</div>}
           {!isLoading && filtered.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              Nessuna uscita registrata. Usa <strong>"Uscita merce"</strong> per registrarne una.
+              {uscite.length === 0 ? (
+                <>Nessuna uscita registrata. Usa <strong>"Uscita merce"</strong> per registrarne una.</>
+              ) : (
+                "Nessuna uscita con questi filtri."
+              )}
             </div>
           )}
           {filtered.map((u) => {
@@ -108,8 +122,8 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
                   </div>
                 </div>
                 {u.stato === "registrata" ? (
-                  <Button size="sm" onClick={() => handleCreateDdt(u)} disabled={creatingId === u.id}>
-                    {creatingId === u.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+                  <Button size="sm" onClick={() => setPerDdt(uscitaPerDdt(u))}>
+                    <FileText className="h-4 w-4 mr-2" />
                     Crea DDT
                   </Button>
                 ) : u.documento_id ? (
@@ -122,6 +136,7 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
           })}
         </div>
       </CardContent>
+      <CreaDdtDaUscitaDialog uscita={perDdt} onOpenChange={(open) => !open && setPerDdt(null)} />
     </Card>
   );
 }

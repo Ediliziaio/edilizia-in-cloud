@@ -93,7 +93,9 @@ describe("i rimandi che non portavano dove dicevano", () => {
 
   it("«Nessuna previsione impostata» non rimanda più a Prezzo e margini, dove la previsione non c'è", () => {
     const testo = leggi("src/pages/azienda/ComeStiamoAndando.tsx");
-    expect(testo).toContain("Nessuna previsione impostata");
+    // Il riquadro «Nessuna previsione impostata» non c'è più (64b062051): senza
+    // previsione il numero degli incassi dice solo cosa conta, senza rimandi.
+    expect(testo).toContain("incassi.previsione == null");
     expect(testo).not.toContain("/azienda/impostazioni/margini");
   });
 

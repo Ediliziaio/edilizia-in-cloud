@@ -14,7 +14,9 @@ const stato = vi.hoisted(() => ({
   applica: vi.fn(),
   aggiorna: vi.fn(),
   allinea: vi.fn(),
+  consumi: { rapportini: [] as unknown[], rientrati: new Map<string, number>() },
 }));
+vi.mock("@/hooks/useConsumiMateriali", () => ({ useConsumiMateriali: () => ({ data: stato.consumi }) }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/usePrezziMateriali", () => ({
@@ -50,6 +52,7 @@ vi.mock("@/hooks/useMaterialiPerFase", () => {
 });
 
 import { MaterialiPerFase } from "@/components/orders/materiali/MaterialiPerFase";
+import type { InfoStatoMateriale } from "@/lib/distinta/statoMateriale";
 
 const materiale = (id: string, extra: Record<string, unknown> = {}) => ({
   id, order_id: "c1", name: `Materiale ${id}`, description: null as never, quantity: 37, status: "da_ordinare", supplier_id: null as never,
@@ -283,6 +286,67 @@ describe("Un solo elenco: tutti gli articoli per fase", () => {
     fireEvent.click(screen.getByRole("button", { name: "Da giacenza" }));
     expect(screen.queryByText("Materiale a")).not.toBeInTheDocument();
     expect(screen.getByText("Materiale s")).toBeInTheDocument();
+  });
+
+  it("lo stato si cambia dalla pillola; i passi decisi dai documenti restano spenti", () => {
+    stato.aggiorna.mockReset();
+    disegna();
+    const pillola = screen.getByRole("button", { name: "Stato di Materiale a: Da ordinare. Cambia" });
+    fireEvent.pointerDown(pillola, { button: 0, ctrlKey: false });
+    expect(screen.getByRole("menuitem", { name: /In offerta/ })).toHaveAttribute("data-disabled");
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Installato/ }));
+    expect(stato.aggiorna).toHaveBeenCalledWith(expect.objectContaining({ id: "a", status: "installato" }));
+  });
+
+  it("una fase con un solo materiale già avviato è una riga sola, con la fase sopra il nome", () => {
+    stato.fasi = [
+      { id: "fase-pav", nome: "Pavimenti", posizione: 1, validazione: null,
+        materiali: [materiale("a", { phase_id: "fase-pav", stato: "consegnato", status: "installato" })] },
+    ];
+    disegna();
+    const pav = screen.getByRole("rowgroup", { name: "Fase Pavimenti" });
+    expect(within(pav).queryByRole("button", { name: /la fase Pavimenti/ })).not.toBeInTheDocument();
+    expect(within(pav).getByText("Pavimenti")).toBeInTheDocument();
+    expect(within(pav).getByText("Materiale a")).toBeInTheDocument();
+    expect(within(pav).getByRole("button", { name: /Stato di Materiale a: Installato/ })).toBeInTheDocument();
+    fireEvent.click(within(pav).getByRole("button", { name: "Aggiungi un articolo in Pavimenti" }));
+    expect(stato.richieste.at(-1)).toMatchObject({ tipo: "nuovo", phaseId: "fase-pav" });
+  });
+
+  it("posati dai rapportini approvati, per fase; tutto posato propone «Installato»", () => {
+    stato.aggiorna.mockReset();
+    stato.fasi = [
+      { id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: null,
+        materiali: [materiale("a", { quantity: 10, unita_misura: "sacco", stato: "consegnato", status: "in_magazzino" }), materiale("l", { natura_riga: "lavorazione" })] },
+    ];
+    stato.consumi = { rientrati: new Map(), rapportini: [
+      { stato: "approvato", materiali_usati: [{ order_item_id: "a", quantita: 3, unita: "sacchi", fase_id: "fase-el" }] },
+      { stato: "approvato", materiali_usati: [{ order_item_id: "a", quantita: 5, unita: "sacco", fase_id: "altra" }] },
+    ] };
+    const { unmount } = disegna();
+    // Tutto consegnato: la fase parte chiusa.
+    fireEvent.click(screen.getByRole("button", { name: "Apri la fase Impianto elettrico" }));
+    expect(screen.getByText(/Posati 8 di 10/)).toBeInTheDocument();
+    expect(screen.getByText(/2 avanzano/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Segna installato" })).not.toBeInTheDocument();
+    // Senza un ordine emesso né il magazzino il costo sta nelle fatture: niente rientro da qui.
+    expect(screen.queryByRole("button", { name: /Fai rientrare/ })).not.toBeInTheDocument();
+    unmount();
+    const conOrdine: InfoStatoMateriale = { stato: "consegnato", dettaglio: null, unitaDaVerificare: null, allineaA: null,
+      ordini: [{ numero: "ODA-1", stato: "ricevuto", data: null, arrivo: null, arrivato: true }] };
+    (stato.fasi[0] as { materiali: Record<string, unknown>[] }).materiali[0].scala = conOrdine;
+    const secondo = disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Apri la fase Impianto elettrico" }));
+    expect(screen.getByRole("button", { name: "Fai rientrare 2" })).toBeInTheDocument();
+    secondo.unmount();
+    // I 2 avanzati rientrano in magazzino: l'articolo è chiuso e si segna installato.
+    stato.consumi = { ...stato.consumi, rientrati: new Map([["a", 2]]) };
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Apri la fase Impianto elettrico" }));
+    expect(screen.queryByText(/avanzano/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Segna installato" }));
+    expect(stato.aggiorna).toHaveBeenCalledWith(expect.objectContaining({ id: "a", status: "installato" }));
+    stato.consumi = { rapportini: [], rientrati: new Map() };
   });
 
   it("senza permesso di modifica né costi: niente aggiunta, niente prezzi", () => {

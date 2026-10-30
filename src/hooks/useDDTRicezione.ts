@@ -26,6 +26,13 @@ import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { riceviResiduoOda } from "@/lib/orders/riceviResiduoOda";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 
+// `ddt_righe` e le colonne nuove di `ddt_ricezione` (order_id, supplier_id,
+// destinazione, ai_*) sono del 29/10/2026 e in `types.ts` non ci sono: su questo
+// progetto i tipi generati non si rigenerano a ogni migrazione. Un alias scritto
+// una volta sola, invece di un cast sparso a ogni chiamata.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type DDTStato =
@@ -57,7 +64,22 @@ export interface DDTAttachment {
 export interface DDTRicezione {
   id: string;
   company_id: string;
-  purchase_order_id: string;
+  /** L'ODA, se c'è. Dal 29/10/2026 una bolla può nascere senza ordine. */
+  purchase_order_id: string | null;
+  /** La commessa in chiaro sulla bolla: dedotta dall'ODA, o scelta a mano. */
+  order_id: string | null;
+  /** Chi ha consegnato: dedotto dall'ODA, scelto a mano o proposto dall'AI. */
+  supplier_id: string | null;
+  /**
+   * Dove va la merce. «magazzino» entra in giacenza e uscirà con uno scarico su
+   * commessa; «cantiere» scende dal camion e si posa, in giacenza non entra mai.
+   * I vincoli che impediscono di contarla due volte stanno nel database.
+   */
+  destinazione: "magazzino" | "cantiere";
+  /** Il costo nato da questa bolla. Con l'ODA resta NULL: il costo è sull'ordine. */
+  company_cost_id?: string | null;
+  /** Quando la merce è entrata in giacenza. È la prova che il carico è fatto. */
+  caricata_a_magazzino_at?: string | null;
   warehouse_id: string | null;
   numero_ddt: string;
   data_ricezione: string;
@@ -74,6 +96,15 @@ export interface DDTRicezione {
   attachments?: DDTAttachment[];
 
   // Corriere / mezzo / autista
+  /**
+   * Chi ha portato la merce: «fornitore» col suo mezzo, «noi» (siamo andati a
+   * ritirarla) o «terzi» (un corriere). NULL = non si sa. Con «noi»,
+   * `autista_nome` è chi è andato e `targa_mezzo` il nostro furgone: non
+   * servono colonne nuove per dire la stessa cosa in un altro contesto.
+   */
+  trasporto_a_cura_di?: "fornitore" | "noi" | "terzi" | null;
+  /** «franco» = trasporto compreso nel prezzo, «assegnato» = a nostro carico. */
+  porto?: "franco" | "assegnato" | null;
   corriere?: string | null;
   targa_mezzo?: string | null;
   autista_nome?: string | null;
@@ -90,6 +121,12 @@ export interface DDTRicezione {
   has_damages?: boolean;
   verified_at?: string | null;
   verified_by?: string | null;
+
+  // ── Lettura AI ────────────────────────────────────────────
+  /** La lettura grezza del modello, intera: si rilegge senza ripagarla. */
+  ai_lettura?: Record<string, unknown> | null;
+  ai_confidenza?: number | null;
+  ai_avvisi?: string[] | null;
 }
 
 export interface DDTRicezioneWithJoins extends DDTRicezione {
@@ -103,7 +140,38 @@ export interface DDTRicezioneWithJoins extends DDTRicezione {
     orders?: { id: string; order_code: string } | null;
   } | null;
   warehouses?: { id: string; name: string } | null;
+  /** Commessa e fornitore della bolla stessa: ci sono anche senza ODA. */
+  orders?: { id: string; order_code: string } | null;
+  suppliers?: { id: string; name: string } | null;
 }
+
+/** Una riga di merce letta sulla bolla. Vive anche senza riga di commessa. */
+export interface DDTRiga {
+  id: string;
+  company_id: string;
+  ddt_ricezione_id: string;
+  posizione: number;
+  codice_articolo: string | null;
+  descrizione: string;
+  unita_misura: string | null;
+  quantita: number | null;
+  prezzo_unitario: number | null;
+  importo: number | null;
+  iva_percentuale: number | null;
+  order_item_id: string | null;
+  origine: "ai" | "manuale";
+  ai_originale?: Record<string, unknown> | null;
+  testo_grezzo: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Quel che si scrive: l'azienda la mette il database, non il browser. */
+export type DDTRigaNuova = Omit<
+  DDTRiga,
+  "id" | "company_id" | "ddt_ricezione_id" | "created_at" | "updated_at"
+>;
 
 export interface GoodsReceipt {
   id: string;
@@ -161,10 +229,13 @@ export function useDDTRicezioneList(filters?: {
       // contatori, schede ed esportazione vedevano solo quelle senza dirlo.
       // La query si ricostruisce a ogni pagina: un builder già eseguito non si riusa.
       const pagina = (da: number, a: number) => {
-        let q = supabase
+        let q = db
           .from("ddt_ricezione")
           .select(
-            "*, purchase_orders!inner(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name)"
+            // Left join sull'ODA, non !inner: dal 29/10/2026 una bolla può non
+            // averne, e con l'inner join sarebbe sparita dalla lista senza che
+            // nessuno lo dicesse. Commessa e fornitore si leggono dalla bolla.
+            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
           )
           .eq("company_id", companyId!)
           .order("data_ricezione", { ascending: false })
@@ -179,6 +250,9 @@ export function useDDTRicezioneList(filters?: {
         if (filters?.warehouseId) {
           q = q.eq("warehouse_id", filters.warehouseId);
         }
+        if (filters?.supplierId) {
+          q = q.eq("supplier_id", filters.supplierId);
+        }
         if (filters?.fromDate) {
           q = q.gte("data_ricezione", filters.fromDate);
         }
@@ -187,15 +261,9 @@ export function useDDTRicezioneList(filters?: {
         }
         return q.range(da, a) as unknown as PromiseLike<{ data: DDTRicezioneWithJoins[] | null; error: unknown }>;
       };
-      let rows = await readAllOrderRows<DDTRicezioneWithJoins>(pagina);
-
-      if (filters?.supplierId) {
-        rows = rows.filter(
-          (r) => (r.purchase_orders as unknown as { supplier_id?: string })?.supplier_id === filters.supplierId
-        );
-      }
-
-      return rows;
+      // Il fornitore ora è una colonna della bolla: si filtra nella query,
+      // non a valle su un campo dell'ODA che le bolle senza ordine non hanno.
+      return await readAllOrderRows<DDTRicezioneWithJoins>(pagina);
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
@@ -238,7 +306,7 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
       const { data, error } = await supabase
         .from("ddt_ricezione")
         .select(
-          "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name)"
+          "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
         )
         .eq("id", ddtId!)
         .maybeSingle();
@@ -282,6 +350,82 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
 }
 
 // ============================================================================
+// RIGHE DELLA BOLLA
+// ----------------------------------------------------------------------------
+// Quello che c'è scritto sul documento, col prezzo. Separate dalle
+// `goods_receipts`, che sono l'arrivo in magazzino di una riga d'ordine già
+// esistente: qui una riga vive anche se non corrisponde a niente.
+// ============================================================================
+export function useDDTRighe(ddtId: string | null | undefined) {
+  return useQuery<DDTRiga[]>({
+    queryKey: queryKeys.ddtRicezione.righe(ddtId ?? undefined),
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("ddt_righe")
+        .select("*, order_items(id, description, order_id)")
+        .eq("ddt_ricezione_id", ddtId!)
+        .order("posizione")
+        .order("created_at");
+      if (error) throw error;
+      return (data || []) as unknown as DDTRiga[];
+    },
+    enabled: !!ddtId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useDDTRigheMutations(ddtId: string | null | undefined) {
+  const queryClient = useQueryClient();
+
+  const invalida = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.righe(ddtId ?? undefined) });
+  };
+
+  const aggiungiRighe = useMutation({
+    mutationFn: async (righe: DDTRigaNuova[]) => {
+      if (!ddtId) throw new Error("Bolla non disponibile");
+      if (righe.length === 0) return;
+      const { error } = await db
+        .from("ddt_righe")
+        .insert(righe.map((r) => ({ ...r, ddt_ricezione_id: ddtId })) as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Righe aggiunte");
+      invalida();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore salvataggio righe"),
+  });
+
+  const aggiornaRiga = useMutation({
+    mutationFn: async (params: { id: string; updates: Partial<DDTRigaNuova> }) => {
+      const { error } = await db
+        .from("ddt_righe")
+        .update(params.updates as never)
+        .eq("id", params.id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
+    onError: (err: Error) => toast.error(err.message || "Errore modifica riga"),
+  });
+
+  const eliminaRiga = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("ddt_righe").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Riga eliminata");
+      invalida();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore eliminazione riga"),
+  });
+
+  return { aggiungiRighe, aggiornaRiga, eliminaRiga };
+}
+
+// ============================================================================
 // COUNTS BY PO
 // ============================================================================
 export function useDDTCountsByPO() {
@@ -292,22 +436,26 @@ export function useDDTCountsByPO() {
     queryKey: queryKeys.ddtRicezione.countsByPO(companyId),
     queryFn: async () => {
       // A pagine: oltre le 1.000 bolle PostgREST tronca e i conteggi verrebbero bassi.
-      const data: { purchase_order_id: string; stato: DDTStato }[] = [];
+      const data: { purchase_order_id: string | null; stato: DDTStato }[] = [];
       for (let da = 0; ; da += 1000) {
         const { data: pagina, error } = await supabase
           .from("ddt_ricezione")
           .select("id, purchase_order_id, stato")
           .eq("company_id", companyId!)
+          .not("purchase_order_id", "is", null)
           .order("id")
           .range(da, da + 999);
         if (error) throw error;
-        data.push(...((pagina ?? []) as unknown as { purchase_order_id: string; stato: DDTStato }[]));
+        data.push(...((pagina ?? []) as unknown as { purchase_order_id: string | null; stato: DDTStato }[]));
         if (!pagina || pagina.length < 1000) break;
       }
 
       const map: Record<string, DDTCountAggregate> = {};
       for (const row of data || []) {
-        const pid = (row as { purchase_order_id: string }).purchase_order_id;
+        const pid = (row as { purchase_order_id: string | null }).purchase_order_id;
+        // Le bolle senza ODA non hanno un ordine da contare: senza questo
+        // controllo finivano tutte in un badge con chiave "undefined".
+        if (!pid) continue;
         if (!map[pid]) {
           map[pid] = {
             purchase_order_id: pid,
@@ -349,6 +497,29 @@ export function statoDopoRicezioniRimaste(rimaste: { quantity_received?: number 
     : { quantity_received: 0, fulfillment_status: "not_started" as const, receipt_id: null as string | null };
 }
 
+/**
+ * Il vincolo del database detto in italiano. Senza questa traduzione l'utente
+ * vedeva «duplicate key value violates unique constraint
+ * ddt_ricezione_una_bolla_per_fornitore», che non dice che cosa fare.
+ */
+export function messaggioBolla(err: unknown, predefinito: string): string {
+  const e = err as { code?: string; message?: string } | null;
+  const testo = e?.message ?? "";
+  if (e?.code === "23505" || testo.includes("una_bolla_per_fornitore")) {
+    return "Questa bolla di questo fornitore è già stata caricata: cercala nell'elenco invece di rifarla.";
+  }
+  if (testo.includes("cantiere_ha_commessa")) {
+    return "Per dire che la merce va in cantiere serve la commessa: scegli il cantiere.";
+  }
+  if (testo.includes("costo_una_volta_sola")) {
+    return "Questa bolla ha un ordine d'acquisto: il costo è già sull'ordine e non si registra due volte.";
+  }
+  if (testo.includes("cantiere_non_carica_magazzino")) {
+    return "La merce posata in cantiere non entra in giacenza: non si può caricarla a magazzino.";
+  }
+  return testo || predefinito;
+}
+
 export function useDDTRicezioneMutations(poId?: string | null) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -379,7 +550,23 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const createDDT = useMutation({
     mutationFn: async (params: {
-      purchase_order_id: string;
+      /** Facoltativo: in cantiere la merce arriva anche senza ordine. */
+      purchase_order_id?: string | null;
+      /** La commessa su cui va la merce, quando l'ODA non c'è. */
+      order_id?: string | null;
+      /** Chi ha consegnato, quando l'ODA non c'è. */
+      supplier_id?: string | null;
+      /** Dove va la merce: «cantiere» esige una commessa (lo impone il database). */
+      destinazione?: "magazzino" | "cantiere";
+      /** Chi ha portato la merce; «noi» vuol dire che siamo andati a ritirarla. */
+      trasporto_a_cura_di?: "fornitore" | "noi" | "terzi" | null;
+      porto?: "franco" | "assegnato" | null;
+      /** Le righe lette sulla bolla (dall'AI o a mano). */
+      righe?: DDTRigaNuova[];
+      /** La lettura grezza dell'AI, per rileggerla senza ripagarla. */
+      ai_lettura?: Record<string, unknown> | null;
+      ai_confidenza?: number | null;
+      ai_avvisi?: string[] | null;
       numero_ddt: string;
       data_ricezione: string;
       quantita_ricevuta: number;
@@ -399,13 +586,14 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     }) => {
       if (!companyId) throw new Error("Company non disponibile");
       if (!params.numero_ddt.trim()) throw new Error("Numero DDT obbligatorio");
+      const odaId = params.purchase_order_id ?? null;
 
       let warehouseId = params.warehouse_id ?? null;
-      if (!warehouseId) {
+      if (!warehouseId && odaId) {
         const { data: po } = await supabase
           .from("purchase_orders")
           .select("delivery_warehouse_id")
-          .eq("id", params.purchase_order_id)
+          .eq("id", odaId)
           .single();
         warehouseId = (po as { delivery_warehouse_id?: string | null })?.delivery_warehouse_id ?? null;
       }
@@ -428,17 +616,29 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       const user = (await supabase.auth.getUser()).data.user;
       const payload: Record<string, unknown> = {
         company_id: companyId,
-        purchase_order_id: params.purchase_order_id,
+        purchase_order_id: odaId,
+        order_id: params.order_id ?? null,
+        supplier_id: params.supplier_id ?? null,
+        destinazione: params.destinazione ?? "magazzino",
+        trasporto_a_cura_di: params.trasporto_a_cura_di ?? null,
+        porto: params.porto ?? null,
         warehouse_id: warehouseId,
         numero_ddt: params.numero_ddt.trim(),
         data_ricezione: params.data_ricezione,
-        // «ricevuto completo»: la quantità la scrive oda_registra_arrivo sommando
-        // le righe; partire dal numero digitato la conterebbe due volte
-        quantita_ricevuta: params.stato === "ricevuto" || params.stato === "verificato" ? 0 : params.quantita_ricevuta,
-        // «ricevuto completo» nasce «atteso»: lo stato vero lo scrive la
-        // funzione dell'arrivo, così se l'arrivo non va a buon fine la bolla
-        // non resta «ricevuta» senza merce
-        stato: params.stato === "ricevuto" || params.stato === "verificato" ? "atteso" : params.stato,
+        // Con l'ODA la quantità la scrive oda_registra_arrivo sommando le righe:
+        // partire dal numero digitato la conterebbe due volte. Senza ODA non
+        // c'è nessun residuo d'ordine, e la quantità è quella della bolla.
+        quantita_ricevuta:
+          odaId && (params.stato === "ricevuto" || params.stato === "verificato")
+            ? 0
+            : params.quantita_ricevuta,
+        // Con l'ODA «ricevuto completo» nasce «atteso»: lo stato vero lo scrive
+        // la funzione dell'arrivo, così se l'arrivo non va a buon fine la bolla
+        // non resta «ricevuta» senza merce. Senza ODA lo stato è quello scelto.
+        stato:
+          odaId && (params.stato === "ricevuto" || params.stato === "verificato")
+            ? "atteso"
+            : params.stato,
         note: params.note?.trim() || null,
         created_by: user?.id ?? null,
         corriere: params.corriere?.trim() || null,
@@ -450,6 +650,9 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         ricevuto_da_nome: params.ricevuto_da_nome?.trim() || null,
         non_conformita: params.non_conformita?.trim() || null,
         has_damages: params.has_damages ?? false,
+        ai_lettura: params.ai_lettura ?? null,
+        ai_confidenza: params.ai_confidenza ?? null,
+        ai_avvisi: params.ai_avvisi && params.ai_avvisi.length > 0 ? params.ai_avvisi : null,
       };
 
       const { data, error } = await supabase
@@ -459,19 +662,57 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         .single();
       if (error) throw error;
 
-      // «Ricevuto completo» vuol dire che è arrivato tutto il residuo: si
-      // registrano le quantità riga per riga, agganciate a QUESTA bolla, con la
-      // stessa funzione del foglio «arrivo merce». È lei a portare l'ordine a
-      // ricevuto (e il costo sulla commessa), a caricare il magazzino e a
-      // scrivere lo stato della bolla. Prima qui si scriveva solo lo stato:
+      const ddtId = (data as { id: string }).id;
+
+      // ── Lo stesso documento segnato anche dall'operaio ──────────────────
+      // Il controllo dei doppioni di `campo_acquisto_registra` guarda SOLO
+      // `campo_acquisti`: la merce segnata dal cantiere e la bolla caricata
+      // dall'ufficio non si vedono fra loro. Qui non si blocca niente — la
+      // bolla dell'ufficio è il documento vero — ma non si tace: sono due
+      // registrazioni della stessa consegna, e vanno riconciliate.
+      if (params.numero_ddt.trim()) {
+        const { data: dalCampo } = await db
+          .from("campo_acquisti")
+          .select("id, fornitore, totale, order_id")
+          .eq("company_id", companyId)
+          .eq("numero_documento", params.numero_ddt.trim())
+          .not("stato", "in", "(rifiutato,annullato)")
+          .limit(1);
+        const segnato = (dalCampo ?? [])[0] as { fornitore?: string | null } | undefined;
+        if (segnato) {
+          toast.warning("Questo documento l'ha già segnato un operaio dal cantiere", {
+            description: `«Merce presa» da ${segnato.fornitore ?? "fornitore ignoto"} con lo stesso numero: controlla di non contarla due volte.`,
+            duration: 10000,
+          });
+        }
+      }
+
+      // Le righe lette sulla bolla, subito: sono il documento, non un extra.
+      // Se non entrano si avvisa, ma la bolla resta (meglio una bolla senza
+      // righe che nessuna bolla).
+      if (params.righe && params.righe.length > 0) {
+        const { error: errRighe } = await db
+          .from("ddt_righe")
+          .insert(params.righe.map((r) => ({ ...r, ddt_ricezione_id: ddtId })) as never);
+        if (errRighe) {
+          toast.warning("DDT registrato, ma le righe della merce non si sono salvate", {
+            description: errRighe.message,
+          });
+        }
+      }
+
+      // Con un ODA, «ricevuto completo» vuol dire che è arrivato tutto il
+      // residuo: si registrano le quantità riga per riga, agganciate a QUESTA
+      // bolla, con la stessa funzione del foglio «arrivo merce». È lei a portare
+      // l'ordine a ricevuto (e il costo sulla commessa), a caricare il magazzino
+      // e a scrivere lo stato della bolla. Prima qui si scriveva solo lo stato:
       // ordine ricevuto, costo pieno in commessa, nessuna quantità, niente
       // magazzino. Se l'arrivo non riesce la bolla resta «attesa» e lo si dice.
-      if (params.stato === "ricevuto" || params.stato === "verificato") {
-        const ddtId = (data as { id: string }).id;
+      if (odaId && (params.stato === "ricevuto" || params.stato === "verificato")) {
         try {
           const esito = await riceviResiduoOda({
             companyId,
-            odaId: params.purchase_order_id,
+            odaId,
             ddtId,
             data: params.data_ricezione,
             warehouseId,
@@ -481,7 +722,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
             // ordine senza righe (o già tutto arrivato): niente da contare, lo stato si mette qui
             const { error: errOda } = await supabase.from("purchase_orders")
               .update({ status: "ricevuto", actual_delivery_date: params.data_ricezione })
-              .eq("id", params.purchase_order_id)
+              .eq("id", odaId)
               .not("status", "in", "(ricevuto,annullato)");
             if (errOda) throw errOda;
             await supabase.from("ddt_ricezione").update({ stato: params.stato } as never).eq("id", ddtId);
@@ -503,7 +744,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       toast.success("DDT registrato");
       invalidateAll();
     },
-    onError: (err: Error) => toast.error(err.message || "Errore registrazione DDT"),
+    onError: (err: Error) => toast.error(messaggioBolla(err, "Errore registrazione DDT")),
   });
 
   const updateDDT = useMutation({
@@ -557,7 +798,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       toast.success("DDT aggiornato");
       invalidateAll();
     },
-    onError: (err: Error) => toast.error(err.message || "Errore aggiornamento DDT"),
+    onError: (err: Error) => toast.error(messaggioBolla(err, "Errore aggiornamento DDT")),
   });
 
   const deleteDDT = useMutation({

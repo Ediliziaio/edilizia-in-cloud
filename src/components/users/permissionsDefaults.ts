@@ -186,6 +186,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: null, description: "Anagrafica clienti: chi la vede crea e modifica, salvo «Sola lettura»" },
   { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi. L'archivio completo (Esporta i dati) chiede anche «Sicurezza & Privacy». Ogni esportazione resta nel registro." },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: null, description: "Ticket di supporto: chi li vede li apre e li gestisce, salvo «Sola lettura»" },
+  { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null, description: "Gli interventi di assistenza nel Calendario lavori (anche senza i ticket) e la barra in basso del telefono da cantiere" },
   { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null, description: "Gestisci piani di manutenzione programmata" },
   { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null, description: "Accesso al modulo sicurezza e PSC" },
   { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
@@ -224,6 +225,7 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: null, description: "Preventivi CRM e invio in firma: chi li vede li crea e li modifica, salvo «Sola lettura»" },
   { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null, description: "Può approvare/impostare sconti oltre soglia" },
   { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null, description: "Sopralluoghi tecnici pre-vendita" },
+  { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null, description: "I campi personalizzati delle attività: li legge e li compila (chi ha «Modifica Ordini» li compila comunque)" },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null, description: "Appuntamenti e calendario CRM" },
   { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null, description: "Campagne e caselle email" },
   { label: "SMS Marketing",           viewKey: "can_view_sms_marketing",            editKey: null, description: "Campagne SMS" },
@@ -293,16 +295,6 @@ export const PERMESSI_SENZA_EFFETTO: readonly { chiave: BooleanPermissionKey; et
     chiave: "can_manage_warehouse_items",
     etichetta: "Gestione Articoli",
     perche: "Nessun codice lo legge.",
-  },
-  {
-    chiave: "can_view_interventi",
-    etichetta: "Interventi",
-    perche: "Sceglie solo la barra in basso sul telefono (MobileBottomNav); le pagine Interventi rimandano ad Assistenza.",
-  },
-  {
-    chiave: "can_view_marketing_activities",
-    etichetta: "Attività",
-    perche: "La pagina Attività non chiede permessi; conta solo come uno dei permessi che accendono l'area Marketing.",
   },
   {
     chiave: "can_edit_settings_scontistica",

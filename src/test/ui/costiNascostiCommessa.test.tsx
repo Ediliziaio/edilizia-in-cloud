@@ -117,3 +117,44 @@ describe("finestra di modifica dell'articolo", () => {
     });
   });
 });
+
+describe("nuova commessa: elenco compatto e doppioni", () => {
+  const apriMenu = (nome: string) => fireEvent.pointerDown(screen.getByRole("button", { name: `Azioni su ${nome}` }), { button: 0, ctrlKey: false });
+
+  it("una riga per articolo con lo stato della scala del dettaglio, senza «Non pagato»", () => {
+    avvolgi(<OrderItemsList items={[voce]} onItemsChange={vi.fn()} editable vista="compatta" />);
+    expect(screen.getByText("Serramento PVC")).toBeInTheDocument();
+    expect(screen.getByText("Da ordinare")).toBeInTheDocument();
+    expect(screen.queryByText("Non pagato")).toBeNull();
+    expect(screen.getAllByText(/620,00/).length).toBeGreaterThan(0);
+  });
+
+  it("«Duplica» apre la copia e, se resta uguale, propone di sommare la quantità", () => {
+    const onItemsChange = vi.fn();
+    avvolgi(<OrderItemsList items={[voce]} onItemsChange={onItemsChange} editable vista="compatta" />);
+    apriMenu("Serramento PVC");
+    fireEvent.click(screen.getByRole("menuitem", { name: /Duplica/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    expect(onItemsChange).not.toHaveBeenCalled();
+    expect(screen.getByText("«Serramento PVC» c'è già")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Somma la quantità" }));
+    expect(onItemsChange).toHaveBeenCalledTimes(1);
+    expect(onItemsChange.mock.calls[0][0]).toHaveLength(1);
+    expect(onItemsChange.mock.calls[0][0][0]).toMatchObject({ id: "i1", quantity: 4 });
+  });
+
+  it("la copia si può tenere come riga a parte, da ordinare", () => {
+    const onItemsChange = vi.fn();
+    avvolgi(<OrderItemsList items={[{ ...voce, status: "installato", specifiche: "RAL 9010", unita_misura: "pz" }]} onItemsChange={onItemsChange} editable vista="compatta" />);
+    apriMenu("Serramento PVC");
+    fireEvent.click(screen.getByRole("menuitem", { name: /Duplica/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    // Una riga già posata non si somma: resta solo la riga a parte.
+    expect(screen.queryByRole("button", { name: "Somma la quantità" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi come riga a parte" }));
+    const righe = onItemsChange.mock.calls[0][0];
+    expect(righe).toHaveLength(2);
+    expect(righe[1]).toMatchObject({ name: "Serramento PVC", quantity: 2, status: "da_ordinare", specifiche: "RAL 9010", unita_misura: "pz" });
+    expect(righe[1].id).toBeUndefined();
+  });
+});

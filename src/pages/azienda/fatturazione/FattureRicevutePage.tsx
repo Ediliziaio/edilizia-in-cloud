@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, type ReactNode } from "react";
+import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
+import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -331,11 +332,36 @@ export default function FattureRicevutePage() {
     },
   });
 
+  // Le fatture divise tra più ordini: una quota per ordine (30/10/2026).
+  const { data: quoteOrdini = {} } = useQuery({
+    queryKey: ["fatture-quote-ordini", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("fattura_ricevuta_ordini")
+        .select("fattura_id, purchase_order_id, importo")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      const perFattura: Record<string, Array<{ purchase_order_id: string; importo: number }>> = {};
+      for (const r of (data ?? []) as Array<{ fattura_id: string; purchase_order_id: string; importo: number }>) {
+        (perFattura[r.fattura_id] ??= []).push({ purchase_order_id: r.purchase_order_id, importo: Number(r.importo) });
+      }
+      return perFattura;
+    },
+  });
+  const haOrdine = useCallback(
+    (f: FatturaRicevuta) => !!f.purchase_order_id || (quoteOrdini[f.id]?.length ?? 0) > 0,
+    [quoteOrdini],
+  );
+
   // I numeri OdA degli ordini collegati: una query sola per tutta la lista,
   // così il badge mostra "ODA-2026-028" e non un uuid.
   const linkedOdaIds = useMemo(
-    () => [...new Set(fatture.map((f) => f.purchase_order_id).filter(Boolean))] as string[],
-    [fatture],
+    () => [...new Set([
+      ...fatture.map((f) => f.purchase_order_id),
+      ...Object.values(quoteOrdini).flat().map((q) => q.purchase_order_id),
+    ].filter(Boolean))] as string[],
+    [fatture, quoteOrdini],
   );
   const { data: odaNumbers = {} } = useQuery({
     queryKey: ["fatture-oda-numbers", companyId, linkedOdaIds],
@@ -402,9 +428,9 @@ export default function FattureRicevutePage() {
   const conteggi = useMemo(
     () => ({
       daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
-      senzaOrdine: fatture.filter((f) => !f.purchase_order_id).length,
+      senzaOrdine: fatture.filter((f) => !haOrdine(f)).length,
     }),
-    [fatture],
+    [fatture, haOrdine],
   );
   const filtriAttivi =
     (statoFilter !== "all" ? 1 : 0) +
@@ -444,9 +470,9 @@ export default function FattureRicevutePage() {
       result = result.filter((f) => f.categoria_ai === categoriaFilter);
     }
     if (ordineFilter === "con") {
-      result = result.filter((f) => !!f.purchase_order_id);
+      result = result.filter((f) => haOrdine(f));
     } else if (ordineFilter === "senza") {
-      result = result.filter((f) => !f.purchase_order_id);
+      result = result.filter((f) => !haOrdine(f));
     }
     if (contabFilter === "da_contabilizzare") {
       result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
@@ -470,7 +496,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, searchQuery, ordinamento]);
+  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, searchQuery, ordinamento, haOrdine]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -610,29 +636,34 @@ export default function FattureRicevutePage() {
     onSettled: () => setClassProgress(null),
   });
 
-  // Collega/scollega l'ordine d'acquisto. Lo scollegamento e' reversibile in
+  // Collega/scollega gli ordini d'acquisto. Lo scollegamento e' reversibile in
   // un clic, quindi niente conferma; il trigger automatico non riaggancera'
   // da solo (scatta solo su insert/update degli importi), la scelta resta.
+  // Uno, più ordini (con le quote) o nessuno: lo scrive
+  // collega_fattura_a_ordini, che segna anche aggancio_oda_manuale — da qui in
+  // poi l'automatismo non tocca più questa riga. Senza, scollegare un aggancio
+  // sbagliato non serviva a niente: al primo aggiornamento degli importi il
+  // trigger la riagganciava allo stesso ordine, smentendo la persona in silenzio.
   const linkOdaMutation = useMutation({
-    mutationFn: async ({ id, odaId }: { id: string; odaId: string | null }) => {
-      // aggancio_oda_manuale: da qui in poi l'automatismo non tocca più questa
-      // riga. Senza, scollegare un aggancio sbagliato non serviva a niente: al
-      // primo aggiornamento degli importi il trigger la riagganciava allo
-      // stesso ordine, smentendo la persona in silenzio.
-      const { data, error } = await supabase
-        .from("fatture_ricevute" as never)
-        .update({ purchase_order_id: odaId, aggancio_oda_manuale: true, updated_at: new Date().toISOString() } as never)
-        .eq("id", id)
-        .eq("company_id", companyId!)
-        .select("id");
+    mutationFn: async ({ id, quote }: { id: string; quote: QuotaOrdine[] }) => {
+      const { error } = await (supabase as any).rpc("collega_fattura_a_ordini", {
+        p_fattura_id: id,
+        p_quote: quote,
+      });
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Fattura non collegata: non appartiene a questa azienda");
     },
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["fatture-quote-ordini"] });
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
       setCollegaFattura(null);
-      toast.success(v.odaId ? "Fattura collegata all'ordine" : "Fattura scollegata dall'ordine");
+      toast.success(
+        v.quote.length === 0
+          ? "Fattura scollegata dagli ordini"
+          : v.quote.length === 1
+            ? "Fattura collegata all'ordine"
+            : `Fattura divisa tra ${v.quote.length} ordini`,
+      );
     },
     onError: (e) => toast.error(`Errore: ${e.message}`),
   });
@@ -1280,7 +1311,34 @@ export default function FattureRicevutePage() {
                     <StatoBadge stato={f.stato} />
                   </TableCell>
                   <TableCell>
-                    {f.purchase_order_id ? (
+                    {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
+                      <div className="flex flex-wrap items-center gap-0.5">
+                        {quoteOrdini[f.id].map((q) => (
+                          <Link
+                            key={q.purchase_order_id}
+                            to={`/azienda/ordini-acquisto/${q.purchase_order_id}`}
+                            title={`Quota di questa fattura: ${formatCurrency(q.importo)} (imponibile)`}
+                          >
+                            <Badge variant="outline" className="font-mono text-[11px] hover:bg-orange-50 hover:border-orange-300 transition-colors">
+                              {odaNumbers[q.purchase_order_id] ?? "OdA"}
+                              <span className="ml-1 font-sans text-muted-foreground">{formatCurrency(q.importo)}</span>
+                            </Badge>
+                          </Link>
+                        ))}
+                        {f.stato !== "contabilizzata" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            title="Scollega dagli ordini" aria-label="Scollega dagli ordini"
+                            disabled={linkOdaMutation.isPending}
+                            onClick={() => linkOdaMutation.mutate({ id: f.id, quote: [] })}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : f.purchase_order_id ? (
                       <div className="flex items-center gap-0.5">
                         <Link
                           to={`/azienda/ordini-acquisto/${f.purchase_order_id}`}
@@ -1296,7 +1354,7 @@ export default function FattureRicevutePage() {
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
                           title="Scollega dall'ordine" aria-label="Scollega dall'ordine"
                           disabled={linkOdaMutation.isPending}
-                          onClick={() => linkOdaMutation.mutate({ id: f.id, odaId: null })}
+                          onClick={() => linkOdaMutation.mutate({ id: f.id, quote: [] })}
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -1470,6 +1528,9 @@ export default function FattureRicevutePage() {
                 {STATO_CONFIG[dettaglioMobile.stato]?.label ?? dettaglioMobile.stato}
                 {dettaglioMobile.categoria_ai ? ` · ${etichettaCategoria(dettaglioMobile.categoria_ai)}` : ""}
                 {dettaglioMobile.purchase_order_id ? ` · ordine ${odaNumbers[dettaglioMobile.purchase_order_id] ?? "collegato"}` : ""}
+                {(quoteOrdini[dettaglioMobile.id]?.length ?? 0) > 0
+                  ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
+                  : ""}
               </p>
               <Button
                 variant="outline"
@@ -1500,7 +1561,9 @@ export default function FattureRicevutePage() {
               <div className="space-y-2">
                 {/* Mobile: basta il riepilogo sotto, senza la spiegazione. */}
                 <p className="max-sm:hidden">
-                  {contabilizzaFattura?.purchase_order_id
+                  {contabilizzaFattura && (quoteOrdini[contabilizzaFattura.id]?.length ?? 0) > 0
+                    ? "La fattura è divisa tra più ordini: nasce un costo solo con tutto l'imponibile, ogni ordine (e la sua commessa) prende la sua quota e il costo registrato alla ricezione scende di quella quota (nessun costo doppio). Dopo, le quote non si cambiano più."
+                    : contabilizzaFattura?.purchase_order_id
                     ? "La fattura è collegata a un ordine: l'importo del costo già registrato alla ricezione verrà corretto con quello della fattura (nessun costo doppio)."
                     : "Verrà creato il costo corrispondente, con imponibile e IVA della fattura, visibile in Costi e nel Previsionale."}
                 </p>
@@ -1585,8 +1648,8 @@ export default function FattureRicevutePage() {
         companyId={companyId}
         fattura={collegaFattura}
         saving={linkOdaMutation.isPending}
-        onScelto={(odaId) => {
-          if (collegaFattura) linkOdaMutation.mutate({ id: collegaFattura.id, odaId });
+        onScelto={(quote) => {
+          if (collegaFattura) linkOdaMutation.mutate({ id: collegaFattura.id, quote });
         }}
       />
 

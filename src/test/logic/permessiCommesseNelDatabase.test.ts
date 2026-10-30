@@ -96,7 +96,10 @@ describe("la regola del database è quella del pulsante", () => {
   it("l'app elimina le commesse solo con amministratore o «Elimina Ordini», e passa dalla funzione", () => {
     expect(leggi("src/pages/azienda/OrdersList.tsx")).toMatch(/isAdmin \|\| orderPerms\.canDeleteOrders/);
     expect(leggi("src/pages/azienda/OrderDetail.tsx")).toMatch(/!permissions\.isAdmin && !permissions\.canDeleteOrders/);
-    expect(leggi("src/lib/orderUtils.ts")).toContain('rpc("delete_order_cascading"');
+    // Dal 16/10 (12e59adf6) «Elimina» sposta nel cestino: la funzione del database
+    // controlla azienda e permesso e conserva rate e righe per il ripristino.
+    expect(leggi("src/lib/orderUtils.ts")).toContain('rpc("set_order_trashed"');
+    expect(leggi("src/lib/orderUtils.ts")).not.toMatch(/from\("orders"\)\.delete\(/);
   });
 
   it("la cronologia l'app la legge soltanto", () => {

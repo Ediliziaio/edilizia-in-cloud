@@ -2,11 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { leggiBozzaComputo, type BozzaComputo } from "./editorNativo";
+import { totaleElencoComputo } from "./economiaComputo";
 import { leggiAllegatoLocale, salvaAllegatiRipristinati } from "./allegatiLocali";
 
-type Row = { id: string; company_id: string; created_by: string; revision: number; payload: Json; title: string | null; client_name: string | null; items_count: number; updated_at: string };
+type Row = { id: string; company_id: string; created_by: string; revision: number; payload: Json; title: string | null; client_name: string | null; items_count: number; total: number | null; updated_at: string };
 type CloudDatabase = Omit<Database, "public"> & { public: Omit<Database["public"], "Tables"> & { Tables: Database["public"]["Tables"] & {
-  computo_preventivo_drafts: { Row: Row; Insert: { id: string; company_id: string; payload: Json; revision?: number }; Update: { payload?: Json; revision?: number }; Relationships: [] };
+  computo_preventivo_drafts: { Row: Row; Insert: { id: string; company_id: string; payload: Json; revision?: number; total?: number | null }; Update: { payload?: Json; revision?: number; total?: number | null }; Relationships: [] };
   computo_preventivo_costi: { Row: { company_id: string; draft_id: string; costi: Json; updated_at: string }; Insert: { company_id: string; draft_id: string; costi: Json; updated_at?: string }; Update: { costi?: Json; updated_at?: string }; Relationships: [] };
 } } };
 const db = supabase as unknown as SupabaseClient<CloudDatabase>;
@@ -18,7 +19,7 @@ export class ConflittoComputoCloud extends Error {
   constructor() { super("Il computo è stato modificato da un altro dispositivo. Le tue modifiche sono al sicuro su questo computer: scarica la tua copia e riapri la versione salvata."); }
 }
 export type ComputoCloud = { id: string; revision: number; bozza: BozzaComputo; updatedAt: string };
-export type RiepilogoComputoCloud = { id: string; titolo: string; committente: string; numeroVoci: number; updatedAt: string };
+export type RiepilogoComputoCloud = { id: string; titolo: string; committente: string; numeroVoci: number; updatedAt: string; totale: number | null };
 
 function verifica(companyId: string, id?: string) {
   // L'azienda la controllano le policy del database; qui si rifiutano solo identificativi che non sono UUID (niente «../» nei percorsi).
@@ -54,9 +55,19 @@ export async function leggiComputoCloud(companyId: string, id: string): Promise<
 }
 export async function elencaComputiCloud(companyId: string): Promise<RiepilogoComputoCloud[]> {
   verifica(companyId);
-  const { data, error } = await db.from("computo_preventivo_drafts").select("id,title,client_name,items_count,updated_at").eq("company_id", companyId).order("updated_at", { ascending: false }).limit(200);
+  const { data, error } = await db.from("computo_preventivo_drafts").select("id,title,client_name,items_count,total,updated_at").eq("company_id", companyId).order("updated_at", { ascending: false }).limit(200);
   if (error) throw new Error("L'elenco dei computi salvati non si apre adesso.");
-  return (data ?? []).map(r => ({ id: r.id, titolo: r.title ?? "", committente: r.client_name ?? "", numeroVoci: r.items_count, updatedAt: r.updated_at }));
+  const totali = new Map((data ?? []).map(r => [r.id, r.total == null ? null : Number(r.total)]));
+  // Il totale si scrive a ogni salvataggio dal 30/10/2026: per i computi salvati prima, e mai
+  // più toccati, lo si calcola qui leggendoli interi (pochi, e sempre meno).
+  const senzaTotale = (data ?? []).filter(r => r.total == null && r.items_count > 0).map(r => r.id).slice(0, 50);
+  if (senzaTotale.length) {
+    const { data: vecchi } = await db.from("computo_preventivo_drafts").select("id, payload").eq("company_id", companyId).in("id", senzaTotale);
+    for (const r of vecchi ?? []) {
+      try { totali.set(r.id, totaleElencoComputo(leggiBozzaComputo(JSON.stringify(r.payload)))); } catch { /* una bozza illeggibile resta senza totale */ }
+    }
+  }
+  return (data ?? []).map(r => ({ id: r.id, titolo: r.title ?? "", committente: r.client_name ?? "", numeroVoci: r.items_count, updatedAt: r.updated_at, totale: totali.get(r.id) ?? null }));
 }
 /**
  * Allegati già caricati in questa sessione, per bozza. Gli allegati sono
@@ -88,9 +99,11 @@ export async function salvaComputoCloud(companyId: string, id: string, scope: st
   const costi = Object.fromEntries(valida.voci.filter(v => (v.costo ?? "").trim()).map(v => [v.id, v.costo.trim()]));
   const payload = { ...valida, voci: valida.voci.map(v => v.costo ? { ...v, costo: "" } : v) } as unknown as Json;
   const table = db.from("computo_preventivo_drafts");
+  // Il totale per l'elenco dei preventivi, calcolato sulla bozza con i costi (che non lo cambiano).
+  const total = totaleElencoComputo(valida);
   const result = revision === 0
-    ? await table.insert({ id, company_id: companyId, payload, revision: 1 }).select("id,revision,updated_at").single()
-    : await table.update({ payload, revision: revision + 1 }).eq("company_id", companyId).eq("id", id).eq("revision", revision).select("id,revision,updated_at").maybeSingle();
+    ? await table.insert({ id, company_id: companyId, payload, revision: 1, total }).select("id,revision,updated_at").single()
+    : await table.update({ payload, revision: revision + 1, total }).eq("company_id", companyId).eq("id", id).eq("revision", revision).select("id,revision,updated_at").maybeSingle();
   if (result.error?.code === "23505" || (!result.error && !result.data)) throw new ConflittoComputoCloud();
   if (result.error || !result.data) throw new Error("Salvataggio non riuscito. Dati e allegati restano su questo computer.");
   if (Object.keys(costi).length || costiPresenti.has(id)) {

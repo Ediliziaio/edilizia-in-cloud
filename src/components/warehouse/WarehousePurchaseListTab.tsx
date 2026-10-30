@@ -44,6 +44,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PAYMENT_METHODS as ORDER_PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { useAcquistiAMano } from "@/hooks/warehouse/useAcquistiAMano";
+import type { ManualPurchaseItem } from "@/lib/magazzino/acquistiAMano";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG } from "@/types/warehouse";
@@ -56,32 +58,6 @@ type SupplierOption = {
   id: string;
   name: string;
   payment_method?: string | null;
-};
-
-type ManualPurchaseItem = {
-  id: string;
-  name: string;
-  quantity: number;
-  unitCost: number;
-  vatRate: number;
-  supplierId: string | null;
-  paymentMethod: string | null;
-  paymentTerm: string | null;
-  expectedPaymentDate: string;
-  paid: boolean;
-  paidDate: string;
-  depositPaid: boolean;
-  depositExpectedDate: string;
-  balancePaid: boolean;
-  balanceExpectedDate: string;
-  status: PurchaseStatus;
-  warehouseId: string | null;
-  orderDate: string;
-  arrivalDate: string;
-  priority: "alta" | "media" | "bassa";
-  dueDate: string;
-  notes: string;
-  completed: boolean;
 };
 
 type PurchaseRow = {
@@ -236,7 +212,8 @@ export default function WarehousePurchaseListTab({
   readOnly = false,
 }: WarehousePurchaseListTabProps) {
   const { warehouses, defaultWarehouse } = useWarehouses(true);
-  const [manualItems, setManualItems] = useState<ManualPurchaseItem[]>([]);
+  // La lista scritta a mano sta nel database (prima nel localStorage del browser).
+  const { voci: manualItems, setVoci: setManualItems } = useAcquistiAMano(companyId, readOnly);
   const [form, setForm] = useState(createEmptyForm);
   const [costInputMode, setCostInputMode] = useState<"unit" | "total">("unit");
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
@@ -249,56 +226,7 @@ export default function WarehousePurchaseListTab({
   const [dismissedRowIds, setDismissedRowIds] = useState<Set<string>>(new Set());
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
-  const storageKey = `warehouse-purchase-list:${companyId}`;
   const dismissedStorageKey = `warehouse-purchase-dismissed:${companyId}`;
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (!stored) return;
-      const parsed = JSON.parse(stored);
-      const safeItems = Array.isArray(parsed)
-        ? parsed
-            .filter((item) => item && typeof item.name === "string" && item.name.trim())
-            .map((item, index) => ({
-              id: typeof item.id === "string" ? item.id : `manual-${Date.now()}-${index}`,
-              name: item.name.trim(),
-              quantity: Math.max(1, Number(item.quantity || 1)),
-              unitCost: Math.max(0, Number(item.unitCost || 0)),
-              vatRate: VAT_RATE_OPTIONS.includes(Number(item.vatRate)) ? Number(item.vatRate) : 22,
-              supplierId: typeof item.supplierId === "string" ? item.supplierId : null,
-              paymentMethod: typeof item.paymentMethod === "string" ? item.paymentMethod : null,
-              paymentTerm: typeof item.paymentTerm === "string" ? item.paymentTerm : "consegna",
-              expectedPaymentDate: typeof item.expectedPaymentDate === "string" ? item.expectedPaymentDate : "",
-              paid: Boolean(item.paid),
-              paidDate: typeof item.paidDate === "string" ? item.paidDate : "",
-              depositPaid: Boolean(item.depositPaid),
-              depositExpectedDate: typeof item.depositExpectedDate === "string" ? item.depositExpectedDate : "",
-              balancePaid: Boolean(item.balancePaid),
-              balanceExpectedDate: typeof item.balanceExpectedDate === "string" ? item.balanceExpectedDate : "",
-              status: PURCHASE_STATUSES.includes(item.status) ? item.status : (item.completed ? "in_magazzino" : "da_ordinare"),
-              warehouseId: typeof item.warehouseId === "string" ? item.warehouseId : null,
-              orderDate: typeof item.orderDate === "string" ? item.orderDate : "",
-              arrivalDate: typeof item.arrivalDate === "string" ? item.arrivalDate : "",
-              priority: item.priority === "alta" || item.priority === "bassa" ? item.priority : "media",
-              dueDate: typeof item.dueDate === "string" ? item.dueDate : "",
-              notes: typeof item.notes === "string" ? item.notes : "",
-              completed: Boolean(item.completed),
-            }))
-        : [];
-      setManualItems(safeItems);
-    } catch {
-      setManualItems([]);
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(manualItems));
-    } catch {
-      // localStorage can be unavailable or full in some browser modes.
-    }
-  }, [manualItems, storageKey]);
 
   useEffect(() => {
     try {
@@ -623,7 +551,7 @@ export default function WarehousePurchaseListTab({
     if (readOnly) return;
     const name = form.name.trim();
     if (!name) return;
-    const id = globalThis.crypto?.randomUUID?.() ?? `manual-${Date.now()}`;
+    const id = globalThis.crypto.randomUUID();
     setManualItems((current) => [
       {
         ...form,
@@ -845,7 +773,7 @@ export default function WarehousePurchaseListTab({
             <p className="text-xs text-muted-foreground">
               {readOnly
                 ? "Vista consulente: acquisti, fabbisogni e scorte sono consultabili senza azioni operative."
-                : "Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti."}
+                : "Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti. Quando una voce scritta a mano è ordinata, entra nei Costi e nel previsionale con acconto e saldo."}
             </p>
           </div>
           {!readOnly && (

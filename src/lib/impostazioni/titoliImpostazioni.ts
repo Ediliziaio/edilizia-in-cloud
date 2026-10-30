@@ -59,6 +59,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   "preferenze-email":     { title: "Email dell'azienda",        description: "Nome del mittente, risposte, logo e colori delle email aziendali" },
   "numeri-telefono":      { title: "Telefonia",                description: "Numeri per SMS, chiamate e agenti vocali. Per comprare un numero italiano servono prima i dati dell'azienda, approvati" },
   fatturazione:           { title: "Fatturazione",             description: "Come fatturi: con un altro programma o con Edilizia in Cloud, e i dati che escono sulle fatture" },
+  banca:                  { title: "Banca",                    description: "I conti correnti collegati: i movimenti arrivano da soli in tesoreria. Il consenso della banca scade e va rinnovato" },
   "ai-test-lab":          { title: "AI Test Lab",              description: "Confronto di costo, velocità e qualità dei modelli AI. Solo azienda dimostrativa" },
   "listini-serramenti":   { title: "Listini serramenti",       description: "Fornitori di infissi, sconti di default e matrice dei prezzi" },
 };

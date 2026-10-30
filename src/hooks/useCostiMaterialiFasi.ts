@@ -2,12 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { MovimentoMagazzino, RigaAcquisto } from "@/lib/orders/economiaFasi";
+import type { RapportinoConMateriali } from "@/lib/distinta/consumiMateriali";
+import { leggiRapportiniApprovati } from "@/lib/distinta/rapportiniApprovati";
 
 /**
  * Costi sostenuti per le righe della commessa (06/10/2026): le righe degli
  * ordini d'acquisto già emessi e i movimenti di magazzino, per il costo
  * consuntivo delle fasi (economiaFasi). Gli stessi stati e la stessa regola di
  * v_ordine_marginalita. Si leggono solo con il permesso sui costi.
+ * Con i materiali dei rapportini approvati: lo stesso articolo si posa su più
+ * fasi, e il suo costo va a ognuna per la parte posata (economiaFasi, posaPerFase).
  */
 const STATI_EMESSI = ["inviato", "confermato", "parziale", "ricevuto"];
 
@@ -22,8 +26,8 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
     queryKey: ["costi-materiali-fasi", companyId, orderId],
     enabled: abilitato && !!orderId && !!companyId,
     staleTime: 60_000,
-    queryFn: async (): Promise<{ acquisti: RigaAcquisto[]; movimenti: MovimentoMagazzino[] }> => {
-      const [acquisti, movimenti] = await Promise.all([
+    queryFn: async (): Promise<{ acquisti: RigaAcquisto[]; movimenti: MovimentoMagazzino[]; rapportini: RapportinoConMateriali[] }> => {
+      const [acquisti, movimenti, rapportini] = await Promise.all([
         db
           .from("purchase_order_items")
           .select("order_item_id, quantity, line_total, purchase_orders!inner(status, order_id)")
@@ -40,6 +44,7 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
           // gli arrivi da ordine d'acquisto non sono rientri della commessa
           .or("movement_type.eq.scarico,rientro_commessa.is.true")
           .not("order_item_id", "is", null),
+        leggiRapportiniApprovati(companyId!, orderId!),
       ]);
       if (acquisti.error) throw acquisti.error;
       if (movimenti.error) throw movimenti.error;
@@ -53,7 +58,10 @@ export function useCostiMaterialiFasi(orderId: string | null | undefined, abilit
           movement_type: m.movement_type,
           quantity: Number(m.quantity) || 0,
           unit_cost: m.unit_cost != null ? Number(m.unit_cost) : null,
+          rientro_commessa: m.rientro_commessa,
+          notes: m.notes,
         })),
+        rapportini,
       };
     },
   });

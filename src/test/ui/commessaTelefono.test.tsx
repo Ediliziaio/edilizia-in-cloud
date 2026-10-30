@@ -24,6 +24,8 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
+// I mezzi della fase hanno i loro test: qui conta la riga della fase.
+vi.mock("@/components/mezzi/PianoMezziCantiere", () => ({ MezziFaseCantiere: (): null => null }));
 vi.mock("@/hooks/useSottofasi", () => ({
   useSottofasi: () => ({
     sottofasi: [] as unknown[], perFase: new Map(), isLoading: false, isError: false,

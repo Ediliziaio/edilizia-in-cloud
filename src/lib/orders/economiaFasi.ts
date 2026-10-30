@@ -10,7 +10,11 @@
  *   sulla fase il venduto di una lavorazione non si potrebbe dire.
  * - COSTO PREVISTO: manodopera e ditte previste (cost_preventivo delle
  *   assegnazioni) più il costo d'acquisto delle righe collegate
- *   (purchase_price, altrimenti standard_cost).
+ *   (purchase_price, altrimenti standard_cost). Dove nessuna assegnazione ha
+ *   un costo previsto, vale quello delle voci del preventivo da cui è nata la
+ *   fase (order_work_phase_voci: quantità × costo del listino, 29/10/2026);
+ *   lo stesso per i materiali, se nessuna riga collegata ha un costo. Mai le
+ *   due cose insieme: sarebbe lo stesso lavoro contato due volte.
  * - COSTO CONSUNTIVO: quello sostenuto. Manodopera e ditte registrate
  *   (total_cost, la fonte del conto economico) più acquisti e scarichi di
  *   magazzino delle righe della fase, con la regola di v_ordine_marginalita:
@@ -41,6 +45,14 @@ export interface AssegnazioneFase {
   vat_rate?: number | null;
 }
 
+/** Voce prevista della lavorazione (order_work_phase_voci): unitari senza IVA. */
+export interface VocePrevistaFase {
+  phase_id: string;
+  quantita: number;
+  costo_manodopera: number;
+  costo_materiali: number;
+}
+
 /** Riga di un ordine d'acquisto della commessa già emesso (inviato, confermato, parziale, ricevuto). */
 export interface RigaAcquisto {
   order_item_id: string | null;
@@ -67,6 +79,16 @@ export interface VociCosto {
 /** Da dove viene il venduto: scritto sulla fase, dalle righe del contratto, o non c'è. */
 export type FonteVenduto = "fase" | "righe" | null;
 
+/**
+ * Da dove viene il costo previsto. Lavoro: le assegnazioni (persone e ditte) o
+ * le voci del preventivo. Materiali: le righe del contratto o le voci del
+ * preventivo. «misto» solo nel totale, quando le fasi non vanno tutte uguali.
+ */
+export interface FontePrevisto {
+  lavoro: "assegnazioni" | "preventivo" | "misto" | null;
+  materiali: "righe" | "preventivo" | "misto" | null;
+}
+
 export interface EconomiaFase {
   venduto: number;
   fonteVenduto: FonteVenduto;
@@ -76,6 +98,9 @@ export interface EconomiaFase {
   costoConsuntivo: number;
   previsto: VociCosto;
   consuntivo: VociCosto;
+  fontePrevisto: FontePrevisto;
+  /** Voci del preventivo collegate alla fase. */
+  vociPreviste: number;
   /** Consuntivo meno previsto: sopra zero il costo ha sforato. */
   scostamento: number;
   /** Margine % sul venduto; null senza venduto. */
@@ -109,6 +134,10 @@ interface Somme {
   previsto: VociCosto;
   consuntivo: VociCosto;
   righe: number;
+  fonte: FontePrevisto;
+  /** La fase ha almeno una ditta: il lavoro del preventivo va alle ditte. */
+  haDitta: boolean;
+  voci: { n: number; lavoro: number; materiali: number };
 }
 
 const vuote = (importo: number | null = null): Somme => ({
@@ -118,7 +147,17 @@ const vuote = (importo: number | null = null): Somme => ({
   previsto: { manodopera: 0, ditte: 0, materiali: 0 },
   consuntivo: { manodopera: 0, ditte: 0, materiali: 0 },
   righe: 0,
+  fonte: { lavoro: null, materiali: null },
+  haDitta: false,
+  voci: { n: 0, lavoro: 0, materiali: 0 },
 });
+
+/** Unisce le fonti delle fasi nel totale. */
+function unisci<T extends string>(a: T | "misto" | null, b: T | "misto" | null): T | "misto" | null {
+  if (a === null) return b;
+  if (b === null || a === b) return a;
+  return "misto";
+}
 
 /** L'importo scritto sulla fase, se è un numero valido (mai sotto zero). */
 const importoFase = (v: unknown): number | null => {
@@ -210,6 +249,8 @@ function chiudi(s: Somme, { venduto: lordo, fonte }: { venduto: number; fonte: F
     costoConsuntivo,
     previsto,
     consuntivo,
+    fontePrevisto: { ...s.fonte },
+    vociPreviste: s.voci.n,
     scostamento: centesimi(costoConsuntivo - costoPrevisto),
     marginePrevistoPct: margine(costoPrevisto),
     margineConsuntivoPct: margine(costoConsuntivo),
@@ -223,6 +264,15 @@ export function economiaFasi(input: {
   assegnazioni: ReadonlyArray<AssegnazioneFase>;
   acquisti?: ReadonlyArray<RigaAcquisto>;
   movimenti?: ReadonlyArray<MovimentoMagazzino>;
+  /**
+   * Quanto di ogni riga il cantiere ha posato su ogni fase (rapportini
+   * approvati, consumiMateriali). Lo stesso articolo si usa su più fasi: il
+   * suo costo sostenuto va a ognuna per la parte posata lì. Quello che non è
+   * ancora posato né rientrato in magazzino resta alla fase della riga.
+   */
+  posaPerFase?: ReadonlyMap<string, ReadonlyMap<string | null, number>>;
+  /** Voci del preventivo da cui sono nate le fasi: il previsto dove le assegnazioni non ne hanno. */
+  vociPreviste?: ReadonlyArray<VocePrevistaFase>;
 }): EconomiaFasi {
   const somme = new Map<string, Somme>();
   for (const f of input.fasi) somme.set(f.id, vuote(importoFase(f.importo_venduto)));
@@ -230,14 +280,49 @@ export function economiaFasi(input: {
   const di = (faseId: string | null) => (faseId && somme.get(faseId)) || fuori;
 
   const consuntivoRighe = costoConsuntivoRighe(input.acquisti ?? [], input.movimenti ?? []);
+  // Quanto di ogni riga è stato comprato (ordini emessi) o preso dal magazzino, e quanto è rientrato:
+  // la stessa base di costoConsuntivoRighe e di v_ordine_marginalita, non la quantità scritta sulla riga.
+  const rientrati = new Map<string, number>();
+  const scaricati = new Map<string, number>();
+  for (const m of input.movimenti ?? []) {
+    if (!m.order_item_id) continue;
+    const divisione = (m.notes ?? "").startsWith("Divisione tra le fasi:");
+    if (m.movement_type === "scarico") scaricati.set(m.order_item_id, (scaricati.get(m.order_item_id) ?? 0) + numero(m.quantity));
+    else if (m.movement_type === "carico" && m.rientro_commessa) {
+      if (divisione) scaricati.set(m.order_item_id, (scaricati.get(m.order_item_id) ?? 0) - numero(m.quantity));
+      else rientrati.set(m.order_item_id, (rientrati.get(m.order_item_id) ?? 0) + numero(m.quantity));
+    }
+  }
+  const ordinati = new Map<string, number>();
+  for (const a of input.acquisti ?? []) {
+    if (a.order_item_id) ordinati.set(a.order_item_id, (ordinati.get(a.order_item_id) ?? 0) + numero(a.quantity));
+  }
   for (const r of input.righe) {
     const s = di(r.phase_id);
     const prezzo = vendutoRiga(r);
     s.vendutoRighe += prezzo;
     if (prezzo > 0) s.righePrezzate += 1;
     s.previsto.materiali += costoPrevistoRiga(r);
-    s.consuntivo.materiali += consuntivoRighe.get(r.id) ?? 0;
     s.righe += 1;
+    const costo = consuntivoRighe.get(r.id) ?? 0;
+    const posa = input.posaPerFase?.get(r.id);
+    const posati = posa ? [...posa.values()].reduce((n, q) => n + q, 0) : 0;
+    if (!posa || posati <= 0 || costo === 0) {
+      s.consuntivo.materiali += costo;
+      continue;
+    }
+    // Il costo vale per quanto è ancora fuori dal magazzino: si divide tra le fasi in proporzione
+    // al posato; la parte non ancora posata resta alla fase della riga.
+    const comprati = Math.max(ordinati.get(r.id) ?? 0, scaricati.get(r.id) ?? 0) || numero(r.quantity);
+    const fuori = Math.max(posati, comprati - (rientrati.get(r.id) ?? 0));
+    let assegnato = 0;
+    for (const [fase, q] of posa) {
+      const parte = (costo * q) / fuori;
+      // Posato senza fase, o su una fase che non c'è più: resta alla fase della riga.
+      di(fase && somme.has(fase) ? fase : r.phase_id).consuntivo.materiali += parte;
+      assegnato += parte;
+    }
+    s.consuntivo.materiali += costo - assegnato;
   }
   for (const a of input.assegnazioni) {
     const s = di(a.phase_id);
@@ -246,6 +331,28 @@ export function economiaFasi(input: {
     const iva = a.source === "team" ? 1 + (a.vat_rate == null || !Number.isFinite(Number(a.vat_rate)) ? 22 : Number(a.vat_rate)) / 100 : 1;
     s.previsto[voce] += numero(a.cost_preventivo) / iva;
     s.consuntivo[voce] += numero(a.cost_consuntivo) / iva;
+    if (a.source === "team") s.haDitta = true;
+  }
+  for (const v of input.vociPreviste ?? []) {
+    const s = somme.get(v.phase_id);
+    if (!s) continue;
+    const q = Math.max(0, numero(v.quantita));
+    s.voci.n += 1;
+    s.voci.lavoro += q * Math.max(0, numero(v.costo_manodopera));
+    s.voci.materiali += q * Math.max(0, numero(v.costo_materiali));
+  }
+  for (const s of [...somme.values(), fuori]) {
+    if (s.previsto.manodopera + s.previsto.ditte > 0) s.fonte.lavoro = "assegnazioni";
+    else if (s.voci.lavoro > 0) {
+      // Senza IVA, come sul preventivo: non si divide come i costi scritti sulle ditte.
+      s.previsto[s.haDitta ? "ditte" : "manodopera"] += s.voci.lavoro;
+      s.fonte.lavoro = "preventivo";
+    }
+    if (s.previsto.materiali > 0) s.fonte.materiali = "righe";
+    else if (s.voci.materiali > 0) {
+      s.previsto.materiali += s.voci.materiali;
+      s.fonte.materiali = "preventivo";
+    }
   }
 
   const perFase = new Map<string, EconomiaFase>();
@@ -262,6 +369,8 @@ export function economiaFasi(input: {
     totale.vendutoRighe += s.vendutoRighe;
     totale.righePrezzate += s.righePrezzate;
     totale.righe += s.righe;
+    totale.voci.n += s.voci.n;
+    totale.fonte = { lavoro: unisci(totale.fonte.lavoro, s.fonte.lavoro), materiali: unisci(totale.fonte.materiali, s.fonte.materiali) };
     for (const voce of VOCI) {
       totale.previsto[voce] += s.previsto[voce];
       totale.consuntivo[voce] += s.consuntivo[voce];

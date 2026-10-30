@@ -9,6 +9,7 @@ import {
   type StatoImport,
 } from "../_shared/importFicStato.ts";
 import { riferimentoFatturaStornata } from "../_shared/notaCreditoRiferimento.ts";
+import { campiEmessaStorica, campiRicevutaStorica } from "../_shared/storicoFatture.ts";
 
 // Import da Fatture in Cloud a blocchi (vedi _shared/importFicStato.ts): pagine
 // per invocazione e tempo massimo prima di fermarsi e salvare il cursore.
@@ -310,6 +311,11 @@ Deno.serve(async (req) => {
         invoiceData.rif_fattura_data = inv.rifFatturaData || null;
       }
 
+      // Storico già registrato nel gestionale di prima (data di taglio
+      // sull'integrazione): nasce incassata, senza scadenza né incasso.
+      const storico = campiEmessaStorica(inv, integ.storico_registrato_fino_al, existing?.status);
+      if (storico) Object.assign(invoiceData, storico);
+
       // Fattura stornata o nota che la compensa: lo stato «credited» lo decide
       // lo storno, non il gestionale, che continua a darla emessa. Vince solo
       // un incasso vero arrivato dopo.
@@ -458,7 +464,7 @@ Deno.serve(async (req) => {
 
           const prima = { imported, updated, failed };
           if (flusso === "received") {
-            const e = await salvaRicevuteFic(docs, companyId!);
+            const e = await salvaRicevuteFic(docs, companyId!, integ.storico_registrato_fino_al ?? null);
             e.errori.forEach((m) => { if (importErrors.length < 5) importErrors.push(m); });
             ricevute.imported += e.imported; ricevute.updated += e.updated; ricevute.failed += e.failed;
             imported += e.imported; updated += e.updated; failed += e.failed;
@@ -876,19 +882,19 @@ function numeroRicevuta(doc: any): string {
   return s || (doc?.id != null ? `FIC-${doc.id}` : "");
 }
 
-async function salvaRicevuteFic(all: any[], companyId: string): Promise<{ imported: number; updated: number; failed: number; errori: string[] }> {
+async function salvaRicevuteFic(all: any[], companyId: string, storicoFinoAl: string | null = null): Promise<{ imported: number; updated: number; failed: number; errori: string[] }> {
   const errori: string[] = [];
   // Righe già presenti lette in blocco (una query per pagina invece di una per
   // documento), poi insert in blocco dei nuovi con ripiego uno alla volta.
   const chiave = (numero: string, data: string, piva: string | null) => `${numero}|${data}|${piva ?? ""}`;
   const numeri = [...new Set(all.map(numeroRicevuta).filter(Boolean))];
-  const esistenti = new Map<string, string>();
+  const esistenti = new Map<string, { id: string; stato: string | null; company_cost_id: string | null; prima_nota_id: string | null }>();
   for (let i = 0; i < numeri.length; i += 200) {
     const { data, error } = await supabase.from("fatture_ricevute")
-      .select("id, numero_fattura, data_fattura, cedente_piva")
+      .select("id, numero_fattura, data_fattura, cedente_piva, stato, company_cost_id, prima_nota_id")
       .eq("company_id", companyId).in("numero_fattura", numeri.slice(i, i + 200));
     if (error) throw new Error(`Lettura delle fatture ricevute già importate: ${error.message}`);
-    (data || []).forEach((r: any) => esistenti.set(chiave(String(r.numero_fattura), String(r.data_fattura), r.cedente_piva ?? null), r.id));
+    (data || []).forEach((r: any) => esistenti.set(chiave(String(r.numero_fattura), String(r.data_fattura), r.cedente_piva ?? null), r));
   }
   const nuove: any[] = [];
   const nuoveChiavi = new Map<string, number>();
@@ -919,7 +925,7 @@ async function salvaRicevuteFic(all: any[], companyId: string): Promise<{ import
       };
     });
 
-    const row = {
+    const row: Record<string, unknown> = {
       company_id: companyId,
       cedente_ragione_sociale: e.name || "Fornitore",
       cedente_piva: cedentePiva,
@@ -941,9 +947,12 @@ async function salvaRicevuteFic(all: any[], companyId: string): Promise<{ import
 
     // Dedup su chiave naturale (company, numero, data, cedente_piva anche null).
     const k = chiave(numero, String(dataFattura), cedentePiva);
-    const idEsistente = esistenti.get(k);
-    if (idEsistente) {
-      const { error } = await supabase.from("fatture_ricevute").update(row).eq("id", idEsistente);
+    const esistente = esistenti.get(k);
+    // Storico già registrato: contabilizzata senza costo (se nessuno l'ha toccata).
+    const storico = campiRicevutaStorica(dataFattura, storicoFinoAl, esistente ?? null);
+    if (storico) Object.assign(row, storico);
+    if (esistente) {
+      const { error } = await supabase.from("fatture_ricevute").update(row).eq("id", esistente.id);
       if (error) { failed++; if (errori.length < 3) errori.push(`ricevuta ${numero}: ${error.message}`); } else updated++;
     } else if (nuoveChiavi.has(k)) {
       // Stesso documento due volte nella pagina: vale l'ultimo, un insert solo.

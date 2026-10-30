@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { logoDelModello, percorsoDellAzienda } from "../../../supabase/functions/_shared/impaginaPreventivo";
+import { datiGenerici } from "../../components/preventivi/pdf/adattatoreGenerico";
 
 const leggi = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
@@ -54,38 +55,70 @@ describe("logo e copertina del modello, come il timbro", () => {
     expect(pdf).toContain("const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;");
     expect(pdf).toContain("const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));");
     expect(pdf).toContain("const percorsoCopertina = percorsoDellAzienda(t.cover_image_url, aziendaDeiFile);");
-    expect(pdf).toContain("(t.show_cover_image && percorsoCopertina));");
-    expect(pdf).toContain('supabaseAdmin.storage.from("quote-template-assets").download(percorsoCopertina)');
+    expect(pdf).toContain("t.show_cover_image === false ? Promise.resolve(null) : immagineRiservata(percorsoCopertina),");
+    // Copertina (immagine o PDF di una pagina) e timbro: solo dal contenitore riservato, col percorso verificato.
+    expect(pdf).toContain('const { data: file } = await supabaseAdmin.storage.from("quote-template-assets").download(percorso);');
+    expect(pdf).toContain('const { data, error } = await supabaseAdmin.storage.from("quote-template-assets").download(percorsoCopertina);');
     expect(pdf).toContain("const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);");
     // Nessuna lettura del contenitore dei modelli con un percorso non controllato.
     expect(pdf).not.toContain("const path = String(t.cover_image_url);");
+    expect(pdf).not.toContain("immagineModello(t.cover_image_url)");
   });
 });
 
+// Dal 27/10/2026 il PDF lo disegna il motore unico (DocumentoEdilePDF, dal bundle
+// _shared/preventivoRenderer.mjs): generate-quote-pdf legge i file, l'adattatore
+// generico li passa al documento.
 describe("il PDF del preventivo", () => {
   const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
+  const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+  const documento = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
   it("stampa timbro e chi firma nel riquadro dell'impresa", () => {
     expect(pdf).toContain("const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);");
-    expect(pdf).toContain('supabaseAdmin.storage.from("quote-template-assets").download(percorsoTimbro)');
-    expect(pdf).toContain("[company?.name, t.firmatario_impresa].map((v) => String(v ?? \"\").trim()).filter(Boolean).join(\" — \")");
-    expect(pdf).toContain("const sigH = timbroEmbed ? 86 : 66;");
+    expect(pdf).toContain("immagineRiservata(percorsoTimbro),");
+    expect(pdf).toContain("timbro_firma_url: timbro,");
+    expect(adattatore).toContain("dati.azienda.timbroUrl = str(t.timbro_firma_url) || null;");
+    expect(adattatore).toContain("dati.azienda.firmatario = str(t.firmatario_impresa).trim() || null;");
+    expect(documento).toContain(
+      "etichetta=\"PER L'IMPRESA\" chi={[dati.azienda.nome, dati.azienda.firmatario].map((v) => String(v ?? \"\").trim()).filter(Boolean).join(\" — \")} timbro={dati.azienda.timbroUrl}",
+    );
+    // Il timbro poggia sulla riga della firma, nello spazio sopra.
+    expect(documento).toContain("{timbro ? <Image src={timbro} style={{ position: \"absolute\", left: 0, bottom: 2,");
+  });
+
+  it("dall'adattatore escono timbro, chi firma, misura del logo e il nome leggibile", () => {
+    const timbro = "data:image/png;base64,iVBORw0KGgo=";
+    const dati = datiGenerici({
+      quote: { quote_number: "P-1", client_name: "ROSSI MARIO", total: 122, subtotal: 100 },
+      items: [],
+      company: { name: "Impresa Srl" },
+      template: { cover_title: "Per *ROSSI MARIO*", timbro_firma_url: timbro, firmatario_impresa: " Luca Bianchi ", logo_size: "large" },
+    });
+    expect(dati.azienda.timbroUrl).toBe(timbro);
+    expect(dati.azienda.firmatario).toBe("Luca Bianchi");
+    expect(dati.modello.copertina.scalaLogo).toBe(1.4);
+    expect(dati.modello.copertina.titolo).toBe("Per *Rossi Mario*");
+    expect(dati.cliente).toBe("ROSSI MARIO");
   });
 
   it("in anteprima l'azienda del modello vale solo se chi chiama ci può entrare", () => {
     expect(pdf).toContain("await requireCompanyAccess(supabaseAdmin, userId, aziendaDelModello, corsH);");
   });
 
-  it("il logo segue Piccola/Media/Grande su copertina, prima pagina e pagine interne", () => {
-    expect(pdf).toContain('const scalaLogo = t.logo_size === "small" ? 0.8 : t.logo_size === "large" ? 1.4 : 1;');
-    expect(pdf).toContain("Math.min((58 * scalaLogo) / logoEmbed.height, (210 * scalaLogo) / logoEmbed.width)");
-    expect(pdf).toContain("Math.min((40 * scalaLogo) / logoEmbed.height, (180 * scalaLogo) / logoEmbed.width)");
-    expect(pdf).toContain("Math.min((22 * scalaLogo) / logoEmbed.height, (120 * scalaLogo) / logoEmbed.width)");
+  it("il logo segue Piccola/Media/Grande sulla copertina", () => {
+    // Prima il logo valeva su copertina, prima pagina e pagine interne; nel documento edile
+    // il logo sta solo in copertina, e lì vale la misura del modello.
+    expect(adattatore).toContain('pdf_cover_logo_size: t.pdf_cover_logo_size ?? (t.logo_size === "small" ? 80 : t.logo_size === "large" ? 140 : null),');
+    expect(documento).toContain("<Image src={logo} style={{ height: 50 * c.scalaLogo, maxWidth: 190 * c.scalaLogo, objectFit: \"contain\" }} />");
   });
 
   it("la copertina dice chi emette il preventivo e scrive leggibile il nome tutto maiuscolo", () => {
-    expect(pdf).toContain('const contattiC = [company?.email, company?.phone ? `Tel. ${company.phone}` : null].filter(Boolean).join("  ·  ");');
-    expect(pdf).toContain("const titoloGrezzo = conNomeLeggibile(String(t.cover_title ?? \"\").trim())");
+    // Col logo, sotto, l'indirizzo dell'impresa; senza logo il suo nome.
+    expect(documento).toMatch(/<Image src=\{logo\}[^\n]*\n\s+\{dati\.azienda\.indirizzo \?/);
+    expect(documento).toContain("{dati.azienda.nome.toUpperCase()}");
+    expect(adattatore).toContain("pdf_cover_hero: conNomeLeggibile(t.cover_title), pdf_cover_subhero: conNomeLeggibile(t.cover_subtitle),");
+    expect(adattatore).toContain("testo.split(nomeCliente).join(nomeLeggibile(nomeCliente))");
   });
 });
 

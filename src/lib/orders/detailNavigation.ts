@@ -28,7 +28,7 @@ export const MATERIALI_VIEWS = [
   { value: "computo", label: "Computo metrico", description: "Il computo della commessa: voci, misure, controllo dei totali e lavori pubblici." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
   { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },
-  { value: "fatture", label: "Fatture fornitori", description: "Fatture arrivate per questa commessa, collegate o da collegare." },
+  { value: "fatture", label: "Fatture e costi", description: "Fatture dei fornitori e costi senza fattura (tasse, bolli, F24) della commessa." },
   { value: "magazzino", label: "Magazzino e seriali", description: "Movimenti dei materiali, matricole e garanzie." },
 ] as const;
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];

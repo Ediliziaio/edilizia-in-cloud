@@ -16,7 +16,7 @@ export default function DPA() {
       </p>
 
       <p>
-        <strong>Versione:</strong> 1.0 — <strong>Ultimo aggiornamento:</strong> 27 aprile 2026.
+        <strong>Versione:</strong> 1.1 — <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026.
       </p>
 
       <blockquote>
@@ -822,9 +822,9 @@ export default function DPA() {
         <tbody>
           <tr>
             <td>Supabase Inc.</td>
-            <td>Database, autenticazione, storage applicativo</td>
-            <td>Extra-UE (SCC)</td>
-            <td>SCC + DPA</td>
+            <td>Database, autenticazione, storage applicativo, funzioni server</td>
+            <td>UE (Irlanda, AWS eu-west-1)</td>
+            <td>Trattamento UE; SCC + DPA per l&apos;eventuale accesso del supporto dagli USA</td>
           </tr>
           <tr>
             <td>Cloudflare Inc.</td>
@@ -845,8 +845,14 @@ export default function DPA() {
             <td>Decisione di adeguatezza UK</td>
           </tr>
           <tr>
+            <td>Openapi S.p.A. (openapi.it)</td>
+            <td>Trasmissione e ricezione fatture elettroniche tramite SDI</td>
+            <td>Italia / UE</td>
+            <td>Trattamento UE</td>
+          </tr>
+          <tr>
             <td>Aruba S.p.A.</td>
-            <td>Trasmissione e ricezione fatture elettroniche SDI, conservazione digitale a norma</td>
+            <td>Canale alternativo per fatture elettroniche SDI e conservazione digitale a norma, se scelto dall&apos;azienda cliente</td>
             <td>Italia / UE</td>
             <td>Trattamento UE</td>
           </tr>

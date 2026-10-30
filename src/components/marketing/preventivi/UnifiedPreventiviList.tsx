@@ -81,6 +81,7 @@ import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
 import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { elencaComputiPreventivo } from "@/lib/computo/editorNativo";
+import { totaleElencoComputo } from "@/lib/computo/economiaComputo";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine" | "computo";
 export type { UnifiedStato };
@@ -304,12 +305,18 @@ export function UnifiedPreventiviList() {
         elencaComputiCloud(companyId!).catch((): RiepilogoComputoCloud[] => []),
         supabase.from("quotes").select("source, quote_number, status, total, updated_at").eq("company_id", companyId!).like("source", "modulo:computo:%").is("deleted_at", null).limit(500),
       ]);
-      const firma = new Map(((firme.data ?? []) as Array<{ source: string; quote_number: string | null; status: string; total: number | null }>).map(q => [q.source.slice("modulo:computo:".length), q]));
+      const firma = new Map(((firme.data ?? []) as Array<{ source: string; quote_number: string | null; status: string; total: number | null; updated_at: string | null }>).map(q => [q.source.slice("modulo:computo:".length), q]));
       const visti = new Set(cloud.map(c => c.id));
       const locali = user?.id ? (() => { try { return elencaComputiPreventivo(localStorage, companyId!, user.id).filter(l => !visti.has(l.id)); } catch { return []; } })() : [];
       return [
-        ...cloud.map(c => ({ id: c.id, titolo: c.titolo, cliente: c.committente, voci: c.numeroVoci ?? 0, data: c.updatedAt, firma: firma.get(c.id) ?? null, locale: false })),
-        ...locali.map(l => ({ id: l.id, titolo: l.bozza.titolo, cliente: l.bozza.committente, voci: l.bozza.voci.length, data: new Date().toISOString(), firma: firma.get(l.id) ?? null, locale: true })),
+        ...cloud.map(c => ({ id: c.id, titolo: c.titolo, cliente: c.committente, voci: c.numeroVoci ?? 0, data: c.updatedAt, firma: firma.get(c.id) ?? null, locale: false, importo: c.totale })),
+        // La bozza sul computer non ha una data: senza firma resta «—» e va in fondo, invece di sembrare toccata oggi.
+        // L'importo si calcola dalla bozza intera, che qui c'è (come il totale salvato dei computi nel gestionale).
+        ...locali.map(l => {
+          const f = firma.get(l.id) ?? null;
+          return { id: l.id, titolo: l.bozza.titolo, cliente: l.bozza.committente, voci: l.bozza.voci.length, data: f?.updated_at ?? "", firma: f, locale: true,
+            importo: totaleElencoComputo(l.bozza) };
+        }),
       ];
     },
   });
@@ -765,12 +772,13 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: c.id, tipo: "computo",
         numero: c.firma?.quote_number || "Computo",
-        titolo: [c.titolo.trim() || "Computo metrico", c.voci ? `${c.voci} ${c.voci === 1 ? "voce" : "voci"}` : null].filter(Boolean).join(" · "),
+        // «solo su questo PC» nel titolo, non nella colonna Commerciale, che sotto i 1280 px non si vede.
+        titolo: [c.titolo.trim() || "Computo metrico", c.voci ? `${c.voci} ${c.voci === 1 ? "voce" : "voci"}` : null, c.locale ? "solo su questo PC" : null].filter(Boolean).join(" · "),
         cliente: c.cliente.trim() || "—",
-        commerciale_id: null, commerciale_nome: c.locale ? "Solo su questo PC" : null,
+        commerciale_id: null, commerciale_nome: null,
         stato_unif: c.firma ? mapClassicoStato(c.firma.status) : "bozza",
         stato_raw: c.firma?.status ?? "bozza",
-        totale: c.firma?.total != null ? Number(c.firma.total) : null,
+        totale: c.firma?.total != null ? Number(c.firma.total) : c.importo,
         data: c.data,
         href: `/azienda/marketing/preventivi/computo?bozza=${c.id}`,
       });
@@ -1078,10 +1086,10 @@ export function UnifiedPreventiviList() {
       {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
       <div className="hidden md:grid md:grid-cols-4 gap-2 sm:gap-3">
-        <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
-        <KpiCard label="In corso" value={kpi.inCorsoCount} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in pipeline` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
-        <KpiCard label="Vinte" value={kpi.vintaCount} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% conversion rate` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
-        <KpiCard label="Ricavo firmato" value={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
+        <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
+        <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
+        <KpiCard label="Vinte" value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
+        <KpiCard label="Ricavo firmato" value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
       {!isMobile && <details className="rounded-xl border bg-card" onToggle={event => setInsightsOpen(event.currentTarget.open)}>
@@ -1439,7 +1447,7 @@ export function UnifiedPreventiviList() {
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("client_asc","client_desc")}>
                         <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("client_asc", "client_desc")}>Cliente{freccia("client_asc","client_desc")}</button>
                       </TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Tipo</TableHead>
+                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Tipo</TableHead>
                       <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Commerciale</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Stato</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right" aria-sort={ordinaAria("value_desc","value_asc")}>
@@ -1470,11 +1478,15 @@ export function UnifiedPreventiviList() {
                             />
                           </TableCell>
                           <TableCell className="max-w-[220px]">
+                            {/* Sotto i 1280 px la colonna Tipo non c'è (la tabella usciva di lato): il tipo è l'icona accanto al numero. */}
+                            <span className={cn("mr-1.5 inline-flex rounded border p-0.5 align-[-3px] xl:hidden", tipoCfg.className)} title={tipoCfg.label} aria-label={tipoCfg.label}>
+                              <TipoIcon className="h-3 w-3" />
+                            </span>
                             <span className="font-mono text-xs font-semibold text-orange-600">{r.numero}</span>
                             {r.titolo && <p className="truncate text-[11px] text-slate-500" title={r.titolo}>{r.titolo}</p>}
                           </TableCell>
-                          <TableCell className="text-xs font-medium text-slate-900 max-w-[200px] truncate">{r.cliente}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-xs font-medium text-slate-900 max-w-[180px] truncate 2xl:max-w-[260px]" title={r.cliente}>{r.cliente}</TableCell>
+                          <TableCell className="hidden xl:table-cell">
                             <Badge variant="outline" className={cn("text-[10px] font-medium gap-1", tipoCfg.className)}>
                               <TipoIcon className="h-3 w-3" /> {tipoCfg.label}
                             </Badge>
@@ -1553,7 +1565,7 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
+                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, r.numero === tipoCfg.label ? null : tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>
@@ -1662,18 +1674,34 @@ const KPI_TONE: Record<KpiTone, { border: string; iconBg: string; iconColor: str
   orange:  { border: "border-l-orange-500",  iconBg: "bg-orange-100",  iconColor: "text-orange-600",  valueColor: "text-orange-600" },
 };
 
+/** Dal milione in su la cifra intera non entra nel riquadro («19.796.108,5…»): «19,8 mln €», e l'intera al passaggio del mouse. */
+const IMPORTO_KPI = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
+function importoKpi(v: number): string {
+  return Math.abs(v) >= 1_000_000 ? `${IMPORTO_KPI.format(v / 1_000_000)} mln €` : formatCurrency(v);
+}
+
 function KpiCard({
-  label, value, hint, icon, tone = "slate",
-}: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone }) {
+  label, value, hint, icon, tone = "slate", titolo, onClick, attivo,
+}: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone; titolo?: string; onClick?: () => void; attivo?: boolean }) {
   const c = KPI_TONE[tone];
+  // Con onClick il riquadro filtra l'elenco per quello stato (un secondo clic toglie il filtro).
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className={cn("relative bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4", c.border)}>
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? !!attivo : undefined}
+      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4 text-left", c.border,
+        onClick && "transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        attivo && "ring-2 ring-slate-300")}
+      title={titolo ?? (onClick ? (attivo ? "Mostra tutti i preventivi" : `Mostra solo: ${label.toLowerCase()}`) : undefined)}
+    >
       <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
       {/* Tra 768 e 1280 a 24px gli importi si tagliavano («318.478,…»). */}
       <p className={cn("text-xl sm:text-2xl md:max-xl:text-xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
-    </div>
+    </Tag>
   );
 }
 

@@ -1,0 +1,320 @@
+<title>Piani e costi vivi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: colonna unica larga, prima il margine per piano, poi i costi, poi i paletti */
+:root{
+  --bg:#f5f6f3; --card:#ffffff; --fg:#1d2320; --muted:#5f6a64; --line:#d9ddd6;
+  --accent:#c2571a; --accent-soft:#f6e3d6;
+  --ok:#2f7d4f; --ok-soft:#dcefe2; --warn:#a46a00; --warn-soft:#f6ead0; --bad:#b23a32; --bad-soft:#f5dcd9;
+  --display:"Archivo",system-ui,sans-serif; --body:"Source Sans 3",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151917; --card:#1d2220; --fg:#e7ebe8; --muted:#9aa59f; --line:#323a36;
+  --accent:#ec8a4f; --accent-soft:#3a2617;
+  --ok:#6fcf95; --ok-soft:#1d3527; --warn:#e3b04f; --warn-soft:#3a2f17; --bad:#ec7d75; --bad-soft:#3d1f1d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151917; --card:#1d2220; --fg:#e7ebe8; --muted:#9aa59f; --line:#323a36;
+  --accent:#ec8a4f; --accent-soft:#3a2617;
+  --ok:#6fcf95; --ok-soft:#1d3527; --warn:#e3b04f; --warn-soft:#3a2f17; --bad:#ec7d75; --bad-soft:#3d1f1d; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:36px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.01em}
+h2{font-size:20px;font-weight:700}
+.lead{color:var(--muted);max-width:68ch;margin:6px 0 0}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+section{display:grid;gap:14px}
+.note{color:var(--muted);font-size:13.5px;max-width:80ch;margin:0}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;min-width:0}
+.plan h3{font-size:18px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.plan .price{font-family:var(--mono);font-size:14px;color:var(--muted)}
+.plan .tag{color:var(--muted);font-size:13.5px;margin:0}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px}
+.kv span:nth-child(even){font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.kv .tot{font-weight:600;border-top:1px solid var(--line);padding-top:6px}
+.margin{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.margin b{font-family:var(--display);font-size:30px}
+.pill{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+.tablebox{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td small{display:block;color:var(--muted);font-size:12.5px}
+tr.group td{background:var(--accent-soft);font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.02em}
+input[type=number]{width:84px;font:inherit;font-family:var(--mono);font-size:13.5px;text-align:right;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+input[type=number]:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+select{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+select.v-si{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+select.v-no{background:var(--bg);color:var(--muted)}
+select.v-consumo{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.src{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.src.listino{background:var(--accent-soft);color:var(--fg)} .src.misurato{background:var(--ok-soft);color:var(--ok)} .src.tuo{background:var(--accent-soft);color:var(--accent)} .src.stima{background:var(--warn-soft);color:var(--warn)}
+.gate{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.gate.si{color:var(--ok)} .gate.parziale{color:var(--warn)} .gate.no{color:var(--bad)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-size:14px;padding:6px 12px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Edilizia in Cloud · listino 2027 · bozza di lavoro</div>
+    <h1>Piani e costi vivi</h1>
+    <p class="lead">Quanto ci costa ogni azienda per piano, fornitore per fornitore, e cosa sblocca ogni piano. Cambia un numero e i margini si ricalcolano. Le modifiche restano in questo browser.</p>
+  </header>
+
+  <section>
+    <h2>Margine per piano</h2>
+    <p class="note">Caso «dotazione usata tutta»: il cliente consuma ogni quantità inclusa nel piano. È il caso peggiore realistico, non la media.</p>
+    <div class="plans" id="plans"></div>
+  </section>
+
+  <section>
+    <h2>Quantità incluse in ogni piano</h2>
+    <div class="tablebox"><table id="qty"></table></div>
+  </section>
+
+  <section>
+    <h2>Costi vivi per fornitore</h2>
+    <p class="note">Due tipi di costo. <b>Per unità</b>: cresce con quello che il cliente usa (un conto collegato, un render, una fattura). <b>Fisso al mese</b>: lo paghi comunque, e si divide tra le aziende paganti.</p>
+    <div class="legend"><span><span class="src misurato">misurato</span> dai registri di produzione</span><span><span class="src tuo">tuo</span> dato che mi hai dato tu</span><span><span class="src listino">listino</span> prezzo pubblico del fornitore, IVA esclusa</span><span><span class="src stima">stima</span> da confermare con fattura o contratto</span></div>
+    <div class="tablebox"><table id="unit"></table></div>
+    <div class="toolbar"><label for="nAziende">Aziende paganti su cui dividere i costi fissi</label><input type="number" id="nAziende" min="1" step="1"></div>
+    <div class="tablebox"><table id="fixed"></table></div>
+  </section>
+
+  <section>
+    <h2>Fatture: quante ne fanno davvero</h2>
+    <p class="note">Misurato su 11 mesi (novembre 2025 – settembre 2026) per data documento. Le ricevute sono circa quattro volte le emesse: è il cassetto fiscale, non l'invio, a pesare.</p>
+    <div class="tablebox"><table id="vol"></table></div>
+  </section>
+
+  <section>
+    <h2>Extra a pagamento</h2>
+    <p class="note">Quello che il cliente paga oltre la dotazione. Il prezzo è modificabile; il ricarico si aggiorna da solo.</p>
+    <div class="tablebox"><table id="extra"></table></div>
+  </section>
+
+  <section>
+    <h2>Paletti: cosa sblocca ogni piano</h2>
+    <p class="note">La colonna «Bloccabile oggi» dice se il software sa già chiudere quell'area a un piano. Dove dice <span class="gate no">no</span> o <span class="gate parziale">solo menu</span>, scrivere il paletto nel listino non basta: va costruito il blocco. Oggi nessun blocco vale sul database: chi conosce l'indirizzo della pagina, o chiede a Silvio, arriva ai dati.</p>
+    <div class="tablebox"><table id="matrix"></table></div>
+  </section>
+
+  <div class="toolbar">
+    <button class="primary" id="copy">Copia la configurazione</button>
+    <button id="reset">Torna ai valori iniziali</button>
+    <span id="msg" class="note"></span>
+  </div>
+</div>
+
+<script>
+const PLANS=[
+  {k:"g",name:"Gestionale",price:297,tag:"Controllo i lavori"},
+  {k:"b",name:"Business",price:447,tag:"Controllo i soldi"},
+  {k:"p",name:"Pro",price:547,tag:"Controllo l'impresa"}];
+
+/* Quantità incluse: valori per piano */
+const QTY=[
+  {k:"conti",label:"Conti correnti collegati",unit:"conti",v:{g:0,b:2,p:4}},
+  {k:"aiListino",label:"Credito AI incluso (a prezzo di listino)",unit:"€",v:{g:20,b:20,p:30}},
+  {k:"render",label:"Render inclusi",unit:"render",v:{g:20,b:20,p:40}},
+  {k:"storage",label:"Spazio aziendale",unit:"GB",v:{g:50,b:75,p:150}},
+  {k:"wa",label:"Numeri WhatsApp",unit:"numeri",v:{g:1,b:1,p:2}},
+  {k:"sdi",label:"Fatture emesse inviate allo SDI",unit:"al mese · le ricevute via SDI sono illimitate",v:{g:50,b:60,p:100}},
+  {k:"cassetto",label:"Documenti dal cassetto fiscale (ITALA)",unit:"al mese · emesse + ricevute",v:{g:0,b:150,p:300}},
+  {k:"utenti",label:"Utenti d'ufficio",unit:"utenti",v:{g:5,b:8,p:15}},
+  {k:"emailMkt",label:"Email marketing incluse",unit:"al mese",v:{g:2000,b:5000,p:10000}}];
+
+/* Costi per unità */
+const UNIT=[
+  {k:"conti",label:"Distyra",what:"Collegamento conto corrente",cost:5,per:"€ a conto al mese",src:"tuo",note:"5 € a conto collegato"},
+  {k:"aiListino",label:"OpenRouter (AI)",what:"Silvio, preventivi, email AI, analisi",cost:0.33,per:"€ reali per 1 € di listino",src:"misurato",note:"ricarico medio ~3× (da 1,8× Sonnet a 5× DDT)"},
+  {k:"render",label:"Gemini / OpenAI immagini",what:"Render fotorealistico",cost:0.05,per:"€ a render",src:"misurato",note:"0,04 € immagine + ~0,01 € analisi; la riserva GPT-5 Image costa 0,39 €"},
+  {k:"storage",label:"Supabase Storage",what:"Foto, PDF, documenti",cost:0.02,per:"€ a GB al mese",src:"stima",note:"listino Supabase oltre i 100 GB del piano"},
+  {k:"wa",label:"Meta WhatsApp Cloud",what:"Numero collegato",cost:0,per:"€ a numero al mese",src:"misurato",note:"il numero è gratis; i messaggi utility 0,02 €, marketing 0,054 € a parte"},
+  {k:"sdi",label:"openapi (invio SDI)",what:"Trasmissione fattura emessa",cost:0.049,per:"€ a fattura",src:"listino",note:"0,0135 € con abbonamento a volume; la ricezione delle passive costa 0,001 €"},
+  {k:"cassetto",label:"ITALA",what:"Scarico fatture dal cassetto fiscale",cost:0.03,per:"€ a documento",src:"listino",note:"ricarica R10000 (300 € per 10.000 crediti); 0,06 € con R1000, 0,05 € dentro M500"},
+  {k:"utenti",label:"Silvio: briefing del mattino",what:"Un riepilogo al giorno per utente",cost:0.33,per:"€ a utente al mese",src:"misurato",note:"~0,012 $ a briefing"},
+  {k:"emailMkt",label:"Elastic Email",what:"Email marketing e campagne",cost:0.0001,per:"€ a email",src:"misurato",note:"0,0001 € a invio"}];
+
+/* Costi fissi mensili della piattaforma */
+const FIXED=[
+  {k:"supabase",label:"Supabase (database, funzioni, storage)",cost:150,src:"stima",note:"Pro 25 $ + potenza di calcolo; memoria al limite"},
+  {k:"cloudflare",label:"Cloudflare Pages (frontend)",cost:0,src:"stima",note:"piano gratuito"},
+  {k:"resend",label:"Resend (email di servizio)",cost:20,src:"stima",note:"piano Pro"},
+  {k:"elastic",label:"Elastic Email (canone)",cost:0,src:"stima",note:"se paghi a consumo resta 0"},
+  {k:"openwa",label:"Server OpenWA (WhatsApp locale)",cost:15,src:"stima",note:"wa.ediliziaincloud.com"},
+  {k:"telnyx",label:"Telnyx (numeri e SMS)",cost:10,src:"stima",note:"canoni dei numeri"},
+  {k:"itala",label:"ITALA (canone)",cost:0,src:"listino",note:"nessun canone se si usa la ricarica R10000; M500 costerebbe 25 €"},
+  {k:"distyra",label:"Distyra (minimo mensile)",cost:0,src:"stima",note:"se c'è un minimo oltre i 5 € a conto"},
+  {k:"sonda",label:"Sonda credito AI e cron di controllo",cost:1,src:"misurato",note:"~0,01 $ al giorno + canarino"},
+  {k:"google",label:"Google (Maps, Geocoding, Solar)",cost:0,src:"stima",note:"dentro i 200 $ di credito gratuito"},
+  {k:"altro",label:"Domini, posta, altro",cost:10,src:"stima",note:""}];
+
+/* Aree e paletti. gate: si / parziale / no / ? (in verifica) */
+const MATRIX=[
+  {group:"Vendite"},
+  {k:"crm",label:"CRM, contatti, opportunità, pipeline",v:{g:"si",b:"si",p:"si"},gate:"si",how:"crm_modulo · menu e pagina"},
+  {k:"preventivi",label:"Preventivi e preventivatori verticali",v:{g:"si",b:"si",p:"si"},gate:"si",how:"preventivi_crm e un modulo per settore"},
+  {k:"listini",label:"Listini, varianti, configuratori",v:{g:"si",b:"si",p:"si"},gate:"si",how:"preventivi_crm"},
+  {k:"provvigioni",label:"Provvigioni commerciali",v:{g:"si",b:"si",p:"si"},gate:"no",how:"nessuna chiave"},
+  {group:"Cantiere e commessa"},
+  {k:"commesse",label:"Commesse, fasi, SAL, varianti",v:{g:"si",b:"si",p:"si"},gate:"parziale",how:"orders: sparisce dal menu, l'indirizzo resta aperto"},
+  {k:"squadre",label:"Squadre, rapportini, Campo",v:{g:"si",b:"si",p:"si"},gate:"parziale",how:"employees solo nel menu"},
+  {k:"acquisti",label:"RDO, ordini fornitore, DDT, magazzino",v:{g:"si",b:"si",p:"si"},gate:"no",how:"nessuna chiave"},
+  {k:"subappalti",label:"Subappaltatori e appalti",v:{g:"si",b:"si",p:"si"},gate:"si",how:"cantieri_avanzati"},
+  {k:"margineDiretto",label:"Margine diretto della commessa",v:{g:"si",b:"si",p:"si"},gate:"no",how:"dentro la commessa, sempre visibile"},
+  {k:"manutenzioni",label:"Assistenza e manutenzioni",v:{g:"si",b:"si",p:"si"},gate:"no",how:"nessuna chiave"},
+  {group:"Amministrazione"},
+  {k:"fatture",label:"Fatture emesse e invio SDI",v:{g:"si",b:"si",p:"si"},gate:"si",how:"documenti / fatturazione"},
+  {k:"ricevute",label:"Fatture ricevute (inserite a mano o da SDI)",v:{g:"si",b:"si",p:"si"},gate:"si",how:"documenti"},
+  {k:"scadenze",label:"Scadenze, rate, incassi registrati a mano",v:{g:"si",b:"si",p:"si"},gate:"si",how:"fatturazione"},
+  {k:"cassetto",label:"Recupero fatture dal cassetto fiscale (ITALA)",v:{g:"no",b:"consumo",p:"consumo"},gate:"no",how:"sta sotto fatturazione: non si separa dalle fatture"},
+  {group:"Soldi (Business)"},
+  {k:"banche",label:"Conti correnti collegati (Distyra)",v:{g:"no",b:"si",p:"si"},gate:"si",how:"tesoreria · il numero di conti NON è limitato"},
+  {k:"riconciliazione",label:"Riconciliazione movimenti ↔ fatture",v:{g:"no",b:"si",p:"si"},gate:"si",how:"stessa chiave della tesoreria"},
+  {k:"tesoreria",label:"Tesoreria e saldi aggregati",v:{g:"no",b:"si",p:"si"},gate:"si",how:"tesoreria"},
+  {k:"previsionale",label:"Previsionale di cassa a 90 giorni",v:{g:"no",b:"si",p:"si"},gate:"parziale",how:"forecast solo nel menu"},
+  {k:"primaNota",label:"Prima nota",v:{g:"no",b:"si",p:"si"},gate:"parziale",how:"menu prima_nota, pagina tesoreria: chiavi diverse"},
+  {group:"Impresa (Pro)"},
+  {k:"cdg",label:"Controllo di gestione (cruscotto, conto economico)",v:{g:"no",b:"no",p:"si"},gate:"si",how:"controllo_gestione_v1"},
+  {k:"struttura",label:"Costi di struttura e ripartizione sulle commesse",v:{g:"no",b:"no",p:"si"},gate:"no",how:"la quota di struttura compare anche nella commessa"},
+  {k:"budget",label:"Budget, consuntivo, punto di pareggio",v:{g:"no",b:"no",p:"si"},gate:"si",how:"solo tutto il controllo di gestione insieme"},
+  {k:"patrimoniale",label:"Stato patrimoniale, debiti, indici, rating",v:{g:"no",b:"no",p:"si"},gate:"si",how:"solo tutto il controllo di gestione insieme"},
+  {k:"pacchettoBanca",label:"Pacchetto banca",v:{g:"no",b:"no",p:"si"},gate:"si",how:"solo tutto il controllo di gestione insieme"},
+  {k:"hrAvanzato",label:"Organigramma, candidati, corsi interni",v:{g:"no",b:"no",p:"si"},gate:"no",how:"stessa chiave del personale base (hr_personale)"},
+  {k:"dashboardBuilder",label:"Dashboard personalizzate",v:{g:"no",b:"no",p:"si"},gate:"si",how:"dashboard_builder_v1"},
+  {group:"Comunicazione e AI"},
+  {k:"whatsapp",label:"WhatsApp",v:{g:"si",b:"si",p:"si"},gate:"si",how:"whatsapp · unico blocco anche sul server"},
+  {k:"emailClient",label:"Caselle email collegate",v:{g:"si",b:"si",p:"si"},gate:"parziale",how:"email_client solo nel menu"},
+  {k:"emailMkt",label:"Email marketing",v:{g:"si",b:"si",p:"si"},gate:"si",how:"email_marketing"},
+  {k:"render",label:"Render AI",v:{g:"si",b:"si",p:"si"},gate:"si",how:"render_ai + crediti sul server"},
+  {k:"silvio",label:"Silvio su vendite e cantieri",v:{g:"si",b:"si",p:"si"},gate:"no",how:"Silvio ignora il piano"},
+  {k:"silvioSoldi",label:"Silvio su tesoreria e riconciliazione",v:{g:"no",b:"si",p:"si"},gate:"no",how:"Silvio legge la tesoreria con qualunque piano"},
+  {k:"silvioImpresa",label:"Silvio sull'analisi economica dell'azienda",v:{g:"no",b:"no",p:"si"},gate:"no",how:"Silvio legge il controllo di gestione con qualunque piano"},
+  {k:"portale",label:"Portale del cliente finale",v:{g:"si",b:"si",p:"si"},gate:"no",how:"chiave portale_cliente mai letta"},
+  {k:"firma",label:"Firma elettronica (FEA)",v:{g:"consumo",b:"consumo",p:"consumo"},gate:"si",how:"firma_fea"},
+  {k:"voce",label:"Centralino e agenti vocali",v:{g:"consumo",b:"consumo",p:"consumo"},gate:"si",how:"ai_agents + crediti sul server"}];
+
+const VOL=[
+  {n:"Innovasol",e:39,emax:56,r:148,rmax:195},
+  {n:"Best Infissi",e:36,emax:52,r:125,rmax:151},
+  {n:"Dimora Torino",e:10,emax:16,r:67,rmax:105},
+  {n:"Renova Solution",e:8,emax:16,r:30,rmax:50}];
+const EXTRA=[
+  {k:"conto",label:"Conto corrente in più",per:"al mese",cost:5,price:15},
+  {k:"utente",label:"Utente d'ufficio in più",per:"al mese",cost:0.5,price:15},
+  {k:"storage",label:"50 GB di spazio in più",per:"al mese",cost:1,price:10},
+  {k:"wa",label:"Numero WhatsApp in più",per:"al mese",cost:1,price:15},
+  {k:"casella",label:"Casella email in più",per:"al mese",cost:0.1,price:5},
+  {k:"sdi100",label:"100 fatture emesse in più (SDI)",per:"pacchetto",cost:4.9,price:15},
+  {k:"cass500",label:"500 documenti dal cassetto in più",per:"pacchetto",cost:30,price:49},
+  {k:"storico",label:"Recupero storico: 1.000 documenti",per:"una tantum",cost:60,price:99},
+  {k:"pa",label:"Fattura verso la PA (firma inclusa)",per:"a fattura",cost:0.15,price:0.5},
+  {k:"cons",label:"Conservazione sostitutiva",per:"a documento",cost:0.105,price:0.25},
+  {k:"render",label:"Render in più",per:"a render",cost:0.05,price:0.4},
+  {k:"ai",label:"Credito AI (ricarica a listino)",per:"1 €",cost:0.33,price:1},
+  {k:"mkt",label:"1.000 email marketing in più",per:"pacchetto",cost:0.1,price:2},
+  {k:"waMkt",label:"Messaggio WhatsApp marketing",per:"a messaggio",cost:0.054,price:0.12}];
+const GATE_TXT={si:"sì",parziale:"solo menu",no:"no","?":"in verifica"};
+const VAL_TXT={si:"incluso",no:"—",consumo:"a consumo"};
+const STATE_KEY="eic-piani-costi-v2";
+const fmt=(n,d=2)=>n.toLocaleString("it-IT",{minimumFractionDigits:d,maximumFractionDigits:d});
+const eur=n=>fmt(n)+" €";
+
+function defaults(){return{
+  qty:Object.fromEntries(QTY.map(q=>[q.k,{...q.v}])),
+  unit:Object.fromEntries(UNIT.map(u=>[u.k,u.cost])),
+  fixed:Object.fromEntries(FIXED.map(f=>[f.k,f.cost])),
+  price:Object.fromEntries(PLANS.map(p=>[p.k,p.price])),
+  matrix:Object.fromEntries(MATRIX.filter(m=>m.k).map(m=>[m.k,{...m.v}])),
+  extra:Object.fromEntries(EXTRA.map(x=>[x.k,x.price])),
+  nAziende:25}}
+let S;
+try{S=JSON.parse(localStorage.getItem(STATE_KEY))}catch(e){}
+if(!S||!S.qty||!S.extra)S=defaults();
+const save=()=>{try{localStorage.setItem(STATE_KEY,JSON.stringify(S))}catch(e){}};
+
+function costPlan(pk){
+  const price=S.price[pk];
+  const rows=QTY.map(q=>({label:q.label,v:(S.qty[q.k][pk]||0)*(S.unit[q.k]||0)}));
+  const fixedTot=Object.values(S.fixed).reduce((a,b)=>a+(+b||0),0);
+  rows.push({label:"Quota costi fissi",v:fixedTot/Math.max(1,S.nAziende)});
+  rows.push({label:"Stripe (1,5% + 0,25 €)",v:price*0.015+0.25});
+  const tot=rows.reduce((a,r)=>a+r.v,0);
+  return{rows,tot,price,margin:(price-tot)/price};
+}
+
+function renderPlans(){
+  document.getElementById("plans").innerHTML=PLANS.map(p=>{
+    const c=costPlan(p.k);
+    const cls=c.margin>=.85?"ok":c.margin>=.7?"warn":"bad";
+    const top=c.rows.filter(r=>r.v>=0.5).sort((a,b)=>b.v-a.v);
+    return `<div class="plan">
+      <h3>${p.name}<span class="price"><input type="number" id="price-${p.k}" data-price="${p.k}" value="${S.price[p.k]}" min="0" step="1" aria-label="Prezzo ${p.name}"> €/mese</span></h3>
+      <p class="tag">${p.tag}</p>
+      <div class="margin"><b>${fmt(c.margin*100,0)}%</b><span class="pill ${cls}">margine lordo</span><span class="note">${eur(c.price-c.tot)} restano al mese</span></div>
+      <div class="kv">${top.map(r=>`<span>${r.label}</span><span>${eur(r.v)}</span>`).join("")}
+        <span class="tot">Costo totale</span><span class="tot">${eur(c.tot)}</span></div>
+    </div>`}).join("");
+}
+function renderQty(){
+  document.getElementById("qty").innerHTML=`<tr><th>Quantità</th>${PLANS.map(p=>`<th class="num">${p.name}</th>`).join("")}</tr>`+
+  QTY.map(q=>`<tr><td>${q.label}<small>${q.unit}</small></td>${PLANS.map(p=>`<td class="num"><input type="number" id="q-${q.k}-${p.k}" data-q="${q.k}" data-p="${p.k}" value="${S.qty[q.k][p.k]}" min="0" step="any"></td>`).join("")}</tr>`).join("");
+}
+function renderUnit(){
+  document.getElementById("unit").innerHTML=`<tr><th>Fornitore</th><th>Cosa paga</th><th class="num">Costo</th><th>Unità</th><th>Fonte</th>${PLANS.map(p=>`<th class="num">${p.name}</th>`).join("")}</tr>`+
+  UNIT.map(u=>`<tr><td>${u.label}<small>${u.note}</small></td><td>${u.what}</td><td class="num"><input type="number" id="u-${u.k}" data-u="${u.k}" value="${S.unit[u.k]}" min="0" step="any"></td><td>${u.per}</td><td><span class="src ${u.src}">${u.src}</span></td>${PLANS.map(p=>`<td class="num">${eur((S.qty[u.k][p.k]||0)*(S.unit[u.k]||0))}</td>`).join("")}</tr>`).join("");
+}
+function renderFixed(){
+  const tot=Object.values(S.fixed).reduce((a,b)=>a+(+b||0),0);
+  document.getElementById("nAziende").value=S.nAziende;
+  document.getElementById("fixed").innerHTML=`<tr><th>Costo fisso della piattaforma</th><th class="num">€ al mese</th><th>Fonte</th><th>Nota</th></tr>`+
+  FIXED.map(f=>`<tr><td>${f.label}</td><td class="num"><input type="number" id="f-${f.k}" data-f="${f.k}" value="${S.fixed[f.k]}" min="0" step="any"></td><td><span class="src ${f.src}">${f.src}</span></td><td><small>${f.note}</small></td></tr>`).join("")+
+  `<tr><td><b>Totale fisso</b></td><td class="num"><b>${eur(tot)}</b></td><td></td><td><small>${eur(tot/Math.max(1,S.nAziende))} per azienda pagante</small></td></tr>`;
+}
+function renderMatrix(){
+  document.getElementById("matrix").innerHTML=`<tr><th>Area</th>${PLANS.map(p=>`<th>${p.name}</th>`).join("")}<th>Bloccabile oggi</th></tr>`+
+  MATRIX.map(m=>{
+    if(m.group)return `<tr class="group"><td colspan="${PLANS.length+2}">${m.group}</td></tr>`;
+    return `<tr><td>${m.label}${m.how?`<small>${m.how}</small>`:""}</td>${PLANS.map(p=>{const v=S.matrix[m.k][p.k];return `<td><select id="m-${m.k}-${p.k}" data-m="${m.k}" data-p="${p.k}" class="v-${v}" aria-label="${m.label} nel piano ${p.name}">${Object.entries(VAL_TXT).map(([k,t])=>`<option value="${k}"${k===v?" selected":""}>${t}</option>`).join("")}</select></td>`}).join("")}<td><span class="gate ${m.gate==="?"?"":m.gate}">${GATE_TXT[m.gate]}</span></td></tr>`}).join("");
+}
+function renderVol(){
+  const c=S.unit.sdi,i=S.unit.cassetto;
+  document.getElementById("vol").innerHTML=`<tr><th>Azienda</th><th class="num">Emesse / mese</th><th class="num">Mese di punta</th><th class="num">Ricevute / mese</th><th class="num">Mese di punta</th><th class="num">Invio SDI</th><th class="num">Cassetto ITALA</th></tr>`+
+  VOL.map(v=>`<tr><td>${v.n}</td><td class="num">${v.e}</td><td class="num">${v.emax}</td><td class="num">${v.r}</td><td class="num">${v.rmax}</td><td class="num">${eur(v.e*c)}</td><td class="num">${eur((v.e+v.r)*i)}</td></tr>`).join("")+
+  `<tr><td colspan="7"><small>Costi al mese con i prezzi della tabella fornitori. Il recupero dello storico di un anno (1.000–2.400 documenti) costa una volta sola 60–145 € a 0,06 € a documento.</small></td></tr>`;
+}
+function renderExtra(){
+  document.getElementById("extra").innerHTML=`<tr><th>Extra</th><th>Unità</th><th class="num">Costo nostro</th><th class="num">Prezzo al cliente</th><th class="num">Ricarico</th></tr>`+
+  EXTRA.map(x=>{const pr=S.extra[x.k],m=x.cost>0?pr/x.cost:0,cls=m>=3?"ok":m>=1.5?"warn":"bad";
+    return `<tr><td>${x.label}</td><td>${x.per}</td><td class="num">${eur(x.cost)}</td><td class="num"><input type="number" id="x-${x.k}" data-x="${x.k}" value="${pr}" min="0" step="any"></td><td class="num"><span class="pill ${cls}">${fmt(m,1)}×</span></td></tr>`}).join("");
+}
+function all(){renderPlans();renderQty();renderUnit();renderFixed();renderVol();renderExtra();renderMatrix()}
+document.addEventListener("change",e=>{
+  const t=e.target,d=t.dataset,n=parseFloat(t.value);
+  if(d.price){S.price[d.price]=n||0}
+  else if(d.q){S.qty[d.q][d.p]=n||0}
+  else if(d.u){S.unit[d.u]=n||0}
+  else if(d.f){S.fixed[d.f]=n||0}
+  else if(d.m){S.matrix[d.m][d.p]=t.value}
+  else if(d.x){S.extra[d.x]=n||0}
+  else if(t.id==="nAziende"){S.nAziende=Math.max(1,n||1)}
+  else return;
+  save();const id=t.id;all();const el=document.getElementById(id);if(el&&el.focus)el.focus();
+});
+document.getElementById("reset").onclick=()=>{S=defaults();save();all();document.getElementById("msg").textContent="Valori iniziali ripristinati."};
+document.getElementById("copy").onclick=()=>{
+  const txt=JSON.stringify(S,null,2),msg=document.getElementById("msg");
+  navigator.clipboard.writeText(txt).then(()=>msg.textContent="Configurazione copiata: incollala in chat e la porto nel software.").catch(()=>msg.textContent="Copia non riuscita: seleziona e copia a mano dal riquadro.");
+};
+all();
+</script>

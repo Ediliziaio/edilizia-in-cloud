@@ -46,6 +46,7 @@ import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona } from "@/lib/campo/regoleCampo";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
+import { ETICHETTA_IN_CANTIERE, quantitaLeggibile, statoInCantiere, type StatoInCantiere } from "@/lib/distinta/statoMateriale";
 
 // Un tab = una cosa sola. Rapportini = la giornata dell'operaio (interno).
 // Collaudo = quello che si fa COL CLIENTE e chiede la sua firma (esterno).
@@ -78,11 +79,21 @@ type CampoAssignment = {
   order: CampoOrder;
 };
 
+const COLORE_IN_CANTIERE: Record<StatoInCantiere, string> = {
+  posato: "bg-emerald-600 text-white",
+  arrivato: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  arrivato_in_parte: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  non_arrivato: "bg-muted text-muted-foreground",
+};
+
 type CampoOrderItem = {
   id: string;
   description: string | null;
   name: string | null;
   quantity: number | null;
+  status: string | null;
+  unita_misura: string | null;
+  inCantiere: StatoInCantiere;
 };
 
 type CampoRapportinoRow = {
@@ -448,13 +459,28 @@ export default function CampoLavoroDetail() {
   const { data: orderItems = [] } = useQuery<CampoOrderItem[]>({
     queryKey: ["campo-order-items", orderId],
     queryFn: async () => {
-      // S2-03: select chirurgico — UI usa id/description/name/quantity
+      // S2-03: select chirurgico. Con lo stato e le righe d'ordine col ricevuto: chi va in cantiere
+      // vede cosa è già arrivato e cosa no (statoInCantiere).
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, description, name, quantity")
+        .select("id, description, name, quantity, status, unita_misura, natura_riga")
         .eq("order_id", orderId!);
       if (error) throw error;
-      return (data ?? []) as CampoOrderItem[];
+      const righe = ((data ?? []) as (Omit<CampoOrderItem, "inCantiere"> & { natura_riga: string | null })[])
+        .filter((r) => (r.natura_riga ?? "materiale") === "materiale");
+      // Le righe d'ordine si leggono senza l'ordine (che il campo non vede): se non si leggono, conta lo stato della riga.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ordini } = righe.length ? await (supabase as any)
+        .from("purchase_order_items")
+        .select("order_item_id, quantity, quantity_received, purchase_orders(status)")
+        .in("order_item_id", righe.map((r) => r.id)) : { data: [] };
+      const perRiga = new Map<string, { quantity: number | null; quantity_received: number | null }[]>();
+      for (const o of (ordini ?? []) as { order_item_id: string; quantity: number | null; quantity_received: number | null; purchase_orders?: { status?: string | null } | null }[]) {
+        // Un ordine annullato o ancora in bozza non porta merce in cantiere.
+        if (["annullato", "bozza"].includes(o.purchase_orders?.status ?? "")) continue;
+        perRiga.set(o.order_item_id, [...(perRiga.get(o.order_item_id) ?? []), o]);
+      }
+      return righe.map((r) => ({ ...r, inCantiere: statoInCantiere(r, perRiga.get(r.id) ?? []) }));
     },
     enabled: !!orderId && activeTab === "descrizione",
   });
@@ -1062,16 +1088,26 @@ export default function CampoLavoroDetail() {
               <details className="rounded-2xl border border-border bg-background p-4 shadow-sm">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">
                   Materiali da posare <span className="font-normal text-muted-foreground">({orderItems.length})</span>
+                  {(() => {
+                    const arrivati = orderItems.filter((i) => i.inCantiere === "arrivato" || i.inCantiere === "posato").length;
+                    return <span className="ml-1 text-xs font-normal text-muted-foreground">· {arrivati} arrivati</span>;
+                  })()}
                 </summary>
                 <div className="mt-3 space-y-2">
-                  {orderItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 text-sm text-foreground">{item.description || item.name}</p>
-                      {item.quantity && (
-                        <span className="shrink-0 text-xs text-primary">x{item.quantity}</span>
-                      )}
-                    </div>
-                  ))}
+                  {orderItems.map((item) => {
+                    const q = item.quantity ? quantitaLeggibile(item.quantity, item.unita_misura) : null;
+                    return (
+                      <div key={item.id} className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-foreground">{item.name || item.description}</p>
+                          {q && <p className="text-xs text-muted-foreground">{q.numero} {q.unita}</p>}
+                        </div>
+                        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", COLORE_IN_CANTIERE[item.inCantiere])}>
+                          {ETICHETTA_IN_CANTIERE[item.inCantiere]}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </details>
             )}

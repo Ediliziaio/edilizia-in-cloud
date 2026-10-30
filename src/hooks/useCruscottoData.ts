@@ -11,7 +11,7 @@ import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 import { getDateRange } from "@/lib/dateRangeUtils";
 import { safeNumber } from "@/lib/numberUtils";
 import { queryKeys } from "@/lib/queryKeys";
-import { idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
+import { copertura, idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
 
 // Re-export for backward compatibility with existing consumers
 export { safeNumber } from "@/lib/numberUtils";
@@ -81,6 +81,9 @@ export interface FinanceData {
   revenuePrevMonth: number;
   marginThisMonth: number;
   marginPrevMonth: number;
+  /** commesse del periodo che entrano nel margine (con costi) e quelle lasciate fuori */
+  marginOrdersWithCosts?: number;
+  marginOrdersWithoutCosts?: number;
   cashFlowNet: number;
   thisMonthIncome: number;
   thisMonthOutflow: number;
@@ -324,7 +327,7 @@ export function useCruscottoData() {
         const righe: RigaMargineCommessa[] = [];
         for (const blocco of idABlocchi(orders.map(o => o.id))) {
           const { data, error } = await supabase.from("v_ordine_marginalita")
-            .select("id, margine, preventivo_totale, variazioni_approvate")
+            .select("id, margine, preventivo_totale, consuntivo, variazioni_approvate")
             .eq("company_id", companyId!).in("id", blocco);
           if (error) throw error;
           righe.push(...(data ?? []));
@@ -338,6 +341,7 @@ export function useCruscottoData() {
         revenue: orders.reduce((s, o) => s + safeNumber(o.total_amount), 0)
           + margini.reduce((s, m) => s + safeNumber(m.variazioni_approvate), 0),
         margin: margineCommesseNelPeriodo(margini),
+        copertura: copertura(margini),
       });
 
       const curr = calc(currentOrdersRes, marginiCorrenti);
@@ -348,6 +352,8 @@ export function useCruscottoData() {
         revenuePrevMonth: prev.revenue,
         marginThisMonth: curr.margin,
         marginPrevMonth: prev.margin,
+        marginOrdersWithCosts: curr.copertura.conCosti,
+        marginOrdersWithoutCosts: curr.copertura.senzaCosti,
         costs: costsRes,
         supplierDebt: costsRes.reduce((sum, cost) => sum + registeredCostAmount(cost), 0),
         collectedInPeriod,
@@ -368,6 +374,8 @@ export function useCruscottoData() {
       revenuePrevMonth: base?.revenuePrevMonth ?? 0,
       marginThisMonth: base?.marginThisMonth ?? 0,
       marginPrevMonth: base?.marginPrevMonth ?? 0,
+      marginOrdersWithCosts: base?.marginOrdersWithCosts ?? 0,
+      marginOrdersWithoutCosts: base?.marginOrdersWithoutCosts ?? 0,
       cashFlowNet: flows.net,
       thisMonthIncome: flows.incoming,
       thisMonthOutflow: flows.outgoing,

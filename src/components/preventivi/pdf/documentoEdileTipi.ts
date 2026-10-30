@@ -82,6 +82,10 @@ export interface DocEdileAzienda {
   logoUrl: string | null;
   /** Il logo chiaro del kit del marchio: va sulla copertina quando il fondo è scuro. */
   logoChiaroUrl: string | null;
+  /** Il timbro dell'impresa (data URL), stampato sopra la sua firma. Solo il preventivo generico. */
+  timbroUrl?: string | null;
+  /** Chi firma per l'impresa, scritto nel modello: va sotto il nome, «Impresa Srl — Mario Rossi». */
+  firmatario?: string | null;
   /** Il voto su Google, Trustpilot… scritto nel Profilo azienda (vuoto = non esce). */
   votiOnline: VotoOnline[];
 }

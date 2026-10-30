@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount, sumTreasuryByCurrency, treasuryTransactionAmount } from "@/lib/treasury";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { prettyTxDesc } from "./txLabel";
+import { RibaFornitoriCard } from "./RibaFornitoriCard";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
@@ -425,6 +426,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           </div>
         </div>
       )}
+
+      {/* Le RiBa ai fornitori: la banca le addebita da sola alla scadenza,
+          quindi stanno qui accanto al saldo. Sparisce se non ce ne sono. */}
+      <RibaFornitoriCard
+        companyId={companyId}
+        liquidita={accounts.some((a) => a.is_active) ? kpis[0].value : null}
+      />
 
       {/* Andamento saldo — il grafico principe della tesoreria: area con
           gradiente sui 90 giorni, leggibile anche su mobile. */}

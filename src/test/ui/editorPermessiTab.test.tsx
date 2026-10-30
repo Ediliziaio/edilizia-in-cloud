@@ -1,9 +1,10 @@
 /**
  * L'editor dei permessi della scheda utente (09/10/2026).
  *
- *  - Cinque interruttori che non facevano niente (Approva Ordini, Gestione Articoli,
- *    Interventi, Attività, «Modifica» di Sconti) non ci sono più, e i loro valori
- *    non si perdono con «Tutti» e «Nessuno».
+ *  - Gli interruttori che non facevano niente (Approva Ordini, Gestione Articoli,
+ *    «Modifica» di Sconti) non ci sono più, e i loro valori non si perdono con
+ *    «Tutti» e «Nessuno». Interventi e Attività sono tornati il 30/10/2026: ora
+ *    decidono il calendario degli interventi e i campi delle attività.
  *  - Lo stesso ruolo ha lo stesso nome: «Operatore», non «Utente».
  *  - Testi in italiano semplice; ogni interruttore ha un nome per il lettore di schermo.
  *  - Chi può solo guardare non trova interruttori accesi né «Salva permessi».
@@ -42,16 +43,16 @@ function apriTuttiIGruppi() {
 
 afterEach(cleanup);
 
-describe("L'editor non mostra più i cinque interruttori che non facevano niente", () => {
-  it("né Approva Ordini, né Gestione Articoli, né Interventi, né Attività, né la «Modifica» di Sconti", () => {
+describe("L'editor non mostra più gli interruttori che non facevano niente", () => {
+  it("né Approva Ordini, né Gestione Articoli, né la «Modifica» di Sconti; Interventi e Attività sì", () => {
     render(<UserRolesPermissionsTab user={persona({ can_view_settings_scontistica: true })} onSave={vi.fn()} />);
     apriTuttiIGruppi();
 
-    for (const nome of ["Approva Ordini", "Gestione Articoli", "Interventi", "Attività"]) {
+    for (const nome of ["Approva Ordini", "Gestione Articoli"]) {
       expect(screen.queryByRole("switch", { name: nome }), nome).toBeNull();
     }
-    // Quelli che servono ci sono ancora (anche «Appuntamenti» e «Attività del team», che non sono l'«Attività» tolta).
-    for (const nome of ["Ordini e Commesse", "Elimina Ordini", "Approva Sconti", "Appuntamenti", "Magazzino"]) {
+    // Quelli che servono ci sono ancora, compresi Interventi e Attività che ora fanno qualcosa.
+    for (const nome of ["Ordini e Commesse", "Elimina Ordini", "Approva Sconti", "Appuntamenti", "Magazzino", "Interventi", "Attività"]) {
       expect(screen.getByRole("switch", { name: nome }), nome).toBeInTheDocument();
     }
     // Sconti non ha più la sua casella «Modifica»: chi lo vede lo cambia.
@@ -64,7 +65,7 @@ describe("L'editor non mostra più i cinque interruttori che non facevano niente
     const onSave = vi.fn();
     render(
       <UserRolesPermissionsTab
-        user={persona({ can_view_orders: true, can_approve_orders: true, can_manage_warehouse_items: true, can_view_interventi: true, can_view_marketing_activities: true })}
+        user={persona({ can_view_orders: true, can_approve_orders: true, can_manage_warehouse_items: true })}
         onSave={onSave}
       />,
     );
@@ -76,8 +77,6 @@ describe("L'editor non mostra più i cinque interruttori che non facevano niente
     expect(salvati.can_view_orders).toBe(false); // quello che si vede si spegne
     expect(salvati.can_approve_orders).toBe(true); // quello che non si vede resta
     expect(salvati.can_manage_warehouse_items).toBe(true);
-    expect(salvati.can_view_interventi).toBe(true);
-    expect(salvati.can_view_marketing_activities).toBe(true);
   }, TIMEOUT);
 });
 

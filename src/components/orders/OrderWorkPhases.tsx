@@ -29,13 +29,15 @@ import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, woul
 import { ElencoAssegnazioni, WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
-import { SottofasiFase } from "./SottofasiFase";
+import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
@@ -210,7 +212,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -218,6 +220,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   // Anche per chi vede i margini ma non i costi: senza acquisti e magazzino il
   // margine sul consuntivo uscirebbe più alto del vero.
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts || canViewMargins);
+  // Lo stesso articolo si usa su più fasi: il costo va a ognuna per quanto il cantiere ci ha posato.
+  const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
+  // Le voci del preventivo da cui sono nate le fasi: il previsto dove nessuno l'ha scritto.
+  const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -225,8 +231,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
       assegnazioni: allAssignments,
       acquisti: costiMateriali?.acquisti,
       movimenti: costiMateriali?.movimenti,
+      posaPerFase,
+      vociPreviste,
     }),
-    [phases, materials, allAssignments, costiMateriali],
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
   );
 
   // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo
@@ -631,6 +639,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                   onSegna: (id, fatta) => segnaSottofase.mutate({ id, fatta }),
                   onAggiungi: (nome) => aggiungiSottofase.mutate({ phaseId: phase.id, nome }),
                   onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
+                  onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
+                  onPesa: (pesi) => pesaSottofasi.mutate(pesi),
                   onElimina: (id) => eliminaSottofase.mutate(id),
                 }}
               />
@@ -762,6 +772,8 @@ interface PhaseCardProps {
     onSegna: (id: string, fatta: boolean) => void;
     onAggiungi: (nome: string) => void;
     onRinomina: (id: string, nome: string) => void;
+    onPianifica: (id: string, piano: PianoSottofase) => void;
+    onPesa: (pesi: Array<{ id: string; peso: number }>) => void;
     onElimina: (id: string) => void;
   };
 }
@@ -1218,6 +1230,7 @@ function PhaseCard({
               <SottofasiFase
                 nomeFase={phase.name}
                 sottofasi={sottofasi}
+                dateFase={{ start_date: phase.start_date, end_date: phase.end_date }}
                 // Una fase già avviata (o chiusa) che si divide in sottofasi riparte da quelle fatte: si avvisa.
                 avviata={phase.status !== "da_iniziare" || phase.percentuale > 0 ? { percentuale: actualPct, chiusa: phase.status === "completata" } : null}
                 puoModificare={canEditOrders}

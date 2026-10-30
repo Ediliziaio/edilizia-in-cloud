@@ -80,10 +80,11 @@ export default function InvoiceDetail() {
   const { data: storno } = useQuery({
     queryKey: [...queryKeys.invoices.detail(id), "storno", invoice?.credited_invoice_id ?? null],
     queryFn: async () => {
-      const q = supabase.from("invoices").select("id, invoice_number, issue_date, document_type").is("deleted_at", null);
+      // L'azienda nella catena per entrambi i rami: anche la fattura stornata si cerca solo in questa azienda.
+      const q = supabase.from("invoices").select("id, invoice_number, issue_date, document_type").eq("company_id", effectiveCompany!.id).is("deleted_at", null);
       const { data } = invoice!.document_type === "credit_note"
         ? await q.eq("id", invoice!.credited_invoice_id!)
-        : await q.eq("credited_invoice_id", id!).eq("company_id", effectiveCompany!.id);
+        : await q.eq("credited_invoice_id", id!);
       return data || [];
     },
     enabled: !!invoice && !!effectiveCompany?.id && (invoice.document_type !== "credit_note" || !!invoice.credited_invoice_id),

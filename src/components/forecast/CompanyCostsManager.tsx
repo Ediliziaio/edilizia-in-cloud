@@ -1,3 +1,4 @@
+import { METODI_PAGAMENTO_COSTO } from "@/lib/costi/metodiPagamento";
 import { registerExpensePayment } from "@/lib/orders/expensePayments";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useState, useEffect, useMemo } from "react";
@@ -206,7 +207,9 @@ type SpesePreset =
   | "previsti"
   | "in_ritardo"
   | "in_scadenza"
-  | "senza_scadenza";
+  | "senza_scadenza"
+  // dal riquadro «RiBa ai fornitori» della Tesoreria: solo i debiti a RiBa
+  | "riba";
 
 const STATUS_TAB_PRESETS: StatusTabFilter[] = ["sostenuti", "previsti", "in_ritardo", "in_scadenza", "senza_scadenza"];
 
@@ -302,6 +305,8 @@ export default function CompanyCostsManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<string>(preset === "missing-suppliers" ? "none" : "all");
   const [categoryFilter, setCategoryFilter] = useState<string>(preset === "missing-categories" ? "none" : "all");
+  // «Fammi vedere solo le RiBa»: prima non si poteva chiedere.
+  const [methodFilter, setMethodFilter] = useState<string>(preset === "riba" ? "riba" : "all");
   const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">(
     preset === "order" ? "order" : preset === "missing-categories" || preset === "missing-suppliers" ? "manual" : "all",
   );
@@ -332,6 +337,7 @@ export default function CompanyCostsManager({
   // Data hook
   const data = useCompanyCostsData(companyId, {
     periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter,
+    methodFilter,
   }, selectedYear);
 
   const hasActiveFilters = periodFilter !== "all" ||
@@ -339,6 +345,7 @@ export default function CompanyCostsManager({
     searchQuery.trim().length > 0 ||
     supplierFilter !== "all" ||
     categoryFilter !== "all" ||
+    methodFilter !== "all" ||
     originFilter !== "all" ||
     statusTabFilter !== "all" ||
     !!customDateRange;
@@ -360,6 +367,7 @@ export default function CompanyCostsManager({
     setSearchQuery("");
     setSupplierFilter("all");
     setCategoryFilter("all");
+    setMethodFilter("all");
     setOriginFilter("all");
     setCustomDateRange(null);
     setStatusTabFilter("all");
@@ -440,7 +448,7 @@ export default function CompanyCostsManager({
   // Reset selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, statusTabFilter]);
+  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, methodFilter, originFilter, statusTabFilter]);
 
   // Handlers
   const openCreate = (type: string) => {
@@ -507,6 +515,12 @@ export default function CompanyCostsManager({
 
   const handleMarkPaid = (id: string) => {
     setPayingCostId(id);
+    // Parte dal metodo del costo, se ce l'ha: una RiBa letta dall'XML della
+    // fattura diventava «bonifico» alla prima conferma, perché il dialogo
+    // ripartiva sempre da lì.
+    const metodo = (data.allCostsUnfiltered || [])
+      .find((c) => c.id === id) as { payment_method?: string | null } | undefined;
+    setPaymentMethod(metodo?.payment_method || "bonifico");
     setPayDialogOpen(true);
   };
 
@@ -738,7 +752,7 @@ export default function CompanyCostsManager({
   const senzaFornitoreTipo = vociTipo.filter((c) => !c.isFromOrder && !c.supplier_id && !c.supplierName);
 
   // Mobile: periodo, stato, fornitore e categoria in un pannello dal basso.
-  const nFiltriMobile = [periodFilter !== "all" || !!selectedMonth, statusTabFilter !== "all", supplierFilter !== "all", categoryFilter !== "all"].filter(Boolean).length;
+  const nFiltriMobile = [periodFilter !== "all" || !!selectedMonth, statusTabFilter !== "all", supplierFilter !== "all", categoryFilter !== "all", methodFilter !== "all"].filter(Boolean).length;
   const contaStato = (lista: { cost_type?: string }[]) => lista.filter((c) => c.cost_type === typeLock).length;
 
   return (
@@ -917,9 +931,9 @@ export default function CompanyCostsManager({
                 <Button variant="outline" size="sm" className="h-9 gap-1.5">
                   <FilterX className="h-3.5 w-3.5" />
                   Filtri
-                  {(supplierFilter !== "all" || categoryFilter !== "all") && (
+                  {(supplierFilter !== "all" || categoryFilter !== "all" || methodFilter !== "all") && (
                     <Badge className="h-4 min-w-4 rounded-full bg-orange-500 px-1 text-[10px]">
-                      {(supplierFilter !== "all" ? 1 : 0) + (categoryFilter !== "all" ? 1 : 0)}
+                      {(supplierFilter !== "all" ? 1 : 0) + (categoryFilter !== "all" ? 1 : 0) + (methodFilter !== "all" ? 1 : 0)}
                     </Badge>
                   )}
                 </Button>
@@ -942,6 +956,16 @@ export default function CompanyCostsManager({
                 <SelectItem value="none">Senza categoria</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Metodo di pagamento" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i metodi</SelectItem>
+                <SelectItem value="none">Senza metodo</SelectItem>
+                {METODI_PAGAMENTO_COSTO.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1298,6 +1322,19 @@ export default function CompanyCostsManager({
                 <SelectItem value="none">Senza categoria</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Metodo di pagamento</p>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Metodo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="none">Senza metodo</SelectItem>
+                {METODI_PAGAMENTO_COSTO.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

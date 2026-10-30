@@ -18,7 +18,9 @@ const posizione = (testo: string) => {
   expect(i, testo).toBeGreaterThan(-1);
   return i;
 };
-const CONTROLLO = "if (!(await preventivoVisibile(comeChiChiama, quote.id))) {";
+// Il cast al contratto minimo (ClienteDiChiChiama) evita l'espansione dei generici del client in Deno.
+const CONTROLLO =
+  /if \(!\(await preventivoVisibile\(comeChiChiama(?: as unknown as ClienteDiChiChiama)?, quote\.id\)\)\) \{\n\s+return errorResponse\("Preventivo non trovato", 404, corsH\);/;
 
 describe("send-quote-signature controlla il preventivo con le regole di chi chiama", () => {
   it("col token della richiesta e la chiave anon, non col service role", () => {
@@ -26,11 +28,13 @@ describe("send-quote-signature controlla il preventivo con le regole di chi chia
     expect(invio).toMatch(
       /const comeChiChiama = createClient\(Deno\.env\.get\("SUPABASE_URL"\)!, Deno\.env\.get\("SUPABASE_ANON_KEY"\)!, \{\s+global: \{ headers: \{ Authorization: req\.headers\.get\("Authorization"\) \?\? "" \} \},/,
     );
-    expect(invio).toContain(`${CONTROLLO}\n      return errorResponse("Preventivo non trovato", 404, corsH);`);
+    expect(invio).toMatch(CONTROLLO);
   });
 
   it("subito dopo l'azienda e prima di ogni scrittura, del PDF e dell'email", () => {
-    const controllo = posizione(CONTROLLO);
+    const trovato = invio.match(CONTROLLO);
+    expect(trovato, "controllo preventivoVisibile").not.toBeNull();
+    const controllo = trovato!.index!;
     expect(posizione("await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);")).toBeLessThan(controllo);
     for (const dopo of [
       'if (mode === "solo_pdf")',

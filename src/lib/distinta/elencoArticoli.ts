@@ -93,3 +93,48 @@ export function dettaglioAccontoSaldo(m: {
     saldoPrevisto: m.balance_paid ? null : m.balance_expected_date ?? null,
   };
 }
+
+/** Il nome come si confronta: senza accenti, maiuscole, punteggiatura e spazi doppi. */
+export const nomeConfrontabile = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+export interface RigaDoppione {
+  id?: string;
+  name: string;
+  phase_id?: string | null;
+  article_template_id?: string | null;
+  natura_riga?: string | null;
+  unita_misura?: string | null;
+  stock_item_id?: string | null;
+  posizioni?: unknown[] | null;
+}
+
+/**
+ * La riga che c'è già e che il nuovo articolo raddoppierebbe: stessa fase
+ * (anche «nessuna fase») e stesso articolo del listino o stesso nome. Le
+ * lavorazioni e le descrizioni non contano: si ripetono di proposito.
+ */
+export function trovaDoppione<T extends RigaDoppione>(nuovo: RigaDoppione, righe: T[]): T | null {
+  if (!eMateriale(nuovo)) return null;
+  const nome = nomeConfrontabile(nuovo.name);
+  if (!nome) return null;
+  return righe.find((r) =>
+    r !== nuovo
+    && (!nuovo.id || r.id !== nuovo.id)
+    && eMateriale(r)
+    && (r.phase_id ?? null) === (nuovo.phase_id ?? null)
+    && ((!!nuovo.article_template_id && r.article_template_id === nuovo.article_template_id) || nomeConfrontabile(r.name) === nome),
+  ) ?? null;
+}
+
+/**
+ * Le due quantità si sommano solo se misurano la stessa cosa: stessa unità,
+ * niente distinta di posizioni (la quantità lì è la loro somma) e niente
+ * prelievo dal magazzino (quello ha già scalato la giacenza).
+ */
+export function quantitaSommabili(a: RigaDoppione, b: RigaDoppione): boolean {
+  const unita = (u: string | null | undefined) => (u ?? "").trim().toLowerCase() || "pz";
+  return unita(a.unita_misura) === unita(b.unita_misura)
+    && !a.stock_item_id && !b.stock_item_id
+    && !(a.posizioni?.length) && !(b.posizioni?.length);
+}

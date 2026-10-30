@@ -77,8 +77,12 @@ describe("il documento segue l'ordine scelto", () => {
   const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
   it("i capitoli escono dalla sequenza, non da un elenco scritto a mano", () => {
-    expect(doc).toContain("const sequenza = ordine.filter(");
-    expect(doc).toMatch(/sequenza\.map\(\(v, i\) =>/);
+    // Dal 27/10/2026 la sequenza comprende anche i capitoli tecnici (sezioniTecniche) e l'ordine del documento:
+    // nasce sempre dall'ordine effettivo del modello, e le pagine si compongono scorrendo la sequenza.
+    expect(doc).toContain("const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);");
+    expect(doc).toContain('ordine.filter((v) => v.chiave !== "apertura" && v.visibile');
+    expect(doc).toContain("const sequenza = tutteSezioni.sort(");
+    expect(doc).toMatch(/for \(const v of sequenza\) \{/);
     expect(doc).not.toContain("numeri.chiSiamo");
   });
 

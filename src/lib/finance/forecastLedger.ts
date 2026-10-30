@@ -109,6 +109,21 @@ export interface CostRow {
   supplier_id?: string | null;
   supplier?: { vat_rate: Money } | null;
 }
+/**
+ * Una rata di pagamento verso un fornitore (`rate_fornitori`, dal 29/10/2026).
+ * Un costo con le sue rate esce dalla cassa rata per rata: una fattura a
+ * quattro RiBa sono quattro uscite in quattro mesi, non una sola alla prima.
+ */
+export interface SupplierInstallmentRow {
+  id: string;
+  company_cost_id: string;
+  numero: number;
+  scadenza: string | null;
+  /** LORDO, dal documento: quello che esce dal conto. */
+  importo: Money;
+  metodo: string | null;
+  stato: string;
+}
 export interface DeadlineRow {
   id: string;
   description: string;
@@ -237,6 +252,8 @@ export interface ForecastSources {
   orders: OrderRow[];
   invoices: InvoiceRow[];
   costs: CostRow[];
+  /** Le rate dei fornitori dei costi ancora aperti. */
+  supplierInstallments: SupplierInstallmentRow[];
   deadlines: DeadlineRow[];
   items: SupplierItemRow[];
   coveredItems: { order_item_id: string; company_cost_id?: string }[];
@@ -277,6 +294,7 @@ export const emptyForecastSources = (): ForecastSources => ({
   orders: [],
   invoices: [],
   costs: [],
+  supplierInstallments: [],
   deadlines: [],
   items: [],
   coveredItems: [],
@@ -716,8 +734,61 @@ export function buildForecastLedger(
       true,
     );
   });
+  // Le rate dei fornitori, raggruppate per costo.
+  const installmentsByCost = new Map<string, SupplierInstallmentRow[]>();
+  for (const r of s.supplierInstallments) {
+    const list = installmentsByCost.get(r.company_cost_id);
+    if (list) list.push(r);
+    else installmentsByCost.set(r.company_cost_id, [r]);
+  }
   for (const c of s.costs)
-    if (!c.is_paid && !costDeadlines.has(c.id)) {
+    if (!c.is_paid && !costDeadlines.has(c.id) && installmentsByCost.has(c.id)) {
+      // Il costo ha le sue rate: esce rata per rata, ognuna alla sua data e col
+      // suo importo (lordo, dal documento). Le rate già pagate non escono più.
+      const rate = installmentsByCost.get(c.id)!;
+      const aperte = rate.filter((r) => r.stato !== "pagata");
+      const vat = c.vat_rate ?? c.supplier?.vat_rate;
+      // Una rata senza importo: la sua parte del lordo del costo, alla pari con
+      // le altre. Capita quando l'XML non lo dice; di solito lo dice.
+      const quotaSenzaImporto = Math.round(grossCents(c.amount, vat) / rate.length);
+      for (const r of aperte) {
+        const riba = r.metodo === "riba";
+        const nota =
+          r.stato === "avvisata"
+            ? "La banca l’ha avvisata: alla scadenza la addebita."
+            : r.stato === "da_bloccare"
+              ? "Da bloccare: se nessuno la ferma, la banca la addebita."
+              : r.stato === "richiamata"
+                ? "Richiamata: la banca non la addebita, ma il debito resta da pagare."
+                : r.stato === "insoluta"
+                  ? "Insoluta: il fornitore non è stato pagato, e la banca addebiterà le spese."
+                  : undefined;
+        add({
+          id: `rata-fornitore:${r.id}`,
+          description: `${c.name} · ${riba ? "RiBa" : "rata"} ${r.numero} di ${rate.length}`,
+          counterparty: "",
+          category:
+            c.category === "Personale"
+              ? "personale"
+              : c.purchase_order_id
+                ? "fornitori"
+                : "altri",
+          direction: "out",
+          cents: r.importo != null ? toCents(r.importo) : quotaSenzaImporto,
+          // senza data, come una spesa senza scadenza
+          date: r.scadenza ?? c.due_date,
+          source: riba ? "RiBa fornitore" : "Rata fornitore",
+          href: "/azienda/costi",
+          sourceCategory: c.category ?? null,
+          orderId: c.order_id,
+          // Una richiamata non ha più una data certa: è una stima.
+          estimated: r.importo == null || r.stato === "richiamata",
+          note: nota,
+        });
+      }
+    }
+  for (const c of s.costs)
+    if (!c.is_paid && !costDeadlines.has(c.id) && !installmentsByCost.has(c.id)) {
       const vat = c.vat_rate ?? c.supplier?.vat_rate;
       if (vat == null)
         warnings.add(

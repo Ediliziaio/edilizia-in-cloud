@@ -2,6 +2,7 @@ import { useEffect, type ComponentType } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { patchChatLine, type ChatDocument } from '@/lib/preventivi/quoteChatDocument';
 import type { NativeComputoAiContext } from '@/components/quotes/NativeComputoAiDialog';
 import type { NativeComputoRow } from '@/lib/preventivi/wizardAiDraft';
@@ -26,15 +27,15 @@ beforeAll(async () => {
     vi.doMock(`/src/components/${module}/ComputoEditor/ComputoEditor`, () => ({ default: () => <p>Editor nativo simulato</p> }));
     steps.set(module, (await import(/* @vite-ignore */ `/src/pages/azienda/${module}/${name}Wizard/StepComputo.tsx`)).default);
   }
-});
+}, 60_000);
 beforeEach(() => state.save.mockReset().mockResolvedValue(undefined));
 afterEach(cleanup);
 const row = (): NativeComputoRow => ({ id: 'existing', progetto_id: 'project', company_id: state.company, capitolo_nome: 'Impianti', descrizione: 'Collettore bagno', descrizione_estesa: 'Descrizione completa',
   unita_misura: 'cad', quantita: 2, prezzo_unitario: 150, costo_materiali: 31, costo_manodopera: 25, sconto_pct: 10, importo: 270, margine_eur: 158, margine_pct: 58, listino_voce_id: 'catalogue', famiglia_id: 'family', immagine_url: '/photo.jpg', fonte: 'Fonte verificata', ordine: 0 });
 function mount(module: typeof families[number][0]) {
   const Step = steps.get(module)!, changed = vi.fn(), status = vi.fn(), original = row();
-  const view = render(<MemoryRouter><Step progettoId="project" initialComputo={[original]} onVociChange={changed} onStato={status}
-    aiContext={{ module, title: 'Modello scelto', project: { id: 'project', company_id: state.company, iva_pct: 10 }, media: [] }} /></MemoryRouter>);
+  const view = render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><Step progettoId="project" initialComputo={[original]} onVociChange={changed} onStato={status}
+    aiContext={{ module, title: 'Modello scelto', project: { id: 'project', company_id: state.company, iva_pct: 10 }, media: [] }} /></MemoryRouter></QueryClientProvider>);
   return { ...view, changed, status, original };
 }
 describe.each(families)('%s: actual computo step → actual AI dialog → native save boundary', module => {

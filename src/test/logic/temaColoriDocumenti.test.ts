@@ -9,6 +9,7 @@ import { cssDelMarchio } from "../../../supabase/functions/_shared/srHtmlTemplat
 import { renderFvPdfHtml } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
+import { datiGenerici } from "@/components/preventivi/pdf/adattatoreGenerico";
 import { applicaTemaFv } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { fmtEur, fmtNum } from "../../../supabase/functions/_shared/fvCalcoli";
 
@@ -74,26 +75,31 @@ describe("Numeri nei documenti: il punto delle migliaia anche a quattro cifre", 
   });
 
   it("preventivo generico: formato euro e quantità", () => {
-    const src = leggi("supabase/functions/generate-quote-pdf/index.ts");
-    expect(src).toMatch(/FORMATO_EURO = new Intl\.NumberFormat\("it-IT", \{[^}]*useGrouping: "always"/s);
-    expect(src).toContain("FORMATO_QUANTITA.format(Number(item.quantity ?? 0))");
+    // Dal 27/10/2026 il generico è il documento edile: importi con formatCurrency, quantità con FORMATO_QUANTITA.
+    const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+    expect(leggi("src/lib/formatters.ts")).toMatch(/export function formatCurrency[\s\S]*?useGrouping: "always"/);
+    expect(doc).toContain('import { formatCurrency } from "@/lib/formatters";');
+    expect(doc).toMatch(/const FORMATO_QUANTITA = new Intl\.NumberFormat\("it-IT", \{[^}]*useGrouping: "always"/);
+    expect(doc).toContain("const quantita = (q: number): string => FORMATO_QUANTITA.format(Number(q) || 0);");
+    expect(doc).toContain("{quantita(v.quantita)}");
   });
 });
 
 describe("Preventivo generico: il filetto non passa sopra il testo", () => {
-  const src = leggi("supabase/functions/generate-quote-pdf/index.ts");
+  // Il vecchio motore disegnava i filetti a coordinate (pdf-lib) e li metteva sulla riga sbagliata.
+  // Nel documento edile il filetto è il bordo della riga stessa: sta sempre sul confine.
+  const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
-  it("il filetto fra le righe sta sul confine (y + 12), non sulla riga dopo (y + 4)", () => {
-    expect(src).toContain("start: { x: itemLeftX, y: y + 12 }, end: { x: itemLeftX + itemWidth, y: y + 12 }");
-    expect(src).not.toContain("start: { x: itemLeftX, y: y + 4 }");
+  it("il filetto fra le righe sta sul confine, non sulla riga dopo", () => {
+    expect(doc).toContain('<View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>');
   });
 
-  it("il filetto sopra i totali sta sopra le maiuscole di SUBTOTALE", () => {
-    expect(src).toContain("start: { x: totX, y: y + 14 }");
+  it("il filetto sopra i totali sta sopra le maiuscole del totale", () => {
+    expect(doc).toMatch(/paddingTop: 10, borderTopWidth: 1\.2, borderTopColor: tema\.inchiostro \}\}>\n\s+<Text[^\n]*>TOTALE LAVORAZIONI/);
   });
 
   it("le impaginazioni alternative non vanno più sempre a pagina nuova prima della tabella", () => {
-    expect(src).not.toContain("if (!classicPremium || y < 280)");
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).not.toContain("if (!classicPremium || y < 280)");
   });
 });
 
@@ -246,7 +252,9 @@ describe("condizioni di base: nessun preventivo esce senza contratto", () => {
   });
 
   it("i motori dei documenti ricadono sul testo di base quando manca quello dell'azienda", () => {
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toMatch(/condizioniStandard\("generico"\)/);
+    // Il generico passa dall'adattatore edile: settore «generico», testo di base se manca quello dell'azienda.
+    expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toMatch(/condizioniStandard\(contesto\.settore \?\? "generico"\)/);
+    expect(datiGenerici({ quote: { quote_number: "P-1" }, items: [], company: null, template: {} }).modello.condizioniLegali.length).toBeGreaterThan(0);
     expect(leggi("supabase/functions/sr-genera-pdf/index.ts")).toMatch(/condizioniStandard\("serramenti"\)/);
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/condizioniStandard\("serramenti"\)/);
   });

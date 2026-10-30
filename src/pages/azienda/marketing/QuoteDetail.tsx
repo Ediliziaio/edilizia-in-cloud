@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
+import { ContrattoFirmatoCard, FirmatoSuCartaDialog } from "@/components/marketing/preventivi/FirmatoSuCarta";
+import { puoFirmareSuCarta } from "@/lib/preventivi/contrattoFirmato";
 import { BloccaPrezzoCard } from "@/components/orders/BloccaPrezzoCard";
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
@@ -35,7 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QuoteDetailItems } from "@/components/quotes/QuoteDetailItems";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText, FileCheck,
-  MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch, Trash2,
+  MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch, Trash2, FileSignature,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -64,6 +66,7 @@ export default function QuoteDetail() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [firmaCartaOpen, setFirmaCartaOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [conversionOpen, setConversionOpen] = useState(false);
   const [duplicando, setDuplicando] = useState(false);
@@ -423,6 +426,17 @@ export default function QuoteDetail() {
               </button>
             )}
 
+            {/* Firmato su carta: con la scansione il preventivo diventa il contratto, come con la firma digitale. */}
+            {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
+              <Button variant="outline" className="h-9" onClick={() => setFirmaCartaOpen(true)}>
+                <FileSignature className="mr-2 h-4 w-4" aria-hidden />Firmato su carta
+              </Button>
+            )}
+            {firmaCartaOpen && (
+              <FirmatoSuCartaDialog open={firmaCartaOpen} onOpenChange={setFirmaCartaOpen}
+                quote={{ id: quote.id, company_id: quote.company_id, client_name: quote.client_name, quote_number: quote.quote_number }} />
+            )}
+
             <Dialog open={conversionOpen} onOpenChange={open => { if (!converting) setConversionOpen(open); }}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader><DialogTitle>Crea la commessa</DialogTitle><DialogDescription>Controlla cosa diventerà lavoro da eseguire e cosa materiale da approvvigionare.</DialogDescription></DialogHeader>
@@ -520,6 +534,9 @@ export default function QuoteDetail() {
           )}
         </div>
       )}
+
+      {/* Il contratto: come è stato firmato e il documento firmato. */}
+      <ContrattoFirmatoCard quote={quote as Parameters<typeof ContrattoFirmatoCard>[0]["quote"]} />
 
       <Tabs defaultValue="offerta">
         {/* Telefono: tre schede a tutta larghezza (Offerta, Cliente, Attività);

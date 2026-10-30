@@ -1,16 +1,6 @@
--- admin_ai_usage_aggregato — consumi AI aggregati nel DB per la scheda
--- «Consumi e costi» (/admin/ai?section=monitor&tab=usage).
---
--- Perché: useAIUsageMonitor leggeva ai_usage_log riga per riga senza limite;
--- PostgREST ne restituisce al massimo 1000 e a ottobre 2026 erano 2.227 →
--- costi e richieste del mese tagliati a metà senza avviso. Qui il DB somma
--- per (azienda, provider, modello, feature, giorno) e restituisce poche
--- centinaia di righe (374 gruppi sugli ultimi 30 giorni al 30/10/2026).
--- Il giorno è calcolato in Europe/Rome, come il raggruppamento della UI.
---
--- Il client pagina comunque con .range() a blocchi di 1000 e, se la funzione
--- non c'è ancora (PGRST202/42883), ripiega sulla lettura paginata della tabella.
--- Idempotente: CREATE OR REPLACE + REVOKE/GRANT espliciti.
+-- Ricostruito il 30/10/2026 dal SQL registrato in schema_migrations: la
+-- migrazione era stata applicata in produzione senza il suo file, e il
+-- controllo Supabase Preview si fermava. Testo identico a quello applicato.
 
 CREATE OR REPLACE FUNCTION public.admin_ai_usage_aggregato(
   p_da timestamptz,
@@ -53,7 +43,6 @@ BEGIN
     AND (p_provider IS NULL OR l.provider = p_provider)
     AND (p_company_id IS NULL OR l.company_id = p_company_id)
   GROUP BY l.company_id, l.provider, l.model, l.feature, (l.created_at AT TIME ZONE 'Europe/Rome')::date
-  -- Ordine stabile: serve alla paginazione con .range() lato client.
   ORDER BY 5, 1, 2, 3, 4;
 END;
 $$;

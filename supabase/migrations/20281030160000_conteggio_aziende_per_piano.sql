@@ -1,7 +1,6 @@
--- Conteggio delle aziende per piano (elenco Piani in Fatturato): fuori le
--- aziende cancellate e quella di piattaforma, come nel dettaglio del piano
--- (PlanDetail) e nel resto dell'area admin. Prima l'elenco e il dettaglio
--- dello stesso piano potevano dare due numeri diversi.
+-- Ricostruito il 30/10/2026 dal SQL registrato in schema_migrations: la
+-- migrazione era stata applicata in produzione senza il suo file, e il
+-- controllo Supabase Preview si fermava. Testo identico a quello applicato.
 
 CREATE OR REPLACE FUNCTION public.get_plan_company_counts()
  RETURNS TABLE(subscription_plan_id uuid, company_count bigint)

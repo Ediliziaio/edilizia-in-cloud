@@ -16,6 +16,7 @@ import {
   titoloGenerico,
 } from "../../../supabase/functions/_shared/impaginaPreventivo";
 import { colorePreventivo } from "../../../supabase/functions/_shared/blocchiModelloPreventivo";
+import { datiGenerici } from "@/components/preventivi/pdf/adattatoreGenerico";
 import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import { DEFAULT_TEMPLATE, type QuoteTemplate } from "@/types/quoteTemplate";
 
@@ -158,30 +159,43 @@ describe("le anteprime hanno il colore del PDF", () => {
 });
 
 describe("il PDF (generate-quote-pdf) usa le regole nuove", () => {
+  // Dal 27/10/2026 (2f5ea4316) il PDF del generico lo disegna DocumentoEdilePDF, attraverso
+  // l'adattatore generico: generate-quote-pdf prepara i dati, il documento li impagina.
   const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
+  const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+  const edile = leggi("src/components/preventivi/pdf/adattatoreEdile.ts");
 
   it("il colore del documento arriva anche dai blocchi collegati", () => {
-    expect(pdf).toContain("t.primary_color = colorePreventivo(t.primary_color, company?.brand_primary_color, [t.composed_cover, t.composed_terms, t.composed_legal]);");
+    expect(pdf).toContain("primary_color: colorePreventivo(t.primary_color, company?.brand_primary_color, [t.composed_cover, t.composed_terms, t.composed_legal])");
   });
 
-  it("la tabella del classico: fascia nel colore dell'azienda, nome che va a capo, colonne larghe quanto i valori", () => {
-    expect(pdf).toContain("page.drawRectangle({ x: itemLeftX, y: y - hFascia, width: itemWidth, height: hFascia, color: fondoEdC });");
-    expect(pdf).toContain("const righeNome = righeDi([{ testo: String(item.name || \"\"), stile: stNome }], wTesto, wTesto - (wOpz ? wOpz + 5 : 0)).slice(0, 3);");
-    expect(pdf).toContain("await rigaDelClassico(item, idx, { isNota, isSubtotale, isChild, isOptional });");
+  it("la tabella: testata nel colore dell'azienda, nome che va a capo, colonne larghe quanto i valori", () => {
+    expect(doc).toContain("paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>");
+    // La lavorazione prende lo spazio che resta e va a capo; le colonne dei numeri hanno la loro larghezza.
+    expect(doc).toContain("<Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>");
+    expect(doc).toContain("{mostraPrezzi ? <Text style={[testa, { width: 66, textAlign: \"right\" }]}>PREZZO</Text> : null}");
+    expect(doc).toContain("{mostraImporti ? <Text style={[testa, { width: 74, textAlign: \"right\" }]}>IMPORTO</Text> : null}");
   });
 
   it("il subtotale non è più barrato dal suo filetto", () => {
-    expect(pdf).toContain("page.drawLine({ start: { x: cPrezzoR - 40, y: y - 5 }, end: { x: cImportoR + 4, y: y - 5 }");
+    // Il filetto è il bordo della riga del totale, sopra il testo: non può attraversarlo.
+    expect(doc).toMatch(/marginTop: 6, paddingTop: 10, borderTopWidth: 1\.2, borderTopColor: tema\.inchiostro \}\}>\n\s+<Text[^\n]*>TOTALE LAVORAZIONI · IVA ESCLUSA<\/Text>/);
   });
 
-  it("le condizioni prendono il titolo dal testo e il riquadro le parole dell'azienda", () => {
-    expect(pdf).toContain("const clausole = sezioneClausole(condizioniETermini);");
-    expect(pdf).toMatch(/drawRichTextBlock\("Condizioni contrattuali e termini legali", testoCondizioni, \{\n\s+titoloDalTesto: true,/);
-    expect(pdf).toContain("ensureSpace(altezza + 18, titoloCondizioni);");
+  it("le condizioni prendono i titoli dal testo e il riquadro le parole dell'azienda", () => {
+    expect(edile).toContain("clausoleDaApprovare: clausoleDaApprovare(condizioniLegali),");
+    expect(doc).toContain("{modello.clausoleDaApprovare.map((c, i) => (");
+    expect(doc).toContain("colore={r.tipo==='h1'||r.tipo==='h2'?tema.inchiostro:tema.grigio}");
   });
 
-  it("nel classico le note lunghe stanno intere prima delle firme, non dopo il modulo di recesso", () => {
-    expect(pdf).toContain("if (righeNota.length <= 8) infoCols.push({ label: \"NOTE\", text: noteTxt });");
-    expect(pdf).toContain("if (t.show_notes && opzione(\"pdf_mostra_note_cliente\") && quote.notes && !classicPremium) {");
+  it("le note lunghe stanno intere prima delle firme, non dopo il modulo di recesso", () => {
+    const nota = Array.from({ length: 12 }, (_, i) => `Riga ${i + 1} della nota del cliente.`).join("\n");
+    const dati = datiGenerici({ quote: { quote_number: "P-1", notes: nota }, items: [], company: null, template: {} });
+    expect(dati.sezioniTecniche?.find((s) => s.id === "accordi")?.righe).toContainEqual({ etichetta: "Note", valore: nota });
+    // I capitoli tecnici escono prima della pagina della firma e del modulo di recesso.
+    expect(doc.indexOf("const contenutoTecnico = ")).toBeLessThan(doc.indexOf('id={edileSectionDestination("firma")}'));
+    expect(doc.indexOf('id={edileSectionDestination("firma")}')).toBeLessThan(doc.indexOf('id={edileSectionDestination("recesso")}'));
+    // Le note escono solo se lo step «Documenti e PDF» le lascia accese.
+    expect(pdf).toContain('notes: opzione("pdf_mostra_note_cliente") ? quote.notes : null,');
   });
 });

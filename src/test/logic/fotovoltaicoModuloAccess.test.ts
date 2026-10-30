@@ -47,7 +47,13 @@ describe("di guardia: nessuno torna a leggere le colonne vecchie", () => {
   // e restano fuori.
   const USO = /["'.](fv_modulo_attivo|fv_setup_completato)\b|\b(fv_modulo_attivo|fv_setup_completato)\s*[:?]/;
   const senzaCommenti = (testo: string) => testo.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-  const ESCLUSI = new Set(["src/integrations/supabase/types.ts", "src/test/logic/fotovoltaicoModuloAccess.test.ts"]);
+  const ESCLUSI = new Set([
+    "src/integrations/supabase/types.ts",
+    "src/test/logic/fotovoltaicoModuloAccess.test.ts",
+    // Non la legge: controlla che la guardia del database vieti al browser di scriverla
+    // (la colonna esiste ancora nella tabella, e un browser non deve riaccenderla).
+    "src/test/logic/permessiImpostazioniNelDatabase.test.ts",
+  ]);
 
   const file = (cartella: string): string[] =>
     readdirSync(join(RADICE, cartella)).flatMap((nome) => {

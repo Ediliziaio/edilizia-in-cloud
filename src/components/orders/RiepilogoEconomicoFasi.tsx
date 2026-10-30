@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { EconomiaFasi } from "@/lib/orders/economiaFasi";
-import { CampoVenduto, costoSforato, dettaglioVoci, margineDaMostrare } from "./EconomiaFaseRiga";
+import { CampoVenduto, costoSforato, dettaglioVoci, fontePrevistoTesto, margineDaMostrare } from "./EconomiaFaseRiga";
 
 const eur = { format: formatCurrency };
 const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
@@ -95,7 +95,7 @@ export function RiepilogoEconomicoFasi({
                         : e.fonteVenduto !== null ? eur.format(e.venduto) : <span className="text-muted-foreground">—</span>}
                     </td>
                   )}
-                  {vedeCosti && <td className={TD} title={dettaglioVoci(e.previsto)}>{eur.format(e.costoPrevisto)}</td>}
+                  {vedeCosti && <td className={TD} title={[dettaglioVoci(e.previsto), fontePrevistoTesto(e)].filter(Boolean).join(" — ")}>{eur.format(e.costoPrevisto)}</td>}
                   {vedeCosti && (
                     <td className={cn(TD, oltre && "text-rose-700")} title={dettaglioVoci(e.consuntivo)}>
                       {eur.format(e.costoConsuntivo)}

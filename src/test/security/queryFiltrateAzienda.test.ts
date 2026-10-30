@@ -72,7 +72,6 @@ const ECCEZIONI: Record<string, string> = {
   "src/pages/azienda/email/components/EmailViewer.tsx|ai_action_proposals": "proposte di una conversazione precisa",
   "src/pages/cliente/CustomerFirma.tsx|signature_requests": "portale cliente: le firme del cliente stesso",
   "src/pages/azienda/email/components/EmailList.tsx|v_my_email_inbox": "casella dell'utente stesso: la vista filtra user_id = auth.uid()",
-  "src/pages/azienda/email/components/EmailSidebar.tsx|v_my_email_inbox": "casella dell'utente stesso: la vista filtra user_id = auth.uid()",
 };
 
 // `.from("tabella")` e i piccoli aiuti con cui certi file la chiamano.

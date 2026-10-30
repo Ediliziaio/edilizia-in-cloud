@@ -292,9 +292,11 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     state.role = { isCapocantiere: true, esisteCapo: true };
     state.crew = [{ key: "emp-e", employee_id: "e", nome: "Luca Bianchi" }];
     render(<CampoRapportino />);
-    // con una squadra da segnare il capo non ha un secondo campo «ore personali»: le ore sono le presenze
-    expect(screen.queryByLabelText("Ore ordinarie su questo cantiere")).not.toBeInTheDocument();
+    // Finché non sceglie nessuno il capo lavora da solo e scrive le sue ore (dal 14/10);
+    // segnata la squadra, niente secondo campo «ore personali»: le ore sono le presenze.
+    expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Luca Bianchi" }));
+    expect(screen.queryByLabelText("Ore ordinarie su questo cantiere")).not.toBeInTheDocument();
     expect(screen.getByText(/Se hai lavorato anche tu/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));

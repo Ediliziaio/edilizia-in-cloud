@@ -182,6 +182,17 @@ export async function loadForecastDataset(
         ),
     },
     {
+      key: "supplierInstallments",
+      label: "Rate dei fornitori",
+      // Solo le rate dei costi ancora aperti: quelle dei costi pagati non
+      // cambiano il piano. Tutte, anche le già pagate, per sapere «di quante».
+      build: () =>
+        scoped(
+          "rate_fornitori",
+          "id,company_cost_id,numero,scadenza,importo,metodo,stato,cost:company_costs!inner(is_paid)",
+        ).eq("cost.is_paid", false),
+    },
+    {
       key: "deadlines",
       label: "Scadenzario",
       build: () =>

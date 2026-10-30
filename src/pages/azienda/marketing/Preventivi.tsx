@@ -245,11 +245,18 @@ export default function Preventivi() {
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Crea preventivo da foto, audio o documento">
+                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Preventivo AI, o da foto, audio o documento">
                     <Sparkles className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
+                  {/* «Preventivo AI» qui dentro: come pulsante a sé usciva dallo schermo a destra. */}
+                  {localAiEnabled && (
+                    <DropdownMenuItem onClick={() => setShowAiQuote(true)} className="font-semibold">
+                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                      Preventivo AI
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
                     <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
                     Da foto, schizzi o audio
@@ -265,9 +272,10 @@ export default function Preventivi() {
                   <Plus className="mr-1 h-4 w-4" />Nuovo
                 </Button>
               )}
-              {localAiEnabled && <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setShowAiQuote(true)}>Preventivo AI</Button>}
             </div>
           </div>
+          {/* Sotto i 1280 px (col menu laterale aperto) le azioni secondarie restano icone (col nome al passaggio del
+              mouse): con le scritte il titolo si riduceva a «Preve…». */}
           {/* Senza sottotitolo: a 1024 si tagliava a metà («dal prim…») e diceva
               cosa sono i preventivi a chi è nella pagina dei preventivi. */}
           <QuotePageHeader
@@ -276,14 +284,13 @@ export default function Preventivi() {
             icon={<FileSignature className="h-5 w-5" />}
             actions={
               <>
-                {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm"><Sparkles className="mr-2 h-4 w-4" />Preventivo AI</Button>} />}
+                {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label="Preventivo AI" title="Preventivo AI"><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">Preventivo AI</span></Button>} />}
                 {/* "Crea da..." — entry points AI (smart import, computo, foto/audio). */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Crea preventivo da fonte">
-                      <Sparkles className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Crea da...</span>
-                      <span className="sm:hidden ml-1.5 text-xs">Crea da</span>
+                    <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Crea preventivo da fonte" title="Crea da documento, computo, foto o audio">
+                      <Sparkles className="h-4 w-4 xl:mr-2" />
+                      <span className="hidden xl:inline">Crea da...</span>
                       <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -316,10 +323,9 @@ export default function Preventivi() {
                 {listiniModuli.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni">
-                        <Library className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Listini</span>
-                        <span className="sm:hidden ml-1.5 text-xs">Listini</span>
+                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni" title="Listini lavorazioni">
+                        <Library className="h-4 w-4 xl:mr-2" />
+                        <span className="hidden xl:inline">Listini</span>
                         <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                       </Button>
                     </DropdownMenuTrigger>

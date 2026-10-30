@@ -6,8 +6,10 @@
  *      magazzino sorgente, articoli (manuale + scanner), trasportatore.
  *   2. "Registra uscita" → RPC register_warehouse_uscita: scarico movimenti +
  *      giacenza + seriali shipped. **NESSUN DDT** in questa fase.
- *   3. Il DDT si genera DOPO, come step separato, dalla scheda "Uscite"
- *      (RPC create_ddt_from_uscita) = doppio controllo.
+ *   3. Il DDT è un passo separato (RPC create_ddt_from_uscita) = doppio
+ *      controllo: si propone subito dopo la registrazione, con causale e dati
+ *      di trasporto (CreaDdtDaUscitaDialog), oppure più tardi dalla scheda
+ *      "Uscite".
  *
  * Differenza vs il vecchio ScaricoCantiereSheet (scarico+DDT atomico, solo
  * cantiere): qui il destinatario è generalizzato e la creazione DDT è separata.
@@ -55,6 +57,8 @@ import type { BatchScanEntry } from "./BatchBarcodeScanner";
 import { OrderSelectCombobox, type OrderOption } from "./OrderSelectCombobox";
 import { ManualArticleAdder } from "./ManualArticleAdder";
 import { AnagraficaSelectCombobox, type AnagraficaOption, anagraficaDisplayName } from "./AnagraficaSelectCombobox";
+import { CreaDdtDaUscitaDialog } from "./CreaDdtDaUscitaDialog";
+import type { UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
 
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
@@ -126,6 +130,9 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   const isMobile = useIsMobile();
 
   const [step, setStep] = useState<Step>("context");
+  // Registrata l'uscita, il DDT si propone subito: prima si rimandava alla
+  // scheda «Uscite» e lì restava (53 uscite su 53 senza DDT, 29/10/2026).
+  const [registrata, setRegistrata] = useState<UscitaPerDdt | null>(null);
 
   // ── Destinatario ──────────────────────────────────────────────
   const [destTipo, setDestTipo] = useState<DestTipo>("cantiere");
@@ -397,21 +404,42 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
       return;
     }
     try {
+      const destinatario = buildDestinatario();
       const res = await register.mutateAsync({
         warehouseId,
-        destinatario: buildDestinatario(),
+        destinatario,
         scans,
         vettore: buildVettore(),
         note: note.trim() || null,
       });
       const errCount = Array.isArray(res.errors) ? res.errors.length : 0;
       toast.success(`Uscita ${res.numero} registrata`, {
-        description: `${res.created_movements} articoli scaricati${res.updated_units ? ` · ${res.updated_units} seriali` : ""}${errCount ? ` · ${errCount} avvisi` : ""}. Crea il DDT dalla scheda "Uscite".`,
+        description: `${res.created_movements} articoli scaricati${res.updated_units ? ` · ${res.updated_units} seriali` : ""}${errCount ? ` · ${errCount} avvisi` : ""}.`,
       });
-      onOpenChange(false);
+      setRegistrata({
+        id: res.uscita_id,
+        numero: res.numero,
+        destinatario_tipo: destinatario.tipo,
+        destinatario: destinatario.cliente_snapshot?.ragione_sociale || "il destinatario",
+        righe: scans.length,
+      });
     } catch (e) {
       toast.error("Errore registrazione uscita", { description: (e as Error).message });
     }
+  }
+
+  // Uscita registrata: resta solo la domanda sul DDT. Chiusa la finestra (DDT
+  // creato o «più tardi»), si chiude anche l'uscita.
+  if (registrata) {
+    return (
+      <CreaDdtDaUscitaDialog
+        uscita={registrata}
+        appenaRegistrata
+        onOpenChange={(aperta) => {
+          if (!aperta) onOpenChange(false);
+        }}
+      />
+    );
   }
 
   // ── Step 'scan' ───────────────────────────────────────────────
@@ -724,8 +752,8 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
           <Alert>
             <PackageCheck className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Registri l'uscita</strong> (scarico merce + giacenza). Il <strong>DDT non viene creato ora</strong>:
-              lo generi dopo, controllando i dati, dalla scheda <strong>Uscite</strong>.
+              <strong>Registri l'uscita</strong> (scarico merce + giacenza). Subito dopo ti proponiamo il <strong>DDT</strong>
+              con causale e dati di trasporto: puoi crearlo lì o più tardi dalla scheda <strong>Uscite</strong>.
             </AlertDescription>
           </Alert>
         </div>

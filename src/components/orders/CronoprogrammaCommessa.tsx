@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { AlertTriangle, CalendarRange, FileSignature, Loader2 } from "lucide-react";
@@ -10,7 +10,10 @@ import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { planningDay } from "@/lib/orders/planning";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
+import { useSottofasi } from "@/hooks/useSottofasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import {
   avanzamentoComplessivo,
@@ -22,16 +25,18 @@ import {
   lavoroRealeFasi,
   ritardoFase,
   riepilogoCronoprogramma,
+  sottofasiCronoprogramma,
   tacche,
   traguardiCommessa,
   aggiungiGiorni,
   type Asse,
   type FaseCrono,
+  type SottofaseCrono,
   type Traguardo,
 } from "@/lib/orders/cronoprogramma";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { costoSforato } from "./EconomiaFaseRiga";
+import { costoSforato, fontePrevistoTesto } from "./EconomiaFaseRiga";
 
 export interface CommessaCronoprogramma {
   quote_id?: string | null;
@@ -122,7 +127,7 @@ function Dettaglio({
         </>}
         {economia && vedeCosti && <>
           <dt className="text-muted-foreground">Costo previsto</dt>
-          <dd className="tabular-nums">{formatCurrency(economia.costoPrevisto)}</dd>
+          <dd className="tabular-nums">{formatCurrency(economia.costoPrevisto)}{fontePrevistoTesto(economia) && <span className="ml-1 text-xs text-muted-foreground">({fontePrevistoTesto(economia)})</span>}</dd>
           <dt className="text-muted-foreground">Costo consuntivo</dt>
           <dd className={cn("tabular-nums", costoSforato(economia) && "font-medium text-rose-700")}>
             {formatCurrency(economia.costoConsuntivo)}
@@ -144,6 +149,32 @@ function Griglia({ asse, segni, oggi }: { asse: Asse; segni: ReturnType<typeof t
       ))}
       {oggi >= asse.da && oggi <= asse.a && <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-orange-500/80" style={{ left: `${posOggi.left + posOggi.width / 2}%` }} />}
     </>
+  );
+}
+
+/** Una sottofase sotto la sua fase: barra sottile, verde se fatta, rossa se passata la fine e non fatta. */
+function RigaSottofase({ s, asse, segni, oggi }: { s: SottofaseCrono; asse: Asse; segni: ReturnType<typeof tacche>; oggi: string }) {
+  const b = barra(s.previstoInizio, s.previstoFine, asse);
+  const quando = `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${giorni(s.giorni)} necessari` : ""}`;
+  return (
+    <div data-testid={`sottofase-${s.id}`} className="flex border-b bg-slate-50/40 last:border-b-0">
+      <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center gap-1.5 border-r bg-white py-1 pl-7 pr-2 text-[11px]">
+        <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", s.fatta ? "bg-emerald-500" : s.ritardo > 0 ? "bg-rose-500" : "bg-sky-400")} />
+        <span className={cn("min-w-0 flex-1 break-words", s.fatta ? "text-muted-foreground line-through" : "text-slate-700")}>{s.nome}</span>
+        {s.ritardo > 0 && <span className="shrink-0 font-semibold tabular-nums text-rose-700">+{s.ritardo} gg</span>}
+      </div>
+      <div className="relative h-7 flex-1">
+        <Griglia asse={asse} segni={segni} oggi={oggi} />
+        {b.width > 0 && (
+          <span
+            data-testid={`sottofase-barra-${s.id}`}
+            className={cn("absolute top-2 h-3 rounded-sm", s.fatta ? "bg-emerald-400" : s.ritardo > 0 ? "bg-rose-300" : "bg-sky-300", s.fuoriDallaFase && "ring-1 ring-amber-500")}
+            style={{ left: `${b.left}%`, width: `${b.width}%` }}
+            title={`${s.nome}: ${quando}${s.fatta ? " · fatta" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -186,17 +217,21 @@ export function CronoprogrammaCommessa({
   const { canViewOrderAmounts, canViewCosts } = usePermissions();
   const { phases, materials = [], allAssignments = [], isLoading, isError, refetch } = useOrderWorkPhases(orderId);
   const crono = useCronoprogramma(orderId, order.quote_id ?? null);
+  const { perFase: sottofasiDi } = useSottofasi(orderId);
+  const [conSottofasi, setConSottofasi] = useState(true);
   const isMobile = useIsMobile();
   const [periodoScelto, setPeriodo] = useState<"previsto" | "confronto" | null>(null);
   const [scala, setScala] = useState<"adatta" | "mesi" | "settimane">("adatta");
   const [vista, setVista] = useState<"grafico" | "elenco">("grafico");
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
+  const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
+  const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   const oggi = giornoLocale(new Date().toISOString());
   const economia = useMemo(
-    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti }),
-    [phases, materials, allAssignments, costiMateriali],
+    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase, vociPreviste }),
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
   );
   const fasi = useMemo(
     () => fasiCronoprogramma(
@@ -206,6 +241,15 @@ export function CronoprogrammaCommessa({
     ),
     [phases, crono.rapportini, oggi],
   );
+  // Le sottofasi datate di ogni fase: una riga sottile ciascuna, sotto la fase.
+  const sotto = useMemo(() => {
+    const mappa = new Map<string, SottofaseCrono[]>();
+    for (const f of fasi) {
+      const righe = sottofasiCronoprogramma(f, sottofasiDi.get(f.id) ?? [], oggi);
+      if (righe.length) mappa.set(f.id, righe);
+    }
+    return mappa;
+  }, [fasi, sottofasiDi, oggi]);
   const traguardi = useMemo(() => traguardiCommessa({
     firmaPreventivo: crono.firmaPreventivo,
     aperturaCommessa: giornoLocale(order.created_at),
@@ -331,6 +375,9 @@ export function CronoprogrammaCommessa({
               <option value="adatta">Adatta al riquadro</option><option value="mesi">Mesi</option><option value="settimane">Settimane</option>
             </select>
           </label>}
+          {vista === "grafico" && sotto.size > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={conSottofasi} onChange={e => setConSottofasi(e.target.checked)} className="h-4 w-4 accent-orange-600" />Sottofasi
+          </label>}
           <Button size="sm" variant="outline" onClick={() => setVista(vista === "grafico" ? "elenco" : "grafico")}>{vista === "grafico" ? "Elenco fasi" : "Grafico"}</Button>
         </div>}
         <div className="flex flex-wrap gap-2">
@@ -396,7 +443,9 @@ export function CronoprogrammaCommessa({
             // Oltre la fine prevista, in rosso: fino alla chiusura reale, o fino a
             // oggi se la fase è ancora aperta (anche senza rapportini: è passata la
             // fine e non è chiusa). Parte da dove è cominciato il lavoro, se dopo.
-            const fineOltre = aperta && r ? oggi : r?.[1] ?? null;
+            // Il 14/10 era diventato `aperta && r`: la fase mai iniziata restava
+            // «in ritardo» nel riepilogo ma senza la parte rossa nel grafico.
+            const fineOltre = aperta ? oggi : r?.[1] ?? null;
             const oltre = p && !f.dateIncoerenti && fineOltre && fineOltre > p[1]
               ? barra(r && r[0] > p[1] ? r[0] : aggiungiGiorni(p[1], 1), fineOltre, asse)
               : null;
@@ -404,7 +453,8 @@ export function CronoprogrammaCommessa({
             const eco = economia.perFase.get(f.id);
             const rit = ritardoFase(f);
             return (
-              <div key={f.id} className="flex border-b last:border-b-0">
+              <Fragment key={f.id}>
+              <div className="flex border-b last:border-b-0">
                 <div className="sticky left-0 z-10 w-56 shrink-0 border-r bg-white px-2 py-1.5">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -468,6 +518,10 @@ export function CronoprogrammaCommessa({
                   </span>}
                 </div>
               </div>
+              {conSottofasi && (sotto.get(f.id) ?? []).map((s) => (
+                <RigaSottofase key={s.id} s={s} asse={asse} segni={segni} oggi={oggi} />
+              ))}
+              </Fragment>
             );
           })}
         </div>
@@ -481,6 +535,7 @@ export function CronoprogrammaCommessa({
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-rose-500" />Ritardo aperto</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-amber-500" />Scostamento storico, fase chiusa</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-500" />Chiusura senza inizio rilevato</span>
+        {sotto.size > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300" />Sottofase prevista (verde se fatta)</span>}
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />Oggi</span>
         <span className="text-[11px]">Date reali dai rapportini e dalla chiusura delle fasi. Clic su una fase per il dettaglio.</span>
       </div>
@@ -494,6 +549,12 @@ export function CronoprogrammaCommessa({
             <dt className="text-muted-foreground">Reale</dt><dd>{f.realeFine ? `${f.chiusuraRegistrata ? "Chiusura" : "Ultimo rapportino"} ${lunga(f.realeFine)}${!f.realeInizio ? " · inizio non rilevato" : ""}` : f.realeInizio ? `Dal ${lunga(f.realeInizio)} · ${f.stato === "completata" ? "chiusura non datata" : "senza chiusura registrata"}` : "Non rilevato"}</dd>
           </dl>
           {f.dateIncoerenti ? <p className="mt-2 text-xs text-amber-800">Verifica le date della fase.</p> : ritardoFase(f) && <p className={cn("mt-2 text-xs", f.stato === "completata" ? "text-amber-800" : "text-rose-700")}>{f.stato === "completata" ? "Scostamento storico" : "Ritardo aperto"}: +{giorni(ritardoFase(f)!.giorni)}</p>}
+          {(sotto.get(f.id) ?? []).length > 0 && <ul aria-label={`Sottofasi di ${f.nome}`} className="mt-2 space-y-0.5 border-l-2 border-slate-100 pl-2 text-xs">
+            {sotto.get(f.id)!.map(s => <li key={s.id} className="flex flex-wrap justify-between gap-x-2">
+              <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.nome}</span>
+              <span className={cn("tabular-nums text-muted-foreground", s.ritardo > 0 && "text-rose-700")}>{breve(s.previstoInizio)}{s.previstoFine !== s.previstoInizio && ` → ${breve(s.previstoFine)}`}{s.giorni ? ` · ${s.giorni} gg` : ""}{s.ritardo > 0 && ` · +${giorni(s.ritardo)}`}</span>
+            </li>)}
+          </ul>}
           <div className="mt-3 flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div className={cn("h-full rounded-full", f.stato === "completata" ? "bg-emerald-500" : "bg-amber-500")} style={{width: `${f.avanzamento}%`}} /></div><span className="text-xs tabular-nums">{f.avanzamento}%</span></div>
           <details className="mt-3 border-t pt-2"><summary className="cursor-pointer text-xs text-blue-900">Dettagli della fase</summary><div className="mt-3"><Dettaglio fase={f} oggi={oggi} economia={economia.perFase.get(f.id)} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} /></div></details>
         </article>)}

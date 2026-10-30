@@ -97,6 +97,8 @@ describe("«Nuova commessa» usa questo legame", () => {
   it("chiama collegaPreventivoAllaCommessa e avvisa se il legame non c'è; non scrive più quote_id per conto suo", () => {
     expect(sorgente).toContain("await collegaPreventivoAllaCommessa({");
     expect(sorgente).toMatch(/if \(!collegata\) \{\s+toast\.warning\(/);
-    expect(sorgente).not.toContain("quote_id: selectedQuoteId");
+    // `p_quote_id` è l'argomento della funzione atomica che crea la commessa dal
+    // preventivo (5dd0a43e6), non una scrittura di quote_id fatta dalla pagina.
+    expect(sorgente).not.toMatch(/(?<!p_)\bquote_id: selectedQuoteId/);
   });
 });

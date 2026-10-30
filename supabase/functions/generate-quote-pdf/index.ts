@@ -8,8 +8,8 @@ import { preventivoVisibile, type ClienteDiChiChiama } from "../_shared/preventi
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, TemplateCompositionError, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
-import { formatoImmagine, leggiLogo } from "../_shared/logoAzienda.ts";
-import { colorePreventivo, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
+import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
+import { coloreDelBlocco, colorePreventivo, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
 import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventivo.ts";
 import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
@@ -93,6 +93,9 @@ Deno.serve(async (req) => {
     let company: any = null;
     let t: any;
     let attachmentRows: any[] = [];
+    // Le impostazioni PDF dell'azienda (preventivo_impostazioni): valgono quando il singolo
+    // preventivo non ha scelto (sconti in vista, solo il totale).
+    let pdfImp: any = {};
     // Attributi di famiglia: axis_selections salva gli ID dei valori scelti
     // (UUID). Nel PDF vanno i nomi — "Colore: Bianco" — non gli identificativi.
     const nomiAssi = new Map<string, string>();        // "<family_id>:<codice>" → nome asse
@@ -264,9 +267,10 @@ Deno.serve(async (req) => {
         return tmpl;
       };
 
-      const [template, itemsRes, companyRes, contactRes, attRes] = await Promise.all([
+      const [template, itemsRes, impRes, companyRes, contactRes, attRes] = await Promise.all([
         resolveTemplate(),
         supabaseAdmin.from("quote_items").select("*").eq("quote_id", quote_id).order("sort_order"),
+        supabaseAdmin.from("preventivo_impostazioni").select("pdf_mostra_sconti, pdf_mostra_solo_totale").eq("company_id", quote.company_id).maybeSingle(),
         supabaseAdmin
           .from("companies")
           .select("name, business_name, email, phone, legal_address, legal_city, legal_province, legal_postal_code, logo_url, brand_logo_dark_url, vat_number, brand_primary_color")
@@ -284,6 +288,7 @@ Deno.serve(async (req) => {
 
       t = { ...DEFAULT_T, ...(template || {}) };
       righePerIva = itemsRes.data ?? [];
+      pdfImp = impRes.data ?? {};
       items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);
       // Le righe non salvano image_url: il builder mostra la foto dell'articolo o
       // della famiglia, il PDF guardava solo quella della riga e con «mostra
@@ -424,31 +429,72 @@ Deno.serve(async (req) => {
     }
 
     // Unico motore per i preventivi: qui restano autorizzazione e dati.
-    const aziendaDeiFile = isPreview ? aziendaAnteprima : quote.company_id;
-    const immagineModello = async (valore: unknown): Promise<string | null> => {
-      const path = logoDelModello(valore, aziendaDeiFile);
-      if (!path) return null;
+    // L'azienda di cui si leggono i file del modello (logo, copertina, timbro), dal
+    // contenitore riservato e col service role: solo dalla sua cartella.
+    const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;
+    // I byte di un'immagine diventano un data URL per il renderer: solo PNG o JPEG
+    // (il formato si legge dai byte, non dall'estensione), al massimo 6 MB.
+    const comeDataUrl = (bytes: Uint8Array | null): string | null => {
+      if (!bytes || bytes.length > 6 * 1024 * 1024) return null;
+      const formato = formatoImmagine(bytes);
+      if (!formato) return null;
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return `data:image/${formato === "png" ? "png" : "jpeg"};base64,${btoa(bin)}`;
+    };
+    const immagineDelLogo = async (logoPath: string | null): Promise<string | null> => {
+      if (!logoPath) return null;
       try {
-        const bytes = await leggiLogo(supabaseAdmin, path, {
+        return comeDataUrl(await leggiLogo(supabaseAdmin, logoPath, {
           supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "", bucket: ["quote-template-assets", "company-assets"],
           scarica: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(10_000) }),
-        });
-        if (!bytes || bytes.length > 6 * 1024 * 1024) return null;
-        const formato = formatoImmagine(bytes);
-        if (!formato) return null;
-        let bin = "";
-        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        return `data:image/${formato === "png" ? "png" : "jpeg"};base64,${btoa(bin)}`;
+        }));
       } catch { return null; }
     };
-    const [logo, logoChiaro, copertina] = await Promise.all([
-      immagineModello(t.logo_url || company?.logo_url), immagineModello(company?.brand_logo_dark_url), immagineModello(t.cover_image_url),
+    // Copertina e timbro stanno nel contenitore riservato dei modelli: si leggono solo
+    // con un percorso della cartella dell'azienda, mai con un indirizzo.
+    const immagineRiservata = async (percorso: string | null): Promise<string | null> => {
+      if (!percorso) return null;
+      try {
+        const { data: file } = await supabaseAdmin.storage.from("quote-template-assets").download(percorso);
+        return file ? comeDataUrl(new Uint8Array(await file.arrayBuffer())) : null;
+      } catch (e) {
+        console.warn("[generate-quote-pdf] immagine del modello non caricata:", percorso, e instanceof Error ? e.message : e);
+        return null;
+      }
+    };
+    // Il logo del modello, se è un percorso, solo dalla cartella dell'azienda; se no
+    // (o se non passa) quello aziendale, che oggi è sempre un indirizzo dello storage
+    // pubblico e, se un giorno fosse un percorso, passa dalla stessa regola.
+    const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));
+    const percorsoCopertina = percorsoDellAzienda(t.cover_image_url, aziendaDeiFile);
+    // Timbro e firma dell'impresa (25/09/2026): si caricano una volta nel modello e si
+    // stampano nel riquadro «Per l'impresa» della pagina della firma.
+    const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);
+    const [logo, logoChiaro, copertina, timbro] = await Promise.all([
+      immagineDelLogo(logoPath),
+      immagineDelLogo(logoDelModello(company?.brand_logo_dark_url, aziendaDeiFile)),
+      t.show_cover_image === false ? Promise.resolve(null) : immagineRiservata(percorsoCopertina),
+      immagineRiservata(percorsoTimbro),
     ]);
-    t = { ...t, logo_url: t.show_logo === false ? null : logo, cover_image_url: copertina,
+    // Il fondo della copertina collegata, se l'ha scelto: Ener ha messo la copertina verde
+    // e il PDF usciva blu (25/09/2026). Un fondo scritto nel modello vince.
+    const fondoCopertina = coloreDelBlocco(t.composed_cover?.primary_color);
+    if (fondoCopertina && !t.pdf_cover_bg_color && !t.cover_bg_color) t.pdf_cover_bg_color = fondoCopertina;
+    t = { ...t, logo_url: t.show_logo === false ? null : logo, cover_image_url: copertina, timbro_firma_url: timbro,
       primary_color: colorePreventivo(t.primary_color, company?.brand_primary_color, [t.composed_cover, t.composed_terms, t.composed_legal]) };
     company = { ...company, logo_url: t.show_logo === false ? null : logo, brand_logo_dark_url: t.show_logo === false ? null : logoChiaro };
     const pdfDoc = await PDFDocument.load(await renderGenerico({
-      quote,
+      // Le opzioni del singolo preventivo passano da `opzione`: il PDF che va in FIRMA
+      // ha sempre le condizioni (per_firma), e le note escono solo se lo step
+      // «Documenti e PDF» le lascia accese.
+      quote: {
+        ...quote,
+        pdf_mostra_condizioni: opzione("pdf_mostra_condizioni"),
+        pdf_mostra_sconti: opzione("pdf_mostra_sconti", pdfImp.pdf_mostra_sconti !== false),
+        pdf_mostra_solo_totale: opzione("pdf_mostra_solo_totale", pdfImp.pdf_mostra_solo_totale === true),
+        notes: opzione("pdf_mostra_note_cliente") ? quote.notes : null,
+      },
       righePerIva,
       items: items.map(riga => ({
         ...riga,
@@ -459,6 +505,22 @@ Deno.serve(async (req) => {
       company,
       template: t,
     }));
+
+    // La copertina PDF del modello (una pagina sola, caricata nell'editor) prende il
+    // posto della copertina disegnata: si incorpora solo la pagina grafica, niente
+    // moduli, azioni o annotazioni del file sorgente. Percorso verificato, mai URL.
+    if (t.show_cover_image !== false && percorsoCopertina?.toLowerCase().endsWith(".pdf")) {
+      const { data, error } = await supabaseAdmin.storage.from("quote-template-assets").download(percorsoCopertina);
+      if (error || !data || data.size > 5 * 1024 * 1024) return errorResponse("Copertina PDF non disponibile o troppo grande. Caricala nuovamente nel modello.", 422, corsH);
+      const sorgente = await PDFDocument.load(await data.arrayBuffer());
+      if (sorgente.getPageCount() !== 1) return errorResponse("La copertina PDF deve contenere una sola pagina.", 422, corsH);
+      const [grafica] = await pdfDoc.embedPages([sorgente.getPage(0)]);
+      const { width: largo, height: alto } = pdfDoc.getPage(0).getSize();
+      pdfDoc.removePage(0);
+      const cover = pdfDoc.insertPage(0, [largo, alto]);
+      const scala = Math.min(largo / grafica.width, alto / grafica.height);
+      cover.drawPage(grafica, { x: (largo - grafica.width * scala) / 2, y: (alto - grafica.height * scala) / 2, width: grafica.width * scala, height: grafica.height * scala });
+    }
 
     // ─── Merge attached PDFs (skip in preview mode) ───
     if (!isPreview && opzione("pdf_includi_schede_tecniche")) {

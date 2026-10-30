@@ -14461,6 +14461,7 @@ export type Database = {
       }
       billing_integrations: {
         Row: {
+          storico_registrato_fino_al: string | null
           access_token: string | null
           api_key: string | null
           auto_sync: boolean | null
@@ -14483,6 +14484,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          storico_registrato_fino_al?: string | null
           access_token?: string | null
           api_key?: string | null
           auto_sync?: boolean | null
@@ -14505,6 +14507,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          storico_registrato_fino_al?: string | null
           access_token?: string | null
           api_key?: string | null
           auto_sync?: boolean | null
@@ -29478,6 +29481,13 @@ export type Database = {
           valore_default?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documento_fields_template_company_fk"
+            columns: ["template_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "documento_templates"
+            referencedColumns: ["id", "company_id"]
+          },
           {
             foreignKeyName: "documento_template_fields_company_id_fkey"
             columns: ["company_id"]

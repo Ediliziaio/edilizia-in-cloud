@@ -78,7 +78,8 @@ describe("i motori", () => {
 
   it("Serramenti: la stessa tavola, con lo stacco fra le sezioni che scorrono", () => {
     const sr = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    expect(sr).toContain("const tavola = foto.length === 1 ? eTavola(foto[0].src) : null;");
+    // Dal 27/10/2026 lo schema del fascicolo e le foto tecniche non sono tavole: per le altre, la stessa regola.
+    expect(sr).toContain("const tavola = !schema && !fotoTecnica && foto.length === 1 ? eTavola(foto[0].src) : null;");
     expect(sr).toContain("- 16 - 30;");
   });
 

@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { appuntamentoAnnullato } from "@/lib/calendarUtils";
+import { mayCancelMissingGoogleAppointment } from "../../../supabase/functions/_shared/googleAppointmentReconcile";
 
 const leggi = (percorso: string) => readFileSync(resolve(process.cwd(), percorso), "utf8");
 
@@ -36,13 +37,22 @@ describe("appuntamento annullato", () => {
   });
 
   it("evento tolto da Google: l'appuntamento diventa annullato, non sparisce", () => {
+    // Dal 14/10 la riconciliazione sta in _shared/googleAppointmentReconcile
+    // (provata per esteso in googleAppointmentReconcile.test.ts): annulla solo
+    // dopo che Google ha confermato la cancellazione dell'evento.
     const sync = leggi("supabase/functions/google-calendar-sync/index.ts");
-    expect(sync).toContain("l'evento è stato eliminato da Google Calendar");
-    expect(sync).toContain('status: "annullato"');
+    const riconcilia = leggi("supabase/functions/_shared/googleAppointmentReconcile.ts");
+    expect(sync).toContain("reconcileMissingGoogleAppointments(");
+    expect(riconcilia).toContain('status: "annullato", cancelled_at: now.toISOString()');
+    expect(riconcilia).not.toMatch(/from\("appointments"\)\.delete\(/);
+    const apt = { id: "a", appointment_date: "2026-11-10", appointment_time: "10:00", status: "confermato", is_completed: false, updated_at: "x", internal_notes: null as string | null };
+    const ora = new Date("2026-11-01T09:00:00Z");
+    expect(mayCancelMissingGoogleAppointment(apt, ora, "2026-12-01T00:00:00Z")).toBe(true);
     // Solo dentro la finestra letta: fuori non è "sparito", non è stato chiesto.
-    expect(sync).toContain("dentroFinestra");
+    expect(mayCancelMissingGoogleAppointment(apt, ora, "2026-11-05T00:00:00Z")).toBe(false);
     // Chi è già annullato o completato non si tocca.
-    expect(sync).toContain('["annullato", "cancelled", "completato"].includes');
+    expect(mayCancelMissingGoogleAppointment({ ...apt, status: "annullato" }, ora, "2026-12-01T00:00:00Z")).toBe(false);
+    expect(mayCancelMissingGoogleAppointment({ ...apt, is_completed: true }, ora, "2026-12-01T00:00:00Z")).toBe(false);
   });
 
   it("nel calendario si vede barrato", () => {
@@ -51,7 +61,7 @@ describe("appuntamento annullato", () => {
       "src/components/calendar/CalendarWeekView.tsx",
       "src/components/calendar/CalendarMonthView.tsx",
     ]) {
-      expect(leggi(vista)).toContain('appuntamentoAnnullato(apt.status) && "line-through opacity-70"');
+      expect(leggi(vista), vista).toMatch(/appuntamentoAnnullato\((?:apt|event\.appointment)\.status\)[\s\S]{0,120}"line-through opacity-70"/);
     }
   });
 });

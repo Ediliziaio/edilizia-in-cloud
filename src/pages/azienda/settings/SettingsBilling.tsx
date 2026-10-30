@@ -1,5 +1,6 @@
 import { ItalaPlatformConnection } from "@/components/billing/ItalaPlatformConnection";
 import { MassiveImportPanel } from "@/components/billing/MassiveImportPanel";
+import { StoricoGiaRegistrato } from "@/components/billing/StoricoGiaRegistrato";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,7 +96,7 @@ export default function SettingsBilling() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("billing_integrations")
-        .select("id, company_id, provider, is_active, is_primary, auto_sync, company_external_id, provider_company_name, provider_vat_number, last_sync_at, last_sync_status, last_sync_error, received_scope_missing, created_at, updated_at, sync_direction")
+        .select("id, company_id, provider, is_active, is_primary, auto_sync, company_external_id, provider_company_name, provider_vat_number, last_sync_at, last_sync_status, last_sync_error, received_scope_missing, storico_registrato_fino_al, created_at, updated_at, sync_direction")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -428,6 +429,12 @@ export default function SettingsBilling() {
                             Ricollega
                           </Button>
                         </div>
+                      )}
+                      {integ.is_active && (
+                        <StoricoGiaRegistrato
+                          integrazioneId={integ.id}
+                          finoAl={(integ as { storico_registrato_fino_al?: string | null }).storico_registrato_fino_al ?? null}
+                        />
                       )}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">

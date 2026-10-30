@@ -19,6 +19,7 @@ import {
   corsResponse,
   verifyServiceRoleOrSuperAdmin,
 } from "../_customer_os_shared/index.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
 const ELENA_SYSTEM_PROMPT = `Sei Elena, AI specialist Customer Success di EdiliziaInCloud (EiC).
 
@@ -101,7 +102,15 @@ function computeHealthScore(inp: HealthInputs): { total: number; label: string; 
   return { total, label, reasons };
 }
 
-Deno.serve(async (req: Request) => {
+// Il giro calcola il punteggio di salute per ogni cliente e chiama l'LLM sui casi
+// al margine: 64 secondi al giorno oltre i 5 s nella misura del 20/09/2026, e
+// cresce con i clienti. pg_net ha un solo worker e finché questa non risponde la
+// coda di TUTTI i cron resta ferma (il job 88 aspetta 150 secondi). Con la
+// risposta rapida pg_net riceve 202 entro 5 secondi e il lavoro finisce sotto
+// EdgeRuntime.waitUntil — completeWorkflowRun compreso, che chiude il run nel
+// database e non nella risposta HTTP. Chi la chiama a mano riceve l'esito
+// completo come prima. Vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("elena-cs-health-daily", async (req: Request) => {
   if (req.method === "OPTIONS") return corsResponse();
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 

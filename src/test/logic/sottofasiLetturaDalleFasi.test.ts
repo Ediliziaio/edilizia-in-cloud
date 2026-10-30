@@ -43,7 +43,7 @@ describe("lettura delle sottofasi", () => {
 
   it("nel cantiere fasi e sottofasi si leggono con lo stesso ordine completo (stesse righe oltre il massimo per lettura)", () => {
     const pagina = readFileSync(resolve(process.cwd(), "src/pages/campo/CampoAvanzamento.tsx"), "utf8");
-    const ordine = /\.eq\("company_id", companyId!\)\s*(?:\/\/[^\n]*\s*)*\.order\("position", \{ ascending: true \}\)\s*\.order\("id", \{ ascending: true \}\)/g;
+    const ordine = /\.eq\("company_id", companyId!\);\s*if \(orderFilter\) query = query\.eq\("order_id", orderFilter\);\s*const \{ data, error \} = await query\s*(?:\/\/[^\n]*\s*)*\.order\("position", \{ ascending: true \}\)\s*\.order\("id", \{ ascending: true \}\)/g;
     expect(pagina.match(ordine)).toHaveLength(2);
   });
 });

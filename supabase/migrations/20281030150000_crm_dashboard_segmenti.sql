@@ -1,13 +1,6 @@
--- crm_dashboard_segmenti(p_company uuid) → jsonb
---
--- Dashboard CRM super-admin (/admin/marketing/dashboard): i riquadri «Fonti»,
--- «Segmentazione», «Settore e dimensione», «Aziende / Account» e «Alert intelligenti» scaricavano 5.000
--- contatti su ~96.000 e contavano in memoria (campione arbitrario, senza ORDER BY).
--- Qui il database conta TUTTO in una chiamata sola.
---
--- Idempotente (CREATE OR REPLACE). Solo lettura. Solo super admin.
--- Il frontend ha un ripiego se la funzione non esiste ancora (conteggi esatti per
--- le prime voci del campione), quindi si può applicare in qualunque momento.
+-- Ricostruito il 30/10/2026 dal SQL registrato in schema_migrations: la
+-- migrazione era stata applicata in produzione senza il suo file, e il
+-- controllo Supabase Preview si fermava. Testo identico a quello applicato.
 
 create or replace function public.crm_dashboard_segmenti(p_company uuid)
 returns jsonb

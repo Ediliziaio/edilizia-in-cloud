@@ -163,7 +163,7 @@ describe("il riepilogo IVA del PDF gira su TUTTE le righe", () => {
   it("la edge function raccoglie tutte le righe e le passa a parte da quelle in tabella", () => {
     expect(pdf).toContain("righePerIva = itemsRes.data ?? [];");
     expect(pdf).toContain("items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);");
-    expect(pdf).toMatch(/renderGenerico\(\{\s+quote,\s+righePerIva,/);
+    expect(pdf).toMatch(/renderGenerico\(\{[\s\S]*?\n\s+quote: \{\n\s+\.\.\.quote,[\s\S]*?\n\s+\},\n\s+righePerIva,/);
   });
 
   it("l'adattatore somma quelle righe col riepilogo condiviso, senza rifare il conto", () => {

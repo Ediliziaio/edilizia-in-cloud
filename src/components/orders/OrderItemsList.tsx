@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle, ChevronUp, ChevronDown,
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle, ChevronUp, ChevronDown, MoreHorizontal,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -58,6 +58,10 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { quantitaSommabili, trovaDoppione } from "@/lib/distinta/elencoArticoli";
+import { ETICHETTA_STATO_MATERIALE, quantitaLeggibile, statoMateriale } from "@/lib/distinta/statoMateriale";
+import { COLORE_STATO } from "./materiali/coloriStato";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /** Una riga della distinta/abaco dentro l'articolo (es. "2 ante · 1000x1000 · x1"). */
 export interface Posizione {
@@ -187,6 +191,13 @@ interface OrderItemsListProps {
    */
   soloFinestra?: boolean;
   richiesta?: RichiestaArticolo | null;
+  /**
+   * «compatta»: una riga per articolo (nome, quantità, costo, stato, ⋯), con
+   * gli stessi nomi e colori degli stati del dettaglio commessa. È la vista di
+   * «Nuova commessa» e «Modifica commessa», dove pagamenti, ordini e arrivi
+   * non ci sono ancora. «schede» è l'elenco di prima, con tutti i controlli.
+   */
+  vista?: "schede" | "compatta";
 }
 
 export const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -270,6 +281,7 @@ export function OrderItemsList({
   canViewCosts = true,
   soloFinestra = false,
   richiesta = null,
+  vista = "schede",
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -348,6 +360,10 @@ export function OrderItemsList({
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
   /** Fase in cui nasce un articolo nuovo (undefined = l'elenco non usa le fasi). */
   const [faseNuovo, setFaseNuovo] = useState<string | null | undefined>(undefined);
+  /** L'articolo da salvare che ne raddoppia uno già presente: si decide prima di salvarlo. */
+  const [doppione, setDoppione] = useState<{ nuovo: OrderItem; esistente: OrderItem } | null>(null);
+  /** «Duplica» apre la finestra come copia: questi campi della riga d'origine non stanno nel form. */
+  const copiaDiRef = useRef<Pick<OrderItem, "unita_misura" | "specifiche"> | null>(null);
 
   const { effectiveCompany, user } = useAuth();
   // v8.6.34 — Usa fallbackCompanyId (companyId della commessa corrente) se
@@ -574,6 +590,7 @@ export function OrderItemsList({
     setStockPickQuantity("1");
     setDialogTab("new");
     setDialogError(null);
+    copiaDiRef.current = null;
   };
 
   const openAddDialog = () => {
@@ -582,7 +599,7 @@ export function OrderItemsList({
     setDialogOpen(true);
   };
 
-  const openEditDialog = (index: number) => {
+  const openEditDialog = (index: number, comeCopia = false) => {
     // In modifica i dettagli si aprono: descrizione, pagamento, arrivo o OdA
     // potrebbero avere valori, e non devono sparire dietro il ripiegabile.
     setShowAltriDettagli(true);
@@ -617,6 +634,23 @@ export function OrderItemsList({
     // popola appena arriva la riga — al piu' qualche decimo di secondo.
     setItemLinkedPoId(undefined);
     loadedPoIdRef.current = undefined;
+    if (comeCopia) {
+      // Una copia nasce da ordinare e da pagare, senza ordine né allegati,
+      // nella fase della riga d'origine.
+      setItemStatus("da_ordinare");
+      setItemIsPaid(false);
+      setItemPaidDate(undefined);
+      setItemDepositPaid(false);
+      setItemDepositPaidDate(undefined);
+      setItemBalancePaid(false);
+      setItemBalancePaidDate(undefined);
+      setFaseNuovo(item.phase_id ?? null);
+      setPendingAttachment(null);
+      setEditingIndex(null);
+      copiaDiRef.current = { unita_misura: item.unita_misura, specifiche: item.specifiche };
+      setDialogOpen(true);
+      return;
+    }
     if (item.id) {
       void supabase
         .from("purchase_order_items")
@@ -746,36 +780,79 @@ export function OrderItemsList({
     } else {
       const newItem: OrderItem = {
         ...commonFields,
+        ...(copiaDiRef.current ?? {}),
         position: items.length,
         // Aggiunto dalla vista per fase: nasce nella fase da cui l'hai aggiunto.
         ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
       };
-      // v8.6.35 — Create mode: pendingAttachment va in coda (no id ancora).
-      // Quando il parent farà insert in DB e items[] si refresha con id,
-      // useEffect su `items` processerà l'upload.
-      if (pendingAttachment) {
-        const tempKey = `${commonFields.name}::${items.length}`;
-        pendingUploadsRef.current.set(tempKey, pendingAttachment);
-        toast({
-          title: "Allegato in attesa",
-          description: "Il PDF sarà caricato dopo il salvataggio della commessa.",
-        });
+      // Lo stesso materiale c'è già (stessa fase, stesso nome o articolo del
+      // listino): prima di creare una seconda riga si chiede cosa fare.
+      const esistente = trovaDoppione(newItem, items);
+      if (esistente) {
+        setDoppione({ nuovo: newItem, esistente });
+        return false;
       }
-      onItemsChange([...items, newItem]);
-      // Posa dal listino → voce Manodopera (order_external_teams), MAI un order_item:
-      // così il costo manodopera è contato UNA sola volta, nella sezione giusta.
-      if (onAddLabor && addPosa && posaTeamId && itemManodoperaCosto && itemManodoperaCosto > 0) {
-        onAddLabor({
-          external_team_id: posaTeamId,
-          total_cost: Math.round(itemManodoperaCosto * quantity * 100) / 100,
-          notes: `Posa ${commonFields.name} (da listino)`,
-        });
-      }
+      aggiungiNuovo(newItem);
     }
 
     setDialogOpen(false);
     resetForm();
     return true;
+  };
+
+  const aggiungiNuovo = (newItem: OrderItem) => {
+    // v8.6.35 — Create mode: pendingAttachment va in coda (no id ancora).
+    // Quando il parent farà insert in DB e items[] si refresha con id,
+    // useEffect su `items` processerà l'upload.
+    if (pendingAttachment) {
+      const tempKey = `${newItem.name}::${items.length}`;
+      pendingUploadsRef.current.set(tempKey, pendingAttachment);
+      toast({
+        title: "Allegato in attesa",
+        description: "Il PDF sarà caricato dopo il salvataggio della commessa.",
+      });
+    }
+    onItemsChange([...items, newItem]);
+    aggiungiPosa(newItem);
+  };
+
+  // Posa dal listino → voce Manodopera (order_external_teams), MAI un order_item:
+  // così il costo manodopera è contato UNA sola volta, nella sezione giusta.
+  const aggiungiPosa = (item: OrderItem) => {
+    if (onAddLabor && addPosa && posaTeamId && itemManodoperaCosto && itemManodoperaCosto > 0) {
+      onAddLabor({
+        external_team_id: posaTeamId,
+        total_cost: Math.round(itemManodoperaCosto * item.quantity * 100) / 100,
+        notes: `Posa ${item.name} (da listino)`,
+      });
+    }
+  };
+
+  // Si somma solo su una riga ancora da ordinare: una già ordinata, in
+  // magazzino o posata racconta una quantità che non va riscritta.
+  // E solo allo stesso prezzo e dallo stesso fornitore: la riga sommata tiene il prezzo e il fornitore di
+  // quella che c'è, e un prezzo diverso sparirebbe dal costo.
+  const stessoPrezzo = !!doppione && Math.abs((doppione.esistente.purchase_price ?? 0) - (doppione.nuovo.purchase_price ?? 0)) < 0.005
+    && (doppione.esistente.supplier_id ?? null) === (doppione.nuovo.supplier_id ?? null);
+  const sommabile = !!doppione && quantitaSommabili(doppione.esistente, doppione.nuovo) && stessoPrezzo
+    && (!doppione.esistente.status || doppione.esistente.status === "da_ordinare");
+
+  /** La scelta sul doppione: sommare la quantità alla riga che c'è, o tenerle separate. */
+  const risolviDoppione = (scelta: "somma" | "separata") => {
+    if (!doppione) return;
+    const { nuovo, esistente } = doppione;
+    if (scelta === "separata") {
+      aggiungiNuovo(nuovo);
+    } else {
+      const aggiornato = { ...esistente, quantity: esistente.quantity + nuovo.quantity };
+      if (onItemUpdate && esistente.id) onItemUpdate(aggiornato);
+      else onItemsChange(items.map((i) => (i === esistente ? aggiornato : i)));
+      if (pendingAttachment && esistente.id) void uploadAttachmentForItem(esistente.id, pendingAttachment);
+      aggiungiPosa(nuovo);
+    }
+    setDoppione(null);
+    setDialogOpen(false);
+    resetForm();
   };
 
   // v8.6.35 — Helper link ODA esistente: crea (o sposta) la riga in
@@ -930,23 +1007,9 @@ export function OrderItemsList({
     }
   };
 
-  const handleDuplicateItem = (index: number) => {
-    const source = items[index];
-    const duplicate: OrderItem = {
-      ...source,
-      id: undefined,
-      position: items.length,
-      status: "da_ordinare",
-      is_paid: false,
-      paid_date: undefined,
-      deposit_paid: false,
-      deposit_paid_date: undefined,
-      balance_paid: false,
-      balance_paid_date: undefined,
-      attachments: [],
-    };
-    onItemsChange([...items, duplicate]);
-  };
+  // «Duplica» apre la finestra con i dati della riga: si corregge quello che
+  // cambia e, se resta uguale, l'avviso del doppione chiede se sommare.
+  const handleDuplicateItem = (index: number) => openEditDialog(index, true);
 
   // Le richieste della vista per fase: aprire un articolo nuovo (nella fase
   // scelta), modificarne uno, duplicarlo. Una volta per richiesta (nonce).
@@ -1773,10 +1836,115 @@ export function OrderItemsList({
             </>
           )}
         </DialogContent>
+        <Dialog open={!!doppione} onOpenChange={(o) => !o && setDoppione(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>«{doppione?.esistente.name}» c'è già</DialogTitle>
+              <DialogDescription>
+                {doppione && <>
+                  Nella commessa{doppione.esistente.phase_id ? ", nella stessa fase," : ""} c'è già questo articolo
+                  ({doppione.esistente.quantity.toLocaleString("it-IT")} {doppione.esistente.unita_misura || "pz"}).
+                  {sommabile
+                    ? ` Sommando, la riga passa a ${(doppione.esistente.quantity + doppione.nuovo.quantity).toLocaleString("it-IT")}: una riga sola da ordinare e da ricevere.`
+                    : !stessoPrezzo
+                      ? " Prezzo o fornitore sono diversi da quelli della riga che c'è: aggiungilo come riga a parte, così il costo resta giusto."
+                      : " Le quantità non si sommano (riga già avviata, unità diversa, posizioni o prelievo dal magazzino): se serve davvero, aggiungilo come riga a parte."}
+                </>}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="ghost" onClick={() => setDoppione(null)}>Annulla</Button>
+              <Button type="button" variant="outline" onClick={() => risolviDoppione("separata")}>Aggiungi come riga a parte</Button>
+              {sommabile && (
+                <Button type="button" onClick={() => risolviDoppione("somma")}>Somma la quantità</Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </Dialog>
   );
 
   if (soloFinestra) return finestra;
+
+  if (vista === "compatta") {
+    const totaleCosti = items.reduce((n, i) => n + (i.purchase_price ?? 0) * i.quantity, 0);
+    return (
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
+          <CardTitle className="flex min-w-0 items-center gap-2 text-base">
+            <Package className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">Materiali<span className="max-sm:hidden"> della commessa</span></span>
+            {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{items.length}</span>}
+          </CardTitle>
+          {editable && (
+            <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0">
+              <Plus className="mr-1 h-4 w-4" aria-hidden />Aggiungi
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          {items.length === 0 ? (
+            <p className="border-t px-4 py-6 text-center text-sm text-muted-foreground">
+              Nessun materiale. {editable && "Aggiungili qui o, dopo il salvataggio, generali dal computo nel dettaglio della commessa."}
+            </p>
+          ) : (
+            <ul className="divide-y border-t">
+              {items.map((item, index) => {
+                const stato = statoMateriale({ quantity: item.quantity, status: item.status, unita_misura: item.unita_misura }, []).stato;
+                const qta = quantitaLeggibile(item.quantity, item.unita_misura);
+                const fornitore = item.supplier_name || getSupplierName(item.supplier_id);
+                const sotto = [item.stock_item_id ? "Da giacenza" : fornitore, item.description].filter(Boolean).join(" · ");
+                return (
+                  <li key={item.id || index} className="flex items-center gap-3 px-4 py-2 max-sm:px-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{item.name}</p>
+                      {sotto && <p className="truncate text-xs text-muted-foreground">{sotto}</p>}
+                    </div>
+                    <span className="shrink-0 whitespace-nowrap text-right text-sm tabular-nums">
+                      {qta.numero}{qta.numero ? " " : ""}<span className="text-xs text-muted-foreground">{qta.unita}</span>
+                    </span>
+                    {canViewCosts && (
+                      <span className="w-24 shrink-0 text-right text-sm tabular-nums max-sm:hidden">
+                        {item.purchase_price ? formatCurrency(item.purchase_price * item.quantity) : <span className="text-xs text-muted-foreground">—</span>}
+                      </span>
+                    )}
+                    <span className={cn("shrink-0 whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium", COLORE_STATO[stato])}>
+                      {ETICHETTA_STATO_MATERIALE[stato]}
+                    </span>
+                    {(editable || allowEdit) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={`Azioni su ${item.name}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => openEditDialog(index)}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+                          {editable && <DropdownMenuItem onSelect={() => handleDuplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplica</DropdownMenuItem>}
+                          {editable && allowDelete && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-700" onSelect={() => handleDeleteItem(index)}><Trash2 className="mr-2 h-4 w-4" />Togli</DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {canViewCosts && totaleCosti > 0 && (
+            <p className="border-t px-4 py-2 text-right text-sm text-muted-foreground">
+              Costo dei materiali <strong className="font-semibold tabular-nums text-foreground">{formatCurrency(totaleCosti)}</strong>
+            </p>
+          )}
+          {finestra}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
