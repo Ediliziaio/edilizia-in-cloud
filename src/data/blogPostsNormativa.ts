@@ -482,7 +482,7 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n6",
     slug: "notifica-preliminare-cantiere",
-    title: "Notifica preliminare: quando serve, quando no e come inviarla",
+    title: "Notifica preliminare: quando serve e come inviarla",
     excerpt:
       "Quando serve e quando no la notifica preliminare: più imprese o almeno 200 uomini-giorno. Chi la invia, come si fa online e la sanzione fino a 1.800 €.",
     category: "Normativa",

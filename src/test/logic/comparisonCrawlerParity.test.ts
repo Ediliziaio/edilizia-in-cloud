@@ -35,10 +35,11 @@ describe("confronti coerenti anche senza prerender", () => {
   it("Pillar resta un confronto documentato, senza presunte assenze di SDI o SAL", async () => {
     const post = blogPosts.find((post) => post.slug === "edilizia-in-cloud-vs-pillar")!;
     const text = JSON.stringify(post);
-    expect(post.updatedAt).toBe("2026-10-21");
+    expect(post.updatedAt).toBe("2026-10-30");
     expect(text).toContain("https://www.pillar.it/fatturazione");
     expect(text).toContain("https://www.pillar.it/gestione-sal-stato-avanzamento-lavori");
     expect(text).toContain("/funzionalita/pipeline-vendite/");
+    expect(text).toContain("il produttore indica");
     expect(text).not.toContain("48 ore");
     expect(text).not.toContain("SDI non sono dichiarate");
     expect(text).not.toContain("SAL e fatture di avanzamento non è menzionato");

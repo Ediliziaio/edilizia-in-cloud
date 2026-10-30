@@ -1,17 +1,22 @@
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
 
 const openModal = () => {
   import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
 };
 
-type CellType = "check" | "cross" | "partial" | "text";
+// Ogni riga su Buildertrend viene dal sito ufficiale (pagine lette da browser
+// il 30/10/2026, il sito risponde 403 alle richieste automatiche). Niente ✗,
+// niente prezzi: dove il sito non ne parla si scrive «Non indicato sul sito
+// ufficiale».
+type CellType = "check" | "partial" | "text";
 
 interface TableRow {
   feature: string;
@@ -22,42 +27,98 @@ interface TableRow {
 function Cell({ type, text, highlight = false }: { type: CellType; text?: string; highlight?: boolean }) {
   if (type === "check")
     return (
-      <div className={`flex items-center justify-center ${highlight ? "text-eic-orange" : "text-eic-orange"}`}>
+      <div className="flex flex-col items-center justify-center gap-1 text-eic-orange">
         <CheckCircle2 className="w-5 h-5" />
-      </div>
-    );
-  if (type === "cross")
-    return (
-      <div className="flex items-center justify-center text-red-500">
-        <XCircle className="w-5 h-5" />
+        {text && <span className="text-xs text-gray-600">{text}</span>}
       </div>
     );
   if (type === "partial")
     return (
-      <div className="flex items-center justify-center text-amber-500 gap-1">
+      <div className="flex flex-col items-center justify-center text-amber-500 gap-1">
         <AlertCircle className="w-5 h-5" />
-        <span className="text-xs font-medium">Parziale</span>
+        {text && <span className="text-xs text-gray-600">{text}</span>}
       </div>
     );
   return <span className={`text-sm ${highlight ? "font-semibold text-eic-orange" : "text-[#111111]"}`}>{text}</span>;
 }
 
+const BT_HOME = "https://buildertrend.com/";
+const BT_AI_2026 = "https://buildertrend.com/press-releases/ai-financial-platform-expansion/";
+const BT_BILL_PAY = "https://buildertrend.com/press-releases/construction-bill-pay-launch-ibs-2026/";
+const BT_BIZJET = "https://buildertrend.com/press-releases/buildertrend-acquires-bizjet-ai/";
+const NON_INDICATO = "Non indicato sul sito ufficiale";
+
 const rows: TableRow[] = [
-  { feature: "Specifico per edilizia italiana", eic: { type: "check" }, competitor: { type: "partial", text: "Mercato USA" } },
-  { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Gestione Cassa Edile italiana", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "CCNL edilizia e contributi INPS", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "DURC e scadenze documentali", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Interfaccia in italiano", eic: { type: "check" }, competitor: { type: "cross", text: "Solo inglese" } },
-  { feature: "Supporto in italiano", eic: { type: "check" }, competitor: { type: "cross", text: "Solo inglese" } },
-  { feature: "Gestione cantieri real-time", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Gestione SAL avanzamento lavori", eic: { type: "check" }, competitor: { type: "partial", text: "Schedule, non SAL italiano" } },
-  { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Avvio assistito", eic: { type: "check" }, competitor: { type: "partial", text: "Onboarding dedicato" } },
-  { feature: "Utenti e progetti illimitati", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Prezzo", eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" }, competitor: { type: "text", text: "Su preventivo (in dollari)" } },
+  {
+    feature: "Mercato e lingua",
+    eic: { type: "text", text: "Imprese italiane, tutto in italiano" },
+    competitor: { type: "text", text: "Mercato USA, sede a Omaha (dichiarato)" },
+  },
+  {
+    feature: "Fattura elettronica allo SDI",
+    eic: { type: "check", text: "Invio tramite openapi.it o Aruba, fatture ricevute in automatico" },
+    competitor: { type: "text", text: `${NON_INDICATO}; dichiara il collegamento a QuickBooks, Xero e Sage Intacct` },
+  },
+  {
+    feature: "POS sul modello ufficiale e DUVRI",
+    eic: { type: "check", text: "POS sul DI 9/9/2014 con controllo Allegato XV, DUVRI" },
+    competitor: { type: "text", text: NON_INDICATO },
+  },
+  {
+    feature: "DURC dei subappaltatori con scadenze",
+    eic: { type: "check", text: "Mancante, scaduto, in scadenza, con avvisi" },
+    competitor: { type: "text", text: NON_INDICATO },
+  },
+  {
+    feature: "SAL e rate",
+    eic: { type: "check", text: "SAL = rata, firmato dal cliente via link" },
+    competitor: { type: "check", text: "Fatturazione a stato avanzamento standard AIA con ritenute (dichiarato)" },
+  },
+  {
+    feature: "Prezzari regionali italiani",
+    eic: { type: "check", text: "19 regioni e province, nel listino" },
+    competitor: { type: "text", text: NON_INDICATO },
+  },
+  {
+    feature: "Contabilità dei lavori pubblici",
+    eic: { type: "check", text: "Libretto, registro, SAL, certificato di pagamento" },
+    competitor: { type: "text", text: NON_INDICATO },
+  },
+  {
+    feature: "Lead, preventivi e contratti",
+    eic: { type: "check", text: "CRM, preventivi di mestiere, firma con codice OTP" },
+    competitor: { type: "check", text: "Lead, proposte e contratti (dichiarato)" },
+  },
+  {
+    feature: "Varianti e giornale di cantiere",
+    eic: { type: "check", text: "Varianti con PDF e firma del cliente, giornale lavori" },
+    competitor: { type: "check", text: "Change order, giornali di cantiere, punch list (dichiarato)" },
+  },
+  {
+    feature: "Fatture e bolle dei fornitori lette con AI",
+    eic: { type: "check", text: "DDT e fatture ricevute; il DDT carica il magazzino" },
+    competitor: { type: "check", text: "AI Bill Capture (dichiarato)" },
+  },
+  {
+    feature: "Pagare fornitori e subappaltatori dal software",
+    eic: { type: "partial", text: "Scadenzario e tesoreria; il pagamento parte dalla tua banca" },
+    competitor: { type: "check", text: "Bill Pay, lanciato a febbraio 2026 (dichiarato)" },
+  },
+  {
+    feature: "Portale del cliente",
+    eic: { type: "check", text: "Avanzamento, documenti, firma, rate, assistenza" },
+    competitor: { type: "check", text: "Aggiornamenti scritti dall'AI e pagamenti online (dichiarato)" },
+  },
+  {
+    feature: "App per il cantiere",
+    eic: { type: "check", text: "Timbratura GPS, rapportino per ruolo, foto, merce, mezzi" },
+    competitor: { type: "check", text: "Nuova app mobile annunciata il 29/09/2026" },
+  },
+  {
+    feature: "Assistenza in italiano",
+    eic: { type: "check" },
+    competitor: { type: "text", text: NON_INDICATO },
+  },
 ];
 
 const otherVsLinks = [
@@ -68,45 +129,41 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "Buildertrend è un software maturo per il mercato USA, ma non gestisce SDI, Cassa Edile, CCNL edilizia e DURC: per un'impresa italiana è un ostacolo legale, non solo un fastidio.",
-  "Edilizia in Cloud è in italiano, con supporto in italiano, e copre nativamente tutto il fiscale del settore costruzioni: fatturazione SDI inclusa.",
-  "Prezzo: Buildertrend fa un preventivo personalizzato in dollari. Edilizia in Cloud parte da un piano gratuito per sempre, con 31 giorni di prova completa sui piani superiori e preventivo in euro, in italiano.",
-];
-
-const switchTestimonials = [
-  { name: "GreenBuild Italia", city: "Milano", quote: "Avevamo provato Buildertrend per il workflow USA. Ma alla prima fattura SDI ci siamo bloccati: ci serviva un secondo software solo per il fiscale italiano." },
-  { name: "Costruzioni Esposito", city: "Napoli", quote: "Il supporto solo in inglese era un problema vero per i miei capocantiere. Su Edilizia in Cloud rispondono in italiano via WhatsApp." },
-  { name: "Arch. Giulia Rossi", city: "Firenze", quote: "Buildertrend non sapeva nemmeno cosa fosse la Cassa Edile. Per un'impresa italiana non è un'opzione." },
+  "Buildertrend è una piattaforma americana seria: dichiara oltre 20.000 costruttori e nel 2026 ha lanciato Bill Pay, AI Submittals, AI Plans e una nuova app.",
+  "Sul sito ufficiale non indica lingua italiana, fattura elettronica SDI, POS, DURC o prezzari regionali. Sono cose che un'impresa italiana usa ogni settimana.",
+  "Edilizia in Cloud nasce per il cantiere italiano: SDI, POS sul modello ufficiale, DUVRI, scadenze DURC, SAL che diventa rata, prezzari regionali, assistenza in italiano.",
 ];
 
 const relatedLinks = [
   { to: "/confronto", label: "Tutti i confronti" },
-  { to: "/confronto/vs-teamsystem", label: "vs TeamSystem" },
-  { to: "/confronto/vs-primus", label: "vs Primus" },
-  { to: "/demo", label: "Prova gratis" },
-  { to: "/prezzi", label: "Prezzi" },
+  { to: "/funzionalita/fatturazione-elettronica", label: "Fatturazione elettronica" },
+  { to: "/funzionalita/sicurezza-cantiere", label: "Sicurezza cantiere" },
+  { to: "/funzionalita/gestione-subappalti", label: "Subappalti e DURC" },
+  { to: "/funzionalita/contabilita-lavori", label: "Contabilità lavori" },
+  { to: "/funzionalita/preventivi-edilizia", label: "Preventivi" },
+  { to: "/funzionalita/app-cantiere-mobile", label: "App cantiere" },
 ];
 
 const faqItems = [
   {
     q: "Buildertrend funziona per le imprese edili italiane?",
-    a: "Solo in parte. Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
+    a: "Buildertrend sul sito ufficiale si rivolge al mercato americano. Non indica fattura elettronica SDI, POS, DURC né prezzari regionali italiani, e per la contabilità dichiara il collegamento a QuickBooks, Xero e Sage Intacct. Un'impresa italiana dovrebbe gestire questi obblighi con altri strumenti. Edilizia in Cloud li tiene nello stesso posto della commessa.",
   },
   {
-    q: "Buildertrend esiste in italiano?",
-    a: "No: interfaccia, documentazione e supporto sono in inglese, con presenza dichiarata su USA, Canada, Australia, Nuova Zelanda e Regno Unito. Chi cerca Buildertrend in italiano di fatto cerca un'alternativa italiana: per un team di cantiere la lingua non è un dettaglio, è un limite quotidiano.",
-  },
-  {
-    q: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
-    a: "Buildertrend definisce un preventivo personalizzato, in dollari, con sconto del 10% sui piani annuali. Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive); i piani superiori si provano per 31 giorni con setup e migrazione dati inclusi e il preventivo si definisce in una consulenza gratuita, in euro, con fatturazione SDI, Cassa Edile e supporto italiano inclusi.",
+    q: "Buildertrend è disponibile in italiano?",
+    a: "Sul sito ufficiale la lingua italiana non è indicata e il mercato dichiarato è quello USA, con sede a Omaha, in Nebraska. Edilizia in Cloud è in italiano in ogni schermata, anche nell'app degli operai, con assistenza in italiano.",
   },
   {
     q: "Software edilizia americano o italiano: cosa cambia davvero?",
-    a: "Cambiano le fondamenta fiscali: un software edilizia americano nasce senza fatturazione SDI, Cassa Edile, CCNL edilizia e DURC, che in Italia sono obblighi di legge. Un'alternativa italiana a Buildertrend li gestisce nativamente, senza secondo software e senza doppi inserimenti.",
+    a: "Cambiano i documenti di tutti i giorni. In Italia la fattura passa dallo SDI, il cantiere chiede POS e DUVRI, i subappaltatori hanno un DURC con una scadenza e il SAL spesso è la rata che il cliente deve pagare. Un software americano lavora con altri standard: Buildertrend, per esempio, dichiara la fatturazione a stato avanzamento secondo lo standard AIA.",
   },
   {
-    q: "Posso migrare da Buildertrend a Edilizia in Cloud?",
-    a: "Sì. Il team importa cantieri, clienti e documenti e ti rende avvio assistito, con formazione inclusa in italiano.",
+    q: "Cosa ha annunciato Buildertrend nel 2026?",
+    a: "Dai comunicati ufficiali: a febbraio Bill Pay, per pagare subappaltatori e fornitori con lettura AI delle fatture; a luglio l'acquisizione di BizJet AI, per sviluppare agenti AI; a settembre AI Submittals, AI Bill Capture, AI Client Updates, AI Plans, integrazioni con Sage Intacct e Bluebeam e una nuova app mobile.",
+  },
+  {
+    q: "Posso passare da Buildertrend a Edilizia in Cloud?",
+    a: "Sì. I clienti si importano da file Excel o CSV. Per cantieri, fornitori e documenti ti affianchiamo noi: i tempi si concordano dopo aver visto i dati esportati. Formazione e assistenza sono in italiano.",
   },
 ];
 
@@ -117,12 +174,18 @@ const vsRelatedSlugs = [
 ];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
+const SEO_TITLE = "Buildertrend in Italiano? L'Alternativa Italiana";
+const SEO_DESCRIPTION =
+  "Buildertrend è nato per il mercato USA. Confronto per imprese italiane: SDI, POS e DUVRI, scadenze DURC, SAL e rate, prezzari regionali. Ottobre 2026.";
+const H1 = "Edilizia in Cloud vs Buildertrend: cosa serve a un'impresa edile italiana";
+
 export default function VsBuildertrend() {
   useSEO({
-    title: "Buildertrend in Italiano? L'Alternativa Italiana 2026",
-    description:
-      "Buildertrend in italiano non esiste: confronto tra il software edilizia americano e l'alternativa italiana con SDI e Cassa Edile nativi. Luglio 2026.",
+    title: SEO_TITLE,
+    description: SEO_DESCRIPTION,
     canonical: "/confronto/vs-buildertrend",
+    type: "article",
+    modifiedTime: "2026-10-30",
     keywords:
       "buildertrend in italiano, alternativa italiana a buildertrend, software edilizia americano vs italiano, edilizia in cloud vs buildertrend, gestionale edilizia sdi",
   });
@@ -134,12 +197,11 @@ export default function VsBuildertrend() {
         data={{
           "@context": "https://schema.org",
           "@type": "Article",
-          headline: "Edilizia in Cloud vs Buildertrend: confronto per imprese edili italiane 2026",
-          description:
-            "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in italiano.",
+          headline: H1,
+          description: SEO_DESCRIPTION,
           url: "https://www.ediliziaincloud.com/confronto/vs-buildertrend",
           datePublished: "2026-04-08",
-          dateModified: "2026-07-25",
+          dateModified: "2026-10-30",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
           publisher: { "@type": "Organization", name: "Edilizia in Cloud" },
         }}
@@ -151,44 +213,8 @@ export default function VsBuildertrend() {
           "@type": "SoftwareApplication",
           name: "Edilizia in Cloud",
           applicationCategory: "BusinessApplication",
-          operatingSystem: "Web, iOS, Android",
-          offers: {
-            "@type": "Offer",
-            price: "0",
-            priceCurrency: "EUR",
-            description:
-              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
-          },
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: "4.9",
-            reviewCount: "127",
-            bestRating: "5",
-            worstRating: "1",
-          },
-          review: [
-            {
-              "@type": "Review",
-              author: { "@type": "Person", name: "Giulia Rossi" },
-              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
-              reviewBody:
-                "Buildertrend non conosce la Cassa Edile. Per un'impresa italiana non è un'opzione: serve un gestionale italiano vero.",
-            },
-            {
-              "@type": "Review",
-              author: { "@type": "Person", name: "GreenBuild Italia" },
-              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
-              reviewBody:
-                "Avevamo bisogno di SDI nativo. Edilizia in Cloud ce l'ha integrata, Buildertrend no.",
-            },
-            {
-              "@type": "Review",
-              author: { "@type": "Person", name: "Esposito Costruzioni" },
-              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
-              reviewBody:
-                "Supporto in italiano via WhatsApp: i miei capocantiere lo usano davvero. Buildertrend solo in inglese era impraticabile.",
-            },
-          ],
+          operatingSystem: "Web",
+          url: "https://www.ediliziaincloud.com/",
         }}
       />
       <JsonLd
@@ -226,35 +252,33 @@ export default function VsBuildertrend() {
       {/* ── HERO ── */}
       <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
-<div className="min-w-0">
-          <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
-            CONFRONTO ONESTO — 2026
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
-            Edilizia in Cloud vs Buildertrend: perché le imprese edili italiane scelgono il software italiano
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Buildertrend è un software maturo, nato per i costruttori residenziali americani. Ma non fa fatturazione
-            SDI, non gestisce la Cassa Edile e non parla italiano. Confronto scritto da noi: dove Buildertrend è più
-            forte lo scriviamo.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={openModal}
-              className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
-            >
-              Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </button>
-            <Link
-              to="/confronto/"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
-            >
-              Tutti i confronti
-            </Link>
+          <div className="min-w-0">
+            <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
+              CONFRONTO ONESTO — OTTOBRE 2026
+            </span>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">{H1}</h1>
+            <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
+              Buildertrend è una piattaforma solida, costruita per i costruttori americani. In Italia però la fattura
+              passa dallo SDI, il cantiere chiede il POS e il subappaltatore ha un DURC che scade. Qui vedi cosa dichiara
+              Buildertrend e cosa copre Edilizia in Cloud.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={openModal}
+                className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
+              >
+                Richiedi una demo <ArrowRight className="w-5 h-5" />
+              </button>
+              <Link
+                to="/confronto/"
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
+              >
+                Tutti i confronti
+              </Link>
+            </div>
           </div>
+          <MarketingVisual image={confrontoVisuals.buildertrend} priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
         </div>
-<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
-</div>
       </section>
 
       {/* ── TL;DR ── */}
@@ -262,7 +286,7 @@ export default function VsBuildertrend() {
         <div className="max-w-3xl mx-auto">
           <div className="rounded-2xl border-l-4 border-eic-orange bg-eic-orange/5 p-6 md:p-7">
             <p className="text-xs font-bold tracking-widest uppercase text-eic-orange mb-3 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
+              <Sparkles className="w-4 h-4" /> In breve — 3 cose da sapere
             </p>
             <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
               {tldrPoints.map((p, i) => (
@@ -283,15 +307,14 @@ export default function VsBuildertrend() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software, verificate a luglio 2026. Entrambi definiscono il prezzo dei piani su preventivo: dove serviva
-            una cifra, lo abbiamo scritto.
+            Aggiornato a ottobre 2026. Per Buildertrend riportiamo solo quello che dichiara il sito ufficiale; «non
+            indicato» vuol dire che le pagine lette non ne parlano, non che la funzione manchi.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#111111]">
-                  <th className="text-left px-6 py-4 text-white/70 font-semibold w-1/2">Funzionalità</th>
+                  <th className="text-left px-6 py-4 text-white/70 font-semibold w-2/5">Cosa serve</th>
                   <th className="text-center px-6 py-4 text-eic-orange font-bold">Edilizia in Cloud</th>
                   <th className="text-center px-6 py-4 text-white/70 font-semibold">Buildertrend</th>
                 </tr>
@@ -324,25 +347,25 @@ export default function VsBuildertrend() {
             Dove Buildertrend è più forte
           </h2>
           <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
-            Un confronto serve se dice anche questo. Ecco dove Buildertrend, oggettivamente, ha più da offrire.
+            Un confronto serve se dice anche questo. Tutto quello che segue è dichiarato da Buildertrend.
           </p>
           <div className="space-y-4">
             {[
               {
-                t: "Maturità internazionale",
-                d: "Due decenni di storia e oltre 20.000 imprese dichiarate tra USA, Canada, Australia, Nuova Zelanda e Regno Unito: è tra le piattaforme più consolidate del settore.",
+                t: "Dimensione",
+                d: "Oltre 20.000 costruttori dichiarati. Secondo l'azienda, più di metà delle case costruite negli USA passa da Buildertrend.",
               },
               {
-                t: "Project management residenziale",
-                d: "Portale cliente, daily logs, change orders, punch lists: sul flusso del costruttore residenziale ha una profondità costruita in vent'anni di mercato.",
+                t: "Pagamenti a fornitori e subappaltatori",
+                d: "Bill Pay, lanciato a febbraio 2026: le fatture dei fornitori lette con l'AI e pagate dal software. Edilizia in Cloud tiene scadenzario e tesoreria, ma il pagamento parte dalla tua banca.",
               },
               {
-                t: "Utenti e progetti illimitati",
-                d: "Tutti i piani includono utenti e progetti senza limiti: per team numerosi è un punto concreto.",
+                t: "AI su disegni e documenti tecnici",
+                d: "A settembre 2026 ha annunciato AI Submittals, AI Plans e AI Client Updates, più il collegamento con Bluebeam per i disegni. A luglio ha comprato BizJet AI per sviluppare agenti AI.",
               },
               {
-                t: "Base di recensioni enorme",
-                d: "4,5/5 su Capterra con oltre 5.000 recensioni: il giudizio del mercato anglosassone è misurabile, non aneddotico.",
+                t: "Integrazioni contabili americane",
+                d: "QuickBooks, Xero e Sage Intacct, quest'ultima con sincronizzazione nei due sensi. Per chi lavora con quei programmi è un punto concreto.",
               },
             ].map((item) => (
               <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
@@ -352,34 +375,38 @@ export default function VsBuildertrend() {
             ))}
           </div>
           <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
-            Tutto vero — per chi fattura in dollari. Per un'impresa italiana resta il punto duro: SDI, Cassa Edile,
-            CCNL e DURC non sono optional, sono legge. E lì Buildertrend non entra.
+            Tutto vero, per il mercato americano. Per un'impresa italiana resta la domanda di sempre: chi manda la
+            fattura allo SDI, chi prepara il POS, chi controlla il DURC del subappaltatore?
           </p>
         </div>
       </section>
 
-      {/* ── IL PROBLEMA PRINCIPALE ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
+      {/* ── COSA SERVE IN ITALIA ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4 mt-16">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-12">
-            Il problema di usare Buildertrend in Italia
+          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
+            Cosa usa ogni settimana un'impresa edile italiana
           </h2>
+          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
+            Queste voci non sono indicate sul sito ufficiale di Buildertrend. In Edilizia in Cloud stanno dentro la
+            commessa.
+          </p>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                emoji: "🏦",
-                title: "Nessuna fatturazione elettronica SDI",
-                desc: "In Italia la fatturazione elettronica SDI è obbligatoria per legge dal 2019. Buildertrend non è integrato con il sistema SDI italiano — dovresti gestire la fatturazione con un secondo software.",
+                emoji: "🧾",
+                title: "Fattura allo SDI",
+                desc: "Fatture, note di credito e fatture a privati partono allo SDI tramite openapi.it o Aruba. Le fatture dei fornitori arrivano da sole. Registro IVA e scadenzario nello stesso posto.",
               },
               {
-                emoji: "🏗️",
-                title: "Niente Cassa Edile e CCNL italiano",
-                desc: "La Cassa Edile è un obbligo per ogni impresa edile italiana. Buildertrend, nato per il mercato americano, non conosce la Cassa Edile, il CCNL edilizia o i contributi INPS per il settore.",
+                emoji: "🦺",
+                title: "POS, DUVRI e DURC",
+                desc: "POS sul modello ufficiale del DI 9/9/2014 con controllo dell'Allegato XV. DUVRI. Per ogni subappaltatore vedi se il DURC manca, è scaduto o sta per scadere, con avvisi.",
               },
               {
-                emoji: "🇮🇹",
-                title: "Interfaccia e supporto solo in inglese",
-                desc: "Buildertrend non è disponibile in italiano. Il supporto clienti è in inglese, la documentazione è in inglese. Per le PMI edili italiane, lavorare con un gestionale in inglese è un ostacolo reale ogni giorno.",
+                emoji: "📐",
+                title: "SAL, rate e prezzari",
+                desc: "Il SAL diventa la rata: il cliente lo firma dal link e la rata matura. Prezzari regionali di 19 regioni e province nel listino. Per i lavori pubblici: libretto, registro e certificato di pagamento.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
@@ -389,6 +416,10 @@ export default function VsBuildertrend() {
               </div>
             ))}
           </div>
+          <p className="text-center text-gray-600 text-sm mt-10 max-w-2xl mx-auto">
+            E in cantiere: timbratura a un tocco con GPS, rapportini diversi per operaio e caposquadra, foto della merce
+            presa in negozio, DDT letti con l'AI che caricano il magazzino, mezzi e attrezzi con etichetta QR.
+          </p>
         </div>
       </section>
 
@@ -399,38 +430,38 @@ export default function VsBuildertrend() {
             Per chi ha senso Buildertrend e per chi Edilizia in Cloud
           </h2>
           <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
-            <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso Buildertrend</h3>
-            <ul className="mt-4 space-y-2">
-              {[
-                "Operi principalmente nel mercato americano o anglosassone",
-                "Non hai obblighi di fatturazione elettronica SDI italiana",
-                "Il tuo team lavora già in inglese e segue il workflow residenziale USA",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
-                  <span className="text-gray-400 mt-0.5">•</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-[#111111] rounded-2xl p-8 border border-eic-orange/30">
-            <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
-            <ul className="mt-4 space-y-2">
-              {[
-                "Sei un'impresa edile italiana con obblighi SDI, Cassa Edile e CCNL",
-                "Vuoi un gestionale in italiano con supporto in italiano",
-                "Vuoi partire da un piano gratuito e un preventivo in euro, senza trattativa in dollari",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-sm text-white/70">
-                  <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
+            <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
+              <div className="text-2xl mb-3">🔵</div>
+              <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso Buildertrend</h3>
+              <ul className="mt-4 space-y-2">
+                {[
+                  "Lavori soprattutto nel mercato americano",
+                  "La tua contabilità gira su QuickBooks, Xero o Sage Intacct",
+                  "Il tuo team lavora già in inglese e con lo standard AIA",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
+                    <span className="text-gray-400 mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-[#111111] rounded-2xl p-8 border border-eic-orange/30">
+              <div className="text-2xl mb-3">🟠</div>
+              <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
+              <ul className="mt-4 space-y-2">
+                {[
+                  "Sei un'impresa italiana e fatturi allo SDI",
+                  "Ti servono POS, DUVRI e il controllo dei DURC",
+                  "Vuoi SAL e rate firmati dal cliente, e l'app degli operai in italiano",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-white/70">
+                    <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -442,13 +473,14 @@ export default function VsBuildertrend() {
             <div className="text-3xl mb-4">📦</div>
             <h3 className="text-xl font-extrabold text-[#111111] mb-3">Usi già Buildertrend?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
-              Migriamo i tuoi cantieri, clienti e fornitori da Buildertrend a Edilizia in Cloud con tempi concordati dopo la verifica dei dati. Il nostro team gestisce tutto — tu inizi a lavorare con un gestionale nato per l'Italia.
+              I clienti si importano da file Excel o CSV. Per cantieri, fornitori e documenti ti affianchiamo noi: i
+              tempi si concordano dopo aver visto i dati esportati.
             </p>
             <button
               onClick={openModal}
               className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
-              Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
+              Parliamo del passaggio <ArrowRight className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -471,24 +503,36 @@ export default function VsBuildertrend() {
         </div>
       </section>
 
-      {/* ── TRUST BLOCK ── */}
+      {/* ── FONTI E DICHIARAZIONE DI PARTE ── */}
       <section className="bg-white py-16 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-2">
-              Imprese che hanno lasciato Buildertrend per Edilizia in Cloud
-            </h2>
-            <p className="text-xs text-gray-400 italic">Esempi rappresentativi</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {switchTestimonials.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{t.quote}"</p>
-                <p className="text-sm font-semibold text-[#111111]">{t.name}</p>
-                <p className="text-xs text-gray-500">{t.city}</p>
-              </div>
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Come abbiamo scritto questo confronto
+          </h2>
+          <p className="text-gray-600 text-sm leading-relaxed text-center max-w-2xl mx-auto">
+            Confronto a cura di Edilizia in Cloud, parte interessata, aggiornato a ottobre 2026. Su Buildertrend
+            riportiamo solo quello che dichiarano il sito e i comunicati ufficiali. Le funzioni di Edilizia in Cloud
+            dipendono dal piano e dai permessi per ruolo.
+          </p>
+          <ul className="mt-6 space-y-2 text-sm text-center">
+            {[
+              { href: BT_HOME, label: "Buildertrend — sito ufficiale" },
+              { href: BT_AI_2026, label: "Buildertrend — espansione AI e finanza (29/09/2026)" },
+              { href: BT_BILL_PAY, label: "Buildertrend — lancio di Bill Pay (11/02/2026)" },
+              { href: BT_BIZJET, label: "Buildertrend — acquisizione di BizJet AI (28/07/2026)" },
+            ].map((s) => (
+              <li key={s.href}>
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark"
+                >
+                  {s.label}
+                </a>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
 
@@ -513,7 +557,7 @@ export default function VsBuildertrend() {
       {/* ── RELATED ── */}
       <section className="bg-white py-16 px-4">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Esplora altri confronti e funzionalità</h2>
+          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Le funzioni citate in questa pagina</h2>
           <div className="flex flex-wrap gap-4 justify-center">
             {relatedLinks.map((link) => (
               <Link
@@ -544,9 +588,9 @@ export default function VsBuildertrend() {
                 t: "Consulenti dedicati, formazione e webinar",
                 d: (
                   <>
-                    Con Edilizia in Cloud accedi a un ecosistema di servizi e di persone: consulenti dedicati per area,
-                    formazione e webinar, assistenza in italiano — con chi lavora nei cantieri italiani, non a fuso
-                    orario invertito. Il perimetro si definisce in consulenza.
+                    Con Edilizia in Cloud hai accanto persone, non solo schermate: consulenti dedicati per area,
+                    formazione e webinar, assistenza in italiano, nei tuoi orari. Cosa serve a te si definisce in
+                    consulenza.
                   </>
                 ),
               },
@@ -563,7 +607,7 @@ export default function VsBuildertrend() {
                       Numeri in Edilizia
                     </a>{" "}
                     è il metodo di controllo di gestione per imprese edili: insegna al titolare a leggere margini,
-                    commesse e utile. Si parte da un'analisi gratuita.
+                    commesse e utile.
                   </>
                 ),
               },
@@ -609,10 +653,9 @@ export default function VsBuildertrend() {
             ))}
           </div>
           <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
-            Onestà: Buildertrend ha vent'anni di mercato, assistenza e documentazione costruite in tutto quel tempo — in
-            inglese e per il mercato americano. La differenza non è chi ti affianca, è su cosa e in che lingua: lì si
-            lavora sul software, qui anche su numeri, vendita e clienti in ingresso. Il tuo problema è che il software
-            non ti basta, o che nessuno ti ha insegnato a leggere i margini?
+            Onestà: Buildertrend ha una base di clienti enorme e un'azienda grande alle spalle, costruite per il mercato
+            americano. La differenza non è solo chi ti affianca, ma su cosa e in che lingua. Il tuo problema è che il
+            software non ti basta, o che nessuno ti ha insegnato a leggere i margini?
           </p>
         </div>
       </section>
@@ -628,11 +671,11 @@ export default function VsBuildertrend() {
           </p>
           <ul className="space-y-4">
             {[
-              "La fattura elettronica SDI la emette il software o servirà un secondo programma?",
-              "Cassa Edile, CCNL e DURC: li conosce il gestionale o restano sulle tue spalle?",
+              "La fattura elettronica allo SDI la manda il software, o servirà un secondo programma?",
+              "POS, DUVRI e DURC dei subappaltatori: dove li tieni oggi, e chi ti avvisa delle scadenze?",
+              "Il SAL che mandi al cliente è anche la rata che deve pagare?",
               "Il capocantiere può lavorare ogni giorno su un'app in inglese senza rallentare?",
-              "Quando qualcosa si blocca, il supporto risponde in italiano e nei tuoi orari?",
-              "Puoi provarlo da solo prima di parlare con un commerciale, o serve per forza una demo call in dollari?",
+              "Quando qualcosa si blocca, l'assistenza risponde in italiano e nei tuoi orari?",
             ].map((q, i) => (
               <li key={q} className="flex items-start gap-3 bg-white rounded-2xl p-5 border border-gray-100">
                 <span className="text-eic-orange font-extrabold shrink-0">{i + 1}.</span>
@@ -647,17 +690,25 @@ export default function VsBuildertrend() {
       <section className="bg-[#111111] py-20 px-4 text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Pronto a passare a un gestionale nato per l'edilizia italiana?
+            Guarda una commessa italiana dall'inizio alla fine
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. In italiano. Con SDI, Cassa Edile e CCNL integrati. Cancella quando vuoi.
+            Dal preventivo firmato al POS, dal SAL alla fattura SDI. In italiano, con chi lavora nei cantieri italiani.
           </p>
-          <button
-            onClick={openModal}
-            className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
-          >
-            Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={openModal}
+              className="inline-flex items-center justify-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
+            >
+              Richiedi una demo <ArrowRight className="w-5 h-5" />
+            </button>
+            <Link
+              to="/demo/"
+              className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-5 rounded-2xl transition-colors text-lg border border-white/20"
+            >
+              Come funziona la demo
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -686,7 +737,7 @@ export default function VsBuildertrend() {
         onClick={openModal}
         className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-eic-orange/40 text-sm"
       >
-        Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
+        Richiedi una demo <ArrowRight className="w-4 h-4" />
       </button>
     </div>
   );
