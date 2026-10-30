@@ -87328,6 +87328,8 @@ export type Database = {
       }
       suppliers: {
         Row: {
+          subappaltatore_id: string | null
+          tipo: string | null
           address: string | null
           bank_name: string | null
           barcode_prefix: string | null
@@ -87375,6 +87377,8 @@ export type Database = {
           termini_giorni: number | null
         }
         Insert: {
+          subappaltatore_id?: string | null
+          tipo?: string | null
           address?: string | null
           bank_name?: string | null
           barcode_prefix?: string | null
@@ -87422,6 +87426,8 @@ export type Database = {
           termini_giorni?: number | null
         }
         Update: {
+          subappaltatore_id?: string | null
+          tipo?: string | null
           address?: string | null
           bank_name?: string | null
           barcode_prefix?: string | null
