@@ -1,0 +1,536 @@
+{
+ "id": "g04-trilocale-lungo",
+ "ingresso": "documento",
+ "stile": "geometra",
+ "file": "g04-trilocale-lungo.png",
+ "mime": "image/png",
+ "larghezza_px": 2260,
+ "altezza_px": 1168,
+ "locali": [
+  {
+   "nome": "Camera 1",
+   "destinazione": "camera",
+   "area_mq": 17.25,
+   "contorno_px": [
+    [
+     76,
+     146
+    ],
+    [
+     432,
+     146
+    ],
+    [
+     432,
+     506
+    ],
+    [
+     76,
+     506
+    ]
+   ],
+   "contorno_cm": [
+    [
+     15,
+     15
+    ],
+    [
+     590,
+     15
+    ],
+    [
+     590,
+     315
+    ],
+    [
+     15,
+     315
+    ]
+   ],
+   "larghezza_cm": 575,
+   "profondita_cm": 300,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Bagno",
+   "destinazione": "bagno",
+   "area_mq": 5.18,
+   "contorno_px": [
+    [
+     76,
+     518
+    ],
+    [
+     190,
+     518
+    ],
+    [
+     190,
+     854
+    ],
+    [
+     76,
+     854
+    ]
+   ],
+   "contorno_cm": [
+    [
+     15,
+     325
+    ],
+    [
+     200,
+     325
+    ],
+    [
+     200,
+     605
+    ],
+    [
+     15,
+     605
+    ]
+   ],
+   "larghezza_cm": 185,
+   "profondita_cm": 280,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Cucina",
+   "destinazione": "cucina",
+   "area_mq": 10.64,
+   "contorno_px": [
+    [
+     196,
+     518
+    ],
+    [
+     432,
+     518
+    ],
+    [
+     432,
+     854
+    ],
+    [
+     196,
+     854
+    ]
+   ],
+   "contorno_cm": [
+    [
+     210,
+     325
+    ],
+    [
+     590,
+     325
+    ],
+    [
+     590,
+     605
+    ],
+    [
+     210,
+     605
+    ]
+   ],
+   "larghezza_cm": 380,
+   "profondita_cm": 280,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Camera 2",
+   "destinazione": "camera",
+   "area_mq": 12.2,
+   "contorno_px": [
+    [
+     438,
+     146
+    ],
+    [
+     627,
+     146
+    ],
+    [
+     627,
+     626
+    ],
+    [
+     438,
+     626
+    ]
+   ],
+   "contorno_cm": [
+    [
+     600,
+     15
+    ],
+    [
+     905,
+     15
+    ],
+    [
+     905,
+     415
+    ],
+    [
+     600,
+     415
+    ]
+   ],
+   "larghezza_cm": 305,
+   "profondita_cm": 400,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Disimpegno",
+   "destinazione": "disimpegno",
+   "area_mq": 5.49,
+   "contorno_px": [
+    [
+     438,
+     638
+    ],
+    [
+     627,
+     638
+    ],
+    [
+     627,
+     854
+    ],
+    [
+     438,
+     854
+    ]
+   ],
+   "contorno_cm": [
+    [
+     600,
+     425
+    ],
+    [
+     905,
+     425
+    ],
+    [
+     905,
+     605
+    ],
+    [
+     600,
+     605
+    ]
+   ],
+   "larghezza_cm": 305,
+   "profondita_cm": 180,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Soggiorno",
+   "destinazione": "soggiorno",
+   "area_mq": 27.73,
+   "contorno_px": [
+    [
+     633,
+     146
+    ],
+    [
+     924,
+     146
+    ],
+    [
+     924,
+     854
+    ],
+    [
+     633,
+     854
+    ]
+   ],
+   "contorno_cm": [
+    [
+     915,
+     15
+    ],
+    [
+     1385,
+     15
+    ],
+    [
+     1385,
+     605
+    ],
+    [
+     915,
+     605
+    ]
+   ],
+   "larghezza_cm": 470,
+   "profondita_cm": 590,
+   "misure_scritte": true
+  }
+ ],
+ "aperture": [
+  {
+   "tipo": "porta",
+   "larghezza_cm": 80,
+   "stanze": [
+    "Soggiorno",
+    "Camera 2"
+   ],
+   "da_cm": [
+    910,
+    95
+   ],
+   "a_cm": [
+    910,
+    175
+   ],
+   "da_px": [
+    630,
+    242
+   ],
+   "a_px": [
+    630,
+    338
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 80,
+   "stanze": [
+    "Soggiorno",
+    "Disimpegno"
+   ],
+   "da_cm": [
+    910,
+    471
+   ],
+   "a_cm": [
+    910,
+    551
+   ],
+   "da_px": [
+    630,
+    693
+   ],
+   "a_px": [
+    630,
+    789
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 80,
+   "stanze": [
+    "Disimpegno",
+    "Cucina"
+   ],
+   "da_cm": [
+    595,
+    468
+   ],
+   "a_cm": [
+    595,
+    548
+   ],
+   "da_px": [
+    435,
+    689
+   ],
+   "a_px": [
+    435,
+    785
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 80,
+   "stanze": [
+    "Cucina",
+    "Camera 1"
+   ],
+   "da_cm": [
+    342,
+    320
+   ],
+   "a_cm": [
+    422,
+    320
+   ],
+   "da_px": [
+    278,
+    512
+   ],
+   "a_px": [
+    328,
+    512
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 70,
+   "stanze": [
+    "Cucina",
+    "Bagno"
+   ],
+   "da_cm": [
+    205,
+    496
+   ],
+   "a_cm": [
+    205,
+    566
+   ],
+   "da_px": [
+    193,
+    723
+   ],
+   "a_px": [
+    193,
+    807
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 120,
+   "stanze": [
+    "Camera 1"
+   ],
+   "da_cm": [
+    238,
+    0
+   ],
+   "a_cm": [
+    358,
+    0
+   ],
+   "da_px": [
+    214,
+    128
+   ],
+   "a_px": [
+    288,
+    128
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 60,
+   "stanze": [
+    "Bagno"
+   ],
+   "da_cm": [
+    0,
+    440
+   ],
+   "a_cm": [
+    0,
+    500
+   ],
+   "da_px": [
+    66,
+    656
+   ],
+   "a_px": [
+    66,
+    728
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 120,
+   "stanze": [
+    "Cucina"
+   ],
+   "da_cm": [
+    340,
+    620
+   ],
+   "a_cm": [
+    460,
+    620
+   ],
+   "da_px": [
+    277,
+    872
+   ],
+   "a_px": [
+    351,
+    872
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 120,
+   "stanze": [
+    "Camera 2"
+   ],
+   "da_cm": [
+    693,
+    0
+   ],
+   "a_cm": [
+    813,
+    0
+   ],
+   "da_px": [
+    496,
+    128
+   ],
+   "a_px": [
+    570,
+    128
+   ]
+  },
+  {
+   "tipo": "portafinestra",
+   "larghezza_cm": 140,
+   "stanze": [
+    "Soggiorno"
+   ],
+   "da_cm": [
+    1400,
+    147
+   ],
+   "a_cm": [
+    1400,
+    287
+   ],
+   "da_px": [
+    934,
+    305
+   ],
+   "a_px": [
+    934,
+    472
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 90,
+   "stanze": [
+    "Disimpegno"
+   ],
+   "da_cm": [
+    802,
+    620
+   ],
+   "a_cm": [
+    892,
+    620
+   ],
+   "da_px": [
+    563,
+    872
+   ],
+   "a_px": [
+    619,
+    872
+   ]
+  }
+ ],
+ "misura_utente": null
+}

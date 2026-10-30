@@ -28,6 +28,7 @@ import {
   Hammer,
   Home,
   Image,
+  LayoutPanelTop,
   Link2,
   PanelLeftClose,
   Search,
@@ -108,6 +109,21 @@ const categories: RenderCategory[] = [
     group: "interni",
     groupLabel: "Interni",
     tags: ["soggiorno", "cucina", "arredo", "illuminazione"],
+  },
+  {
+    // Non è un tipo di render: è la pianta da cui partono i render delle stanze
+    // (render_type resta «stanza»). Planimetrie, fase 5b.
+    id: "planimetrie",
+    title: "Planimetrie",
+    description: "Disegna la pianta o falla leggere all'AI, poi fai il render di ogni stanza con le sue misure",
+    icon: LayoutPanelTop,
+    color: "bg-fuchsia-50 text-fuchsia-600",
+    path: "/azienda/render/planimetrie",
+    active: true,
+    badge: "Nuovo",
+    group: "interni",
+    groupLabel: "Interni",
+    tags: ["pianta", "planimetria", "catastale", "misure", "3d"],
   },
   {
     id: "pavimento",

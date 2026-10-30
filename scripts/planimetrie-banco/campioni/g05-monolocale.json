@@ -1,0 +1,286 @@
+{
+ "id": "g05-monolocale",
+ "ingresso": "documento",
+ "stile": "geometra",
+ "file": "g05-monolocale.png",
+ "mime": "image/png",
+ "larghezza_px": 1196,
+ "altezza_px": 1084,
+ "locali": [
+  {
+   "nome": "Camera",
+   "destinazione": "camera",
+   "area_mq": 9.88,
+   "contorno_px": [
+    [
+     143,
+     158
+    ],
+    [
+     447,
+     158
+    ],
+    [
+     447,
+     649
+    ],
+    [
+     143,
+     649
+    ]
+   ],
+   "contorno_cm": [
+    [
+     15,
+     15
+    ],
+    [
+     275,
+     15
+    ],
+    [
+     275,
+     395
+    ],
+    [
+     15,
+     395
+    ]
+   ],
+   "larghezza_cm": 260,
+   "profondita_cm": 380,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Bagno",
+   "destinazione": "bagno",
+   "area_mq": 3.64,
+   "contorno_px": [
+    [
+     143,
+     661
+    ],
+    [
+     447,
+     661
+    ],
+    [
+     447,
+     842
+    ],
+    [
+     143,
+     842
+    ]
+   ],
+   "contorno_cm": [
+    [
+     15,
+     405
+    ],
+    [
+     275,
+     405
+    ],
+    [
+     275,
+     545
+    ],
+    [
+     15,
+     545
+    ]
+   ],
+   "larghezza_cm": 260,
+   "profondita_cm": 140,
+   "misure_scritte": true
+  },
+  {
+   "nome": "Soggiorno",
+   "destinazione": "soggiorno",
+   "area_mq": 18.02,
+   "contorno_px": [
+    [
+     459,
+     158
+    ],
+    [
+     857,
+     158
+    ],
+    [
+     857,
+     842
+    ],
+    [
+     459,
+     842
+    ]
+   ],
+   "contorno_cm": [
+    [
+     285,
+     15
+    ],
+    [
+     625,
+     15
+    ],
+    [
+     625,
+     545
+    ],
+    [
+     285,
+     545
+    ]
+   ],
+   "larghezza_cm": 340,
+   "profondita_cm": 530,
+   "misure_scritte": true
+  }
+ ],
+ "aperture": [
+  {
+   "tipo": "porta",
+   "larghezza_cm": 80,
+   "stanze": [
+    "Soggiorno",
+    "Camera"
+   ],
+   "da_cm": [
+    280,
+    78
+   ],
+   "a_cm": [
+    280,
+    158
+   ],
+   "da_px": [
+    453,
+    239
+   ],
+   "a_px": [
+    453,
+    342
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 70,
+   "stanze": [
+    "Soggiorno",
+    "Bagno"
+   ],
+   "da_cm": [
+    280,
+    447
+   ],
+   "a_cm": [
+    280,
+    517
+   ],
+   "da_px": [
+    453,
+    716
+   ],
+   "a_px": [
+    453,
+    806
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 120,
+   "stanze": [
+    "Camera"
+   ],
+   "da_cm": [
+    0,
+    140
+   ],
+   "a_cm": [
+    0,
+    260
+   ],
+   "da_px": [
+    125,
+    319
+   ],
+   "a_px": [
+    125,
+    474
+   ]
+  },
+  {
+   "tipo": "finestra",
+   "larghezza_cm": 60,
+   "stanze": [
+    "Bagno"
+   ],
+   "da_cm": [
+    110,
+    560
+   ],
+   "a_cm": [
+    170,
+    560
+   ],
+   "da_px": [
+    254,
+    862
+   ],
+   "a_px": [
+    324,
+    862
+   ]
+  },
+  {
+   "tipo": "portafinestra",
+   "larghezza_cm": 140,
+   "stanze": [
+    "Soggiorno"
+   ],
+   "da_cm": [
+    640,
+    126
+   ],
+   "a_cm": [
+    640,
+    266
+   ],
+   "da_px": [
+    875,
+    301
+   ],
+   "a_px": [
+    875,
+    482
+   ]
+  },
+  {
+   "tipo": "porta",
+   "larghezza_cm": 90,
+   "stanze": [
+    "Soggiorno"
+   ],
+   "da_cm": [
+    640,
+    403
+   ],
+   "a_cm": [
+    640,
+    493
+   ],
+   "da_px": [
+    875,
+    659
+   ],
+   "a_px": [
+    875,
+    775
+   ]
+  }
+ ],
+ "misura_utente": null
+}
