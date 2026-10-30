@@ -135,6 +135,21 @@ const V = {
     chiave: "accatastamento", nome: "Frazionamento e accatastamento", ambito: "figlia", obbligatoria: true, conScadenza: false,
     riconosci: /\b(docfa|accatastament|frazionament|variazione catastale|tipo mappale)/,
   },
+  // Il materiale per vendere l'unità: lo mostra il tabellone e lo mette la scheda vendita.
+  planimetria: {
+    chiave: "planimetria", nome: "Planimetria", ambito: "figlia", obbligatoria: false, conScadenza: false,
+    aiuto: "La pianta dell'unità da far vedere a chi compra: compare nel tabellone e nella scheda vendita.",
+    riconosci: /\b(planimetri|pianta)/,
+  },
+  capitolato_unita: {
+    chiave: "capitolato_unita", nome: "Capitolato e finiture", ambito: "figlia", obbligatoria: false, conScadenza: false,
+    riconosci: /\b(capitolat|finitur)/,
+  },
+  foto_render: {
+    chiave: "foto_render", nome: "Foto o render", ambito: "figlia", obbligatoria: false, conScadenza: false,
+    aiuto: "Le immagini dell'unità per la scheda vendita.",
+    riconosci: /\b(render|rendering|foto|fotografi\w*|immagin\w*)\b/, escludi: /\b(fotocopi|identita|documento)/,
+  },
 } satisfies Record<string, VoceCatalogo>;
 
 /** Le voci di partenza di ogni modello, nell'ordine in cui si leggono. */
@@ -147,6 +162,7 @@ export const VOCI_DI_PARTENZA: Record<ModelloGenerale, readonly VoceCatalogo[]> 
     V.atto_acquisto, V.visure_catastali, V.titolo_edilizio, V.progetto_computo, V.business_plan,
     V.contratti_finanziamento, V.polizza_decennale, V.agibilita,
     V.preliminare, V.fideiussione_122, V.rogito, V.ape, V.accatastamento,
+    V.planimetria, V.capitolato_unita, V.foto_render,
   ],
   // Compra, ristruttura, vendi: un immobile che c'è già, quasi sempre con una CILA o una SCIA.
   compravendita: [
@@ -155,6 +171,7 @@ export const VOCI_DI_PARTENZA: Record<ModelloGenerale, readonly VoceCatalogo[]> 
     { ...V.progetto_computo, nome: "Computo dei lavori", obbligatoria: false },
     V.preliminare, V.rogito, V.ape,
     { ...V.accatastamento, obbligatoria: false, aiuto: "Se l'immobile viene diviso o cambia la planimetria." },
+    V.planimetria, V.capitolato_unita, V.foto_render,
   ],
 };
 

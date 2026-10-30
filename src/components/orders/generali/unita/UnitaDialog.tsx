@@ -1,6 +1,8 @@
 // src/components/orders/generali/unita/UnitaDialog.tsx
 // Un'unità aperta dal tabellone o dalla tabella. Da telefono: lo stato di vendita e i numeri
 // essenziali. Da tablet e computer anche pagamenti, dati, margine e «Dividi».
+// Planimetria e foto dell'unità sotto lo stato (da telefono si guardano, non si caricano);
+// la scheda vendita in PDF da tablet e computer.
 import { Link } from "react-router-dom";
 import { ExternalLink, Scissors, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,12 +13,16 @@ import { DatiUnita } from "@/components/orders/generali/unita/DatiUnita";
 import { MargineUnita } from "@/components/orders/generali/unita/MargineUnita";
 import { PagamentiUnita } from "@/components/orders/generali/unita/PagamentiUnita";
 import { STILE_STATO, dataBreve, euro } from "@/components/orders/generali/unita/aspetto";
+import { MaterialeUnita } from "@/components/orders/generali/vendita/MaterialeUnita";
+import { SchedaVendita } from "@/components/orders/generali/vendita/SchedaVendita";
 import { NOMI_STATO, etichettaPiano, prezzoCorrente, type ElencoUnita, type UnitaGenerale } from "@/lib/orders/generali/unita";
 import { formattaNumero, pagamentiUnita, type ContiUnita } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
 
 interface Props {
   generaleId: string;
+  /** Il nome dell'operazione, per la scheda vendita. */
+  operazione: string;
   unita: UnitaGenerale | null;
   elenco: ElencoUnita;
   conti: ContiUnita;
@@ -27,17 +33,17 @@ interface Props {
   onDividi: (orderId: string) => void;
 }
 
-export function UnitaDialog({ generaleId, unita: u, elenco, conti, gestisci, telefono, onChiudi, onDividi }: Props) {
+export function UnitaDialog({ generaleId, operazione, unita: u, elenco, conti, gestisci, telefono, onChiudi, onDividi }: Props) {
   return (
     <Dialog open={!!u} onOpenChange={(o) => !o && onChiudi()}>
       <DialogContent className="max-w-2xl">
-        {u && <Contenuto generaleId={generaleId} u={u} elenco={elenco} conti={conti} gestisci={gestisci} telefono={telefono} onDividi={onDividi} />}
+        {u && <Contenuto generaleId={generaleId} operazione={operazione} u={u} elenco={elenco} conti={conti} gestisci={gestisci} telefono={telefono} onDividi={onDividi} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Contenuto({ generaleId, u, elenco, conti, gestisci, telefono, onDividi }: Omit<Props, "unita" | "onChiudi"> & { u: UnitaGenerale }) {
+function Contenuto({ generaleId, operazione, u, elenco, conti, gestisci, telefono, onDividi }: Omit<Props, "unita" | "onChiudi"> & { u: UnitaGenerale }) {
   const p = elenco.permessi;
   const dove = [u.edificio, u.piano ? etichettaPiano(u.piano) : null, u.mq !== null ? `${formattaNumero(u.mq)} m²` : null, u.millesimi !== null ? `${formattaNumero(u.millesimi)} ‰` : null]
     .filter(Boolean).join(" · ");
@@ -48,6 +54,7 @@ function Contenuto({ generaleId, u, elenco, conti, gestisci, telefono, onDividi 
     <div className="space-y-3">
       <CambioStato generaleId={generaleId} unita={u} permessi={p} telefono={telefono} />
       <Riepilogo u={u} vedeImporti={p.importi} />
+      {!u.divisaIl && <MaterialeUnita generaleId={generaleId} modello={elenco.modello} orderId={u.orderId} sigla={u.sigla} puoCaricare={gestisci} />}
       {garanzia && (
         <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -72,11 +79,17 @@ function Contenuto({ generaleId, u, elenco, conti, gestisci, telefono, onDividi 
           <TabsList>
             <TabsTrigger value="vendita">Vendita</TabsTrigger>
             {p.importi && <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>}
+            {!u.divisaIl && <TabsTrigger value="scheda">Scheda vendita</TabsTrigger>}
             {gestisci && <TabsTrigger value="dati">Dati</TabsTrigger>}
             {conMargine && <TabsTrigger value="margine">Margine</TabsTrigger>}
           </TabsList>
           <TabsContent value="vendita" className="mt-3">{vendita}</TabsContent>
           {p.importi && <TabsContent value="pagamenti" className="mt-3"><PagamentiUnita generaleId={generaleId} unita={u} gestisci={gestisci} /></TabsContent>}
+          {!u.divisaIl && (
+            <TabsContent value="scheda" className="mt-3">
+              <SchedaVendita generaleId={generaleId} modello={elenco.modello} operazione={operazione} unita={u} vedeImporti={p.importi} />
+            </TabsContent>
+          )}
           {gestisci && <TabsContent value="dati" className="mt-3"><DatiUnita generaleId={generaleId} unita={u} vedeImporti={p.importi} /></TabsContent>}
           {conMargine && <TabsContent value="margine" className="mt-3"><MargineUnita unita={u} conti={conti} /></TabsContent>}
         </Tabs>
