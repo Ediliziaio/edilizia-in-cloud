@@ -3,8 +3,10 @@
  *
  * La schermata parte su «Prodotti / Articoli», che scrive nel vecchio catalogo articoli (ordini e computo dei
  * preventivi edili) e non nei prodotti del Listino; «Famiglie Prodotto» forzava «a pezzo» e «senza tipologia» senza
- * dirlo, e il suo modello non ha le colonne del prezzo. Il tipo di partenza resta lo stesso (decisione D1 di Florin
- * ancora aperta): oggi ogni voce ha il suo nome vero, dice dove vanno i dati e cosa decide da sola.
+ * dirlo, e il suo modello non ha le colonne del prezzo. Oggi ogni voce ha il suo nome vero, dice dove vanno i dati e
+ * cosa decide da sola.
+ * Dal 15/10/2026 (82616f182, decisione D1 chiusa) la schermata parte su «Prodotti del Listino», il Listino che si
+ * vede; il catalogo articoli resta una scelta esplicita del menu.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -117,8 +119,11 @@ describe("Importa: la pagina", () => {
 });
 
 describe("Importa: ogni voce dice dove vanno i dati", () => {
-  it("parte, come prima, sul catalogo articoli (decisione D1 ancora aperta) e dice che NON è il Listino", () => {
+  it("parte sui prodotti del Listino; il catalogo articoli si sceglie e dice che NON è il Listino", async () => {
     open();
+    expect(screen.getByRole("combobox", { name: "Cosa stai importando?" })).toHaveTextContent("Prodotti del Listino");
+    expect(document.getElementById("listino-tipo-dove")!.textContent).toContain("Va nel Listino, tra i prodotti");
+    await scegli("Catalogo articoli (ordini e preventivi edili)");
     expect(screen.getByRole("combobox", { name: "Cosa stai importando?" })).toHaveTextContent("Catalogo articoli (ordini e preventivi edili)");
     expect(testo()).toContain("Non compare nel Listino.");
   });
@@ -142,7 +147,8 @@ describe("Importa: ogni voce dice dove vanno i dati", () => {
     open();
     await scegli("Prodotti del Listino");
     const dettagli = within(document.getElementById("listino-tipo-dove")!).getByText(/Altri dettagli/).closest("details")!;
-    expect(dettagli.textContent).toContain("non legge: Codice, Famiglia Padre, Margine Default %, Ricarico Default %");
+    // Dal 15/10/2026 il Codice si legge (riconosce i prodotti già importati): restano fuori tre colonne.
+    expect(dettagli.textContent).toContain("non legge: Famiglia Padre, Margine Default %, Ricarico Default %");
   });
 
   it("i campi personalizzati si contano in italiano", async () => {
@@ -167,6 +173,7 @@ describe("Importa: ogni voce dice dove vanno i dati", () => {
 describe("Importa: la conferma", () => {
   it("per il catalogo articoli dice cosa succede: nessuna pagina per cancellarli, quindi non si annulla da qui", async () => {
     open();
+    await scegli("Catalogo articoli (ordini e preventivi edili)");
     await finoAllaConferma();
     expect(screen.getByText("Stai per importare 2 articoli nel catalogo articoli (ordini e preventivi edili).")).toBeInTheDocument();
     expect(testo()).toContain("da qui l'importazione non si annulla");
@@ -192,8 +199,17 @@ describe("Importa: la conferma", () => {
     expect(state.invoke.mock.calls[0][1].body.object_type).toBe("family");
   });
 
-  it("senza toccare il menu l'importazione parte ancora come «product» (nessun cambio di destinazione)", async () => {
+  it("senza toccare il menu l'importazione parte come «family», i prodotti del Listino", async () => {
     open();
+    await finoAllaConferma();
+    fireEvent.click(screen.getByRole("button", { name: "Importa 2 prodotti" }));
+    await waitFor(() => expect(state.invoke).toHaveBeenCalledOnce());
+    expect(state.invoke.mock.calls[0][1].body.object_type).toBe("family");
+  });
+
+  it("il catalogo articoli, scelto dal menu, parte come «product»", async () => {
+    open();
+    await scegli("Catalogo articoli (ordini e preventivi edili)");
     await finoAllaConferma();
     fireEvent.click(screen.getByRole("button", { name: "Importa 2 articoli" }));
     await waitFor(() => expect(state.invoke).toHaveBeenCalledOnce());
@@ -204,7 +220,7 @@ describe("Importa: la conferma", () => {
     state.invoke.mockResolvedValue({ data: null as unknown, error: new Error("Failed to fetch") });
     open();
     await finoAllaConferma();
-    fireEvent.click(screen.getByRole("button", { name: "Importa 2 articoli" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importa 2 prodotti" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
     expect(state.error).toHaveBeenCalledWith("Importazione non riuscita", { description: "Connessione persa. Controlla la rete e riprova." });
   });
@@ -222,7 +238,8 @@ describe("Importa: la conferma", () => {
     open();
     await finoAllaConferma();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
-    expect(testo()).toContain("Descrizione: Voce 1");
+    // Sui prodotti del Listino il nome è la colonna «Nome Famiglia» del modello.
+    expect(testo()).toContain("Nome Famiglia: Voce 1");
     expect(testo()).toContain("Prezzo Listino: 10");
     expect(testo()).not.toContain("list_price");
   });

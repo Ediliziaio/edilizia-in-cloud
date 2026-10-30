@@ -23,6 +23,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
+vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true, sabato: false, setSabato: () => {} }) }));
 vi.mock("@/hooks/useSottofasi", () => ({
   useSottofasi: () => ({
     sottofasi: [] as unknown[], perFase: state.sottofasiPerFase, isLoading: false, isError: false,

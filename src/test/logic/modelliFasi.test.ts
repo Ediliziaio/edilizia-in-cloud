@@ -178,3 +178,18 @@ describe("ambito dei modelli",()=>{
   expect(m.ambito).toBe("contratto");expect(fasiPerCommessa(m)).toEqual([]);
  });
 });
+
+describe("giorni e parallelo nei modelli (31/10/2026)", () => {
+  it("passano dal modello alla commessa solo se ci sono", () => {
+    const fasi = fasiPerCommessa({ fasi: [{ nome: "Impianto", sottofasi: [
+      { nome: "Tracce", peso: 1, giorni: 3 },
+      { nome: "Cavi", peso: 2, giorni: 2, in_parallelo: true },
+      { nome: "Frutti", peso: 1, giorni: 0 },
+    ] }] });
+    expect(fasi[0].sottofasi).toEqual([
+      { nome: "Tracce", peso: 1, giorni: 3 },
+      { nome: "Cavi", peso: 2, giorni: 2, in_parallelo: true },
+      { nome: "Frutti", peso: 1 },
+    ]);
+  });
+});

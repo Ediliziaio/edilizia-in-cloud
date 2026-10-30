@@ -1,4 +1,5 @@
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
 import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
@@ -45,6 +46,7 @@ export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGu
           </div>
         </div>
       </section>
+      <EicPuntiFermi />
       {guide.news?.length ? <section id="novita" className="scroll-mt-24" aria-labelledby="titolo-novita">
         <h2 id="titolo-novita" className="text-2xl md:text-3xl font-bold">Novità di ottobre 2026 in Edilizia in Cloud</h2>
         <p className="mt-3 mb-6 text-gray-600">Le funzioni arrivate nelle ultime settimane che contano per questo confronto.</p>

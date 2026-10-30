@@ -382,6 +382,7 @@ const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDo
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 const DettaglioFatturaImportata = lazy(() => import("@/pages/azienda/fatturazione/DettaglioFatturaImportata"));
 const FattureRicevutePage = lazy(() => import("@/pages/azienda/fatturazione/FattureRicevutePage"));
+const TipiFornitoriPage = lazy(() => import("@/pages/azienda/fatturazione/TipiFornitoriPage"));
 const FattureEmesseImportate = lazy(() => import("@/pages/azienda/fatturazione/FattureEmesseImportate"));
 const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
@@ -786,6 +787,7 @@ export default function CompanyRoutesContainer() {
         {/* Fatture ricevute = passive: valgono per QUALSIASI modalità (anche provider
             esterno tipo FIC) → niente BillingModeGuard requiredMode="native". */}
         <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureRicevutePage /></FeatureRoute>)} />
+        <Route path="documenti/tipi-fornitori" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><TipiFornitoriPage /></FeatureRoute>)} />
         {/* Lo storico delle emesse importate da un altro programma: vale per qualsiasi modalità. */}
         <Route path="documenti/emesse-importate" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureEmesseImportate /></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />

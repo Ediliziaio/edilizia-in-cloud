@@ -8,6 +8,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
+import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +150,8 @@ interface FatturaRicevuta {
   sottocategoria_ai: string | null;
   /** 0-1: quanto l'AI e' sicura della categoria. */
   categoria_confidenza: number | null;
+  /** Scheda dell'anagrafica collegata: il suo tipo dice se va su una commessa. */
+  fornitore_id?: string | null;
 }
 
 // ─── Stato Badge ──────────────────────────────────────────────
@@ -332,7 +335,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
@@ -347,6 +350,17 @@ export default function FattureRicevutePage() {
   });
 
   // Le fatture divise tra più ordini: una quota per ordine (30/10/2026).
+  // Il tipo dei fornitori collegati (materiali, subappalto, spese generali…).
+  const { data: tipiFornitori = {} } = useQuery({
+    queryKey: ["fatture-ricevute-tipi-fornitori", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("suppliers").select("id, tipo").eq("company_id", companyId).not("tipo", "is", null);
+      if (error) throw error;
+      return Object.fromEntries(((data ?? []) as Array<{ id: string; tipo: string }>).map((x) => [x.id, x.tipo])) as Record<string, string>;
+    },
+  });
+
   const { data: quoteOrdini = {} } = useQuery({
     queryKey: ["fatture-quote-ordini", companyId],
     enabled: !!companyId,
@@ -539,6 +553,7 @@ export default function FattureRicevutePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
       queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-tipi-fornitori"] });
       toast.success("Stato aggiornato");
     },
     onError: (e) => toast.error(`Errore: ${e.message}`),
@@ -917,6 +932,10 @@ export default function FattureRicevutePage() {
             className="hidden"
             onChange={handleFileUpload}
           />
+          {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
+          <Button variant="outline" asChild>
+            <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
+          </Button>
           {kpi.daClassificare > 0 && (
             <Button
               variant="outline"
@@ -1320,6 +1339,9 @@ export default function FattureRicevutePage() {
                       <button type="button" className="text-left font-medium hover:underline underline-offset-2" onClick={() => setRiepilogoId(f.id)}>
                         {f.cedente_ragione_sociale}
                       </button>
+                      {f.fornitore_id && etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) ? (
+                        <div className="text-[11px] text-muted-foreground">{etichettaTipoFornitore(tipiFornitori[f.fornitore_id])}</div>
+                      ) : null}
                       <div className="text-xs text-muted-foreground">
                         {f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf}
                       </div>

@@ -40,7 +40,9 @@ describe("common editor contract", () => {
   });
 
   it("keeps the sticky positioning on grid siblings, not their short inner containers", () => {
-    expect(templateEditorLayout.preview).toContain("xl:sticky");
+    // Since ec69ad6c2 the preview column (and so its sticky) starts at lg, the same breakpoint as the grid split.
+    expect(templateEditorLayout.preview).toContain("lg:sticky");
+    expect(templateEditorLayout.preview).toContain("lg:col-span-4");
     expect(templateEditorLayout.navigation).toContain("md:sticky");
     expect(templateEditorLayout.previewPanel).not.toContain("sticky");
     expect(templateEditorLayout.navigationPanel).not.toContain("sticky");

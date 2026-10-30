@@ -138,11 +138,12 @@ beforeEach(() => { stato.margini = true; localStorage.clear(); });
 afterEach(() => cleanup());
 
 describe.each(MODULI)("$slug nel guscio comune", (m) => {
-  it("sei fasi in alto coi loro nomi, il totale IVA inclusa in vista (3.260 €) e il preventivo a destra", async () => {
+  it("sei fasi in alto coi loro nomi, il totale IVA inclusa in vista (3.260,40 €) e il preventivo a destra", async () => {
     const nav = await monta(m);
     expect(within(nav).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(m.fasi);
     // 2.400 + 6 × 120 = 3.120; sconto 5% → 2.964; IVA 10% → 3.260,40
-    expect(within(nav.parentElement as HTMLElement).getByText("€ 3.260")).toBeTruthy();
+    // Dal 25/10/2026 il totale in testa ha i centesimi, come il PDF (anteprimaCentesimi.test.tsx).
+    expect(within(nav.parentElement as HTMLElement).getByText("€ 3.260,40")).toBeTruthy();
     const a = within(anteprima());
     expect(a.getByText("Bianchi Impianti S.r.l.")).toBeTruthy();
     expect(a.getByText("Mario Rossi")).toBeTruthy();

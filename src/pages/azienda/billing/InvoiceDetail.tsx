@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -438,6 +439,13 @@ export default function InvoiceDetail() {
                 <Separator className="w-48 my-1" />
                 <div className="flex gap-8 text-base max-sm:text-sm"><span className="font-semibold">TOTALE:</span> <span className="font-bold w-24 text-right">{fmtEur(totals.total)}</span></div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Allegati: contratto, DDT, verbali, foto. Si ritrovano dalla fattura. */}
+          <Card>
+            <CardContent className="pt-4 max-sm:p-3">
+              <AllegatiFattura companyId={effectiveCompany?.id} madre={{ invoiceId: invoice.id }} />
             </CardContent>
           </Card>
 

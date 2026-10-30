@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornata: 2026-09-07 — 197 URL, 61 articoli, 43 città, 6 confronti (contenuto bot: prerender-first + FAQ + link normativi) -->
+  <!-- Sitemap aggiornata: 2026-10-30 — 197 URL, 61 articoli, 43 città, 6 confronti (contenuto bot: prerender-first + FAQ + link normativi) -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -64,11 +64,12 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/</loc>
-    <lastmod>2026-09-05</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/hub-1536.webp</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/chi-siamo/</loc>
@@ -1273,43 +1274,48 @@
   <!-- ── Confronto sub-pages ───────────────────────────────────────── -->
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/vs-primus/</loc>
-    <lastmod>2026-07-28</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/vs-primus/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/vs-primus/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/primus-1536.webp</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/vs-edilnet/</loc>
-    <lastmod>2026-07-28</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/vs-edilnet/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/vs-edilnet/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/edilnet-1536.webp</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/vs-teamsystem/</loc>
-    <lastmod>2026-07-04</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/vs-teamsystem/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/vs-teamsystem/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/teamsystem-1536.webp</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/vs-excel/</loc>
-    <lastmod>2026-07-28</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/vs-excel/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/vs-excel/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/excel-1536.webp</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/confronto/vs-buildertrend/</loc>
-    <lastmod>2026-07-28</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/confronto/vs-buildertrend/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/confronto/vs-buildertrend/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/images/confronto/buildertrend-1536.webp</image:loc></image:image>
   </url>
 
   <!-- ── City hub page ───────────────────────────────────────────── -->
@@ -1333,7 +1339,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-roma/</loc>
-    <lastmod>2026-09-07</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-roma/"/>
@@ -1825,7 +1831,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/notifica-preliminare-cantiere/</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/notifica-preliminare-cantiere/"/>
@@ -2001,43 +2007,48 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/</loc>
-    <lastmod>2026-09-07</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/blog/covers/migliori-software-gestionali-edilizia-confronto.jpg</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/blog/covers/edilizia-in-cloud-vs-teamsystem-construction.jpg</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/blog/covers/edilizia-in-cloud-vs-planradar.jpg</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/blog/covers/edilizia-in-cloud-vs-dylog-edilizia.jpg</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/"/>
+    <image:image><image:loc>https://www.ediliziaincloud.com/blog/covers/edilizia-in-cloud-vs-pillar.jpg</image:loc></image:image>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/strumenti/calcolatore-margine-commessa/</loc>

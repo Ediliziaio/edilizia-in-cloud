@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({mobile: false, costs: false, amounts: false, loadin
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => m.mobile}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewCosts: m.costs, canViewOrderAmounts: m.amounts})}));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({useOrderWorkPhases: () => ({phases: m.phases, materials: [] as unknown[], allAssignments: [] as unknown[], isLoading: m.loading, isError: m.phaseError, refetch: m.refetchPhases})}));
+vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true, sabato: false, setSabato: () => {} }) }));
 vi.mock("@/hooks/useSottofasi", () => ({useSottofasi: () => ({perFase: new Map()})}));
 vi.mock("@/hooks/useCronoprogramma", () => ({useCronoprogramma: () => ({rapportini: m.reports, firmaPreventivo: null as null, isLoading: false, isError: m.reportError, refetch: m.refetchReports})}));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({useCostiMaterialiFasi: () => ({data: undefined as undefined})}));
@@ -43,12 +44,17 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     expect(screen.getByText("Chiusura 09/10/2026 · inizio non rilevato")).toBeInTheDocument();
     expect(screen.getByText("Dettagli della fase").closest("details")).not.toHaveAttribute("open");
   });
-  it("permette elenco e cambio scala senza cambiare commessa o inviare mutation", () => {
+  it("permette tabella e cambio scala senza cambiare commessa o inviare mutation", () => {
     draw(); fireEvent.change(screen.getByRole("combobox", {name: "Scala del cronoprogramma"}), {target: {value: "settimane"}});
     expect(screen.getByRole("combobox", {name: "Scala del cronoprogramma"})).toHaveValue("settimane");
-    fireEvent.click(screen.getByRole("button", {name: "Elenco fasi"}));
+    // «Elenco fasi» non c'è più (31/10/2026): si passa dal grafico alla tabella.
+    expect(screen.queryByRole("button", {name: "Elenco fasi"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Tabella"}));
     expect(screen.queryByRole("region", {name: /Grafico delle fasi/})).not.toBeInTheDocument();
-    expect(screen.getByText("Dettagli della fase")).toBeInTheDocument();
+    expect(screen.getByRole("table", {name: "Tabella del cronoprogramma"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: /^PDF (previsionale|avanzamento)$/})).toBeInTheDocument();
+    // Due versioni: con chi lavora o senza; di base senza.
+    expect(screen.getByRole("checkbox", {name: "con chi lavora"})).not.toBeChecked();
     expect(m.refetchPhases).not.toHaveBeenCalled(); expect(m.refetchReports).not.toHaveBeenCalled();
   });
   it("non espone costi o venduto senza il relativo permesso", () => {

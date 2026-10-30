@@ -26,6 +26,7 @@ vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
 // I mezzi della fase hanno i loro test: qui conta la riga della fase.
 vi.mock("@/components/mezzi/PianoMezziCantiere", () => ({ MezziFaseCantiere: (): null => null }));
+vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true, sabato: false, setSabato: () => {} }) }));
 vi.mock("@/hooks/useSottofasi", () => ({
   useSottofasi: () => ({
     sottofasi: [] as unknown[], perFase: new Map(), isLoading: false, isError: false,

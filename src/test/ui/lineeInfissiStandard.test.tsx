@@ -9,6 +9,7 @@ vi.mock("@/hooks/useOrganizzaListino", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 import { ModelliInfissiDialog } from "@/components/listino/ModelliInfissiDialog";
+import { TIPOLOGIE_DISEGNO } from "@/lib/serramenti/disegnoSerramento";
 
 const apri = (companyId: string | null = "azienda") => {
   const close = vi.fn();
@@ -21,7 +22,10 @@ afterEach(cleanup);
 describe("nuove linee: catalogo comune senza copiare tariffe", () => {
   it("spiega configurazioni, prezzi e fattibilità senza promettere compatibilità", () => {
     apri();
-    expect(screen.getByText(/48 configurazioni standard/)).toBeTruthy();
+    // Il numero è quello delle tipologie disegnabili (49 dal 76f2e61561, come
+    // listino_configurazioni_infissi_standard() nel database), non un numero scritto a mano.
+    expect(TIPOLOGIE_DISEGNO.length).toBe(49);
+    expect(screen.getByText(new RegExp(`${TIPOLOGIE_DISEGNO.length} configurazioni standard`))).toBeTruthy();
     expect(screen.getByText(/non certifica la gamma del produttore/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Prepara le linee" }).getAttribute("disabled")).not.toBeNull();
   });

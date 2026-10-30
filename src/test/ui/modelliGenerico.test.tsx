@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SettingsQuoteTemplates from "@/pages/azienda/settings/SettingsQuoteTemplates";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { TESTO_SOLA_LETTURA } from "@/pages/azienda/settings/SettingsQuoteTemplates/constants";
@@ -110,10 +111,14 @@ function Pagina() {
   );
 }
 function apri(percorso = "/azienda/impostazioni/template-preventivi") {
+  // «Copia da…» delle condizioni legge le fonti con React Query: serve un client, nuovo a ogni prova.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={[percorso]}>
-      <Pagina />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[percorso]}>
+        <Pagina />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 const indirizzo = () => screen.getByTestId("indirizzo").textContent;
@@ -581,7 +586,10 @@ describe("Preventivo generico: ogni campo ha il suo nome", () => {
     apri();
     apriModello("Offerta standard");
     expect(screen.getByRole("combobox", { name: "🎨 Copertina" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "📜 Condizioni e termini legali" })).toBeInTheDocument();
+    // Dal 15/10/2026 le condizioni non si collegano più da qui: si scrivono (o si copiano con «Copia da…»)
+    // nella sezione «Condizioni» del modello, e «Componi l'offerta» lo dice al posto del vecchio selettore.
+    expect(screen.queryByRole("combobox", { name: /Condizioni/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Le condizioni si modificano nella sezione «Condizioni»/)).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "🛒 Schede prodotto da includere" })).toBeInTheDocument();
     fireEvent.click(bottone(/Indietro/));
     fireEvent.click(bottone(/^Altri blocchi/));

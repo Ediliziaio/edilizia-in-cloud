@@ -89,6 +89,17 @@ function pagina(client: QueryClient = clientComeApp()) {
   );
 }
 
+/**
+ * Dal 15/10/2026 (5dd0a43e6) «Converti in Cantiere» apre prima il riepilogo «Crea la commessa» (lavorazioni e
+ * materiali): la conversione parte da «Conferma e crea commessa».
+ */
+async function confermaCommessa() {
+  const conferma = await screen.findByRole("button", { name: "Conferma e crea commessa" });
+  await waitFor(() => expect(conferma).toBeEnabled());
+  expect(finto.invoke).not.toHaveBeenCalled();
+  fireEvent.click(conferma);
+}
+
 describe("dettaglio preventivo accettato: una commessa sola", () => {
   it("senza commessa si offrono le due strade, e righe non copiate si dicono (non «successo»)", async () => {
     finto.invoke.mockResolvedValue({ data: { success: true, order_id: "o1", avviso: "Righe non copiate: boom" }, error: null });
@@ -97,6 +108,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     expect(screen.getByRole("button", { name: /Crea commessa \(rivedi\)/ })).toBeTruthy();
     await waitFor(() => expect(converti).toBeEnabled()); // finito il controllo «c'è già una commessa?»
     fireEvent.click(converti);
+    await confermaCommessa();
     await waitFor(() => expect(screen.getByText("PAGINA DELLA COMMESSA")).toBeTruthy());
     expect(toast.warning).toHaveBeenCalledWith("Commessa creata, ma non completa", expect.objectContaining({ description: "Righe non copiate: boom" }));
     expect(toast.success).not.toHaveBeenCalled();
@@ -155,6 +167,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     const converti = await screen.findByRole("button", { name: /Converti in Cantiere/ });
     await waitFor(() => expect(converti).toBeEnabled());
     fireEvent.click(converti);
+    await confermaCommessa();
     await waitFor(() => expect(screen.getByText("PAGINA DELLA COMMESSA")).toBeTruthy());
     expect(spia).toHaveBeenCalledWith({ queryKey: queryKeys.quotes.linkedOrder("q1") });
   });

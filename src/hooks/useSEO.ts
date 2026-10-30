@@ -49,6 +49,9 @@ export function ogImageForPath(pathname: string): string {
   if (p === "/funzionalita" || p.startsWith("/funzionalita/")) return OG.funzionalita;
   if (p === "/prezzi") return OG.prezzi;
   if (p.startsWith("/per/")) return OG.perTipo;
+  // Ogni pagina di confronto ha la sua immagine (30/10/2026); le altre restano sulla sezione.
+  const confronto = /^\/confronto(?:\/vs-(teamsystem|primus|excel|edilnet|buildertrend))?$/.exec(p);
+  if (confronto) return `${SITE_URL}/og/confronto-${confronto[1] ?? "hub"}.jpg`;
   if (p === "/confronto" || p.startsWith("/confronto/")) return OG.confronto;
   if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG.citta;
   if (p === "/blog" || p.startsWith("/blog/")) return OG.blog;

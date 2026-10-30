@@ -67,7 +67,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
         <DialogHeader>
           <DialogTitle>{bozza.id ? "Modifica il modello" : "Nuovo modello di fasi"}</DialogTitle>
           <DialogDescription>
-            Le fasi che compaiono quando scegli questo modello in una commessa. Le sottofasi misurano l'avanzamento della fase: più pesano, più contano.
+            Le fasi che compaiono quando scegli questo modello in una commessa. Le sottofasi misurano l'avanzamento della fase: più pesano, più contano. Con i giorni, nella commessa si mettono in fila da sole.
           </DialogDescription>
         </DialogHeader>
 
@@ -111,6 +111,14 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
                         title="Quanto pesa nell'avanzamento della fase"
                         onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { peso: Number(e.target.value) }))} className="h-8 w-16 shrink-0 text-sm"
                       />
+                      <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                        <Input
+                          type="number" min={1} max={3650} placeholder="—" value={s.giorni ?? ""} aria-label={`Giorni sottofase ${i + 1}.${j + 1}`}
+                          title="I giorni di lavoro che servono: nella commessa la sottofase si mette in fila con questi"
+                          onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { giorni: e.target.value === "" ? null : Number(e.target.value) }))}
+                          className="h-8 w-16 text-sm"
+                        />gg
+                      </label>
                       <Comandi
                         etichetta={`sottofase ${i + 1}.${j + 1}`} indice={j} totale={fase.sottofasi.length}
                         onSu={() => cambiaSotto(i, sposta(fase.sottofasi, j, -1))} onGiu={() => cambiaSotto(i, sposta(fase.sottofasi, j, 1))}

@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -18,6 +19,7 @@ import {
   riepilogoIvaLeggibile,
   righeLeggibili,
 } from "@/lib/fatturazione/riepilogoRicevuta";
+import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 
 /**
  * La fattura ricevuta come si legge su carta: chi la manda, cosa fattura, quanto,
@@ -33,7 +35,7 @@ interface Dettaglio {
   fattura: Riga;
   ordini: Array<{ id: string; oda_number: string; importo: number | null; commessa: { id: string; order_code: string } | null }>;
   costo: { id: string; amount: number | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
-  fornitore: { id: string; name: string } | null;
+  fornitore: { id: string; name: string; tipo?: string | null } | null;
   /** Senza fornitore: le schede dell'anagrafica con la stessa partita IVA (o codice fiscale). */
   candidatiFornitore: Array<{ id: string; name: string }>;
   /** Schede con la stessa partita IVA ma l'altro identificativo diverso: da correggere, non da duplicare. */
@@ -90,7 +92,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
       ? db.from("company_costs").select("id, amount, allocations, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.fornitore_id
-      ? db.from("suppliers").select("id, name").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
+      ? db.from("suppliers").select("id, name, tipo").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.order_id_suggerito
       ? db.from("orders").select("id, order_code, client_name, description").eq("id", f.order_id_suggerito).eq("company_id", companyId).is("deleted_at", null).maybeSingle()
@@ -263,7 +265,7 @@ export function RiepilogoFatturaRicevuta({
     <Sheet open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
-        className={isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"}
+        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
@@ -312,14 +314,23 @@ export function RiepilogoFatturaRicevuta({
             {/* Collegamenti */}
             <section className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> A cosa è collegata</h3>
-              <dl className="grid grid-cols-[6.5rem_1fr] sm:grid-cols-[8.5rem_1fr] gap-x-3 gap-y-2 text-sm">
+              <dl className="grid grid-cols-[6.5rem_1fr] items-baseline gap-x-3 gap-y-2 text-sm sm:grid-cols-[8.5rem_1fr]">
                 <dt className="text-muted-foreground">Fornitore</dt>
                 <dd>
-                  {d.fornitore ? d.fornitore.name : (
+                  {d.fornitore ? (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {d.fornitore.name}
+                      {isTipoFornitore(d.fornitore.tipo) ? (
+                        <Badge variant="secondary" className="text-[11px]">{INFO_TIPO_FORNITORE[d.fornitore.tipo].etichetta}</Badge>
+                      ) : (
+                        <Link to="/azienda/documenti/tipi-fornitori" className="text-xs text-primary underline-offset-2 hover:underline">Dai un tipo</Link>
+                      )}
+                    </span>
+                  ) : (
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-muted-foreground">Non in anagrafica</span>
                       {d.candidatiFornitore.length === 1 ? (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato}
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => collegaFornitore.mutate(d.candidatiFornitore[0].id)}>
                           Collega a {d.candidatiFornitore[0].name}
                           {d.daCollegareStessoCedente.length > 1 ? ` (con le altre ${d.daCollegareStessoCedente.length - 1})` : ""}
@@ -331,7 +342,7 @@ export function RiepilogoFatturaRicevuta({
                       ) : d.candidatiFornitore.length > 1 ? (
                         <span className="text-xs text-muted-foreground">{d.candidatiFornitore.length} schede con questa partita IVA: scegli in Anagrafiche</span>
                       ) : (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato}
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato}
                           onClick={() => aggiungiFornitore.mutate()}>
                           Aggiungi ai fornitori
                           {d.daCollegareStessoCedente.length > 1 ? ` (e collega le sue ${d.daCollegareStessoCedente.length} fatture)` : ""}
@@ -349,7 +360,7 @@ export function RiepilogoFatturaRicevuta({
                     </Link>
                   ))}
                   {azioni.onCollegaOrdine && f.stato !== "contabilizzata" ? (
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={azioni.onCollegaOrdine}>
+                    <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaOrdine}>
                       {d.ordini.length ? "Cambia" : "Collega"}
                     </Button>
                   ) : null}
@@ -362,6 +373,11 @@ export function RiepilogoFatturaRicevuta({
                     const uniche = [...new Map(commesse.map((c) => [c.id, c])).values()];
                     // Si sceglie qui solo senza ordine d'acquisto (con l'ordine la commessa viene
                     // da lì) e se il costo non è ripartito su più commesse.
+                    // Spese generali (telefonia, luce, banca…): non vanno su una commessa.
+                    const generale = isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no";
+                    if (generale && !uniche.length) {
+                      return <span className="text-muted-foreground">Non serve: {INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].etichetta.toLowerCase()}</span>;
+                    }
                     const sceglibile = d.ordini.length === 0 && !d.costo?.ripartito && f.stato !== "rifiutata";
                     return (
                       <>
@@ -371,7 +387,7 @@ export function RiepilogoFatturaRicevuta({
                               <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
                             )) : <span className="text-muted-foreground">Nessuna</span>}
                           {sceglibile && !scegliCommessa ? (
-                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
                               {uniche.length ? "Cambia" : "Scegli commessa"}
                             </Button>
                           ) : null}
@@ -381,7 +397,7 @@ export function RiepilogoFatturaRicevuta({
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
                             <span className="text-muted-foreground">L'AI suggerisce</span>
                             <Badge variant="outline" className="border-dashed">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
-                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
                               Collega
                             </Button>
                           </div>
@@ -413,7 +429,7 @@ export function RiepilogoFatturaRicevuta({
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-muted-foreground">Non ancora contabilizzata</span>
                       {azioni.onContabilizza && f.stato !== "rifiutata" ? (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={azioni.onContabilizza}>Contabilizza</Button>
+                        <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onContabilizza}>Contabilizza</Button>
                       ) : null}
                     </span>
                   )}
@@ -428,6 +444,9 @@ export function RiepilogoFatturaRicevuta({
               </dl>
               {azioni.extraCollegamenti?.(d)}
             </section>
+
+            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
+            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {/* Righe */}
             <section className="space-y-2">
@@ -466,12 +485,12 @@ export function RiepilogoFatturaRicevuta({
                     </thead>
                     <tbody>
                       {righe.map((r, i) => (
-                        <tr key={i} className="border-t align-top">
+                        <tr key={i} className="border-t align-baseline">
                           <td className="px-2 py-1.5 whitespace-pre-line">{r.descrizione || "—"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{r.quantita != null ? r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 }) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{r.prezzoUnitario != null ? formatCurrency(r.prezzoUnitario) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(r.imponibile)}</td>
-                          <td className="px-2 py-1.5 text-right text-xs text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
+                          <td className="px-2 py-1.5 text-right text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
                             {r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%"}
                           </td>
                         </tr>

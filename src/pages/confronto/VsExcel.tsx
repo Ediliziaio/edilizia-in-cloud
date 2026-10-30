@@ -1,4 +1,5 @@
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
 import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -216,7 +217,8 @@ export default function VsExcel() {
           "@type": "Article",
           headline: H1,
           description: SEO_DESCRIPTION,
-          url: "https://www.ediliziaincloud.com/confronto/vs-excel",
+          url: "https://www.ediliziaincloud.com/confronto/vs-excel/",
+          image: "https://www.ediliziaincloud.com/og/confronto-excel.jpg",
           datePublished: "2026-01-01",
           dateModified: "2026-10-30",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
@@ -315,6 +317,10 @@ export default function VsExcel() {
             </ul>
           </div>
         </div>
+      </section>
+
+      <section className="bg-white pt-10 px-4">
+        <EicPuntiFermi className="max-w-5xl mx-auto" />
       </section>
 
       {/* ── COMPARISON TABLE ── */}
