@@ -7,6 +7,7 @@
  * Il file lo scrive un `MotoreDxf`: di serie quello in TypeScript, ma se ne può
  * passare un altro (per esempio quello di cadcraft in WASM) senza cambiare nulla qui.
  */
+import { caricaMotoreCadcraft, type OpzioniCaricamento } from "./dxf/cadcraft";
 import { MotoreDxfR12 } from "./dxf/r12";
 import type { DefinizioneLayer, MotoreDxf, PuntoDxf } from "./dxf/motore";
 import { costruisciScena, ORDINE_LAYER, type NomeLayer, type OpzioniScena } from "./scena";
@@ -16,8 +17,8 @@ export type UnitaDxf = "cm" | "m" | "mm";
 
 export interface OpzioniDxf extends OpzioniScena {
   unita?: UnitaDxf;
-  /** Il motore che scrive il file; di serie quello in TypeScript. */
-  motore?: () => MotoreDxf;
+  /** Il motore che scrive il file; di serie quello in TypeScript (vedi `esportaDxfMigliore`). */
+  motore?: (unita: UnitaDxf) => MotoreDxf;
   /** Le doghe e le fughe dei pavimenti (solo con lo stile «presentazione»). */
   pavimenti?: boolean;
 }
@@ -53,7 +54,7 @@ export function esportaDxf(vista: VistaPianta, opzioni: OpzioniDxf = {}): Risult
   const k = FATTORE[unita];
   const scala = opzioni.scala ?? 50;
   const scena = costruisciScena(vista, { ...opzioni, scala });
-  const motore = (opzioni.motore ?? (() => new MotoreDxfR12()))();
+  const motore = (opzioni.motore ?? (() => new MotoreDxfR12()))(unita);
   // y verso l'alto nel DXF: la pianta si vede com'è sullo schermo.
   const P = (p: Punto): PuntoDxf => ({ x: p.x * k, y: -p.y * k });
   const altezza = (mm: number) => ((mm * scala) / 10) * k;
@@ -96,4 +97,17 @@ export function esportaDxf(vista: VistaPianta, opzioni: OpzioniDxf = {}): Risult
   motore.testo("TESTI", P({ x: r.minX, y: r.maxY + (12 * scala) / 10 }), nota, altezza(2.5), { orizzontale: "sinistra" });
 
   return { dati: motore.chiudi(), conteggio: motore.conteggio(), motore: motore.nome, unita };
+}
+
+/**
+ * Il DXF col motore migliore che c'è: cadcraft (R2000, retini veri) se il wasm
+ * si carica, altrimenti quello in TypeScript (R12). Il risultato dice quale.
+ */
+export async function esportaDxfMigliore(
+  vista: VistaPianta,
+  opzioni: Omit<OpzioniDxf, "motore"> = {},
+  caricamento: OpzioniCaricamento = {},
+): Promise<RisultatoDxf> {
+  const cadcraft = await caricaMotoreCadcraft(caricamento);
+  return esportaDxf(vista, { ...opzioni, motore: cadcraft ?? undefined });
 }
