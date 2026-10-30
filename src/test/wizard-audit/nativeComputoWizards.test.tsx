@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   snapshot: null as unknown, computoStatus: 'modifiche', save: vi.fn(async () => ({ id: 'synthetic-project' })),
   finishComputo: (() => {}) as () => void,
 }));
-vi.mock('react-router-dom', () => ({ useParams: () => ({ id: state.id }), useSearchParams: () => [state.params, vi.fn()], useNavigate: () => vi.fn() }));
+vi.mock('react-router-dom', () => ({ useParams: () => ({ id: state.id }), useSearchParams: () => [state.params, vi.fn()], useNavigate: () => vi.fn(), useInRouterContext: () => false }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'synthetic-user' }, effectiveCompany: { id: 'demo', name: 'Azienda sintetica' } }) }));
 vi.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ canViewMargins: false, canViewCosts: false }) }));
 vi.mock('@/hooks/useSalvaUscendo', () => ({ useSalvaUscendo: () => ({ segnaSalvato: vi.fn() }) }));
