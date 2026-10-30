@@ -62,7 +62,11 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useDDTRicezioneList, type DDTStato } from "@/hooks/useDDTRicezione";
+import {
+  useDDTRicezioneList,
+  type DDTStato,
+  type DDTRicezioneWithJoins,
+} from "@/hooks/useDDTRicezione";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import {
   DDTStatusBadge,
@@ -72,6 +76,20 @@ import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
+
+// ── Commessa e fornitore di una bolla ───────────────────────────────────────
+// Dal 29/10/2026 stanno sulla bolla stessa: una bolla senza ordine d'acquisto
+// li ha SOLO lì. Si legge prima la colonna propria, poi, per le bolle vecchie,
+// il giro attraverso l'ODA. Scritto una volta: filtri, ricerca, ordinamento,
+// esportazione e tabella devono dire tutti la stessa cosa.
+const commessaIdDi = (d: DDTRicezioneWithJoins) =>
+  d.order_id ?? d.purchase_orders?.order_id ?? null;
+const commessaCodiceDi = (d: DDTRicezioneWithJoins) =>
+  d.orders?.order_code ?? d.purchase_orders?.orders?.order_code ?? null;
+const fornitoreIdDi = (d: DDTRicezioneWithJoins) =>
+  d.supplier_id ?? d.purchase_orders?.supplier_id ?? null;
+const fornitoreNomeDi = (d: DDTRicezioneWithJoins) =>
+  d.suppliers?.name ?? d.purchase_orders?.suppliers?.name ?? null;
 import {
   OperationalBoard,
   OperationalPagination,
@@ -298,9 +316,9 @@ export default function DDTRicezioneList() {
   const commesseInElenco = useMemo(() => {
     const m = new Map<string, string>();
     for (const d of ddtList) {
-      const o = d.purchase_orders?.orders;
-      if (d.purchase_orders?.order_id && o?.order_code)
-        m.set(d.purchase_orders.order_id, o.order_code);
+      const id = commessaIdDi(d);
+      const codice = commessaCodiceDi(d);
+      if (id && codice) m.set(id, codice);
     }
     return [...m.entries()].sort((a, b) =>
       a[1].localeCompare(b[1], "it", { numeric: true }),
@@ -309,8 +327,8 @@ export default function DDTRicezioneList() {
   const fornitoriInElenco = useMemo(() => {
     const m = new Map<string, string>();
     for (const d of ddtList) {
-      const id = d.purchase_orders?.supplier_id;
-      if (id) m.set(id, d.purchase_orders?.suppliers?.name ?? "Fornitore");
+      const id = fornitoreIdDi(d);
+      if (id) m.set(id, fornitoreNomeDi(d) ?? "Fornitore");
     }
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "it"));
   }, [ddtList]);
@@ -332,8 +350,8 @@ export default function DDTRicezioneList() {
         return (
           d.numero_ddt.toLowerCase().includes(q) ||
           po?.oda_number?.toLowerCase().includes(q) ||
-          po?.suppliers?.name?.toLowerCase().includes(q) ||
-          po?.orders?.order_code?.toLowerCase().includes(q) ||
+          fornitoreNomeDi(d)?.toLowerCase().includes(q) ||
+          commessaCodiceDi(d)?.toLowerCase().includes(q) ||
           (d.corriere ?? "").toLowerCase().includes(q) ||
           (d.autista_nome ?? "").toLowerCase().includes(q)
         );
@@ -341,13 +359,11 @@ export default function DDTRicezioneList() {
     }
 
     if (filterOrder === "none")
-      list = list.filter((d) => !d.purchase_orders?.order_id);
+      list = list.filter((d) => !commessaIdDi(d));
     else if (filterOrder !== "all")
-      list = list.filter((d) => d.purchase_orders?.order_id === filterOrder);
+      list = list.filter((d) => commessaIdDi(d) === filterOrder);
     if (filterSupplier !== "all") {
-      list = list.filter(
-        (d) => d.purchase_orders?.supplier_id === filterSupplier,
-      );
+      list = list.filter((d) => fornitoreIdDi(d) === filterSupplier);
     }
     list = list.filter((d) =>
       inOperationalPeriod(d.data_ricezione, filterPeriodo),
@@ -361,7 +377,7 @@ export default function DDTRicezioneList() {
         case "data":
           return new Date(d.data_ricezione ?? 0).getTime();
         case "fornitore":
-          return po?.suppliers?.name ?? po?.oda_number ?? "";
+          return fornitoreNomeDi(d) ?? po?.oda_number ?? "";
         case "corriere":
           return d.corriere ?? "";
         case "magazzino":
@@ -410,8 +426,8 @@ export default function DDTRicezioneList() {
           ? format(new Date(d.data_ricezione), "dd/MM/yyyy")
           : "",
         oda: po?.oda_number ?? "",
-        supplier: po?.suppliers?.name ?? "",
-        order_code: po?.orders?.order_code ?? "",
+        supplier: fornitoreNomeDi(d) ?? "",
+        order_code: commessaCodiceDi(d) ?? "",
         corriere: d.corriere ?? "",
         autista: d.autista_nome ?? "",
         stato:
@@ -635,13 +651,14 @@ export default function DDTRicezioneList() {
         <DDTStatusBadge stato={ddt.stato} size="sm" />
       </PipelineCardHeading>
       <p className="mt-2 text-sm font-medium">
-        {ddt.purchase_orders?.suppliers?.name ?? "Fornitore non indicato"}
+        {fornitoreNomeDi(ddt) ?? "Fornitore non indicato"}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {ddt.purchase_orders?.oda_number ?? "OdA non disponibile"}
+        {ddt.purchase_orders?.oda_number ?? "Senza ordine d'acquisto"}
       </p>
       <p className="mt-1 text-xs text-primary">
-        {ddt.purchase_orders?.orders?.order_code ?? "Senza commessa"}
+        {commessaCodiceDi(ddt) ?? "Senza commessa"}
+        {ddt.destinazione === "cantiere" ? " · in cantiere" : ""}
       </p>
       <div className="mt-2 space-y-1 text-xs text-muted-foreground">
         <p>
@@ -1052,9 +1069,9 @@ export default function DDTRicezioneList() {
                     <td>
                       <span
                         className="block min-w-40 max-w-56 truncate font-medium"
-                        title={po?.suppliers?.name}
+                        title={fornitoreNomeDi(ddt) ?? undefined}
                       >
-                        {po?.suppliers?.name || "—"}
+                        {fornitoreNomeDi(ddt) || "—"}
                       </span>
                     </td>
                     <td className="whitespace-nowrap font-mono text-xs">
@@ -1071,13 +1088,13 @@ export default function DDTRicezioneList() {
                       )}
                     </td>
                     <td className="whitespace-nowrap text-xs">
-                      {po?.orders?.order_code ? (
+                      {commessaIdDi(ddt) && commessaCodiceDi(ddt) ? (
                         <Link
-                          to={`/azienda/ordini/${po.orders.id}`}
+                          to={`/azienda/ordini/${commessaIdDi(ddt)}`}
                           onClick={(e) => e.stopPropagation()}
                           className="text-primary hover:underline"
                         >
-                          {po.orders.order_code}
+                          {commessaCodiceDi(ddt)}
                         </Link>
                       ) : (
                         "—"

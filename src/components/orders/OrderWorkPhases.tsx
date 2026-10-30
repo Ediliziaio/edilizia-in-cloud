@@ -29,6 +29,7 @@ import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, woul
 import { ElencoAssegnazioni, WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
@@ -218,6 +219,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   // Anche per chi vede i margini ma non i costi: senza acquisti e magazzino il
   // margine sul consuntivo uscirebbe più alto del vero.
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts || canViewMargins);
+  // Lo stesso articolo si usa su più fasi: il costo va a ognuna per quanto il cantiere ci ha posato.
+  const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -225,8 +228,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
       assegnazioni: allAssignments,
       acquisti: costiMateriali?.acquisti,
       movimenti: costiMateriali?.movimenti,
+      posaPerFase,
     }),
-    [phases, materials, allAssignments, costiMateriali],
+    [phases, materials, allAssignments, costiMateriali, posaPerFase],
   );
 
   // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo

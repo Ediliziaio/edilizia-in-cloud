@@ -691,6 +691,7 @@ export default function PurchaseOrderDetail() {
                     attachments?: unknown[] | null;
                     ddt_file_url?: string | null;
                     has_damages?: boolean;
+                    destinazione?: "magazzino" | "cantiere" | null;
                   }[]).map((ddt) => {
                     const attachCount =
                       (Array.isArray(ddt.attachments) ? ddt.attachments.length : 0) +
@@ -710,6 +711,8 @@ export default function PurchaseOrderDetail() {
                           <p className="text-slate-500 mt-0.5">
                             {ddt.data_ricezione?.split("-").reverse().join("/")} ·{" "}
                             {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })} unità
+                            {/* Dove è andata la merce: in magazzino (giacenza) o dritta in cantiere. */}
+                            {ddt.destinazione && ` · ${ddt.destinazione === "cantiere" ? "in cantiere" : "in magazzino"}`}
                           </p>
                           {(attachCount > 0 || ddt.has_damages) && (
                             <div className="flex items-center gap-1.5 mt-1">

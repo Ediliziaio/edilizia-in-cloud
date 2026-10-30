@@ -214,3 +214,74 @@ export function quantitaLeggibile(quantita: number, unita: string | null | undef
   if (aCorpo) return { numero: quantita === 1 ? "" : numero(quantita), unita: "a corpo" };
   return { numero: numero(quantita), unita: unitaGrezza(unita) || "pz" };
 }
+
+/**
+ * Lo stato si cambia a mano solo per i passi che nessun documento decide.
+ * «In offerta» e «In bozza d'ordine» li scrive la richiesta d'offerta o
+ * l'ordine, quindi non si scelgono; e sotto il passo che i documenti
+ * dimostrano non si scende: con un ordine emesso la riga non torna «Da
+ * ordinare», qualunque cosa dica il campo. Ogni passo scelto si scrive sulla
+ * riga con lo stato qui accanto.
+ */
+export const STATUS_DEL_PASSO: Partial<Record<StatoMateriale, string>> = {
+  da_ordinare: "da_ordinare",
+  ordinato: "ordinato",
+  consegnato: "in_magazzino",
+  installato: "installato",
+};
+
+/** Il passo più avanzato che ordini e offerte dimostrano da soli. */
+export function passoDaiDocumenti(info: Pick<InfoStatoMateriale, "ordini">, inOfferta: boolean): StatoMateriale {
+  const emessi = info.ordini.filter((o) => (ODA_STATI_EMESSI as string[]).includes(o.stato));
+  if (emessi.length > 0) return emessi.every((o) => o.arrivato) ? "consegnato" : "ordinato";
+  if (info.ordini.some((o) => o.stato === "bozza")) return "in_bozza_oda";
+  return inOfferta ? "in_offerta" : "da_ordinare";
+}
+
+export interface PassoScegliibile {
+  stato: StatoMateriale;
+  /** Lo stato da scrivere sulla riga; null = il passo lo decide un documento. */
+  status: string | null;
+  attuale: boolean;
+  /** Perché non si sceglie, se non si sceglie. */
+  motivo: string | null;
+}
+
+export function passiScegliibili(info: Pick<InfoStatoMateriale, "stato" | "ordini">, inOfferta: boolean): PassoScegliibile[] {
+  const minimo = SCALA_STATI.indexOf(passoDaiDocumenti(info, inOfferta));
+  const numeri = info.ordini.map((o) => o.numero).join(", ");
+  return SCALA_STATI.map((stato, i) => {
+    const status = STATUS_DEL_PASSO[stato] ?? null;
+    const motivo = !status
+      ? stato === "in_offerta" ? "Lo decide la richiesta d'offerta" : "Lo decide l'ordine in bozza"
+      : i < minimo ? `L'ordine ${numeri || "collegato"} dice già «${ETICHETTA_STATO_MATERIALE[SCALA_STATI[minimo]].toLowerCase()}»` : null;
+    return { stato, status: motivo ? null : status, attuale: stato === info.stato, motivo };
+  });
+}
+
+export type StatoInCantiere = "posato" | "arrivato" | "arrivato_in_parte" | "non_arrivato";
+
+export const ETICHETTA_IN_CANTIERE: Record<StatoInCantiere, string> = {
+  posato: "Posato",
+  arrivato: "Arrivato",
+  arrivato_in_parte: "Arrivato in parte",
+  non_arrivato: "Non ancora arrivato",
+};
+
+/**
+ * Lo stato che serve a chi va in cantiere: c'è o non c'è. Dal telefono non si
+ * leggono gli ordini al fornitore, solo le righe d'ordine con il ricevuto:
+ * «arrivato» quando ogni riga d'ordine è arrivata per intero (o la riga è
+ * segnata in magazzino), «in parte» se è arrivato qualcosa.
+ */
+export function statoInCantiere(
+  riga: { status?: string | null },
+  righeOrdine: ReadonlyArray<{ quantity: number | null; quantity_received: number | null }>,
+): StatoInCantiere {
+  if (riga.status === "installato") return "posato";
+  if (STATI_RIGA_ARRIVATI.includes(riga.status ?? "")) return "arrivato";
+  const conQuantita = righeOrdine.filter((r) => num(r.quantity) > 0);
+  if (conQuantita.length && conQuantita.every((r) => num(r.quantity_received) >= num(r.quantity))) return "arrivato";
+  if (righeOrdine.some((r) => num(r.quantity_received) > 0)) return "arrivato_in_parte";
+  return "non_arrivato";
+}

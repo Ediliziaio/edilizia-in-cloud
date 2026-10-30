@@ -619,6 +619,8 @@ export const queryKeys = {
       ["ddt-ricezione", "detail", ddtId] as const,
     goodsReceipts: (ddtId: string | undefined) =>
       ["ddt-ricezione", "goods-receipts", ddtId] as const,
+    righe: (ddtId: string | undefined) =>
+      ["ddt-ricezione", "righe", ddtId] as const,
     countsByPO: (companyId: string | undefined) =>
       ["ddt-ricezione", "counts-by-po", companyId] as const,
   },

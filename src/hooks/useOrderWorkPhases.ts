@@ -78,6 +78,9 @@ export interface PhaseMaterial {
   unit_price: number | null;
   discount_percent: number | null;
   standard_cost: number | null;
+  /** L'unità della riga: i posati dei rapportini si confrontano solo nella stessa unità. */
+  unita_misura?: string | null;
+  stock_item_id?: string | null;
   readiness: MaterialReadiness;
   odaNumber: string | null;
 }
@@ -422,7 +425,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     queryFn: async () => {
       const { data: items, error } = await db
         .from("order_items")
-        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost")
+        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost, unita_misura")
         .filter("natura_riga", "eq", "materiale")
         .eq("order_id", orderId!);
       if (error) throw error;

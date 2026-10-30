@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { EditorState, Action } from "./useEditorState";
+import { CAUSALI_TRASPORTO as CAUSALI, codiceCausale } from "@/lib/ddt/causaliTrasporto";
 
 interface Props {
   state: EditorState;
@@ -35,17 +36,6 @@ interface SubOption {
   telefono: string | null;
   responsabile: string | null;
 }
-
-const CAUSALI = [
-  { value: "vendita", label: "Vendita" },
-  { value: "reso", label: "Reso" },
-  { value: "omaggio", label: "Omaggio" },
-  { value: "conto_lavoro", label: "Conto lavoro" },
-  { value: "deposito", label: "Deposito" },
-  { value: "esposizione", label: "Esposizione" },
-  { value: "riparazione", label: "Riparazione" },
-  { value: "altro", label: "Altro" },
-];
 
 export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
   const { effectiveCompany } = useAuth();
@@ -205,7 +195,7 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       <div>
         <Label className="text-[10px] text-muted-foreground">Causale trasporto</Label>
         <Select
-          value={state.ddt_causale_trasporto ?? ""}
+          value={codiceCausale(state.ddt_causale_trasporto)}
           onValueChange={(v) => setField("ddt_causale_trasporto", v)}
           disabled={disabled}
         >

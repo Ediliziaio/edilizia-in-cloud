@@ -1062,6 +1062,27 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
       }
 
+      // Contratto importato con «Carica contratto (AI)»: dietro la commessa nasce il suo contratto,
+      // un preventivo «importato» con il documento firmato (contratto_importato_collega). Se non riesce
+      // la commessa resta valida: lo si dice, il documento è comunque tra i suoi allegati.
+      // L'offerta di un produttore al rivenditore non è un contratto col cliente: niente contratto firmato.
+      if (!selectedQuoteId && contrattoImportato && contractSource && contrattoImportato.natura_documento !== "offerta_fornitore") {
+        const collegaContratto = supabase.rpc.bind(supabase) as unknown as (
+          fn: "contratto_importato_collega", args: Record<string, unknown>,
+        ) => Promise<{ error: { message: string } | null }>;
+        const { error: erroreContratto } = await collegaContratto("contratto_importato_collega", {
+          p_order: result.id,
+          p_path: contractSource.path,
+          p_nome: contractSource.name,
+          p_mime: contractSource.mime,
+          p_firmato_il: contrattoImportato.data_documento && /^\d{4}-\d{2}-\d{2}$/.test(contrattoImportato.data_documento)
+            && contrattoImportato.data_documento <= new Date().toLocaleDateString("en-CA") ? contrattoImportato.data_documento : null,
+        });
+        if (erroreContratto) {
+          toast.warning("Commessa creata, ma il contratto non è stato registrato", { description: erroreContratto.message, duration: 12000 });
+        }
+      }
+
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
       // settato con un UPDATE follow-up (best-effort, non blocca l'ordine).
       // La colonna orders.sede_id è FK opzionale (vedi migration create_sedi_system).
@@ -1743,12 +1764,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </QuoteCard>
 
         {/* Order Items */}
-        {quotePrefill && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
+        {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}
           editable={!createdOrderId}
           showStatusControls={false}
+          vista="compatta"
         />
 
         </fieldset>

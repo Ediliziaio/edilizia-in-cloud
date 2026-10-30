@@ -1332,6 +1332,7 @@ function EditOrderInner() {
           onItemsChange={setOrderItems}
           editable={true}
           showStatusControls={false}
+          vista="compatta"
         />
 
         {/* Order Attachments */}

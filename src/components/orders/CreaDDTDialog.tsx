@@ -28,6 +28,7 @@ import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import { useRigheComposer, type RigaComposerItem } from "@/components/orders/RigheComposer";
+import { CAUSALI_TRASPORTO } from "@/lib/ddt/causaliTrasporto";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -46,17 +47,6 @@ interface CreaDDTDialogProps {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-const CAUSALI_TRASPORTO = [
-  { value: "vendita", label: "Vendita" },
-  { value: "reso", label: "Reso" },
-  { value: "omaggio", label: "Omaggio" },
-  { value: "conto_lavoro", label: "Conto lavoro" },
-  { value: "deposito", label: "Deposito" },
-  { value: "esposizione", label: "Esposizione" },
-  { value: "riparazione", label: "Riparazione" },
-  { value: "altro", label: "Altro" },
-];
 
 // ── Component ────────────────────────────────────────────────────
 

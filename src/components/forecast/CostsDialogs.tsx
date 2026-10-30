@@ -1,3 +1,4 @@
+import { METODI_PAGAMENTO_COSTO } from "@/lib/costi/metodiPagamento";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -145,14 +146,7 @@ export function CostsDialogs({
             <div>
               <Label className="mb-2 block">Metodo di pagamento</Label>
               <RadioGroup value={paymentMethod} onValueChange={onPaymentMethodChange} className="grid grid-cols-3 gap-2">
-                {[
-                  { value: "bonifico", label: "Bonifico" },
-                  { value: "contanti", label: "Contanti" },
-                  { value: "carta", label: "Carta" },
-                  { value: "rid", label: "RID" },
-                  { value: "assegno", label: "Assegno" },
-                  { value: "altro", label: "Altro" },
-                ].map((opt) => (
+                {METODI_PAGAMENTO_COSTO.map((opt) => (
                   <div key={opt.value} className="flex items-center space-x-2">
                     <RadioGroupItem value={opt.value} id={`pm-${opt.value}`} />
                     <Label htmlFor={`pm-${opt.value}`} className="text-sm cursor-pointer">{opt.label}</Label>

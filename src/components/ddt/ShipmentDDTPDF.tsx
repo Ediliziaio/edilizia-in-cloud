@@ -22,6 +22,7 @@ import React from "react";
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { etichettaCausale } from "@/lib/ddt/causaliTrasporto";
 
 /* ── Palette (coerente OrdinePDF) ─────────────────────────────────────── */
 const C = {
@@ -478,7 +479,7 @@ export function ShipmentDDTPDF({
           <View style={styles.trasportoGrid}>
             <View style={styles.trasportoCell}>
               <Text style={styles.trasportoLabel}>Causale</Text>
-              <Text style={styles.trasportoValue}>{causale_trasporto || "Vendita"}</Text>
+              <Text style={styles.trasportoValue}>{etichettaCausale(causale_trasporto) || "Vendita"}</Text>
             </View>
             <View style={styles.trasportoCell}>
               <Text style={styles.trasportoLabel}>Aspetto beni</Text>

@@ -50,7 +50,12 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
               <Metric label="Residuo commesse · tutte le scadenze" value={fmtCur(finance.pendingRevenue)} />
               <Metric label="Costi aperti · tutte le scadenze" value={fmtCur(finance.supplierDebt)} />
             </div>
-            <p className="text-xs text-muted-foreground">Margine commesse nel periodo selezionato: <strong className="text-foreground">{safeNumber(finance.marginThisMonth).toFixed(1)}%</strong></p>
+            <p className="text-xs text-muted-foreground">
+              Margine commesse nel periodo selezionato:{" "}
+              <strong className="text-foreground">{finance.marginOrdersWithCosts === 0 ? "—" : `${safeNumber(finance.marginThisMonth).toFixed(1)}%`}</strong>
+              {!!finance.marginOrdersWithCosts && ` su ${finance.marginOrdersWithCosts} ${finance.marginOrdersWithCosts === 1 ? "commessa" : "commesse"} con costi`}
+              {!!finance.marginOrdersWithoutCosts && ` · ${finance.marginOrdersWithoutCosts} senza costi registrati, escluse`}
+            </p>
           </>}
         </CardContent>
       </Card>

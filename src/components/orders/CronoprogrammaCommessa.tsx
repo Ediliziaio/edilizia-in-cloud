@@ -11,6 +11,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { planningDay } from "@/lib/orders/planning";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import {
   avanzamentoComplessivo,
@@ -191,12 +192,13 @@ export function CronoprogrammaCommessa({
   const [scala, setScala] = useState<"adatta" | "mesi" | "settimane">("adatta");
   const [vista, setVista] = useState<"grafico" | "elenco">("grafico");
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
+  const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   const oggi = giornoLocale(new Date().toISOString());
   const economia = useMemo(
-    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti }),
-    [phases, materials, allAssignments, costiMateriali],
+    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase }),
+    [phases, materials, allAssignments, costiMateriali, posaPerFase],
   );
   const fasi = useMemo(
     () => fasiCronoprogramma(

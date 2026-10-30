@@ -28,6 +28,15 @@ describe("Cruscotto: Finanza e Operations",()=>{
   expect(screen.getByText("Arretrati precedenti · da pagare").parentElement).toHaveTextContent("500");
   expect(screen.getByText("Copertura dal saldo registrato").parentElement).toHaveTextContent("10 giorni");
  });
+ it("il margine dice su quante commesse è calcolato e quante restano fuori senza costi",()=>{
+  renderUI(<FinanzaCashFlow finance={{...finance,marginOrdersWithCosts:3,marginOrdersWithoutCosts:12}} isLoading={false}/>);
+  expect(screen.getByText(/Margine commesse nel periodo/)).toHaveTextContent("20.0% su 3 commesse con costi · 12 senza costi registrati, escluse");
+ });
+ it("senza nessuna commessa con costi il margine non è un numero",()=>{
+  renderUI(<FinanzaCashFlow finance={{...finance,marginThisMonth:0,marginOrdersWithCosts:0,marginOrdersWithoutCosts:345}} isLoading={false}/>);
+  expect(screen.getByText(/Margine commesse nel periodo/)).toHaveTextContent("—");
+  expect(screen.getByText(/Margine commesse nel periodo/)).not.toHaveTextContent("0.0%");
+ });
  it("un saldo negativo non genera falsi giorni di autonomia positivi",()=>{
   mocks.saldo={saldo:-1000,entry_count:5};
   renderUI(<FinanzaCashFlow finance={finance} isLoading={false}/>);

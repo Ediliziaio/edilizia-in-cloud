@@ -223,6 +223,13 @@ export function economiaFasi(input: {
   assegnazioni: ReadonlyArray<AssegnazioneFase>;
   acquisti?: ReadonlyArray<RigaAcquisto>;
   movimenti?: ReadonlyArray<MovimentoMagazzino>;
+  /**
+   * Quanto di ogni riga il cantiere ha posato su ogni fase (rapportini
+   * approvati, consumiMateriali). Lo stesso articolo si usa su più fasi: il
+   * suo costo sostenuto va a ognuna per la parte posata lì. Quello che non è
+   * ancora posato né rientrato in magazzino resta alla fase della riga.
+   */
+  posaPerFase?: ReadonlyMap<string, ReadonlyMap<string | null, number>>;
 }): EconomiaFasi {
   const somme = new Map<string, Somme>();
   for (const f of input.fasi) somme.set(f.id, vuote(importoFase(f.importo_venduto)));
@@ -230,14 +237,49 @@ export function economiaFasi(input: {
   const di = (faseId: string | null) => (faseId && somme.get(faseId)) || fuori;
 
   const consuntivoRighe = costoConsuntivoRighe(input.acquisti ?? [], input.movimenti ?? []);
+  // Quanto di ogni riga è stato comprato (ordini emessi) o preso dal magazzino, e quanto è rientrato:
+  // la stessa base di costoConsuntivoRighe e di v_ordine_marginalita, non la quantità scritta sulla riga.
+  const rientrati = new Map<string, number>();
+  const scaricati = new Map<string, number>();
+  for (const m of input.movimenti ?? []) {
+    if (!m.order_item_id) continue;
+    const divisione = (m.notes ?? "").startsWith("Divisione tra le fasi:");
+    if (m.movement_type === "scarico") scaricati.set(m.order_item_id, (scaricati.get(m.order_item_id) ?? 0) + numero(m.quantity));
+    else if (m.movement_type === "carico" && m.rientro_commessa) {
+      if (divisione) scaricati.set(m.order_item_id, (scaricati.get(m.order_item_id) ?? 0) - numero(m.quantity));
+      else rientrati.set(m.order_item_id, (rientrati.get(m.order_item_id) ?? 0) + numero(m.quantity));
+    }
+  }
+  const ordinati = new Map<string, number>();
+  for (const a of input.acquisti ?? []) {
+    if (a.order_item_id) ordinati.set(a.order_item_id, (ordinati.get(a.order_item_id) ?? 0) + numero(a.quantity));
+  }
   for (const r of input.righe) {
     const s = di(r.phase_id);
     const prezzo = vendutoRiga(r);
     s.vendutoRighe += prezzo;
     if (prezzo > 0) s.righePrezzate += 1;
     s.previsto.materiali += costoPrevistoRiga(r);
-    s.consuntivo.materiali += consuntivoRighe.get(r.id) ?? 0;
     s.righe += 1;
+    const costo = consuntivoRighe.get(r.id) ?? 0;
+    const posa = input.posaPerFase?.get(r.id);
+    const posati = posa ? [...posa.values()].reduce((n, q) => n + q, 0) : 0;
+    if (!posa || posati <= 0 || costo === 0) {
+      s.consuntivo.materiali += costo;
+      continue;
+    }
+    // Il costo vale per quanto è ancora fuori dal magazzino: si divide tra le fasi in proporzione
+    // al posato; la parte non ancora posata resta alla fase della riga.
+    const comprati = Math.max(ordinati.get(r.id) ?? 0, scaricati.get(r.id) ?? 0) || numero(r.quantity);
+    const fuori = Math.max(posati, comprati - (rientrati.get(r.id) ?? 0));
+    let assegnato = 0;
+    for (const [fase, q] of posa) {
+      const parte = (costo * q) / fuori;
+      // Posato senza fase, o su una fase che non c'è più: resta alla fase della riga.
+      di(fase && somme.has(fase) ? fase : r.phase_id).consuntivo.materiali += parte;
+      assegnato += parte;
+    }
+    s.consuntivo.materiali += costo - assegnato;
   }
   for (const a of input.assegnazioni) {
     const s = di(a.phase_id);

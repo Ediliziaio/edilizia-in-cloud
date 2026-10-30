@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -12,13 +12,10 @@ import {
   Search,
   X,
   List,
-  LayoutGrid,
-  Calendar as CalendarIcon,
   Download,
   Printer,
   AlertTriangle,
   Clock,
-  PackageOpen,
   RefreshCw,
   GripVertical,
   ScanLine,
@@ -36,7 +33,6 @@ import {
   Star,
   Trash2,
   ShoppingCart,
-  History,
   TrendingDown,
   MoreHorizontal,
 } from "lucide-react";
@@ -56,7 +52,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrelieviCampoCard } from "@/components/warehouse/PrelieviCampoCard";
 import { AcquistiCampoCard } from "@/components/warehouse/AcquistiCampoCard";
 import { RigheDaAbbinareCard } from "@/components/warehouse/RigheDaAbbinareCard";
@@ -106,8 +101,8 @@ import { WarehouseValorizzazionePanel } from "@/components/warehouse/WarehouseVa
 import WarehouseMovementsTab from "@/components/warehouse/WarehouseMovementsTab";
 import { LowStockReorderDialog } from "@/components/warehouse/LowStockReorderDialog";
 import { LottiScadenzaAlert } from "@/components/warehouse/LottiScadenzaAlert";
+import { MagazzinoVisteSwitch } from "@/components/warehouse/MagazzinoVisteSwitch";
 import { ArticoliCSVImportDialog } from "@/components/warehouse/ArticoliCSVImportDialog";
-import { Calculator } from "lucide-react";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -120,7 +115,13 @@ import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransfer
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const VISTE_MOBILE: ViewMode[] = ["list", "purchase_list", "stock"];
+import {
+  gruppiVisibili,
+  gruppoDi,
+  vistaDelGruppo,
+  VISTE_MOBILE,
+  type GruppoMagazzino,
+} from "@/lib/magazzino/vistaMagazzino";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { formatCurrency } from "@/lib/formatters";
@@ -265,12 +266,16 @@ export default function Warehouse() {
   } = useWarehouseData();
   // i riquadri si contano nel database su tutti i dati, non sulla pagina mostrata
   const { data: riepilogo } = useMagazzinoRiepilogo(warehouseFilter ?? null);
-  // Mobile: tre viste su undici (commesse, acquisti, inventario). Pipeline,
-  // calendario, lotti, DDT, uscite, valore, scadenze e movimenti sono da
-  // scrivania; un indirizzo diretto a una di queste apre le commesse.
+  // Mobile: lista, da comprare e inventario. Pipeline, calendario, lotti,
+  // valore, arrivi e uscite, movimenti sono da scrivania.
   const isMobile = useIsMobile();
-  const viewMode: ViewMode =
-    isMobile && !VISTE_MOBILE.includes(viewModeScelto) ? "list" : viewModeScelto;
+  // «Scadenze» non ha più una scheda: apre le giacenze. Stessa regola di
+  // vistaEffettiva(), scritta qui perché il React Compiler non perda la
+  // memoizzazione del resto del componente.
+  const vistaScelta: ViewMode = viewModeScelto === "scadenze" ? "stock" : viewModeScelto;
+  const viewMode: ViewMode = isMobile && !VISTE_MOBILE.includes(vistaScelta) ? "list" : vistaScelta;
+  // Tornando a un gruppo si ritrova la sotto-vista lasciata.
+  const ultimePerGruppo = useRef<Partial<Record<GruppoMagazzino, ViewMode>>>({});
 
   const { sections } = useWarehouseSections();
   const {
@@ -430,6 +435,9 @@ export default function Warehouse() {
     );
   }
 
+  const gruppoAttivo = gruppoDi(viewMode);
+  const gruppi = gruppiVisibili(isMobile);
+
   const isWorkflowView = viewMode === "list" || viewMode === "kanban" || viewMode === "calendar";
   const isOrderView = isWorkflowView;
 
@@ -478,9 +486,14 @@ export default function Warehouse() {
   const handleViewModeChange = (value: string) => {
     const nextViewMode = value as ViewMode;
     setViewMode(nextViewMode);
+    ultimePerGruppo.current = { ...ultimePerGruppo.current, [gruppoDi(nextViewMode)]: nextViewMode };
     if (nextViewMode === "stock") {
       setStockActionRequest(null);
     }
+  };
+
+  const handleGruppoChange = (value: string) => {
+    handleViewModeChange(vistaDelGruppo(value as GruppoMagazzino, ultimePerGruppo.current, isMobile));
   };
 
   // KPI inventario cliccabili: le metriche di scorta aprono il riordino,
@@ -1112,57 +1125,14 @@ export default function Warehouse() {
         <CardContent className="p-3 sm:p-4 max-sm:p-0">
           <div className="flex flex-col gap-3 max-sm:gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Tabs value={viewMode} onValueChange={handleViewModeChange} className="min-w-0">
-                {/* Dieci viste: da tablet vanno a capo invece di scorrere di lato
-                    (col mouse «Scadenze» restava fuori), e le icone tornano solo
-                    da 1536px, così a 1440 stanno su una riga. */}
-                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:grid max-sm:grid-cols-3 sm:flex-wrap sm:overflow-visible">
-                  <TabsTrigger value="list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista commesse">
-                    <List className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Commesse</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="purchase_list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista acquisti">
-                    <ShoppingCart className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Acquisti</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="stock" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista inventario">
-                    <PackageOpen className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Inventario</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="kanban" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista pipeline">
-                    <LayoutGrid className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Pipeline</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="calendar" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista calendario">
-                    <CalendarIcon className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Calendario</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="lotti" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista lotti">
-                    <Package className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Lotti</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="ddt" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista DDT">
-                    <FileText className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">DDT</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="uscite" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista uscite merce">
-                    <ArrowUpFromLine className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Uscite</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista valorizzazione magazzino">
-                    <Calculator className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Valore</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista scadenze lotti">
-                    <Clock className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Scadenze</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="movements" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista registro movimenti">
-                    <History className="h-4 w-4 sm:hidden 2xl:block" />
-                    <span className="text-[11px] sm:text-sm">Movimenti</span>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              {/* Quattro gruppi invece di undici schede in fila (29/10/2026). */}
+              <MagazzinoVisteSwitch
+                gruppi={gruppi}
+                gruppoAttivo={gruppoAttivo}
+                vista={viewMode}
+                onGruppo={handleGruppoChange}
+                onVista={handleViewModeChange}
+              />
 
               {viewMode === "list" && (
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
@@ -1462,8 +1432,6 @@ export default function Warehouse() {
         <WarehouseLottiTab readOnly={isCommercialistaMode} />
       ) : viewMode === "valuation" ? (
         <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
-      ) : viewMode === "scadenze" ? (
-        <LottiScadenzaAlert />
       ) : viewMode === "movements" ? (
         <WarehouseMovementsTab companyId={effectiveCompany.id} warehouseFilter={warehouseFilter} />
       ) : viewMode === "stock" ? (

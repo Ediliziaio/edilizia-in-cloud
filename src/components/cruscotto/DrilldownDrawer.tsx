@@ -97,9 +97,10 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { data, isLoading } = useQuery({
     queryKey: ["drill-margin", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
-      // Come il dettaglio del venduto: commesse non nel cestino, valore con le varianti approvate.
-      const { data, error } = await supabase.from("orders")
-        .select("id, order_code, description, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost), variazioni:ordini_variazione(status, impatto_economico)")
+      // Le commesse come il dettaglio del venduto (non nel cestino); i numeri dalla
+      // vista v_ordine_marginalita, la stessa della scheda commessa e del riquadro.
+      const { data: orders, error } = await supabase.from("orders")
+        .select("id, order_code, description")
         .eq("company_id", effectiveCompany!.id)
         .is("deleted_at", null)
         .gte("created_at", dateFrom.toISOString())
@@ -107,7 +108,14 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
         .order("total_amount", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data;
+      if (!orders?.length) return [];
+      const { data: margini, error: marginiError } = await supabase.from("v_ordine_marginalita")
+        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+        .eq("company_id", effectiveCompany!.id)
+        .in("id", orders.map((o) => o.id));
+      if (marginiError) throw marginiError;
+      const perId = new Map((margini ?? []).map((m) => [m.id, m]));
+      return orders.map((o) => ({ ...o, economia: perId.get(o.id) }));
     },
     enabled: !!effectiveCompany?.id,
   });
@@ -117,25 +125,30 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
 
   return (
     <div className="space-y-2">
-      {data.map((o: any) => {
-        const revenue = agreedContractValue(safeNumber(o.total_amount), o.variazioni ?? []);
-        const cost = (o.order_items || []).reduce((s: number, i: any) => s + safeNumber(i.purchase_price) * safeNumber(i.quantity, 1), 0)
-          + (o.order_employees || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0)
-          + (o.order_external_teams || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0);
-        const marginPct = revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0;
+      {data.map((o) => {
+        const revenue = safeNumber(o.economia?.preventivo_totale);
+        const cost = safeNumber(o.economia?.consuntivo);
+        const margin = safeNumber(o.economia?.margine);
+        const marginPct = safeNumber(o.economia?.margine_perc);
+        // Senza costi registrati il margine non è il 100%: è da completare, come nella scheda.
+        const senzaCosti = cost <= 0;
 
         return (
           <div key={o.id} className="p-3 rounded-lg border text-sm">
             <div className="flex justify-between mb-1">
               <span className="font-medium truncate">{o.order_code || o.description || "Ordine"}</span>
-              <span className={cn("font-bold tabular-nums", marginPct >= 20 ? "text-emerald-600" : "text-destructive")}>
-                {safeNumber(marginPct).toFixed(1)}%
-              </span>
+              {senzaCosti ? (
+                <span className="text-xs text-muted-foreground">Costi da registrare</span>
+              ) : (
+                <span className={cn("font-bold tabular-nums", marginPct >= 20 ? "text-emerald-600" : "text-destructive")}>
+                  {marginPct.toFixed(1)}%
+                </span>
+              )}
             </div>
             <div className="flex gap-4 text-xs text-muted-foreground">
               <span>Ricavo: {fmtCur(revenue)}</span>
               <span>Costo: {fmtCur(cost)}</span>
-              <span>Margine: {fmtCur(revenue - cost)}</span>
+              {!senzaCosti && <span>Margine: {fmtCur(margin)}</span>}
             </div>
           </div>
         );

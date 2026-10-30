@@ -38,6 +38,8 @@ export interface CostsFilters {
   originFilter: "all" | "manual" | "order";
   customDateRange?: { start: Date; end: Date } | null;
   statusTabFilter?: StatusTabFilter;
+  /** Metodo di pagamento («riba», «bonifico»…); «none» = senza metodo. */
+  methodFilter?: string;
 }
 
 function parseCostDate(value?: string | null): Date | null {
@@ -47,7 +49,7 @@ function parseCostDate(value?: string | null): Date | null {
 }
 
 export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number, dateFrom?: string, dateTo?: string) {
-  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter = "all" } = filters;
+  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter = "all", methodFilter = "all" } = filters;
   const yearForStats = selectedYear ?? new Date().getFullYear();
 
   // Helper to get period date range
@@ -390,6 +392,11 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       else filtered = filtered.filter((c: any) => c.category === categoryFilter);
     }
 
+    if (methodFilter !== "all") {
+      if (methodFilter === "none") filtered = filtered.filter((c: any) => !c.payment_method);
+      else filtered = filtered.filter((c: any) => c.payment_method === methodFilter);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((c: any) =>
@@ -402,7 +409,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     }
 
     return filtered;
-  }, [costs, getPeriodRange, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
+  }, [costs, getPeriodRange, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, methodFilter]);
 
   // Filtering logic for order-derived costs
   const filteredOrderItemCosts = useMemo(() => {
@@ -442,8 +449,13 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       if (categoryFilter === "none") filtered = filtered.filter((c) => !c.category);
       else filtered = filtered.filter((c) => c.category === categoryFilter);
     }
+    // I costi che vengono dalle commesse non hanno un metodo di pagamento:
+    // con un metodo scelto escono, con «senza metodo» restano.
+    if (methodFilter !== "all") {
+      filtered = methodFilter === "none" ? filtered : [];
+    }
     return filtered;
-  }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, supplierFilter, categoryFilter, originFilter]);
+  }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, supplierFilter, categoryFilter, originFilter, methodFilter]);
 
   // Fatturato del mese corrente (fatture emesse, cestinate escluse): serve al
   // break-even, che prima riceveva un fatturato hard-coded a 0 e mostrava
