@@ -14461,6 +14461,7 @@ export type Database = {
       }
       billing_integrations: {
         Row: {
+          storico_registrato_fino_al: string | null
           access_token: string | null
           api_key: string | null
           auto_sync: boolean | null
@@ -14483,6 +14484,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          storico_registrato_fino_al?: string | null
           access_token?: string | null
           api_key?: string | null
           auto_sync?: boolean | null
@@ -14505,6 +14507,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          storico_registrato_fino_al?: string | null
           access_token?: string | null
           api_key?: string | null
           auto_sync?: boolean | null

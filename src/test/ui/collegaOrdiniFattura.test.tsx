@@ -27,7 +27,7 @@ const FATTURA = {
   id: "f1",
   cedente_ragione_sociale: "Edil Forniture",
   cedente_piva: "01234567890",
-  cedente_cf: null,
+  cedente_cf: null as string | null,
   totale_documento: 3660,
   imponibile_totale: 3000,
 };

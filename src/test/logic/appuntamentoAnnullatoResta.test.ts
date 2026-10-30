@@ -45,7 +45,7 @@ describe("appuntamento annullato", () => {
     expect(sync).toContain("reconcileMissingGoogleAppointments(");
     expect(riconcilia).toContain('status: "annullato", cancelled_at: now.toISOString()');
     expect(riconcilia).not.toMatch(/from\("appointments"\)\.delete\(/);
-    const apt = { id: "a", appointment_date: "2026-11-10", appointment_time: "10:00", status: "confermato", is_completed: false, updated_at: "x", internal_notes: null };
+    const apt = { id: "a", appointment_date: "2026-11-10", appointment_time: "10:00", status: "confermato", is_completed: false, updated_at: "x", internal_notes: null as string | null };
     const ora = new Date("2026-11-01T09:00:00Z");
     expect(mayCancelMissingGoogleAppointment(apt, ora, "2026-12-01T00:00:00Z")).toBe(true);
     // Solo dentro la finestra letta: fuori non è "sparito", non è stato chiesto.

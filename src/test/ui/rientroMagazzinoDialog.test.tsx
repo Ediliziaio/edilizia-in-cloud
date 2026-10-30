@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 const finto = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock("@/hooks/useWarehouses", () => ({
-  useWarehouses: () => ({ warehouses: [{ id: "w1", name: "Magazzino centrale", type: "main", is_default: true, linked_order_id: null }] }),
+  useWarehouses: () => ({ warehouses: [{ id: "w1", name: "Magazzino centrale", type: "main", is_default: true, linked_order_id: null as string | null }] }),
 }));
 vi.mock("@/hooks/useConsumiMateriali", () => ({ useRientroMateriale: () => ({ mutate: finto.mutate, isPending: false }) }));
 

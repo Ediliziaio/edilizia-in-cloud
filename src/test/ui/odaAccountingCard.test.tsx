@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
   },
 }));
-vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: () => null }));
+vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: (): null => null }));
 
 describe("Scheda Contabilità dell'ODA", () => {
   it("un acconto non fa scattare l'avviso: dice quanto resta da fatturare e la prossima RiBa", async () => {

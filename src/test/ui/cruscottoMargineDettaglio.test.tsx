@@ -8,7 +8,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 // DEMO-2024-H015 di Demo 2 com'era il 29/10/2026: nella vista 25,8%; la vecchia
 // formula del dettaglio (articoli previsti + ditte IVA inclusa) diceva 22,0%.
 const COMMESSE = [
-  { id: "o1", order_code: "DEMO-2024-H015", description: null },
+  { id: "o1", order_code: "DEMO-2024-H015", description: null as string | null },
   { id: "o2", order_code: "KB-001", description: null },
 ];
 const VISTA = [
