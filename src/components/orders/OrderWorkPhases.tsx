@@ -1,4 +1,5 @@
 import { MezziFaseCantiere } from "@/components/mezzi/PianoMezziCantiere";
+import { PianoDalPreventivo } from "@/components/orders/PianoDalPreventivo";
 import { NewPhaseMaterial } from "./NewPhaseMaterial";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -561,6 +562,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
       </CardHeader>
 
       <CardContent className={cn(telefono ? "space-y-2 px-0 pb-0" : "px-3 pb-3", !telefono && (view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6"))}>
+        {/* I tempi del cronoprogramma del preventivo firmato diventano le date delle fasi (31/10/2026). */}
+        {canEditOrders && !isLoading && !isError && <PianoDalPreventivo orderId={orderId} fasi={phases} />}
         {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}
 
         {/* Commessa appena aperta: tre passi, invece di tre riquadri vuoti. */}

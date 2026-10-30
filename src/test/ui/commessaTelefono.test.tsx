@@ -23,6 +23,8 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissio
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+// Il riquadro «Tempi dal preventivo firmato» ha i suoi test (pianoDalCronoprogramma): qui non serve.
+vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: () => null }));
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
 // I mezzi della fase hanno i loro test: qui conta la riga della fase.
 vi.mock("@/components/mezzi/PianoMezziCantiere", () => ({ MezziFaseCantiere: (): null => null }));
