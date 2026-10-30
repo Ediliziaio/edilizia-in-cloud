@@ -21,32 +21,6 @@ import { describe, expect, it } from "vitest";
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 
 describe("fix impaginazione/encoding PDF edge (audit)", () => {
-  describe("cg-export-ce-pdf", () => {
-    const source = read("supabase/functions/cg-export-ce-pdf/index.ts");
-
-    it("non contiene il carattere di spunta U+2713 (crashava con BEP raggiunto)", () => {
-      expect(source).not.toContain("✓");
-    });
-
-    it("non contiene il minore-uguale U+2264 (crashava con margine negativo)", () => {
-      expect(source).not.toContain("≤");
-    });
-
-    it("ha la difesa in profondità winAnsiSafe sul drawText", () => {
-      expect(source).toContain("winAnsiSafe");
-      expect(source).toContain("patchDrawTextSafe");
-    });
-
-    it("colonne Importo e % PIL separate (bordi destri 495 / 552)", () => {
-      expect(source).toContain("IMP_RIGHT = 495");
-      expect(source).toContain("PCT_RIGHT = 552");
-    });
-
-    it("segnala il troncamento dell'elenco voci invece di tagliare in silenzio", () => {
-      expect(source).toContain("elenco troncato");
-    });
-  });
-
   describe("cg-export-pacchetto-banca", () => {
     const source = read("supabase/functions/cg-export-pacchetto-banca/index.ts");
 

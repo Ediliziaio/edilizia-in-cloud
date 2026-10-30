@@ -28,10 +28,6 @@ const stampante = readFileSync(
   resolve(__dirname, "../../../supabase/functions/generate-cedolino-pdf/index.ts"),
   "utf8",
 );
-const lapide = readFileSync(
-  resolve(__dirname, "../../../supabase/functions/hr-genera-cedolini-mese/index.ts"),
-  "utf8",
-);
 
 /** Toglie i commenti: questi file *spiegano* i difetti citandoli, e una prova
  *  che non distingue il codice dalla prosa fallisce sulla spiegazione. */
@@ -172,17 +168,3 @@ describe("la stampante non calcola più", () => {
   });
 });
 
-describe("hr-genera-cedolini-mese non finge più di aver lavorato", () => {
-  it("non interroga più la tabella inesistente", () => {
-    expect(soloCodice(lapide, "ts")).not.toMatch(/\.from\("hr_dipendenti"\)/);
-  });
-
-  it("risponde 410 e dice cosa usare al suo posto", () => {
-    expect(lapide).toMatch(/status: 410/);
-    expect(lapide).toMatch(/cedolino_genera/);
-  });
-
-  it("non risponde più 200 con zero cedolini", () => {
-    expect(soloCodice(lapide, "ts")).not.toMatch(/cedolini_creati/);
-  });
-});

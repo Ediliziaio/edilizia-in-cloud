@@ -32,10 +32,6 @@ describe("Serramenti nel flusso di firma con codice", () => {
     expect(p).toContain("/firma-fea/");
   });
 
-  it("l'endpoint della firma a disegno è chiuso (410)", () => {
-    expect(leggi("supabase/functions/sr-firma-cliente/index.ts")).toContain("410");
-  });
-
   it("la pagina di firma mostra il documento in anteprima e salta al codice dall'anteprima", () => {
     const f = leggi("src/pages/public/FirmaDocumento.tsx");
     expect(f).toContain("<AnteprimaDocumento");

@@ -44,18 +44,6 @@ function tuttiISorgenti(): { file: string; testo: string }[] {
   return out;
 }
 
-describe("1 · generate-survey-pdf: solo per l'azienda del sopralluogo", () => {
-  const s = leggi("supabase/functions/generate-survey-pdf/index.ts");
-  it("controlla l'accesso all'azienda prima di generare il report", () => {
-    expect(s).toContain('import { requireCompanyAccess } from "../_shared/auth.ts";');
-    expect(s).toContain("requireCompanyAccess(supabase, userId, survey.company_id");
-    const check = s.indexOf("requireCompanyAccess(supabase, userId, survey.company_id");
-    expect(check).toBeGreaterThan(-1);
-    // prima di caricare l'anagrafica azienda e comporre l'HTML
-    expect(check).toBeLessThan(s.indexOf('.from("companies")'));
-  });
-});
-
 describe("2 · email-ai-l3-batch: cron/servizio o super_admin", () => {
   const s = leggi("supabase/functions/email-ai-l3-batch/index.ts");
   it("usa chiamataInternaValida e, a mano, pretende super_admin", () => {

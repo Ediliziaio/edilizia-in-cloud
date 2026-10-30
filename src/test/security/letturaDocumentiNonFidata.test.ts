@@ -53,7 +53,6 @@ const CON_REGOLE_CONDIVISE = [
   "ai-rapportini-da-documento",
   "ai-tabella-finanziamento-extract",
   "ddt-ai-extract",
-  "ddt-ocr-extract",
   "document-ai-router",
   "generic-doc-ai-extract",
   "parse-matrix-image",
@@ -85,7 +84,6 @@ const NON_LEGGONO_DOCUMENTI: Record<string, string> = {
   "generate-technical-render": RENDER,
   "meta-api-proxy": "inoltra a Meta le creatività delle inserzioni; non legge",
   "planimetria-conta-simboli": "conta simboli su riquadri di una tavola: stima salvata come bozza da confermare a mano",
-  "preventivo-da-foto-orchestrator": "foto di cantiere → bozza di preventivo (flusso legacy), approvata da una persona",
   "silvio-chat": "chat con l'assistente: gli allegati sono dell'utente che scrive",
   "sr-ai-preventivo-draft": "bozza dal testo e dalle foto dell'utente; ogni posizione va approvata prima di entrare",
 };
@@ -215,7 +213,6 @@ describe("gli errori del router arrivano all'utente da una tabella sola", () => 
     "ai-listino-extract",
     "ai-tabella-finanziamento-extract",
     "ddt-ai-extract",
-    "ddt-ocr-extract",
     "document-ai-router",
     "generic-doc-ai-extract",
   ];

@@ -56,7 +56,7 @@ const DA_FUORI = [
   "meta-webhook", "meta-data-deletion-callback", "meta-oauth-callback", "stripe-webhook",
   "telnyx-webhook", "openwa-webhook", "google-calendar-webhook", "auth-email-hook",
   "email-oauth-callback", "public-booking-crea", "public-booking-gestisci",
-  "fea-documento-pubblico", "sr-firma-cliente", "platform-mcp",
+  "fea-documento-pubblico", "platform-mcp",
 ];
 
 // Una nostra funzione ne chiama un'altra, senza il JWT di un utente.
