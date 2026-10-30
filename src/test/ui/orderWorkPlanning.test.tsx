@@ -23,7 +23,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
 // Il riquadro «Tempi dal preventivo firmato» ha i suoi test (pianoDalCronoprogramma): qui non serve.
-vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: () => null }));
+vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: (): null => null }));
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
 vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true, sabato: false, setSabato: () => {} }) }));
 vi.mock("@/hooks/useSottofasi", () => ({
