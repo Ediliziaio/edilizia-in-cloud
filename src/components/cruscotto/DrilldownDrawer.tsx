@@ -62,6 +62,7 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
       const { data, error } = await supabase.from("orders")
         .select("id, order_code, description, total_amount, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name), variazioni:ordini_variazione(status, impatto_economico)")
         .eq("company_id", effectiveCompany!.id)
+        .or("workflow_kind.neq.generale") // le commesse generali sono contenitori, non lavori
         .is("deleted_at", null)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
@@ -102,6 +103,7 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
       const { data: orders, error } = await supabase.from("orders")
         .select("id, order_code, description")
         .eq("company_id", effectiveCompany!.id)
+        .or("workflow_kind.neq.generale") // le commesse generali sono contenitori, non lavori
         .is("deleted_at", null)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
@@ -166,6 +168,7 @@ function LateOrdersDrill() {
       const { data, error } = await supabase.from("orders")
         .select("id, order_code, description, expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany!.id)
+        .or("workflow_kind.neq.generale") // le commesse generali sono contenitori, non lavori
         .lt("expected_date", todayStr)
         .is("work_end_date", null)
         .order("expected_date", { ascending: true })

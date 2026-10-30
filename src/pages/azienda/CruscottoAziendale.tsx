@@ -29,6 +29,7 @@ import { SedeIncidenceChart } from "@/components/sedi/SedeIncidenceChart";
 import { useSediAnalytics } from "@/hooks/useSediAnalytics";
 import { useSedeFilter } from "@/store/sedeFilterStore";
 import { IndicatoriGuida } from "@/components/cruscotto/IndicatoriGuida";
+import { CommesseGeneraliCruscotto } from "@/components/cruscotto/generali/CommesseGeneraliCruscotto";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { AlertCircle, Download, Euro, LayoutDashboard, RefreshCw, Wallet } from "lucide-react";
@@ -608,6 +609,13 @@ export default function CruscottoAziendale() {
               <SectionErrorBoundary sectionName="I numeri che comandano">
                 <IndicatoriGuida />
               </SectionErrorBoundary>
+
+              {/* Appalti e operazioni immobiliari: solo per chi ha acceso le commesse generali */}
+              {showOperazioni && (
+                <SectionErrorBoundary sectionName="Commesse generali">
+                  <CommesseGeneraliCruscotto />
+                </SectionErrorBoundary>
+              )}
 
               {companyTargets?.monthly_revenue_target && !isMobile && (
                 <SectionErrorBoundary sectionName="Target Mensile">
