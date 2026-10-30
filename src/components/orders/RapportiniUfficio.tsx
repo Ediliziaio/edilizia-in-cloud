@@ -153,6 +153,9 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     <div className="space-y-4">
       {giorni.map((g, i) => {
         const presenze = g.presenze ?? {};
+        // Con le fasi scelte, si propone chi lavora su quelle; senza, chi è sulla commessa (31/10/2026).
+        const sulleFasi = new Set(phases.filter((p) => g.fasi.includes(p.id)).flatMap((p) => p.assignments).map((a) => a.employee_id).filter((x): x is string => !!x));
+        const proposti = persone.filter((p) => p.employee_id && (sulleFasi.size ? sulleFasi.has(p.employee_id) : assegnati.has(p.employee_id)) && !(p.chiave in presenze));
         const oreTotali = Object.values(presenze).reduce((t, v) => t + (Number(v.replace(",", ".")) || 0), 0);
         return (
           <section key={g.chiave} aria-label={`Rapportino ${i + 1}`} className="space-y-3 rounded-lg border p-3">
@@ -253,11 +256,11 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                 segnaposto="ore"
                 valoreNuovo="8"
                 onCambia={(v) => cambia(g.chiave, { presenze: v })}
-                extra={persone.some((p) => p.employee_id && assegnati.has(p.employee_id) && !(p.chiave in presenze)) && (
+                extra={proposti.length > 0 && (
                   <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => cambia(g.chiave, {
-                    presenze: { ...presenze, ...Object.fromEntries(persone.filter((p) => p.employee_id && assegnati.has(p.employee_id) && !(p.chiave in presenze)).map((p) => [p.chiave, "8"])) },
+                    presenze: { ...presenze, ...Object.fromEntries(proposti.map((p) => [p.chiave, "8"])) },
                   })}>
-                    <Users className="mr-1 h-3.5 w-3.5" />Tutti quelli della commessa
+                    <Users className="mr-1 h-3.5 w-3.5" />{sulleFasi.size ? "Chi lavora sulle fasi scelte" : "Tutti quelli della commessa"} ({proposti.length})
                   </Button>
                 )}
               />
@@ -345,10 +348,10 @@ function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCa
           {Object.entries(valori).map(([id, v]) => {
             const voce = voci.find((x) => x.id === id);
             return (
-              <li key={id} className="flex items-center gap-2 px-2 py-1">
+              <li key={id} className="flex items-center gap-2 px-2 py-0.5">
                 <span className="min-w-0 flex-1 truncate text-sm">{voce?.nome ?? "—"}</span>
                 <Input value={v} inputMode="decimal" placeholder={segnaposto} aria-label={`${voce?.nome ?? etichetta}: ${segnaposto}`}
-                  onChange={(e) => onCambia({ ...valori, [id]: e.target.value })} className="h-8 w-24 text-right" />
+                  onChange={(e) => onCambia({ ...valori, [id]: e.target.value })} className="h-7 w-20 text-right" />
                 {voce?.coda && <span className="w-8 text-xs text-muted-foreground">{voce.coda}</span>}
                 <button type="button" aria-label={`Togli ${voce?.nome ?? etichetta}`} className="text-muted-foreground hover:text-rose-600"
                   onClick={() => { const n = { ...valori }; delete n[id]; onCambia(n); }}><X className="h-4 w-4" /></button>

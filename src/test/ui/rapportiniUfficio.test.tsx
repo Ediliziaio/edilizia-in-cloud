@@ -70,7 +70,7 @@ describe("Rapportini dall'ufficio", () => {
     fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Getto solaio" } });
     fireEvent.change(screen.getByLabelText("Meteo, rapportino 1"), { target: { value: "pioggia" } });
     // Chi è sulla commessa entra con 8 ore, poi si correggono.
-    fireEvent.click(screen.getByRole("button", { name: /Tutti quelli della commessa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Chi lavora sulle fasi scelte|Tutti quelli della commessa/ }));
     fireEvent.change(screen.getByLabelText("Mario Rossi: ore"), { target: { value: "6,5" } });
     await waitFor(() => expect(screen.getByRole("option", { name: "Edil Savoca" })).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Aggiungi persona"), { target: { value: "s:sub9" } });
