@@ -34,7 +34,7 @@ describe("esportazione in Excel", () => {
   it("il file si riapre: intestazioni, fasi in grassetto, date vere, costi solo se si vedono", async () => {
     const { esportaCronoprogrammaExcel } = await import("@/lib/orders/esportaCronoprogramma");
     const ExcelJS = (await import("exceljs")).default;
-    const riga: RigaTabella = { id: "f1", numero: "1", livello: 0, nome: "Tetto", inizio: "2026-10-02", fine: "2026-11-10", giorni: 40, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: 542.75, costoConsuntivo: 0, venduto: 22120, avanzamento: 10, stimata: false, ritardo: 0 };
+    const riga: RigaTabella = { id: "f1", numero: "1", livello: 0, nome: "Tetto", inizio: "2026-10-02", fine: "2026-11-10", giorni: 40, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: 542.75, costoConsuntivo: 0, venduto: 22120, avanzamento: 10, stimata: false, ritardo: 0, stato: "in_corso" };
     const sotto: RigaTabella = { ...riga, id: "s1", numero: "1.1", livello: 1, nome: "Smontaggio manto", giorni: 4, risorse: 3, quantita: 109.45, unita: "m²", costoPrevisto: 436.71, venduto: 3360 };
     const leggi = async (costi: boolean) => {
       const blob = await esportaCronoprogrammaExcel([riga, sotto], "Prova", { costi, venduto: costi });
@@ -49,5 +49,30 @@ describe("esportazione in Excel", () => {
     expect(ws.getRow(3).getCell(3).value).toBeInstanceOf(Date);
     expect(ws.getRow(3).getCell(10).value).toBe(436.71);
     expect((await leggi(false)).getRow(1).values).not.toContain("Costo previsto");
+  });
+});
+
+describe("PDF del cronoprogramma", () => {
+  it("una pagina A4 orizzontale con titolo, righe e numero di pagina", async () => {
+    const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+    const riga = (numero: string, stato: RigaTabella["stato"], ritardo = 0): RigaTabella => ({
+      id: numero, numero, livello: numero.includes(".") ? 1 : 0, nome: `Attività ${numero}`, inizio: "2025-10-02", fine: "2025-10-08",
+      giorni: 7, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: null, costoConsuntivo: null, venduto: null,
+      avanzamento: stato === "fatta" ? 100 : 40, stimata: false, ritardo, stato });
+    const blob = await pdfCronoprogramma({ titolo: "Cronoprogramma · PROVA", righe: [riga("1", "fatta", 3), riga("1.1", "fatta", 2), riga("2", "in_corso"), riga("3", "da_fare")], da: "2025-09-28", a: "2025-10-20", oggi: "2025-10-05" });
+    const testo = new TextDecoder("latin1").decode(await blob.arrayBuffer());
+    expect(testo.startsWith("%PDF")).toBe(true);
+    expect(testo).toMatch(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/);
+    expect(testo).toContain("Cronoprogramma");
+    expect(testo).toContain("+3 gg");
+    expect(testo).toContain("pagina 1 di 1");
+  });
+
+  it("con tante righe va a pagina nuova", async () => {
+    const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+    const righe = Array.from({ length: 60 }, (_, i): RigaTabella => ({ id: String(i), numero: String(i + 1), livello: 0, nome: `Fase ${i + 1}`, inizio: "2025-10-02", fine: "2025-10-08",
+      giorni: 7, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: null, costoConsuntivo: null, venduto: null, avanzamento: 0, stimata: false, ritardo: 0, stato: "da_fare" }));
+    const testo = new TextDecoder("latin1").decode(await (await pdfCronoprogramma({ titolo: "Lungo", righe, da: "2025-09-28", a: "2025-10-20", oggi: "2025-10-05" })).arrayBuffer());
+    expect(testo).toMatch(/pagina 1 di [3-9]/);
   });
 });

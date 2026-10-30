@@ -228,7 +228,7 @@ describe("Cronoprogramma", () => {
     expect(screen.queryByTestId("sottofase-barra-s4")).toBeNull();
     expect(screen.getByLabelText(/^Pavimenti: In corso, 33%/)).toBeInTheDocument();
     // si possono nascondere
-    fireEvent.click(screen.getByRole("button", { name: "Chiudi le sottofasi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nascondi le sottofasi di Pavimenti" }));
     expect(screen.queryByTestId("sottofase-s1")).not.toBeInTheDocument();
   });
 });

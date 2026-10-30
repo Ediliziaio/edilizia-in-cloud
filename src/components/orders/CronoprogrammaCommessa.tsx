@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, CalendarRange, Check, ChevronDown, ChevronRight, FileSignature, Loader2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, Check, ChevronDown, ChevronRight, Download, FileSignature, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -48,6 +48,10 @@ export interface CommessaCronoprogramma {
   work_start_date: string | null;
   work_end_date: string | null;
   expected_date: string | null;
+  /** Per l'intestazione del PDF. */
+  order_code?: string | null;
+  client_name?: string | null;
+  indirizzo_lavori?: string | null;
 }
 
 const breve = (d: string) => planningDay(d) ? format(parseISO(d), "dd/MM", { locale: it }) : "Da verificare";
@@ -149,10 +153,9 @@ function Dettaglio({
  * fatta, rosso in ritardo. Vale per fasi e sottofasi, barre e pallini.
  */
 const COLORE = {
-  da_fare: { barra: "border-slate-400 bg-white", pieno: "bg-slate-300", punto: "bg-slate-400", linea: "bg-slate-500" },
-  in_corso: { barra: "border-sky-400 bg-sky-50", pieno: "bg-sky-500", punto: "bg-sky-500", linea: "bg-sky-700" },
-  // Fatta: spenta in grigio (31/10/2026), così risaltano solo ritardi e lavori in corso.
-  fatta: { barra: "border-slate-300 bg-slate-300", pieno: "bg-slate-300", punto: "bg-emerald-500", linea: "bg-slate-300" },
+  da_fare: { barra: "border-slate-400 bg-white", pieno: "bg-slate-400", punto: "bg-slate-400", linea: "bg-slate-400" },
+  in_corso: { barra: "border-blue-600 bg-blue-100", pieno: "bg-blue-600", punto: "bg-blue-600", linea: "bg-blue-600" },
+  fatta: { barra: "border-emerald-600 bg-emerald-500", pieno: "bg-emerald-500", punto: "bg-emerald-500", linea: "bg-emerald-600" },
 } as const;
 type Stato = keyof typeof COLORE;
 const statoFase = (f: Pick<FaseCrono, "stato">): Stato => f.stato === "completata" ? "fatta" : f.stato === "in_corso" ? "in_corso" : "da_fare";
@@ -237,8 +240,8 @@ function RigaSottofase({ s, numero, asse, segni, oggi, conReale }: { s: RigaSott
     <div data-testid={`sottofase-${s.id}`} className="flex border-b last:border-b-0">
       <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center gap-1.5 border-r bg-white py-0.5 pl-6 pr-2 text-[11px]">
         <span className="w-7 shrink-0 tabular-nums text-muted-foreground">{numero}</span>
-        <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", gOltre > 0 && !s.fatta ? "bg-rose-500" : COLORE[stato].punto)} />
-        <span className={cn("min-w-0 flex-1 truncate", s.fatta && !gOltre ? "text-slate-500" : "text-slate-700")} title={s.nome}>{s.nome}</span>
+        <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", gOltre > 0 && !s.fatta ? "bg-red-600" : COLORE[stato].punto)} />
+        <span className="min-w-0 flex-1 truncate text-slate-700" title={s.nome}>{s.nome}</span>
         {s.fatta && <Check aria-label="fatta" className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
       </div>
       <div className="relative h-7 flex-1" title={titolo}>
@@ -248,7 +251,7 @@ function RigaSottofase({ s, numero, asse, segni, oggi, conReale }: { s: RigaSott
           <span
             data-testid={reale ? `sottofase-lavoro-${s.id}` : `sottofase-barra-${s.id}`}
             className={cn("absolute top-1.5 h-3.5 overflow-hidden rounded border",
-              stato === "fatta" && gOltre ? "border-slate-400 bg-slate-400" : COLORE[stato].barra,
+              COLORE[stato].barra,
               !reale && s.stimata && "border-dashed bg-white", s.fuoriDallaFase && "ring-1 ring-amber-500")}
             style={{ left: `${principale.left}%`, width: `${principale.width}%` }}
             title={titolo}
@@ -260,7 +263,7 @@ function RigaSottofase({ s, numero, asse, segni, oggi, conReale }: { s: RigaSott
         )}
         {coda && (
           <span data-testid={`sottofase-oltre-${s.id}`} aria-hidden="true"
-            className={cn("absolute top-1.5 h-3.5 rounded-r", s.fatta ? "bg-rose-300" : "bg-rose-500")}
+            className={cn("absolute top-1.5 h-3.5 rounded-r", s.fatta ? "bg-red-400" : "bg-red-600")}
             style={{ left: `${coda.left}%`, width: `${coda.width}%` }} />
         )}
       </div>
@@ -318,6 +321,7 @@ export function CronoprogrammaCommessa({
   const [periodoScelto, setPeriodo] = useState<"previsto" | "confronto" | null>(null);
   const [scala, setScala] = useState<"adatta" | "mesi" | "settimane">("adatta");
   const [vista, setVista] = useState<"grafico" | "elenco" | "tabella">("grafico");
+  const [stampa, setStampa] = useState<"pronta" | "in_corso">("pronta");
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
@@ -367,13 +371,32 @@ export function CronoprogrammaCommessa({
   const righeTabella = useMemo(() => righeTabellaCronoprogramma(fasi, sottofasiDi, sotto, {
     economia: economia.perFase, voci: vociDelleSottofasi(vociPreviste ?? []).perSottofase,
   }), [fasi, sottofasiDi, sotto, economia, vociPreviste]);
+  // Il PDF da stampare: tutte le fasi con tutte le sottofasi, sullo stesso periodo del grafico.
+  const scaricaPdf = async () => {
+    setStampa("in_corso");
+    try {
+      const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+      const blob = await pdfCronoprogramma({
+        titolo: `Cronoprogramma${order.order_code ? ` · ${order.order_code}` : ""}`,
+        dettagli: [order.client_name, order.indirizzo_lavori].filter(Boolean).join(" · ") || undefined,
+        righe: righeTabella, da: asse.da, a: asse.a, oggi,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `cronoprogramma${order.order_code ? `-${order.order_code}` : ""}.pdf`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setStampa("pronta");
+    }
+  };
   const asse = useMemo(() => intervalloCronoprogramma(fasi, traguardi, oggi, periodo, dateSottofasi), [fasi, traguardi, oggi, periodo, dateSottofasi]);
   const segni = useMemo(() => {
     const tutti = tacche(asse, scala === "adatta" ? undefined : scala);
     const passo = scala === "adatta" ? Math.max(1, Math.ceil(tutti.length / 10)) : 1;
     return tutti.filter((_, index) => index % passo === 0);
   }, [asse, scala]);
-  const etichetteTraguardi = posizioniTraguardi(traguardi.filter(t => t.data >= asse.da && t.data <= asse.a), asse);
+  // Nel grafico niente «Consegna»: ripeterebbe la fine lavori (resta nell'elenco dei traguardi).
+  const etichetteTraguardi = posizioniTraguardi(traguardi.filter(t => t.tipo !== "consegna" && t.data >= asse.da && t.data <= asse.a), asse);
   const avanzamento = avanzamentoDellaCommessa(avanzamentoComplessivo(fasi));
   const riepilogo = riepilogoCronoprogramma(fasi);
   const sullaFine = riepilogo.aperteInRitardo.map(ritardoFase).filter((r) => r?.su === "fine");
@@ -479,22 +502,16 @@ export function CronoprogrammaCommessa({
               <option value="adatta">Adatta al riquadro</option><option value="mesi">Mesi</option><option value="settimane">Settimane</option>
             </select>
           </label>}
-          {vista === "grafico" && (() => {
-            const conSotto = nelGrafico.filter((f) => (sottofasiDi.get(f.id)?.length ?? 0) > 0);
-            if (!conSotto.length) return null;
-            const tutteAperte = conSotto.every(sottofasiAperte);
-            return <Button size="sm" variant="ghost" onClick={() => setInvertite(new Set(conSotto.filter((f) => apertaDiBase(f) === tutteAperte).map((f) => f.id)))}>
-              {tutteAperte ? <ChevronDown className="mr-1 h-4 w-4" /> : <ChevronRight className="mr-1 h-4 w-4" />}{tutteAperte ? "Chiudi le sottofasi" : "Apri tutte le sottofasi"}
-            </Button>;
-          })()}
-          <Button size="sm" variant="outline" onClick={() => setVista(vista === "grafico" ? "elenco" : "grafico")}>{vista === "grafico" ? "Elenco fasi" : "Grafico"}</Button>
-          {vista !== "tabella" && <Button size="sm" variant="outline" onClick={() => setVista("tabella")}>Tabella</Button>}
+          <Button size="sm" variant="outline" onClick={() => setVista(vista === "tabella" ? "grafico" : "tabella")}>{vista === "tabella" ? "Grafico" : "Tabella"}</Button>
         </div>}
         <div className="flex flex-wrap gap-2">
           {!isMobile && vista === "grafico" && !riepilogo.tutteChiuse && oggi >= asse.da && oggi <= asse.a && <Button size="sm" variant="ghost" onClick={() => {
             const el = grafico.current;
             if (el) el.scrollLeft = Math.max(0, (giorniTra(asse.da, oggi) / asse.giorni) * (el.scrollWidth - COLONNA_PX) - (el.clientWidth - COLONNA_PX) / 2);
           }}>Vai a oggi</Button>}
+          <Button size="sm" variant="outline" disabled={stampa === "in_corso"} onClick={scaricaPdf}>
+            {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}Scarica PDF
+          </Button>
           {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>Gestisci fasi e date</Button>}
         </div>
       </div>
@@ -589,8 +606,8 @@ export function CronoprogrammaCommessa({
                         aria-label={`${f.nome}: ${ETICHETTA_STATO[f.stato]}, ${f.avanzamento}%${rit ? `, ${!aperta ? "scostamento storico" : rit.su === "fine" ? "in ritardo" : "inizio in ritardo"} di ${giorni(rit.giorni)}` : ""}`}
                       >
                         <span className="w-4 shrink-0 text-[11px] tabular-nums text-muted-foreground">{numero}</span>
-                        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", rit && aperta && rit.su === "fine" ? "bg-rose-500" : COLORE[stato].punto)} />
-                        <span className={cn("min-w-0 flex-1 break-words text-xs font-medium", stato === "fatta" && !rit ? "text-slate-500" : "text-slate-800")}>{f.nome}</span>
+                        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", rit && aperta && rit.su === "fine" ? "bg-red-600" : COLORE[stato].punto)} />
+                        <span className="min-w-0 flex-1 break-words text-xs font-semibold text-slate-800">{f.nome}</span>
                         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{f.avanzamento}%</span>
                       </button>
                     </PopoverTrigger>
@@ -608,18 +625,19 @@ export function CronoprogrammaCommessa({
                     const conReale = periodo === "confronto" && !!entro && entro.width > 0;
                     const principale = conReale ? entro : pb;
                     const testid = conReale ? `reale-${f.id}` : `previsto-${f.id}`;
-                    const tinta = stato === "fatta" && rit ? "bg-slate-400" : COLORE[stato].linea;
+                    const tinta = COLORE[stato].linea;
                     const titolo = conReale ? `Reale: dal ${lunga(r![0])}${f.realeFine ? ` al ${lunga(f.realeFine)}` : ""}` : `Previsto: ${lunga(p![0])} → ${lunga(p![1])} · ${f.avanzamento}%`;
                     return <>
                       {principale && principale.width > 0 && (aperte ? (
                         // Fase aperta: una parentesi che abbraccia le sue sottofasi.
-                        <span data-testid={testid} className={cn("absolute top-2.5 h-2", tinta)} style={{ left: `${principale.left}%`, width: `${principale.width}%` }} title={titolo}>
-                          <span aria-hidden="true" className={cn("absolute -bottom-1.5 left-0 h-1.5 w-1", tinta)} />
-                          <span aria-hidden="true" className={cn("absolute -bottom-1.5 right-0 h-1.5 w-1", tinta)} />
+                        // Sottile e dello stesso colore delle barre delle sottofasi sotto.
+                        <span data-testid={testid} className={cn("absolute top-[22px] h-[3px] rounded-full", tinta)} style={{ left: `${principale.left}%`, width: `${principale.width}%` }} title={titolo}>
+                          <span aria-hidden="true" className={cn("absolute left-0 top-0 h-2 w-[3px] rounded-b", tinta)} />
+                          <span aria-hidden="true" className={cn("absolute right-0 top-0 h-2 w-[3px] rounded-b", tinta)} />
                         </span>
                       ) : (
                         <span data-testid={testid} className={cn("absolute top-2 h-4 overflow-hidden rounded border",
-                          stato === "fatta" && rit ? "border-slate-400 bg-slate-400" : COLORE[stato].barra)}
+                          COLORE[stato].barra)}
                           style={{ left: `${principale.left}%`, width: `${principale.width}%` }} title={titolo}>
                           {stato !== "fatta" && !conReale && <span className={cn("block h-full", COLORE[stato].pieno)} style={{ width: `${f.avanzamento}%` }} />}
                         </span>
@@ -632,13 +650,13 @@ export function CronoprogrammaCommessa({
                   {oltre && oltre.width > 0 && (
                     <span
                       data-testid={`oltre-${f.id}`}
-                      className={cn("absolute rounded-r", aperte ? "top-2.5 h-2" : "top-2 h-4", aperta ? "bg-rose-500" : "bg-rose-300")}
+                      className={cn("absolute rounded-r", aperte ? "top-[22px] h-[3px]" : "top-2 h-4", aperta ? "bg-red-600" : "bg-red-400")}
                       style={{ left: `${oltre.left}%`, width: `${oltre.width}%` }}
                       title={`Oltre la fine prevista: +${giorni(f.ritardoFine)}${aperta ? ", ancora aperta" : ""}`}
                     />
                   )}
                   {etichettaRitardo && fineEtichetta != null && (
-                    <span className={cn("absolute top-1.5 whitespace-nowrap pl-1.5 text-[11px] font-semibold tabular-nums text-rose-700", !aperta && "text-rose-500")}
+                    <span className={cn("absolute whitespace-nowrap pl-1.5 text-[11px] font-bold tabular-nums text-red-600", aperte ? "top-3" : "top-2")}
                       style={{ left: `${Math.min(94, fineEtichetta)}%` }} title={!aperta ? "Scostamento storico" : "Ritardo aperto"}>{etichettaRitardo}</span>
                   )}
                   {f.realeFine && !f.realeInizio && <span data-testid={`chiusura-${f.id}`} title={`Chiusura registrata ${lunga(f.realeFine)} · inizio non rilevato`} className="absolute top-[22px] flex items-center gap-1 text-[10px] text-emerald-800" style={{ left: `${Math.min(98, barra(f.realeFine, f.realeFine, asse).left)}%`, transform: f.realeFine > asse.a ? "translateX(-100%)" : undefined }}>
@@ -659,9 +677,9 @@ export function CronoprogrammaCommessa({
       {/* Legenda: un colore, un significato */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-slate-400 bg-white" />Da fare</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 overflow-hidden rounded border border-sky-400 bg-sky-50"><span className="block h-full w-1/2 bg-sky-500" /></span>In corso</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-slate-300" />Fatta</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-rose-500" />Ritardo (chiaro se già chiusa)</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 overflow-hidden rounded border border-blue-600 bg-blue-100"><span className="block h-full w-1/2 bg-blue-600" /></span>In corso</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-emerald-500" />Fatta</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-red-600" />Ritardo (chiaro se già chiusa)</span>
         {periodo === "confronto" && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-6 rounded-full bg-slate-400" />Previsto (la barra è il reale)</span>}
         {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-dashed border-slate-400 bg-white" />Stimata</span>}
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />Oggi</span>

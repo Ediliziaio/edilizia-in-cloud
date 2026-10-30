@@ -44,12 +44,15 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     expect(screen.getByText("Chiusura 09/10/2026 · inizio non rilevato")).toBeInTheDocument();
     expect(screen.getByText("Dettagli della fase").closest("details")).not.toHaveAttribute("open");
   });
-  it("permette elenco e cambio scala senza cambiare commessa o inviare mutation", () => {
+  it("permette tabella e cambio scala senza cambiare commessa o inviare mutation", () => {
     draw(); fireEvent.change(screen.getByRole("combobox", {name: "Scala del cronoprogramma"}), {target: {value: "settimane"}});
     expect(screen.getByRole("combobox", {name: "Scala del cronoprogramma"})).toHaveValue("settimane");
-    fireEvent.click(screen.getByRole("button", {name: "Elenco fasi"}));
+    // «Elenco fasi» non c'è più (31/10/2026): si passa dal grafico alla tabella.
+    expect(screen.queryByRole("button", {name: "Elenco fasi"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Tabella"}));
     expect(screen.queryByRole("region", {name: /Grafico delle fasi/})).not.toBeInTheDocument();
-    expect(screen.getByText("Dettagli della fase")).toBeInTheDocument();
+    expect(screen.getByRole("table", {name: "Tabella del cronoprogramma"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Scarica PDF"})).toBeInTheDocument();
     expect(m.refetchPhases).not.toHaveBeenCalled(); expect(m.refetchReports).not.toHaveBeenCalled();
   });
   it("non espone costi o venduto senza il relativo permesso", () => {
