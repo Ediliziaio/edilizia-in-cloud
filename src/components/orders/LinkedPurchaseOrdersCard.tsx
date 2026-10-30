@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Package, ExternalLink, Link2, Unlink, FileCheck } from "lucide-react";
+import { Package, ExternalLink, Link2, Unlink, FileCheck, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
-import { CreatePurchaseOrderButton } from "./CreatePurchaseOrderButton";
+import { NuovoOdaCommessaDialog } from "./NuovoOdaCommessaDialog";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
 import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
 import type { ProcurementItem } from "@/lib/orders/materialProcurement";
@@ -48,6 +48,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
   const [odaAperto, setOdaAperto] = useState<OdaDellaFinestra | null>(null);
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [nuovoOpen, setNuovoOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; oda_number: string } | null>(null);
 
   // Unlink mutation
@@ -121,9 +122,15 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
             <Link2 className="h-4 w-4 mr-1.5" />
             Collega OdA
           </Button>
-          <CreatePurchaseOrderButton orderId={orderId} orderCode={orderCode} items={items} />
+          {canEditOrders && canViewCosts && (
+            <Button size="sm" className="min-h-11 font-semibold" onClick={() => setNuovoOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nuovo ordine
+            </Button>
+          )}
         </div>
       </CardHeader>
+      <NuovoOdaCommessaDialog open={nuovoOpen} onOpenChange={setNuovoOpen} orderId={orderId} orderCode={orderCode} items={items} />
       <CardContent className="max-sm:p-3 max-sm:pt-0">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Caricamento...</p>
