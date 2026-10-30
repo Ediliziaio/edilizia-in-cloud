@@ -34,7 +34,7 @@ function ambiente(pos = riga()) {
   const rilevaFonti = async () => ({ order: { order_code: "ORD-1" }, contenuto: posVuoto(), contesto: { mezzi: [], subappaltatori: [], avvisi: [] }, fonti: { origine: "test" } });
   const chiama = (azione: (typeof AZIONI_BROWSER_POS)[number], body: Record<string, unknown>, pdf?: Uint8Array, azienda = companyId) =>
     gestisciAzioneBrowserPos({ azione, db, userId: "utente-prova", companyId: azienda, body, pdf, rilevaFonti, caricaPos: async () => pos });
-  return { m, chiama };
+  return { m, chiama, tabelle };
 }
 const approva = { pos_id: posId, versione_client: 2, attesa_updated_at: versionePos };
 
@@ -97,6 +97,17 @@ Deno.test("Completa: il PDF disegnato dal browser sul modello del server viene c
   assert.deepEqual([r.status, r.corpo], [200, { ok: true, emissione_id: id, approvato_da_nome: "Mario Rossi" }]);
   assert.deepEqual(m.store.get(`${companyId}/${id}/${token}/POS.pdf`), pdf);
   assert.equal(m.riga.stato, "completa");
+});
+
+Deno.test("Completa: un altro utente, anche con il permesso, non può completare la prenotazione altrui (il nome di chi approva sta nell'HTML, l'impronta non torna)", async () => {
+  const { m, chiama, tabelle } = ambiente();
+  const prep = (await chiama("prepara_emissione", approva)).corpo as { html: string; layout: string; codice: string; revisione: number; emesso_il: string };
+  // deno-lint-ignore no-explicit-any
+  const pdf = await disegnaPdfPos(pdfMakeClient as any, { html: prep.html, codice: prep.codice, revisione: prep.revisione, emessoIl: prep.emesso_il, anteprima: false, layoutServer: prep.layout });
+  const dichiarato = { emissione_id: id, token, pdf_sha256: await sha256Hex(pdf), html_sha256: await sha256Hex(strToU8(prep.html)), layout: prep.layout };
+  tabelle.profiles = { first_name: "Anna", last_name: "Verdi", email: "a@x.it" };   // chi chiama adesso è un'altra persona dell'azienda
+  await assert.rejects(() => chiama("completa_emissione", dichiarato, pdf), (e: unknown) => (e as { status?: number }).status === 409 && /Il POS è cambiato durante la preparazione/.test((e as Error).message));
+  assert.equal(m.store.size, 0); assert.ok(!m.chiamate.includes("pos_completa_emissione"));   // niente conservato, nessun completamento
 });
 
 Deno.test("Completa: senza PDF è una richiesta sbagliata (400); con l'emissione di un'altra azienda non esiste (404) e non si tocca nulla", async () => {
