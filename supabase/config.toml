@@ -1175,3 +1175,7 @@ verify_jwt = false
 # Salt Edge V6 RSA signature, version, timestamp and tenant binding are verified.
 [functions.bank-saltedge-webhook]
 verify_jwt = false
+
+# Avvisi delle commesse generali (campanella ed email). Auth via x-cron-secret (Vault), niente JWT.
+[functions.generali-avvisi]
+verify_jwt = false

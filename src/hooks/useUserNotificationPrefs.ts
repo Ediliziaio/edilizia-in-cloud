@@ -29,6 +29,8 @@ export type NotifPrefs = {
   report_daily_in_app: boolean; report_daily_email: boolean; report_daily_sms: boolean;
   report_weekly_in_app: boolean; report_weekly_email: boolean; report_weekly_sms: boolean;
   report_monthly_in_app: boolean; report_monthly_email: boolean; report_monthly_sms: boolean;
+  // COMMESSE GENERALI (garanzie, documenti, fideiussioni, perdite: edge function generali-avvisi)
+  commesse_generali_in_app: boolean; commesse_generali_email: boolean;
 };
 
 export const DEFAULT_NOTIF_PREFS: NotifPrefs = {
@@ -53,6 +55,7 @@ export const DEFAULT_NOTIF_PREFS: NotifPrefs = {
   report_daily_in_app: false, report_daily_email: true, report_daily_sms: false,
   report_weekly_in_app: false, report_weekly_email: true, report_weekly_sms: false,
   report_monthly_in_app: false, report_monthly_email: true, report_monthly_sms: false,
+  commesse_generali_in_app: true, commesse_generali_email: true,
 };
 
 // All pref column names for select
