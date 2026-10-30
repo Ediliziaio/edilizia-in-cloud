@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({mobile: false, costs: false, amounts: false, loadin
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => m.mobile}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewCosts: m.costs, canViewOrderAmounts: m.amounts})}));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({useOrderWorkPhases: () => ({phases: m.phases, materials: [] as unknown[], allAssignments: [] as unknown[], isLoading: m.loading, isError: m.phaseError, refetch: m.refetchPhases})}));
+vi.mock("@/hooks/useSottofasi", () => ({useSottofasi: () => ({perFase: new Map()})}));
 vi.mock("@/hooks/useCronoprogramma", () => ({useCronoprogramma: () => ({rapportini: m.reports, firmaPreventivo: null as null, isLoading: false, isError: m.reportError, refetch: m.refetchReports})}));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({useCostiMaterialiFasi: () => ({data: undefined as undefined})}));
 vi.mock("@/hooks/useAvanzamentoCommessa", () => ({useAvanzamentoCommessa: () => ({daMostrare: (n: number) => n})}));

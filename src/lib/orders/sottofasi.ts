@@ -19,6 +19,11 @@ export interface Sottofase {
   peso: number;
   fatta: boolean;
   fatta_il: string | null;
+  /** Finestra prevista, giorni «yyyy-MM-dd» (29/10/2026). */
+  data_inizio?: string | null;
+  data_fine?: string | null;
+  /** Tempo necessario, in giorni di lavoro: può essere meno della finestra. */
+  giorni?: number | null;
 }
 
 const pesoValido = (peso: number): number => (Number.isFinite(peso) && peso >= 1 ? peso : 1);
@@ -77,7 +82,7 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
  * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
  * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
  */
-export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il)";
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni)";
 
 /** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
 export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {
@@ -96,7 +101,78 @@ export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
     peso: pesoValido(Number(r.peso)),
     fatta: r.fatta === true,
     fatta_il: typeof r.fatta_il === "string" ? r.fatta_il : null,
+    data_inizio: giornoValido(r.data_inizio),
+    data_fine: giornoValido(r.data_fine),
+    giorni: giorniValidi(r.giorni),
   };
+}
+
+const giornoValido = (v: unknown): string | null =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.slice(0, 10)) ? v.slice(0, 10) : null;
+const giorniValidi = (v: unknown): number | null => {
+  const n = Number(v);
+  return v != null && Number.isInteger(n) && n >= 1 && n <= 3650 ? n : null;
+};
+
+/** Il giorno `giorni − 1` dopo `inizio`: la fine di un lavoro di `giorni` giorni. */
+export function fineDaGiorni(inizio: string, giorni: number): string {
+  const [a, m, g] = inizio.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, g + giorni - 1)).toISOString().slice(0, 10);
+}
+
+/** I giorni da `da` ad `a`, estremi compresi. */
+export function giorniFinestra(da: string, a: string): number {
+  const n = (d: string) => { const [y, m, g] = d.split("-").map(Number); return Date.UTC(y, m - 1, g) / 86_400_000; };
+  return n(a) - n(da) + 1;
+}
+
+/**
+ * Le date che il database scrive per una sottofase (sottofase_date_coerenti):
+ * inizio e giorni senza fine → la fine; due date senza giorni → i giorni della finestra.
+ */
+export function pianoSottofase(p: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) {
+  const data_fine = p.data_inizio && !p.data_fine && p.giorni ? fineDaGiorni(p.data_inizio, p.giorni) : p.data_fine;
+  const giorni = p.data_inizio && data_fine && !p.giorni ? giorniFinestra(p.data_inizio, data_fine) : p.giorni;
+  return { data_inizio: p.data_inizio, data_fine, giorni };
+}
+
+/** L'intervallo previsto di una sottofase; con una data sola vale quel giorno. */
+export function intervalloSottofase(s: Pick<Sottofase, "data_inizio" | "data_fine" | "giorni">): [string, string] | null {
+  const p = pianoSottofase({ data_inizio: s.data_inizio ?? null, data_fine: s.data_fine ?? null, giorni: s.giorni ?? null });
+  const da = p.data_inizio ?? p.data_fine;
+  const a = p.data_fine ?? p.data_inizio;
+  return da && a && a >= da ? [da, a] : null;
+}
+
+/**
+ * Le date della fase dopo aver datato le sottofasi (specchio di
+ * fase_allarga_a_sottofasi): la fase si allarga a contenerle, non si stringe mai.
+ */
+export function dateFaseConSottofasi(
+  fase: { start_date: string | null; end_date: string | null },
+  sottofasi: ReadonlyArray<Pick<Sottofase, "data_inizio" | "data_fine" | "giorni">>,
+): { start_date: string | null; end_date: string | null } {
+  let { start_date, end_date } = fase;
+  for (const s of sottofasi) {
+    const i = intervalloSottofase(s);
+    if (!i) continue;
+    if (!start_date || i[0] < start_date) start_date = i[0];
+    if (!end_date || i[1] > end_date) end_date = i[1];
+  }
+  return { start_date, end_date };
+}
+
+/**
+ * Pesare le sottofasi per il tempo necessario: il peso diventa i giorni (fino a
+ * 100, il massimo del peso). Serve che TUTTE abbiano i giorni (una senza
+ * resterebbe a peso 1 contro le altre in giorni) e che siano almeno due.
+ * Restituisce solo quelle il cui peso cambia.
+ */
+export function pesiDaGiorni(sottofasi: ReadonlyArray<Pick<Sottofase, "id" | "peso" | "giorni">>): Array<{ id: string; peso: number }> {
+  if (sottofasi.length < 2 || sottofasi.some((s) => s.giorni == null || s.giorni < 1)) return [];
+  return sottofasi
+    .map((s) => ({ id: s.id, peso: Math.min(100, s.giorni as number) }))
+    .filter((x) => x.peso !== sottofasi.find((s) => s.id === x.id)?.peso);
 }
 
 /**

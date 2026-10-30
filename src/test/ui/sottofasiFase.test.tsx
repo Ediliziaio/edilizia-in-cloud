@@ -97,4 +97,37 @@ describe("SottofasiFase", () => {
     const { container } = render(<SottofasiFase nomeFase="Impianto" puoModificare={false} puoSegnare={false} {...azioni()} sottofasi={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("date e giorni: inizio e giorni danno la fine, si salva il piano; date invertite non si salvano", () => {
+    const a = { ...azioni(), onPianifica: vi.fn() };
+    render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga()]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date e giorni di Tracce" }));
+    fireEvent.change(screen.getByLabelText("Inizio di Tracce"), { target: { value: "2026-10-30" } });
+    fireEvent.change(screen.getByLabelText("Giorni necessari per Tracce"), { target: { value: "3" } });
+    expect(screen.getByLabelText("Fine di Tracce")).toHaveValue("2026-11-01");
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    expect(a.onPianifica).toHaveBeenCalledWith("s1", { data_inizio: "2026-10-30", data_fine: "2026-11-01", giorni: 3 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Date e giorni di Tracce" }));
+    fireEvent.change(screen.getByLabelText("Inizio di Tracce"), { target: { value: "2026-10-30" } });
+    fireEvent.change(screen.getByLabelText("Fine di Tracce"), { target: { value: "2026-10-01" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("La fine è prima dell'inizio.");
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
+  });
+
+  it("mostra il piano accanto al nome, e chi non modifica non vede il calendario", () => {
+    render(<SottofasiFase nomeFase="Impianto" puoModificare={false} puoSegnare {...azioni()} onPianifica={vi.fn()}
+      sottofasi={[riga({ data_inizio: "2026-10-30", data_fine: "2026-11-01", giorni: 3 })]} />);
+    expect(screen.getByText("30/10 → 01/11 · 3 gg")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Date e giorni di Tracce" })).not.toBeInTheDocument();
+  });
+
+  it("pesa per giorni quando tutte le sottofasi hanno i giorni", () => {
+    const a = { ...azioni(), onPesa: vi.fn() };
+    const { rerender } = render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga({ giorni: 10 }), riga({ id: "s2", name: "Cavi" })]} />);
+    expect(screen.queryByRole("button", { name: "Pesa per giorni" })).not.toBeInTheDocument();
+    rerender(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga({ giorni: 10 }), riga({ id: "s2", name: "Cavi", giorni: 2 })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Pesa per giorni" }));
+    expect(a.onPesa).toHaveBeenCalledWith([{ id: "s1", peso: 10 }, { id: "s2", peso: 2 }]);
+  });
 });

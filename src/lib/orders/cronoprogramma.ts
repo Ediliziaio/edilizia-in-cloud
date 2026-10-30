@@ -372,3 +372,49 @@ export function avanzamentoComplessivo(fasi: ReadonlyArray<Pick<FaseCrono, "avan
   if (fasi.length === 0) return 0;
   return Math.round(fasi.reduce((s, f) => s + f.avanzamento, 0) / fasi.length);
 }
+
+export interface SottofaseCrono {
+  id: string;
+  nome: string;
+  fatta: boolean;
+  previstoInizio: string;
+  previstoFine: string;
+  /** Tempo necessario dichiarato; null se non indicato. */
+  giorni: number | null;
+  /** Giorni oltre la fine prevista per una sottofase non ancora fatta. */
+  ritardo: number;
+  /** Fuori dalle date previste della sua fase (dati di prima che la fase si allargasse da sola). */
+  fuoriDallaFase: boolean;
+}
+
+/**
+ * Le sottofasi datate di una fase, per le righe del cronoprogramma sotto la fase
+ * (29/10/2026). Quelle senza date non hanno una barra e restano fuori; l'ordine
+ * è quello delle sottofasi.
+ */
+export function sottofasiCronoprogramma(
+  fase: Pick<FaseCrono, "previstoInizio" | "previstoFine">,
+  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null }>,
+  oggi: string,
+): SottofaseCrono[] {
+  const out: SottofaseCrono[] = [];
+  for (const s of sottofasi) {
+    const inizio = planningDay(s.data_inizio) || null;
+    let fine = planningDay(s.data_fine) || null;
+    if (inizio && !fine && s.giorni && s.giorni >= 1) fine = aggiungiGiorni(inizio, s.giorni - 1);
+    const da = inizio ?? fine;
+    const a = fine ?? inizio;
+    if (!da || !a || a < da) continue;
+    out.push({
+      id: s.id,
+      nome: s.name,
+      fatta: s.fatta,
+      previstoInizio: da,
+      previstoFine: a,
+      giorni: s.giorni ?? null,
+      ritardo: s.fatta ? 0 : Math.max(0, giorniTra(a, oggi)),
+      fuoriDallaFase: !!((fase.previstoInizio && da < fase.previstoInizio) || (fase.previstoFine && a > fase.previstoFine)),
+    });
+  }
+  return out;
+}

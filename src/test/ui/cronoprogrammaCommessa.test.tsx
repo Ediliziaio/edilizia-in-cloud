@@ -19,6 +19,7 @@ const stato = vi.hoisted(() => ({
   assegnazioni: [] as unknown[],
   rapportini: [] as unknown[],
   firma: null as string | null,
+  sottofasi: new Map<string, unknown[]>(),
 }));
 
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
@@ -35,6 +36,7 @@ vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () =>
 vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
   useAvanzamentoCommessa: () => ({ percentuale: null as number | null, peso: "uguale", daMostrare: (locale: unknown) => locale }),
 }));
+vi.mock("@/hooks/useSottofasi", () => ({ useSottofasi: () => ({ perFase: stato.sottofasi }) }));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({ useCostiMaterialiFasi: () => ({ data: { acquisti: [] as unknown[], movimenti: [] as unknown[] } }) }));
 
 const fase = (extra: Record<string, unknown>): Record<string, unknown> => ({
@@ -60,6 +62,7 @@ beforeEach(() => {
     { data_lavoro: "2026-08-12", stato: "inviato", fasi_lavorate: [{ phase_id: "f2", ore: 6 }] },
   ];
   stato.firma = "2026-07-12";
+  stato.sottofasi = new Map();
 });
 afterEach(() => {
   cleanup();
@@ -178,5 +181,29 @@ describe("Cronoprogramma", () => {
     stato.phases = [];
     render(<CronoprogrammaCommessa orderId="o" order={ordine} onOpenLavorazioni={() => {}} />);
     expect(screen.getByText(/servono le fasi di lavoro/)).toBeInTheDocument();
+  });
+
+  it("una fase con 3 sottofasi datate: una barra per sottofase sotto la fase, l'avanzamento della fase non cambia", () => {
+    const sf = (id: string, name: string, extra: Record<string, unknown>) => ({ id, phase_id: "f3", name, position: 0, peso: 1, fatta: false, fatta_il: null as string | null, ...extra });
+    stato.phases = [fase({ id: "f3", name: "Pavimenti", status: "in_corso", start_date: "2026-08-17", end_date: "2026-09-05", percentuale: 33 })];
+    stato.sottofasi = new Map([["f3", [
+      sf("s1", "Massetto", { fatta: true, data_inizio: "2026-08-17", data_fine: "2026-08-19", giorni: 3 }),
+      sf("s2", "Posa", { data_inizio: "2026-08-20", giorni: 5 }),
+      sf("s3", "Battiscopa", { data_inizio: "2026-08-10", data_fine: "2026-08-12" }),
+      sf("s4", "Pulizia", {}),
+    ]]]);
+    render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
+    expect(screen.getByTestId("sottofase-barra-s1").getAttribute("title")).toBe("Massetto: 17/08/2026 → 19/08/2026 · 3 giorni necessari · fatta");
+    // inizio + giorni: la fine la si ricava (20 → 24/08)
+    expect(screen.getByTestId("sottofase-barra-s2").getAttribute("title")).toBe("Posa: 20/08/2026 → 24/08/2026 · 5 giorni necessari");
+    // finita prima della fase, non fatta e già passata: in ritardo, e segnalata fuori dalle date della fase
+    expect(screen.getByTestId("sottofase-s3")).toHaveTextContent("+8 gg");
+    expect(screen.getByTestId("sottofase-barra-s3").getAttribute("title")).toContain("fuori dalle date della fase");
+    // senza date: nessuna riga
+    expect(screen.queryByTestId("sottofase-s4")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Pavimenti: In corso, 33%/)).toBeInTheDocument();
+    // si possono nascondere
+    fireEvent.click(screen.getByRole("checkbox", { name: "Sottofasi" }));
+    expect(screen.queryByTestId("sottofase-s1")).not.toBeInTheDocument();
   });
 });

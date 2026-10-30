@@ -36,7 +36,7 @@ import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
-import { SottofasiFase } from "./SottofasiFase";
+import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
@@ -211,7 +211,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -635,6 +635,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                   onSegna: (id, fatta) => segnaSottofase.mutate({ id, fatta }),
                   onAggiungi: (nome) => aggiungiSottofase.mutate({ phaseId: phase.id, nome }),
                   onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
+                  onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
+                  onPesa: (pesi) => pesaSottofasi.mutate(pesi),
                   onElimina: (id) => eliminaSottofase.mutate(id),
                 }}
               />
@@ -766,6 +768,8 @@ interface PhaseCardProps {
     onSegna: (id: string, fatta: boolean) => void;
     onAggiungi: (nome: string) => void;
     onRinomina: (id: string, nome: string) => void;
+    onPianifica: (id: string, piano: PianoSottofase) => void;
+    onPesa: (pesi: Array<{ id: string; peso: number }>) => void;
     onElimina: (id: string) => void;
   };
 }
