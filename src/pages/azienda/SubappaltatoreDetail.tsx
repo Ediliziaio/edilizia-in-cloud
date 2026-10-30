@@ -13,7 +13,7 @@ import { DocumentiMensiliSub } from "@/components/subappaltatori/DocumentiMensil
 import { SubcontractorSupplierLink } from "@/components/suppliers/SubcontractorSupplierLink";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useContext, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -134,9 +134,11 @@ export default function SubappaltatoreDetail() {
   // ── Contratti: uno per ogni commessa; Contratto, SAL e Ritenute lavorano su
   // quello scelto (prima si vedeva solo il più recente) ──────────────────────
   const { data: contratti = [], isLoading: caricoContratti, error: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(id);
-  const [contrattoSelId, setContrattoSelId] = useState<string | null>(null);
-  const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(null);
-  const [tabAttiva, setTabAttiva] = useState('anagrafica');
+  // Dalla commessa (Ditte e contratti, 31/10/2026) si arriva col contratto da aprire: ?tab=contratto&contratto=…
+  const [parametri] = useSearchParams();
+  const [contrattoSelId, setContrattoSelId] = useState<string | null>(() => parametri.get('contratto'));
+  const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('contratto'));
+  const [tabAttiva, setTabAttiva] = useState(() => parametri.get('tab') === 'contratto' ? 'contratto' : 'anagrafica');
   const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
   const [vistaContabilita, setVistaContabilita] = useState('sal');
   const contratto = (contratti.find((c) => c.id === contrattoSelId) ?? contratti[0] ?? null) as unknown as ContrattoSubappalto | null;

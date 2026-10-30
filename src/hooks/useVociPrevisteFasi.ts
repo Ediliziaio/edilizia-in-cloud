@@ -17,7 +17,7 @@ export interface VocePrevista extends VocePrevistaFase {
   unita: string | null;
   importo: number | null;
   tariffa_id: string | null;
-  origine: "preventivo" | "computo_rst" | "computo";
+  origine: "preventivo" | "computo_rst" | "computo" | "listino";
   /** La sottofase che questa voce misura (31/10/2026), se la fase è divisa per voci. */
   subphase_id: string | null;
   origine_codice: string | null;
