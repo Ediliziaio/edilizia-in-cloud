@@ -47,6 +47,7 @@ import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
 import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
+import { SilvioAcquisti } from "@/components/orders/SilvioAcquisti";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -1688,7 +1689,10 @@ function OrderDetailInner() {
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
-            <div id="materiali-workspace" className="scroll-mt-24">
+            <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
+              {/* Silvio sugli acquisti (31/10/2026): cosa ordinare e cosa serve presto. */}
+              {permissions.canEditOrders && <div className="flex justify-end"><SilvioAcquisti orderId={id!} orderCode={order.order_code}
+                onAzione={(a) => navigateTo(a === "acquisti" ? { tab: "articoli", materialiView: "acquisti" } : { tab: "articoli", materialiView: "articoli" })} /></div>}
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             <OrderViewTransition viewKey={activeMaterialiView}>
@@ -2257,7 +2261,8 @@ function OrderDetailInner() {
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
-                organizationContent={figureResponsabilita} />
+                organizationContent={figureResponsabilita}
+                onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })} />
               {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}
