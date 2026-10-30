@@ -4,8 +4,8 @@
  * Sei segnalazioni, verificate una per una leggendo il codice su origin/main
  * (e, per il database, le RPC delle entità sono risultate già a posto):
  *   1. generate-survey-pdf: legge col service role, senza controllo sull'azienda
- *      (Funzione tolta il 31/10/2026: nessuno la chiamava più.)
  *      del sopralluogo → qualunque utente otteneva il PDF di un altro con l'id.
+ *      (Funzione tolta il 31/10/2026: nessuno la chiamava più.)
  *   2. email-ai-l3-batch (verify_jwt=false): bastava un JWT valido qualunque per
  *      riclassificare le email di qualunque azienda.
  *   3a. meta-ads-sync-insights: con profilo senza azienda, body.company_id
