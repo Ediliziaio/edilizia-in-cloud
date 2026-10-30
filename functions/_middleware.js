@@ -2953,7 +2953,7 @@ const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|avif|gif|svg|ico|woff2?|ttf|eo
 const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
   /^\/(login|admin-login|clienti-login|lavori-login|cambia-password|reset-password)(\/|$)/,
-  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps|widget|qr|stima)(\/|$)/,
+  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps|widget|qr|stima|verifica-pos)(\/|$)/,
 ];
 
 // Ogni sottodominio della piattaforma che non sia www è un'area dell'app: quelle

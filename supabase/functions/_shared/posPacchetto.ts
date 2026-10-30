@@ -5,6 +5,7 @@ import type { SceltaMezzoPos } from "./posMezzi.ts";
 import type { FontiTecnicheScheda } from "./posFontiTecniche.ts";
 import { zipSync, strToU8 } from "fflate";
 import { generaPdfPos, VERSIONE_RENDERER_POS } from "./posPdf.ts";
+import { urlVerificaPos } from "./posVerifica.ts";
 import type { ProdottoPos } from "./posProdotti.ts";
 import type { DatiStampaPos } from "./posHtml.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
@@ -30,6 +31,8 @@ export interface ManifestEmissionePos {
   versione: 1; emissioneId: string; companyId: string; posId: string; revisione: number;
   preparataIl: string; origine: IdentitaEmissionePos["origine"]; snapshotId?: string;
   generatore: string; contenutoSha256: string; fonts: Array<{ nome: string; sha256: string }>;
+  /** Dove porta il codice QR stampato sul PDF: la pagina pubblica che dice se la copia è la revisione in vigore. */
+  urlVerifica?: string;
   file: FileEmissionePos[];
   avvertenza: string;
   psc?: RiferimentoPsc;
@@ -167,7 +170,9 @@ export async function preparaPacchettoPos(
     totale+=bytes.length;if(bytes.length>LIMITE_ALLEGATO||totale>LIMITE_ALLEGATI)throw new Error("Il fascicolo supera i limiti di emissione: 20 MB per allegato, 30 MB complessivi");
     await aggiungi(`allegati/FORMAZIONE-${String(i+1).padStart(3,'0')}-${nomeSicuro(a.nome)}`,bytes,"allegato","application/octet-stream",{tipo:"qualifica_addetto",nomeOriginale:a.nome,evidenza_id:a.evidenza_id,persona_id:a.persona_id,impronta_metadati:a.impronta,fonte:{bucket:a.bucket,path:a.path}});
   }
-  const pdf = await generaPdfPos(dati, identita.emessoIl);
+  // Il QR in copertina porta alla verifica pubblica di QUESTA emissione (l'id è quello prenotato prima di generare il PDF).
+  const urlVerifica = urlVerificaPos(identita.id, (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get("POS_VERIFICA_BASE_URL"));
+  const pdf = await generaPdfPos({ ...dati, urlVerifica }, identita.emessoIl);
   await aggiungi("POS.pdf", pdf.bytes, "pdf", "application/pdf");
   await aggiungi("modello.html", strToU8(pdf.html), "modello_html", "text/html");
   await aggiungi("fonti.json", strToU8(jsonCanonico(fonti)), "fonti", "application/json");
@@ -179,7 +184,7 @@ export async function preparaPacchettoPos(
     ...(prodottiSds?{prodotti_sds:{versione:1 as const,prodotti:prodottiSds.prodotti}}:{}),
     ...(requisitiAddetti?{requisiti_addetti:{versione:1 as const,collegamenti:requisitiAddetti.collegamenti}}:{}),
     ...(documentiMezzi?{documenti_mezzi:{versione:1 as const,collegamenti:documentiMezzi.collegamenti}}:{}),...(fontiMezzi?{mezzi_pos:fontiMezzi}:{}),...(fontiTecniche?{fonti_tecniche:{versione:1 as const,collegamenti:fontiTecniche.collegamenti}}:{}),
-    generatore: VERSIONE_RENDERER_POS, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    generatore: VERSIONE_RENDERER_POS, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, urlVerifica, file,
     avvertenza: identita.origine === "approvazione_corrente"
       ? "L’approvazione interna non sostituisce le firme. Gli allegati sono conservati separatamente nei byte originali, senza fusione o modifica."
       : "Copia preparata ora dal contenuto archiviato. Non ricostruisce i byte di un PDF o di allegati storici non conservati all’epoca; non attesta firme precedenti.",

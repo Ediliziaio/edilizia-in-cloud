@@ -184,6 +184,7 @@ const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
 const FirmaAvanzataInfo = lazy(() => import("@/pages/public/FirmaAvanzataInfo"));
 const VerificaFirma = lazy(() => import("@/pages/public/VerificaFirma"));
+const VerificaPos = lazy(() => import("@/pages/public/VerificaPos"));
 const FirmaSal = lazy(() => import("@/pages/public/FirmaSal"));
 const SerramentiStimaPubblica = lazy(() => import("@/pages/public/SerramentiStimaPubblica"));
 const TalentProfilePublic = lazy(() => import("@/pages/public/TalentProfilePublic"));
@@ -764,6 +765,8 @@ const App = () => (
               {/* FEA: caratteristiche pubblicate (DPCM 22/02/2013 art. 57) e verifica col codice del certificato. */}
               <Route path="/firma-elettronica-avanzata" element={<FirmaAvanzataInfo />} />
               <Route path="/verifica-firma" element={<VerificaFirma />} />
+              {/* QR stampato in copertina del POS: dice se la copia è la revisione in vigore. */}
+              <Route path="/verifica-pos/:id" element={<VerificaPos />} />
               {/* Firma committente del verbale SAL: il PDF linkava già qui,
                   ma la rotta non esisteva — 404 per il cliente. */}
               <Route path="/firma-sal/:token" element={<FirmaSal />} />
