@@ -17,6 +17,7 @@ import { STILE_STATO, dataBreve, euro } from "@/components/orders/generali/unita
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { NOMI_STATO, STATI_VENDITA, confrontaSigle } from "@/lib/orders/generali/unita";
+import { useCriterioRipartizione } from "@/hooks/useCommesseGenerali";
 import { avvisoGaranzie, contiUnita, riepilogoVendite } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +30,8 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
   const [daDividere, setDaDividere] = useState<string | null>(null);
   const [serie, setSerie] = useState(false);
 
-  const conti = useMemo(() => (e ? contiUnita(e) : null), [e]);
+  const criterio = useCriterioRipartizione(riepilogo.generale.id);
+  const conti = useMemo(() => (e ? contiUnita(e, criterio.data?.criterio ?? "auto") : null), [e, criterio.data]);
   const vendite = useMemo(() => (e ? riepilogoVendite(e) : null), [e]);
 
   if (isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;

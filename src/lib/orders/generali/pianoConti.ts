@@ -494,14 +494,20 @@ export function dividiAlCentesimo(totale: number, pesi: number[]): number[] {
   return interi.map((c) => c / 100);
 }
 
+/** Il criterio scelto per la generale; «auto» = millesimi, poi m², poi importo, poi parti uguali. */
+export type CriterioScelto = CriterioRipartizione | "auto";
+
 /**
  * I costi registrati sulla generale divisi sulle figlie, in lettura: per millesimi se ogni
  * figlia li ha, altrimenti per m², altrimenti per importo, altrimenti in parti uguali.
+ * Con un criterio scelto si usa quello, se ogni figlia ha il dato; se no si torna alla regola
+ * automatica e il motivo lo dice.
  */
 export function ripartisciCostiComuni(
   figlie: FigliaRipartizione[],
   unita: ReadonlyMap<string, DatiUnita> | null,
   totale: number,
+  scelto: CriterioScelto = "auto",
 ): Ripartizione {
   if (figlie.length === 0) return { criterio: "parti_uguali", motivo: "Non ci sono commesse dentro questa generale.", quote: [] };
   const valore = (f: FigliaRipartizione, campo: "millesimi" | "mq") => {
@@ -510,6 +516,43 @@ export function ripartisciCostiComuni(
   };
   const mancanti = (campo: "millesimi" | "mq") => figlie.filter((f) => valore(f, campo) === null).length;
   const note: string[] = [];
+  let criterio: CriterioRipartizione;
+  let pesi: number[];
+  const pesiScelti: number[] | null =
+    scelto === "millesimi" && mancanti("millesimi") === 0 ? figlie.map((f) => valore(f, "millesimi")!)
+    : scelto === "mq" && mancanti("mq") === 0 ? figlie.map((f) => valore(f, "mq")!)
+    : scelto === "importo" && figlie.some((f) => (f.importo ?? 0) > 0) ? figlie.map((f) => Math.max(0, f.importo ?? 0))
+    : scelto === "parti_uguali" ? figlie.map(() => 1)
+    : null;
+  if (scelto !== "auto" && pesiScelti) {
+    criterio = scelto;
+    pesi = pesiScelti;
+  } else {
+    if (scelto !== "auto") note.push(`scelto ${CRITERI[scelto]}, ma manca il dato su qualche commessa: uso la regola automatica`);
+    ({ criterio, pesi } = criterioAutomatico(figlie, valore, mancanti, note));
+  }
+  const importi = dividiAlCentesimo(totale, pesi);
+  const totPesi = pesi.reduce((t, p) => t + p, 0);
+  const motivo = `Ripartiti ${CRITERI[criterio]}${note.length ? ` (${note.join("; ")})` : ""}.`;
+  return {
+    criterio,
+    motivo,
+    quote: figlie.map((f, i) => ({
+      figliaId: f.id,
+      nome: f.nome,
+      base: pesi[i],
+      quota: totPesi > 0 ? pesi[i] / totPesi : 0,
+      importo: importi[i],
+    })),
+  };
+}
+
+function criterioAutomatico(
+  figlie: FigliaRipartizione[],
+  valore: (f: FigliaRipartizione, campo: "millesimi" | "mq") => number | null,
+  mancanti: (campo: "millesimi" | "mq") => number,
+  note: string[],
+): { criterio: CriterioRipartizione; pesi: number[] } {
   let criterio: CriterioRipartizione;
   let pesi: number[];
   if (mancanti("millesimi") === 0) {
@@ -533,20 +576,7 @@ export function ripartisciCostiComuni(
       }
     }
   }
-  const importi = dividiAlCentesimo(totale, pesi);
-  const totPesi = pesi.reduce((t, p) => t + p, 0);
-  const motivo = `Ripartiti ${CRITERI[criterio]}${note.length ? ` (${note.join("; ")})` : ""}.`;
-  return {
-    criterio,
-    motivo,
-    quote: figlie.map((f, i) => ({
-      figliaId: f.id,
-      nome: f.nome,
-      base: pesi[i],
-      quota: totPesi > 0 ? pesi[i] / totPesi : 0,
-      importo: importi[i],
-    })),
-  };
+  return { criterio, pesi };
 }
 
 // ── Tutto insieme ──────────────────────────────────────────────────────────
@@ -575,6 +605,8 @@ export interface InputPiano {
   figlie: FigliaRipartizione[];
   /** Millesimi e m² delle unità (modulo Unità), per figlia. */
   unita?: ReadonlyMap<string, DatiUnita> | null;
+  /** Il criterio scelto per i costi comuni (Modifica della generale); assente = automatico. */
+  criterio?: CriterioScelto;
   scenario?: Scenario | null;
 }
 
@@ -666,7 +698,7 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
     costiComuni: {
       totale: totaleComuni,
       righe: righeComuni,
-      ripartizione: ripartisciCostiComuni(input.figlie, input.unita ?? null, totaleComuni),
+      ripartizione: ripartisciCostiComuni(input.figlie, input.unita ?? null, totaleComuni, input.criterio ?? "auto"),
     },
     avvisi,
     mq: mqTotali,

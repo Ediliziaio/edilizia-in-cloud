@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { messaggioGenerale, useAggiornaGenerale, useImpostazioniCommesseGenerali } from "@/hooks/useCommesseGenerali";
+import {
+  messaggioGenerale, useAggiornaGenerale, useCriterioRipartizione, useImpostazioniCommesseGenerali, useSalvaCriterioRipartizione,
+  type CriterioRipartizioneScelto,
+} from "@/hooks/useCommesseGenerali";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI, isModelloGenerale, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
@@ -33,6 +36,12 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
   const [nome, setNome] = useState(g.nome);
   const [modello, setModello] = useState<ModelloGenerale>(g.modello);
   const [valoreTesto, setValoreTesto] = useState(testoImporto(g.valore));
+  // Come si dividono i costi registrati sulla generale sulle commesse dentro (piano, unità, panoramica).
+  const criterioAttuale = useCriterioRipartizione(g.id);
+  const salvaCriterio = useSalvaCriterioRipartizione(g.id);
+  const [criterio, setCriterio] = useState<CriterioRipartizioneScelto | null>(null);
+  const criterioScelto = criterio ?? criterioAttuale.data?.criterio ?? "auto";
+  const criterioDisponibile = !!criterioAttuale.data?.disponibile && riepilogo.permessi.costi;
 
   // Si può tenere il tipo attuale anche se nel frattempo è stato spento; cambiare solo verso un tipo acceso.
   const scelte = Array.from(new Set<ModelloGenerale>([g.modello, ...accesi]));
@@ -52,7 +61,18 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
     aggiorna.mutate(
       { nome: nome.trim(), modello, valore: importiVisibili && !valoreDalContratto ? valore : g.valore },
       {
-        onSuccess: () => { toast.success("Commessa generale aggiornata"); onOpenChange(false); },
+        onSuccess: async () => {
+          if (criterioDisponibile && criterio && criterio !== criterioAttuale.data?.criterio) {
+            try {
+              await salvaCriterio.mutateAsync(criterio);
+            } catch (e) {
+              toast.error(messaggioGenerale(e, "il criterio dei costi comuni"));
+              return;
+            }
+          }
+          toast.success("Commessa generale aggiornata");
+          onOpenChange(false);
+        },
         onError: (e) => toast.error(messaggioGenerale(e, "le modifiche")),
       },
     );
@@ -62,7 +82,7 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
     <>
         <DialogHeader>
           <DialogTitle>Modifica commessa generale</DialogTitle>
-          <DialogDescription>Nome, tipo e valore. Le commesse dentro non cambiano.</DialogDescription>
+          <DialogDescription>Nome, tipo, valore e come si dividono i costi comuni. Le commesse dentro non cambiano.</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); salva(); }}>
           <div className="space-y-1.5">
@@ -96,10 +116,32 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
               </p>
             </div>
           )}
+          {riepilogo.permessi.costi && (
+            <div className="space-y-1.5">
+              <Label htmlFor="mod-generale-criterio">Ripartizione dei costi comuni</Label>
+              {criterioDisponibile ? (
+                <Select value={criterioScelto} onValueChange={(v) => setCriterio(v as CriterioRipartizioneScelto)}>
+                  <SelectTrigger id="mod-generale-criterio"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Automatica (millesimi, poi m², poi importo)</SelectItem>
+                    <SelectItem value="millesimi">Per millesimi</SelectItem>
+                    <SelectItem value="mq">Per m² commerciali</SelectItem>
+                    <SelectItem value="importo">In proporzione all'importo</SelectItem>
+                    <SelectItem value="parti_uguali">In parti uguali</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                {criterioDisponibile
+                  ? "I costi registrati sulla generale (terreno, oneri, costi di cantiere) si dividono così sulle commesse dentro: piano economico, unità e margini."
+                  : "Automatica: per millesimi, altrimenti per m², altrimenti in proporzione all'importo. La scelta manuale arriva col prossimo aggiornamento."}
+              </p>
+            </div>
+          )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
             <Button type="submit" disabled={!puoSalvare}>
-              {aggiorna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {(aggiorna.isPending || salvaCriterio.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salva
             </Button>
           </DialogFooter>

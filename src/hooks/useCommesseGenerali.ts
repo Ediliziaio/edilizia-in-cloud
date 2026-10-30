@@ -334,3 +334,72 @@ export async function leggiIdGenerali(companyId: string): Promise<string[]> {
     return [];
   }
 }
+
+// ── Costi comuni: criterio e quote ────────────────────────────────────────────
+
+export type CriterioRipartizioneScelto = "auto" | "millesimi" | "mq" | "importo" | "parti_uguali";
+const CRITERI_AMMESSI: readonly CriterioRipartizioneScelto[] = ["auto", "millesimi", "mq", "importo", "parti_uguali"];
+
+/** Il criterio scelto per dividere i costi comuni della generale; «auto» se non scelto o non ancora disponibile. */
+export function useCriterioRipartizione(generaleId: string | undefined) {
+  return useQuery({
+    queryKey: ["generale-criterio-ripartizione", generaleId],
+    enabled: !!generaleId,
+    staleTime: 60_000,
+    meta: { silent: true },
+    // `disponibile` = il database ha già la colonna (migrazione 20281031174000): solo allora si può scegliere.
+    queryFn: async (): Promise<{ criterio: CriterioRipartizioneScelto; disponibile: boolean }> => {
+      try {
+        const { data, error } = await db.from("commesse_generali").select("*").eq("order_id", generaleId!).maybeSingle();
+        if (error || !data) return { criterio: "auto", disponibile: false };
+        const riga = data as { criterio_ripartizione?: unknown };
+        const v = riga.criterio_ripartizione;
+        return {
+          criterio: CRITERI_AMMESSI.includes(v as CriterioRipartizioneScelto) ? (v as CriterioRipartizioneScelto) : "auto",
+          disponibile: "criterio_ripartizione" in riga,
+        };
+      } catch {
+        return { criterio: "auto", disponibile: false };
+      }
+    },
+  });
+}
+
+export function useSalvaCriterioRipartizione(generaleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (criterio: CriterioRipartizioneScelto) => {
+      const { error } = await db.rpc("commessa_generale_criterio", { p_generale_id: generaleId, p_criterio: criterio });
+      if (error) {
+        if (error.code === "PGRST202" || error.code === "42883") {
+          throw Object.assign(new Error("La scelta del criterio sarà disponibile col prossimo aggiornamento dell'app."), { code: "22023" });
+        }
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["generale-criterio-ripartizione", generaleId] });
+      void qc.invalidateQueries({ queryKey: ["generale-costi-comuni", generaleId] });
+    },
+  });
+}
+
+/** I costi registrati sulla generale stessa (terreno, oneri, costi generali di cantiere): il totale da ripartire. */
+export function useCostiSullaGenerale(generaleId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["generale-costi-comuni", generaleId],
+    enabled: !!generaleId && enabled,
+    staleTime: 30_000,
+    meta: { silent: true },
+    queryFn: async (): Promise<number | null> => {
+      try {
+        const { data, error } = await db.from("v_ordine_marginalita").select("consuntivo").eq("id", generaleId!).maybeSingle();
+        if (error) return null;
+        const n = Number((data as { consuntivo?: unknown } | null)?.consuntivo ?? 0);
+        return Number.isFinite(n) ? n : 0;
+      } catch {
+        return null;
+      }
+    },
+  });
+}

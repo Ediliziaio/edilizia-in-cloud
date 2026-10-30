@@ -119,6 +119,22 @@ export function criterioRiparto(vive: Pick<UnitaGenerale, "millesimi" | "mq" | "
   return "uguale";
 }
 
+/**
+ * Il criterio scelto per la generale (Modifica → Ripartizione dei costi comuni), se tutte le unità
+ * hanno il dato che serve; null = si usa la regola automatica. «importo» per le unità è il prezzo.
+ */
+function criterioScelto(
+  vive: Pick<UnitaGenerale, "millesimi" | "mq" | "rogito" | "trattato" | "listino">[],
+  scelto: "auto" | "millesimi" | "mq" | "importo" | "parti_uguali",
+): CriterioRiparto | null {
+  const tutte = (f: (u: (typeof vive)[number]) => number | null) => vive.length > 0 && vive.every((u) => (f(u) ?? 0) > 0);
+  if (scelto === "millesimi" && tutte((u) => u.millesimi)) return "millesimi";
+  if (scelto === "mq" && tutte((u) => u.mq)) return "mq";
+  if (scelto === "importo" && tutte(prezzoCorrente)) return "prezzo";
+  if (scelto === "parti_uguali" && vive.length > 0) return "uguale";
+  return null;
+}
+
 const pesoDi = (criterio: CriterioRiparto, u: UnitaGenerale) =>
   criterio === "millesimi" ? u.millesimi ?? 0 : criterio === "mq" ? u.mq ?? 0 : criterio === "prezzo" ? prezzoCorrente(u) ?? 0 : 1;
 
@@ -155,9 +171,9 @@ export interface ContiUnita {
  * − provvigione dell'agenzia − quota dei costi comuni. I costi comuni sono quelli registrati
  * sulla generale più le permute (il terreno), ripartiti sulle unità vive.
  */
-export function contiUnita(e: ElencoUnita): ContiUnita {
+export function contiUnita(e: ElencoUnita, scelto: "auto" | "millesimi" | "mq" | "importo" | "parti_uguali" = "auto"): ContiUnita {
   const vive = unitaVive(e.unita);
-  const criterio = criterioRiparto(vive);
+  const criterio = criterioScelto(vive, scelto) ?? criterioRiparto(vive);
   const pesi = vive.map((u) => pesoDi(criterio, u));
   const pesoTotale = criterio === "uguale" ? vive.length : pesi.reduce((t, p) => t + p, 0);
   const vedeCosti = e.unita.every((u) => u.costoDiretto !== null) && e.costiGenerale !== null;

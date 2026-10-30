@@ -6,13 +6,21 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useGeneraleDellaCommessa } from "@/hooks/useCommesseGenerali";
-import { DEFINIZIONI_MODELLI } from "@/lib/orders/commesseGenerali";
+import { useGeneraleDellaCommessa, useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
+import { nomeCriterio, useQuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
+import { DEFINIZIONI_MODELLI, formattaEuro } from "@/lib/orders/commesseGenerali";
+import { cn } from "@/lib/utils";
 
 export function PercorsoGenerale({ orderId }: { orderId: string }) {
   const { data: g } = useGeneraleDellaCommessa(orderId);
   const navigate = useNavigate();
+  const { data: r } = useRiepilogoGenerale(g?.id);
+  const quote = useQuoteCostiComuni(r);
   if (!g) return null;
+  const figlia = r?.figlie.find((f) => f.id === orderId) ?? null;
+  const quota = quote?.perFiglia.get(orderId) ?? null;
+  const mostraQuota = !!quote && quote.totale > 0 && !!quota && !!r?.permessi.margini && !figlia?.divisa;
+  const pieno = figlia?.margine != null && quota ? figlia.margine - quota.importo : null;
 
   const def = g.modello ? DEFINIZIONI_MODELLI[g.modello] : null;
   const indice = g.sorelle.findIndex((s) => s.id === orderId);
@@ -68,6 +76,21 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
           </div>
         )}
       </div>
+      {mostraQuota && (
+        // La parte dei costi registrati sulla generale (terreno, oneri, costi di cantiere) che tocca a questa commessa.
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border border-dashed bg-muted/30 px-3 py-1.5 text-xs">
+          <span>
+            Quota dei costi comuni: <span className="font-medium tabular-nums">{formattaEuro(quota!.importo)}</span>
+            <span className="text-muted-foreground"> ({Math.round(quota!.parte * 1000) / 10}% di {formattaEuro(quote!.totale)}, {nomeCriterio(quote!.criterio)})</span>
+          </span>
+          {figlia?.margine != null && pieno !== null && (
+            <span>
+              Margine diretto <span className="tabular-nums">{formattaEuro(figlia.margine)}</span> → margine pieno{" "}
+              <span className={cn("font-semibold tabular-nums", pieno < 0 ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")}>{formattaEuro(pieno)}</span>
+            </span>
+          )}
+        </p>
+      )}
     </nav>
   );
 }

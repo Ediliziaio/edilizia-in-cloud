@@ -17,7 +17,7 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
-vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}` }));
+vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`, useCriterioRipartizione: () => ({ data: { criterio: "auto", disponibile: false } }) }));
 vi.mock("@/hooks/useGeneraleUnita", () => {
   const ferma = () => ({ mutate: vi.fn(), isPending: false });
   return {

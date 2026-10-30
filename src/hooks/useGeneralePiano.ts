@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { CategoriaPiano, TipoVoce, VoceNuova } from "@/lib/orders/generali/pianoCategorie";
+import { useCriterioRipartizione } from "@/hooks/useCommesseGenerali";
 import { calcolaPianoEconomico, type DatiUnita, type PianoCalcolato, type Scenario, type VocePiano } from "@/lib/orders/generali/pianoConti";
 import {
   dataDaMese, leggiFotografie, leggiReale, leggiUnita, leggiVersioni, leggiVoci,
@@ -175,6 +176,7 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
   const reale = useRealePiano(generaleId, inVista?.id ?? null, attivo && versioni.isSuccess);
   const figlieIds = useMemo(() => (riepilogo?.figlie ?? []).map((f) => f.id), [riepilogo]);
   const unita = useUnitaGenerale(generaleId, figlieIds, attivo);
+  const criterio = useCriterioRipartizione(generaleId);
 
   const piano: PianoCalcolato | null = useMemo(() => {
     if (!riepilogo || !inVista || !Array.isArray(voci.data) || !reale.data || !Array.isArray(reale.data.righe)) return null;
@@ -188,9 +190,10 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
       incassi: reale.data.incassi,
       figlie: riepilogo.figlie.map((f) => ({ id: f.id, nome: f.codice ? `${f.codice} · ${f.nome}` : f.nome, importo: f.importo })),
       unita: unita.data ?? null,
+      criterio: criterio.data?.criterio ?? "auto",
       scenario: opzioni.scenario ?? null,
     });
-  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, opzioni.scenario]);
+  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, criterio.data, opzioni.scenario]);
 
   return {
     versioni: elenco,

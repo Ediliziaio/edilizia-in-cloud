@@ -15,7 +15,9 @@ const m = vi.hoisted(() => ({
   modelli: [] as string[],
   salva: vi.fn(),
   navigate: vi.fn(),
+  quote: null as null | { totale: number; criterio: string; motivo: string; perFiglia: Map<string, { importo: number; parte: number; base: number }> },
 }));
+vi.mock("@/hooks/useQuoteCostiComuni", () => ({ useQuoteCostiComuni: () => m.quote }));
 
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders, isLoading: false }) }));
@@ -81,6 +83,7 @@ beforeEach(() => {
   m.modelli = [];
   m.salva.mockReset();
   m.navigate.mockReset();
+  m.quote = null;
 });
 afterEach(cleanup);
 
@@ -180,5 +183,19 @@ describe("le schede dei moduli", () => {
     m.mobile = true;
     disegna();
     expect(screen.queryByRole("tab", { name: "Contratto e SAL" })).not.toBeInTheDocument();
+  });
+});
+
+describe("costi comuni nella panoramica", () => {
+  it("il margine diventa quello dell'operazione e ogni commessa porta la sua quota", () => {
+    m.quote = { totale: 50_000, criterio: "importo", motivo: "Ripartiti in proporzione all'importo.", perFiglia: new Map([["a", { importo: 31_250, parte: 0.625, base: 1 }], ["b", { importo: 18_750, parte: 0.375, base: 1 }]]) };
+    disegna();
+    expect(screen.getByText("Margine dell'operazione")).toBeVisible();
+    // 100.000 − 60.000 delle commesse, meno 50.000 di costi comuni
+    expect(screen.getAllByText(/-10\.000\s+€/).length).toBeGreaterThan(0);
+    const rodari = screen.getByRole("link", { name: /Scuola Rodari/ }).closest("tr")!;
+    expect(within(rodari).getByText(/quota comuni −31\.250/)).toBeInTheDocument();
+    expect(within(rodari).getByText(/68\.750\s+€/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Margine pieno" })).toBeInTheDocument();
   });
 });

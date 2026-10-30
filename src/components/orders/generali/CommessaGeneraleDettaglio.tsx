@@ -18,6 +18,7 @@ import { CollegaCommesseDialog } from "@/components/orders/generali/CollegaComme
 import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGeneraleDialog";
 import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
 import { schedeDelModello } from "@/components/orders/generali/schede";
+import { useQuoteCostiComuni, type QuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioGenerale, useRiepilogoGenerale, useScollegaCommessa } from "@/hooks/useCommesseGenerali";
@@ -32,6 +33,7 @@ const percento = (n: number | null) => (n === null ? "" : `${Math.round(n)}%`);
 
 export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }) {
   const { data: r, isLoading, isError, refetch } = useRiepilogoGenerale(generaleId);
+  const quote = useQuoteCostiComuni(r);
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -82,7 +84,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
     <>
       {r.permessi.importi && <Scala r={r} t={totali} />}
 
-      <NumeriChiave r={r} t={totali} />
+      <NumeriChiave r={r} t={totali} quote={quote} />
 
       {schede.map((x) => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
 
@@ -123,7 +125,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
             {r.figlie.map((f) => <FigliaCard key={f.id} f={f} permessi={r.permessi} />)}
           </ul>
         ) : (
-          <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} />
+          <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} quote={quote} />
         )}
       </section>
     </>
@@ -243,7 +245,7 @@ function Riquadro({ etichetta, valore, nota, tono }: { etichetta: string; valore
 }
 
 /** Quattro numeri, sempre nello stesso posto: valore, cosa manca, cosa devono pagarti, come va. */
-function NumeriChiave({ r, t }: { r: RiepilogoGenerale; t: TotaliGenerale }) {
+function NumeriChiave({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null }) {
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   return (
     <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -262,14 +264,20 @@ function NumeriChiave({ r, t }: { r: RiepilogoGenerale; t: TotaliGenerale }) {
         <Riquadro etichetta={def.figlia.tante} valore={String(t.figlie)} />
       )}
       {r.permessi.margini ? (
-        <Riquadro
-          etichetta={`Margine delle ${def.figlia.tante.toLowerCase()}`}
-          valore={euro(t.margine)}
-          tono={t.margine !== null && t.margine < 0 ? "rosso" : t.margine !== null && t.margine > 0 ? "verde" : undefined}
-          // Somma i margini delle commesse dentro: i costi registrati sulla generale (terreno, oneri, tecnici)
-          // non ci sono. Il margine dell'operazione intera lo dà il piano economico.
-          nota="senza i costi comuni: quello dell'operazione è nel piano economico"
-        />
+        (() => {
+          // Margine dell'operazione: quello delle commesse dentro meno i costi registrati sulla generale.
+          const margine = t.margine !== null && quote ? t.margine - quote.totale : t.margine;
+          return (
+            <Riquadro
+              etichetta={quote ? "Margine dell'operazione" : `Margine delle ${def.figlia.tante.toLowerCase()}`}
+              valore={euro(margine)}
+              tono={margine !== null && margine < 0 ? "rosso" : margine !== null && margine > 0 ? "verde" : undefined}
+              nota={quote
+                ? (quote.totale > 0 ? `${def.figlia.tante.toLowerCase()} ${euro(t.margine)} − costi comuni ${euro(quote.totale)}` : "ricavi meno costi registrati")
+                : "senza i costi comuni registrati sulla generale"}
+            />
+          );
+        })()
       ) : (
         <Riquadro etichetta="Avanzamento" valore={`${Math.round(t.avanzamento)}%`} />
       )}
@@ -298,7 +306,10 @@ function Avanzamento({ valore }: { valore: number }) {
   );
 }
 
-function TabellaFiglie({ r, t, puoModificare }: { r: RiepilogoGenerale; t: TotaliGenerale; puoModificare: boolean }) {
+function TabellaFiglie({ r, t, puoModificare, quote }: { r: RiepilogoGenerale; t: TotaliGenerale; puoModificare: boolean; quote: QuoteCostiComuni | null }) {
+  // Il margine di ogni commessa è «pieno»: meno la sua quota dei costi comuni, se ce ne sono.
+  const conQuote = !!quote && quote.totale > 0;
+  const pieno = (f: FigliaGenerale) => (f.margine === null ? null : f.margine - (quote?.perFiglia.get(f.id)?.importo ?? 0));
   const scollega = useScollegaCommessa();
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const p = r.permessi;
@@ -320,7 +331,7 @@ function TabellaFiglie({ r, t, puoModificare }: { r: RiepilogoGenerale; t: Total
             {p.importi && <th className="px-2 py-2 text-right font-medium">Eseguito</th>}
             {p.importi && <th className="px-2 py-2 text-right font-medium">Fatturato</th>}
             {p.importi && <th className="px-2 py-2 text-right font-medium">Incassato</th>}
-            {p.margini && <th className="px-2 py-2 text-right font-medium">Margine</th>}
+            {p.margini && <th className="px-2 py-2 text-right font-medium" title={conQuote ? quote!.motivo : undefined}>{conQuote ? "Margine pieno" : "Margine"}</th>}
             {puoModificare && <th className="w-10 px-2 py-2"><span className="sr-only">Azioni</span></th>}
           </tr>
         </thead>
@@ -341,7 +352,15 @@ function TabellaFiglie({ r, t, puoModificare }: { r: RiepilogoGenerale; t: Total
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(f.fatturato)}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(f.incassato)}</td>}
               {p.margini && (
-                <td className={cn("px-2 py-2 text-right tabular-nums", f.margine !== null && f.margine < 0 && "text-destructive")}>{euro(f.margine)}</td>
+                <td
+                  className={cn("px-2 py-2 text-right tabular-nums", (pieno(f) ?? 0) < 0 && "text-destructive")}
+                  title={conQuote && f.margine !== null ? `Margine diretto ${euro(f.margine)} − quota costi comuni ${euro(quote!.perFiglia.get(f.id)?.importo ?? 0)}` : undefined}
+                >
+                  {euro(pieno(f))}
+                  {conQuote && f.margine !== null && !f.divisa && (
+                    <span className="block text-[11px] text-muted-foreground">quota comuni −{euro(quote!.perFiglia.get(f.id)?.importo ?? 0)}</span>
+                  )}
+                </td>
               )}
               {puoModificare && (
                 <td className="px-2 py-2">
@@ -373,7 +392,10 @@ function TabellaFiglie({ r, t, puoModificare }: { r: RiepilogoGenerale; t: Total
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.eseguito)}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.fatturato)}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.incassato)}</td>}
-              {p.margini && <td className={cn("px-2 py-2 text-right tabular-nums", t.margine !== null && t.margine < 0 && "text-destructive")}>{euro(t.margine)}</td>}
+              {p.margini && (() => {
+                const totale = t.margine !== null && conQuote ? t.margine - quote!.totale : t.margine;
+                return <td className={cn("px-2 py-2 text-right tabular-nums", totale !== null && totale < 0 && "text-destructive")}>{euro(totale)}</td>;
+              })()}
               {puoModificare && <td />}
             </tr>
           </tfoot>
