@@ -62,6 +62,7 @@ const TIPO_OPTIONS: Array<{ value: PreventivoTipo; label: string; emoji: string 
   { value: "termoidraulico",   label: "Termoidraulico",   emoji: "🔥" },
   { value: "pavimenti",        label: "Pavimenti",        emoji: "🟫" },
   { value: "piscine",          label: "Piscine",          emoji: "🏊" },
+  { value: "computo",          label: "Computo",          emoji: "📐" },
 ];
 
 const STATO_OPTIONS: Array<{ value: UnifiedStato; label: string; toneCls: string }> = [

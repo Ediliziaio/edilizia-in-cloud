@@ -42,7 +42,7 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
-  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy } from "lucide-react";
+  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -79,14 +79,18 @@ import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
 import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
+import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
+import { elencaComputiPreventivo } from "@/lib/computo/editorNativo";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine" | "computo";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
   id: string;
   tipo: PreventivoTipo;
   numero: string;
+  /** Una riga di descrizione sotto il numero (il titolo del computo), quando il numero da solo non dice cosa sia. */
+  titolo?: string | null;
   cliente: string;
   commerciale_id: string | null;
   commerciale_nome: string | null;
@@ -109,6 +113,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   termoidraulico:   { label: "Termoidraulico",   className: "bg-rose-100 text-rose-700 border-rose-200",       color: "#e11d48", Icon: Flame },
   pavimenti:        { label: "Pavimenti",        className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: LayoutGrid },
   piscine:          { label: "Piscine",          className: "bg-blue-100 text-blue-700 border-blue-200",       color: "#2563eb", Icon: Waves },
+  computo:          { label: "Computo",          className: "bg-indigo-100 text-indigo-700 border-indigo-200", color: "#4f46e5", Icon: Calculator },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -160,7 +165,7 @@ export function UnifiedPreventiviList() {
     sort: (searchParams.get("sort") as UnifiedFilters["sort"]) ?? "recent",
   }));
   const [vista, setVista] = useState<VistaElenco>(() => vistaDaTesto(searchParams.get("vista")));
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const puoEliminare = role === "super_admin" || role === "company_admin";
   const [daCestinare, setDaCestinare] = useState<UnifiedRow | null>(null);
   const [inDuplicazione, setInDuplicazione] = useState<string | null>(null);
@@ -285,6 +290,27 @@ export function UnifiedPreventiviList() {
         created_at: string; updated_at: string | null;
         revision_number: number | null; source: string | null;
       }>).filter((q) => !eRigaDiModulo(q.source));
+    },
+  });
+
+  // I preventivi con computo (29/10/2026): le bozze salvate nel gestionale e quelle solo su questo computer,
+  // con stato e totale dal loro documento di firma («modulo:computo:<bozza>») quando c'è. Prima stavano in un
+  // riquadro a parte in cima alla pagina, che occupava spazio e non si filtrava.
+  const { data: computoData = [] } = useQuery({
+    queryKey: ["unified-prev-computi", companyId, user?.id],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const [cloud, firme] = await Promise.all([
+        elencaComputiCloud(companyId!).catch((): RiepilogoComputoCloud[] => []),
+        supabase.from("quotes").select("source, quote_number, status, total, updated_at").eq("company_id", companyId!).like("source", "modulo:computo:%").is("deleted_at", null).limit(500),
+      ]);
+      const firma = new Map(((firme.data ?? []) as Array<{ source: string; quote_number: string | null; status: string; total: number | null }>).map(q => [q.source.slice("modulo:computo:".length), q]));
+      const visti = new Set(cloud.map(c => c.id));
+      const locali = user?.id ? (() => { try { return elencaComputiPreventivo(localStorage, companyId!, user.id).filter(l => !visti.has(l.id)); } catch { return []; } })() : [];
+      return [
+        ...cloud.map(c => ({ id: c.id, titolo: c.titolo, cliente: c.committente, voci: c.numeroVoci ?? 0, data: c.updatedAt, firma: firma.get(c.id) ?? null, locale: false })),
+        ...locali.map(l => ({ id: l.id, titolo: l.bozza.titolo, cliente: l.bozza.committente, voci: l.bozza.voci.length, data: new Date().toISOString(), firma: firma.get(l.id) ?? null, locale: true })),
+      ];
     },
   });
 
@@ -735,8 +761,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/piscine/${ps.id}/modifica`,
       });
     }
+    for (const c of computoData) {
+      rows.push({
+        id: c.id, tipo: "computo",
+        numero: c.firma?.quote_number || "Computo",
+        titolo: [c.titolo.trim() || "Computo metrico", c.voci ? `${c.voci} ${c.voci === 1 ? "voce" : "voci"}` : null].filter(Boolean).join(" · "),
+        cliente: c.cliente.trim() || "—",
+        commerciale_id: null, commerciale_nome: c.locale ? "Solo su questo PC" : null,
+        stato_unif: c.firma ? mapClassicoStato(c.firma.status) : "bozza",
+        stato_raw: c.firma?.status ?? "bozza",
+        totale: c.firma?.total != null ? Number(c.firma.total) : null,
+        data: c.data,
+        href: `/azienda/marketing/preventivi/computo?bozza=${c.id}`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, piscineData, commercialeNameById]);
+  }, [computoData, quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, piscineData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -787,7 +827,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0, piscine: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0, piscine: 0, computo: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
@@ -801,6 +841,7 @@ export function UnifiedPreventiviList() {
       { name: "Termoidraulico",   value: counts.termoidraulico,   color: TIPO_LABEL.termoidraulico.color },
       { name: "Pavimenti",        value: counts.pavimenti,        color: TIPO_LABEL.pavimenti.color },
       { name: "Piscine",          value: counts.piscine,          color: TIPO_LABEL.piscine.color },
+      { name: "Computo",          value: counts.computo,          color: TIPO_LABEL.computo.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -848,7 +889,7 @@ export function UnifiedPreventiviList() {
         }
       }
       if (s) {
-        const blob = `${r.numero} ${r.cliente} ${r.commerciale_nome ?? ""}`.toLowerCase();
+        const blob = `${r.numero} ${r.titolo ?? ""} ${r.cliente} ${r.commerciale_nome ?? ""}`.toLowerCase();
         if (!blob.includes(s)) return false;
       }
       return true;
@@ -1428,7 +1469,10 @@ export function UnifiedPreventiviList() {
                               aria-label="Seleziona riga"
                             />
                           </TableCell>
-                          <TableCell className="font-mono text-xs font-semibold text-orange-600">{r.numero}</TableCell>
+                          <TableCell className="max-w-[220px]">
+                            <span className="font-mono text-xs font-semibold text-orange-600">{r.numero}</span>
+                            {r.titolo && <p className="truncate text-[11px] text-slate-500" title={r.titolo}>{r.titolo}</p>}
+                          </TableCell>
                           <TableCell className="text-xs font-medium text-slate-900 max-w-[200px] truncate">{r.cliente}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn("text-[10px] font-medium gap-1", tipoCfg.className)}>
@@ -1443,11 +1487,11 @@ export function UnifiedPreventiviList() {
                               {statoCfg.label}
                             </Badge>
                             {eDaSeguire(r, adessoElenco) && (
-                              <p className="mt-0.5 text-[10px] font-medium text-amber-700">
+                              <p className="mt-0.5 whitespace-nowrap text-[10px] font-medium text-amber-700">
                                 Fermo da {giorniDa(r.data, adessoElenco)} giorni
                               </p>
                             )}
-                            {eBozzaVuota(r) && <p className="mt-0.5 text-[10px] text-muted-foreground">Da completare</p>}
+                            {eBozzaVuota(r) && <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">Da completare</p>}
                           </TableCell>
                           <TableCell className="text-xs text-right tabular-nums font-medium">
                             {r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
@@ -1474,8 +1518,8 @@ export function UnifiedPreventiviList() {
                                     <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? "Duplico…" : "Duplica"}
                                   </DropdownMenuItem>
                                 )}
-                                {puoEliminare && <DropdownMenuSeparator />}
-                                {puoEliminare && (
+                                {puoEliminare && r.tipo !== "computo" && <DropdownMenuSeparator />}
+                                {puoEliminare && r.tipo !== "computo" && (
                                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
                                     <Trash2 className="mr-2 h-3.5 w-3.5" /> Sposta nel cestino
                                   </DropdownMenuItem>
@@ -1509,7 +1553,7 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[senzaCliente ? null : r.numero, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
+                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>

@@ -32,6 +32,8 @@ const TIPO_TABLE: Record<PreventivoTipo, string> = {
   termoidraulico: "idr_progetti",
   pavimenti: "pav_progetti",
   piscine: "pis_progetti",
+  // I computi non hanno cestino: si aprono e si gestiscono dal loro editor.
+  computo: "",
 };
 
 interface Props {
