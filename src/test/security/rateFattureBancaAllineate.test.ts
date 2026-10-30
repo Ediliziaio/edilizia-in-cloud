@@ -14,6 +14,8 @@ import { describe, expect, it } from "vitest";
 import rate from "../../../supabase/migrations/20280925020000_rate_commessa_e_fatture_allineate.sql?raw";
 import annullata from "../../../supabase/migrations/20280925020100_rata_libera_se_fattura_annullata.sql?raw";
 import bonifico from "../../../supabase/migrations/20280925020200_bonifico_su_fattura_interna.sql?raw";
+import dallaFattura from "../../../supabase/migrations/20281030293000_fattura_incassi_e_banca.sql?raw";
+import importate from "../../../supabase/migrations/20281030294000_annulla_pagamento_importate.sql?raw";
 import notturna from "../../../supabase/functions/bank-auto-reconcile/index.ts?raw";
 import tesoreria from "@/components/tesoreria/BankReconciliation.tsx?raw";
 import modificaCommessa from "@/pages/azienda/EditOrder.tsx?raw";
@@ -129,5 +131,90 @@ describe("in Tesoreria la riconciliazione di una fattura interna si scollega con
   it("l'abbinamento a mano passa dalla stessa RPC della notte", () => {
     expect(tesoreria).toContain('supabase.rpc("riconcilia_bonifico_fattura"');
     expect(tesoreria).toContain("if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType);");
+  });
+});
+
+describe("dalla fattura: incassi, annulli e bonifico senza doppioni (30/10/2026)", () => {
+  const riconcilia = funzione(dallaFattura, "riconcilia_bonifico_fattura");
+  const scollega = funzione(dallaFattura, "scollega_bonifico_fattura");
+  const storico = funzione(dallaFattura, "incassi_fattura");
+  const accrediti = funzione(dallaFattura, "movimenti_banca_per_fattura");
+
+  it("il bonifico si abbina a un incasso già registrato senza crearne un secondo", () => {
+    const legame = riconcilia.split("IF p_movimento_id IS NOT NULL THEN")[1].split("ELSE")[0];
+    expect(legame).toContain("mc.documento_id = d.id");
+    expect(legame).toContain("mc.tipo = 'incasso'");
+    expect(legame).toContain("Questo incasso è già abbinato a un altro movimento della banca.");
+    expect(legame).not.toContain("registra_incasso_atomico(");
+    expect(riconcilia).toContain("CASE WHEN p_movimento_id IS NOT NULL THEN 'incasso_esistente'");
+    // anche qui la prima nota dell'incasso porta il bonifico: sync-prima-nota non lo ricopia
+    expect(riconcilia).toContain("UPDATE public.prima_nota_entries SET bank_transaction_id = t.id WHERE movimento_id = v_mov;");
+  });
+
+  it("l'abbinamento automatico non registra un incasso uguale a uno fatto a mano senza bonifico", () => {
+    expect(riconcilia).toMatch(/coalesce\(p_match_type, 'manual'\) = 'auto' AND EXISTS \([\s\S]*abs\(mc\.importo - abs\(t\.amount\)\) <= 0\.01[\s\S]*r\.unmatched_at IS NULL\)\) THEN/);
+    expect(riconcilia).toContain("abbinamento lasciato a mano");
+  });
+
+  it("il residuo tiene conto delle note di credito, come registra_incasso_atomico", () => {
+    expect(riconcilia).toContain("public.documento_stornato_totale(d.id)");
+  });
+
+  it("scollegare un abbinamento a incasso esistente toglie solo il legame; quello nato dal bonifico si storna", () => {
+    const esistente = scollega.split("IF rc.match_type = 'incasso_esistente' THEN")[1].split("ELSIF")[0];
+    expect(esistente).not.toContain("storna_incasso_atomico");
+    expect(esistente).toContain("SET bank_transaction_id = NULL");
+    expect(scollega).toContain("PERFORM public.storna_incasso_atomico(rc.company_id, rc.movimento_id);");
+  });
+
+  it("solo chi registra incassi, nella propria azienda; mai da anon", () => {
+    for (const corpo of [riconcilia, storico, accrediti]) {
+      expect(corpo).toContain("public.user_can_access_company(");
+      expect(corpo).toContain("public.puo_incassare_fatture(");
+    }
+    expect(dallaFattura).toContain("DROP FUNCTION IF EXISTS public.riconcilia_bonifico_fattura(uuid, uuid, text, integer);");
+    for (const firma of [
+      "riconcilia_bonifico_fattura(uuid, uuid, text, integer, uuid)",
+      "scollega_bonifico_fattura(uuid)",
+      "incassi_fattura(uuid)",
+      "movimenti_banca_per_fattura(uuid)",
+    ]) {
+      expect(dallaFattura).toContain(`REVOKE ALL ON FUNCTION public.${firma} FROM PUBLIC, anon;`);
+      expect(dallaFattura).toContain(`GRANT EXECUTE ON FUNCTION public.${firma} TO authenticated, service_role;`);
+    }
+  });
+
+  it("gli accrediti proposti sono solo entrate libere della stessa azienda", () => {
+    expect(accrediti).toContain("t.company_id = d.company_id");
+    expect(accrediti).toContain("t.transaction_type = 'credit'");
+    expect(accrediti).toMatch(/NOT EXISTS \(SELECT 1 FROM public\.bank_reconciliations r\s+WHERE r\.transaction_id = t\.id AND r\.unmatched_at IS NULL\)/);
+  });
+
+  it("la notte chiama ancora la stessa RPC con i parametri per nome: il quinto ha un default", () => {
+    expect(notturna).toContain('p_match_type: "auto"');
+    expect(notturna).not.toContain("p_movimento_id");
+    expect(dallaFattura).toContain("p_movimento_id uuid DEFAULT NULL::uuid");
+  });
+});
+
+describe("annullare un incasso di una fattura importata (30/10/2026)", () => {
+  const annulla = funzione(importate, "annulla_pagamento_importata");
+  const storico = funzione(importate, "pagamenti_fattura_importata");
+
+  it("toglie il pagamento e, se veniva da un bonifico, libera il movimento", () => {
+    expect(annulla).toContain("DELETE FROM public.invoice_payments WHERE id = p.id;");
+    expect(annulla).toMatch(/UPDATE public\.bank_reconciliations\s+SET unmatched_at = now\(\)/);
+    expect(annulla).toContain("SET linked_invoice_id = NULL, reconciliation_status = 'pending', reconciled_at = NULL");
+    expect(annulla).toContain("'importo', p.amount");
+  });
+
+  it("solo chi registra incassi, nella propria azienda; mai da anon", () => {
+    for (const corpo of [annulla, storico]) {
+      expect(corpo).toContain("public.user_can_access_company(");
+      expect(corpo).toContain("public.puo_incassare_fatture(");
+    }
+    for (const firma of ["annulla_pagamento_importata(uuid)", "pagamenti_fattura_importata(uuid)"]) {
+      expect(importate).toContain(`REVOKE ALL ON FUNCTION public.${firma} FROM PUBLIC, anon;`);
+    }
   });
 });

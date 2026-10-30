@@ -2,6 +2,9 @@
 // Quando l'utente segna una fattura "pagata" in app, registra il pagamento su
 // Fatture in Cloud così i due sistemi restano allineati (niente doppio inserimento).
 // One-way controllato: lo scatena l'azione utente, NON il sync di lettura → nessun loop.
+// Dal 30/10/2026 anche incassi parziali e annulli ({ azione: "incassa" | "annulla",
+// importo }): il pagato si calcola da quello già su FIC e si ridistribuisce sulle rate
+// (vedi _shared/pagamentiFic.ts). Senza azione si salda tutto, come prima.
 // Richiede lo scope di scrittura `issued_documents.invoices:a` (chiesto da billing-connect
 // dal 19/09/2026: prima il collegamento era in sola lettura). Chi ha collegato FIC prima
 // deve ricollegarlo.
@@ -18,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { scegliContoDiSaldo, type ContoFic, type MetodoFic } from "../_shared/contoDiSaldoFic.ts";
+import { nuovoPagato, pagatoSuFic, ripartisciPagamenti, statoLocale, type AzionePagamento } from "../_shared/pagamentiFic.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
@@ -114,6 +118,15 @@ Deno.serve(async (req) => {
     const invoiceId: string | null = (typeof body.invoice_id === "string" && body.invoice_id) ? body.invoice_id : null;
     if (!invoiceId) return json({ error: "invoice_id richiesto" }, 400);
     const paidDate: string = (typeof body.paid_date === "string" && body.paid_date) ? body.paid_date : new Date().toISOString().slice(0, 10);
+    // Dal 30/10/2026 anche incassi parziali e annulli: { azione: "incassa" | "annulla", importo }.
+    // Senza azione si salda tutto, come prima.
+    const importo = Number(body.importo);
+    let azione: AzionePagamento = { tipo: "salda" };
+    if (body.azione === "incassa" || body.azione === "annulla") {
+      if (!(importo > 0)) return json({ error: "importo positivo richiesto" }, 400);
+      azione = { tipo: body.azione, importo };
+    }
+    const azioneLog = azione.tipo === "salda" ? "mark_paid" : azione.tipo === "incassa" ? "partial_payment" : "undo_payment";
 
     const { data: inv } = await supabase
       .from("invoices")
@@ -154,9 +167,14 @@ Deno.serve(async (req) => {
       metodoId = Number(gd?.data?.payment_method?.id) || null;
     }
 
-    // 1b) Conto di saldo per le rate che non ce l'hanno.
+    // 1a) Quanto deve risultare pagato dopo questa azione.
+    const pagatoPrima = pagatoSuFic(existing);
+    const pagatoDopo = nuovoPagato(grossFromFic, pagatoPrima, azione);
+
+    // 1b) Conto di saldo per le rate che non ce l'hanno (serve solo se qualcosa
+    //     risulterà pagato; un annullo totale non ne ha bisogno).
     let conto: ContoFic | null = null;
-    const serveConto = existing.length === 0 || existing.some((p: any) => !p?.payment_account?.id);
+    const serveConto = pagatoDopo > 0 && (existing.length === 0 || existing.some((p: any) => !p?.payment_account?.id));
     if (serveConto) {
       const [rc, rm] = await Promise.all([
         fetch(`${base}/info/payment_accounts`, { headers: h }),
@@ -173,23 +191,25 @@ Deno.serve(async (req) => {
           : `Su Fatture in Cloud ci sono ${conti.length} conti di saldo e non si capisce quale usare: imposta il conto predefinito del metodo di pagamento${metodo?.name ? ` «${metodo.name}»` : ""} e riprova.`;
         await supabase.from("billing_sync_log").insert({
           company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
-          direction: "push", action: "mark_paid", status: "error", error_message: messaggio,
+          direction: "push", action: azioneLog, status: "error", error_message: messaggio,
         });
         return json({ ok: false, motivo: "conto_di_saldo", messaggio });
       }
     }
 
-    // 2) Marca pagate tutte le rate (preserva importi/scadenze). Se non ci sono rate,
-    //    crea un singolo pagamento per l'intero importo.
-    const payments_list = existing.length > 0
-      ? existing.map((p: any) => ({
-          amount: Number(p.amount || 0),
-          due_date: p.due_date || inv.due_date || paidDate,
-          paid_date: p.paid_date || paidDate,
-          status: "paid",
-          payment_account: p?.payment_account?.id ? { id: p.payment_account.id } : { id: conto!.id },
-        }))
-      : [{ amount: grossFromFic, due_date: inv.due_date || paidDate, paid_date: paidDate, status: "paid", payment_account: { id: conto!.id } }];
+    // 2) Le rate con il nuovo pagato: coperte in ordine di scadenza, una coperta in
+    //    parte si divide. Saldare tutto dà lo stesso risultato di prima.
+    const payments_list = ripartisciPagamenti({
+      rate: existing,
+      lordo: grossFromFic,
+      pagato: pagatoDopo,
+      dataPagamento: paidDate,
+      scadenzaPredefinita: inv.due_date || paidDate,
+      contoId: conto?.id ?? null,
+    });
+    if (!payments_list) {
+      return json({ ok: false, motivo: "conto_di_saldo", messaggio: "Su Fatture in Cloud manca il conto di saldo per le rate pagate." });
+    }
 
     // 3) PUT: aggiorna il documento su FIC.
     const pr = await fetch(`${base}/issued_documents/${inv.external_id}`, {
@@ -206,27 +226,36 @@ Deno.serve(async (req) => {
       try { dettaglio = JSON.parse(t)?.error?.message || dettaglio; } catch { /* testo grezzo */ }
       await supabase.from("billing_sync_log").insert({
         company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
-        direction: "push", action: "mark_paid", status: "error", error_message: `FIC ${pr.status}: ${t.slice(0, 300)}`,
+        direction: "push", action: azioneLog, status: "error", error_message: `FIC ${pr.status}: ${t.slice(0, 300)}`,
       });
       return json({ ok: false, motivo: "errore", messaggio: `Fatture in Cloud ha rifiutato l'aggiornamento: ${dettaglio}` });
     }
 
     await supabase.from("billing_sync_log").insert({
       company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
-      direction: "push", action: "mark_paid", status: "success",
-      response_payload: conto ? { conto_di_saldo: { id: conto.id, nome: conto.name ?? null } } : null,
+      direction: "push", action: azioneLog, status: "success",
+      response_payload: {
+        pagato_prima: pagatoPrima,
+        pagato_dopo: pagatoDopo,
+        ...(conto ? { conto_di_saldo: { id: conto.id, nome: conto.name ?? null } } : {}),
+      },
     });
 
     // FIC ha accettato: allinea subito anche qui. Sulle fatture importate i
     // trigger di invoice_payments non toccano più paid_amount (il gestionale è
     // la verità), quindi senza questa riga l'utente vedrebbe «da incassare»
     // fino al prossimo allineamento.
+    // Pagata in parte = 'issued' con paid_amount > 0 (come lo legge l'elenco).
     const { error: locErr } = await supabase.from("invoices")
-      .update({ status: "paid", paid_amount: inv.total, payment_date: paidDate })
-      .eq("id", inv.id);
+      .update({
+        status: statoLocale(grossFromFic, pagatoDopo),
+        paid_amount: pagatoDopo,
+        payment_date: pagatoDopo > 0 ? paidDate : null,
+      })
+      .eq("id", inv.id).neq("status", "cancelled");
     if (locErr) console.error("allineamento locale dopo il push:", locErr.message);
 
-    return json({ ok: true, conto: conto?.name ?? null });
+    return json({ ok: true, conto: conto?.name ?? null, pagato: pagatoDopo });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

@@ -89,11 +89,16 @@ function ModuloIncasso({
   const una = fatture.length === 1 ? fatture[0] : null;
   const totale = fatture.reduce((t, f) => t + residuoDaIncassare(f), 0);
   const dataValida = /^\d{4}-\d{2}-\d{2}$/.test(data) && data <= oggi();
+  // Una fattura sola: si può incassare anche solo una parte (acconto, rata).
+  const residuoUna = una ? residuoDaIncassare(una) : 0;
+  const [importoTesto, setImportoTesto] = useState(() => (una ? residuoUna.toFixed(2) : ""));
+  const importo = Math.round(Number(importoTesto.replace(",", ".")) * 100) / 100;
+  const importoValido = !una || (Number.isFinite(importo) && importo > 0 && importo <= residuoUna + 0.005);
 
   const registra = () => {
-    if (segnaPagata.isPending || fatture.length === 0 || !dataValida) return;
+    if (segnaPagata.isPending || fatture.length === 0 || !dataValida || !importoValido) return;
     segnaPagata.mutate(
-      { fatture, metodo, data },
+      { fatture, metodo, data, importo: una ? importo : undefined },
       {
         onSuccess: () => {
           onOpenChange(false);
@@ -116,7 +121,7 @@ function ModuloIncasso({
           {fatture.length === 0
             ? "Nessuna delle fatture selezionate ha qualcosa da incassare."
             : una
-              ? `Registra l'incasso di ${formatCurrency(residuoDaIncassare(una))} per la fattura n. ${una.numero}: entra nel registro incassi e in prima nota, e chiude la scadenza.`
+              ? `Registra l'incasso della fattura n. ${una.numero} (da incassare ${formatCurrency(residuoDaIncassare(una))}), tutto o in parte: entra nel registro incassi e in prima nota, e aggiorna la scadenza.`
               : `Un incasso per fattura, per quanto resta da incassare: ${formatCurrency(totale)} in tutto. Entrano nel registro incassi e in prima nota, e chiudono le scadenze.`}
         </DialogDescription>
       </DialogHeader>
@@ -127,6 +132,27 @@ function ModuloIncasso({
             ? "1 documento selezionato non si può incassare (bozza, già pagato, preventivo…) e resta com'è."
             : `${escluse} documenti selezionati non si possono incassare (bozze, già pagati, preventivi…) e restano come sono.`}
         </p>
+      )}
+
+      {una && (
+        <div className="space-y-1.5">
+          <Label htmlFor="incasso-importo">Importo incassato</Label>
+          <Input
+            id="incasso-importo"
+            inputMode="decimal"
+            value={importoTesto}
+            onChange={(e) => setImportoTesto(e.target.value)}
+          />
+          {!importoValido ? (
+            <p className="text-xs text-destructive">
+              Da 0,01 a {formatCurrency(residuoUna)}: quanto resta da incassare.
+            </p>
+          ) : importo < residuoUna - 0.005 ? (
+            <p className="text-xs text-muted-foreground">
+              Incasso parziale: restano {formatCurrency(residuoUna - importo)} da incassare.
+            </p>
+          ) : null}
+        </div>
       )}
 
       {fatture.length > 0 && (
@@ -193,7 +219,7 @@ function ModuloIncasso({
         {fatture.length > 0 && (
           <Button
             onClick={registra}
-            disabled={segnaPagata.isPending || !dataValida}
+            disabled={segnaPagata.isPending || !dataValida || !importoValido}
           >
             {segnaPagata.isPending && (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
