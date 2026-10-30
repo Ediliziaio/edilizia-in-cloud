@@ -48,7 +48,7 @@ describe("il previsto di una lavorazione nata dal preventivo", () => {
     const e = economiaFasi({
       fasi: [{ id: "demolizione" }],
       righe: [],
-      assegnazioni: [ditta({ cost_preventivo: 1220 })],
+      assegnazioni: [ditta({ cost_preventivo: 1220, vat_rate: 22 })],
       vociPreviste: [voce({ quantita: 10, costo_manodopera: 150 })],
     }).perFase.get("demolizione")!;
     expect(e.previsto.ditte).toBe(1000); // 1.220 IVA inclusa → 1.000 senza
@@ -77,7 +77,7 @@ describe("il previsto di una lavorazione nata dal preventivo", () => {
     const t = economiaFasi({
       fasi: [{ id: "a" }, { id: "b" }],
       righe: [],
-      assegnazioni: [ditta({ phase_id: "a", cost_preventivo: 122 })],
+      assegnazioni: [ditta({ phase_id: "a", cost_preventivo: 100 })],
       vociPreviste: [voce({ phase_id: "b", quantita: 1, costo_manodopera: 50 }), voce({ phase_id: "altra", quantita: 1, costo_manodopera: 999 })],
     }).totaleFasi;
     expect(t.costoPrevisto).toBe(150);
@@ -86,8 +86,9 @@ describe("il previsto di una lavorazione nata dal preventivo", () => {
 });
 
 describe("il previsto della ditta", () => {
-  it("il listino è senza IVA: sulla ditta si scrive con l'IVA", () => {
-    expect(conIva(1000)).toBe(1220);
+  it("il listino è senza IVA: sulla ditta si scrive con l'IVA della sua fattura, 0 in reverse charge", () => {
+    expect(conIva(1000)).toBe(1000);
+    expect(conIva(1000, 22)).toBe(1220);
     expect(conIva(1000, 0)).toBe(1000);
     expect(conIva(1000, 10)).toBe(1100);
   });
@@ -119,7 +120,7 @@ describe("il previsto della ditta", () => {
   it("la riga della ditta dice da dove viene il previsto", () => {
     expect(origineCostoDitta({ cost_preventivo: 266.22, costo_origine: "listino", quantita: 14.55, costo_unitario: 15, vat_rate: 22 }))
       .toBe(`Previsto dal listino: 14,55 × ${formatCurrency(15)} + IVA 22%`);
-    expect(origineCostoDitta({ cost_preventivo: 1000, costo_origine: "preventivo" })).toBe("Previsto dalle voci del preventivo + IVA 22%");
+    expect(origineCostoDitta({ cost_preventivo: 1000, costo_origine: "preventivo" })).toBe("Previsto dalle voci del preventivo · reverse charge");
     expect(origineCostoDitta({ cost_preventivo: 1000, costo_origine: "manuale" })).toBe("Previsto scritto a mano");
     expect(origineCostoDitta({ cost_preventivo: 0, costo_origine: "listino" })).toBeNull();
     expect(origineCostoDitta({ cost_preventivo: 1000, costo_origine: null })).toBeNull();

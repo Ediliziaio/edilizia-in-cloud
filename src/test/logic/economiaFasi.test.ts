@@ -144,12 +144,19 @@ describe("economia di ogni fase", () => {
     expect(totaleFasi.costoPrevisto).toBe(30.3);
     expect(totaleFasi.costoConsuntivo).toBe(0.2);
   });
-  it("le ditte, scritte IVA inclusa, si confrontano col venduto senza IVA (22% se manca)", () => {
+  it("le ditte con IVA in fattura si confrontano col venduto senza IVA", () => {
     const { perFase } = economiaFasi({ fasi: [{ id: "f1", name: "Posa", importo_venduto: 1000 }], righe: [], assegnazioni: [
-      persona({ source: "team", cost_preventivo: 1220, cost_consuntivo: 610 }),
+      persona({ source: "team", cost_preventivo: 1220, cost_consuntivo: 610, vat_rate: 22 }),
     ] } as never);
     const f = perFase.get("f1")!;
     expect(f.previsto.ditte).toBeCloseTo(1000, 2);
     expect(f.consuntivo.ditte).toBeCloseTo(500, 2);
+  });
+  it("in reverse charge (IVA 0, o non detta) l'importo della ditta è già il costo", () => {
+    const { perFase } = economiaFasi({ fasi: [{ id: "f1", name: "Posa", importo_venduto: 1000 }], righe: [], assegnazioni: [
+      persona({ source: "team", cost_preventivo: 7000, cost_consuntivo: 0 }),
+      persona({ source: "team", cost_preventivo: 500, cost_consuntivo: 0, vat_rate: 0 }),
+    ] } as never);
+    expect(perFase.get("f1")!.previsto.ditte).toBe(7500);
   });
 });

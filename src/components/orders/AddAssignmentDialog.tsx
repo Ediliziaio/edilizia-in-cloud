@@ -12,7 +12,7 @@ import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import type { ExecutorOption, ExecutorType, PhaseAssignment, AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 import { oggiRoma, useSquadre, useSquadreCommessa, useSquadraSuCommessa, messaggioErroreOperai } from "@/hooks/useOperai";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, costoDaVoci, quantitaDellaTariffa, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, costoDaVoci, ivaDitta, quantitaDellaTariffa, testoIvaDitta, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
 import { Button } from "@/components/ui/button";
@@ -205,8 +205,8 @@ export function AddAssignmentDialog({
     const qty = parseAssignmentAmount(qtyRaw, 6);
     if (qty == null || !qtyRaw.trim()) return;
     const unit = costoUnit ?? (Number(t.prezzo_costo) || 0);
-    // Il listino è senza IVA, il previsto della ditta si scrive IVA inclusa (22%, come la riga).
-    const costo = conIva((Number(unit) || 0) * qty);
+    // Il listino è senza IVA; il previsto della ditta si scrive con l'IVA della sua fattura (0 in reverse charge).
+    const costo = conIva((Number(unit) || 0) * qty, ivaSel);
     setAppliedUnitCost(Number(unit) || 0);
     setOrigine({ tipo: "listino", importo: costo });
     setPrev(formatAssignmentAmount(costo.toFixed(2)));
@@ -221,7 +221,7 @@ export function AddAssignmentDialog({
   const daPreventivo = costoDaVoci(vociFase, varianti, tipo === "esterno" && executorId ? executorId : null);
   const applyPreventivo = () => {
     if (daPreventivo.netto <= 0 || listinoBusy || variantiError) return;
-    const costo = conIva(daPreventivo.netto);
+    const costo = conIva(daPreventivo.netto, ivaSel);
     setTariffaId(""); setVarianteId(""); setAppliedUnitCost(null);
     setOrigine({ tipo: "preventivo", importo: costo });
     setPrev(formatAssignmentAmount(costo.toFixed(2)));
@@ -248,6 +248,9 @@ export function AddAssignmentDialog({
 
   const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
   const selectedCompany = tipo === 'esterno' ? ditteQuery.data?.find(option => option.id === executorId) : undefined;
+  // IVA della ditta scelta: 0 in reverse charge (subappalto edile), come nasce una ditta nuova.
+  const ivaSel = ivaDitta(selectedCompany?.vat_rate);
+  const piuIva = ivaSel === 0 ? "senza IVA (reverse charge)" : `+ IVA ${ivaSel}%`;
   const companiesUnavailable = tipo === 'esterno' && (ditteQuery.isLoading || ditteQuery.isFetching || ditteQuery.isError);
   const invalidQuantity = !!tariffaSel && (!tariffaQty.trim() || parseAssignmentAmount(tariffaQty, 6) == null);
 
@@ -507,7 +510,7 @@ export function AddAssignmentDialog({
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
               <span className="min-w-0 flex-1">
                 Dal preventivo: {daPreventivo.voci === 1 ? "1 voce" : `${daPreventivo.voci} voci`} di questa lavorazione,{" "}
-                <strong>{eur.format(daPreventivo.netto)}</strong> + IVA 22% = {eur.format(conIva(daPreventivo.netto))}
+                <strong>{eur.format(daPreventivo.netto)}</strong>{ivaSel === 0 ? <> {piuIva}</> : <> {piuIva} = {eur.format(conIva(daPreventivo.netto, ivaSel))}</>}
                 {daPreventivo.conVariante > 0 && <> · {daPreventivo.conVariante} al prezzo di questa ditta</>}
               </span>
               {origine?.tipo !== "preventivo" && <Button type="button" size="sm" variant="outline" onClick={applyPreventivo}>Usa questo costo</Button>}
@@ -598,7 +601,7 @@ export function AddAssignmentDialog({
                   ) : null}
                   Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
                   {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} × {tariffaQty || "1"} ={" "}
-                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))} + IVA 22% → previsto{" "}
+                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))} {piuIva} → previsto{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
                   {canViewMargins && Number(tariffaSel.prezzo_vendita) > 0 && (
                     <>
@@ -629,7 +632,7 @@ export function AddAssignmentDialog({
           {/* Costs */}
           {canViewCosts && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="assign-prev">Costo previsto ditta · IVA inclusa €</Label>
+              <Label htmlFor="assign-prev">Costo previsto ditta · {testoIvaDitta(ivaSel)} €</Label>
               <Input
                 id="assign-prev"
                 type="text"
@@ -642,7 +645,7 @@ export function AddAssignmentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assign-cons">Costo ditta già registrato · IVA inclusa €</Label>
+              <Label htmlFor="assign-cons">Costo ditta già registrato · {testoIvaDitta(ivaSel)} €</Label>
               <Input
                 id="assign-cons"
                 type="text"

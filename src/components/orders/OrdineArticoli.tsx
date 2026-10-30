@@ -91,7 +91,7 @@ export function useAggiungiPosaManodopera(orderId: string) {
         order_id: orderId,
         external_team_id: labor.external_team_id,
         total_cost: labor.total_cost,
-        vat_rate: 22,
+        // L'IVA la prende dalla ditta (trigger, 31/10/2026): in reverse charge è 0.
         is_paid: false,
         notes: labor.notes,
       });
