@@ -16,6 +16,7 @@ import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuo
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { Progress } from "@/components/ui/progress";
 import type { DocumentoFiscale, RigaDocumento, RiepilogoIVA, StatoDocumento, TipoDocumento } from "@/types/fatturazione";
 import type { EditorState } from "./editor/useEditorState";
@@ -254,6 +255,11 @@ export default function DettaglioFatturaImportata() {
               </div>
               <Progress value={progresso} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">{Math.round(progresso)}% incassato</p>
+              {/* Storico dei pagamenti registrati in app e «Annulla», come per le native (30/10/2026). */}
+              <IncassiFatturaImportata
+                invoiceId={doc.id}
+                stato={doc.stato === "pagata" ? "pagata" : doc.stato === "parzialmente_pagata" || doc.importo_pagato > 0 ? "parziale" : "altro"}
+              />
               {importataPagabile(doc) && (
                 <Button variant="outline" size="sm" className="w-full" onClick={() => setIncasso(doc)}>
                   <CreditCard className="h-4 w-4 mr-1" /> Registra incasso

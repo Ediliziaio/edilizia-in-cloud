@@ -25,7 +25,13 @@ vi.mock("@/integrations/supabase/client", () => {
     c.maybeSingle = async () => ({ data: dato, error: null as null });
     return c;
   };
-  return { supabase: { from: (t: string) => catena(t === "invoices" ? fattura : riga), functions: { invoke: vi.fn() } } };
+  return {
+    supabase: {
+      from: (t: string) => catena(t === "invoices" ? fattura : riga),
+      rpc: async () => ({ data: [] as unknown[], error: null as null }),
+      functions: { invoke: vi.fn() },
+    },
+  };
 });
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" } }) }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: null as null }) }));
