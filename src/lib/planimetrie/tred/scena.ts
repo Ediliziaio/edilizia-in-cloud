@@ -26,7 +26,7 @@ export function comeApertura(stato: StatoOggetto, vista: Vista3D): "aperta" | "c
   return stato === "demolire" ? "tamponata" : "aperta";
 }
 
-const NOMI_APERTURA: Record<AperturaPer3D["tipo"], string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra" };
+const NOMI_APERTURA: Record<AperturaPer3D["tipo"], string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
 
 export function nomeApertura(a: AperturaPer3D): string {
   return `${NOMI_APERTURA[a.tipo] ?? "Apertura"} ${a.id}`;
@@ -90,7 +90,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
         const c = new CostruttoreMesh();
         costruisciTamponamento(m, v, c);
         mesh.push(c.mesh({ id: `tamponamento:${a.id}`, nome: `Chiusura ${nomeApertura(a)}`, genere: "tamponamento", materiale: "muro_nuovo", riferimento: a.id }));
-      } else if (a.tipo !== "porta") {
+      } else if (a.tipo === "finestra" || a.tipo === "portafinestra") {
         const c = new CostruttoreMesh();
         costruisciVetro(m, v, c);
         mesh.push(c.mesh({ id: `vetro:${a.id}`, nome: `Vetro ${nomeApertura(a)}`, genere: "vetro", materiale: "vetro", riferimento: a.id }));

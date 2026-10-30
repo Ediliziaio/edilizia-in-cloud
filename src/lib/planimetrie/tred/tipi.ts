@@ -31,7 +31,8 @@ export interface MuroPer3D {
   stato: StatoOggetto;
 }
 
-export type TipoApertura = "porta" | "finestra" | "portafinestra";
+/** `varco` = passaggio senza infisso. */
+export type TipoApertura = "porta" | "finestra" | "portafinestra" | "varco";
 
 export interface AperturaPer3D {
   id: string;
@@ -63,7 +64,7 @@ export interface ElementoPer3D {
   id: string;
   /** wc, bidet, lavabo, doccia, vasca, letto, divano, tavolo, sedia, cucina, frigorifero, armadio, comodino, caldaia… */
   tipo: string;
-  /** Centro dell'ingombro in pianta, in cm. */
+  /** Centro dell'ingombro in pianta (y verso il basso), in cm. */
   centro: Punto2;
   /** Gradi, in senso orario sulla pianta. A 0° il retro dell'elemento guarda verso l'alto della pianta. */
   rotazione: number;
