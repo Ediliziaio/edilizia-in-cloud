@@ -184,7 +184,7 @@ export function OrderEconomicsSummary({
       taskLabel: "Imposta la data di inizio lavori",
       done: Boolean(workStartDate),
       priority: "normale",
-      fixTo: `/azienda/ordini/${orderId}?tab=cantiere&section=section-pianificazione`,
+      fixTo: `/azienda/ordini/${orderId}?tab=panoramica&section=section-pianificazione`,
     },
     {
       key: "labor-budget",
@@ -384,7 +384,7 @@ export function OrderEconomicsSummary({
                     {!check.resolved && (
                       <Link
                         to={check.state === "scheduled"
-                          ? `/azienda/ordini/${orderId}?tab=cantiere&section=section-attivita`
+                          ? "/azienda/attivita"
                           : check.fixTo}
                         className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300"
                       >

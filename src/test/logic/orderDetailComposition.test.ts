@@ -56,15 +56,13 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(fields[0], "entityId")).toBe("{id}");
   });
 
-  it("monta i sopralluoghi soltanto nella nuova vista e chiarisce la funzione delle attività operative", () => {
+  it("monta i sopralluoghi soltanto nella nuova vista; le attività operative non stanno più in Lavorazioni", () => {
     const surveys = named("OrderSurveysCard");
     expect(surveys).toHaveLength(1);
     let branch: ts.Node | undefined = surveys[0].parent;
     while (branch && !ts.isBinaryExpression(branch)) branch = branch.parent;
     expect(branch?.getText(source)).toContain('vistaCantiere === "sopralluoghi"');
-    expect(value(named("LinkedTasks")[0], "title")).toBe('"Attività operative del cantiere"');
-    expect(value(named("LinkedTasks")[0], "description")).toContain("distinti dalle fasi di lavoro");
-    expect(named("LinkedTasks")[0].attributes.getText(source)).toContain("excludeOffice");
+    expect(named("LinkedTasks")).toHaveLength(0);
   });
 
   it("mostra gli incassi solo nel riepilogo comune, senza una seconda fascia in panoramica", () => {
@@ -100,8 +98,8 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it.each([
-    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "PianoMezziCantiere", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
+    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrdineTempistiche", "LinkedAppointments", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
+    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
     ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard", "OrderCostiCommessaCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
@@ -173,11 +171,8 @@ describe("contratto di composizione del dettaglio commessa", () => {
   it("gli allegati non diventano modificabili per chi non può editare la commessa", () => {
     expect(value(named("OrderAttachments")[0], "editable")).toBe("{permissions.canEditOrders}");
   });
-  it("le fasi precedono la pianificazione visibile e le attività secondarie", () => {
-    expect(named("OrderWorkPhases")[0].pos).toBeLessThan(named("OrdineTempistiche")[0].pos);
-    expect(named("OrdineTempistiche")[0].pos).toBeLessThan(named("LinkedTasks")[0].pos);
-    expect(named("LinkedAppointments")[0].pos).toBeLessThan(named("LinkedTasks")[0].pos);
-    expect(value(named("LinkedTasks")[0], "editable")).toBe("{permissions.canEditOrders}");
+  it("date e appuntamenti stanno in Panoramica, visibili e modificabili", () => {
+    expect(named("OrdineTempistiche")[0].pos).toBeLessThan(named("LinkedAppointments")[0].pos);
     expect(value(named("LinkedAppointments")[0], "editable")).toBe("{permissions.canEditOrders}");
     expect(value(named("OrdineTempistiche")[0], "workStartTime")).toBe("{order.work_start_time}");
     expect(value(named("OrdineTempistiche")[0], "updatedAt")).toBe("{order.updated_at}");

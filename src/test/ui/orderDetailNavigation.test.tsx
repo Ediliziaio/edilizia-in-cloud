@@ -20,7 +20,7 @@ function Harness({ initiallyReady = true }: { initiallyReady?: boolean }) {
     <button onClick={() => navigate(1)}>Avanti</button>
     <button onClick={() => setReady(true)}>Carica commessa</button>
     <button onClick={() => navigateTo({ tab: "finanza", section: "section-pagamenti" })}>Registra incasso</button>
-    <button onClick={() => navigateTo({ tab: "cantiere", section: "section-pianificazione" })}>Pianifica</button>
+    <button onClick={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}>Pianifica</button>
     {ready && <div id="order-detail-overview">
       <h2>Testata comune</h2>
       <details><summary>Stato</summary><div id="section-stato">Storico</div></details>
@@ -29,11 +29,11 @@ function Harness({ initiallyReady = true }: { initiallyReady?: boolean }) {
       <TabsContent value="panoramica">
         <h2>Riepilogo</h2>
         <details><summary>Note</summary><div id="section-note">Strumenti</div></details>
+        <details><summary>Calendario</summary><div id="section-pianificazione">Date e appuntamenti</div></details>
       </TabsContent>
       <TabsContent value="cantiere">
         <div id="cantiere-workspace">Viste del cantiere</div>
         <h2>Lavorazioni</h2><div id="section-rapportini">Rapportini</div>
-        <details><summary>Calendario</summary><div id="section-pianificazione">Date e appuntamenti</div><div id="section-attivita">Attività del cantiere</div></details>
       </TabsContent>
       <TabsContent value="articoli"><h2>Materiali</h2></TabsContent>
       <TabsContent value="finanza"><h2>Economia</h2><div id="section-pagamenti">Rate e incassi</div><details><summary id="section-sal">Verbali SAL</summary><p>Dettaglio SAL</p></details></TabsContent>
@@ -151,10 +151,10 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "start" }));
   });
 
-  it("il link alle attività apre anche il contenitore della pianificazione", async () => {
-    mount("?tab=panoramica#section-attivita");
-    expect(screen.getByRole("tab", { name: "Cantiere" })).toHaveAttribute("aria-selected", "true");
-    await waitFor(() => expect(screen.getByText("Attività del cantiere")).toBeVisible());
+  it("i vecchi link alle attività del cantiere arrivano in Panoramica, senza pagina vuota", () => {
+    mount("?tab=cantiere#section-attivita");
+    expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Riepilogo" })).toBeVisible();
   });
 
   it("il ridimensionamento non cambia area né rimonta il contenuto", () => {
