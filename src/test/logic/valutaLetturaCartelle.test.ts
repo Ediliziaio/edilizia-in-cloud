@@ -90,3 +90,27 @@ describe("errori", () => {
     expect(r.totale.perfetti).toBe(1);
   });
 });
+
+describe("bozze delle email: i campi sono {valore, conf}", () => {
+  it("la confidenza non conta come campo, né inventato né mancante", () => {
+    const base = mkdtempSync(join(tmpdir(), "valuta-lettura-"));
+    mkdirSync(join(base, "atteso"));
+    mkdirSync(join(base, "letto"));
+    writeFileSync(
+      join(base, "atteso", "mail-1.json"),
+      JSON.stringify({ tipo: "fattura", campi: { numero: "FT-1", totale: 100, iban: null } }),
+    );
+    // La riga di email_documento_estratto, com'è nel database.
+    writeFileSync(
+      join(base, "letto", "mail-1.json"),
+      JSON.stringify({
+        id: "x",
+        tipo: "fattura",
+        campi: { numero: { valore: "FT-1", conf: 0.97 }, totale: { valore: "100,00", conf: 0.9 }, iban: { valore: null, conf: 0 } },
+      }),
+    );
+    const r = confrontaCartelle(join(base, "atteso"), join(base, "letto"));
+    expect(r.totale.perfetti).toBe(1);
+    expect(r.casi[0].valutazione.conteggi).toEqual({ esatto: 1, equivalente: 1, errato: 0, mancante: 0, inventato: 0 });
+  });
+});

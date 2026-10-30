@@ -129,6 +129,25 @@ function confronta(percorso: string, atteso: unknown, letto: unknown): "esatto" 
   return formaPovera(a) !== "" && formaPovera(a) === formaPovera(l) ? "equivalente" : "errato";
 }
 
+/**
+ * Le bozze estratte dalle email scrivono ogni campo come `{ valore, conf }`
+ * (email_documento_estratto.campi). Per confrontarle con la risposta giusta serve il
+ * solo valore: la confidenza non è un campo del documento.
+ */
+export function senzaConfidenze(v: unknown, profondita = 0): unknown {
+  if (profondita > PROFONDITA_MASSIMA) return v;
+  if (Array.isArray(v)) return v.map((x) => senzaConfidenze(x, profondita + 1));
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const chiavi = Object.keys(o);
+    if ("valore" in o && chiavi.every((k) => k === "valore" || k === "conf" || k === "confidenza" || k === "confidence")) {
+      return senzaConfidenze(o.valore, profondita + 1);
+    }
+    return Object.fromEntries(chiavi.map((k) => [k, senzaConfidenze(o[k], profondita + 1)]));
+  }
+  return v;
+}
+
 const conteggiVuoti = (): Record<EsitoCampo, number> => ({ esatto: 0, equivalente: 0, errato: 0, mancante: 0, inventato: 0 });
 
 /**

@@ -34,6 +34,18 @@ errore se i campi giusti sono meno del 90% (utile prima di cambiare un prompt).
    order by created_at desc limit 30;
    ```
 
+   Per le bozze estratte dalle email (il flusso automatico più usato):
+
+   ```sql
+   select id, tipo, campi
+   from email_documento_estratto
+   where company_id = '<azienda>' and tipo in ('fattura', 'ddt')
+   order by created_at desc limit 30;
+   ```
+
+   I campi di quelle bozze sono scritti come `{ "valore": …, "conf": … }`: lo strumento
+   guarda solo il valore.
+
 3. Copia quei file in `atteso/` e **correggi a mano** ogni valore sbagliato guardando
    il documento. Aggiungi `"tipo": "fattura_passiva"` e metti i campi sotto `"campi"`.
    Un campo che il documento non riporta lascialo `null`: se l'AI ci scrive un valore,

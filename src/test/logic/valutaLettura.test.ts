@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   correzioniUtente,
   riepilogaSerie,
+  senzaConfidenze,
   valutaLettura,
 } from "../../../supabase/functions/_shared/valutaLettura";
 
@@ -234,5 +235,37 @@ describe("riepilogaSerie: su più documenti", () => {
   });
   it("serie vuota", () => {
     expect(riepilogaSerie([])).toEqual({ documenti: 0, perfetti: 0, accuratezza: null, perCampo: [] });
+  });
+});
+
+describe("senzaConfidenze: le bozze delle email scrivono i campi come {valore, conf}", () => {
+  const BOZZA = {
+    tipo: "fattura",
+    campi: {
+      numero: { valore: "FT-2026/118", conf: 0.97 },
+      totale: { valore: 1220, conf: 0.99 },
+      iban: { valore: null as string | null, conf: 0 },
+      righe: [{ descrizione: { valore: "Cemento", conf: 0.9 }, quantita: 10 }],
+    },
+  };
+  it("tiene il solo valore, anche dentro le liste", () => {
+    expect(senzaConfidenze(BOZZA.campi)).toEqual({
+      numero: "FT-2026/118",
+      totale: 1220,
+      iban: null,
+      righe: [{ descrizione: "Cemento", quantita: 10 }],
+    });
+  });
+  it("un oggetto che ha anche altro accanto a «valore» resta com'è", () => {
+    const v = { valore: 5, unita: "mq" };
+    expect(senzaConfidenze(v)).toEqual(v);
+  });
+  it("senza togliere le confidenze, ogni «conf» sembrerebbe un campo inventato", () => {
+    const scritto = { numero: "FT-2026/118", totale: 1220 };
+    expect(valutaLettura(scritto, BOZZA.campi).conteggi.inventato).toBeGreaterThan(0);
+    expect(valutaLettura(scritto, senzaConfidenze({ numero: BOZZA.campi.numero, totale: BOZZA.campi.totale })).perfetta).toBe(true);
+  });
+  it("valori semplici passano invariati", () => {
+    for (const v of [null, 3, "x", true, undefined]) expect(senzaConfidenze(v)).toBe(v);
   });
 });

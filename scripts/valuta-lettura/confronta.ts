@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   riepilogaSerie,
+  senzaConfidenze,
   valutaLettura,
   type Riepilogo,
   type Valutazione,
@@ -77,7 +78,7 @@ export function confrontaCartelle(cartellaAtteso: string, cartellaLetto: string)
     const haLetto = letti.includes(file);
     if (!haLetto) nonLetti.push(nome);
     const letto = haLetto ? estraiCampi(leggiJson(join(cartellaLetto, file))) : {};
-    casi.push({ nome, tipo, valutazione: valutaLettura(estraiCampi(atteso), letto), nonLetto: !haLetto });
+    casi.push({ nome, tipo, valutazione: valutaLettura(senzaConfidenze(estraiCampi(atteso)), senzaConfidenze(letto)), nonLetto: !haLetto });
   }
 
   const perTipo: Record<string, Riepilogo> = {};
