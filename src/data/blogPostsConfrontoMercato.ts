@@ -1,6 +1,7 @@
 import { FLO_AVATAR } from "./blogAuthor";
 import { BLOG_AUTHOR } from "./blogAuthorProfile";
 import type { BlogPost } from "./blogPosts";
+import { eicPuntiFermiSezioni } from "@/lib/marketing/eicPuntiFermi";
 
 /**
  * Guida di mercato. Regole: ogni fatto sui concorrenti viene dalle fonti
@@ -28,8 +29,9 @@ export const blogPostsConfrontoMercato: BlogPost[] = [{
   ],
   content: [
     { type: "intro", body: "Quale gestionale scegliere per un'impresa edile nel 2026? Parti dal lavoro che oggi non riesci a controllare: il preventivo che non diventa commessa, le ore della squadra che arrivano a fine mese, le bolle che si perdono, il SAL da far firmare o il margine che scopri solo a cantiere chiuso.\n\nIn questa guida mettiamo uno accanto all'altro otto strumenti che le imprese edili italiane valutano spesso: Edilizia in Cloud, TeamSystem Construction, PriMus di ACCA, Pillar, PlanRadar, Dylog, Buildertrend ed Excel. Non hanno tutti lo stesso mestiere: alcuni gestiscono la commessa, altri il computo, altri la documentazione o l'amministrazione.\n\nQuesta guida è pubblicata da Edilizia in Cloud: siamo parte interessata, non una classifica indipendente. Le descrizioni dei concorrenti si basano sulle fonti ufficiali consultate il 30 ottobre 2026, elencate in fondo. Quando una funzione non compare su quelle pagine scriviamo «non indicato sul sito ufficiale», che non vuol dire che manchi. Non abbiamo fatto prove indipendenti di tutti i prodotti e non pubblichiamo prezzi." },
+    ...eicPuntiFermiSezioni,
     { type: "table", heading: "Gli 8 strumenti: che cosa dichiara ognuno", headers: ["Strumento", "Mestiere principale (dichiarato)", "Quando ha senso guardarlo"], rows: [
-      ["Edilizia in Cloud", "Dalla vendita alla fattura: preventivi di mestiere e computo, commessa con fasi e squadre, app di cantiere, magazzino, SAL firmati, SDI, sicurezza, portali", "Se vuoi vendita, cantiere e controllo dei costi nello stesso posto, con la squadra che lavora dal telefono."],
+      ["Edilizia in Cloud", "Dalla vendita alla fattura: preventivi di mestiere e computo, commessa con fasi e squadre, app di cantiere e WhatsApp, magazzino, SAL firmati, SDI, sicurezza, portali; si configura sul flusso dell'azienda", "Se vuoi vendita, cantiere e controllo dei costi nello stesso posto, con la squadra che lavora dal telefono o da WhatsApp."],
       ["[TeamSystem Construction](https://www.teamsystem.com/construction/)", "Famiglia di prodotti: CPM AI, TSE Costruzioni AI, TS Cantieri, TS Sicurezza Cantieri, BIM", "Se ti serve una suite ampia, dal BIM alla contabilità, scegliendo il prodotto giusto."],
       ["[PriMus ACCA](https://www.acca.it/software-contabilita-lavori)", "Computo metrico e contabilità dei lavori pubblici, revisione prezzi", "Se produci computi ed elaborati di contabilità lavori, soprattutto per la PA."],
       ["[Pillar](https://www.pillar.it/)", "Gestionale con WhatsApp e AI: bolle, rapportini, preventivi, SAL, SDI, cassa, DURC", "Se vuoi raccogliere i dati dalla squadra via WhatsApp, senza app."],

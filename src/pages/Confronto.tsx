@@ -1,5 +1,6 @@
 import EditorialVideo from "@/components/marketing/EditorialVideo";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
 import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
@@ -54,6 +55,7 @@ export default function Confronto() {
         <div className="mt-6 flex flex-wrap items-center gap-4"><Link to={pillarComparisonFocus.path} className="inline-flex items-center gap-2 rounded-full bg-[#111111] text-white px-5 py-3 font-semibold">Leggi il confronto con Pillar<ArrowRight size={16} /></Link><p className="text-sm text-gray-600">Vendita, preventivi, organizzazione del cantiere e controllo dei costi.</p></div>
       </section>
       <EditorialVideo video="selection" contained />
+      <EicPuntiFermi />
       <section id="esigenze" className="scroll-mt-24">
         <h2 className="text-2xl md:text-3xl font-bold">Prima il problema, poi il software</h2>
         <p className="mt-3 text-gray-600 max-w-3xl leading-relaxed">Computo metrico, documentazione, amministrazione e controllo di commessa sono esigenze diverse. Confrontare solo il numero di funzioni può nascondere i passaggi che contano per il tuo lavoro.</p>

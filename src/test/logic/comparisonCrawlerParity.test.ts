@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { softwareComparisons, teamsystemGuide, primusGuide } from "@/lib/marketing/softwareComparisons";
 import { blogPosts } from "@/data/blogPosts";
+import { eicSiAdatta, eicWhatsapp } from "@/lib/marketing/eicPuntiFermi";
 
 const middlewarePath = "../../../functions/_middleware.js";
 async function getFallback(path: string): Promise<string> {
@@ -55,5 +56,17 @@ describe("confronti coerenti anche senza prerender", () => {
     expect(text).toContain("/confronto/vs-teamsystem/");
     expect(text).toContain("/confronto/vs-primus/");
     expect(post.content.find((section)=>section.type==="table")!.rows).toHaveLength(8);
+  });
+  it.each(["/confronto/","/confronto/vs-teamsystem/","/confronto/vs-primus/","/confronto/vs-excel/","/confronto/vs-edilnet/","/confronto/vs-buildertrend/"])("%s: WhatsApp e «si adatta all'azienda» anche ai crawler",async(path)=>{
+    const html=await getFallback(path);
+    expect(html).toContain(eicWhatsapp.heading);
+    expect(html).toContain(eicSiAdatta.heading);
+  });
+  it.each(["edilizia-in-cloud-vs-teamsystem-construction","edilizia-in-cloud-vs-planradar","edilizia-in-cloud-vs-dylog-edilizia","edilizia-in-cloud-vs-pillar","migliori-software-gestionali-edilizia-confronto"])("%s: dice che Edilizia in Cloud lavora su WhatsApp e si adatta all'azienda",async(slug)=>{
+    const text=JSON.stringify(blogPosts.find((post)=>post.slug===slug)!.content);
+    expect(text).toContain("WhatsApp Business attivo");
+    expect(text).toContain(eicSiAdatta.heading);
+    const html=await getFallback(`/blog/${slug}/`);
+    expect(html).toContain(eicSiAdatta.heading);
   });
 });

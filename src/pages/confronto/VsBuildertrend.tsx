@@ -1,4 +1,5 @@
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
 import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -298,6 +299,10 @@ export default function VsBuildertrend() {
             </ul>
           </div>
         </div>
+      </section>
+
+      <section className="bg-white pt-10 px-4">
+        <EicPuntiFermi className="max-w-5xl mx-auto" />
       </section>
 
       {/* ── COMPARISON TABLE ── */}

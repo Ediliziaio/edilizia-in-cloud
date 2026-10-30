@@ -1,5 +1,6 @@
 import { FLO_AVATAR } from "./blogAuthor";
 import type { BlogPost } from "./blogPosts";
+import { eicPuntiFermiSezioni, eicSiAdatta, eicWhatsapp } from "@/lib/marketing/eicPuntiFermi";
 
 /**
  * Cluster "Confronti diretti" — 4 articoli comparativi con i principali
@@ -46,6 +47,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         type: "intro",
         body: "Stai valutando di passare da TeamSystem a Edilizia in Cloud? Prima di spostare un solo dato, scrivi quale lavoro vuoi far andare meglio: i preventivi, le ore della squadra, i costi della commessa, i SAL o il giro di carte fra cantiere e ufficio. Cambiare programma senza questa lista sposta il problema, non lo risolve.\n\nQuesta guida spiega come preparare il passaggio. Per confrontare i prodotti funzione per funzione usa il [confronto aggiornato fra Edilizia in Cloud e TeamSystem Construction](/confronto/vs-teamsystem/), con fonti ufficiali e domande da fare in demo. Siamo Edilizia in Cloud e siamo parte interessata: non presentiamo questa guida come una valutazione indipendente. Aggiornata a ottobre 2026.",
       },
+      ...eicPuntiFermiSezioni,
       {
         type: "section",
         heading: "Prima di cambiare: quale prodotto TeamSystem usi davvero",
@@ -177,6 +179,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         type: "intro",
         body: "Chi cerca un’alternativa italiana a [PlanRadar](https://www.planradar.com/it/) spesso confronta due attrezzi diversi. PlanRadar, come dichiara il sito ufficiale, serve a documentare il cantiere, gestire difetti e report e coordinare team e subappaltatori. Edilizia in Cloud è un gestionale per la PMI edile italiana: segue il lavoro dal primo contatto al preventivo, dalla commessa alle ore della squadra, fino al SAL e alla fattura.\n\nIn questo confronto trovi cosa dichiara PlanRadar, dove è più forte, dove i due prodotti si sovrappongono e quando ha senso usarli insieme. Aggiornato a ottobre 2026.",
       },
+      ...eicPuntiFermiSezioni,
       {
         type: "section",
         heading: "Siamo parte interessata, e lo diciamo subito",
@@ -380,6 +383,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         type: "intro",
         body: "Chi confronta Dylog ed Edilizia in Cloud sta guardando due baricentri diversi. Il [software gestionale per imprese edili di Dylog](https://www.dylog.it/software-gestionali/aziende/edilizia/), come dichiara il sito ufficiale, parte dall’amministrazione: contabilità fino ai dichiarativi, fatturazione elettronica con Peppol e ordini NSO, conservazione sostitutiva, magazzino, in cloud oppure installato in azienda.\n\nEdilizia in Cloud parte dal cantiere e dalla commessa: preventivi di mestiere, fasi e squadre, timbrature e rapportini dal telefono, DDT letti con l’AI, SAL firmati dal cliente, fatture verso lo SDI e un portale per il commercialista. Questo confronto ti dice dove è forte l’uno e dove l’altro. Aggiornato a ottobre 2026.",
       },
+      ...eicPuntiFermiSezioni,
       {
         type: "section",
         heading: "Siamo parte interessata, e lo diciamo subito",
@@ -574,12 +578,18 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Pillar ed Edilizia in Cloud sono due gestionali per imprese edili che coprono molte cose simili: preventivi, bolle, rapportini, commessa, SAL e fatturazione elettronica con SDI. La differenza sta in come ci arrivano. Pillar, come dichiara il [sito ufficiale](https://www.pillar.it/), punta su WhatsApp e su un assistente AI: niente app per la squadra, basta un messaggio. Edilizia in Cloud punta su un flusso unico dalla vendita al cantiere, con un’app per chi lavora e un portale per cliente, subappaltatori e commercialista.\n\nQui trovi cosa dichiara Pillar, dove è più forte, cosa aggiunge Edilizia in Cloud e una prova pratica per scegliere. Aggiornato a ottobre 2026.",
+        body: "Pillar ed Edilizia in Cloud sono due gestionali per imprese edili che coprono molte cose simili: preventivi, bolle, rapportini, commessa, SAL e fatturazione elettronica con SDI. La differenza sta in come ci arrivano. Pillar, come dichiara il [sito ufficiale](https://www.pillar.it/), punta su WhatsApp e su un assistente AI: niente app per la squadra, basta un messaggio. Edilizia in Cloud lavora anche su WhatsApp, e in più collega tutto in un flusso unico dalla vendita al cantiere, con un’app per chi lavora e un portale per cliente, subappaltatori e commercialista.\n\nQui trovi cosa dichiara Pillar, dove è più forte, cosa aggiunge Edilizia in Cloud e una prova pratica per scegliere. Aggiornato a ottobre 2026.",
       },
       {
         type: "section",
+        heading: "WhatsApp c’è anche in Edilizia in Cloud",
+        body: "Pillar ha fatto di WhatsApp il suo canale dal cantiere. Edilizia in Cloud ce l’ha anche: " + eicWhatsapp.body.charAt(0).toLowerCase() + eicWhatsapp.body.slice(1) + "\n\nQuindi WhatsApp non è più il motivo per scegliere l’uno o l’altro: la differenza la fa quello che succede dopo la chat, dalla trattativa all’incasso.",
+      },
+      { type: "section", heading: eicSiAdatta.heading, body: eicSiAdatta.body },
+      {
+        type: "section",
         heading: "Dove Pillar è forte: WhatsApp e AI",
-        body: "Il punto di forza dichiarato da Pillar è semplice da capire in cantiere: «niente app, password o dispositivi: basta WhatsApp». Dalla [pagina Pillar AI](https://www.pillar.it/pillar-ai) risulta che la squadra manda foto, bolle e messaggi vocali in chat e Pillar ne ricava rapportini strutturati, anche quando l’operaio parla in un’altra lingua. Dalla foto della bolla escono articoli, prezzi e firma, e la bolla si aggancia alla commessa.\n\nPillar AI risponde in linguaggio naturale su commesse, incassi, ore, fornitori e conti, e propone l’abbinamento fra movimenti bancari e fatture da confermare. Sulla cassa dichiara saldo e previsione di liquidità a 30–90 giorni. Sulla sicurezza dichiara il controllo del DURC con avviso prima della scadenza e la classificazione con l’AI di oltre 65 tipi di documenti dei subappaltatori.\n\nSe la tua squadra non userà mai un’app, l’approccio via WhatsApp di Pillar è un vantaggio vero, e va provato.",
+        body: "Il punto di forza dichiarato da Pillar è semplice da capire in cantiere: «niente app, password o dispositivi: basta WhatsApp». Dalla [pagina Pillar AI](https://www.pillar.it/pillar-ai) risulta che la squadra manda foto, bolle e messaggi vocali in chat e Pillar ne ricava rapportini strutturati, anche quando l’operaio parla in un’altra lingua. Dalla foto della bolla escono articoli, prezzi e firma, e la bolla si aggancia alla commessa.\n\nPillar AI risponde in linguaggio naturale su commesse, incassi, ore, fornitori e conti, e propone l’abbinamento fra movimenti bancari e fatture da confermare. Sulla cassa dichiara saldo e previsione di liquidità a 30–90 giorni. Sulla sicurezza dichiara il controllo del DURC con avviso prima della scadenza e la classificazione con l’AI di oltre 65 tipi di documenti dei subappaltatori.",
       },
       {
         type: "section",
@@ -609,7 +619,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           [
             "Canale dal cantiere",
             "WhatsApp: foto, bolle e vocali in chat, senza app",
-            "App di cantiere dal telefono: timbratura, rapportino per ruolo anche a voce, foto",
+            "WhatsApp (servizio aggiuntivo): vocali, foto della bolla e scontrini con conferma Sì/No; oppure l’app di cantiere",
           ],
           [
             "Vendita",
@@ -671,7 +681,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Dove Pillar ha un vantaggio, detto onestamente",
-        body: "Se la tua squadra non installerà mai un’app, il canale WhatsApp dichiarato da Pillar abbassa la barriera d’ingresso. Pillar dichiara anche la classificazione con l’AI dei documenti dei subappaltatori, una chat AI sui conti dell’impresa e un servizio di procurement con confronto dei prezzi e rinegoziazione affidata a consulenti.\n\nEdilizia in Cloud ha un’app di cantiere pensata per il telefono e un assistente AI interno, Silvio, ma per la squadra il canale principale è l’app, non WhatsApp. In demo fai la stessa prova con tutti e due: dai il telefono a un operaio e guarda quale dei due usa senza chiedere aiuto.",
+        body: "Pillar dichiara la classificazione con l’AI dei documenti dei subappaltatori, una chat AI sui conti dell’impresa e un servizio di procurement con confronto dei prezzi e rinegoziazione affidata a consulenti.\n\nSul canale dal cantiere, invece, la differenza non c’è più: tutti e due ricevono vocali e foto da WhatsApp, ed Edilizia in Cloud aggiunge l’app di cantiere per chi la preferisce. In demo fai la stessa prova con tutti e due: dai il telefono a un operaio e guarda quale dei due usa senza chiedere aiuto.",
       },
       {
         type: "list",
@@ -688,7 +698,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Come scegliere fra Pillar ed Edilizia in Cloud",
-        body: "Pillar mette al centro WhatsApp, l’assistente AI e la cassa. Edilizia in Cloud mette al centro il percorso dalla trattativa all’incasso: vendita, preventivi di mestiere, commessa con fasi e squadre, app di cantiere, magazzino, SAL firmati, lavori pubblici, sicurezza e portali.\n\nScegli Edilizia in Cloud se vuoi vendita ed esecuzione nello stesso posto e leggere costi previsti e reali mentre il cantiere è aperto. Valuta Pillar con attenzione se il tuo primo problema è far arrivare i dati dalla squadra senza app.\n\nNel [centro confronti](/confronto/) trovi le altre alternative; la [guida ai gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/) distingue le categorie di software.",
+        body: "Pillar mette al centro WhatsApp, l’assistente AI e la cassa. Edilizia in Cloud mette al centro il percorso dalla trattativa all’incasso: vendita, preventivi di mestiere, commessa con fasi e squadre, app di cantiere, magazzino, SAL firmati, lavori pubblici, sicurezza e portali.\n\nScegli Edilizia in Cloud se vuoi vendita ed esecuzione nello stesso posto e leggere costi previsti e reali mentre il cantiere è aperto. Se il tuo primo problema è far arrivare i dati dalla squadra senza app, tutti e due lo fanno con WhatsApp: guarda che cosa succede a quei dati dopo.\n\nNel [centro confronti](/confronto/) trovi le altre alternative; la [guida ai gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/) distingue le categorie di software.",
       },
       {
         type: "section",
@@ -720,7 +730,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     faqs: [
       {
         q: "Qual è la differenza fra Pillar ed Edilizia in Cloud?",
-        a: "Entrambi coprono preventivi, bolle, rapportini, commessa, SAL e fatturazione elettronica con SDI. Pillar dichiara WhatsApp come canale dal cantiere e un assistente AI. Edilizia in Cloud collega vendita, preventivi di mestiere, commessa con fasi e squadre, app di cantiere, magazzino, SAL firmati dal cliente, contabilità lavori pubblici e portali per cliente, subappaltatori e commercialista.",
+        a: "Entrambi coprono preventivi, bolle, rapportini, commessa, SAL e fatturazione elettronica con SDI. Tutti e due ricevono i dati dal cantiere via WhatsApp. Pillar dichiara anche un assistente AI sui conti. Edilizia in Cloud collega vendita, preventivi di mestiere, commessa con fasi e squadre, app di cantiere, magazzino, SAL firmati dal cliente, contabilità lavori pubblici e portali per cliente, subappaltatori e commercialista.",
       },
       {
         q: "Pillar gestisce la fatturazione elettronica con SDI?",
