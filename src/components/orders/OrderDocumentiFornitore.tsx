@@ -18,7 +18,6 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertTriangle, FileText, Plus, Receipt, Truck } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
