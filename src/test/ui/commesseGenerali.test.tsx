@@ -32,6 +32,10 @@ vi.mock("react-router-dom", async (importOriginal) => ({
 vi.mock("@/components/orders/generali/moduli/ContrattoScheda", () => ({
   modulo: { pronto: true, titolo: "Contratto e SAL", telefono: false, Scheda: (): ReactElement => <p>Scheda del contratto</p>, Riquadro: (): ReactElement => <p>Riquadro del contratto</p> },
 }));
+// I moduli veri, man mano che diventano pronti, non devono cambiare queste prove: qui conta il meccanismo.
+vi.mock("@/components/orders/generali/moduli/DocumentiScheda", () => ({
+  modulo: { pronto: false, titolo: "Documenti", telefono: true, Scheda: (): null => null },
+}));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),

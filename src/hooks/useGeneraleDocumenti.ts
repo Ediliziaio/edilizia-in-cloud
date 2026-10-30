@@ -52,8 +52,9 @@ async function leggiPerCommesse<T>(
     for (let da = 0; ; da += PAGINA) {
       const { data, error } = await leggi(blocco, da, da + PAGINA - 1);
       if (error) throw error;
-      righe.push(...(data ?? []));
-      if ((data ?? []).length < PAGINA) break;
+      const pagina = Array.isArray(data) ? data : [];
+      righe.push(...pagina);
+      if (pagina.length < PAGINA) break;
     }
   }
   return righe;
@@ -74,10 +75,12 @@ export function useVociDocumentiAzienda() {
         .order("posizione")
         .order("chiave");
       if (error) throw error;
-      return (data ?? []) as RigaVoceAzienda[];
+      return (Array.isArray(data) ? data : []) as RigaVoceAzienda[];
     },
   });
-  return { righe: query.data ?? [], isLoading: query.isLoading, isError: query.isError, refetch: query.refetch };
+  // Una risposta che non è un elenco vale come «nessuna scelta»: resta l'elenco di partenza.
+  const righe = useMemo(() => (Array.isArray(query.data) ? query.data : []), [query.data]);
+  return { righe, isLoading: query.isLoading, isError: query.isError, refetch: query.refetch };
 }
 
 export interface ChecklistGenerale {
@@ -119,22 +122,23 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
   });
 
   const voci = useMemo(() => vociDelModello(r.generale.modello, azienda.righe), [r.generale.modello, azienda.righe]);
+  const dati = query.data && Array.isArray(query.data.allegati) && Array.isArray(query.data.segni) ? query.data : null;
   const checklist = useMemo(() => {
-    if (!query.data) return null;
+    if (!dati) return null;
     return calcolaChecklist({
       voci,
       generaleId,
       figlie: r.figlie.map((f) => ({ id: f.id, incassato: r.permessi.importi ? f.incassato : null })),
-      allegati: query.data.allegati,
-      segni: query.data.segni,
+      allegati: dati.allegati,
+      segni: dati.segni,
       oggi: oggiLocale(),
     });
-  }, [query.data, voci, generaleId, r.figlie, r.permessi.importi]);
+  }, [dati, voci, generaleId, r.figlie, r.permessi.importi]);
   const allegatiPer = useMemo(() => {
     const m = new Map<string, AllegatoCommessa[]>();
-    for (const a of query.data?.allegati ?? []) m.set(a.order_id, [...(m.get(a.order_id) ?? []), a]);
+    for (const a of dati?.allegati ?? []) m.set(a.order_id, [...(m.get(a.order_id) ?? []), a]);
     return m;
-  }, [query.data]);
+  }, [dati]);
 
   return {
     checklist,
