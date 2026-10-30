@@ -2,9 +2,10 @@
  * Le automazioni che partono da sole, ognuna con il suo interruttore (19/10/2026).
  *
  * Erano accese di base per tutte le aziende, senza un modo per spegnerle: ora
- * partono solo se l'amministratore dell'azienda le accende qui. Il brief del
- * mattino e i messaggi agli operai si accendono invece nelle Automazioni del
- * bot WhatsApp, dove si sceglie anche a chi arrivano.
+ * partono solo se l'amministratore dell'azienda le accende qui. Dal 31/10/2026
+ * anche il brief di Silvio nell'app ha qui il suo interruttore (prima solo dal
+ * bot WhatsApp, che senza numero collegato non si poteva accendere). I
+ * messaggi WhatsApp agli operai restano nelle Automazioni del bot.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -17,6 +18,12 @@ import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazio
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 
 type Chiave = "giornale_auto_enabled" | "morning_briefing_enabled" | "promemoria_preventivo_cliente";
+type BriefSilvio = "spento" | "responsabili" | "tutti";
+const BRIEF_SILVIO: Array<{ valore: BriefSilvio; etichetta: string }> = [
+  { valore: "spento", etichetta: "Spento" },
+  { valore: "responsabili", etichetta: "Ai responsabili" },
+  { valore: "tutti", etichetta: "A tutti quelli che usano l'app" },
+];
 
 const VOCI: Array<{ chiave: Chiave; titolo: string; descrizione: string }> = [
   {
@@ -38,19 +45,35 @@ const VOCI: Array<{ chiave: Chiave; titolo: string; descrizione: string }> = [
 
 export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: string; canEdit: boolean }) {
   const queryClient = useQueryClient();
-  const [inSalvataggio, setInSalvataggio] = useState<Chiave | null>(null);
+  const [inSalvataggio, setInSalvataggio] = useState<Chiave | "silvio_brief_mattino" | null>(null);
   const chiaveQuery = ["automazioni-che-partono-da-sole", companyId];
 
   const { data: stato, isError, refetch } = useQuery({
     queryKey: chiaveQuery,
     queryFn: async () => {
       const { data, error } = await supabase.from("companies")
-        .select("giornale_auto_enabled, morning_briefing_enabled, promemoria_preventivo_cliente")
+        .select("giornale_auto_enabled, morning_briefing_enabled, promemoria_preventivo_cliente, silvio_brief_mattino" as never)
         .eq("id", companyId).maybeSingle();
       if (error) throw error;
-      return (data ?? {}) as Partial<Record<Chiave, boolean>>;
+      return (data ?? {}) as Partial<Record<Chiave, boolean>> & { silvio_brief_mattino?: BriefSilvio };
     },
   });
+
+  const cambiaBrief = async (valore: BriefSilvio) => {
+    setInSalvataggio("silvio_brief_mattino");
+    try {
+      const { data, error } = await supabase.from("companies")
+        .update({ silvio_brief_mattino: valore } as never).eq("id", companyId).select("id");
+      if (error) throw error;
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
+      queryClient.setQueryData(chiaveQuery, { ...(stato ?? {}), silvio_brief_mattino: valore });
+      toast.success(valore === "spento" ? "Brief di Silvio spento" : "Brief di Silvio acceso: parte domattina");
+    } catch (e) {
+      toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));
+    } finally {
+      setInSalvataggio(null);
+    }
+  };
 
   const cambia = async (chiave: Chiave, acceso: boolean) => {
     setInSalvataggio(chiave);
@@ -73,8 +96,8 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
       id="cosa-parte-da-solo"
       titolo="Cosa parte da solo"
       descrizione={<>
-        Niente parte se non lo accendi tu. Il brief del mattino e i messaggi agli operai si accendono nelle{" "}
-        <Link to="/azienda/whatsapp?tab=automazioni" className="underline">Automazioni del bot WhatsApp</Link>, dove scegli anche a chi arrivano.
+        Niente parte se non lo accendi tu. Il report del mattino e i messaggi agli operai su WhatsApp si accendono nelle{" "}
+        <Link to="/azienda/whatsapp?tab=automazioni" className="underline">Automazioni del bot WhatsApp</Link>.
       </>}
     >
       {isError ? (
@@ -84,6 +107,23 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
         </div>
       ) : (
         <div className="divide-y">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-4">
+            <div className="min-w-0 flex-1">
+              <Label htmlFor="auto-silvio-brief" className="text-sm font-medium">Brief di Silvio del mattino</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Ogni mattina, nella chat di Silvio dell'app: cosa c'è oggi, cosa è in ritardo, incassi e scadenze, solo quello che ognuno può vedere. Usa il credito AI.
+              </p>
+            </div>
+            <select
+              id="auto-silvio-brief"
+              value={stato?.silvio_brief_mattino ?? "spento"}
+              disabled={!canEdit || !stato || inSalvataggio !== null}
+              onChange={(e) => void cambiaBrief(e.target.value as BriefSilvio)}
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+            >
+              {BRIEF_SILVIO.map((b) => <option key={b.valore} value={b.valore}>{b.etichetta}</option>)}
+            </select>
+          </div>
           {VOCI.map((v) => (
             <div key={v.chiave} className="flex items-start justify-between gap-4 p-4">
               <div className="min-w-0">

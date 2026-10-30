@@ -56,7 +56,6 @@ const ECCEZIONI: Record<string, string> = {
   "src/hooks/useAdminSidebarBadges.ts|support_conversations": "badge del pannello admin",
   "src/hooks/useAdminSidebarBadges.ts|failure_alerts": "badge del pannello admin",
   "src/hooks/useWebhookAlerts.ts|integration_webhook_events": "registro webhook del pannello admin",
-  "src/hooks/superadmin/useFailureAlerts.ts|failure_alerts": "solo super admin",
   "src/hooks/accountant/useAccountantChangeRequests.ts|accountant_change_requests": "il commercialista lavora su più aziende per mestiere",
   "src/hooks/warehouse/useStockUnits.ts|stock_units": "filtrate per righe di commessa",
   "src/lib/adminPlanDeletion.ts|subscription_logs": "eliminazione di un piano, solo admin",

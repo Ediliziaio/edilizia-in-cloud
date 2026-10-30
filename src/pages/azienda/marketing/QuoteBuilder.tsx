@@ -64,6 +64,8 @@ import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDial
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
 import { RilievoPosizioniDialog } from "@/components/marketing/preventivi/RilievoPosizioniDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
+import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
+import { fasiDaStampare, leggiCronoprogramma, type FaseCrono } from "@/lib/preventivi/cronoprogramma";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
@@ -458,6 +460,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const [internalNotes, setInternalNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentPhases, setPaymentPhases] = useState<QuotePaymentPhase[]>([]);
+  // Le fasi del cantiere e quanto durano, come nei preventivatori edili (31/10/2026): escono nel PDF.
+  const [cronoprogramma, setCronoprogramma] = useState<FaseCrono[] | null>(null);
   // Ripartizione bonus decisa già in preventivo: la commessa la eredita.
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [selectedRenders, setSelectedRenders] = useState<{ id: string; result_url: string | null; render_type: string; session_table: string }[]>([]);
@@ -799,6 +803,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     setClientFiscalCode,
     setClientVatNumber,
     setClientTipo: setTipoClienteScelto,
+    setCronoprogramma: (v: unknown) => setCronoprogramma(leggiCronoprogramma(v)),
     setClientCodiceUnivoco,
     setTitle,
     setDescription,
@@ -1743,7 +1748,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, title, description, validityDays,
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
     salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
-    items, paymentMethod, paymentPhases, bonusLines, selectedRenders, selectedMaterials,
+    items, paymentMethod, paymentPhases, cronoprogramma, bonusLines, selectedRenders, selectedMaterials,
     renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, templateValues, layoutOverride, financingProposal,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini, pdfSchedeTecniche, pdfFirma,
     pdfMisure, pdfAttributi, pdfNoteCliente, pdfCondizioni, pdfWatermarkText, pdfCopiaDestinatario,
@@ -1831,6 +1836,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.items !== undefined) setItems(d.items.map((it) => normalizzaRigaSconto(it)));
     if (d.paymentMethod !== undefined) setPaymentMethod(d.paymentMethod);
     if (d.paymentPhases !== undefined) setPaymentPhases(d.paymentPhases);
+    if (d.cronoprogramma !== undefined) setCronoprogramma(leggiCronoprogramma(d.cronoprogramma));
     if (d.bonusLines !== undefined) setBonusLines(d.bonusLines);
     if (d.selectedRenders !== undefined) setSelectedRenders(d.selectedRenders);
     if (d.selectedMaterials !== undefined) setSelectedMaterials(d.selectedMaterials);
@@ -2020,6 +2026,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         internal_notes: internalNotes || null,
         payment_method: paymentMethod || null,
         payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total).map(phase => ({ ...phase })) : null,
+        cronoprogramma: cronoprogramma && fasiDaStampare(cronoprogramma).length ? fasiDaStampare(cronoprogramma).map(f => ({ ...f })) : null,
         bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
@@ -3912,6 +3919,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           tabelle finanziarie configurate (eic_tabelle_finanziamento). */}
       {step === 2 && (
         <div className="mt-4">
+          <CronoprogrammaCard fasi={cronoprogramma} onChange={setCronoprogramma}
+            fasiDelModello={(effectiveTemplate as unknown as { cronoprogramma?: unknown }).cronoprogramma} />
           <QuotePaymentTermsCard
             total={total}
             method={paymentMethod}

@@ -64,3 +64,28 @@ describe("conteggi per stato", () => {
     expect((c.bozza ?? 0) + (c.in_corso ?? 0) + (c.vinto ?? 0) + (c.perso ?? 0) + (c.altro ?? 0)).toBe(c.all);
   });
 });
+
+describe("offerte in scadenza (31/10/2026)", () => {
+  const traGiorni = (n: number) => new Date(ADESSO.getTime() + n * 86_400_000).toISOString();
+  const conScadenza = (stato: string, n: number | null) => ({ ...riga(stato, 1000), scadenza: n == null ? null : traGiorni(n) });
+  it("dice quanto manca, o da quanto è scaduta", async () => {
+    const { etichettaScadenza, giorniAllaScadenza } = await import("@/lib/preventivi/elencoPreventivi");
+    expect(giorniAllaScadenza(conScadenza("in_corso", 5), ADESSO)).toBe(5);
+    expect(etichettaScadenza(conScadenza("in_corso", 0), ADESSO)).toBe("scade oggi");
+    expect(etichettaScadenza(conScadenza("in_corso", 1), ADESSO)).toBe("scade domani");
+    expect(etichettaScadenza(conScadenza("in_corso", 9), ADESSO)).toBe("scade tra 9 giorni");
+    expect(etichettaScadenza(conScadenza("in_corso", -1), ADESSO)).toBe("scaduto ieri");
+    expect(etichettaScadenza(conScadenza("in_corso", -12), ADESSO)).toBe("scaduto da 12 giorni");
+    expect(etichettaScadenza(conScadenza("in_corso", null), ADESSO)).toBeNull();
+  });
+  it("in scadenza: solo i preventivi in corso, entro 7 giorni o già scaduti", async () => {
+    const { eInScadenza } = await import("@/lib/preventivi/elencoPreventivi");
+    expect(eInScadenza(conScadenza("in_corso", 3), ADESSO)).toBe(true);
+    expect(eInScadenza(conScadenza("in_corso", -4), ADESSO)).toBe(true);
+    expect(eInScadenza(conScadenza("in_corso", 20), ADESSO)).toBe(false);
+    expect(eInScadenza(conScadenza("vinto", 3), ADESSO)).toBe(false);
+    expect(eInScadenza(conScadenza("in_corso", null), ADESSO)).toBe(false);
+    expect(appartieneAllaVista(conScadenza("in_corso", 2), "in_scadenza", ADESSO)).toBe(true);
+    expect(vistaDaTesto("in_scadenza")).toBe("in_scadenza");
+  });
+});

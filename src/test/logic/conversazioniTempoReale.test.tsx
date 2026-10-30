@@ -191,22 +191,23 @@ describe("Conversazioni: le ricariche non accelerano quando il database rallenta
 describe("Badge «Chat»: il conteggio dei non letti rallenta col database", () => {
   const montaBadge = () => renderHook(() => useConversazioniNonLette(), { wrapper: wrapperDi(client) });
 
-  it("l'attesa è 30 secondi, o cinque volte l'ultima risposta, fino a 2 minuti", () => {
-    expect(attesaNonLette(0)).toBe(30_000);
-    expect(attesaNonLette(141)).toBe(30_000);
-    expect(attesaNonLette(8_000)).toBe(40_000);
+  // 31/10/2026: base da 30 a 90 secondi, massimo da 2 a 5 minuti (175.000 chiamate in 14 giorni).
+  it("l'attesa è 90 secondi, o cinque volte l'ultima risposta, fino a 5 minuti", () => {
+    expect(attesaNonLette(0)).toBe(90_000);
+    expect(attesaNonLette(141)).toBe(90_000);
+    expect(attesaNonLette(8_000)).toBe(90_000);
     expect(attesaNonLette(19_694)).toBe(98_470);
-    expect(attesaNonLette(60_000)).toBe(120_000);
+    expect(attesaNonLette(60_000)).toBe(300_000);
   });
 
-  it("a database veloce rilegge ogni 30 secondi e mostra il numero", async () => {
+  it("a database veloce rilegge ogni 90 secondi e mostra il numero", async () => {
     const { result } = montaBadge();
     await vi.advanceTimersByTimeAsync(101);              // risposta a t = 0,1 s, a schermo un istante dopo
     expect(result.current).toBe(3);
     expect(chiamate("conversazioni_non_lette")).toBe(1);
-    await vi.advanceTimersByTimeAsync(29_998);           // t = 30,099 s
+    await vi.advanceTimersByTimeAsync(89_998);           // t = 90,099 s
     expect(chiamate("conversazioni_non_lette")).toBe(1);
-    await vi.advanceTimersByTimeAsync(1);                // t = 30,1 s
+    await vi.advanceTimersByTimeAsync(1);                // t = 90,1 s
     expect(chiamate("conversazioni_non_lette")).toBe(2);
   });
 

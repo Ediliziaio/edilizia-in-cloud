@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { dimenticaCommesseArchiviate } from "@/lib/orders/archivedOrderScope";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -18,7 +19,7 @@ export function OrdersTrashDialog({open,onOpenChange,companyId,onChanged}: {
   const restore=async(id:string)=>{
     setRestoring(id);
     try {
-      const {error}=await supabase.rpc('set_order_trashed' as never,{p_order_id:id,p_company_id:companyId,p_trashed:false} as never);
+      const {error}=await supabase.rpc('set_order_trashed' as never,{p_order_id:id,p_company_id:companyId,p_trashed:false} as never); dimenticaCommesseArchiviate(companyId);
       if(error)throw error;
       toast.success('Commessa ripristinata');
       onChanged();

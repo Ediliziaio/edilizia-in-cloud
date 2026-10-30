@@ -10,14 +10,18 @@ export interface RigaElenco {
   totale: number | null;
   /** Ultimo aggiornamento (o creazione, se mai aggiornato). */
   data: string;
+  /** Fin quando vale l'offerta (preventivo classico): null se non si sa. */
+  scadenza?: string | null;
 }
 
 /** Oltre quanti giorni un preventivo in corso, fermo, va richiamato. */
 export const GIORNI_DA_SEGUIRE = 7;
+/** Un preventivo in corso che scade entro questi giorni (o è già scaduto) va richiamato prima che decada. */
+export const GIORNI_IN_SCADENZA = 7;
 
-export type VistaElenco = "tutte" | "da_seguire" | "bozze_vuote";
+export type VistaElenco = "tutte" | "da_seguire" | "in_scadenza" | "bozze_vuote";
 
-export const VISTE_ELENCO: readonly VistaElenco[] = ["tutte", "da_seguire", "bozze_vuote"];
+export const VISTE_ELENCO: readonly VistaElenco[] = ["tutte", "da_seguire", "in_scadenza", "bozze_vuote"];
 
 export function vistaDaTesto(v: string | null | undefined): VistaElenco {
   return (VISTE_ELENCO as readonly string[]).includes(v ?? "") ? (v as VistaElenco) : "tutte";
@@ -44,8 +48,36 @@ export function eDaSeguire(r: RigaElenco, adesso: Date = new Date(), soglia: num
   return g != null && g >= soglia;
 }
 
+/** Giorni che mancano alla scadenza dell'offerta: 0 = scade oggi, negativo = già scaduta. Null se non c'è. */
+export function giorniAllaScadenza(r: RigaElenco, adesso: Date = new Date()): number | null {
+  if (!r.scadenza) return null;
+  const t = new Date(r.scadenza).getTime();
+  if (!Number.isFinite(t)) return null;
+  const inizio = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((inizio(new Date(t)) - inizio(adesso)) / GIORNO_MS);
+}
+
+/** In corso, e l'offerta scade entro `soglia` giorni o è già scaduta: il cliente va richiamato adesso. */
+export function eInScadenza(r: RigaElenco, adesso: Date = new Date(), soglia: number = GIORNI_IN_SCADENZA): boolean {
+  if (r.stato_unif !== "in_corso") return false;
+  const g = giorniAllaScadenza(r, adesso);
+  return g != null && g <= soglia;
+}
+
+/** «scade oggi», «scade domani», «scade tra 5 giorni», «scaduto ieri», «scaduto da 12 giorni». */
+export function etichettaScadenza(r: RigaElenco, adesso: Date = new Date()): string | null {
+  const g = giorniAllaScadenza(r, adesso);
+  if (g == null) return null;
+  if (g === 0) return "scade oggi";
+  if (g === 1) return "scade domani";
+  if (g > 1) return `scade tra ${g} giorni`;
+  if (g === -1) return "scaduto ieri";
+  return `scaduto da ${-g} giorni`;
+}
+
 export function appartieneAllaVista(r: RigaElenco, vista: VistaElenco, adesso: Date = new Date()): boolean {
   if (vista === "da_seguire") return eDaSeguire(r, adesso);
+  if (vista === "in_scadenza") return eInScadenza(r, adesso);
   if (vista === "bozze_vuote") return eBozzaVuota(r);
   return true;
 }

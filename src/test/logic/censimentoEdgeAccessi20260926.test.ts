@@ -5,6 +5,7 @@
  * (e, per il database, le RPC delle entità sono risultate già a posto):
  *   1. generate-survey-pdf: legge col service role, senza controllo sull'azienda
  *      del sopralluogo → qualunque utente otteneva il PDF di un altro con l'id.
+ *      (Funzione tolta il 31/10/2026: nessuno la chiamava più.)
  *   2. email-ai-l3-batch (verify_jwt=false): bastava un JWT valido qualunque per
  *      riclassificare le email di qualunque azienda.
  *   3a. meta-ads-sync-insights: con profilo senza azienda, body.company_id
@@ -43,18 +44,6 @@ function tuttiISorgenti(): { file: string; testo: string }[] {
   gira(FUNZIONI);
   return out;
 }
-
-describe("1 · generate-survey-pdf: solo per l'azienda del sopralluogo", () => {
-  const s = leggi("supabase/functions/generate-survey-pdf/index.ts");
-  it("controlla l'accesso all'azienda prima di generare il report", () => {
-    expect(s).toContain('import { requireCompanyAccess } from "../_shared/auth.ts";');
-    expect(s).toContain("requireCompanyAccess(supabase, userId, survey.company_id");
-    const check = s.indexOf("requireCompanyAccess(supabase, userId, survey.company_id");
-    expect(check).toBeGreaterThan(-1);
-    // prima di caricare l'anagrafica azienda e comporre l'HTML
-    expect(check).toBeLessThan(s.indexOf('.from("companies")'));
-  });
-});
 
 describe("2 · email-ai-l3-batch: cron/servizio o super_admin", () => {
   const s = leggi("supabase/functions/email-ai-l3-batch/index.ts");

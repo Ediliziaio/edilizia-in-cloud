@@ -34,6 +34,7 @@ export const quoteDraftSchema = z.object({
   discountPercent: number, prezzoManuale: number.nullable(), prezzoManualeIvaPct: number.nullable(),
   provvigionePct: number, items: z.array(item),
   paymentMethod: text,
+  cronoprogramma: z.array(z.object({ fase: text, durata: nullableText, descrizione: nullableText })).max(20).nullable().optional(),
   paymentPhases: z.array(z.object({
     label: text, type: z.enum(["deposit", "balance", "financing"]), percent: number, amount: number,
   })),

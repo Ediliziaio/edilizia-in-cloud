@@ -49,7 +49,6 @@ describe("chi usa verificaPermessoAzienda, e con quale permesso", () => {
   const CASI: Array<[string, string]> = [
     ["installa-template-vertical", `verificaPermessoAzienda(admin, userId, companyId, ["can_edit_settings_pricing"], "modificare il listino")`],
     ["installa-bundle-template", `admin, userId, companyId, ["can_edit_settings_bundle", "can_edit_settings_pricing"], "modificare i pacchetti",`],
-    ["genera-embeddings-catalogo", `verificaPermessoAzienda(admin, userId, companyId, ["can_edit_settings_pricing"], "modificare il listino")`],
     ["invia-sms", `verificaPermessoAzienda(supabase, userData.user.id, company_id, ["can_view_sms_marketing"], "le campagne SMS")`],
     ["sr-ai-preventivo-draft", `supabaseAdmin, userId, companyId, ["can_edit_marketing_opportunities", "can_edit_marketing"], "modificare i preventivi",`],
     ["gestisci-sede", `verificaPermessoAzienda(supabase, userId, companyId, ['can_edit_settings', 'can_edit_settings_orders'], 'modificare le sedi')`],

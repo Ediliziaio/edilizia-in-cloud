@@ -365,12 +365,6 @@ verify_jwt = false
 [functions.check-api-health]
 verify_jwt = false
 
-[functions.send-whatsapp-reply]
-verify_jwt = false
-
-[functions.whatsapp-broadcast]
-verify_jwt = false
-
 [functions.whatsapp-templates]
 verify_jwt = false
 
@@ -408,9 +402,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.initiate-outbound-call]
-verify_jwt = false
-
-[functions.duplicate-order]
 verify_jwt = false
 
 [functions.internal-agent-tools]
@@ -573,11 +564,6 @@ verify_jwt = false
 [functions.admin-change-plan]
 verify_jwt = false
 
-[functions.admin-dashboard-data]
-verify_jwt = false
-
-[functions.admin-mrr-data]
-verify_jwt = false
 [functions.parse-matrix-image]
 verify_jwt = false
 
@@ -630,9 +616,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.cg-bootstrap-classificazione]
-verify_jwt = true
-
-[functions.cg-export-ce-pdf]
 verify_jwt = true
 
 [functions.cg-rating-snapshot-monthly]
@@ -836,8 +819,6 @@ verify_jwt = false
 verify_jwt = true
 [functions.meta-ads-update-campaign]
 verify_jwt = true
-[functions.meta-ads-list-from-account]
-verify_jwt = true
 [functions.meta-targeting-search]
 verify_jwt = true
 
@@ -1032,9 +1013,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.fea-verifica-codice]
-verify_jwt = false
-
-[functions.sr-firma-cliente]
 verify_jwt = false
 
 [functions.platform-mcp]

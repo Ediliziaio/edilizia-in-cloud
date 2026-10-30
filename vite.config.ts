@@ -519,12 +519,11 @@ export default defineConfig(({ command, mode }) => ({
             return "vendor-tiptap";
           }
           // ─── React + Router + Query (critical at boot) ───
+          // Il pacchetto, non qualunque cartella «react»: «/react/» prendeva anche
+          // @xyflow/react e @gsap/react, e con loro gsap, d3 e zustand finivano nel
+          // chunk caricato da ogni pagina (~95 KB gzip, 31/10/2026).
           if (
-            id.includes("/react/") ||
-            id.includes("/react-dom/") ||
-            id.includes("/scheduler/") ||
-            id.includes("/react-router/") ||
-            id.includes("/react-router-dom/") ||
+            /node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id) ||
             id.includes("/@tanstack/react-query/") ||
             id.includes("/history/")
           ) {

@@ -15,7 +15,7 @@ describe("bozza completa preventivo classico", () => {
       is_optional: false, client_temp_id: "parent", axis_selections: { colore: "bianco" },
       image_url: "/local/door.webp",
     }],
-    paymentMethod: "Bonifico", paymentPhases: [{ label: "Saldo", type: "balance", percent: 100, amount: 122 }],
+    paymentMethod: "Bonifico", cronoprogramma: [{ fase: "Demolizioni", durata: "3 giorni", descrizione: null }], paymentPhases: [{ label: "Saldo", type: "balance", percent: 100, amount: 122 }],
     bonusLines: [{ position: 0, presetId: null, label: "Personalizzato", imponibile: 100,
       aliquotaDetrazione: null, causale: "", note: null }],
     selectedRenders: [{ id: "render", result_url: "/render.webp", render_type: "interno", session_table: "render_sessions" }],
