@@ -12,6 +12,7 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanPhone } from "@/lib/contactUtils";
+import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 
 export interface ContactFormData {
   first_name: string;
@@ -19,6 +20,9 @@ export interface ContactFormData {
   phone: string;
   email: string;
   company_name: string;
+  /** Codice fiscale e partita IVA (30/10/2026): i preventivi li prendono dal contatto. */
+  fiscal_code?: string;
+  vat_number?: string;
   city: string;
   province: string;
   tags: string[];
@@ -50,6 +54,8 @@ const emptyForm: ContactFormData = {
   phone: "",
   email: "",
   company_name: "",
+  fiscal_code: "",
+  vat_number: "",
   city: "",
   province: "",
   tags: [],
@@ -70,6 +76,7 @@ function isValidItalianPhone(phone: string): boolean {
 
 export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditing, companyId, editingContactId }: ContactDialogProps) {
   const [form, setForm] = useState<ContactFormData>(emptyForm);
+  const avvisi = avvisiDatiFiscali({ tipo: "azienda", codiceFiscale: form.fiscal_code, partitaIva: form.vat_number });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -208,6 +215,18 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           <div className="space-y-1.5">
             <Label>Azienda</Label>
             <Input value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="contatto-cf">Codice fiscale</Label>
+              <Input id="contatto-cf" className="font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder="16 caratteri" value={form.fiscal_code ?? ""} onChange={(e) => setForm((f) => ({ ...f, fiscal_code: e.target.value }))} />
+              {avvisi.codiceFiscale && <p role="status" className="text-xs text-amber-700">{avvisi.codiceFiscale}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contatto-piva">Partita IVA</Label>
+              <Input id="contatto-piva" className="font-mono" inputMode="numeric" maxLength={20} placeholder="Se è un'azienda" value={form.vat_number ?? ""} onChange={(e) => setForm((f) => ({ ...f, vat_number: e.target.value }))} />
+              {avvisi.partitaIva && <p role="status" className="text-xs text-amber-700">{avvisi.partitaIva}</p>}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

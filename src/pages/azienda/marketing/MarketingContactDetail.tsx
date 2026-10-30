@@ -1330,6 +1330,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
                     <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
+                    {/* Codice fiscale e partita IVA (30/10/2026): c'erano nel database ma non nella scheda; i preventivi li prendono da qui. */}
+                    <InlineField label="Partita IVA" value={contact.vat_number || ""} onSave={(v) => updateField.mutate({ field: "vat_number", value: v.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "") || null })} disabled={!canEditContacts} />
+                    <InlineField label="Codice fiscale" value={contact.fiscal_code || ""} onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v.replace(/\s+/g, "").toUpperCase() || null })} disabled={!canEditContacts} />
                     <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts} />
                     <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts}
                       comuneMode="comune"

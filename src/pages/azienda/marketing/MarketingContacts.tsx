@@ -804,7 +804,7 @@ export default function MarketingContacts() {
       // e i 25.000 id di «Seleziona tutti» non ci entrano. Senza elenco, a
       // pagine da mille (PostgREST non ne restituisce di più comunque).
       const PAGE_SIZE = 1000;
-      const COLONNE = "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at";
+      const COLONNE = "id, first_name, last_name, email, phone, company_name, fiscal_code, vat_number, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at";
       let allRows: any[] = [];
 
       if (finalIds) {
@@ -1026,7 +1026,7 @@ export default function MarketingContacts() {
         // tsc: prima di toccare l'elenco, validare contro information_schema.
         // L'elenco copre l'interfaccia MarketingContact (ContactsTable) incl.
         // opt_out/optout_*/unsubscribed usati da badge consensi e KPI qualità.
-        "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
+        "id, first_name, last_name, email, phone, company_name, fiscal_code, vat_number, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
         true,
       )
         // Chi non ha il dato va in fondo: in discesa Postgres mette i vuoti in
@@ -1247,8 +1247,13 @@ export default function MarketingContacts() {
     mutationFn: async (formData: ContactFormData) => {
       if (!companyId) throw new Error("No company");
       if (!canEditContacts) throw new Error("Non hai i permessi per modificare i contatti");
-      const cleanFormData = { ...formData, tags: normalizeTagList(formData.tags) };
+      // Codice fiscale e partita IVA puliti; vuoti = null, non stringhe vuote.
+      const cleanFormData = { ...formData, tags: normalizeTagList(formData.tags),
+        fiscal_code: formData.fiscal_code?.replace(/\s+/g, "").toUpperCase() || null,
+        vat_number: formData.vat_number?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "") || null };
       if (editingContact) {
+        // Un contatto letto senza codice fiscale e partita IVA (vecchia cache) non li azzera salvando.
+        if (!("fiscal_code" in editingContact)) { delete (cleanFormData as Partial<typeof cleanFormData>).fiscal_code; delete (cleanFormData as Partial<typeof cleanFormData>).vat_number; }
         const { error } = await supabase
           .from("marketing_contacts")
           .update({ ...cleanFormData, updated_at: new Date().toISOString() })
@@ -2203,6 +2208,8 @@ export default function MarketingContacts() {
           phone: editingContact.phone || "",
           email: editingContact.email || "",
           company_name: editingContact.company_name || "",
+          fiscal_code: editingContact.fiscal_code || "",
+          vat_number: editingContact.vat_number || "",
           city: editingContact.city || "",
           province: editingContact.province || "",
           tags: editingContact.tags,

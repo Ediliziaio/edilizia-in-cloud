@@ -22,6 +22,8 @@ export interface MarketingContact {
   phone: string | null;
   email: string | null;
   company_name: string | null;
+  fiscal_code?: string | null;
+  vat_number?: string | null;
   tags: string[];
   notes: string | null;
   source: string | null;
