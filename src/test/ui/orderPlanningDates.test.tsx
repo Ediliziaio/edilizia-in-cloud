@@ -29,25 +29,35 @@ describe("Date visibili, modifica esplicita e calendario unico", () => {
   it("mostra subito le date e gli orari senza aprire sezioni", () => {
     draw(); expect(screen.getByText("13 ott 2026 · 08:00")).toBeInTheDocument();
     expect(screen.getByText("14 ott 2026 · 17:00")).toBeInTheDocument();
-    expect(screen.getByRole("link", {name: "Apri calendario"})).toHaveAttribute("href", "/azienda/calendario");
+    // Solo le date: niente posa, niente pulsanti per appuntamenti, cronoprogramma o calendario (31/10/2026).
+    expect(screen.getByText("Inizio lavori previsto")).toBeInTheDocument();
+    expect(screen.getByText("Fine lavori prevista")).toBeInTheDocument();
+    expect(screen.queryByText("Posa prevista")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", {name: "Apri calendario"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: "Pianifica appuntamento"})).not.toBeInTheDocument();
     expect(m.from).not.toHaveBeenCalled();
+  });
+  it("l'arrivo materiali compare solo se c'è", () => {
+    draw(); expect(screen.queryByText("Arrivo materiali")).not.toBeInTheDocument();
+    cleanup(); draw({warehouseArrivalDate: "2026-10-10"});
+    expect(screen.getByText("Arrivo materiali")).toBeInTheDocument(); expect(screen.getByText("10 ott 2026")).toBeInTheDocument();
   });
   it("modificare e annullare non scrive né invia eventi", () => {
     draw(); fireEvent.click(screen.getByRole("button", {name: "Modifica date"}));
-    fireEvent.change(screen.getByLabelText("Inizio lavori"), {target: {value: "2026-10-14"}});
+    fireEvent.change(screen.getByLabelText("Inizio lavori previsto"), {target: {value: "2026-10-14"}});
     expect(m.update).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", {name: "Annulla"}));
     expect(m.update).not.toHaveBeenCalled(); expect(m.invoke).not.toHaveBeenCalled();
   });
   it("blocca intervalli non validi prima di qualsiasi scrittura", () => {
     draw(); fireEvent.click(screen.getByRole("button", {name: "Modifica date"}));
-    fireEvent.change(screen.getByLabelText("Fine lavori"), {target: {value: "2026-10-12"}});
+    fireEvent.change(screen.getByLabelText("Fine lavori prevista"), {target: {value: "2026-10-12"}});
     fireEvent.click(screen.getByRole("button", {name: "Salva date"}));
     expect(m.error).toHaveBeenCalledWith(expect.stringMatching(/prima/)); expect(m.update).not.toHaveBeenCalled();
   });
   it("salva una volta, controlla la versione e aggiorna commessa, Campo e agenda senza creare appuntamenti", async () => {
     const invalidate = draw(); fireEvent.click(screen.getByRole("button", {name: "Modifica date"}));
-    fireEvent.change(screen.getByLabelText("Fine lavori"), {target: {value: "2026-10-15"}});
+    fireEvent.change(screen.getByLabelText("Fine lavori prevista"), {target: {value: "2026-10-15"}});
     fireEvent.click(screen.getByRole("button", {name: "Salva date"}));
     await waitFor(() => expect(m.success).toHaveBeenCalledWith("Date della commessa salvate"));
     expect(m.update).toHaveBeenCalledOnce(); expect(m.from).toHaveBeenCalledWith("orders");
@@ -72,14 +82,8 @@ describe("Date visibili, modifica esplicita e calendario unico", () => {
     expect(m.success).not.toHaveBeenCalled(); expect(m.invoke).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
-  it("in sola lettura non offre modifica o creazione ma mantiene il calendario", () => {
+  it("in sola lettura non offre modifica", () => {
     m.edit = false; draw(); expect(screen.queryByRole("button", {name: "Modifica date"})).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", {name: "Pianifica appuntamento"})).not.toBeInTheDocument(); expect(m.from).not.toHaveBeenCalled();
-  });
-  it("riusa l'editor appuntamenti con commessa, indirizzo e tipo operativo corretto", async () => {
-    draw(); fireEvent.keyDown(screen.getByRole("button", {name: "Pianifica appuntamento"}), {key: "ArrowDown"});
-    fireEvent.click(await screen.findByRole("menuitem", {name: "Rilievo misure"}));
-    expect(m.preset).toHaveBeenLastCalledWith(expect.objectContaining({open: true, defaultOrderId: "order", defaultAddress: "Via Verdi 12", defaultAppointmentType: "rilievo_tecnico", showOrderSelect: false, requireTime: true}));
-    expect(m.update).not.toHaveBeenCalled();
+    expect(m.from).not.toHaveBeenCalled();
   });
 });

@@ -1597,30 +1597,6 @@ function OrderDetailInner() {
 
             <OrderAssistenzaAlert orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-assistenza" })} />
             <DaApprovareAvviso orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
-            {/* Date e appuntamenti stanno qui (31/10/2026), non più in fondo a Lavorazioni. */}
-            <section
-                id="section-pianificazione"
-                aria-label="Date e appuntamenti"
-                className="grid items-start gap-3 lg:grid-cols-2 scroll-mt-24"
-              >
-                <OrdineTempistiche
-                  orderId={order.id}
-                  expectedDate={order.expected_date}
-                  warehouseArrivalDate={order.warehouse_arrival_date}
-                  workStartDate={order.work_start_date}
-                  workEndDate={order.work_end_date}
-                  workStartTime={order.work_start_time}
-                  workEndTime={order.work_end_time}
-                  updatedAt={order.updated_at}
-                  onOpenSchedule={() => navigateTo({tab: "cantiere", cantiereView: "cronoprogramma"})}
-                  orderCode={order.order_code}
-                  orderDescription={order.description}
-                  defaultAddress={order.work_address || order.customer?.address}
-                />
-                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
-              </section>
-
-
             {/* Origine e anagrafica: l'operatività vive nel Cantiere. */}
             <OrderOriginBadge
               quoteId={order.quote_id}
@@ -1680,6 +1656,24 @@ function OrderDetailInner() {
               </div>
               </div>
             </div>
+            {/* Date e appuntamenti (31/10/2026): sotto cliente e lavoro previsto, non più in fondo a Lavorazioni. */}
+            <section
+                id="section-pianificazione"
+                aria-label="Date e appuntamenti"
+                className="grid items-start gap-3 lg:grid-cols-2 scroll-mt-24"
+              >
+                <OrdineTempistiche
+                  orderId={order.id}
+                  expectedDate={order.expected_date}
+                  warehouseArrivalDate={order.warehouse_arrival_date}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                  workStartTime={order.work_start_time}
+                  workEndTime={order.work_end_time}
+                  updatedAt={order.updated_at}
+                />
+                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
+              </section>
             <div id="section-documenti" className="scroll-mt-24">
               <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} /> : undefined}

@@ -172,6 +172,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(named("OrderAttachments")[0], "editable")).toBe("{permissions.canEditOrders}");
   });
   it("date e appuntamenti stanno in Panoramica, visibili e modificabili", () => {
+    expect(named("OrdineCliente")[0].pos).toBeLessThan(named("OrdineTempistiche")[0].pos);
     expect(named("OrdineTempistiche")[0].pos).toBeLessThan(named("LinkedAppointments")[0].pos);
     expect(value(named("LinkedAppointments")[0], "editable")).toBe("{permissions.canEditOrders}");
     expect(value(named("OrdineTempistiche")[0], "workStartTime")).toBe("{order.work_start_time}");
