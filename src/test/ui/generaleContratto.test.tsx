@@ -25,7 +25,7 @@ vi.mock("@/hooks/useGeneraleContrattoSal", () => ({
 // Fatture dei SAL (sessione cg-fatture): nessuna fattura ancora, l'utente può fatturare.
 vi.mock("@/hooks/useGeneraleFatture", () => ({
   useFattureGenerale: () => ({ data: { fatture: [] as unknown[], puoFatturare: true } }),
-  useDatiFatturaGenerale: () => ({ data: undefined as undefined, isLoading: true, error: null }),
+  useDatiFatturaGenerale: () => ({ data: undefined as undefined, isLoading: true, error: null as null }),
   useCreaFatturaGenerale: nessuno,
 }));
 vi.mock("@/hooks/useGeneraleContrattoElenco", () => ({

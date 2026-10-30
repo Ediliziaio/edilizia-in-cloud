@@ -18,7 +18,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/useGeneraleFatture", () => ({
   useFattureGenerale: () => ({ data: m.elenco }),
-  useDatiFatturaGenerale: () => ({ data: m.dati, isLoading: false, error: null }),
+  useDatiFatturaGenerale: () => ({ data: m.dati, isLoading: false, error: null as null }),
   useCreaFatturaGenerale: () => ({ mutate: m.crea, isPending: false }),
 }));
 

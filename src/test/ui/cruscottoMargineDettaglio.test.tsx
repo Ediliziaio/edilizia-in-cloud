@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       tabelleLette.push(tabella);
       const dati = tabella === "orders" ? COMMESSE : VISTA;
       const q = {
-        select: () => q, eq: () => q, is: () => q, gte: () => q, lte: () => q, order: () => q,
+        select: () => q, eq: () => q, or: () => q, is: () => q, gte: () => q, lte: () => q, order: () => q,
         limit: () => Promise.resolve({ data: dati, error: null }),
         in: () => Promise.resolve({ data: dati, error: null }),
       };

@@ -12,7 +12,7 @@ const risposta = {
   permessi: { importi: true, costi: true, modifica: true },
   varianti: [
     { id: "v1", order_id: "o-A1", numero: 1, titolo: "Parquet", stato: "approvato", importo: "8000.00", costo_previsto: "5000,00", scadenza_scelte: null as string | null, firmata_il: "2026-10-10T00:00:00+00:00", canale: "offline", documento: true },
-    { id: "v2", order_id: "o-A1", numero: 2, titolo: "Doccia", stato: "in_attesa", importo: 3000, costo_previsto: null, scadenza_scelte: "2026-11-03", documento: true },
+    { id: "v2", order_id: "o-A1", numero: 2, titolo: "Doccia", stato: "in_attesa", importo: 3000, costo_previsto: null as null, scadenza_scelte: "2026-11-03", documento: true },
     { id: "v3", order_id: "o-A1", numero: 3, titolo: "Camino", stato: "rifiutato", importo: 6000, costo_previsto: "4000" },
     { id: "v4", order_id: "o-A2", numero: 1, titolo: "Riduzione", stato: "approvato", importo: -1500, costo_previsto: "costo?" },
     { id: "v5", order_id: "o-A2", numero: 2, titolo: "Bozza", stato: "bozza", importo: 2000, scadenza_scelte: "2026-10-20" },

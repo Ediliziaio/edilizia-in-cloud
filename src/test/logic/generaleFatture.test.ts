@@ -14,7 +14,7 @@ const committente = {
 
 const rawSal = (sal: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   company_id: "c", generale_id: "g", ordine_id: "g",
-  cliente: committente, esistente: null,
+  cliente: committente, esistente: null as null,
   sal: {
     id: "sal-1", numero: 3, stato: "emesso", data: "2026-10-30", dal: "2026-09-01", al: "2026-09-30",
     lordo: "1000.00", ritenuta_pct: "0.5", ritenuta: "5.00", recupero_pct: "10", recupero: "100.00", netto: "895.00",
@@ -29,10 +29,10 @@ const datiSal = (sal: Record<string, unknown> = {}) => leggiDatiFattura(rawSal(s
 
 const rawPagamento = (m: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   company_id: "c", generale_id: "g", ordine_id: "figlia",
-  cliente: { anagrafica_id: null, tipo_cliente: "B2C", nome: "Mario", cognome: "Rossi", codice_fiscale: "RSSMRA80A01H501U", indirizzo_nazione: "IT" },
-  esistente: null,
+  cliente: { anagrafica_id: null as null, tipo_cliente: "B2C", nome: "Mario", cognome: "Rossi", codice_fiscale: "RSSMRA80A01H501U", indirizzo_nazione: "IT" },
+  esistente: null as null,
   movimento: {
-    id: "mov-1", tipo: "acconto", importo: "22000", data: "2026-10-15", descrizione: null,
+    id: "mov-1", tipo: "acconto", importo: "22000", data: "2026-10-15", descrizione: null as null,
     unita_sigla: "A1", edificio: "B", piano: "2", tipologia: "Trilocale", mq: "85.5",
     generale_codice: "SV-1", generale_nome: "Residenza Le Querce", indirizzo: "Via dei Pini 4, Bergamo",
     ...m,
