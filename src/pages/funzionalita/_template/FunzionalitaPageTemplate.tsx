@@ -20,7 +20,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
-import { blogPosts } from "@/data/blogPosts";
+import { blogIndice as blogPosts } from "@/data/blogIndice";
 import type { FunzionalitaPageConfig } from "./types";
 import { BlogCover } from "@/components/blog/BlogCover";
 

@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { CheckCircle2, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
-import { blogPosts } from "@/data/blogPosts";
+import { blogIndice as blogPosts } from "@/data/blogIndice";
 
 const openModal = () => {
   import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());

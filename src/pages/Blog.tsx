@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Clock, Search, ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { blogPosts, categories, BlogPost } from "@/data/blogPosts";
+import { blogIndice as blogPosts, categorieBlog as categories, type BlogPostScheda as BlogPost } from "@/data/blogIndice";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
