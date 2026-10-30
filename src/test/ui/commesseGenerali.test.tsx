@@ -32,6 +32,10 @@ vi.mock("react-router-dom", async (importOriginal) => ({
 vi.mock("@/components/orders/generali/moduli/ContrattoScheda", () => ({
   modulo: { pronto: true, titolo: "Contratto e SAL", telefono: false, Scheda: (): ReactElement => <p>Scheda del contratto</p>, Riquadro: (): ReactElement => <p>Riquadro del contratto</p> },
 }));
+// Il modulo delle unità vero ha i suoi test (generaleUnita.test.tsx): qui resta spento, così lo sviluppo non ha moduli pronti.
+vi.mock("@/components/orders/generali/moduli/UnitaScheda", () => ({
+  modulo: { pronto: false, titolo: "Unità e vendite", telefono: true, Scheda: (): null => null },
+}));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),
