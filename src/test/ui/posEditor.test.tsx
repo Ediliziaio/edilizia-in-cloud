@@ -48,7 +48,7 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 
-import { datiAppPos } from "@/hooks/usePos";
+import { datiAppPos, lavorazioniAiPos } from "@/hooks/usePos";
 import PosEditor from "@/pages/azienda/sicurezza/PosEditor";
 
 beforeAll(() => {
@@ -190,4 +190,76 @@ describe('La conferma riguarda il documento effettivamente letto',()=>{
   const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;let termina:(v:typeof originale)=>void=()=>{};stato.salva.mockImplementation(()=>new Promise(resolve=>{termina=resolve;}));mostra();fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Prima modifica'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledOnce());fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Seconda modifica durante la richiesta'}});await act(async()=>{termina({...originale,updated_at:'2026-10-27T12:03:00Z'});});expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();expect((screen.getByLabelText('Datore di lavoro') as HTMLInputElement).value).toBe('Seconda modifica durante la richiesta');
   stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:04:00Z'});fireEvent.click(screen.getByRole('button',{name:'Salva'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledTimes(2));expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe('2026-10-27T12:03:00Z');
  });
+});
+
+
+describe("la proposta dell'AI", () => {
+  const proposta = (modalita: string) => ({
+    lavorazioni: [{ ...lavorazioneVuota("ai-1"), titolo: "Demolizione tramezzi", origine: "ai" as const, verificata: false }],
+    modalita_organizzative: modalita,
+  });
+  const bozzaSenzaModalita = () => {
+    const c = esempioPdfPos().contenuto;
+    c.opera.modalita_organizzative = "";
+    const originale = riga(c);
+    stato.pos = originale;
+    stato.salva.mockResolvedValue({ ...originale, updated_at: "2026-10-30T09:00:00Z" });
+    return originale;
+  };
+  const testoModalita = () => (screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement).value;
+
+  it("le modalità organizzative scritte dall'AI restano «da verificare» e fermano l'approvazione finché non si conferma", async () => {
+    bozzaSenzaModalita();
+    vi.mocked(lavorazioniAiPos).mockResolvedValue(proposta("Accesso dal cancello su via Roma"));
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    await waitFor(() => expect(testoModalita()).toBe("Accesso dal cancello su via Roma"));
+    expect(screen.getByText(/le ha proposte l'AI/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" })); // chiude la finestra delle proposte
+    await waitFor(() => expect(screen.queryByText("Lavorazioni proposte dall'AI")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /Approva e prepara/ }));
+    expect(await screen.findByText(/Modalità organizzative proposte dall'AI/)).toBeTruthy();
+    expect(stato.approva).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText("Il POS non ha ancora tutti i contenuti minimi")).toBeNull());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /le ha proposte l'AI/ }));
+    await waitFor(() => expect(screen.queryByText(/le ha proposte l'AI/)).toBeNull());
+    expect(testoModalita()).toBe("Accesso dal cancello su via Roma");
+  });
+
+  it("quello che si scrive mentre l'AI risponde non viene sovrascritto", async () => {
+    bozzaSenzaModalita();
+    let rispondi: (v: ReturnType<typeof proposta>) => void = () => {};
+    vi.mocked(lavorazioniAiPos).mockImplementation(() => new Promise((resolve) => { rispondi = resolve as never; }));
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    await waitFor(() => expect(lavorazioniAiPos).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Modalità organizzative"), { target: { value: "Scritto a mano nell'attesa" } });
+    await act(async () => { rispondi(proposta("Testo dell'AI")); });
+    await waitFor(() => expect(screen.getByText("Lavorazioni proposte dall'AI")).toBeTruthy());
+    expect(testoModalita()).toBe("Scritto a mano nell'attesa");
+    expect(screen.queryByText(/le ha proposte l'AI/)).toBeNull();
+  });
+});
+
+describe("approvato ma con una verifica negativa", () => {
+  it("lo stato non resta verde: l'esito negativo del CSE si vede nell'intestazione", () => {
+    const c = esempioPdfPos().contenuto;
+    c.procedure_psc.psc_presente = true;
+    stato.pos = { ...riga(c, "approvato"), iter: { cse_esito: "negativo" } };
+    mostra();
+    expect(screen.getByText("Approvato, verifica negativa")).toBeTruthy();
+    expect(screen.queryByText("Approvato")).toBeNull();
+  });
+  it("un esito negativo che non si applica a questo POS (né subappalto né PSC) non cambia lo stato", () => {
+    const c = esempioPdfPos().contenuto;
+    c.impresa.ruolo = "affidataria";
+    c.impresa.subappalto_a = "";
+    c.procedure_psc.psc_presente = false;
+    stato.pos = { ...riga(c, "approvato"), iter: { affidataria_esito: "negativo", cse_esito: "negativo" } };
+    mostra();
+    expect(screen.getByText("Approvato")).toBeTruthy();
+  });
 });

@@ -2,6 +2,7 @@ import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
 import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos";
 import { apriAnteprimaPos } from "@/lib/sicurezza/apriPdfPos";
+import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
 import { EmissioniPos } from "@/components/sicurezza/pos/EmissioniPos";
 import { RiusoPosDialog } from "@/components/sicurezza/pos/RiusoPosDialog";
 import { StoricoContenutiPos } from "@/components/sicurezza/pos/StoricoContenutiPos";
@@ -18,7 +19,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, X,
+  AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,10 @@ function piu15(iso: string | null | undefined) {
   d.setDate(d.getDate() + 15);
   return d.toISOString().slice(0, 10);
 }
+
+/** Una bozza modificabile parte sempre dai controlli aggiornati; con la CSE nominata anche dal riferimento PSC. */
+const conControlliAggiornati = (base: PosContenuto): PosContenuto =>
+  ({ ...base, versione_controlli: 2, versione_prodotti: 1, ...(base.procedure_psc.psc_presente ? { versione_psc: 1 as const } : {}) });
 
 export default function PosEditor() {
   const { id } = useParams<{ id: string }>();
@@ -148,7 +153,12 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const modifiche=useRef(0);
   const salvando=useRef(false);
   const [riusoAperto,setRiusoAperto]=useState(false);
-  const [bozza, setBozza] = useState<PosContenuto>(() => {const base=compilaSubito&&datiApp?datiApp.contenuto:pos.contenuto;return !ro?{...base,versione_controlli:2,versione_prodotti:1,...(base.procedure_psc.psc_presente?{versione_psc:1 as const}:{})}:base;});
+  // Il contenuto da cui parte questa sessione: «Annulla» ci torna (non al POS vuoto da cui si è appena compilato).
+  const contenutoDiPartenza = () => { const base = compilaSubito && datiApp ? datiApp.contenuto : pos.contenuto; return ro ? base : conControlliAggiornati(base); };
+  const [bozza, setBozza] = useState<PosContenuto>(contenutoDiPartenza);
+  // L'ultima bozza mostrata: dopo un'attesa lunga (la risposta dell'AI) si legge questa, non quella del clic.
+  const bozzaCorrente = useRef(bozza);
+  bozzaCorrente.current = bozza;
   const [iter, setIter] = useState<IterPos>(() => pos.iter);
   const [sporco, setSporco] = useState(compilaSubito || aggiornaControlli);
   const [iterSporco, setIterSporco] = useState(false);
@@ -256,11 +266,18 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
       // Le modalità organizzative (lettera c) si riempiono solo se sono vuote:
       // quello che il titolare ha scritto non si tocca.
       const modalita = r.modalita_organizzative;
-      if (modalita && !bozza.opera.modalita_organizzative.trim()) {
+      // Mentre l'AI risponde si può scrivere: conta il testo di adesso, non quello del clic. Il testo dell'AI
+      // resta «da verificare» (e blocca l'approvazione) finché chi firma non lo conferma nella sezione Opera.
+      if (modalita && !bozzaCorrente.current.opera.modalita_organizzative.trim()) {
         modifiche.current++;
-        setBozza((prev) => { const copia={ ...prev, opera: { ...prev.opera, modalita_organizzative: modalita } }; invalidaRiesameTecnico(prev,copia); return copia; });
+        setBozza((prev) => {
+          if (prev.opera.modalita_organizzative.trim()) return prev;
+          const copia = { ...prev, opera: { ...prev.opera, modalita_organizzative: modalita, modalita_organizzative_da_verificare: true as const } };
+          invalidaRiesameTecnico(prev, copia);
+          return copia;
+        });
         setSporco(true);
-        toast.success("L'AI ha scritto le modalità organizzative del cantiere: rileggile, poi conferma le lavorazioni proposte e salva");
+        toast.success("L'AI ha scritto le modalità organizzative del cantiere: rileggile e confermale, poi controlla le lavorazioni proposte e salva");
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Proposte non arrivate");
@@ -278,6 +295,9 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
   const subappalto = bozza.impresa.ruolo === "esecutrice_subappalto";
   const conCse = bozza.procedure_psc.psc_presente;
+  // Art. 101 c. 3: con una verifica negativa i lavori non possono iniziare, anche se il POS è approvato nell'app.
+  const verificaNegativa = verificaIterNegativa(bozza, iter);
+  const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : "Approvato") : "Bozza";
   const baseProps = { d: bozza, modifica, ro };
 
   return (
@@ -289,29 +309,37 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
         {!schedaCommessa && <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-sm:hidden">
           <ArrowLeft className="h-3.5 w-3.5" />Sicurezza cantiere
         </Link>}
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3 max-sm:mt-0 max-sm:flex-nowrap max-sm:items-center max-sm:gap-2">
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3 max-sm:mt-0 max-sm:flex-col max-sm:flex-nowrap max-sm:items-stretch max-sm:gap-2">
           <div className="min-w-0">
-            <h1 aria-label="Piano Operativo di Sicurezza" className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span aria-hidden="true" className="max-sm:hidden">Piano Operativo di Sicurezza</span><span aria-hidden="true" className="sm:hidden">POS</span></h1>
-            <p className="truncate text-sm text-muted-foreground max-sm:text-xs">{titoloCommessa}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 max-sm:hidden">
-              <Badge variant="outline" className={approvato ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50"}>
-                {approvato ? "Approvato" : "Bozza"}
+            {/* Stato e revisione stanno accanto al titolo: su telefono diventano testo semplice (niente riquadri), prima
+                da telefono non si vedeva né bozza/approvato né la revisione. Un solo elemento per breakpoint: niente testi doppi. */}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <h1 aria-label="Piano Operativo di Sicurezza" className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span aria-hidden="true" className="max-sm:hidden">Piano Operativo di Sicurezza</span><span aria-hidden="true" className="sm:hidden">POS</span></h1>
+              <Badge variant="outline" className={`${approvato ? (verificaNegativa ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700") : "border-slate-200 bg-slate-50"} max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:text-xs ${approvato ? (verificaNegativa ? "max-sm:text-red-700" : "max-sm:text-emerald-700") : "max-sm:text-amber-700"}`}>
+                {statoTesto}
               </Badge>
-              <Badge variant="outline">Rev. {pos.revisione}</Badge>
-              {approvato && pos.approvato_da_nome && (
-                <span className="text-xs text-muted-foreground">da {pos.approvato_da_nome}{pos.approvato_il ? ` il ${dataIt(pos.approvato_il)}` : ""}</span>
-              )}
+              <Badge variant="outline" className="max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:text-xs max-sm:font-semibold max-sm:text-muted-foreground max-sm:before:mr-2 max-sm:before:content-['·']">Rev. {pos.revisione}</Badge>
             </div>
+            <p className="truncate text-sm text-muted-foreground max-sm:text-xs">{titoloCommessa}</p>
+            {approvato && pos.approvato_da_nome && (
+              <p className="mt-1 truncate text-xs text-muted-foreground">da {pos.approvato_da_nome}{pos.approvato_il ? ` il ${dataIt(pos.approvato_il)}` : ""}</p>
+            )}
           </div>
           {riusoAperto && <RiusoPosDialog pos={pos} onClose={()=>setRiusoAperto(false)}/>}
-          <div className="flex flex-wrap gap-2 max-sm:shrink-0">
-            {puoScrivere && !pos.daCompilare && <Button variant="outline" disabled={sporco||iterSporco||salva.isPending} title={sporco||iterSporco ? "Salva le modifiche prima di riutilizzare il POS" : "Duplica POS o salva modello aziendale"} onClick={()=>setRiusoAperto(true)}>Riutilizza POS</Button>}
+          {/* Telefono: azioni secondarie a sola icona, l'azione principale occupa il resto della riga (prima
+              «Approva» usciva dallo schermo e non si raggiungeva). */}
+          <div className="flex flex-wrap gap-2 empty:hidden max-sm:flex-nowrap">
+            {puoScrivere && !pos.daCompilare && (
+              <Button variant="outline" aria-label="Riutilizza POS" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" disabled={sporco||iterSporco||salva.isPending} title={sporco||iterSporco ? "Salva le modifiche prima di riutilizzare il POS" : "Duplica POS o salva modello aziendale"} onClick={()=>setRiusoAperto(true)}>
+                <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Riutilizza POS</span>
+              </Button>
+            )}
             <Button variant="outline" className="max-sm:hidden" disabled={anteprimando||sporco||iterSporco||salva.isPending} title={sporco||iterSporco?"Salva le modifiche prima di preparare l’anteprima":"Anteprima del PDF con filigrana BOZZA"} onClick={async()=>{
               setAnteprimando(true);try{await apriAnteprimaPos(pos.company_id,pos.id);}catch(e){toast.error(e instanceof Error?e.message:"Anteprima non disponibile");}finally{setAnteprimando(false);}
             }}><FileDown className="mr-1 h-4 w-4"/>{anteprimando?"Preparazione…":"Anteprima PDF"}</Button>
             {!ro && (
-              <Button variant="outline" onClick={() => setAggiornaAperto(true)}>
-                <RefreshCw className="mr-1 h-4 w-4" />Confronta dati dell’app
+              <Button variant="outline" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAggiornaAperto(true)}>
+                <RefreshCw className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Confronta dati dell’app</span>
               </Button>
             )}
             {!ro && (
@@ -321,13 +349,13 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               </Button>
             )}
             {puoScrivere && !approvato && (
-              <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending || proponendo} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+              <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending || proponendo} className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3">
                 {approva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1 h-4 w-4" />}
                 Approva e prepara PDF
               </Button>
             )}
             {puoScrivere && approvato && (
-              <Button variant="outline" className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
+              <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3" onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
                 <RotateCcw className="mr-1 h-4 w-4" />Nuova revisione
               </Button>
             )}
@@ -448,7 +476,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_esito_il: v || null }))} />
                 </div>
               )}
-              {(iter.affidataria_esito === "negativo" || iter.cse_esito === "negativo") && (
+              {verificaNegativa && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
                   Verifica con esito negativo: i lavori non possono iniziare. Apri una nuova revisione e correggi il POS.
                 </p>
@@ -473,7 +501,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
             <div className="flex gap-2">
               <Button variant="ghost" disabled={salva.isPending||approva.isPending} onClick={() => {
                 modifiche.current++; versioneLetta.current=pos.updated_at;
-                setBozza(ro?pos.contenuto:{...pos.contenuto,versione_controlli:2,versione_prodotti:1}); setIter(pos.iter); setSporco(aggiornaControlli); setIterSporco(false);
+                setBozza(contenutoDiPartenza()); setIter(pos.iter); setSporco(compilaSubito || aggiornaControlli); setIterSporco(false);
               }}>Annulla</Button>
               <Button onClick={() => void salvaOra()} disabled={salva.isPending||approva.isPending}>
                 {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}Salva
