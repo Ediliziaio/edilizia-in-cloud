@@ -12,6 +12,7 @@
 import { arrotondaDecimale, calcolaVoce, numeroEditor, type BozzaComputo } from "./editorNativo";
 import { durataTotale, normalizzaFasi } from "./cronoprogramma";
 import { calcolaSconto } from "./scontoComputo";
+import { calcolaIvaComputo } from "./ivaComputo";
 
 export { MOMENTI_RATA, rataSchema, type MomentoRata, type Rata } from "./pagamentiSchema";
 import type { MomentoRata, Rata } from "./pagamentiSchema";
@@ -127,4 +128,14 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
   if (ultimaRata > 40) rischi.push({ livello: "medio", testo: `Il ${ultimaRata}% arriva a fine lavori: è la parte che si incassa con più fatica.` });
 
   return { totaleLavori, sconto, netto, costo, vociSenzaCosto, margine, marginePerc, perCapitolo, rate, sommaPercentuali, errorePiano, cassa, esposizioneMassima, giornoEsposizione, accontoConsigliato, rischi };
+}
+
+/**
+ * Il totale del computo per l'elenco dei preventivi (30/10/2026): imponibile scontato,
+ * più l'IVA quando è applicata (come la cifra che va in firma). Nullo senza importi.
+ */
+export function totaleElencoComputo(bozza: BozzaComputo): number | null {
+  const { netto } = analizzaEconomia(bozza);
+  if (!(netto > 0)) return null;
+  return calcolaIvaComputo(netto, bozza).totale ?? arrotondaDecimale(netto);
 }
