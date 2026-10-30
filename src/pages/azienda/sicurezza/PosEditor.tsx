@@ -100,7 +100,8 @@ export default function PosEditor() {
   if (isLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
-  if (error || !pos) {
+  // Con un POS già letto un errore di ricarica in background (rete che cade e torna) non butta via la bozza: si resta nell'editor.
+  if (!pos) {
     return (
       <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
         <p className="text-sm">{error ? "Non riesco a caricare il POS." : "POS non trovato."}</p>
@@ -355,7 +356,9 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               </Button>
             )}
             {puoScrivere && approvato && (
-              <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3" onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
+              <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3" disabled={iterSporco || salva.isPending}
+                title={iterSporco ? "Salva prima le date di firma e consegna: con la nuova revisione ripartono da capo" : undefined}
+                onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
                 <RotateCcw className="mr-1 h-4 w-4" />Nuova revisione
               </Button>
             )}

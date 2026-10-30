@@ -141,6 +141,24 @@ async function rispostaServerPos(corpo: Record<string, unknown>): Promise<Respon
   });
 }
 
+/**
+ * Il messaggio per l'utente: quello scritto dal nostro server se c'è; per gli errori della piattaforma (limite di
+ * risorse, gateway, sessione) un testo comprensibile, mai il JSON grezzo con i codici interni.
+ */
+export function messaggioServerPos(status: number, json: Record<string, unknown>, testo: string, predefinito = "Operazione non riuscita"): string {
+  if (typeof json.error === "string" && json.error) return json.error;
+  const codice = String(json.code ?? "");
+  if (status === 546 || /WORKER_(RESOURCE_)?LIMIT/i.test(codice)) {
+    return "Il documento è troppo grande per essere preparato in un solo passaggio. Riprova tra poco; se succede ancora, avvisaci.";
+  }
+  if (status === 401) return "Sessione scaduta: accedi di nuovo e riprova";
+  if (status === 502 || status === 503 || status === 504) return "Il server non risponde: riprova tra qualche secondo.";
+  if (status >= 500) return "Problema temporaneo del server. Riprova tra qualche secondo.";
+  // Un testo semplice e breve è già un messaggio; un JSON o una pagina HTML no.
+  const semplice = testo.trim();
+  return semplice && semplice.length <= 200 && !/^[{<\[]/.test(semplice) ? semplice : predefinito;
+}
+
 export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promise<T> {
   const res = await rispostaServerPos(corpo);
   const testo = await res.text();
@@ -151,8 +169,7 @@ export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promis
     // risposta non JSON: il messaggio è il testo
   }
   if (!res.ok || json.ok === false) {
-    const messaggio = (typeof json.error === "string" && json.error) || testo || "Operazione non riuscita";
-    throw new ErrorePos(messaggio, Array.isArray(json.mancanti) ? (json.mancanti as VoceMancante[]) : []);
+    throw new ErrorePos(messaggioServerPos(res.status, json, testo), Array.isArray(json.mancanti) ? (json.mancanti as VoceMancante[]) : []);
   }
   return json as T;
 }
@@ -193,6 +210,9 @@ export function useApprovaPos() {
 
 // ── Scritture dirette (RLS: permesso Sicurezza Cantiere) ─────────────────────
 
+/** Il salvataggio ha trovato il POS cambiato da qualcun altro: la bozza locale resta, ma bisogna rileggere l'ultima versione. */
+class ConflittoSalvataggioPos extends Error {}
+
 export function useSalvaPos(id: string) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -217,13 +237,17 @@ export function useSalvaPos(id: string) {
       query=atteso===null?query.is("updated_at",null):query.eq("updated_at",atteso);
       const {data,error}=await query.select(SELECT_POS).maybeSingle();
       if(error) throw error;
-      if(!data) throw new Error("Il POS è cambiato o non è più modificabile. Ricarica prima di salvare: le tue modifiche locali sono ancora qui.");
+      if(!data) throw new ConflittoSalvataggioPos("Il POS è cambiato da quando l'hai aperto (un altro utente o un'altra scheda) o non è più modificabile. Le tue modifiche sono ancora qui: copiale, poi premi Annulla per caricare l'ultima versione.");
       const aggiornato=daDb(data as unknown as RigaDb);
       qc.setQueryData(chiavi.uno(companyId,id),aggiornato);
       return aggiornato;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pos"] }),
-    onError: (e) => toast.error(e instanceof Error ? `POS non salvato: ${e.message}` : "POS non salvato"),
+    onError: (e) => {
+      toast.error(e instanceof Error ? `POS non salvato: ${e.message}` : "POS non salvato");
+      // Si rilegge la versione del server senza toccare la bozza: «Annulla» poi riparte da quella e il salvataggio successivo non fallisce di nuovo.
+      if (e instanceof ConflittoSalvataggioPos) void qc.invalidateQueries({ queryKey: chiavi.uno(companyId, id) });
+    },
   });
 }
 
@@ -416,8 +440,10 @@ export function useArchiviaModelloPos() {
 export async function pdfAnteprimaPos(companyId:string,posId:string): Promise<Blob> {
   const res=await rispostaServerPos({azione:"anteprima_pdf",company_id:companyId,pos_id:posId});
   if(!res.ok) {
-    const json=await res.json().catch(()=>({}));
-    throw new ErrorePos(json.error||"Anteprima PDF non disponibile");
+    const testo=await res.text().catch(()=>"");
+    let json:Record<string,unknown>={};
+    try{json=testo?JSON.parse(testo):{};}catch{/* non JSON: conta il testo */}
+    throw new ErrorePos(messaggioServerPos(res.status,json,testo,"Anteprima PDF non disponibile"));
   }
   if(!res.headers.get("Content-Type")?.includes("application/pdf")) throw new ErrorePos("Il server non ha restituito un PDF");
   return res.blob();

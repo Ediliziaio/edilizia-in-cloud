@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase/functions/_shared/posModello";
 
 const stato = vi.hoisted(() => ({
+  errore: null as Error | null,
   pos: null as unknown,
   approva: vi.fn(),
   salva: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock("@/hooks/usePos", () => {
   }
   return {
     ErrorePos,
-    usePos: () => ({ data: stato.pos, isLoading: false, error: null as Error | null, refetch: vi.fn() }),
+    usePos: () => ({ data: stato.pos, isLoading: false, error: stato.errore, refetch: vi.fn() }),
     useSalvaPos: () => ({mutate:stato.salva,mutateAsync:stato.salva,isPending:false}),
     useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: false }),
     useNuovaRevisione: mut,
@@ -60,7 +61,7 @@ beforeAll(() => {
     (globalThis as unknown as { structuredClone: unknown }).structuredClone = (v: unknown) => JSON.parse(JSON.stringify(v));
   }
 });
-afterEach(() => { cleanup(); stato.approva.mockReset(); stato.salva.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
+afterEach(() => { cleanup(); stato.errore = null; stato.approva.mockReset(); stato.salva.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
 
 function riga(contenuto: PosContenuto, status = "bozza") {
   // The complete fixture now includes a declared PSC original; this suite exercises save concurrency, not source verification.
@@ -261,5 +262,33 @@ describe("approvato ma con una verifica negativa", () => {
     stato.pos = { ...riga(c, "approvato"), iter: { affidataria_esito: "negativo", cse_esito: "negativo" } };
     mostra();
     expect(screen.getByText("Approvato")).toBeTruthy();
+  });
+});
+
+describe("nuova revisione con firme non salvate", () => {
+  it("«Nuova revisione» aspetta il salvataggio delle date di firma, che altrimenti andrebbero perse", () => {
+    stato.pos = riga(esempioPdfPos().contenuto, "approvato");
+    mostra();
+    const nuova = screen.getByRole("button", { name: /Nuova revisione/ }) as HTMLButtonElement;
+    expect(nuova.disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Firmato dal datore di lavoro il"), { target: { value: "2026-10-29" } });
+    expect((screen.getByRole("button", { name: /Nuova revisione/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("ricarica in background fallita", () => {
+  it("con un POS già letto l'editor resta aperto e la bozza non si perde", () => {
+    stato.pos = riga(esempioPdfPos().contenuto);
+    stato.errore = new Error("rete caduta");
+    mostra();
+    expect(screen.getByRole("heading", { name: "Piano Operativo di Sicurezza" })).toBeTruthy();
+    expect(screen.queryByText("Non riesco a caricare il POS.")).toBeNull();
+  });
+  it("senza nessun dato l'errore si vede, con «Riprova»", () => {
+    stato.pos = null;
+    stato.errore = new Error("rete caduta");
+    mostra();
+    expect(screen.getByText("Non riesco a caricare il POS.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Riprova" })).toBeTruthy();
   });
 });
