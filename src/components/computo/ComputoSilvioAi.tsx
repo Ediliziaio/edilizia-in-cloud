@@ -2,7 +2,7 @@ import { useState } from "react";
 import QuoteWizardAiDialog, { QuoteWizardAiIssue } from "@/components/quotes/QuoteWizardAiDialog";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { emptyQuoteProject, type QuoteProject } from "@/lib/preventivi/quoteProject";
-import { cloneWizardDraft, computoChatDocument, reconcileComputoDraft, suggestedComputoChapter, wizardDraftFingerprint, type NativeComputoRow, type WizardAiChange } from "@/lib/preventivi/wizardAiDraft";
+import { cloneWizardDraft, computoChatDocument, quantitaProposta, reconcileComputoDraft, suggestedComputoChapter, wizardDraftFingerprint, type NativeComputoRow, type WizardAiChange } from "@/lib/preventivi/wizardAiDraft";
 import { chatLineIssue, type ChatDocument } from "@/lib/preventivi/quoteChatDocument";
 import { enrichComputoRowsFromListino } from "@/lib/preventivi/wizardAiListino";
 import type { WizardAiCommercialDraft } from "@/lib/preventivi/wizardAiCommercial";
@@ -110,7 +110,9 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazion
     const daCompletare = { prezzo: new Set<string>(), quantita: new Set<string>() };
     const nuove = bozzaChat.lines.filter(l => !esistenti.has(l.id) && !l.supersededBy?.length && !l.included && l.title.trim());
     const righe = nuove.map((l, k): NativeComputoRow => {
-      const senzaQuantita = l.quantity == null || !!l.proposedCalculation;
+      // Una voce a corpo vale 1: senza quantità restava «da completare» e fuori dal totale (padel, 30/10/2026).
+      const quantita = quantitaProposta(l);
+      const senzaQuantita = quantita == null;
       if (l.price == null) daCompletare.prezzo.add(l.id);
       if (senzaQuantita) daCompletare.quantita.add(l.id);
       return {
@@ -118,7 +120,7 @@ export default function ComputoSilvioAi({ bozza, companyId, draftId, intestazion
         capitolo_nome: (capitoli[l.id] ?? suggestedComputoChapter(l.title)).trim() || "Opere edili",
         descrizione: l.title, descrizione_estesa: l.description || null,
         unita_misura: (l.unit.trim() || "corpo") as NativeComputoRow["unita_misura"],
-        quantita: senzaQuantita ? 0 : l.quantity!, prezzo_unitario: l.price ?? 0, costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0,
+        quantita: quantita ?? 0, prezzo_unitario: l.price ?? 0, costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0,
         importo: 0, margine_eur: 0, margine_pct: 0, listino_voce_id: null, ordine: base.rows.length + k,
         fonte: l.pricing?.basis ?? null,
       };

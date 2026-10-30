@@ -147,11 +147,20 @@ export function nativeComputoUnit(unit: string) {
 }
 
 /** Suggested chapter only: deterministic, visible and editable before import. */
+/** La quantità di una voce nuova della chat nel computo: quella proposta, oppure 1 per una voce a corpo che non ne ha. Null = da inserire. */
+export function quantitaProposta(l: { quantity?: number | null; unit: string; proposedCalculation?: unknown }): number | null {
+  if (l.proposedCalculation) return null;
+  if (l.quantity != null) return l.quantity;
+  return /^(?:a\s*)?corpo$/i.test(l.unit.trim()) ? 1 : null;
+}
+
 export function suggestedComputoChapter(title: string) {
   const rules: Array<[RegExp, string]> = [
     [/allestiment|protezi|sicurezza|ponteggi/i, "Allestimento e protezioni"],
     [/demolizi|rimozion|smaltiment|discarica/i, "Demolizioni e smaltimenti"],
     [/elettric|quadro|punt[oi] luce|illuminaz/i, "Impianto elettrico"],
+    // Prima dell'impianto idraulico: «Drenaggio a spina di pesce con collettori» è un drenaggio del terreno (campo da calcio, 30/10/2026).
+    [/drenagg|drenant|spina di pesce/i, "Scavi, drenaggi e fondazioni"],
     [/idric|idraulic|scarich|collettor|tubazion/i, "Impianto idraulico"],
     [/masset|impermeabil|sottofond/i, "Sottofondi e impermeabilizzazioni"],
     [
@@ -166,9 +175,18 @@ export function suggestedComputoChapter(title: string) {
     // scavi e campi sportivi finivano tutti in «Altre lavorazioni» (29/10/2026).
     [/cappotto|isolament|\beps\b|\bxps\b|termoisol/i, "Isolamento e cappotto"],
     [/infiss|serrament|finestr|portefinestr|persian|tapparell|scuri\b/i, "Serramenti"],
-    [/scav|sbancament|scotico|reinterr|movimento terra|misto stabilizzat|drenagg|drenant|pozzett/i, "Scavi, drenaggi e fondazioni"],
+    [/scav|sbancament|scotico|reinterr|movimento terra|misto stabilizzat|drenagg|drenant|pozzett|livellament|regolarizzazion|spianament|compattazion/i, "Scavi, drenaggi e fondazioni"],
+    [/pietrisc|ghiaia|stabilizzato granulare/i, "Sottofondi e impermeabilizzazioni"],
     [/recinzion|cancell|\brete\b.*\bh\b|staccionat/i, "Recinzioni e cancelli"],
     [/campo da (?:tennis|padel|calcio|basket|volley)|resina acrilica|erba sintetica|manto sportiv|tracciatur|binder|tappetino|conglomerato bituminoso|da gioco|attrezzatur[ae] sportiv/i, "Pavimentazioni e attrezzature sportive"],
+    // Prove con la chat vera del 30/10/2026: «Pali rete e rete da tennis», la gabbia del padel
+    // (struttura con vetri e rete) e le porte da calcio finivano in «Altre lavorazioni».
+    [/\bpadel\b|rete da (?:tennis|pallavolo|volley)|pali (?:della |per la )?rete|port[ae] da calcio|canestr|\bintas[oi]\b|bandierin|parapallon|(?:struttura|gabbia)\b.*\b(?:vetri|rete)|panchin[ae] (?:per )?(?:atleti|giocatori)|tribun/i, "Pavimentazioni e attrezzature sportive"],
+    // La platea del padel o del campo finiva in «Altre lavorazioni»: le opere in calcestruzzo hanno il loro capitolo.
+    [/calcestruzz|cemento armato|\bplatea|\bplint|\bcordol/i, "Opere in calcestruzzo"],
+    // Spogliatoi di un centro sportivo (30/10/2026): controsoffitti e arredi finivano in «Altre lavorazioni».
+    [/cartongess|controsoffitt|contropare|tramezz/i, "Cartongesso e controsoffitti"],
+    [/\bpanch|appendiabit|armadiett|arred/i, "Arredi e accessori"],
   ];
   return (
     rules.find(([pattern]) => pattern.test(title))?.[1] ?? "Altre lavorazioni"

@@ -3,6 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/formatters';
+
+/** «668,8 m²», non «668.8 m²»: le quantità nella revisione all'italiana. */
+const quantitaIt = (n: number) => n.toLocaleString('it-IT', { maximumFractionDigits: 3 });
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createWizardQuoteChatTransport } from '@/lib/preventivi/wizardQuoteTransport';
@@ -144,7 +147,7 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
       embedded={{ title: props.title, document: seed.document, project: seed.project, initial: props.saved ?? undefined, onSnapshot: receiveSnapshot, savedLocally: !!props.saved, commercial: props.commercial, fixedSourceId: props.listinoSourceId, initialFile: props.initialFile, onChange: receive, preview: document => props.preview(document, chapters) }} /></Suspense></fieldset>}
     {reviewing && !conflict && <section className="quote-wizard-ai-review" aria-label="Riepilogo modifiche prima di applicare"><h3>Controlla cosa cambia nel preventivo</h3>
       {review.error && <p role="alert">{review.error}</p>}
-      <ul>{review.changes.map(change => <li key={change.id}><span className={`quote-change-${change.kind}`}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {change.before.quantity} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {change.after.quantity} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p></div>
+      <ul>{review.changes.map(change => <li key={change.id}><span className={`quote-change-${change.kind}`}>{change.kind}</span><div className="min-w-0 flex-1"><strong>{change.title}</strong><p className="mt-1 text-xs text-slate-500">{change.before && <>Prima: {quantitaIt(change.before.quantity)} {change.before.unit} × {formatCurrency(change.before.price)}</>}{change.before && change.after && ' → '}{change.after && <>Dopo: {quantitaIt(change.after.quantity)} {change.after.unit} × {formatCurrency(change.after.price)}</>}</p></div>
         {props.chapters && change.kind !== 'esclusione' ? <label>Capitolo<input aria-label={`Capitolo di ${change.title}`} maxLength={200} value={chapters[change.id] ?? change.chapter} onChange={e => setChapters(value => ({ ...value, [change.id]: e.target.value }))} /></label> : <small>{change.chapter}</small>}</li>)}</ul>
       {!!review.pending && <p>{review.pending} nuove proposte incomplete o non confermate restano fuori dal computo.</p>}
     </section>}
