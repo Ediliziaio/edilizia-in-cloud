@@ -16,7 +16,7 @@ const risposta = {
     {
       id: "c1", numero: "SUB-1", descrizione: "Carpenteria", importo: "100000.00", oneri_sicurezza: 2000, stato: "attivo",
       order_id: "o1", ordini_collegati: ["o3"],
-      subappaltatore: { id: "s1", ragione_sociale: "Carpenteria Veneta", piva: "01234567890", durc_scadenza: null },
+      subappaltatore: { id: "s1", ragione_sociale: "Carpenteria Veneta", piva: "01234567890", durc_scadenza: null as string | null },
       sal: [
         { id: "a", numero: 1, data: "2026-09-30", lordo: 30000, ritenuta: 1500, netto: 28500, stato: "pagato", pagato: null },
         { id: "b", numero: 2, data: "2026-10-30", lordo: 20000, ritenuta: 1000, netto: 19000, stato: "verificato", pagato: 5000 },
