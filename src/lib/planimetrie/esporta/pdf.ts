@@ -49,7 +49,12 @@ const misuraScena = (vista: VistaPianta, opzioni: OpzioniScena) => (scala: numbe
 export function pianificaPdf(vista: VistaPianta, opzioni: OpzioniPdf = {}): PianoPdf {
   const formato = opzioni.formato ?? "A3";
   const orientamento = opzioni.orientamento ?? "orizzontale";
-  const opzioniScena: OpzioniScena = { ...opzioni, stile: opzioni.stile ?? "tecnico" };
+  const opzioniScena: OpzioniScena = {
+    ...opzioni,
+    // «auto» si risolve sotto: alla scena arriva solo una scala numerica.
+    scala: typeof opzioni.scala === "number" ? opzioni.scala : undefined,
+    stile: opzioni.stile ?? "tecnico",
+  };
   const scala = risolviScala(misuraScena(vista, opzioniScena), formato, orientamento, opzioni.scala ?? "auto");
   const scena = costruisciScena(vista, { ...opzioniScena, scala });
   const impaginazione = impagina(formato, orientamento);

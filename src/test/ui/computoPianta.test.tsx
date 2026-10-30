@@ -36,7 +36,7 @@ vi.mock("@/hooks/useComputoPianta", () => ({
   usePianteDelComputo: () => ({
     piante: new Map([["p1", { id: "p1", titolo: "Rilievo appartamento", versioneCorrente: 2 }]]),
     origineMisura: (m: { planimetria_id?: string | null }) => (m.planimetria_id ? origine : null),
-    cambiate, caricamento: false, errore: null,
+    cambiate, caricamento: false, errore: null as string | null,
   }),
   useAggiungiMisureDaPianta: () => ({ mutate: aggiungi, isPending: false }),
   useAggiornaMisureDaPianta: () => ({ mutate: aggiorna, isPending: false }),
@@ -46,10 +46,10 @@ vi.mock("@/lib/planimetrie/archivio", () => ({
   useElencoPlanimetrie: () => ({ data: [
     { id: "p9", titolo: "Pianta di un'altra commessa", order_id: "o9" },
     { id: "p1", titolo: "Rilievo appartamento", order_id: "o1" },
-  ], isLoading: false, error: null }),
+  ], isLoading: false, error: null as Error | null }),
   usePlanimetria: (id: string | null) => ({
     data: id === "p1" ? { riga: { id: "p1" }, versione: { numero: 3, created_at: "2026-10-30T10:00:00Z", documento: trilocale } } : undefined,
-    isLoading: false, error: null,
+    isLoading: false, error: null as Error | null,
   }),
 }));
 
@@ -60,8 +60,8 @@ const voce = (n: number, p: Partial<VoceComputo>): VoceComputo => ({
   descrizione_breve: `Voce ${n}`, descrizione_estesa: `Descrizione completa della voce ${n}`, unita_misura: "mq", quantita: 10, prezzo_unitario_computo: 10, importo_computo: 100,
   super_categoria: "ECO", categoria: "OPERE", sotto_categoria: null, is_sicurezza: false, is_detrazione: false, a_corpo: false, warnings: [], misure: [], ...p,
 });
-const rigaDaPianta = { id: "m1", ordine: 1, descrizione: "Bagno — pavimento", parti_uguali: null, lunghezza: null, larghezza: null, altezza_peso: null,
-  quantita: 5, formula: null, planimetria_id: "p1", planimetria_versione: 1, planimetria_chiavi: ["fatto:locale:bagno.pavimento_mq"] };
+const rigaDaPianta = { id: "m1", ordine: 1, descrizione: "Bagno — pavimento", parti_uguali: null as number | null, lunghezza: null as number | null, larghezza: null as number | null, altezza_peso: null as number | null,
+  quantita: 5, formula: null as string | null, planimetria_id: "p1", planimetria_versione: 1, planimetria_chiavi: ["fatto:locale:bagno.pavimento_mq"] };
 const confrontoBagno: ConfrontoRiga = {
   misura: { id: "m1", voceId: "v2", descrizione: "Bagno — pavimento", quantita: 5, planimetriaId: "p1", versione: 1, chiavi: ["fatto:locale:bagno.pavimento_mq"] },
   vecchia: 5, nuova: 6.5, differenza: 1.5, mancanti: [], origine: "rilevata",

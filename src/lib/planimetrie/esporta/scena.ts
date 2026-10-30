@@ -428,7 +428,7 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
   if (a.tipo === "portafinestra" && a.manovra !== "scorrevole") {
     const ante = a.ante ?? 2;
     const faccia = (s: number) => asse(s, t / 2);
-    const tr = { ...tratto, tratteggioMm: undefined };
+    const tr = { ...tratto, tratteggioMm: undefined as number[] | undefined };
     if (ante === 2) {
       const meta = a.larghezza / 2;
       out.push(...anta(faccia(da), latoN, faccia(da + meta), meta, tr), ...anta(faccia(aa), latoN, faccia(aa - meta), meta, tr));

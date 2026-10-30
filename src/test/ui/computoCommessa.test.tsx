@@ -23,7 +23,7 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
 }));
 // Le piante del computo (fase 4 delle Planimetrie) hanno il loro test: qui nessuna pianta.
 vi.mock("@/hooks/useComputoPianta", () => ({
-  usePianteDelComputo: () => ({ piante: new Map(), origineMisura: () => null, cambiate: [], caricamento: false, errore: null }),
+  usePianteDelComputo: () => ({ piante: new Map(), origineMisura: (): null => null, cambiate: [] as unknown[], caricamento: false, errore: null as string | null }),
 }));
 
 import OrderComputoTab from "@/components/computo/commessa/OrderComputoTab";

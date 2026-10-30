@@ -21,7 +21,7 @@ vi.mock("@/lib/planimetrie/archivio", async (importOriginal) => {
     salvaNuovaVersione: archivio.salvaNuovaVersione,
     usePlanimetria: () => ({
       isLoading: false,
-      error: null,
+      error: null as Error | null,
       data: {
         riga: { id: "p1", titolo: "Bilocale di esempio", versione_corrente: 3 },
         versione: { numero: 3, documento: bilocale },

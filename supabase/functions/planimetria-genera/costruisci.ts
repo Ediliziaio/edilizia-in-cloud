@@ -15,7 +15,7 @@
 
 import {
   VERSIONE_SCHEMA,
-  type Apertura, type CampoMisura, type Destinazione, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto,
+  type Apertura, type CampoMisura, type Destinazione, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto, type Verso,
 } from "../../../shared/planimetrie/modello.ts";
 import type { Coppia, LocaleAI, RispostaAI } from "./rispostaAI.ts";
 import type { IngressoGenerazione, InfoGenerazione, PiantaGenerata, ScalaPianta } from "./generazione.ts";
@@ -432,7 +432,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
       altezza: std.h,
       davanzale: std.davanzale,
       manovra: v.tipo === "varco" ? "nessuna" : "battente",
-      verso: null,
+      verso: null as Verso | null,
       stato: "esistente",
       ...origini(origineVani, { altezza: "stimata", davanzale: "stimata" }),
     };

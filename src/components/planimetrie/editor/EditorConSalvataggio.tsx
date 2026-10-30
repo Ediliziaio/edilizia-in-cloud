@@ -93,7 +93,7 @@ export function EditorConSalvataggio({
       },
     );
     setSalvando(false);
-    if (!esito.ok) {
+    if (esito.ok === false) {
       if (esito.conflitto) setConflitto(esito.messaggio);
       else toast.error(esito.messaggio);
       return;

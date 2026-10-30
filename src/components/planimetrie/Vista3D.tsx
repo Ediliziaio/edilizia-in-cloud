@@ -323,7 +323,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           </Select>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(() => scarica(esportaGlb(scena), `${nomeFile}.glb`, "model/gltf-binary"))}>
+          <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(() => scarica(esportaGlb(scena) as Uint8Array<ArrayBuffer>, `${nomeFile}.glb`, "model/gltf-binary"))}>
             <Download className="mr-1 h-4 w-4" />
             Scarica GLB
           </Button>

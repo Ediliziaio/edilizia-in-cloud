@@ -150,7 +150,7 @@ describe("planimetria-genera: due tentativi, poi un messaggio semplice", () => {
   it("se anche il secondo è rotto non restituisce la pianta", async () => {
     const esito = await generaPlanimetria(richiesta, async () => ({ testo: rotta, modello: "finto" }));
     expect(esito).toMatchObject({ ok: false, codice: "pianta_non_valida" });
-    expect(esito.ok ? "" : esito.messaggio).not.toMatch(/JSON|geometric|poligon/i);
+    expect(esito.ok === false ? esito.messaggio : "").not.toMatch(/JSON|geometric|poligon/i);
   });
 
   it("si ferma subito se il documento non è una pianta", async () => {

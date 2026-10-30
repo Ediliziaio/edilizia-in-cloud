@@ -42,7 +42,7 @@ async function chiediAllAI(richiesta: RichiestaAI): Promise<EsitoAI> {
   // l'errore della funzione ha il motivo nel corpo della risposta
   const risposta = (error as { context?: Response }).context;
   if (risposta && typeof risposta.json === "function") {
-    const corpo = await risposta.json().catch(() => null);
+    const corpo: unknown = await risposta.json().catch((): unknown => null);
     return leggiRispostaAI(corpo, risposta.status);
   }
   return leggiRispostaAI(null, null);
@@ -95,7 +95,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
     setInCorso(true);
     const esito = await chiediAllAI(richiesta).catch(() => leggiRispostaAI(null, null));
     setInCorso(false);
-    if (!esito.ok) {
+    if (esito.ok === false) {
       setErrore(esito.messaggio);
       return;
     }
