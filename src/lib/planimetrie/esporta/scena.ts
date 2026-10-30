@@ -334,7 +334,8 @@ export function riquadroScena(primitive: Primitiva[], scala: number): Riquadro {
   const mm = (v: number) => (v * scala) / 10;
   for (const p of primitive) {
     if (p.tipo === "poligono") p.punti.forEach((q) => allarga(r, q));
-    else if (p.tipo === "arco" || p.tipo === "cerchio") allarga(r, p.centro, p.raggio);
+    else if (p.tipo === "arco") puntiArco(p.centro, p.raggio, p.inizio, p.fine, 5).forEach((q) => allarga(r, q));
+    else if (p.tipo === "cerchio") allarga(r, p.centro, p.raggio);
     else {
       const meta = Math.max(larghezzaTesto(p.testo, mm(p.altezzaMm)) / 2, mm(p.altezzaMm));
       allarga(r, p.posizione, meta);

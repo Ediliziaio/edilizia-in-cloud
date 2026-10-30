@@ -6,11 +6,12 @@
  *
  *   bun scripts/planimetrie/esempi-esportazione.ts
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { vistaDaPlanimetria } from "../../src/lib/planimetrie/esporta/adattatore";
 import { PIANTA_ESEMPIO } from "../../src/lib/planimetrie/esporta/esempio";
 import { esportaDxf } from "../../src/lib/planimetrie/esporta/dxf";
+import { caricaMotoreCadcraft } from "../../src/lib/planimetrie/esporta/dxf/cadcraft";
 import { esportaPdf } from "../../src/lib/planimetrie/esporta/pdf";
 import { dimensioniPng } from "../../src/lib/planimetrie/esporta/png";
 import { esportaSvg } from "../../src/lib/planimetrie/esporta/svg";
@@ -60,6 +61,15 @@ scrivi(allegato.nomeFile, allegato.dati);
 const dxf = esportaDxf(confronto, { scala: 50 });
 scrivi("pianta-comparativo.dxf", dxf.dati);
 writeFileSync(join(cartella, "pianta-comparativo.dxf.conteggio.json"), JSON.stringify(dxf.conteggio, null, 2) + "\n");
+
+// Lo stesso DXF col motore cadcraft (WASM), se è stato compilato con tools/planimetrie-wasm/build.sh
+const wasmDir = join(import.meta.dir, "../../dev/planimetria-motore/wasm");
+if (existsSync(join(wasmDir, "planimetrie_wasm.js"))) {
+  const modulo = await import(join(wasmDir, "planimetrie_wasm.js"));
+  const cadcraft = await caricaMotoreCadcraft({ modulo, wasm: readFileSync(join(wasmDir, "planimetrie_wasm_bg.wasm")) });
+  if (cadcraft) scrivi("pianta-comparativo-cadcraft.dxf", esportaDxf(confronto, { scala: 50, motore: cadcraft }).dati);
+  else console.log("motore cadcraft senza scrivi_entita: ricompilare il wasm");
+} else console.log("wasm di cadcraft non compilato: salto il DXF R2000");
 
 const svgTecnico = esportaSvg(confronto, { scala: 50 });
 scrivi("pianta-comparativo-1-50.svg", svgTecnico.svg);

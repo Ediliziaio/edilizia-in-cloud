@@ -473,3 +473,141 @@ pub fn esporta_pdf(json_pianta: &str, opzioni: &str) -> Result<Vec<u8>, JsError>
     o["output"] = json!("pdf");
     cadcraft_io::plot(&d, &Space::Model, &o).map_err(|e| JsError::new(&e.to_string()))
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fase 6: un disegno già fatto di entità (le esportazioni lo preparano in TypeScript)
+// ---------------------------------------------------------------------------------------------
+//
+// Le esportazioni 2D (`src/lib/planimetrie/esporta`) costruiscono la pianta come una scena di
+// linee, polilinee, archi, scritte e pieni, ognuno sul suo layer (muri, aperture, quote, testi,
+// arredi, demolizioni, nuovo). `scrivi_entita` la passa così com'è a `cadcraft_io::write_dxf`:
+// la geometria la decide la scena (uguale per PDF, SVG, PNG e DXF), il formato lo scrive cadcraft.
+// Coordinate già nell'unità del file, y verso l'alto, angoli in gradi antiorari.
+
+#[derive(Deserialize)]
+pub struct DisegnoEntita {
+    /// Codice $INSUNITS: 5 cm, 6 m, 4 mm.
+    #[serde(default = "cinque")]
+    pub unita: i64,
+    pub layer: Vec<LayerEntita>,
+    pub entita: Vec<Entita>,
+}
+
+#[derive(Deserialize)]
+pub struct LayerEntita {
+    pub nome: String,
+    pub colore: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "tipo", rename_all = "snake_case")]
+pub enum Entita {
+    Linea { layer: String, a: [f64; 2], b: [f64; 2] },
+    Polilinea { layer: String, punti: Vec<[f64; 2]>, chiusa: bool },
+    Arco { layer: String, centro: [f64; 2], raggio: f64, inizio: f64, fine: f64 },
+    Cerchio { layer: String, centro: [f64; 2], raggio: f64 },
+    Testo {
+        layer: String,
+        p: [f64; 2],
+        testo: String,
+        altezza: f64,
+        #[serde(default)]
+        rotazione: f64,
+        #[serde(default)]
+        orizzontale: String,
+        #[serde(default)]
+        verticale: String,
+    },
+    Pieno { layer: String, punti: Vec<[f64; 2]> },
+}
+
+fn cinque() -> i64 {
+    5
+}
+
+fn vertici(punti: &[[f64; 2]]) -> Vec<PolyVertex> {
+    punti.iter().map(|&p| PolyVertex { p: v(p), bulge: 0.0, start_width: 0.0, end_width: 0.0 }).collect()
+}
+
+pub fn disegno_entita(e: &DisegnoEntita) -> Result<Drawing, String> {
+    let mut d = Drawing::new_metric();
+    d.header.set_i64("INSUNITS", e.unita);
+    for l in &e.layer {
+        strato(&mut d, &l.nome, l.colore);
+    }
+    let sp = Space::Model;
+    let add = |d: &mut Drawing, c: Common, k: EntityKind| d.add(&sp, c, k).map(|_| ()).map_err(|e| e.to_string());
+    for x in &e.entita {
+        match x {
+            Entita::Linea { layer, a, b } => add(&mut d, sul(layer), EntityKind::Line(Line { a: v(*a).to3(0.0), b: v(*b).to3(0.0) }))?,
+            Entita::Polilinea { layer, punti, chiusa } => add(
+                &mut d,
+                sul(layer),
+                EntityKind::LwPolyline(LwPolyline { vertices: vertici(punti), closed: *chiusa, const_width: 0.0, elevation: 0.0, plinegen: false }),
+            )?,
+            Entita::Arco { layer, centro, raggio, inizio, fine } => add(
+                &mut d,
+                sul(layer),
+                EntityKind::Arc(Arc { center: v(*centro).to3(0.0), radius: *raggio, start: inizio.to_radians(), end: fine.to_radians() }),
+            )?,
+            Entita::Cerchio { layer, centro, raggio } => {
+                add(&mut d, sul(layer), EntityKind::Circle(cadcraft_doc::Circle { center: v(*centro).to3(0.0), radius: *raggio }))?
+            }
+            Entita::Testo { layer, p, testo, altezza, rotazione, orizzontale, verticale } => {
+                let halign = match orizzontale.as_str() {
+                    "centro" => HAlign::Center,
+                    "destra" => HAlign::Right,
+                    _ => HAlign::Left,
+                };
+                let valign = match verticale.as_str() {
+                    "centro" => VAlign::Middle,
+                    "alto" => VAlign::Top,
+                    _ => VAlign::Baseline,
+                };
+                let allineato = halign != HAlign::Left || valign != VAlign::Baseline;
+                add(
+                    &mut d,
+                    sul(layer),
+                    EntityKind::Text(Text {
+                        insert: v(*p).to3(0.0),
+                        align_pt: if allineato { Some(v(*p).to3(0.0)) } else { None },
+                        height: *altezza,
+                        value: testo.clone(),
+                        rotation: rotazione.to_radians(),
+                        width_factor: 1.0,
+                        oblique: 0.0,
+                        style: "Standard".into(),
+                        halign,
+                        valign,
+                    }),
+                )?
+            }
+            Entita::Pieno { layer, punti } => add(
+                &mut d,
+                sul(layer),
+                EntityKind::Hatch(Hatch {
+                    pattern: "SOLID".into(),
+                    solid: true,
+                    loops: vec![HatchLoop { vertices: vertici(punti), outer: true, sources: Vec::new() }],
+                    scale: 1.0,
+                    angle: 0.0,
+                    associative: false,
+                    style: 0,
+                    elevation: 0.0,
+                    gradient: None,
+                    origin: Vec2::ZERO,
+                    background: None,
+                    pattern_lines: Vec::new(),
+                }),
+            )?,
+        }
+    }
+    Ok(d)
+}
+
+#[wasm_bindgen]
+pub fn scrivi_entita(json_disegno: &str) -> Result<String, JsError> {
+    let e: DisegnoEntita = serde_json::from_str(json_disegno).map_err(|e| JsError::new(&format!("disegno non valido: {e}")))?;
+    let d = disegno_entita(&e).map_err(|e| JsError::new(&e))?;
+    Ok(cadcraft_io::write_dxf(&d))
+}
