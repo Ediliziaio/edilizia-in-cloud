@@ -265,7 +265,9 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       });
       const stato = !rate?.ok ? "aperta" : Number(rate.residuo_eur ?? 0) <= 0 ? "saldata" : "aperta";
       const importoOrder = showAmounts ? `, importo totale €${data.total_amount}` : "";
-      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}.`;
+      // Il quadro vero (fasi, persone, ditte, mezzi, rapportini) lo dà quadro_commessa (31/10/2026).
+      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}. ` +
+        `Per qualunque domanda su questa commessa chiama PRIMA quadro_commessa con order_id="${data.id}".`;
     }
     if (entity_type === "customer") {
       const { data, error } = await supabaseAdmin

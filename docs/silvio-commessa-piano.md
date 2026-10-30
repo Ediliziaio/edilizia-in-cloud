@@ -18,6 +18,30 @@ apre la chat da una commessa deve ancora dirgli di quale si tratta, e Silvio non
 conosce le cose che abbiamo costruito questo mese: sottofasi, cronoprogramma, voci
 dal listino, ditte e contratti, mezzi del cantiere, rapportini dell'ufficio.
 
+## Cosa dicono i dati (ultimi 30 giorni, misurati il 31/10/2026)
+
+- **La chat si usa poco.** 37 risposte di Silvio in un mese, in 3 aziende. Per
+  rispondere ci mette in media **14 secondi** e ogni risposta costa circa **7
+  centesimi**. Una risposta lenta e generica non invoglia a chiedere di nuovo.
+- **Le proposte di Silvio non le accetta nessuno.** Su 240 proposte automatiche,
+  0 accettate, 3 rifiutate, 174 scadute e 63 ancora in attesa. Le due più frequenti
+  sono «manda il sollecito di pagamento» (96) e «rivedi il cantiere in ritardo»
+  (89). Arrivano in un elenco a parte, lontano dalla commessa a cui si riferiscono,
+  e scadono senza che nessuno le veda.
+- **Il brief del mattino** (27-28 persone ogni giorno fino al 18/10) dal 19/10
+  parte solo per le aziende che lo accendono, come deciso quel giorno. Oggi lo
+  riceve una sola persona, della Demo.
+- **Gli strumenti funzionano**: 1.528 esecuzioni, 0 errori. Il limite non è
+  quello che Silvio sa fare, è dove e quando lo propone.
+
+Quindi le priorità sono:
+1. Silvio deve rispondere sulla commessa che hai davanti, con i dati veri (fase 1).
+2. Le sue proposte devono comparire dove si lavora: nel popup di Silvio della
+   commessa, accanto ai punti da sistemare, e non in un elenco a parte. Meno
+   proposte, raggruppate per commessa (fase 3).
+3. Deve rispondere più in fretta. Le domande sulla pagina aperta partono con il
+   quadro della commessa già letto, invece di cercarlo strumento per strumento.
+
 ## Fatto oggi (fase 0)
 
 - Il menu **«Silvio AI»** in testa alla commessa sostituisce «Chiedi a Silvio» e il
@@ -29,7 +53,15 @@ dal listino, ditte e contratti, mezzi del cantiere, rapportini dell'ufficio.
 - La vista «Diario» si chiama **Rapportini**. «Rapportini» e «Scrivi rapportini» non
   stanno più in Lavorazioni.
 
-## Fase 1 — Silvio sa su quale commessa sei
+## Fase 1 — Silvio sa su quale commessa sei (in corso)
+
+Fatto il 31/10/2026:
+- strumento **`quadro_commessa`** (`_shared/silvioQuadroCommessa.ts`). Dà fasi,
+  sottofasi, persone e ditte per fase, contratti, mezzi, rapportini da approvare
+  e mancanti, materiali senza fornitore o prezzo, più l'elenco «da_sistemare»
+  con le stesse regole dei popup;
+- quando la chat è aperta da una commessa, Silvio riceve l'indicazione di
+  chiamarlo per primo con l'id di quella commessa.
 
 Obiettivo: dalla commessa si chiede «chi manca domani?» e Silvio risponde su
 *questa* commessa, senza che la si nomini.

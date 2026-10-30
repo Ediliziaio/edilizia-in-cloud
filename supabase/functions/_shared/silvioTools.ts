@@ -23,6 +23,7 @@ import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts"
 import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
 import { silvioOrderReport } from "./silvioOrderReport.ts";
+import { silvioQuadroCommessa } from "./silvioQuadroCommessa.ts";
 import { silvioSiteHealth } from "./silvioSiteHealth.ts";
 import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
 import { isCalendarDate, legacyQuoteDraftInput, quoteDraftIssue, workHoursIssue } from "./operationalDraftValidation.ts";
@@ -4479,6 +4480,34 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
     riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
+  quadro_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "quadro_commessa",
+        description:
+          "Il quadro operativo di UNA commessa: fasi con date, avanzamento e ritardi, sottofasi, chi lavora su ogni fase " +
+          "(persone e ditte con il costo previsto senza IVA), contratti delle ditte, mezzi prenotati e sul cantiere, " +
+          "rapportini da approvare e giorni senza rapportino, materiali senza fornitore o prezzo, e l'elenco «da_sistemare». " +
+          "Usalo PRIMA di rispondere su una commessa: 'come siamo messi', 'cosa manca', 'sistemiamo le fasi', 'chi c'è domani', " +
+          "'cosa devo ordinare'. Se l'utente sta guardando una commessa, passa il suo order_id. Per margini e costi consuntivi usa report_commessa.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. O-0002)" },
+            order_id: { type: "string", description: "Id della commessa aperta nella pagina, se lo conosci" },
+          },
+        },
+      },
+    },
+    executor: silvioQuadroCommessa,
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
     domain: "cantiere",
   },
 
