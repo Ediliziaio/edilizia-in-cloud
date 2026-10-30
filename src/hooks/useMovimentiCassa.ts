@@ -213,15 +213,18 @@ export function useSegnaPagata() {
       >[];
       metodo: string;
       data: string;
+      /** Una fattura sola: quanto incassare, se meno del residuo (incasso parziale). */
+      importo?: number;
     }): Promise<EsitoIncassi> => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
+      const parziale = input.fatture.length === 1 ? input.importo : undefined;
       return registraIncassi(
         supabase as unknown as ChiamataRpc,
         companyId,
         input.fatture.map((d) => ({
           id: d.id,
           numero: d.numero,
-          residuo: residuoDaIncassare(d),
+          residuo: parziale ?? residuoDaIncassare(d),
         })),
         { metodo: input.metodo, data: input.data },
       );

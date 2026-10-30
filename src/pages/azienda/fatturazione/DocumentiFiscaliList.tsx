@@ -19,6 +19,7 @@ import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
+import { IncassiFatturaDialog } from "@/components/fatturazione/IncassiFattura";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { getScadenzaInfo, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
@@ -45,7 +46,7 @@ import {
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
   AlertCircle, CheckCircle2, Clock, Truck, RotateCcw, FileSpreadsheet,
   BarChart3, Settings2, BookUser, Wallet, Archive, Calculator, ShieldCheck,
-  Link2,
+  Link2, Landmark,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -100,7 +101,7 @@ const TIPO_TABS: {
 ];
 
 const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
-const PAGABILE: StatoDocumento[] = ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"];
+const PAGABILE: StatoDocumento[] = ["emessa", "inviata_sdi", "consegnata", "accettata", "scaduta", "parzialmente_pagata"];
 const TIPI_PAGABILI: TipoDocumento[] = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
 
 function getErrorMessage(error: unknown) {
@@ -109,6 +110,11 @@ function getErrorMessage(error: unknown) {
 
 function isDocumentoPagabile(doc: DocumentoFiscale) {
   return TIPI_PAGABILI.includes(doc.tipo) && PAGABILE.includes(doc.stato) && residuoDaIncassare(doc) > 0;
+}
+
+/** Ha (o può avere) incassi da vedere, annullare o abbinare al bonifico. */
+function haIncassi(doc: DocumentoFiscale) {
+  return TIPI_PAGABILI.includes(doc.tipo) && (PAGABILE.includes(doc.stato) || doc.stato === "pagata");
 }
 
 function isDocumentoEliminabile(doc: DocumentoFiscale) {
@@ -229,6 +235,8 @@ function DocumentiFiscaliListInner() {
   const [page, setPage] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
   const [payTarget, setPayTarget] = useState<DocumentoFiscale | null>(null);
+  // «Incassi e banca» dal menu della riga: l'id, così la finestra segue la fattura aggiornata.
+  const [incassiId, setIncassiId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkPayOpen, setBulkPayOpen] = useState(false);
@@ -1142,6 +1150,12 @@ function DocumentiFiscaliListInner() {
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
+                                {/* Storico, annulla incasso, abbina al bonifico. Da telefono no. */}
+                                {!isMobile && haIncassi(doc) && (
+                                  <DropdownMenuItem onClick={() => setIncassiId(doc.id)}>
+                                    <Landmark className="h-4 w-4 mr-2" /> Incassi e banca
+                                  </DropdownMenuItem>
+                                )}
                 {isDocumentoEliminabile(doc) && (
                   <>
                     <DropdownMenuSeparator />
@@ -1267,6 +1281,13 @@ function DocumentiFiscaliListInner() {
         open={!!payTarget}
         onOpenChange={(open) => !open && setPayTarget(null)}
         fatture={payTarget ? [payTarget] : []}
+      />
+
+      {/* ── Incassi della fattura: storico, annulla, abbina al bonifico ── */}
+      <IncassiFatturaDialog
+        doc={incassiId ? docs.find((d) => d.id === incassiId) ?? null : null}
+        pagabile={!!incassiId && docs.some((d) => d.id === incassiId && isDocumentoPagabile(d))}
+        onOpenChange={(open) => !open && setIncassiId(null)}
       />
 
       {/* ── Bulk Delete Confirmation ─────────────────── */}

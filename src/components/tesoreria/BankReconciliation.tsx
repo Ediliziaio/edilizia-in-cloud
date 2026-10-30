@@ -1110,7 +1110,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       <div className="text-xs text-muted-foreground">
                         {fmtEur(Number(rec.matched_amount))} ·{" "}
                         <Badge variant="outline" className="text-[10px] px-1">
-                          {rec.match_type === "auto" ? "Auto" : "Manuale"}
+                          {rec.match_type === "auto" ? "Auto" : rec.match_type === "incasso_esistente" ? "Incasso già registrato" : "Manuale"}
                         </Badge>
                         {rec.notes && ` · ${rec.notes}`}
                       </div>
@@ -1281,7 +1281,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <DialogHeader>
             <DialogTitle>Rimuovi riconciliazione</DialogTitle>
             <DialogDescription>
-              {unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
+              {unlinkTarget?.match_type === "incasso_esistente"
+                ? "Il bonifico torna da abbinare. L'incasso registrato a mano sulla fattura resta: per toglierlo, annullalo dalla fattura."
+                : unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
                 ? "L'incasso registrato da questo bonifico verrà stornato: la fattura, la sua scadenza e la rata della commessa torneranno da incassare."
                 : "Vuoi scollegare questa transazione dalla fattura?"}
             </DialogDescription>

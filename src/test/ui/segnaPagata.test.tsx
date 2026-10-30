@@ -81,6 +81,32 @@ describe("«Segna pagata» chiama registra_incasso_atomico, non aggiorna la fatt
     );
   });
 
+  it("una fattura: si incassa anche solo una parte (30/10/2026)", async () => {
+    monta([fattura({ importo_pagato: 220 })]);
+    const importo = screen.getByLabelText("Importo incassato") as HTMLInputElement;
+    expect(importo.value).toBe("1000.00");
+    fireEvent.change(importo, { target: { value: "400,50" } });
+    expect(screen.getByText(/Incasso parziale: restano/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Registra incasso" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    expect(rpc).toHaveBeenCalledWith("registra_incasso_atomico", expect.objectContaining({ p_documento_id: "f1", p_importo: 400.5 }));
+  });
+
+  it("una fattura: oltre il residuo, o zero, non si registra", () => {
+    monta([fattura({ importo_pagato: 220 })]);
+    const importo = screen.getByLabelText("Importo incassato");
+    fireEvent.change(importo, { target: { value: "1000,01" } });
+    expect((screen.getByRole("button", { name: "Registra incasso" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(importo, { target: { value: "0" } });
+    expect((screen.getByRole("button", { name: "Registra incasso" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("una selezione: niente importo da scrivere, ognuna per il suo residuo", () => {
+    monta([fattura({ id: "a", numero: "1" }), fattura({ id: "b", numero: "2" })]);
+    expect(screen.queryByLabelText("Importo incassato")).toBeNull();
+  });
+
   it("niente da incassare: nessun pulsante per registrare", () => {
     monta([]);
     expect(screen.queryByRole("button", { name: /Registra/ })).toBeNull();
@@ -97,5 +123,21 @@ describe("le tre azioni passano dal dialog", () => {
     expect(elenco.match(/<SegnaPagataDialog/g)).toHaveLength(2);
     expect(elenco).not.toMatch(/stato:\s*"pagata"/);
     expect(elenco).not.toMatch(/importo_pagato:\s*\w+\.totale_da_pagare/);
+  });
+});
+
+describe("dalla fattura si vedono, annullano e abbinano gli incassi (30/10/2026)", () => {
+  it("dettaglio: il pannello Pagamenti ha storico, annulla e abbina", () => {
+    expect(dettaglio).toContain("<IncassiFattura doc={doc} pagabile={canSegnaPagata} />");
+  });
+
+  it("elenco: «Incassi e banca» è una voce del menu della riga, non una scheda", () => {
+    expect(elenco).toContain("<IncassiFatturaDialog");
+    expect(elenco).toMatch(/!isMobile && haIncassi\(doc\) && \(\s*<DropdownMenuItem onClick=\{\(\) => setIncassiId\(doc\.id\)\}>/);
+  });
+
+  it("una fattura scaduta si incassa come le altre", () => {
+    expect(elenco).toMatch(/const PAGABILE[^;]*"scaduta"/);
+    expect(dettaglio).toMatch(/"accettata", "scaduta", "parzialmente_pagata"/);
   });
 });
