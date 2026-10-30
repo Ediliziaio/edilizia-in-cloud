@@ -13,6 +13,7 @@ import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import {
   avanzamentoComplessivo,
@@ -35,7 +36,7 @@ import {
 } from "@/lib/orders/cronoprogramma";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { costoSforato } from "./EconomiaFaseRiga";
+import { costoSforato, fontePrevistoTesto } from "./EconomiaFaseRiga";
 
 export interface CommessaCronoprogramma {
   quote_id?: string | null;
@@ -126,7 +127,7 @@ function Dettaglio({
         </>}
         {economia && vedeCosti && <>
           <dt className="text-muted-foreground">Costo previsto</dt>
-          <dd className="tabular-nums">{formatCurrency(economia.costoPrevisto)}</dd>
+          <dd className="tabular-nums">{formatCurrency(economia.costoPrevisto)}{fontePrevistoTesto(economia) && <span className="ml-1 text-xs text-muted-foreground">({fontePrevistoTesto(economia)})</span>}</dd>
           <dt className="text-muted-foreground">Costo consuntivo</dt>
           <dd className={cn("tabular-nums", costoSforato(economia) && "font-medium text-rose-700")}>
             {formatCurrency(economia.costoConsuntivo)}
@@ -224,12 +225,13 @@ export function CronoprogrammaCommessa({
   const [vista, setVista] = useState<"grafico" | "elenco">("grafico");
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
+  const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   const oggi = giornoLocale(new Date().toISOString());
   const economia = useMemo(
-    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase }),
-    [phases, materials, allAssignments, costiMateriali, posaPerFase],
+    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase, vociPreviste }),
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
   );
   const fasi = useMemo(
     () => fasiCronoprogramma(

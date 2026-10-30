@@ -38,6 +38,7 @@ vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
 }));
 vi.mock("@/hooks/useSottofasi", () => ({ useSottofasi: () => ({ perFase: stato.sottofasi }) }));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({ useCostiMaterialiFasi: () => ({ data: { acquisti: [] as unknown[], movimenti: [] as unknown[] } }) }));
+vi.mock("@/hooks/useVociPrevisteFasi", () => ({ useVociPrevisteFasi: () => ({ data: [] as unknown[] }) }));
 
 const fase = (extra: Record<string, unknown>): Record<string, unknown> => ({
   id: "f", order_id: "o", name: "Fase", position: 0, status: "da_iniziare", start_date: null, end_date: null,

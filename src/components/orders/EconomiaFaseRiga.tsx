@@ -18,6 +18,23 @@ export function dettaglioVoci(voci: VociCosto): string {
   return parti.length > 0 ? parti.join(" · ") : "nessun costo";
 }
 
+/**
+ * Da dove viene il costo previsto, in parole: «dal preventivo, 11 voci del
+ * listino», «da persone e ditte», «persone e ditte + materiali dal preventivo».
+ * null senza previsto.
+ */
+export function fontePrevistoTesto(e: Pick<EconomiaFase, "costoPrevisto" | "fontePrevisto" | "vociPreviste">): string | null {
+  if (!e.costoPrevisto) return null;
+  const { lavoro, materiali } = e.fontePrevisto;
+  const voci = e.vociPreviste === 1 ? "1 voce" : `${e.vociPreviste} voci`;
+  if (lavoro === "preventivo" && materiali !== "righe" && materiali !== "misto") return `dal preventivo, ${voci}`;
+  const parti = [
+    lavoro === "assegnazioni" ? "da persone e ditte" : lavoro === "preventivo" ? "lavoro dal preventivo" : lavoro === "misto" ? "lavoro da assegnazioni e preventivo" : null,
+    materiali === "righe" ? "materiali dalle righe" : materiali === "preventivo" ? "materiali dal preventivo" : materiali === "misto" ? "materiali da righe e preventivo" : null,
+  ].filter(Boolean);
+  return parti.length > 0 ? parti.join(" · ") : null;
+}
+
 /** Il costo consuntivo ha superato il previsto (con un previsto da confrontare). */
 export function costoSforato(e: EconomiaFase): boolean {
   return e.costoPrevisto > 0 && e.scostamento > 0;
@@ -186,7 +203,7 @@ export function EconomiaFaseRiga({
           </Cifra>
         )}
         {vedeCosti && (
-          <Cifra titolo="Costo previsto">
+          <Cifra titolo="Costo previsto" nota={fontePrevistoTesto(economia)}>
             <span title={dettaglioVoci(economia.previsto)}>{!completata && economia.costoPrevisto === 0 && economia.costoConsuntivo === 0 ? "Da pianificare" : eur.format(economia.costoPrevisto)}</span>
           </Cifra>
         )}

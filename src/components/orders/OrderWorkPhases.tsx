@@ -30,6 +30,7 @@ import { ElencoAssegnazioni, WorkAssignmentRow as AssignmentRow, type Assignment
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
@@ -221,6 +222,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts || canViewMargins);
   // Lo stesso articolo si usa su più fasi: il costo va a ognuna per quanto il cantiere ci ha posato.
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
+  // Le voci del preventivo da cui sono nate le fasi: il previsto dove nessuno l'ha scritto.
+  const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -229,8 +232,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
       acquisti: costiMateriali?.acquisti,
       movimenti: costiMateriali?.movimenti,
       posaPerFase,
+      vociPreviste,
     }),
-    [phases, materials, allAssignments, costiMateriali, posaPerFase],
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
   );
 
   // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo

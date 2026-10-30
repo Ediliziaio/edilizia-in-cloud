@@ -12,6 +12,8 @@ import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import type { ExecutorOption, ExecutorType, PhaseAssignment, AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 import { oggiRoma, useSquadre, useSquadreCommessa, useSquadraSuCommessa, messaggioErroreOperai } from "@/hooks/useOperai";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { conIva, costoDaVoci, quantitaDellaTariffa, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,12 +121,17 @@ export function AddAssignmentDialog({
   const [tariffaId, setTariffaId] = useState("");
   const [tariffaQty, setTariffaQty] = useState("1");
   const [appliedUnitCost, setAppliedUnitCost] = useState<number | null>(null);
+  /** Da dove viene il costo previsto proposto, e quale importo era: se lo si riscrive diventa «a mano». */
+  const [origine, setOrigine] = useState<{ tipo: Exclude<OrigineCostoDitta, "manuale">; importo: number } | null>(null);
+  // Le voci del preventivo della lavorazione scelta: quantità e costo da proporre.
+  const vociQuery = useVociPrevisteFasi(orderId, open && tipo === "esterno" && canViewCosts);
+  const vociFase = selectedPhase ? (vociQuery.data ?? []).filter((v) => v.phase_id === selectedPhase) : [];
   const ditteQuery = useAssignmentCompanies(companyId, open && tipo === 'esterno' && puoPersona && !contextChanged);
 
   // Listino manodopera aziendale — caricato solo a dialog aperto.
   const { data: tariffe = [], isError: tariffeError, isFetching: tariffeFetching, refetch: refetchTariffe } = useQuery({
     queryKey: ["tariffe-manodopera", companyId],
-    enabled: open && costsOpen && tipo === "esterno" && canViewCosts && !!companyId,
+    enabled: open && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<TariffaManodopera[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,7 +159,7 @@ export function AddAssignmentDialog({
       squadra, costa X". Una sola query per company: la tabella e' piccola. */
   const { data: varianti = [], isError: variantiError, isFetching: variantiFetching, refetch: refetchVarianti } = useQuery({
     queryKey: ["tariffa-costi-varianti", companyId],
-    enabled: open && costsOpen && tipo === "esterno" && canViewCosts && !!companyId,
+    enabled: open && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null }>> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,15 +205,46 @@ export function AddAssignmentDialog({
     const qty = parseAssignmentAmount(qtyRaw, 6);
     if (qty == null || !qtyRaw.trim()) return;
     const unit = costoUnit ?? (Number(t.prezzo_costo) || 0);
-    const costo = (Number(unit) || 0) * qty;
+    // Il listino è senza IVA, il previsto della ditta si scrive IVA inclusa (22%, come la riga).
+    const costo = conIva((Number(unit) || 0) * qty);
     setAppliedUnitCost(Number(unit) || 0);
+    setOrigine({ tipo: "listino", importo: costo });
     setPrev(formatAssignmentAmount(costo.toFixed(2)));
     setNotes((n) =>
-      n.trim() === "" || /^Listino: /.test(n)
+      n.trim() === "" || /^(Listino|Dal preventivo): /.test(n)
         ? `Listino: ${t.nome} × ${qtyRaw || "1"}${t.unita ? ` ${t.unita}` : ""}`
         : n,
     );
   };
+
+  /** Il lavoro delle voci della lavorazione, al costo di questa ditta quando il listino ne ha uno suo. */
+  const daPreventivo = costoDaVoci(vociFase, varianti, tipo === "esterno" && executorId ? executorId : null);
+  const applyPreventivo = () => {
+    if (daPreventivo.netto <= 0 || listinoBusy || variantiError) return;
+    const costo = conIva(daPreventivo.netto);
+    setTariffaId(""); setVarianteId(""); setAppliedUnitCost(null);
+    setOrigine({ tipo: "preventivo", importo: costo });
+    setPrev(formatAssignmentAmount(costo.toFixed(2)));
+    setNotes((n) => (n.trim() === "" || /^(Listino|Dal preventivo): /.test(n) ? `Dal preventivo: ${daPreventivo.voci === 1 ? "1 voce" : `${daPreventivo.voci} voci`} della lavorazione` : n));
+  };
+  // Ditta su una lavorazione nata dal preventivo: il previsto si compila da solo, si può cambiare.
+  const propostoPer = useRef("");
+  // Cambiando ditta o lavorazione, il costo già preso dal preventivo si rifà (o si toglie).
+  useEffect(() => {
+    if (!open || tipo !== "esterno" || !executorId) return;
+    const chiave = `${executorId}|${selectedPhase}`;
+    if (propostoPer.current === chiave || vociQuery.isLoading || listinoBusy) return;
+    propostoPer.current = chiave;
+    const dalPreventivo = origine?.tipo === "preventivo";
+    if (daPreventivo.netto <= 0) {
+      if (dalPreventivo) { setPrev("0"); setOrigine(null); setNotes((n) => (/^Dal preventivo: /.test(n) ? "" : n)); }
+      return;
+    }
+    if (tariffaId || ((parseAssignmentAmount(prev) ?? 0) > 0 && !dalPreventivo)) return;
+    applyPreventivo();
+    setCostsOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tipo, executorId, selectedPhase, vociQuery.isLoading, listinoBusy, daPreventivo.netto]);
 
   const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
   const selectedCompany = tipo === 'esterno' ? ditteQuery.data?.find(option => option.id === executorId) : undefined;
@@ -226,6 +264,8 @@ export function AddAssignmentDialog({
     setTariffaId("");
     setTariffaQty("1");
     setAppliedUnitCost(null);
+    setOrigine(null);
+    propostoPer.current = "";
     setVarianteId("");
     setSelectedPhase(phaseId ?? "");
     setDal(oggiRoma()); setAl(""); setCapo(false);
@@ -241,6 +281,16 @@ export function AddAssignmentDialog({
 
   const num = (raw: string) => {
     return parseAssignmentAmount(raw) ?? 0;
+  };
+
+  /** Da dove viene il previsto che si salva: se l'importo non è più quello proposto, è scritto a mano. */
+  const origineDelCosto = (budget: number): NonNullable<AddAssignmentPayload["origine_costo"]> => {
+    const proposto = origine && Math.abs(origine.importo - budget) < 0.005 ? origine.tipo : null;
+    if (proposto === "listino" && tariffaSel) {
+      return { costo_origine: "listino", tariffa_id: tariffaSel.id, quantita: parseAssignmentAmount(tariffaQty, 6), costo_unitario: appliedUnitCost };
+    }
+    if (proposto === "preventivo") return { costo_origine: "preventivo", tariffa_id: null, quantita: null, costo_unitario: null };
+    return { costo_origine: "manuale", tariffa_id: tariffaSel?.id ?? null, quantita: null, costo_unitario: null };
   };
 
   const handleSubmit = () => {
@@ -292,6 +342,7 @@ export function AddAssignmentDialog({
       is_paid: false,
       paid_date: null,
       notes: notes.trim() === "" ? null : notes.trim(),
+      ...(tipo === "esterno" && canViewCosts && budget > 0 ? { origine_costo: origineDelCosto(budget) } : {}),
     };
     submittingRef.current = true; setSubmitting(true);
     try { onAdd(payload, {
@@ -452,6 +503,16 @@ export function AddAssignmentDialog({
           {tariffaAggiornata && !listinoBusy && !tariffeError && !variantiError && <Button type="button" size="sm" variant="outline" onClick={() => applyTariffa(tariffaSel, tariffaQty, costoUnitarioEffettivo)}>Aggiorna da listino</Button>}
           {(tariffeError || variantiError) && <Button type="button" size="sm" variant="outline" onClick={() => { void refetchTariffe(); void refetchVarianti(); }}>Riprova listino</Button>}
           {tariffaId && <Button type="button" size="sm" variant="outline" onClick={() => { setTariffaId(""); setVarianteId(""); setNotes(n => /^Listino: /.test(n) ? "" : n); }}>Usa importi manuali</Button>}
+          {daPreventivo.netto > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
+              <span className="min-w-0 flex-1">
+                Dal preventivo: {daPreventivo.voci === 1 ? "1 voce" : `${daPreventivo.voci} voci`} di questa lavorazione,{" "}
+                <strong>{eur.format(daPreventivo.netto)}</strong> + IVA 22% = {eur.format(conIva(daPreventivo.netto))}
+                {daPreventivo.conVariante > 0 && <> · {daPreventivo.conVariante} al prezzo di questa ditta</>}
+              </span>
+              {origine?.tipo !== "preventivo" && <Button type="button" size="sm" variant="outline" onClick={applyPreventivo}>Usa questo costo</Button>}
+            </div>
+          )}
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
               L'azienda può importare il prezziario regionale o caricare il
               proprio listino in Impostazioni → Tariffe. */}
@@ -467,12 +528,16 @@ export function AddAssignmentDialog({
                     setTariffaId(v);
                     setVarianteId("");
                     const t = tariffeAttive.find((x) => x.id === v) ?? null;
+                    // La quantità della lavorazione, se il preventivo ha una voce con questa tariffa.
+                    const qFase = t ? quantitaDellaTariffa(vociFase, t.id) : null;
+                    const qty = qFase != null && qFase > 0 ? String(qFase).replace(".", ",") : tariffaQty;
+                    if (qty !== tariffaQty) setTariffaQty(qty);
                     // risolvo al volo: lo stato non e' ancora aggiornato
                     const vs = t && squadraSelezionata
                       ? varianti.filter((x) => x.tariffa_id === t.id && x.external_team_id === squadraSelezionata && x.attivo !== false)
                           .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
                       : [];
-                    applyTariffa(t, tariffaQty, vs[0]?.costo ?? t?.prezzo_costo ?? null);
+                    applyTariffa(t, qty, vs[0]?.costo ?? t?.prezzo_costo ?? null);
                   }}
                 >
                   <SelectTrigger aria-label="Parti dal listino manodopera" className="h-9 flex-1">
@@ -532,7 +597,8 @@ export function AddAssignmentDialog({
                     <>Variante <strong className="text-foreground">{varianteSel.nome}</strong>: </>
                   ) : null}
                   Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
-                  {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} → preventivo{" "}
+                  {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} × {tariffaQty || "1"} ={" "}
+                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))} + IVA 22% → previsto{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
                   {canViewMargins && Number(tariffaSel.prezzo_vendita) > 0 && (
                     <>

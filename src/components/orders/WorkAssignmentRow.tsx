@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { origineCostoDitta } from "@/lib/orders/costoDitta";
 
 export type AssignmentPatch = Partial<Pick<PhaseAssignment,
   "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">>;
@@ -120,6 +121,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
         {senzaApp && <> · <span className="font-medium text-amber-700"><span className="sm:hidden">senza app</span><span className="max-sm:hidden">senza app: non vede la commessa</span></span></>}
         {!internal && canViewCosts && <span className="max-sm:hidden"> · {a.is_paid ? "pagamento registrato" : "pagamento da registrare"}</span>}
       </p>
+      {!internal && canViewCosts && origineCostoDitta(a) && <p className="mt-0.5 text-[11px] text-muted-foreground">{origineCostoDitta(a)}</p>}
       {a.notes && (compact ? <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Note assegnazione</summary><p className="mt-1 whitespace-pre-wrap break-words">{a.notes}</p></details> : <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>)}
     </div>
     {canViewCosts && !compact && <>
