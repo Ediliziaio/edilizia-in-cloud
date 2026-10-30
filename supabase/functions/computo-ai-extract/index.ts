@@ -269,14 +269,7 @@ async function callPdfVisionAI(
   userId?: string | null,
   sourceKey?: string,
 ): Promise<unknown> {
-  // Encode PDF to base64 (chunked per evitare stack overflow su file grossi)
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  const base64Pdf = btoa(binary);
+  const base64Pdf = arrayBufferToBase64(buffer);
 
   const messages = [
     { role: "system", content: systemPrompt },

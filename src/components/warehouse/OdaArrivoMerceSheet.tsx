@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PackageCheck, Camera, RotateCcw, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,7 +235,7 @@ export function OdaArrivoMerceSheet({
       const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
         body: { file_base64: base64, mime: file.type || "image/jpeg", company_id: companyId },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Non sono riuscito a leggere la bolla"));
       const payload = data as {
         success?: boolean;
         error?: string;
@@ -274,7 +275,8 @@ export function OdaArrivoMerceSheet({
         { description: abbinate > 0 ? "Controlla le quantità prima di confermare." : "Scrivi le quantità a mano." },
       );
     } catch (e) {
-      toast.error("Lettura non riuscita", { description: userErrorMessage(e) });
+      // Il messaggio del server (credito, file illeggibile…) è già scritto per l'utente: userErrorMessage lo coprirebbe col generico.
+      toast.error("Lettura non riuscita", { description: userErrorMessage(e, (e instanceof Error && e.message) || undefined) });
     } finally {
       setAnalisiInCorso(false);
       if (fileRef.current) fileRef.current.value = "";

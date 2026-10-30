@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
 import type { EmailCategoria, EntitaTipo } from "./types";
+import { LIMITE_ELENCO, TIPO_ALTRO } from "./documentiDaConfermare";
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -414,6 +415,28 @@ const sbAny = supabase as unknown as {
   rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 };
 
+/**
+ * Le stesse chiamate di `sbAny.from(...)`, descritte per le tabelle fuori dai tipi generati: lì
+ * `.eq()` e `.update()` diventano errori di tipo (questo file ne ha già una quarantina, che il
+ * cricchetto di CI conta). Il codice nuovo passa da qui: nessun `any`, nessun errore in più, i nomi
+ * delle colonne restano testo libero come prima.
+ */
+interface RispostaLibera {
+  data: unknown;
+  error: { message: string } | null;
+  count?: number | null;
+}
+interface QueryLibera extends PromiseLike<RispostaLibera> {
+  select(colonne?: string, opzioni?: { count?: "exact"; head?: boolean }): QueryLibera;
+  eq(colonna: string, valore: unknown): QueryLibera;
+  neq(colonna: string, valore: unknown): QueryLibera;
+  in(colonna: string, valori: unknown[]): QueryLibera;
+  order(colonna: string, opzioni?: { ascending?: boolean }): QueryLibera;
+  limit(quanti: number): QueryLibera;
+  update(valori: Record<string, unknown>): QueryLibera;
+}
+const dbLibero = supabase as unknown as { from: (t: string) => QueryLibera };
+
 export function useEstraiAllegato() {
   const qc = useQueryClient();
   return useMutation({
@@ -436,6 +459,7 @@ export function useEstraiAllegato() {
       } else {
         toast.success("Bozza pronta", { description: "Dati estratti dal documento. Controlla i campi evidenziati." });
         void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", vars.email_id] });
+        void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
       }
     },
     onError: (e) => toast.error("Errore estrazione", { description: e instanceof Error ? e.message : String(e) }),
@@ -477,6 +501,86 @@ export function useAggiornaStatoDocumentoEstratto() {
       void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", input.email_id] });
       // P0-A: rinfresca anche il pannello company-wide dei documenti fotografati (email_id NULL).
       void qc.invalidateQueries({ queryKey: ["email-documenti-estratti-da-registrare"] });
+      // L'elenco unico «Documenti da confermare» e il numero in home.
+      void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
+    },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+// ─── Elenco unico «Documenti da confermare» (30/10/2026) ──────────────────────
+// Le bozze lette dagli allegati si vedevano solo aprendo la singola email: 158 ferme,
+// nessuna confermata. Regole dell'elenco e del numero in lib/email-ai/documentiDaConfermare.ts.
+
+export interface DocumentoDaConfermare extends DocumentoEstratto {
+  /** L'email da cui viene (null se il documento è arrivato senza email, per esempio da WhatsApp). */
+  email: {
+    thread_id: string | null;
+    subject: string | null;
+    from_name: string | null;
+    from_email: string | null;
+    received_at: string | null;
+  } | null;
+}
+
+/** Le bozze che aspettano una persona, dalla più recente, con l'email da cui vengono. */
+export function useDocumentiDaConfermare(companyId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["email-documenti-da-confermare", "elenco", companyId],
+    enabled: enabled && !!companyId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<DocumentoDaConfermare[]> => {
+      const { data, error } = await dbLibero
+        .from("email_documento_estratto")
+        .select("*, email:email_inbox(thread_id, subject, from_name, from_email, received_at)")
+        .eq("company_id", companyId as string)
+        .eq("stato", "da_confermare")
+        .order("created_at", { ascending: false })
+        .limit(LIMITE_ELENCO);
+      if (error) throw error;
+      return (data as unknown as DocumentoDaConfermare[]) ?? [];
+    },
+  });
+}
+
+/** Quante bozze di documenti veri (non «altro») aspettano: il numero in home. Chi non è staff email ne vede 0 (lo decide il database). */
+export function useDocumentiDaConfermareCount(companyId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["email-documenti-da-confermare", "conteggio", companyId],
+    enabled: enabled && !!companyId,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await dbLibero
+        .from("email_documento_estratto")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId as string)
+        .eq("stato", "da_confermare")
+        .neq("tipo", TIPO_ALTRO);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+/** Scarta più bozze insieme (per esempio tutti gli «altro»). Tocca solo quelle ancora da confermare. */
+export function useScartaDocumentiEstratti() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<number> => {
+      if (ids.length === 0) return 0;
+      const { error } = await dbLibero
+        .from("email_documento_estratto")
+        .update({ stato: "scartato" })
+        .in("id", ids)
+        .eq("stato", "da_confermare");
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (n) => {
+      toast.success(n === 1 ? "Documento scartato" : `${n} documenti scartati`);
+      void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
+      void qc.invalidateQueries({ queryKey: ["email-documenti-estratti"] });
     },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -529,6 +633,7 @@ export function useCreaCaricoDdt() {
         const s = data.carico.scostamenti_totali;
         toast.success("Carico proposto", { description: s > 0 ? `${s} righe con scostamento da verificare.` : "Quantità coerenti con l'ordine." });
         void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", vars.email_id] });
+        void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", "documento"] });
       }
     },
     onError: (e) => toast.error("Errore carico", { description: e instanceof Error ? e.message : String(e) }),
@@ -551,10 +656,27 @@ export function useCarichiDdtPerEmail(emailId: string | null | undefined) {
   });
 }
 
+/** I carichi proposti da una bozza: l'elenco unico li mostra sotto la bozza, anche se non ha un'email. */
+export function useCarichiDdtPerDocumento(documentoId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-ddt-carichi", "documento", documentoId],
+    enabled: !!documentoId,
+    queryFn: async (): Promise<DdtCarico[]> => {
+      const { data, error } = await dbLibero
+        .from("email_ddt_carico")
+        .select("*")
+        .eq("documento_estratto_id", documentoId as string)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as DdtCarico[]) || [];
+    },
+  });
+}
+
 export function useAggiornaStatoCaricoDdt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; stato: "confermato" | "scartato"; email_id?: string }) => {
+    mutationFn: async (input: { id: string; stato: "confermato" | "scartato"; email_id?: string; documento_estratto_id?: string | null }) => {
       if (input.stato === "confermato") {
         // Conferma = carico vero (27/09/2026): ricezione sull'ordine, movimenti
         // e giacenza per gli articoli riconosciuti. Prima cambiava solo lo stato.
@@ -562,6 +684,18 @@ export function useAggiornaStatoCaricoDdt() {
         if (error) throw new Error(error.message);
         const esito = data as { ok: boolean; errore?: string; caricati?: unknown[]; da_abbinare?: unknown[] };
         if (!esito?.ok) throw new Error(esito?.errore ?? "Conferma non riuscita");
+        // Il carico è fatto: la bozza del DDT da cui nasce ha esaurito il suo scopo e esce
+        // dall'elenco «Documenti da confermare» (altrimenti il numero non scenderebbe mai
+        // per i DDT). Non è essenziale: se non riesce, il carico resta confermato.
+        if (input.documento_estratto_id) {
+          const { data: u } = await supabase.auth.getUser();
+          const { error: errBozza } = await dbLibero
+            .from("email_documento_estratto")
+            .update({ stato: "confermato", confirmed_by: u.user?.id ?? null, confirmed_at: new Date().toISOString() })
+            .eq("id", input.documento_estratto_id)
+            .eq("stato", "da_confermare");
+          if (errBozza) console.warn("[email-ai] bozza del DDT non segnata come confermata:", errBozza.message);
+        }
         return { ...input, caricati: esito.caricati?.length ?? 0, daAbbinare: esito.da_abbinare?.length ?? 0 };
       }
       const patch: Record<string, unknown> = { stato: input.stato };
@@ -580,6 +714,10 @@ export function useAggiornaStatoCaricoDdt() {
         toast.success("Carico scartato");
       }
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", input.email_id] });
+      void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", "documento"] });
+      // Il DDT confermato esce anche dall'elenco unico e dal numero in home.
+      void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
+      void qc.invalidateQueries({ queryKey: ["email-documenti-estratti"] });
       // P0-A: rinfresca anche il pannello company-wide dei DDT fotografati (email_id NULL).
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi-da-registrare"] });
       void qc.invalidateQueries({ queryKey: ["warehouse"] });
@@ -746,7 +884,7 @@ export function useRilevaScadenza() {
     },
     onSuccess: (data, vars) => {
       if (data.skipped) toast.info("Nessuna scadenza", { description: data.reason || data.skipped });
-      else { toast.success("Scadenza rilevata", { description: "Controlla e aggiungila allo scadenzario." }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] }); }
+      else { toast.success("Scadenza rilevata", { description: "Controlla e aggiungila allo scadenzario." }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", "documento"] }); }
     },
     onError: (e) => toast.error("Errore scadenza", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -759,6 +897,20 @@ export function useScadenzeBozzePerEmail(emailId: string | null | undefined) {
     queryFn: async (): Promise<ScadenzaBozza[]> => {
       const { data, error } = await sbAny
         .from("email_scadenza_bozza").select("*").eq("email_id", emailId as string).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as ScadenzaBozza[]) || [];
+    },
+  });
+}
+
+/** Le scadenze rilevate da una bozza: l'elenco unico le mostra sotto la bozza, anche se non ha un'email. */
+export function useScadenzeBozzePerDocumento(documentoId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-scadenze-bozze", "documento", documentoId],
+    enabled: !!documentoId,
+    queryFn: async (): Promise<ScadenzaBozza[]> => {
+      const { data, error } = await dbLibero
+        .from("email_scadenza_bozza").select("*").eq("documento_estratto_id", documentoId as string).order("created_at", { ascending: false });
       if (error) throw error;
       return (data as unknown as ScadenzaBozza[]) || [];
     },
@@ -793,6 +945,7 @@ export function useConfermaScadenza() {
     onSuccess: (_d, vars) => {
       toast.success("Aggiunta allo scadenzario", { description: "Voce previsionale creata nel Cashflow." });
       void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] });
+      void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", "documento"] });
       void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] });
       void qc.invalidateQueries({ queryKey: ["scadenzario"] });
     },
@@ -808,7 +961,7 @@ export function useScartaScadenza() {
       if (error) throw error;
       return input;
     },
-    onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] }); },
+    onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", "documento"] }); void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] }); },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }

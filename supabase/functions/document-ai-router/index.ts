@@ -33,6 +33,11 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -203,16 +208,6 @@ const NEXT_ACTION_MAP: Record<string, {
   },
 };
 
-async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -248,6 +243,13 @@ Deno.serve(async (req) => {
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
+    // Download con la chiave di servizio di un bucket e un percorso scelti da chi
+    // chiama (arrivano da ai-document-analyzer, che inoltra quelli del modale
+    // «Importa documento»): solo quelli, vedi _shared/storageAmmesso.ts.
+    const fileAmmesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_ANALISI_DOCUMENTI, { companyId: company_id, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    if (!fileAmmesso.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
+
     if (file_size && file_size > 18 * 1024 * 1024) {
       return errorResponse("File troppo grande per classifier (max 18MB)", 413, cors);
     }
@@ -260,7 +262,7 @@ Deno.serve(async (req) => {
       return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
     }
     const buffer = await (file as Blob).arrayBuffer();
-    const base64 = await bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
 
     // 2. Build multimodal message — supportiamo PDF e immagini
     const isImage = (mime_type ?? "").startsWith("image/");
@@ -296,7 +298,7 @@ Deno.serve(async (req) => {
         supabase: supabaseAdmin as any,
         taskKey: "pdf_vision_extract",
         messages: [
-          { role: "system", content: CLASSIFICATION_PROMPT },
+          { role: "system", content: conRegoleDocumento(CLASSIFICATION_PROMPT) },
           { role: "user", content: userContent },
         ],
         params: { temperature: 0.0, max_tokens: 800 },
@@ -306,6 +308,11 @@ Deno.serve(async (req) => {
         idempotencyKey,
       });
     } catch (e) {
+      // Prima ogni errore diventava «AI classifier error: <testo>» con 502, anche il credito finito
+      // del provider: l'utente leggeva un testo tecnico e a volte si apriva la sua ricarica (30/10/2026).
+      console.error("[document-ai-router] classificazione fallita:", e instanceof Error ? e.message : String(e));
+      const noto = erroreAiPerUtente(e);
+      if (noto) return jsonResponse(noto.body, noto.status, cors);
       return errorResponse(
         `AI classifier error: ${e instanceof Error ? e.message : String(e)}`,
         502, cors,
@@ -314,16 +321,13 @@ Deno.serve(async (req) => {
     const elapsedMs = Date.now() - t0;
 
     // 4. Parse
-    let parsed: ClassificationResult;
-    try {
-      const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      return errorResponse(
-        `Classifier returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`,
-        502, cors,
-      );
+    const letto = leggiJsonDalModello(aiResult.content);
+    if (!letto) {
+      console.error("[document-ai-router] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
+    const parsed = letto as unknown as ClassificationResult;
 
     // 5. Sanitize doc_type
     const allowedTypes = Object.keys(NEXT_ACTION_MAP);
@@ -356,6 +360,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

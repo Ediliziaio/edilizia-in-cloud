@@ -50,6 +50,7 @@
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
 
@@ -113,9 +114,9 @@ function getAvailableProviders(): ProviderConfig[] {
 }
 
 // ── Prompt condiviso — istruzioni in italiano per evitare output in EN ──────
-const SYSTEM_PROMPT = `Sei un esperto analista di listini prezzi per serramentistica italiana.
+const SYSTEM_PROMPT = conRegoleDocumento(`Sei un esperto analista di listini prezzi per serramentistica italiana.
 L'utente ti mostra un'IMMAGINE di una tabella matrice larghezza × altezza (L × H) di un listino fornitore.
-Il tuo unico output è un oggetto JSON valido.`;
+Il tuo unico output è un oggetto JSON valido.`);
 
 const USER_PROMPT = `Analizza questa matrice di prezzi L × H e restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
 

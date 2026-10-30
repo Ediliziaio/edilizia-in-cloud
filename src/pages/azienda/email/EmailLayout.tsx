@@ -515,6 +515,7 @@ export function EmailLayout({
           connections={connections ?? []}
           settingsPath={settingsPath}
           aiSettingsPath={aiSettingsPath}
+          documentiPath={companyIdOverride ? null : "/azienda/email/documenti"}
         />
       </aside>
 

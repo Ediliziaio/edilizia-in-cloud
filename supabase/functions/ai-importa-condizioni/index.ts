@@ -16,6 +16,11 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_IMPORT_CONDIZIONI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SYSTEM_PROMPT = `Sei l'assistente di un gestionale per imprese edili italiane. Ricevi un documento (contratto, condizioni di vendita, preventivo con clausole, informativa privacy) e devi produrre il blocco "Condizioni contrattuali e termini legali" da stampare in coda ai preventivi.
 
@@ -26,16 +31,6 @@ REGOLE
 - Formato markdown: "# Condizioni contrattuali" con sezioni "## 1. Oggetto", "## 2. Prezzi e pagamenti", ecc. (numerazione progressiva, un titolo per sezione), poi "# Termini legali" con "## Privacy (GDPR)", "## Diritto di recesso", "## Foro competente" se presenti nel documento. Elenchi con "- ". Niente tabelle, niente HTML.
 
 Rispondi SOLO con JSON: {"markdown": "…", "note": ["cosa hai cambiato o unito"], "mancanze": ["sezioni tipiche assenti nel documento"]}`;
-
-async function bufferToBase64(buffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -55,16 +50,26 @@ Deno.serve(async (req) => {
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
+    // Bucket e percorso li sceglie chi chiama e il download è con la chiave di
+    // servizio: solo il file che l'import carica nella cartella dell'azienda
+    // (vedi _shared/storageAmmesso.ts; un `%2e%2e` farebbe uscire la richiesta
+    // dallo storage).
+    if (!testo) {
+      const file = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_IMPORT_CONDIZIONI, { companyId: company_id, userId });
+      if (!file.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+      if (!file.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
+    }
+
     // eslint-disable-next-line no-explicit-any
     const userContent: any[] = [];
     if (testo) {
-      userContent.push({ type: "text", text: `Documento "${file_name ?? "testo"}" (testo estratto):\n\n${testo}` });
+      userContent.push({ type: "text", text: `Documento "${file_name ?? "testo"}" (testo estratto):\n\n${incorniciaTestoDocumento(testo)}` });
     } else {
       const { data: file, error: dlErr } = await supabaseAdmin.storage.from(storage_bucket!).download(storage_path!);
       if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
       const buffer = await (file as Blob).arrayBuffer();
       if (buffer.byteLength > 18 * 1024 * 1024) return errorResponse("Documento troppo grande (max 18MB)", 413, cors);
-      const base64 = await bufferToBase64(buffer);
+      const base64 = bytesToBase64(buffer);
       const isImage = (mime_type ?? "").startsWith("image/");
       const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
       userContent.push({ type: "text", text: `Leggi il documento allegato "${file_name ?? "documento"}" e produci il blocco condizioni.` });
@@ -81,7 +86,7 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
         { role: "user", content: userContent },
       ],
       params: { temperature: 0.1, max_tokens: 8000 },
@@ -91,15 +96,11 @@ Deno.serve(async (req) => {
       idempotencyKey,
     });
 
-    let parsed: { markdown?: string; note?: string[]; mancanze?: string[] } = {};
-    const raw = (aiResult.content ?? "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const start = raw.indexOf("{"); const end = raw.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors); }
-      } else return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
+    const parsed = leggiJsonDalModello(aiResult.content);
+    if (!parsed) {
+      console.error("[ai-importa-condizioni] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
     const markdown = String(parsed.markdown ?? "").trim();
     if (!markdown) return errorResponse("Nel documento non ho trovato condizioni o termini da riordinare.", 422, cors);
@@ -113,6 +114,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

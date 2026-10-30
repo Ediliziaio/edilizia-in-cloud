@@ -17,7 +17,12 @@ export function utf8ToBase64(input: string): string {
 
 export function bytesToBase64(input: Uint8Array | ArrayBuffer): string {
   const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : input;
-  // btoa accetta solo stringhe latin1 (0x00-0xFF). Convertiamo i byte
+  // Dove il runtime ha `Uint8Array.prototype.toBase64` (V8 recente) è il percorso
+  // da usare: 12 MB in circa 1 ms, contro i circa 170 ms (su un portatile veloce,
+  // di più sul server) del ripiego qui sotto. Il risultato è identico.
+  const nativo = (bytes as Uint8Array & { toBase64?: () => string }).toBase64;
+  if (typeof nativo === "function") return nativo.call(bytes);
+  // Ripiego. btoa accetta solo stringhe latin1 (0x00-0xFF). Convertiamo i byte
   // UTF-8 in una stringa latin1 a chunk per evitare stack overflow su
   // input molto grossi (String.fromCharCode(...bytes) fallisce > ~65k).
   const chunkSize = 0x8000;

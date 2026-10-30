@@ -10,17 +10,21 @@ import { useMemo } from "react";
 import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, PackageCheck, Truck, CalendarClock, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { apriFileRiservato } from "@/lib/storagePrivato";
 import {
   useEstraiAllegato,
   useDocumentiEstrattiPerEmail,
   useAggiornaStatoDocumentoEstratto,
   useCreaCaricoDdt,
   useCarichiDdtPerEmail,
+  useCarichiDdtPerDocumento,
   useAggiornaStatoCaricoDdt,
   useRilevaScadenza,
   useScadenzeBozzePerEmail,
+  useScadenzeBozzePerDocumento,
   useConfermaScadenza,
   useScartaScadenza,
   type DocumentoEstratto,
@@ -43,6 +47,16 @@ const CAMPO_LABEL: Record<string, string> = {
   causale_trasporto: "Causale trasp.",
   riferimento_ordine: "Rif. ordine",
 };
+
+/**
+ * Perché il PDF non si è aperto, in italiano. Dello storage arrivano messaggi tecnici in inglese
+ * («Object not found» è anche ciò che dice quando il permesso manca): l'unico che si mostra com'è
+ * è quello del blocco delle schede, già scritto per l'utente.
+ */
+function motivoPdfNonAperto(e: unknown): string {
+  if (e instanceof Error && /bloccato l.apertura/i.test(e.message)) return e.message;
+  return "Il file non è disponibile, o non hai il permesso di aprirlo.";
+}
 
 function isPdf(a: Attachment): boolean {
   const f = (a.filename || "").toLowerCase();
@@ -93,8 +107,14 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
   );
 }
 
-function CarichiSection({ emailId }: { emailId: string }) {
-  const { data: carichi } = useCarichiDdtPerEmail(emailId);
+/**
+ * I carichi di magazzino proposti da un DDT. Nel pannello dell'email si legge per email;
+ * nell'elenco «Documenti da confermare» per documento (vale anche senza email).
+ */
+export function CarichiSection({ emailId, documentoId }: { emailId?: string | null; documentoId?: string | null }) {
+  const perEmail = useCarichiDdtPerEmail(documentoId ? null : emailId);
+  const perDocumento = useCarichiDdtPerDocumento(documentoId);
+  const carichi = documentoId ? perDocumento.data : perEmail.data;
   const aggiorna = useAggiornaStatoCaricoDdt();
   // Confermare o scartare un carico muove il magazzino: solo chi può modificarlo (come il database).
   const puoCaricare = !!usePermissions().canEditWarehouse;
@@ -154,12 +174,12 @@ function CarichiSection({ emailId }: { emailId: string }) {
             <div className="mt-3 flex gap-2">
               <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                       disabled={aggiorna.isPending}
-                      onClick={() => aggiorna.mutate({ id: c.id, stato: "confermato", email_id: emailId })}>
+                      onClick={() => aggiorna.mutate({ id: c.id, stato: "confermato", email_id: emailId ?? undefined, documento_estratto_id: c.documento_estratto_id })}>
                 <CheckCircle2 className="h-3.5 w-3.5" /> Conferma carico
               </Button>
               <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                       disabled={aggiorna.isPending}
-                      onClick={() => aggiorna.mutate({ id: c.id, stato: "scartato", email_id: emailId })}>
+                      onClick={() => aggiorna.mutate({ id: c.id, stato: "scartato", email_id: emailId ?? undefined })}>
                 <XCircle className="h-3.5 w-3.5" /> Scarta
               </Button>
             </div>
@@ -170,8 +190,11 @@ function CarichiSection({ emailId }: { emailId: string }) {
   );
 }
 
-function ScadenzeSection({ emailId }: { emailId: string }) {
-  const { data: scadenze } = useScadenzeBozzePerEmail(emailId);
+/** Le scadenze rilevate da una fattura: per email nel pannello, per documento nell'elenco unico. */
+export function ScadenzeSection({ emailId, documentoId }: { emailId?: string | null; documentoId?: string | null }) {
+  const perEmail = useScadenzeBozzePerEmail(documentoId ? null : emailId);
+  const perDocumento = useScadenzeBozzePerDocumento(documentoId);
+  const scadenze = documentoId ? perDocumento.data : perEmail.data;
   const conferma = useConfermaScadenza();
   const scarta = useScartaScadenza();
   // «Aggiungi a scadenzario» scrive una scadenza: il database lo concede a chi
@@ -207,12 +230,12 @@ function ScadenzeSection({ emailId }: { emailId: string }) {
               <div className="mt-3 flex gap-2">
                 <Button size="sm" className="h-8 gap-1 bg-teal-600 text-xs hover:bg-teal-700"
                         disabled={conferma.isPending}
-                        onClick={() => conferma.mutate({ id: s.id, email_id: emailId })}>
+                        onClick={() => conferma.mutate({ id: s.id, email_id: emailId ?? undefined })}>
                   <CheckCircle2 className="h-3.5 w-3.5" /> Aggiungi a scadenzario
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                         disabled={scarta.isPending}
-                        onClick={() => scarta.mutate({ id: s.id, email_id: emailId })}>
+                        onClick={() => scarta.mutate({ id: s.id, email_id: emailId ?? undefined })}>
                   <XCircle className="h-3.5 w-3.5" /> Scarta
                 </Button>
               </div>
@@ -224,7 +247,8 @@ function ScadenzeSection({ emailId }: { emailId: string }) {
   );
 }
 
-function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: string }) {
+/** La bozza letta da un allegato, con i suoi dati, gli avvisi e le azioni (conferma, scarta, carico, scadenza). */
+export function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId?: string | null }) {
   const aggiorna = useAggiornaStatoDocumentoEstratto();
   const creaCarico = useCreaCaricoDdt();
   const rilevaScadenza = useRilevaScadenza();
@@ -234,6 +258,8 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
   const isDdt = (draft.tipo || "").toLowerCase() === "ddt" || (Array.isArray(righe) && righe.length > 0);
   const hasScadenza = !!campi.scadenza?.valore && !!campi.totale?.valore;
   const ordered = Object.keys(CAMPO_LABEL).filter((k) => campi[k]?.valore != null && campi[k]?.valore !== "");
+  const bucketPdf = draft.pdf_storage_bucket;
+  const percorsoPdf = draft.pdf_storage_path;
 
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-xs">
@@ -277,10 +303,19 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
       {draft.note && <p className="mt-2 text-[11px] italic text-muted-foreground">{draft.note}</p>}
 
       <div className="mt-3 flex flex-wrap gap-2">
+        {/* I campi incerti si controllano sul documento: serve poterlo aprire da qui. */}
+        {bucketPdf && percorsoPdf && (
+          <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
+                  onClick={() => void apriFileRiservato(bucketPdf, percorsoPdf).catch((e: unknown) =>
+                    toast.error("Non riesco ad aprire il PDF", { description: motivoPdfNonAperto(e) }))}>
+            <FileText className="h-3.5 w-3.5" />
+            Apri PDF
+          </Button>
+        )}
         {isDdt && (
           <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs"
                   disabled={creaCarico.isPending}
-                  onClick={() => creaCarico.mutate({ documento_estratto_id: draft.id, email_id: emailId })}>
+                  onClick={() => creaCarico.mutate({ documento_estratto_id: draft.id, email_id: emailId ?? undefined })}>
             {creaCarico.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
             Crea carico magazzino
           </Button>
@@ -288,7 +323,7 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
         {hasScadenza && (
           <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs"
                   disabled={rilevaScadenza.isPending}
-                  onClick={() => rilevaScadenza.mutate({ documento_estratto_id: draft.id, email_id: emailId })}>
+                  onClick={() => rilevaScadenza.mutate({ documento_estratto_id: draft.id, email_id: emailId ?? undefined })}>
             {rilevaScadenza.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="h-3.5 w-3.5" />}
             Rileva scadenza
           </Button>
@@ -299,12 +334,12 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
         <div className="mt-3 flex gap-2">
           <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
                   disabled={aggiorna.isPending}
-                  onClick={() => aggiorna.mutate({ id: draft.id, stato: "confermato", email_id: emailId })}>
+                  onClick={() => aggiorna.mutate({ id: draft.id, stato: "confermato", email_id: emailId ?? undefined })}>
             <CheckCircle2 className="h-3.5 w-3.5" /> Conferma
           </Button>
           <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
                   disabled={aggiorna.isPending}
-                  onClick={() => aggiorna.mutate({ id: draft.id, stato: "scartato", email_id: emailId })}>
+                  onClick={() => aggiorna.mutate({ id: draft.id, stato: "scartato", email_id: emailId ?? undefined })}>
             <XCircle className="h-3.5 w-3.5" /> Scarta
           </Button>
         </div>

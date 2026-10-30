@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  FileCheck2,
   FileEdit,
   Inbox,
   Mail,
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils";
 import type { EmailFilter, FolderFilter } from "../EmailLayout";
 import type { EmailConnectionSummary } from "../EmailLayout";
 import ReconnectMailboxDialog from "./ReconnectMailboxDialog";
+import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
 
 type SystemFolderKey = "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive";
 
@@ -64,6 +66,8 @@ interface EmailSidebarProps {
   /** Path impostazioni email — passato dal layout (azienda vs admin). */
   settingsPath?: string;
   aiSettingsPath?: string | null;
+  /** Elenco «Documenti da confermare»: solo nel contesto azienda (non in quello amministratore). */
+  documentiPath?: string | null;
 }
 
 function syncLabelFor(value: string | null | undefined): string {
@@ -146,9 +150,10 @@ function providerLabel(provider: string): string {
   return provider || "Email";
 }
 
-export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo", aiSettingsPath = "/azienda/email/ai" }: EmailSidebarProps) {
-  const { user } = useAuth();
+export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo", aiSettingsPath = "/azienda/email/ai", documentiPath = null }: EmailSidebarProps) {
+  const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
+  const documentiDaConfermare = useDocumentiDaConfermareCount(effectiveCompany?.id, !!documentiPath).data ?? 0;
   const [openFolders, setOpenFolders] = useState<Record<SystemFolderKey, boolean>>({
     inbox: true,
     starred: false,
@@ -387,6 +392,20 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
             );
           })}
         </nav>
+
+        {/* Le bozze lette dagli allegati e ancora da confermare: prima si vedevano solo aprendo la singola email. */}
+        {documentiPath && documentiDaConfermare > 0 && (
+          <Link
+            to={documentiPath}
+            className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-blue-50/70"
+          >
+            <FileCheck2 className="h-4 w-4 shrink-0 text-blue-600" />
+            <span className="min-w-0 flex-1 leading-tight">Documenti da confermare</span>
+            <Badge variant="secondary" className="h-5 min-w-[24px] rounded-full bg-blue-100 px-1.5 text-[10px] text-blue-800 hover:bg-blue-100">
+              {compactCount(documentiDaConfermare)}
+            </Badge>
+          </Link>
+        )}
 
         {/* Stato sync caselle — compatto, in fondo. Solo se l'utente ha
             collegato almeno una casella. Lo mostriamo sempre (anche tutto OK)

@@ -30,6 +30,10 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { controllaDocumento, statoAnalisi } from "../_shared/controlliDocumento.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
+import { erroreAiPerUtente, erroreDaCorpo, type ErroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface AnalyzeRequest {
   storage_bucket: string;
@@ -56,164 +60,33 @@ interface ParserInvocation {
   metadata?: AnyRecord;
 }
 
-const TOL_INVOICE = 0.05;
-const TOL_COMPUTO = 1.0;
 const ROUTER_CLASSIFIER_MAX_SIZE = 18 * 1024 * 1024;
 
-// ──────────────────────────────────────────────────────────────────────────
-// Validation: P.IVA italiana 11 cifre con check digit Luhn-IT
-// ──────────────────────────────────────────────────────────────────────────
-function isValidPiva(piva: string | null | undefined): boolean {
-  const clean = String(piva ?? "").replace(/\s+/g, "").replace(/^(IT)/i, "");
-  if (!/^\d{11}$/.test(clean)) return false;
-  let sum = 0;
-  for (let i = 0; i < 11; i++) {
-    const d = parseInt(clean[i], 10);
-    if (i % 2 === 0) {
-      sum += d;
-    } else {
-      const dd = d * 2;
-      sum += dd > 9 ? dd - 9 : dd;
-    }
+/** Un errore di un'altra funzione, già nella forma da dare al client (codice e stato): si rilancia com'è. */
+class ErroreRilanciato extends Error {
+  constructor(public noto: ErroreAiPerUtente) {
+    super(noto.body.error);
   }
-  return sum % 10 === 0;
-}
-
-function num(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const s = String(v).replace(/[€\s]/g, "").replace(",", ".");
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-function approxEq(a: number, b: number, tol: number): boolean {
-  return Math.abs(a - b) <= tol;
 }
 
 /**
- * Validazione strutturata sul parsed payload del documento.
- * Ritorna lista di warning + score globale di affidabilità (0..1).
+ * supabase-js maschera il corpo con «Edge Function returned a non-2xx status code»: il motivo
+ * vero, e il nostro codice se c'è, sta nel corpo della risposta.
  */
-function validateStructuredFields(
-  docType: string,
-  fields: Record<string, unknown> | null,
-): { warnings: ValidationWarning[]; score: number } {
-  const warnings: ValidationWarning[] = [];
-  if (!fields) {
-    warnings.push({ code: "no_fields", message: "Nessun campo strutturato estratto", severity: "warn" });
-    return { warnings, score: 0.4 };
+async function leggiErroreFunzione(err: unknown): Promise<{ corpo: unknown; messaggio: string }> {
+  const ctx = (err as { context?: Response } | null)?.context;
+  if (ctx && typeof ctx.text === "function") {
+    try {
+      const testo = await ctx.text();
+      try {
+        const corpo = JSON.parse(testo) as { error?: string; message?: string };
+        return { corpo, messaggio: corpo.error ?? corpo.message ?? (testo.slice(0, 300) || "errore") };
+      } catch {
+        return { corpo: null, messaggio: testo.slice(0, 300) || "errore" };
+      }
+    } catch { /* corpo già letto o assente */ }
   }
-
-  if (docType === "fattura" || docType === "fattura_attiva" || docType === "fattura_passiva" || docType === "ricevuta") {
-    // P.IVA cedente / cessionario
-    const pivaCedente = (fields as { piva_cedente?: string }).piva_cedente
-      ?? (fields as { vat_seller?: string }).vat_seller
-      ?? (fields as { partita_iva_emittente?: string }).partita_iva_emittente;
-    const pivaCessionario = (fields as { piva_cessionario?: string }).piva_cessionario
-      ?? (fields as { vat_buyer?: string }).vat_buyer
-      ?? (fields as { partita_iva_destinatario?: string }).partita_iva_destinatario;
-
-    if (docType !== "ricevuta") {
-      if (!pivaCedente) {
-        warnings.push({ code: "missing_piva_cedente", field: "piva_cedente", message: "P.IVA cedente mancante", severity: "warn" });
-      } else if (!isValidPiva(pivaCedente)) {
-        warnings.push({ code: "invalid_piva_cedente", field: "piva_cedente", message: `P.IVA cedente non valida: ${pivaCedente}`, severity: "error" });
-      }
-      if (pivaCessionario && !isValidPiva(pivaCessionario)) {
-        warnings.push({ code: "invalid_piva_cessionario", field: "piva_cessionario", message: `P.IVA cessionario non valida: ${pivaCessionario}`, severity: "error" });
-      }
-    }
-
-    // Totali = imponibile + IVA (tolleranza 0.05)
-    const imp = num((fields as { imponibile?: unknown }).imponibile ?? (fields as { taxable?: unknown }).taxable);
-    const iva = num((fields as { iva?: unknown }).iva ?? (fields as { vat_amount?: unknown }).vat_amount);
-    const tot = num((fields as { totale?: unknown }).totale ?? (fields as { total?: unknown }).total);
-    if (imp !== null && iva !== null && tot !== null) {
-      if (!approxEq(imp + iva, tot, TOL_INVOICE)) {
-        warnings.push({
-          code: "totale_imponibile_iva_mismatch",
-          field: "totale",
-          message: `Totale ${tot.toFixed(2)} ≠ imponibile (${imp.toFixed(2)}) + IVA (${iva.toFixed(2)}) = ${(imp + iva).toFixed(2)}`,
-          severity: "error",
-        });
-      }
-    } else if (tot === null) {
-      warnings.push({ code: "missing_totale", field: "totale", message: "Totale non rilevato", severity: "warn" });
-    }
-
-    // Somma righe = subtotale
-    const righe = (fields as { righe?: unknown[] }).righe
-      ?? (fields as { lines?: unknown[] }).lines
-      ?? [];
-    if (Array.isArray(righe) && righe.length > 0 && imp !== null) {
-      let sumRighe = 0;
-      let countOk = 0;
-      for (const r of righe) {
-        const importoRiga = num(
-          (r as { importo?: unknown }).importo
-            ?? (r as { total?: unknown }).total
-            ?? (r as { amount?: unknown }).amount,
-        );
-        if (importoRiga !== null) {
-          sumRighe += importoRiga;
-          countOk++;
-        }
-      }
-      if (countOk > 0 && !approxEq(sumRighe, imp, TOL_INVOICE)) {
-        warnings.push({
-          code: "righe_imponibile_mismatch",
-          field: "righe",
-          message: `Somma righe ${sumRighe.toFixed(2)} ≠ imponibile ${imp.toFixed(2)}`,
-          severity: "warn",
-        });
-      }
-    }
-  } else if (docType === "computo_metrico" || docType === "preventivo") {
-    const tot = num((fields as { totale?: unknown }).totale ?? (fields as { total?: unknown }).total
-      ?? (fields as { totale_lavori?: unknown }).totale_lavori);
-    const righe = (fields as { righe?: unknown[] }).righe
-      ?? (fields as { voci?: unknown[] }).voci
-      ?? (fields as { lines?: unknown[] }).lines
-      ?? [];
-    if (Array.isArray(righe) && righe.length > 0 && tot !== null) {
-      let sumRighe = 0;
-      let countOk = 0;
-      for (const r of righe) {
-        const importoRiga = num(
-          (r as { importo?: unknown }).importo
-            ?? (r as { total?: unknown }).total
-            ?? (r as { totale?: unknown }).totale,
-        );
-        if (importoRiga !== null) {
-          sumRighe += importoRiga;
-          countOk++;
-        }
-      }
-      if (countOk > 0 && !approxEq(sumRighe, tot, TOL_COMPUTO)) {
-        warnings.push({
-          code: "righe_totale_mismatch",
-          field: "righe",
-          message: `Somma voci ${sumRighe.toFixed(2)} ≠ totale lavori ${tot.toFixed(2)}`,
-          severity: "warn",
-        });
-      }
-    }
-    if (Array.isArray(righe) && righe.length === 0) {
-      warnings.push({ code: "no_righe", field: "righe", message: "Nessuna riga estratta", severity: "warn" });
-    }
-  } else if (docType === "ddt" || docType === "ddt_in" || docType === "ddt_out") {
-    const mitt = (fields as { mittente?: string }).mittente ?? (fields as { sender?: string }).sender;
-    const dest = (fields as { destinatario?: string }).destinatario ?? (fields as { recipient?: string }).recipient;
-    if (!mitt) warnings.push({ code: "missing_mittente", field: "mittente", message: "Mittente non rilevato", severity: "warn" });
-    if (!dest) warnings.push({ code: "missing_destinatario", field: "destinatario", message: "Destinatario non rilevato", severity: "warn" });
-  }
-
-  // Score: 1.0 - 0.25 per error - 0.10 per warn (clip 0..1)
-  const errors = warnings.filter((w) => w.severity === "error").length;
-  const warns = warnings.filter((w) => w.severity === "warn").length;
-  const score = Math.max(0, Math.min(1, 1 - errors * 0.25 - warns * 0.1));
-  return { warnings, score };
+  return { corpo: null, messaggio: err instanceof Error ? err.message : String(err) };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -270,13 +143,7 @@ async function downloadStorageAsBase64(
   const blob = data as Blob;
   const buffer = await blob.arrayBuffer();
   const bytes = buffer.byteLength;
-  const view = new Uint8Array(buffer);
-  let raw = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < view.length; i += chunkSize) {
-    raw += String.fromCharCode(...view.subarray(i, i + chunkSize));
-  }
-  return { base64: btoa(raw), blob, bytes };
+  return { base64: bytesToBase64(buffer), blob, bytes };
 }
 
 async function copyStorageForParser(
@@ -546,6 +413,15 @@ serve(async (req) => {
     if (!companyId) return errorResponse("company_id non risolto per utente", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
+    // Bucket e percorso li sceglie chi chiama, e da qui partono il download, la
+    // COPIA in altri bucket e l'inoltro ai parser, tutti con la chiave di servizio:
+    // solo i file che il modale «Importa documento» carica nella cartella
+    // dell'azienda (30/10/2026; un `%2e%2e` farebbe uscire la richiesta dallo
+    // storage, vedi _shared/storageAmmesso.ts).
+    const fileAmmesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_ANALISI_DOCUMENTI, { companyId, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    if (!fileAmmesso.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
+
     // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
     const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
     if (paymentBlock) return paymentBlock;
@@ -661,26 +537,22 @@ serve(async (req) => {
         },
       );
       if (routerErr) {
-        // supabase-js maschera il body con "Edge Function returned a non-2xx
-        // status code": qui si ripesca il messaggio VERO (es. "OpenRouter 402:
-        // saldo insufficiente") così arriva fino all'utente.
-        let realMsg = routerErr.message;
-        const ctx = (routerErr as { context?: Response }).context;
-        if (ctx && typeof ctx.text === "function") {
-          try {
-            const body = await ctx.text();
-            const parsed = JSON.parse(body) as { error?: string; message?: string };
-            realMsg = parsed.error ?? parsed.message ?? (body.slice(0, 300) || realMsg);
-          } catch { /* body non-JSON: teniamo il messaggio generico */ }
-        }
-        throw new Error(realMsg);
+        // Il motivo VERO sta nel corpo della risposta. Se è un errore nostro (credito, servizio
+        // fermo, lettura non riuscita) arriva all'utente com'è: senza il prefisso «router:» e
+        // con lo stato giusto, così la finestra di ricarica si apre solo quando serve.
+        const { corpo, messaggio } = await leggiErroreFunzione(routerErr);
+        const noto = erroreDaCorpo(corpo);
+        if (noto) throw new ErroreRilanciato(noto);
+        throw new Error(messaggio);
       }
       routerOut = (routerRes ?? {}) as typeof routerOut;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      const noto = e instanceof ErroreRilanciato ? e.noto : erroreAiPerUtente(e);
       await supabaseAdmin.from("document_analysis_results")
-        .update({ status: "failed", error_message: `router: ${msg}`, processing_time_ms: Date.now() - t0 })
+        .update({ status: "failed", error_message: noto ? msg : `router: ${msg}`, processing_time_ms: Date.now() - t0 })
         .eq("id", analysisId);
+      if (noto) return jsonResponse(noto.body, noto.status, cors);
       return errorResponse(`router: ${msg}`, 502, cors);
     }
 
@@ -692,6 +564,7 @@ serve(async (req) => {
     let parserUsed: string = (routerOut.next_action?.autoflow_function as string | undefined) ?? "router_only";
     let structuredFields: Record<string, unknown> | null = keyFields;
     const parserWarnings: ValidationWarning[] = [];
+    let parserFallito = false;
     if (routerOut.next_action?.kind === "autoflow" && routerOut.next_action.autoflow_function) {
       try {
         const invocation = await buildParserInvocation(supabaseAdmin, {
@@ -724,10 +597,22 @@ serve(async (req) => {
             },
           );
           if (parserErr) {
-            console.warn("[ai-document-analyzer] parser fallito (graceful):", parserErr.message);
+            // Prima l'avviso diceva solo «Edge Function returned a non-2xx status code» e l'analisi
+            // monca restava in cache: dopo la ricarica del credito, rimandare lo stesso documento
+            // dava lo stesso risultato senza i dati.
+            const { corpo, messaggio } = await leggiErroreFunzione(parserErr);
+            console.warn("[ai-document-analyzer] parser fallito:", invocation.functionName, messaggio);
+            const noto = erroreDaCorpo(corpo);
+            if (noto && (noto.body.code === "insufficient_credits" || noto.body.code === "payment_method_required")) {
+              await supabaseAdmin.from("document_analysis_results")
+                .update({ status: "failed", error_message: noto.body.error, processing_time_ms: Date.now() - t0 })
+                .eq("id", analysisId);
+              return jsonResponse(noto.body, noto.status, cors);
+            }
+            parserFallito = true;
             parserWarnings.push({
               code: "parser_failed",
-              message: `Parser ${invocation.functionName} fallito: ${parserErr.message}`,
+              message: noto ? noto.body.error : `Lettura dei dati non riuscita (${invocation.functionName}): ${messaggio}`,
               severity: "warn",
             });
           } else if (parserRes && typeof parserRes === "object") {
@@ -737,6 +622,7 @@ serve(async (req) => {
         }
       } catch (e) {
         console.warn("[ai-document-analyzer] parser exception (graceful):", e instanceof Error ? e.message : e);
+        parserFallito = true;
         parserWarnings.push({
           code: "parser_exception",
           message: `Parser exception: ${e instanceof Error ? e.message : String(e)}`,
@@ -746,11 +632,14 @@ serve(async (req) => {
     }
 
     // ── 5) Validate ─────────────────────────────────────────────────────
-    const validation = validateStructuredFields(docType, structuredFields);
+    const validation = controllaDocumento(docType, structuredFields);
     const warnings = [...parserWarnings, ...validation.warnings];
     const score = Math.max(0, validation.score - parserWarnings.filter((w) => w.severity === "warn").length * 0.1);
     const hasErrors = warnings.some((w) => w.severity === "error");
-    const finalStatus: "success" | "review_required" = hasErrors || score < 0.6 ? "review_required" : "success";
+    // Se il passo che legge i dati è fallito il risultato è parziale: si mostra «da rivedere» ma NON si salva
+    // come riuscito, altrimenti la cache per impronta del file lo riproporrebbe per sempre.
+    const stato = statoAnalisi({ haErrori: hasErrors, score, passoFallito: parserFallito });
+    const finalStatus = stato.mostrato;
 
     // ── 6) Update document_analysis_results ─────────────────────────────
     const costEur = typeof routerOut.ai_meta?.cost_eur === "number" ? routerOut.ai_meta.cost_eur : null;
@@ -764,7 +653,8 @@ serve(async (req) => {
         parser_used: parserUsed,
         structured_fields: structuredFields,
         validation_warnings: warnings,
-        status: finalStatus,
+        status: stato.salvato,
+        error_message: parserFallito ? (parserWarnings.find((w) => w.code === "parser_failed" || w.code === "parser_exception")?.message ?? null) : null,
         processing_time_ms: processingMs,
         cost_eur: costEur,
       })
@@ -819,6 +709,8 @@ serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

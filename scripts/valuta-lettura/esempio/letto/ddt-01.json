@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "ddt": {
+    "mittente": { "ragione_sociale": "Termoplast S.p.A.", "partita_iva": "02345678901" },
+    "destinatario": { "ragione_sociale": "Termoplast S.p.A." },
+    "intestazione": { "numero_ddt": "4411", "data_ddt": "2026-10-20" },
+    "righe_merce": [
+      { "descrizione": "Tubo PVC 110 mm", "quantita": 12, "um": "pz" },
+      { "descrizione": "Curva 87° 110 mm", "quantita": 6, "um": "pz" }
+    ]
+  }
+}

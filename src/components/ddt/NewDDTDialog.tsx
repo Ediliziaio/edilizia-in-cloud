@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -678,7 +679,7 @@ function DocumentoStep({
           company_id: companyId,
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Estrazione fallita"));
       if (!aiData?.success) throw new Error(aiData?.error ?? "Estrazione fallita");
       onLetturaAI(aiData.ddt ?? {});
     } catch (err) {

@@ -22,6 +22,12 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { BUCKET_OCR_FATTURA, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { controllaDocumento, conAvvisi } from "../_shared/controlliDocumento.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SYSTEM_PROMPT = `Estrai da fattura passiva italiana i seguenti campi in JSON.
 
@@ -67,16 +73,6 @@ interface OcrPayload {
   auto_create?: boolean;
 }
 
-function bufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -106,9 +102,14 @@ serve(async (req: Request) => {
     const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
     if (paymentBlock) return paymentBlock;
 
-    const isUserScoped = storagePath.startsWith(`${userId}/`);
-    const isCompanyScoped = storagePath.startsWith(`${companyId}/`);
-    if (!isUserScoped && !isCompanyScoped) {
+    // Download e link firmato sono con la chiave di servizio. Il solo prefisso
+    // utente/azienda non bastava (30/10/2026): il bucket era libero (con la
+    // cartella della propria azienda si leggeva anche hr-documenti) e un
+    // `%2e%2e` nel percorso faceva uscire la richiesta dallo storage. Ora bucket
+    // e cartella devono essere tra quelli di _shared/storageAmmesso.ts.
+    const fileAmmesso = valutaFile({ bucket, path: storagePath }, BUCKET_OCR_FATTURA, { companyId, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, corsHeaders);
+    if (!fileAmmesso.conChiaveDiServizio) {
       return errorResponse("storage_path fuori scope utente/azienda", 403, corsHeaders);
     }
 
@@ -124,7 +125,7 @@ serve(async (req: Request) => {
     }
 
     const mimeType = body?.mime_type || (file as Blob).type || "application/pdf";
-    const base64 = bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
     const dataUrl = `data:${mimeType};base64,${base64}`;
     const isImage = mimeType.startsWith("image/");
     const userContent: unknown[] = [
@@ -149,7 +150,7 @@ serve(async (req: Request) => {
       supabase: supabaseAdmin,
       taskKey: "fattura_ricevuta_ocr",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
         { role: "user", content: userContent },
       ],
       params: { max_tokens: 3500, temperature: 0.0 },
@@ -159,19 +160,49 @@ serve(async (req: Request) => {
       idempotencyKey: `ocr_fattura_${companyId}_${bucket}_${storagePath}`,
       estimatedCostEur: 0.12,
     });
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = JSON.parse(aiResult.content || "{}");
-    } catch {
-      return errorResponse("OCR ha restituito JSON invalido", 500, corsHeaders);
+    // Prima un JSON.parse nudo: alla prima recinzione ```json la lettura finiva in errore.
+    const parsed = leggiJsonDalModello(aiResult.content);
+    if (!parsed) {
+      console.error("[ai-fattura-ricevuta-ocr] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, corsHeaders);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cedente = (parsed.cedente ?? {}) as any;
 
-    // Auto-create record se richiesto
-    let createdId: string | null = null;
-    if (autoCreate) {
+    // Già registrata? Lo dice l'indice univoco del database, ma solo a chi prova a salvarla:
+    // qui lo si sa prima, anche per chi sta guardando l'anteprima (30/10/2026).
+    let giaRegistrata: { id: string; stato: string | null } | null = null;
+    const pivaLetta = typeof cedente.piva === "string" ? cedente.piva.replace(/\s+/g, "").toUpperCase() : "";
+    if (pivaLetta && parsed.numero_fattura && parsed.data_fattura) {
+      const senzaIt = pivaLetta.replace(/^IT/, "");
+      const { data: gia } = await supabaseAdmin
+        .from("fatture_ricevute")
+        .select("id, stato")
+        .eq("company_id", companyId)
+        .in("cedente_piva", [...new Set([pivaLetta, senzaIt, `IT${senzaIt}`])])
+        .eq("numero_fattura", String(parsed.numero_fattura))
+        .eq("data_fattura", String(parsed.data_fattura))
+        .limit(1)
+        .maybeSingle();
+      if (gia) giaRegistrata = { id: gia.id as string, stato: (gia.stato as string | null) ?? null };
+    }
+    const controlli = conAvvisi(
+      controllaDocumento("fattura", parsed),
+      giaRegistrata
+        ? [{
+            code: "fattura_gia_registrata",
+            field: "numero_fattura",
+            message: `Questa fattura risulta già registrata${giaRegistrata.stato ? ` (stato: ${giaRegistrata.stato})` : ""}`,
+            severity: "warn" as const,
+          }]
+        : [],
+    );
+
+    // Auto-create record se richiesto (una fattura già registrata non si inserisce di nuovo)
+    let createdId: string | null = autoCreate && giaRegistrata ? giaRegistrata.id : null;
+    if (autoCreate && !giaRegistrata) {
       const { data: ins, error: insErr } = await supabaseAdmin
         .from("fatture_ricevute")
         .insert({
@@ -231,11 +262,16 @@ serve(async (req: Request) => {
       created_invoice_id: createdId,
       preview_url: previewUrl,
       file_ref: { bucket, storage_path: storagePath },
+      // Cosa non torna nella lettura (P.IVA, totali, riepilogo IVA, date, doppione) e quali campi guardare.
+      controlli: { warnings: controlli.warnings, score: controlli.score, da_verificare: controlli.daVerificare },
+      gia_registrata: giaRegistrata,
     }, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[ai-fattura-ricevuta-ocr] error:", msg);
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
   }
 });

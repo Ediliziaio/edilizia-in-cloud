@@ -20,6 +20,11 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 // Schema specifico per tipo doc — guida il prompt a produrre JSON tipizzato
 const SCHEMA_BY_TYPE: Record<string, string> = {
@@ -190,16 +195,6 @@ Restituisci SOLO JSON valido (no markdown), formato:
   "warnings": []
 }`;
 
-async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -231,10 +226,19 @@ Deno.serve(async (req) => {
     // Fino al 24/09/2026 il file si scaricava sempre con la chiave di servizio,
     // controllando solo che l'utente fosse dell'azienda indicata: bastava
     // passare il percorso di un file di un'altra azienda per farselo leggere.
-    // Un file nella cartella dell'azienda ({company_id}/...) si scarica come
+    // Un file nelle cartelle dell'azienda dei bucket che l'app usa si scarica come
     // prima; qualunque altro percorso con i permessi di chi chiama, così chi
     // non potrebbe aprirlo non lo apre nemmeno passando da qui.
-    const nellaCartellaDellAzienda = storage_path.startsWith(`${company_id}/`) && !storage_path.includes("..");
+    //
+    // 30/10/2026: il controllo di allora (`startsWith` + `includes("..")`) si
+    // aggirava con `%2e%2e`, che il parser degli indirizzi legge come «sali di una
+    // cartella» (la richiesta usciva dallo storage con la chiave di servizio), e
+    // il bucket era libero: con un percorso nella cartella della PROPRIA azienda si
+    // leggeva anche hr-documenti. Ora bucket e percorso devono avere una forma pulita
+    // e la chiave di servizio vale solo per le coppie di _shared/storageAmmesso.ts.
+    const ammesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_LETTURA_GENERICA, { companyId: company_id, userId });
+    if (!ammesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    const nellaCartellaDellAzienda = ammesso.conChiaveDiServizio;
     const scaricatore = nellaCartellaDellAzienda
       ? supabaseAdmin
       : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -254,7 +258,7 @@ Deno.serve(async (req) => {
     if (buffer.byteLength > 18 * 1024 * 1024) {
       return errorResponse("Documento troppo grande (max 18MB)", 413, cors);
     }
-    const base64 = await bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
     const isImage = (mime_type ?? "").startsWith("image/");
     const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -291,7 +295,7 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: conRegoleDocumento(systemPrompt) },
         { role: "user", content: userContent },
       ],
       // Contratti/computi lunghi: le voci sono l'output più costoso in token e
@@ -311,25 +315,13 @@ Deno.serve(async (req) => {
     });
     const elapsedMs = Date.now() - t0;
 
-    let extracted: Record<string, unknown> = {};
-    try {
-      const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      extracted = JSON.parse(raw);
-    } catch {
-      // Recupero: su risposte lunghe alcuni modelli aggiungono testo attorno al
-      // JSON — si tenta il blocco { … } più esterno prima di arrendersi.
-      const raw = aiResult.content ?? "";
-      const start = raw.indexOf("{");
-      const end = raw.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try {
-          extracted = JSON.parse(raw.slice(start, end + 1));
-        } catch {
-          return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
-        }
-      } else {
-        return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
-      }
+    // Su risposte lunghe alcuni modelli aggiungono testo attorno al JSON: la lettura tollerante
+    // (recinzione ```json, blocco { … } più esterno) è condivisa con le altre funzioni.
+    const extracted = leggiJsonDalModello(aiResult.content);
+    if (!extracted) {
+      console.error("[generic-doc-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
 
     const summary = (extracted.summary as string | undefined) ?? "";
@@ -353,6 +345,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });
