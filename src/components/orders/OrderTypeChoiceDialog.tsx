@@ -1,35 +1,60 @@
 /**
  * OrderTypeChoiceDialog — bivio iniziale "Nuova Commessa"
  * ──────────────────────────────────────────────────────
- * Quando il Modulo Appaltatori è attivo, intercettiamo il click su
- * "Nuova Commessa" e mostriamo due scelte:
+ * Quando c'è più di un tipo di commessa possibile, intercettiamo il click su
+ * "Nuova Commessa" e mostriamo le scelte:
  *
  *   1. Commessa cliente (default, comportamento esistente)
  *      → /azienda/ordini/nuovo
- *      Fornitura + posa per cliente finale o impresa committente
- *      "tradizionale".
  *
- *   2. Lavoro per appaltatore
+ *   2. Lavoro per appaltatore — solo col Modulo Appaltatori
  *      → /azienda/ordini/nuovo-lavoro-appaltatore
- *      Sola manodopera commissionata da un'impresa committente
- *      con campi dedicati (cantiere, descrizione, posizione materiali,
- *      date inizio/fine).
+ *      Sola manodopera commissionata da un'impresa committente.
  *
- * Se la feature è disattivata, questo componente NON viene mai montato
+ *   3. Commessa generale — una scheda per ogni modello acceso in
+ *      Impostazioni → Commesse generali (appalto, sviluppo, compravendita).
+ *      Apre la finestra di creazione della generale (`onScegliGenerale`).
+ *
+ * Se non c'è niente da scegliere, questo componente NON viene mai montato
  * (l'OrdersList porta direttamente al flusso esistente).
  */
 import { Link } from "react-router-dom";
-import { ArrowRight, ShoppingCart, HardHat } from "lucide-react";
+import { ArrowRight, Building2, HardHat, Layers, ShoppingCart, type LucideIcon } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 interface OrderTypeChoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Modulo Appaltatori attivo: mostra «Lavoro per appaltatore». */
+  appaltatore?: boolean;
+  /** Modelli di commessa generale accesi dall'azienda. */
+  modelliGenerali?: ModelloGenerale[];
+  onScegliGenerale?: (modello: ModelloGenerale) => void;
 }
 
-export function OrderTypeChoiceDialog({ open, onOpenChange }: OrderTypeChoiceDialogProps) {
+const ICONE_GENERALE: Record<ModelloGenerale, LucideIcon> = { appalto: Layers, sviluppo: Building2, compravendita: Building2 };
+
+const SCHEDA = "group rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+function Scheda({ icona: Icona, titolo, testo, tono = "primary" }: { icona: LucideIcon; titolo: string; testo: string; tono?: "primary" | "amber" }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className={tono === "amber" ? "h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0" : "h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"}>
+        <Icona className={tono === "amber" ? "h-5 w-5 text-amber-600 dark:text-amber-500" : "h-5 w-5 text-primary"} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold text-sm leading-tight">{titolo}</h3>
+        <p className="text-xs text-muted-foreground mt-1">{testo}</p>
+      </div>
+      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary group-hover:translate-x-0.5 transition" />
+    </div>
+  );
+}
+
+export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false, modelliGenerali = [], onScegliGenerale }: OrderTypeChoiceDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -42,50 +67,33 @@ export function OrderTypeChoiceDialog({ open, onOpenChange }: OrderTypeChoiceDia
 
         <div className="grid gap-3 sm:grid-cols-2 pt-2">
           {/* Commessa cliente standard — flusso esistente */}
-          <Link
-            to="/azienda/ordini/nuovo"
-            onClick={() => onOpenChange(false)}
-            className="group rounded-lg border border-border bg-card p-4 transition-all hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm leading-tight">
-                  Commessa cliente
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Fornitura + posa per cliente finale (privato o azienda).
-                  Comportamento standard.
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary group-hover:translate-x-0.5 transition" />
-            </div>
+          <Link to="/azienda/ordini/nuovo" onClick={() => onOpenChange(false)} className={SCHEDA}>
+            <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente (privato o azienda). Comportamento standard." />
           </Link>
 
           {/* Lavoro per appaltatore — sola manodopera */}
-          <Link
-            to="/azienda/ordini/nuovo-lavoro-appaltatore"
-            onClick={() => onOpenChange(false)}
-            className="group rounded-lg border border-border bg-card p-4 transition-all hover:border-amber-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                <HardHat className="h-5 w-5 text-amber-600 dark:text-amber-500" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm leading-tight">
-                  Lavoro per appaltatore
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Sola manodopera commissionata da un'impresa committente:
-                  cantiere, descrizione, materiali e date.
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-amber-600 group-hover:translate-x-0.5 transition" />
-            </div>
-          </Link>
+          {appaltatore && (
+            <Link to="/azienda/ordini/nuovo-lavoro-appaltatore" onClick={() => onOpenChange(false)} className={`${SCHEDA} hover:border-amber-500`}>
+              <Scheda
+                icona={HardHat}
+                tono="amber"
+                titolo="Lavoro per appaltatore"
+                testo="Sola manodopera commissionata da un'impresa committente: cantiere, descrizione, materiali e date."
+              />
+            </Link>
+          )}
+
+          {/* Commesse generali — una per modello acceso */}
+          {modelliGenerali.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={SCHEDA}
+              onClick={() => { onOpenChange(false); onScegliGenerale?.(m); }}
+            >
+              <Scheda icona={ICONE_GENERALE[m]} titolo={`Commessa generale · ${DEFINIZIONI_MODELLI[m].nome}`} testo={DEFINIZIONI_MODELLI[m].perChi} />
+            </button>
+          ))}
         </div>
       </DialogContent>
     </Dialog>

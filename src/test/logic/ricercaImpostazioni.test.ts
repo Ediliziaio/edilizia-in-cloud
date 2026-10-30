@@ -78,6 +78,8 @@ const DOMANDE: [string, string[]][] = [
   ["render", ["catalogo-render"]],
   ["stati commessa", ["stati-ordine"]],
   ["fasi", ["modelli-fasi"]],
+  ["appalto", ["commesse-generali"]],
+  ["sviluppo immobiliare", ["commesse-generali"]],
   ["cartelle", ["cartelle-documenti"]],
   ["squadre", ["calendari-lavori", "persone"]],
   ["calendario lavori", ["calendari-lavori"]],
@@ -165,8 +167,8 @@ const DOMANDE: [string, string[]][] = [
 ];
 
 describe("le domande di un titolare trovano la pagina giusta", () => {
-  it("sono 124, e sulla lista completa trovano tutte", () => {
-    expect(DOMANDE).toHaveLength(124);
+  it("sono 126, e sulla lista completa trovano tutte", () => {
+    expect(DOMANDE).toHaveLength(126);
   });
 
   it.each(DOMANDE)("«%s»", (domanda, attese) => {
@@ -540,6 +542,7 @@ describe("ogni voce porta a una pagina che esiste", () => {
     "modelli-pagamento": ["src/pages/azienda/settings/SettingsModelliPagamento.tsx", "src/components/settings/ModelliPagamentoConfig.tsx", "src/components/settings/SalMaturaConfig.tsx"],
     "firma-elettronica": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx"],
     "numeri-telefono": ["src/pages/azienda/settings/SettingsPhoneNumbers.tsx"],
+    "commesse-generali": ["src/components/settings/CommesseGeneraliConfig.tsx"],
   };
   const leggiSeC = (file: string) => (existsSync(resolve(radice, file)) ? leggi(file) : "");
 

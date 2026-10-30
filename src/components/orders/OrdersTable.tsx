@@ -3,7 +3,8 @@ import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Trash2, X, ChevronDown, HardHat, MoreVertical } from "lucide-react";
+import { Eye, Pencil, Trash2, X, ChevronDown, HardHat, Layers, MoreVertical } from "lucide-react";
+import type { MappaGenerali } from "@/hooks/useCommesseGenerali";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
@@ -63,7 +64,11 @@ interface OrdersTableProps {
   salespeopleMap?: Map<string, string[]>;
   laborMap?: Map<string, string[]>;
   supplierMap?: Map<string, string[]>;
+  /** Chi è una commessa generale e chi sta dentro quale (useMappaGenerali). */
+  mappaGenerali?: MappaGenerali;
 }
+
+const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
 
 export const OrdersTable = React.memo(function OrdersTable({
   canDelete = true,
@@ -81,6 +86,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   salespeopleMap = new Map(),
   laborMap = new Map(),
   supplierMap = new Map(),
+  mappaGenerali = SENZA_GENERALI,
 }: OrdersTableProps) {
   const sortAccessors = useMemo(() => ({
     order_code: (o: OrderWithDetails) => o.order_code || "",
@@ -201,6 +207,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {order.order_type === "appaltatore_lavoro" && (
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
+                  <SegnoGenerale order={order} mappa={mappaGenerali} compatto />
                   {order.status && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: order.status.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: order.status.color }} />
@@ -216,7 +223,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                 )}
               </div>
               <div className="shrink-0 text-right tabular-nums">
-                <p className="text-sm font-bold leading-tight">{formatCurrency(totalIvato)}</p>
+                <p className="text-sm font-bold leading-tight">{mappaGenerali.figliePerGenerale.has(order.id) ? "—" : formatCurrency(totalIvato)}</p>
                 {due > 0 ? (
                   <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">da ricevere {formatCurrencyCompact(due)}</p>
                 ) : collected > 0 ? (
@@ -384,6 +391,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                           <HardHat className="h-2.5 w-2.5" />
                         </Badge>
                       )}
+                      <SegnoGenerale order={order} mappa={mappaGenerali} />
                     </div>
                   </TableCell>
                   {/* Colonne secondarie più avanti: con tutte le predefinite la tabella
@@ -413,8 +421,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("totalIvato") && (
-                    <TableCell className="hidden sm:table-cell text-right">
-                      {formatCurrency(totalIvato)}
+                    <TableCell className="hidden sm:table-cell text-right" title={mappaGenerali.figliePerGenerale.has(order.id) ? "Gli importi sono nelle commesse dentro" : undefined}>
+                      {mappaGenerali.figliePerGenerale.has(order.id) ? "—" : formatCurrency(totalIvato)}
                     </TableCell>
                   )}
                   {visibleColumns.has("imponibile") && (
@@ -578,3 +586,23 @@ export const OrdersTable = React.memo(function OrdersTable({
     </Card>
   );
 });
+
+/** Generale: «Generale · 5». Commessa dentro una generale: «in C-014». Niente per le commesse normali. */
+function SegnoGenerale({ order, mappa, compatto = false }: { order: OrderWithDetails; mappa: MappaGenerali; compatto?: boolean }) {
+  if (mappa.figliePerGenerale.has(order.id)) {
+    const n = mappa.figliePerGenerale.get(order.id) ?? 0;
+    return (
+      <Badge variant="secondary" className="shrink-0 gap-1 px-1.5 py-0 text-[10px] font-medium" title={`Commessa generale con ${n === 1 ? "1 commessa" : `${n} commesse`} dentro`}>
+        <Layers className="h-2.5 w-2.5" aria-hidden="true" />
+        {compatto ? n : `Generale · ${n}`}
+      </Badge>
+    );
+  }
+  const g = mappa.generaleDellaFiglia.get(order.id);
+  if (!g) return null;
+  return (
+    <span className="min-w-0 truncate text-[10px] text-muted-foreground" title={`Fa parte di ${g.etichetta}`}>
+      in {g.etichetta}
+    </span>
+  );
+}

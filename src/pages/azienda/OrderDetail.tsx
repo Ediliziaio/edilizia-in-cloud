@@ -4,6 +4,8 @@ import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomField
 import { LegacyWorkReview } from "@/components/orders/LegacyWorkReview";
 import {OrderTrashConfirmDialog} from '@/components/orders/OrderTrashConfirmDialog';
 import { ContractInterventions } from "@/components/orders/ContractInterventions";
+import { CommessaGeneraleDettaglio } from "@/components/orders/generali/CommessaGeneraleDettaglio";
+import { PercorsoGenerale } from "@/components/orders/generali/PercorsoGenerale";
 import { ContractCosts } from "@/components/orders/ContractCosts";
 import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { avanzamentoFasi, seminaSchedaCommessa, type SchedaCommessa } from "@/lib/orders/schedaCommessa";
@@ -1304,6 +1306,11 @@ function OrderDetailInner() {
     </section>;
   }
 
+  // Una commessa generale non ha cantiere, materiali o rate sue: ha la sua pagina, che raccoglie le commesse dentro.
+  if (contractLink.data?.workflow_kind === "generale") {
+    return <div className="px-3 py-3 sm:px-6 sm:py-6"><CommessaGeneraleDettaglio generaleId={id!} /></div>;
+  }
+
   const operationalIntervention = contractLink.data?.workflow_kind === "intervento";
   const contractFinancePending = contractLink.data?.workflow_kind === "contratto" && (order.vat_rate == null || agreedAmount <= 0);
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
@@ -1449,6 +1456,8 @@ function OrderDetailInner() {
         canDelete={permissions.isAdmin || permissions.canDeleteOrders}
         azioniTelefono={isMobile ? azioniRapide : undefined}
       />
+
+      <PercorsoGenerale orderId={id!} />
 
       {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ──
           Da telefono stanno, solo icone, nella fila di «Registra incasso». */}

@@ -57,6 +57,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/rapportini-cantiere",// Rapportini e presenze (si sceglie una volta, al computer)
   "/azienda/impostazioni/modelli-fasi",       // Modelli di fasi (si preparano una volta, al computer)
   "/azienda/impostazioni/modelli-pagamento",  // Modelli di pagamento (si preparano una volta, al computer)
+  "/azienda/impostazioni/commesse-generali",  // Commesse generali (si accendono una volta, al computer)
   "/azienda/impostazioni/calendari",          // Calendari marketing
 ]);
 

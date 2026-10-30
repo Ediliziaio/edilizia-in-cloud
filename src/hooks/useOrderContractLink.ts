@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-export interface OrderContractLink {id:string; workflow_kind:"commessa"|"contratto"|"intervento"; parent_contract_id:string|null; intervention_reference:string|null;order_code:string|null}
+export interface OrderContractLink {id:string; workflow_kind:"commessa"|"contratto"|"intervento"|"generale"; parent_contract_id:string|null; intervention_reference:string|null;order_code:string|null}
 export function useOrderContractLink(orderId?:string) {
  const {effectiveCompany}=useAuth(); const companyId=effectiveCompany?.id;
  return useQuery({queryKey:["order-contract-link",companyId,orderId],enabled:!!companyId&&!!orderId,queryFn:async():Promise<OrderContractLink>=>{

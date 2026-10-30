@@ -62,6 +62,9 @@ import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
+import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
+import { leggiIdGenerali, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
+import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 // MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
 import {
@@ -79,6 +82,11 @@ function OrdersListInner() {
   const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
+  // Commesse generali accese da Impostazioni: il bivio «Nuova Commessa» le offre accanto alla commessa normale.
+  const { modelli: modelliGenerali, configurata: generaliConfigurate } = useImpostazioniCommesseGenerali();
+  const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
+  const conBivio = appaltatoreEnabled || modelliGenerali.length > 0;
+  const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
   const refreshOrderScope = useCallback(() => {
     for (const key of ["orders", "orders-global-stats", "orders-pipeline", "orders-monthly-sales-chart"])
@@ -253,9 +261,9 @@ function OrdersListInner() {
   // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
   // ma possono essere letti per anno quando serve.
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
-    queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets],
+    queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
     queryFn: async () => {
-      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[] };
+      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
@@ -275,8 +283,12 @@ function OrdersListInner() {
         .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to)) : [];
       const ticketIds = new Set(tickets.flatMap(ticket => ticket.order_id ? [ticket.order_id] : []));
       const rows = isYearCorrente ? currentManagementScope(allRows,currentYear,lastStatusId,supportStatusId,ticketIds) : allRows;
-      const annualRows = isYearCorrente ? rows.filter(order => orderYear(order) === currentYear) : rows;
-      const previousRows = isYearCorrente ? rows.filter(order => orderYear(order) < currentYear) : [];
+      // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
+      const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
+      const generali = new Set(generaliIds);
+      const righeCheContano = generali.size ? rows.filter(order => !generali.has(order.id)) : rows;
+      const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
+      const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
       const annual = orderEconomics(annualRows);
       const previous = orderEconomics(previousRows);
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
@@ -292,12 +304,12 @@ function OrdersListInner() {
       const pending = annual.pending;
       let countAssistenza = 0;
       let countCompletati = 0;
-      for (const o of rows) {
+      for (const o of righeCheContano) {
         if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) countAssistenza++;
         else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
-      const countDaCompletare = rows.length - countAssistenza - countCompletati;
-      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds };
+      const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
+      return { totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds };
     },
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     refetchOnMount: "always",
@@ -313,8 +325,9 @@ function OrdersListInner() {
   const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
   const listScopeCounts = useMemo(() => {
     const ids = new Set(isYearCorrente ? listScopeIds : scopeOrderIds);
+    for (const id of globalStats?.generaliIds ?? []) ids.delete(id); // le generali non sono lavori da contare
     return orderWorkflowCounts(scopeOrders.filter(order=>ids.has(order.id)),lastStatusId,supportStatusId,new Set(globalStats?.supportOrderIds ?? []));
-  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds]);
+  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds,globalStats?.generaliIds]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -1386,7 +1399,7 @@ function OrdersListInner() {
               <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
             </Button>
-          ) : appaltatoreEnabled ? (
+          ) : conBivio ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
               size="sm"
@@ -1801,7 +1814,7 @@ function OrdersListInner() {
                     Pulisci tutti i filtri
                   </Button>
                 ) : stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && (
-                  appaltatoreEnabled ? (
+                  conBivio ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Crea la prima commessa
@@ -1841,6 +1854,7 @@ function OrdersListInner() {
                 salespeopleMap={salespeopleMap}
                 laborMap={laborMap}
                 supplierMap={supplierMap}
+                mappaGenerali={mappaGenerali}
               />
               {controlFocus === "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
@@ -1882,10 +1896,19 @@ function OrdersListInner() {
         onOpenChange={setCustomerSheetsOpen}
       />
 
-      {/* Bivio iniziale "Nuova Commessa" — solo se Modulo Appaltatori attivo. */}
+      {/* Bivio iniziale "Nuova Commessa" — solo se c'è da scegliere (Modulo Appaltatori o commesse generali). */}
       <OrderTypeChoiceDialog
         open={showOrderTypeDialog}
         onOpenChange={setShowOrderTypeDialog}
+        appaltatore={appaltatoreEnabled}
+        modelliGenerali={modelliGenerali}
+        onScegliGenerale={setNuovaGenerale}
+      />
+      <NuovaGeneraleDialog
+        open={nuovaGenerale !== null}
+        onOpenChange={(aperta) => { if (!aperta) setNuovaGenerale(null); }}
+        modelli={modelliGenerali}
+        iniziale={nuovaGenerale}
       />
     </div>
   );

@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark, Layers } from "lucide-react";
 
 /** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
 function parametriDa(url: string): URLSearchParams {
@@ -169,6 +169,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/modelli-fasi", label: "Fasi e avanzamento", icon: <ListChecks className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/modelli-pagamento", label: "Modelli di pagamento", icon: <Banknote className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/commesse-generali", label: "Commesse generali", icon: <Layers className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
         { to: "/azienda/impostazioni/sopralluoghi",        label: "Modelli di sopralluogo", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },

@@ -17,7 +17,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles, Layers } from "lucide-react";
 import { useOrderDraft, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
@@ -702,6 +702,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // davvero nell'anagrafica dell'azienda: un id inventato nell'URL non deve
   // selezionare niente.
   const customerIdDaUrl = searchParams.get("customer_id");
+  // «Nuovo ordine di lavoro» / «Nuova unità» dalla pagina di una commessa generale: alla fine la commessa ci entra dentro.
+  const generaleDaUrl = searchParams.get("generale");
+  const { data: generaleDaUrlNome } = useQuery({
+    queryKey: ["generale-per-nuova-commessa", effectiveCompany?.id, generaleDaUrl],
+    enabled: !!effectiveCompany?.id && !!generaleDaUrl,
+    staleTime: 60_000,
+    queryFn: async (): Promise<string | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).from("orders").select("order_code, description")
+        .eq("id", generaleDaUrl!).eq("company_id", effectiveCompany!.id).eq("workflow_kind", "generale").maybeSingle();
+      return data ? [data.order_code, data.description].filter(Boolean).join(" · ") : null;
+    },
+  });
   const customerDaUrlApplicatoRef = useRef(false);
   useEffect(() => {
     if (!customerIdDaUrl || customerDaUrlApplicatoRef.current) return;
@@ -1180,6 +1193,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           toast.error("Commessa creata, collegamento fattura da completare", { description:"Non creare un'altra commessa. Apri il dettaglio della fattura e collega quella appena salvata.", duration:15000 });
         }
       }
+      if (generaleDaUrl && generaleDaUrlNome) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: generaleErr } = await (supabase as any).rpc("commessa_generale_collega", { p_generale_id: generaleDaUrl, p_commesse: [order.id] });
+        if (generaleErr) {
+          toast.error("Commessa creata, ma non è entrata nella commessa generale", { description: "Non crearne un'altra: aprila dalla generale con «Collega commesse».", duration: 15000 });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ["commessa-generale-riepilogo", generaleDaUrl] });
+        }
+      }
       if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
@@ -1411,6 +1433,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   return (
     <div className="space-y-6">
+      {generaleDaUrl && generaleDaUrlNome && <Alert><Layers className="h-4 w-4" /><AlertDescription>Questa commessa entrerà in <span className="font-medium">{generaleDaUrlNome}</span>.</AlertDescription></Alert>}
       {invoiceId && <Alert><AlertDescription>Lavoro da fattura importata {invoiceSource.data?.invoice_number}. Conferma indirizzo cantiere e importo del contratto: il documento può essere un acconto. Nessun incasso o avanzamento viene presunto.</AlertDescription></Alert>}
       {/* Header */}
       <QuotePageHeader
