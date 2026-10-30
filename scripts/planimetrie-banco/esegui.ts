@@ -31,12 +31,17 @@ const modello = argomento("modello") ?? "oracolo";
 const solo = argomento("solo")?.split(",") ?? null;
 const maxUsd = Number(argomento("max-usd") ?? "1.5");
 const nota = argomento("nota") ?? "";
-// La chiave sta in ~/edilizia-in-cloud/.env.planimetrie (escluso da git), oppure nell'ambiente.
+// La chiave sta in ~/edilizia-in-cloud/.env.planimetrie.local (escluso da git anche su
+// main, regola .env.*.local) o .env.planimetrie (escluso da questo branch), oppure nell'ambiente.
 function chiaveDaFile(): string | undefined {
-  const file = join(homedir(), "edilizia-in-cloud", ".env.planimetrie");
-  if (!existsSync(file)) return undefined;
-  const riga = readFileSync(file, "utf8").split(/\r?\n/).find((r) => r.startsWith("OPENROUTER_API_KEY="));
-  return riga?.slice("OPENROUTER_API_KEY=".length).trim().replace(/^["']|["']$/g, "") || undefined;
+  for (const nome of [".env.planimetrie.local", ".env.planimetrie"]) {
+    const file = join(homedir(), "edilizia-in-cloud", nome);
+    if (!existsSync(file)) continue;
+    const riga = readFileSync(file, "utf8").split(/\r?\n/).find((r) => r.startsWith("OPENROUTER_API_KEY="));
+    const chiave = riga?.slice("OPENROUTER_API_KEY=".length).trim().replace(/^["']|["']$/g, "");
+    if (chiave) return chiave;
+  }
+  return undefined;
 }
 const chiave = process.env.OPENROUTER_API_KEY || chiaveDaFile();
 if (modello !== "oracolo" && !chiave) {
