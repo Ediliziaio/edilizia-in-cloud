@@ -9,7 +9,8 @@
 // cambia da Impostazioni → Cartelle documenti (commesse_generali_documenti_voci).
 //
 // Solo parole e conti, senza React né database.
-import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
+// Import relativo con estensione: la edge function generali-avvisi (Deno) usa questo file, e Deno non conosce «@/».
+import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "../commesseGenerali.ts";
 
 /** Sulla generale (una volta) o su ogni figlia (ogni ordine di lavoro, ogni unità). */
 export type AmbitoVoce = "generale" | "figlia";

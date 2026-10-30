@@ -12,19 +12,24 @@
  * email al mattino con quelle assegnate nelle ultime 24 ore, quelle che scadono oggi e quelle già scadute). Le
  * altre colonne della tabella non le legge nessuno e qui non compaiono.
  *
+ * Le commesse generali (05/11/2026) hanno una riga sola, e solo nelle aziende che le usano: garanzie, documenti,
+ * fideiussioni, perdite (`commesse_generali_in_app` / `_email`, lette da generali_avvisi_contesto e dalla edge
+ * function generali-avvisi; l'email è un riepilogo il lunedì, o il mattino dopo se c'è qualcosa di urgente).
+ *
  * Si salva subito, e sempre l'intera riga: finché le preferenze non sono arrivate gli interruttori restano
  * fermi, altrimenti si scriverebbero i valori di serie sopra quelli della persona. «Disattiva tutto» scrive UNA
  * volta sola: due scritture di fila partivano dalla stessa copia vecchia e la seconda rimetteva com'era la prima.
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, CheckSquare, Clock, Inbox, MessageSquare, type LucideIcon } from "lucide-react";
+import { AlarmClock, Building2, CheckSquare, Clock, Inbox, MessageSquare, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { NotificheSuQuestoDispositivo } from "@/components/notifications/NotificheSuQuestoDispositivo";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImpostazioniCommesseGenerali } from "@/hooks/useCommesseGenerali";
 import {
   useSaveUserNotifPrefs,
   useUserNotifPrefs,
@@ -37,8 +42,9 @@ type ChiaveApp =
   | "message_email_received_in_app"
   | "task_assigned_in_app"
   | "task_due_soon_in_app"
-  | "task_overdue_in_app";
-type ChiaveEmail = "task_assigned_email" | "task_due_soon_email" | "task_overdue_email";
+  | "task_overdue_in_app"
+  | "commesse_generali_in_app";
+type ChiaveEmail = "task_assigned_email" | "task_due_soon_email" | "task_overdue_email" | "commesse_generali_email";
 type Chiave = ChiaveApp | ChiaveEmail;
 
 const AVVISI: { app: ChiaveApp; email?: ChiaveEmail; icona: LucideIcon; etichetta: string; dettaglio: string }[] = [
@@ -77,8 +83,17 @@ const AVVISI: { app: ChiaveApp; email?: ChiaveEmail; icona: LucideIcon; etichett
   },
 ];
 
-/** Tutti i comandi di questa pagina: sono quelli che «Disattiva tutto» spegne. */
-const CHIAVI_AVVISI: Chiave[] = AVVISI.flatMap((a) => (a.email ? [a.app, a.email] : [a.app]));
+/** Solo nelle aziende che usano le commesse generali. */
+const AVVISO_GENERALI = {
+  app: "commesse_generali_in_app" as const,
+  email: "commesse_generali_email" as const,
+  icona: Building2,
+  etichetta: "Commesse generali",
+  dettaglio: "Garanzie e documenti in scadenza, acconti senza fideiussione, commesse in perdita. Per email il lunedì, subito se è urgente",
+};
+
+/** I comandi della pagina: sono quelli che «Disattiva tutto» spegne. */
+const chiaviDi = (avvisi: typeof AVVISI): Chiave[] => avvisi.flatMap((a) => (a.email ? [a.app, a.email] : [a.app]));
 
 const RIGA = "grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] items-center gap-x-2 px-4 max-sm:px-3";
 
@@ -88,6 +103,9 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
   const { data: prefs } = useUserNotifPrefs(user?.id);
   const salva = useSaveUserNotifPrefs(user?.id, companyId);
   const queryClient = useQueryClient();
+  const generali = useImpostazioniCommesseGenerali();
+  const avvisi = generali.attiva ? [...AVVISI, AVVISO_GENERALI] : AVVISI;
+  const chiaviAvvisi = chiaviDi(avvisi);
   const chiavePrefs = ["user-notif-prefs", user?.id];
   // I valori appena toccati, finché il salvataggio non torna.
   const [inCorso, setInCorso] = useState<Partial<Record<Chiave, boolean>>>({});
@@ -116,8 +134,8 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
   };
 
   // Finché le preferenze non sono arrivate il pulsante dice «Disattiva tutto» (e sta fermo): non sappiamo ancora com'è.
-  const tuttoSpento = !!prefs && CHIAVI_AVVISI.every((chiave) => !valore(chiave));
-  const cambiaTutto = () => scrivi(Object.fromEntries(CHIAVI_AVVISI.map((chiave) => [chiave, tuttoSpento])));
+  const tuttoSpento = !!prefs && chiaviAvvisi.every((chiave) => !valore(chiave));
+  const cambiaTutto = () => scrivi(Object.fromEntries(chiaviAvvisi.map((chiave) => [chiave, tuttoSpento])));
 
   return (
     <SezioneImpostazione
@@ -143,7 +161,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
         <span className="text-center">Nell'app</span>
         <span className="text-center">Email</span>
       </div>
-      {AVVISI.map(({ app, email, icona: Icona, etichetta, dettaglio }) => (
+      {avvisi.map(({ app, email, icona: Icona, etichetta, dettaglio }) => (
         <div key={app} className={`${RIGA} py-3 max-sm:py-2.5`}>
           <div className="flex min-w-0 items-start gap-3">
             <Icona className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
