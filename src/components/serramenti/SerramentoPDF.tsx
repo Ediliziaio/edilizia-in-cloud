@@ -18,6 +18,7 @@
  * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
+import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 import * as React from "react";
 import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
@@ -2255,7 +2256,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     percorsoStepIdxTextAmpio: { ...baseStyles.percorsoStepIdxTextAmpio, color: "#FFFFFF" },
   } : baseStyles;
 
-  const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
+  // Un'azienda si intesta con la ragione sociale (30/10/2026); i dati fiscali escono accanto al committente.
+  const clienteNome = (p.cliente_tipo === "azienda" && p.cliente_ragione_sociale?.trim()) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
+  const datiFiscaliCliente = rigaDatiFiscali({ tipo: p.cliente_tipo === "azienda" ? "azienda" : "privato", codiceFiscale: p.cliente_codice_fiscale, partitaIva: p.cliente_partita_iva });
   // Preventivo cointestato: il secondo intestatario, accanto al cliente e con la sua firma.
   const cointestatario = nomeCointestatario(p);
   const sintesi = p.intervento_sintesi?.trim()
@@ -2576,7 +2579,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const partitaIvaFirma = template?.partita_iva || company?.partita_iva || null;
   const righeFirma: Array<[string, string]> = [
     ["Impresa", [companyName, partitaIvaFirma ? `P.IVA ${partitaIvaFirma}` : null].filter(Boolean).join(" · ")],
-    ["Committente", clienteNome],
+    ["Committente", [clienteNome, datiFiscaliCliente].filter(Boolean).join(" · ")],
     ...(cointestatario ? [["Cointestatario", [cointestatario, p.cointestatario_codice_fiscale ? `CF ${p.cointestatario_codice_fiscale}` : null].filter(Boolean).join(" · ")] as [string, string]] : []),
     ["Oggetto", sintesi],
   ];
@@ -3380,6 +3383,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               <Text style={styles.sectionTitle} minPresenceAhead={40}>Anagrafica cliente</Text>
               <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
+              {datiFiscaliCliente ? <View style={styles.kvRow}><Text style={styles.kvKey}>Dati fiscali</Text><Text style={styles.kvValue}>{datiFiscaliCliente}</Text></View> : null}
               {cointestatario ? (
                 <View style={styles.kvRow}><Text style={styles.kvKey}>Cointestatario</Text><Text style={styles.kvValue}>{[cointestatario, p.cointestatario_codice_fiscale].filter(Boolean).join(" · ")}</Text></View>
               ) : null}

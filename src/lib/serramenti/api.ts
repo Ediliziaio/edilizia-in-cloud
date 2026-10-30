@@ -86,6 +86,9 @@ export async function createProgetto(
     cliente_telefono: input.cliente_telefono ?? null,
     cliente_email: input.cliente_email ?? null,
     cliente_codice_fiscale: input.cliente_codice_fiscale ?? null,
+    cliente_tipo: input.cliente_tipo === "azienda" ? "azienda" : "privato",
+    cliente_ragione_sociale: input.cliente_ragione_sociale ?? null,
+    cliente_partita_iva: input.cliente_partita_iva ?? null,
     cointestatario_nome: input.cointestatario_nome ?? null,
     cointestatario_cognome: input.cointestatario_cognome ?? null,
     cointestatario_codice_fiscale: input.cointestatario_codice_fiscale ?? null,
@@ -295,7 +298,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   // Cliente
   "cliente_id", "cliente_nome", "cliente_cognome", "cliente_indirizzo",
   "cliente_citta", "cliente_cap", "cliente_provincia", "cliente_telefono",
-  "cliente_email", "cliente_codice_fiscale",
+  "cliente_email", "cliente_codice_fiscale", "cliente_tipo", "cliente_ragione_sociale", "cliente_partita_iva",
   "cointestatario_nome", "cointestatario_cognome", "cointestatario_codice_fiscale",
   "cointestatario_email", "cointestatario_telefono",
   // Cantiere

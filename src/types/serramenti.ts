@@ -111,6 +111,10 @@ export interface SrProgettoRow {
   cliente_telefono: string | null;
   cliente_email: string | null;
   cliente_codice_fiscale: string | null;
+  /** Privato o azienda, con ragione sociale e partita IVA (30/10/2026). */
+  cliente_tipo?: "privato" | "azienda" | null;
+  cliente_ragione_sociale?: string | null;
+  cliente_partita_iva?: string | null;
   /** Preventivo cointestato: il secondo intestatario (vuoto se non c'è). */
   cointestatario_nome?: string | null;
   cointestatario_cognome?: string | null;
