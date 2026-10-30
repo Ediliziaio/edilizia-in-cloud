@@ -144,6 +144,23 @@ describe("0.2 · lo storico è affidabile", () => {
   });
 });
 
+describe("dopo l'invio allo SDI si cambia solo il pagamento (30/10/2026)", () => {
+  // Segna pagata, annulla incasso e abbina al bonifico passano dalle RPC degli
+  // incassi: toccano stato, importo pagato e data di pagamento, i tre campi del
+  // pagamento ancora scrivibili. Niente di fiscale.
+  const incassiDallaFattura = readFileSync(resolve(MIGRAZIONI, "20281030293000_fattura_incassi_e_banca.sql"), "utf8");
+
+  it("stato, importo pagato e data di pagamento restano scrivibili", () => {
+    for (const campo of ["stato", "importo_pagato", "pagato_at"]) expect(elencoCampi()).toContain(campo);
+  });
+
+  it("le RPC nuove non scrivono la fattura: passano da registra e storna incasso", () => {
+    expect(incassiDallaFattura).not.toMatch(/UPDATE\s+(public\.)?documenti_fiscali/i);
+    expect(incassiDallaFattura).toContain("public.registra_incasso_atomico(");
+    expect(incassiDallaFattura).toContain("public.storna_incasso_atomico(");
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const URL_BASE = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";

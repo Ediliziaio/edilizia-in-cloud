@@ -1,14 +1,16 @@
 // src/components/orders/SottofasiFase.tsx
 import { useState } from "react";
-import { CalendarDays, ListChecks, Pencil, Plus, Scale, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, CalendarRange, Layers, ListChecks, MoreHorizontal, Pencil, Plus, Scale, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { giornoLocale } from "@/lib/orders/cronoprogramma";
+import type { CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, riepilogoSottofasi, type Sottofase,
+  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, fasiDaSpostare, pesiDaGiorni, pianoInSequenza, realeSottofase, riepilogoSottofasi, type Sottofase, type VoceSottofase,
 } from "@/lib/orders/sottofasi";
 
 export interface PianoSottofase {
@@ -42,6 +44,27 @@ interface SottofasiFaseProps {
   onRinomina: (id: string, nome: string) => void;
   /** Date e tempo necessario della sottofase. */
   onPianifica?: (id: string, piano: PianoSottofase) => void;
+  /** Il piano in fila: giorni e date calcolate di più sottofasi insieme. */
+  onPianificaTutte?: (passi: Array<{ id: string } & PianoSottofase>) => void;
+  /** I giorni di lavoro del cantiere; senza, conta ogni giorno. */
+  calendario?: CalendarioCantiere;
+  /** Il nuovo ordine delle sottofasi (id). */
+  onRiordina?: (ids: string[]) => void;
+  /** Insieme alla precedente invece che dopo. */
+  onParallelo?: (id: string, inParallelo: boolean) => void;
+  /** Le fasi che vengono dopo questa, per dire se si sovrappongono. */
+  fasiDopo?: Array<{ id: string; name: string; start_date: string | null; end_date: string | null }>;
+  /** Sposta di `giorni` le fasi successive (id). */
+  onSpostaFasiDopo?: (giorni: number, ids: string[]) => void;
+  /** I numeri della voce del computo di ogni sottofase (id sottofase); solo per chi vede i costi. */
+  voci?: Map<string, VoceSottofase>;
+  /** Chi vede gli importi di vendita: il venduto della voce. */
+  vediVenduto?: boolean;
+  /** Voci del computo di questa fase senza sottofase, e il comando che le crea. */
+  vociSenzaSottofase?: number;
+  onSottofasiDalleVoci?: () => void;
+  /** Quante persone ci lavorano. */
+  onRisorse?: (id: string, risorse: number | null) => void;
   /** Pesa le sottofasi per i loro giorni. */
   onPesa?: (pesi: Array<{ id: string; peso: number }>) => void;
   onElimina: (id: string) => void;
@@ -50,24 +73,63 @@ interface SottofasiFaseProps {
 
 /** I passi di una fase: spuntati, ne decidono l'avanzamento. */
 export function SottofasiFase({
-  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPesa, onElimina, className,
+  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className,
 }: SottofasiFaseProps) {
   const [nuova, setNuova] = useState("");
   const [aperta, setAperta] = useState(false);
   const [inModifica, setInModifica] = useState<string | null>(null);
   const [bozza, setBozza] = useState("");
   const [inPiano, setInPiano] = useState<string | null>(null);
+  // Semplice di base (31/10/2026): i comandi di una riga dietro «⋯», giorni e persone solo in «Pianifica».
+  const [menu, setMenu] = useState<string | null>(null);
+  const [pianifica, setPianifica] = useState(false);
   const { fatte, totale } = riepilogoSottofasi(sottofasi);
   const pesi = pesiDaGiorni(sottofasi);
+  // I giorni scritti sulle righe e non ancora salvati.
+  const [giorniBozza, setGiorniBozza] = useState<Record<string, string>>({});
+  const conGiorni = sottofasi.map((s) => {
+    const b = giorniBozza[s.id];
+    if (b === undefined) return s;
+    const n = Number(b);
+    return { ...s, giorni: b !== "" && Number.isInteger(n) && n >= 1 && n <= 3650 ? n : null };
+  });
+  const pianoAttivo = pianifica && puoModificare && !!onPianificaTutte && totale > 0;
+  const piano = pianoAttivo ? pianoInSequenza(dateFase ?? { start_date: null, end_date: null }, conGiorni, giornoLocale(new Date().toISOString()), calendario?.lavorativo) : null;
+  const passoDi = new Map(piano?.passi.map((p) => [p.id, p]) ?? []);
+  const daSalvare = piano?.passi.filter((p) => {
+    if (p.ferma) return false;
+    const s = sottofasi.find((x) => x.id === p.id);
+    return !s || s.data_inizio !== p.data_inizio || s.data_fine !== p.data_fine || s.giorni !== p.giorni;
+  }) ?? [];
+  // La fine della fase dopo il piano (o com'è adesso): se tocca le fasi dopo, si dice.
+  const fineFase = [dateFase?.end_date ?? null, piano?.fine ?? null].reduce<string | null>((m, d) => (d && (!m || d > m) ? d : m), null);
+  const spostamento = puoModificare ? fasiDaSpostare(fineFase, fasiDopo ?? []) : null;
+  const sposta = (i: number, verso: -1 | 1) => {
+    const ids = sottofasi.map((x) => x.id);
+    const j = i + verso;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    onRiordina?.(ids);
+  };
 
   if (totale === 0 && !puoModificare) return null;
 
   // Una fase senza sottofasi resta com'era: solo un invito discreto a dividerla.
+  const dalleVoci = puoModificare && onSottofasiDalleVoci && vociSenzaSottofase >= 2 ? (
+    <Button type="button" variant="outline" size="sm" className="h-8 w-fit px-2 text-xs" onClick={onSottofasiDalleVoci}>
+      <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{totale === 0 ? "Dividi" : "Aggiungi"} nelle {vociSenzaSottofase} voci del computo
+    </Button>
+  ) : null;
+
   if (totale === 0 && !aperta) {
     return (
-      <Button type="button" variant="ghost" size="sm" className={cn("h-8 w-fit px-2 text-xs text-muted-foreground", className)} onClick={() => setAperta(true)}>
-        <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Dividi in sottofasi
-      </Button>
+      <div className={cn("flex flex-wrap items-center gap-1", className)}>
+        <Button type="button" variant="ghost" size="sm" className="h-8 w-fit px-2 text-xs text-muted-foreground" onClick={() => setAperta(true)}>
+          <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Dividi in sottofasi
+        </Button>
+        {dalleVoci}
+        {dalleVoci && avviata && <span className="text-[11px] text-amber-800">La fase è già al {avviata.percentuale}%: con le sottofasi l'avanzamento si calcola da quelle fatte.</span>}
+      </div>
     );
   }
 
@@ -90,15 +152,20 @@ export function SottofasiFase({
         <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />Sottofasi
         </h4>
-        {totale > 0 && (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {fatte} di {totale} · {avanzamentoDaSottofasi(sottofasi)}%
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {totale > 0 && (
+            <span className="text-xs tabular-nums text-muted-foreground" title="L'avanzamento della fase si calcola dalle sottofasi fatte">
+              {fatte} di {totale} · {avanzamentoDaSottofasi(sottofasi)}%
+            </span>
+          )}
+          {puoModificare && onPianificaTutte && totale > 0 && (
+            <Button type="button" size="sm" variant={pianifica ? "secondary" : "outline"} className="h-7 px-2 text-xs" aria-pressed={pianifica}
+              onClick={() => setPianifica(!pianifica)}>
+              <CalendarRange className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{pianifica ? "Fine" : "Pianifica i giorni"}
+            </Button>
+          )}
+        </div>
       </div>
-      {totale > 0 && (
-        <p className="text-xs text-muted-foreground">L'avanzamento di questa fase si calcola dalle sottofasi fatte.</p>
-      )}
       {totale === 0 && avviata && (
         <p role="note" className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
           {avviata.chiusa
@@ -106,50 +173,116 @@ export function SottofasiFase({
             : `Questa fase è già al ${avviata.percentuale}%. Dividendola in sottofasi, l'avanzamento si calcola da quelle fatte: segna subito quelle già completate.`}
         </p>
       )}
-      <ul className="space-y-0.5">
-        {sottofasi.map((s) => (
-          <li key={s.id} className="flex min-h-9 flex-wrap items-center gap-2 rounded-md px-1">
-            <Checkbox
-              checked={s.fatta}
-              disabled={!puoSegnare}
-              onCheckedChange={(v) => onSegna(s.id, v === true)}
-              aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
-            />
-            {inModifica === s.id ? (
-              <Input
-                autoFocus
-                value={bozza}
-                aria-label={`Nome della sottofase ${s.name}`}
-                onChange={(e) => setBozza(e.target.value)}
-                onBlur={() => conferma(s)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); conferma(s); }
-                  else if (e.key === "Escape") setInModifica(null);
-                }}
-                className="h-8 min-w-0 flex-1 text-sm"
+      <ul className="divide-y rounded-md border">
+        {sottofasi.map((s, i) => {
+          const p = passoDi.get(s.id);
+          const testo = p ? testoPiano(p) : testoPiano(s);
+          const reale = realeSottofase(s);
+          const v = voci?.get(s.id);
+          const euro = (n: number) => `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" as unknown as boolean }).format(n)} €`;
+          // Una riga sola di informazioni: piano, reale, lavoro dai rapportini.
+          const info = [
+            s.in_parallelo && i > 0 ? "in parallelo" : null,
+            testo ? `${testo}${p?.oltreLaFase ? " · oltre la fase" : ""}` : null,
+            s.iniziata_il && !s.fatta ? `lavorata dal ${breve(s.iniziata_il)}${s.giorni_lavorati ? `, ${s.giorni_lavorati} gg` : ""}` : null,
+          ].filter(Boolean).join(" · ");
+          return (
+          <li key={s.id} className="px-2 py-1.5">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={s.fatta}
+                disabled={!puoSegnare}
+                onCheckedChange={(v) => onSegna(s.id, v === true)}
+                aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
               />
-            ) : (
-              <span className="min-w-0 flex-1 break-words text-sm">
-                <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
-                {testoPiano(s) && <span className="ml-2 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">{testoPiano(s)}</span>}
-              </span>
+              {inModifica === s.id ? (
+                <Input
+                  autoFocus
+                  value={bozza}
+                  aria-label={`Nome della sottofase ${s.name}`}
+                  onChange={(e) => setBozza(e.target.value)}
+                  onBlur={() => conferma(s)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); conferma(s); }
+                    else if (e.key === "Escape") setInModifica(null);
+                  }}
+                  className="h-8 min-w-0 flex-1 text-sm"
+                />
+              ) : (
+                <div className="min-w-0 flex-1 text-sm">
+                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</p>
+                  {info && <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>}
+                  {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
+                    finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
+                  </p>}
+                  {v && <p className="text-[11px] tabular-nums text-muted-foreground">
+                    {`${v.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${v.unita ? ` ${v.unita}` : ""}`} · {v.costo > 0 ? <>costo previsto {euro(v.costo)}</> : <span className="text-amber-700">senza costo nel listino</span>}
+                    {vediVenduto && v.importo != null && <> · venduto {euro(v.importo)}</>}
+                    {s.risorse && s.giorni ? <> · {s.risorse * s.giorni} giorni-uomo</> : null}
+                  </p>}
+                </div>
+              )}
+              {puoModificare && inModifica !== s.id && (
+                <Button variant="ghost" size="icon" className={cn("h-8 w-8 shrink-0 text-muted-foreground", menu === s.id && "bg-slate-100")}
+                  aria-label={`Altro per ${s.name}`} aria-expanded={menu === s.id} onClick={() => setMenu(menu === s.id ? null : s.id)}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {pianoAttivo && !p?.ferma && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 pl-6 text-[11px] text-muted-foreground">
+                <label className="flex items-center gap-1">
+                  <Input type="number" inputMode="numeric" min={1} max={3650} placeholder="—" aria-label={`Giorni per ${s.name}`}
+                    value={giorniBozza[s.id] ?? (s.giorni ? String(s.giorni) : "")}
+                    onChange={(e) => setGiorniBozza({ ...giorniBozza, [s.id]: e.target.value })}
+                    className="h-8 w-16 px-1.5 text-right text-sm tabular-nums" />giorni
+                </label>
+                {onRisorse && (
+                  <label className="flex items-center gap-1" title="Quante persone ci lavorano">
+                    <Input type="number" inputMode="numeric" min={1} max={99} placeholder="—" aria-label={`Persone per ${s.name}`}
+                      defaultValue={s.risorse ?? ""} key={`${s.id}-${s.risorse ?? ""}`}
+                      onBlur={(e) => {
+                        const n = e.target.value === "" ? null : Number(e.target.value);
+                        if (n !== null && (!Number.isInteger(n) || n < 1 || n > 99)) return;
+                        if (n !== (s.risorse ?? null)) onRisorse(s.id, n);
+                      }}
+                      className="h-8 w-14 px-1.5 text-right text-sm tabular-nums" />persone
+                  </label>
+                )}
+                {onParallelo && i > 0 && (
+                  <button type="button" aria-pressed={!!s.in_parallelo} aria-label={`${s.name} insieme alla precedente`}
+                    onClick={() => onParallelo(s.id, !s.in_parallelo)}
+                    className={cn("flex h-8 items-center gap-1 rounded-md border px-2", s.in_parallelo ? "border-sky-500 bg-sky-50 text-sky-900" : "border-border")}>
+                    <Layers className="h-3.5 w-3.5" aria-hidden="true" />Insieme alla precedente
+                  </button>
+                )}
+              </div>
             )}
-            {puoModificare && inModifica !== s.id && (
-              <>
+            {menu === s.id && puoModificare && inModifica !== s.id && (
+              <div role="group" aria-label={`Comandi di ${s.name}`} className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
+                {onRiordina && sottofasi.length > 1 && <>
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta su ${s.name}`} disabled={i === 0} onClick={() => sposta(i, -1)}>
+                    <ArrowUp className="mr-1 h-3.5 w-3.5" />Su
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta giù ${s.name}`} disabled={i === sottofasi.length - 1} onClick={() => sposta(i, 1)}>
+                    <ArrowDown className="mr-1 h-3.5 w-3.5" />Giù
+                  </Button>
+                </>}
                 {onPianifica && (
-                  <Button variant="ghost" size="icon" className={cn("h-7 w-7 text-muted-foreground", inPiano === s.id && "bg-slate-100")} aria-label={`Date e giorni di ${s.name}`}
+                  <Button size="sm" variant="outline" className={cn("h-8 px-2 text-xs", inPiano === s.id && "bg-slate-100")} aria-label={`Date e giorni di ${s.name}`}
                     aria-expanded={inPiano === s.id} onClick={() => setInPiano(inPiano === s.id ? null : s.id)}>
-                    <CalendarDays className="h-3.5 w-3.5" />
+                    <CalendarDays className="mr-1 h-3.5 w-3.5" />Date
                   </Button>
                 )}
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" aria-label={`Rinomina ${s.name}`}
-                  onClick={() => { setBozza(s.name); setInModifica(s.id); }}>
-                  <Pencil className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Rinomina ${s.name}`}
+                  onClick={() => { setBozza(s.name); setInModifica(s.id); setMenu(null); }}>
+                  <Pencil className="mr-1 h-3.5 w-3.5" />Rinomina
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" aria-label={`Elimina ${s.name}`} onClick={() => onElimina(s.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-8 px-2 text-xs text-rose-700" aria-label={`Elimina ${s.name}`} onClick={() => { onElimina(s.id); setMenu(null); }}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />Elimina
                 </Button>
-              </>
+              </div>
             )}
             {inPiano === s.id && onPianifica && (
               <PianoRiga
@@ -161,9 +294,36 @@ export function SottofasiFase({
               />
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
-      {puoModificare && onPesa && pesi.length > 0 && (
+      {piano && (piano.passi.length > 0 || Object.keys(giorniBozza).length > 0) && (
+        <RiepilogoPiano
+          nomeFase={nomeFase}
+          piano={piano}
+          dateFase={dateFase}
+          daSalvare={daSalvare.length}
+          calendario={calendario}
+          onSalva={() => {
+            onPianificaTutte?.(daSalvare.map((p) => ({ id: p.id, data_inizio: p.data_inizio, data_fine: p.data_fine, giorni: p.giorni })));
+            setGiorniBozza({});
+          }}
+        />
+      )}
+      {spostamento && spostamento.giorni > 0 && fineFase && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-900">
+          <span>
+            «{nomeFase}» {dateFase?.end_date && fineFase > dateFase.end_date ? "finirebbe" : "finisce"} il {breve(fineFase)}: si sovrappone a {spostamento.sovrapposte.map((n) => `«${n}»`).join(", ")}.
+          </span>
+          {onSpostaFasiDopo && (
+            <Button size="sm" variant="outline" className="h-7 border-rose-300 bg-white" onClick={() => onSpostaFasiDopo(spostamento.giorni, spostamento.daSpostare)}>
+              Sposta {spostamento.daSpostare.length === 1 ? "la fase successiva" : `le ${spostamento.daSpostare.length} fasi successive`} di {spostamento.giorni} gg
+            </Button>
+          )}
+        </div>
+      )}
+      {dalleVoci}
+      {pianoAttivo && onPesa && pesi.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-muted-foreground">
           <span>Le sottofasi hanno tutte i giorni: una da 10 giorni può contare più di una da 1.</span>
           <Button size="sm" variant="outline" className="h-7" onClick={() => onPesa(pesi)}>
@@ -245,6 +405,56 @@ function PianoRiga({ sottofase, nomeFase, dateFase, onSalva, onAnnulla }: {
       {allungata?.start_date && allungata.end_date
         ? <p role="status" className="basis-full text-xs text-amber-800">«{nomeFase}» si allunga: dal {breve(allungata.start_date)} al {breve(allungata.end_date)}. Le squadre che seguono la fase si spostano con lei.</p>
         : <p className="basis-full text-[11px] text-muted-foreground">Se la sottofase esce dalle date della fase, la fase si allunga per contenerla.</p>}
+    </div>
+  );
+}
+
+/** Quanto occupano le sottofasi in fila rispetto alla fase, e cosa non torna. */
+function RiepilogoPiano({ nomeFase, piano, dateFase, daSalvare, calendario, onSalva }: {
+  calendario?: CalendarioCantiere;
+  nomeFase: string;
+  piano: ReturnType<typeof pianoInSequenza>;
+  dateFase?: { start_date: string | null; end_date: string | null };
+  daSalvare: number;
+  onSalva: () => void;
+}) {
+  const fase = dateFase?.start_date && dateFase.end_date
+    ? `${breve(dateFase.start_date)} → ${breve(dateFase.end_date)}, ${piano.giorniFase} giorni`
+    : "senza date: si parte da oggi";
+  return (
+    <div aria-label={`Piano delle sottofasi di ${nomeFase}`} className={cn("space-y-1 rounded-md border px-2 py-1.5 text-xs",
+      piano.giorniInPiu > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50")}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="min-w-0 text-slate-700">
+          <CalendarRange className="mr-1.5 inline h-3.5 w-3.5 align-[-2px] text-muted-foreground" aria-hidden="true" />
+          {piano.fine ? <>In fila: <b className="tabular-nums">dal {breve(piano.inizio)} al {breve(piano.fine)}</b></> : "In fila: nessuna sottofase con i giorni"}
+          <span className="text-muted-foreground"> · fase {fase}</span>
+        </span>
+        <Button size="sm" className="h-7" disabled={daSalvare === 0} onClick={onSalva}>
+          {piano.giorniInPiu > 0 ? `Metti le date e allunga la fase di ${piano.giorniInPiu} gg` : "Metti le date"}
+        </Button>
+      </div>
+      {piano.giorniInPiu > 0 && piano.fine && (
+        <p role="alert" className="flex items-start gap-1.5 font-medium text-amber-900">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {piano.giorniInPiu === 1 ? "1 giorno in più" : `${piano.giorniInPiu} giorni in più`} della fase: «{nomeFase}» finirebbe il {breve(piano.fine)}. Accorcia una sottofase o allunga la fase.
+        </p>
+      )}
+      {piano.giorniInPiu === 0 && piano.giorniLiberi > 0 && (
+        <p className="text-muted-foreground">{piano.giorniLiberi === 1 ? "Resta 1 giorno libero" : `Restano ${piano.giorniLiberi} giorni liberi`} nella fase.</p>
+      )}
+      {piano.senzaGiorni.length > 0 && (
+        <p className="text-amber-800">Senza giorni, restano senza date: {piano.senzaGiorni.join(", ")}.</p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground">
+        <span>{calendario ? "Giorni di lavoro: niente domeniche né festività." : "Conta ogni giorno di calendario."}{daSalvare > 0 && " Le già fatte restano dove sono; le altre vanno una dopo l'altra."}</span>
+        {calendario && (
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={calendario.sabato} onChange={(e) => calendario.setSabato(e.target.checked)} className="h-3.5 w-3.5 accent-orange-600" />
+            Si lavora il sabato
+          </label>
+        )}
+      </div>
     </div>
   );
 }

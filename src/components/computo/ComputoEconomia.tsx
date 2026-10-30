@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Plus, Trash2, TrendingUp } from "lucide-react";
+import { AlertTriangle, Plus, Search, Trash2, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { codiciSenzaCosto } from "@/lib/computo/costiDalListino";
 import { Button } from "@/components/ui/button";
 import ComputoIva from "./ComputoIva";
 import { MOMENTI_RATA, analizzaEconomia, pianiPredefiniti, type MomentoRata, type Rata } from "@/lib/computo/economiaComputo";
@@ -17,13 +19,24 @@ import { calcolaVoce, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 
-export default function ComputoEconomia({ bozza, totale, onChange, vediMargini = false, onCronoprogramma }: {
+export default function ComputoEconomia({ bozza, totale, onChange, vediMargini = false, onCronoprogramma, onCostiDalListino }: {
   bozza: BozzaComputo; totale: number; onChange: (patch: Partial<BozzaComputo>) => void;
   /** Chi ha i permessi «costi» e «margini»: vede costo stimato, margini, cassa e rischi. */
   vediMargini?: boolean;
   /** Porta al cronoprogramma (passo Documento), che serve al flusso di cassa. */
   onCronoprogramma?: () => void;
+  /** Cerca nel listino aziendale il costo delle voci che non ce l'hanno; risponde quante ne ha trovate. */
+  onCostiDalListino?: () => Promise<number>;
 }) {
+  const daCercare = codiciSenzaCosto(bozza.voci).length;
+  const senzaCostoNeCodice = bozza.voci.filter(v => !v.opzionale && (!v.costo.trim() || Number(v.costo.replace(",", ".")) <= 0) && !v.tariffa.trim()).length;
+  const [cerca, setCerca] = useState<{ stato: "fermo" | "cerca" | "fatto"; trovate?: number; errore?: string }>({ stato: "fermo" });
+  const cercaCosti = async () => {
+    if (!onCostiDalListino) return;
+    setCerca({ stato: "cerca" });
+    try { setCerca({ stato: "fatto", trovate: await onCostiDalListino() }); }
+    catch (e) { setCerca({ stato: "fatto", errore: e instanceof Error ? e.message : "Listino non raggiungibile: riprova." }); }
+  };
   const analisi = analizzaEconomia(bozza);
   const rate = bozza.pianoPagamenti.rate;
   const durata = durataTotale(bozza.cronoprogramma);
@@ -134,6 +147,17 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
     {vediMargini && <section aria-label="Margini e cassa" className="space-y-3 rounded-lg border border-slate-300 bg-slate-50/60 p-3">
       <div className="flex items-center justify-between gap-2"><h3 className="flex items-center gap-1.5 text-sm font-semibold"><TrendingUp className="h-4 w-4 text-slate-500" />Margini e cassa</h3>
         <span className="text-[11px] text-muted-foreground">Solo per chi vede costi e margini · mai nel PDF</span></div>
+      {onCostiDalListino && (daCercare > 0 || cerca.stato === "fatto") && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-2 py-1.5 text-xs">
+        <span className="text-muted-foreground">
+          {cerca.stato === "fatto"
+            ? cerca.errore ?? (cerca.trovate ? `${cerca.trovate === 1 ? "1 voce ha preso" : `${cerca.trovate} voci hanno preso`} il costo dal listino.` : "Nessun codice delle voci senza costo è nel listino aziendale.")
+            : `${daCercare === 1 ? "1 codice" : `${daCercare} codici`} senza costo: il listino aziendale può averlo.`}
+          {senzaCostoNeCodice > 0 && ` ${senzaCostoNeCodice === 1 ? "1 voce" : `${senzaCostoNeCodice} voci`} senza costo né codice: il costo va scritto a mano.`}
+        </span>
+        {daCercare > 0 && <Button type="button" size="sm" variant="outline" className="h-7" disabled={cerca.stato === "cerca"} onClick={cercaCosti}>
+          <Search className="mr-1 h-3.5 w-3.5" />{cerca.stato === "cerca" ? "Cerco…" : "Prendi i costi dal listino"}
+        </Button>}
+      </div>}
       {analisi.costo <= 0
         ? <p className="text-sm text-muted-foreground">Scrivi il costo stimato delle voci (si apre la voce nel passo Computo, campo «Costo unitario stimato») per vedere margini, cassa e rischi.</p>
         : <>

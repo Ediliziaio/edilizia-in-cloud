@@ -631,7 +631,7 @@ export function normalizeTemplate(row: Record<string, unknown> | null, companyId
     cover_decoration_style: (r.cover_decoration_style as TetTemplatePdf["cover_decoration_style"]) ?? "square",
     cover_show_decoration: (r.cover_show_decoration as boolean | null) ?? true,
     cover_show_client_card: (r.cover_show_client_card as boolean | null) ?? true,
-    default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
+    default_iva_pct: (r.default_iva_pct as number | null) ?? IVA_PREDEFINITA_PCT,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
     // Anche questi due si perdevano qui: il logo di copertina e la galleria dei

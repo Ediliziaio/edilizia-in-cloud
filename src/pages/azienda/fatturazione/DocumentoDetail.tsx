@@ -15,10 +15,12 @@ import { EditorSendEmailDialog } from "./editor/EditorSendEmailDialog";
 import type { EditorState } from "./editor/useEditorState";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
+import { IncassiFattura } from "@/components/fatturazione/IncassiFattura";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -106,7 +108,7 @@ export default function DocumentoDetail() {
   // il loro flusso («Converti in Fattura»), quindi niente Emetti per loro.
   const canEmettere = doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;
   const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo)
-    && ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato)
+    && ["emessa", "inviata_sdi", "consegnata", "accettata", "scaduta", "parzialmente_pagata"].includes(doc.stato)
     && residuoDaIncassare(doc) > 0;
 
   const handleCreaNC = async (modalita: "totale" | "parziale") => {
@@ -401,13 +403,8 @@ export default function DocumentoDetail() {
                 </div>
                 <Progress value={paymentProgress} className="h-2" />
                 <p className="text-xs text-muted-foreground text-center">{Math.round(paymentProgress)}% incassato</p>
-                {residuo > 0 && (
-                  <Button variant="outline" size="sm" className="w-full" asChild>
-                    <Link to="/azienda/documenti/incassi">
-                      <CreditCard className="h-4 w-4 mr-1" /> Registra incasso
-                    </Link>
-                  </Button>
-                )}
+                {/* Storico, annulla incasso, segna pagata, abbina al bonifico (30/10/2026). */}
+                {doc.stato !== "bozza" && <IncassiFattura doc={doc} pagabile={canSegnaPagata} />}
               </CardContent>
             </Card>
           )}
@@ -460,6 +457,18 @@ export default function DocumentoDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Allegati: contabili, DDT, contratti. Finché il documento si può (ri)mandare
+              allo SDI, si sceglie quali partono dentro l'XML con la fattura. */}
+          <Card>
+            <CardContent className="pt-4 max-sm:p-3">
+              <AllegatiFattura
+                companyId={effectiveCompany?.id}
+                madre={{ documentoFiscaleId: doc.id }}
+                invioSdi={modificabile && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo}
+              />
+            </CardContent>
+          </Card>
 
           {/* Linked Documents */}
           {doc.documento_correlato_id && (

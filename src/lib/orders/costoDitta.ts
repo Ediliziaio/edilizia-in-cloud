@@ -1,8 +1,10 @@
 /**
  * Costo previsto di una ditta su una lavorazione (29/10/2026, Dimora Torino).
  *
- * Il costo previsto delle ditte si scrive IVA inclusa (come in
- * v_ordine_marginalita e in economiaFasi); il listino manodopera e le voci del
+ * Il costo della ditta si scrive con l'IVA che la ditta mette in fattura (come
+ * in v_ordine_marginalita e in economiaFasi, che la tolgono). Dal 31/10/2026 la
+ * ditta nasce in reverse charge, IVA 0: il subappalto edile non ha IVA in
+ * fattura, e il costo è l'imponibile. Il listino manodopera e le voci del
  * preventivo sono senza IVA. Qui il passaggio da uno all'altro e il testo che
  * dice, sulla riga della ditta, da dove viene il numero.
  */
@@ -33,8 +35,12 @@ const numero = (v: unknown) => {
 };
 const centesimi = (v: number) => Math.round(v * 100) / 100;
 
-/** IVA della ditta: 22 se manca, come nel database. */
-export const ivaDitta = (vat: number | null | undefined) => (vat == null || !Number.isFinite(Number(vat)) ? 22 : Number(vat));
+/** IVA della ditta: 0 (reverse charge) se manca, come nel database. */
+export const ivaDitta = (vat: number | null | undefined) => (vat == null || !Number.isFinite(Number(vat)) ? 0 : Number(vat));
+
+/** «senza IVA, reverse charge» oppure «IVA 22% inclusa»: accanto agli importi della ditta. */
+export const testoIvaDitta = (vat: number | null | undefined) =>
+  ivaDitta(vat) === 0 ? "senza IVA (reverse charge)" : `IVA ${ivaDitta(vat).toLocaleString("it-IT")}% inclusa`;
 
 /** Dal costo senza IVA a quello da scrivere sulla ditta. */
 export const conIva = (netto: number, vat?: number | null) => centesimi(netto * (1 + ivaDitta(vat) / 100));
@@ -82,7 +88,7 @@ export function quantitaDellaTariffa(voci: ReadonlyArray<VoceCostoDitta>, tariff
   return stesse.reduce((s, v) => s + Math.max(0, numero(v.quantita)), 0);
 }
 
-/** «Dal listino: 14,55 × 15,00 € + IVA 22%» — da dove viene il previsto della ditta. */
+/** «Dal listino: 14,55 × 15,00 €» (+ IVA se la ditta la mette) — da dove viene il previsto della ditta. */
 export function origineCostoDitta(a: {
   cost_preventivo: number;
   costo_origine?: OrigineCostoDitta | null;
@@ -91,7 +97,7 @@ export function origineCostoDitta(a: {
   vat_rate?: number | null;
 }): string | null {
   if (!a.cost_preventivo || !a.costo_origine) return null;
-  const iva = `+ IVA ${ivaDitta(a.vat_rate).toLocaleString("it-IT")}%`;
+  const iva = ivaDitta(a.vat_rate) === 0 ? "· reverse charge" : `+ IVA ${ivaDitta(a.vat_rate).toLocaleString("it-IT")}%`;
   if (a.costo_origine === "listino" && a.quantita != null && a.costo_unitario != null) {
     return `Previsto dal listino: ${a.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })} × ${formatCurrency(a.costo_unitario)} ${iva}`;
   }

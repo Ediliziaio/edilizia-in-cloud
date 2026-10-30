@@ -646,7 +646,7 @@ export function buildForecastLedger(
           : incomeCash(residuoCents, i.order_id)),
         date: i.due_date,
         source: "Fattura",
-        href: `/azienda/fatturazione/${i.id}`,
+        href: `/azienda/documenti/importata/${i.id}`,
         orderId: i.order_id,
         estimated: false,
         ...(!isCredit && maybeDuplicate(i.order_id, invoicesOnRate.has(i.id))
@@ -670,7 +670,7 @@ export function buildForecastLedger(
           date: i.payment_date,
           expectedDate: validDay(i.due_date),
           source: "Fattura",
-          href: `/azienda/fatturazione/${i.id}`,
+          href: `/azienda/documenti/importata/${i.id}`,
           estimated: false,
         },
         true,

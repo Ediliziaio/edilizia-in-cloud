@@ -82,7 +82,9 @@ describe("catalogo colori desktop", () => {
     expect(screen.queryByRole("button", { name: /Nussbaum/ })).not.toBeInTheDocument();
   });
   it("il generico serializza i due lati e usa la tariffa bicolore del fornitore", () => {
-    const f = finestraSalamander("f2a", { custom_field_values: { [CHIAVE_CATALOGO_COLORI]: matrix() } });
+    // Senza manodopera, come il default della colonna (`nessuna`): la linea d'esempio dice «tariffa» senza una
+    // tariffa collegata, e dal 2564bd66a il configuratore (giustamente) non inserisce finché non la si corregge.
+    const f = finestraSalamander("f2a", { manodopera_modalita: "nessuna", custom_field_values: { [CHIAVE_CATALOGO_COLORI]: matrix() } });
     const onAddItems = vi.fn();
     render(<FamilyConfigurator item={item(f)} tariffe={[]} currentSortOrder={0} onBack={vi.fn()} onAddItems={onAddItems} />);
     expect(screen.getByRole("button", { name: "Aggiungi al preventivo" })).toBeDisabled();

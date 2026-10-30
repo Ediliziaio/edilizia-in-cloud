@@ -30,6 +30,9 @@ interface Suggerimento {
 interface Props {
   orderId: string;
   companyId: string;
+  /** Aperto da fuori (menu «Silvio AI» della commessa, 31/10/2026): senza il pulsante suo. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const RUOLO_BADGE: Record<string, string> = {
@@ -39,8 +42,11 @@ const RUOLO_BADGE: Record<string, string> = {
   specialista: "bg-violet-100 text-violet-700 border-violet-300",
 };
 
-export function AllocazioneOperaiAIDialog({ orderId, companyId }: Props) {
-  const [open, setOpen] = useState(false);
+export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori, onOpenChange }: Props) {
+  const [openDentro, setOpenDentro] = useState(false);
+  const controllato = openFuori !== undefined;
+  const open = controllato ? openFuori : openDentro;
+  const setOpen = (v: boolean) => (controllato ? onOpenChange?.(v) : setOpenDentro(v));
   const [num, setNum] = useState(3);
   const [suggerimenti, setSuggerimenti] = useState<Suggerimento[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -91,12 +97,12 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      {!controllato && <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Sparkles className="h-4 w-4 text-violet-600" />
           Suggerisci Operai AI
         </Button>
-      </DialogTrigger>
+      </DialogTrigger>}
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

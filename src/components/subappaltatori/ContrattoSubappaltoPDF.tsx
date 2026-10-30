@@ -6,7 +6,8 @@
  */
 import { Document, Font, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
-  ARTICOLI_APPROVAZIONE_SPECIFICA, articoliContratto, dataContratto, type DatiContrattoSubappalto,
+  ARTICOLI_APPROVAZIONE_SPECIFICA, articoliContratto, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
+  totaleElencoLavori, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 Font.registerHyphenationCallback((word) => [word]);
@@ -24,6 +25,14 @@ const s = StyleSheet.create({
   firma: { flex: 1, borderTopWidth: 1, borderTopColor: "#333", paddingTop: 4, textAlign: "center", fontSize: 9 },
   clausole: { marginTop: 18, fontSize: 8.5 },
   piedeSx: { position: "absolute", bottom: 22, left: 46, fontSize: 7.5, color: "#777" },
+  // Allegato A: l'elenco dei lavori (31/10/2026).
+  riga: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#999", paddingVertical: 2.5 },
+  testa: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#333", paddingVertical: 3, fontFamily: "Helvetica-Bold", backgroundColor: "#eee" },
+  rigaFase: { flexDirection: "row", paddingVertical: 3, marginTop: 4, backgroundColor: "#f2f2f2", fontFamily: "Helvetica-Bold" },
+  cDesc: { flex: 1, paddingHorizontal: 3 },
+  cUm: { width: 34, paddingHorizontal: 3 },
+  cNum: { width: 62, paddingHorizontal: 3, textAlign: "right" },
+  cImp: { width: 72, paddingHorizontal: 3, textAlign: "right" },
 });
 
 export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
@@ -69,6 +78,39 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
             <Text style={s.firma}>Il Subappaltatore</Text>
           </View>
         </View>
+        {!!d.elencoLavori?.length && (
+          <View break>
+            <Text style={s.titolo}>ALLEGATO A – ELENCO DEI LAVORI</Text>
+            <Text style={s.sotto}>Commessa {d.commessa.codice} · {d.subappaltatore.ragioneSociale} · prezzi IVA esclusa</Text>
+            <View style={s.testa} fixed>
+              <Text style={s.cDesc}>Descrizione</Text><Text style={s.cUm}>U.M.</Text>
+              <Text style={s.cNum}>Quantità</Text><Text style={s.cNum}>Prezzo</Text><Text style={s.cImp}>Importo</Text>
+            </View>
+            {elencoPerFase(d.elencoLavori).map((g) => (
+              <View key={g.fase}>
+                <View style={s.rigaFase} wrap={false}>
+                  <Text style={s.cDesc}>{g.fase}</Text><Text style={s.cImp}>{euroContratto(g.totale)}</Text>
+                </View>
+                {g.righe.map((r, i) => (
+                  <View key={i} style={s.riga} wrap={false}>
+                    <Text style={s.cDesc}>{r.codice ? `${r.codice} · ` : ""}{r.descrizione}</Text>
+                    <Text style={s.cUm}>{r.unita ?? ""}</Text>
+                    <Text style={s.cNum}>{quantitaContratto(r.quantita)}</Text>
+                    <Text style={s.cNum}>{euroContratto(r.prezzo)}</Text>
+                    <Text style={s.cImp}>{euroContratto(r.importo)}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+            <View style={[s.rigaFase, { marginTop: 6 }]} wrap={false}>
+              <Text style={s.cDesc}>Totale lavori</Text><Text style={s.cImp}>{euroContratto(totaleElencoLavori(d.elencoLavori))}</Text>
+            </View>
+            <View style={s.firme} wrap={false}>
+              <Text style={s.firma}>Il Committente</Text>
+              <Text style={s.firma}>Il Subappaltatore, per accettazione</Text>
+            </View>
+          </View>
+        )}
         {/* Piè di pagina su ogni pagina (la firma aggiunge poi il timbro su ognuna). */}
         <Text style={s.piedeSx} fixed>{`Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`}</Text>
       </Page>

@@ -145,11 +145,10 @@ it("keeps the year selector and original module in the standalone fallback", asy
   expect(screen.getByLabelText("Anno fiscale")).toHaveTextContent("2025");
   expect(s.mounts).not.toContain("iva");
 });
-it.each(["permission", "external", "feature"])(
+it.each(["permission", "feature"])(
   "preserves standalone legacy access without expanding billing entitlement: %s",
   async (reason) => {
     if (reason === "permission") s.billing = false;
-    if (reason === "external") s.mode = "external";
     if (reason === "feature") s.disabledFeature = "documenti";
     render(
       <MemoryRouter initialEntries={["/legacy"]}>
@@ -228,4 +227,30 @@ it("old routes redirect to the same workspace and preserve context", async () =>
   expect(await screen.findByTestId("location")).toHaveTextContent(
     "anno=2024&commercialistaMode=1&tab=fiscalita&sezione=archivio",
   );
+});
+
+it("chi fattura con un altro programma entra nello stesso hub dall'indirizzo vecchio", async () => {
+  s.mode = "external";
+  render(
+    <MemoryRouter initialEntries={["/legacy"]}>
+      <Routes>
+        <Route
+          path="/legacy"
+          element={
+            <FiscalLegacyRedirect
+              section="contabilita"
+              fallback={<p>Contabilità autorizzata dalla rotta originale</p>}
+            />
+          }
+        />
+        <Route path="/azienda/documenti" element={<p>Hub fatture</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("Hub fatture")).toBeInTheDocument();
+});
+it("il Registro IVA si apre anche a chi fattura con un altro programma (legge native e importate)", async () => {
+  s.mode = "external";
+  setup("/azienda/documenti?tab=fiscalita&sezione=iva");
+  expect(await screen.findByText("Registro montato")).toBeInTheDocument();
 });

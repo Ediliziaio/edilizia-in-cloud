@@ -46,8 +46,7 @@ import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTracki
 import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
-import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
-import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -76,7 +75,6 @@ import { SicurezzaCommessa } from "@/components/sicurezza/SicurezzaCommessa";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
-import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
@@ -106,6 +104,7 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { RapportiniUfficio } from "@/components/orders/RapportiniUfficio";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { OreEPersone } from "@/components/orders/OreEPersone";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
@@ -394,6 +393,8 @@ function OrderDetailInner() {
   const { vertical } = useVertical();
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  // «Rapportini dai documenti» dal menu Silvio AI apre «Scrivi rapportini» nella vista Rapportini.
+  const [scriviRapportini, setScriviRapportini] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1330,7 +1331,7 @@ function OrderDetailInner() {
   // «Cantiere da organizzare»: ogni cosa che manca porta dove si sistema.
   const vaiAvvio = (chiave: ControlloAvvio) => {
     if (chiave === "indirizzo") navigate(`/azienda/ordini/${id}/modifica`);
-    else if (chiave === "date") navigateTo({ tab: "cantiere", section: "section-pianificazione" });
+    else if (chiave === "date") navigateTo({ tab: "panoramica", section: "section-pianificazione" });
     else if (chiave === "fasi") navigateTo({ tab: "cantiere", section: "section-lavorazioni" });
     else if (chiave === "chi") navigateTo({ tab: "cantiere", section: "section-squadra" });
     else vaiAllaFinanza("section-pagamenti");
@@ -1412,13 +1413,15 @@ function OrderDetailInner() {
       invoiceDisabled={!isNativeBilling || permissions.solaLettura}
       invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
       askSilvio={
-        <ChiediASilvio
-          className="h-8 ml-auto"
-          ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
-            order.customer
-              ? `del cliente ${order.customer.first_name} ${order.customer.last_name} `
-              : ""
-          }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
+        <SilvioCommessa
+          className="ml-auto"
+          orderId={order.id}
+          companyId={companyId}
+          puoModificare={permissions.canEditOrders}
+          riferimento={`commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
+            order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
+          }(${order.description || "senza descrizione"})`}
+          onRapportiniDaDocumenti={() => { navigateTo({ tab: "cantiere", cantiereView: "diario" }); setScriviRapportini(true); }}
         />
       }
     />
@@ -1501,8 +1504,8 @@ function OrderDetailInner() {
           taskLoading={taskLoading}
           taskError={taskError}
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
-          onOpenPlanning={() => navigateTo({ tab: "cantiere", section: "section-pianificazione" })}
-          onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"cantiere",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
+          onOpenPlanning={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}
+          onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
         >
           <OrderStatusWorkflow
             key={id}
@@ -1597,7 +1600,6 @@ function OrderDetailInner() {
 
             <OrderAssistenzaAlert orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-assistenza" })} />
             <DaApprovareAvviso orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
-
             {/* Origine e anagrafica: l'operatività vive nel Cantiere. */}
             <OrderOriginBadge
               quoteId={order.quote_id}
@@ -1657,6 +1659,24 @@ function OrderDetailInner() {
               </div>
               </div>
             </div>
+            {/* Date e appuntamenti (31/10/2026): sotto cliente e lavoro previsto, non più in fondo a Lavorazioni. */}
+            <section
+                id="section-pianificazione"
+                aria-label="Date e appuntamenti"
+                className="grid items-start gap-3 lg:grid-cols-2 scroll-mt-24"
+              >
+                <OrdineTempistiche
+                  orderId={order.id}
+                  expectedDate={order.expected_date}
+                  warehouseArrivalDate={order.warehouse_arrival_date}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                  workStartTime={order.work_start_time}
+                  workEndTime={order.work_end_time}
+                  updatedAt={order.updated_at}
+                />
+                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
+              </section>
             <div id="section-documenti" className="scroll-mt-24">
               <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} /> : undefined}
@@ -2237,9 +2257,8 @@ function OrderDetailInner() {
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
-                organizationContent={figureResponsabilita}
-                onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
-              {permissions.canEditOrders && companyId && <details className="mt-3 rounded-lg border bg-white px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Supporto AI per le assegnazioni</summary><div className="mt-3"><AllocazioneOperaiAIDialog orderId={id!} companyId={companyId} /></div></details>}
+                organizationContent={figureResponsabilita} />
+              {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}
             {vistaCantiere === "sicurezza" && <div id="section-sicurezza" className="scroll-mt-24">
@@ -2271,36 +2290,9 @@ function OrderDetailInner() {
             {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-24">
               <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} /></ErrorBoundary>
             </div>}
-            {vistaCantiere === "lavorazioni" && <>
-              <section
-                id="section-pianificazione"
-                aria-label="Date e appuntamenti"
-                className="grid items-start gap-3 lg:grid-cols-2 scroll-mt-24"
-              >
-                <OrdineTempistiche
-                  orderId={order.id}
-                  expectedDate={order.expected_date}
-                  warehouseArrivalDate={order.warehouse_arrival_date}
-                  workStartDate={order.work_start_date}
-                  workEndDate={order.work_end_date}
-                  workStartTime={order.work_start_time}
-                  workEndTime={order.work_end_time}
-                  updatedAt={order.updated_at}
-                  onOpenSchedule={() => navigateTo({tab: "cantiere", cantiereView: "cronoprogramma"})}
-                  orderCode={order.order_code}
-                  orderDescription={order.description}
-                  defaultAddress={order.work_address || order.customer?.address}
-                />
-                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
-              </section>
-            <div id="section-attivita" className="scroll-mt-24 empty:hidden">
-              <LinkedTasks key={id} orderId={id} category="ordini" excludeOffice compatta editable={permissions.canEditOrders}
-                title="Attività operative del cantiere"
-                description="Promemoria con responsabile e scadenza, distinti dalle fasi di lavoro. Le attività amministrative si gestiscono in Ufficio." />
-            </div>
-            </>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
+              {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" aperta={scriviRapportini} onApertaChange={setScriviRapportini} /></div>}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
               <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
             </div>
@@ -2323,7 +2315,7 @@ function OrderDetailInner() {
                 key={id}
                 orderId={id!}
                 companyId={companyId}
-                onOpenTasks={() => navigateTo(prossimaTask?.title?.startsWith("Ufficio contratto · ") ? {tab:"cantiere",section:"section-ufficio"} : { tab: "cantiere", section: "section-attivita" })}
+                onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
                 customer={order.customer
                   ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
                   : order.client_name || ""}

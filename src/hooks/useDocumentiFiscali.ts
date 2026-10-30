@@ -30,6 +30,8 @@ export interface DocumentiFiscaliFilters {
   showDeleted?: boolean;
   /** Fase verso lo SDI: le fatture da inviare, quelle che aspettano l'esito, le scartate. */
   sdi?: "da_inviare" | "in_elaborazione" | "scartata";
+  /** Anche le fatture importate dal gestionale esterno (`invoices`): l'hub di chi non fattura in nativo. */
+  conImportate?: boolean;
 }
 
 // ─── Row mapper ───────────────────────────────────────────────
@@ -38,6 +40,8 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
   return {
     id: row.id as string,
     company_id: row.company_id as string,
+    origine: (row.origine as DocumentoFiscale["origine"]) ?? "nativa",
+    external_provider: row.external_provider as string | undefined,
     tipo: row.tipo as TipoDocumento,
     numero: row.numero as string,
     numero_progressivo: row.numero_progressivo as number,
@@ -156,7 +160,7 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
       const timeout = createTimeoutSignal(DOCUMENTI_QUERY_TIMEOUT_MS);
       try {
         let query = supabase
-          .from("documenti_fiscali_elenco" as never)
+          .from((filters.conImportate ? "documenti_fiscali_elenco_con_importate" : "documenti_fiscali_elenco") as never)
           .select("*", { count: "exact" })
           .eq("company_id", companyId!);
 

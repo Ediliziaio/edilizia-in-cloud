@@ -19,7 +19,10 @@ describe("Navigazione unica della commessa", () => {
     expect(resolveCantiereView("?vista_cantiere=lavorazioni", "section-statistiche")).toBe("squadra");
   });
   it("recupera le sezioni nei vecchi link di controllo e le elimina cambiando vista", () => {
-    expect(resolveOrderDetailDestination("?tab=finanza&section=section-attivita")).toEqual({ tab: "cantiere", section: "section-attivita" });
+    expect(resolveOrderDetailDestination("?tab=finanza&section=section-rapportini")).toEqual({ tab: "cantiere", section: "section-rapportini" });
+    // Date e appuntamenti stanno in Panoramica; le attività operative non ci sono più (31/10/2026).
+    expect(resolveOrderDetailDestination("?tab=cantiere&section=section-pianificazione")).toEqual({ tab: "panoramica", section: "section-pianificazione" });
+    expect(resolveOrderDetailDestination("?tab=cantiere&section=section-attivita").tab).toBe("panoramica");
     expect(resolveOrderDetailDestination("?section=section-attivita", "#section-pagamenti")).toEqual({ tab: "finanza", section: "section-pagamenti" });
     const next = orderDetailLocation("?tab=cantiere&section=section-attivita&source=agenda", { tab: "finanza", economiaView: "pagamenti" });
     expect(new URLSearchParams(next.search).has("section")).toBe(false);
@@ -90,7 +93,7 @@ describe("Navigazione unica della commessa", () => {
   });
   it("il link diretto prevale sulla vista ricordata", () => {
     expect(resolveCantiereView("?vista_cantiere=squadra", "section-rapportini")).toBe("diario");
-    expect(resolveCantiereView("?vista_cantiere=diario", "section-attivita")).toBe("lavorazioni");
+    expect(resolveCantiereView("?vista_cantiere=diario", "section-lavorazioni")).toBe("lavorazioni");
     expect(resolveCantiereView("?vista_cantiere=__proto__")).toBe("lavorazioni");
     expect(resolveCantiereView("?vista_cantiere=collaudo")).toBe("collaudo");
     expect(resolveCantiereView("?vista_cantiere=squadra", "section-assistenza")).toBe("collaudo");

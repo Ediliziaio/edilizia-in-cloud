@@ -131,6 +131,18 @@ describe("Tesoreria: le fatture interne si incassano dal bonifico", () => {
     expect(scritture("bank_reconciliations")).toEqual([]);
   });
 
+  it("«Scollega» su un bonifico abbinato a un incasso già registrato: l'incasso resta (30/10/2026)", async () => {
+    dati.bank_reconciliations[0].match_type = "incasso_esistente";
+    monta();
+    expect(await screen.findByText("Incasso già registrato")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi riconciliazione" }));
+    expect(await screen.findByText(/L'incasso registrato a mano sulla fattura resta/)).toBeTruthy();
+    expect(screen.queryByText(/verrà stornato/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("scollega_bonifico_fattura", { p_reconciliation_id: "rec-30" }));
+    expect(scritture("bank_reconciliations")).toEqual([]);
+  });
+
   it("un bonifico già abbinato non torna tra quelli da riconciliare", async () => {
     dati.bank_transactions.push({
       id: "tx-0", company_id: "azienda-1", amount: 1000, transaction_type: "credit",

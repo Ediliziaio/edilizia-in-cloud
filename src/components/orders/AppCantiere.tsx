@@ -199,7 +199,25 @@ export function AppCantiere({
   if (!organizzazione) return contenuto;
   return <>
     <section aria-label="Organizzazione del cantiere" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50/60 px-3 py-2.5">
-      <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Organizzazione</h3><p className="mt-0.5 break-words text-xs text-muted-foreground">Capocantiere: <span className="text-foreground">{isLoading ? "caricamento…" : isError ? "dato non disponibile" : capo ? nomeAccesso(capo) : "da assegnare"}</span> · {organizzazione.riepilogo}</p></div>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold">Organizzazione</h3>
+        {/* Il capocantiere si sceglie qui, senza aprire «Gestisci» (31/10/2026). */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <label htmlFor={`capocantiere-rapido-${orderId}`}>Capocantiere:</label>
+          {modificabile && !organizzazione.aperta && !isLoading && !isError && candidati.length > 0 ? (
+            <Select value={capo?.user_id ?? "nessuno"} onValueChange={(v) => scegli.mutate(v === "nessuno" ? null : v)} disabled={scegli.isPending}>
+              <SelectTrigger id={`capocantiere-rapido-${orderId}`} aria-label="Capocantiere" className="h-7 w-48 bg-background text-xs text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nessuno">Da assegnare</SelectItem>
+                {candidati.map((a) => <SelectItem key={a.user_id} value={a.user_id}>{nomeAccesso(a)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-foreground">{isLoading ? "caricamento…" : isError ? "dato non disponibile" : capo ? nomeAccesso(capo) : candidati.length === 0 ? "da assegnare (serve chi lavora qui con l'app)" : "da assegnare"}</span>
+          )}
+          <span>· {organizzazione.riepilogo}</span>
+        </div>
+      </div>
       <div className="flex flex-wrap gap-1.5"><Button size="sm" variant="outline" aria-expanded={organizzazione.aperta} aria-controls={`app-cantiere-panel-${orderId} organization-body-${orderId}`} onClick={organizzazione.onGestione}>{organizzazione.aperta ? "Chiudi organizzazione" : modificabile ? "Gestisci" : "Dettagli"}</Button>{organizzazione.onTurni && <Button size="sm" variant="ghost" onClick={organizzazione.onTurni}>Pianifica turni</Button>}</div>
     </section>
     {isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-rose-700">Accessi Campo non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova accessi</Button></div>}

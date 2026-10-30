@@ -21,7 +21,7 @@ const SCELTE: { mode: BillingMode; id: string; titolo: string; descrizione: stri
     mode: "external",
     id: ID_SCELTA_ESTERNA,
     titolo: "Con un altro programma",
-    descrizione: "Le fatture le fai nel tuo programma (Fatture in Cloud, Fattura24, Aruba…) e arrivano qui da sole.",
+    descrizione: "Le fatture le fai nel tuo programma (Fatture in Cloud, Fattura24, Aruba…) e arrivano qui da sole, nella stessa pagina Fatture.",
     Icona: ExternalLink,
   },
   {
@@ -42,7 +42,7 @@ const CONFERMA: Record<BillingMode, { titolo: string; testo: string; azione: str
   },
   external: {
     titolo: "Fatturi con un altro programma?",
-    testo: "Le fatture fatte con Edilizia in Cloud non si cancellano: le ritrovi se tornerai a questa scelta.",
+    testo: "Le fatture fatte con Edilizia in Cloud non si cancellano: restano in Fatture accanto a quelle del programma, ma da qui non ne crei di nuove.",
     azione: "Sì, fatturo con un altro programma",
   },
 };

@@ -164,6 +164,8 @@ export interface FvPdfTemplateData {
     nome: string;
     cognome: string;
     cf?: string | null;
+    /** «C.F. …», «P.IVA … · C.F. …» o i dati dell'ente pubblico (30/10/2026): se c'è, vale al posto di `cf`. */
+    dati_fiscali?: string | null;
     /** Preventivo cointestato: «Anna Bianchi» e il suo codice fiscale. */
     cointestatario?: string | null;
     cointestatario_cf?: string | null;
@@ -2453,7 +2455,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   const clausole = conCondizioni ? condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? "")).clausole : [];
   const righe: Array<[string, string]> = [
     ["Impresa", [d.azienda.name, d.azienda.vat_number ? `P.IVA ${d.azienda.vat_number}` : null].filter(Boolean).join(" · ")],
-    ["Committente", [cliente, d.cliente.cf ? `CF ${d.cliente.cf}` : null].filter(Boolean).join(" · ")],
+    ["Committente", [cliente, d.cliente.dati_fiscali || (d.cliente.cf ? `CF ${d.cliente.cf}` : null)].filter(Boolean).join(" · ")],
     ...(d.cliente.cointestatario ? [["Cointestatario", [d.cliente.cointestatario, d.cliente.cointestatario_cf ? `CF ${d.cliente.cointestatario_cf}` : null].filter(Boolean).join(" · ")] as [string, string]] : []),
     ["Oggetto", isFvAccumulo(d.template) ? `Integrazione sistema di accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh su impianto esistente, limitata alle voci elencate` : isFvLocalIntervention(d.template) ? `${fvInterventionLabel(d.template)}, limitato alle voci elencate` : `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}, chiavi in mano`],
   ];

@@ -6,7 +6,8 @@
  */
 import type { PhaseTemplate } from "@/hooks/useOrderWorkPhases";
 
-export interface SottofaseModello { nome: string; peso: number }
+/** giorni e in_parallelo dal 31/10/2026: il modello porta il tempo, non le date. */
+export interface SottofaseModello { nome: string; peso: number; giorni?: number | null; in_parallelo?: boolean }
 export interface FaseModello { nome: string; sottofasi: SottofaseModello[] }
 export type OrigineModello = "azienda" | "partenza";
 
@@ -72,7 +73,7 @@ export const totaleSottofasi = (m: Pick<ModelloFasi, "fasi">): number =>
 // ── dalle tre tabelle all'albero ────────────────────────────────────────────
 export interface RigaModello { id: string; name: string; hint: string | null; position: number; template_scope?: string }
 export interface RigaFaseModello { id: string; template_id: string; name: string; position: number }
-export interface RigaSottofaseModello { id: string; template_phase_id: string; name: string; position: number; peso: number }
+export interface RigaSottofaseModello { id: string; template_phase_id: string; name: string; position: number; peso: number; giorni?: number | null; in_parallelo?: boolean | null }
 
 export function assemblaModelli(
   modelli: ReadonlyArray<RigaModello>,
@@ -88,7 +89,7 @@ export function assemblaModelli(
     id: m.id, origine: "azienda", ambito: m.template_scope === "contratto" ? "contratto" : "cantiere", nome: m.name, descrizione: m.hint ?? "",
     fasi: [...(fasiPerModello.get(m.id) ?? [])].sort(perPosizione).map((f) => ({
       nome: f.name,
-      sottofasi: [...(sottoPerFase.get(f.id) ?? [])].sort(perPosizione).map((s) => ({ nome: s.name, peso: s.peso })),
+      sottofasi: [...(sottoPerFase.get(f.id) ?? [])].sort(perPosizione).map((s) => ({ nome: s.name, peso: s.peso, ...tempoModello(s.giorni, s.in_parallelo) })),
     })),
   }));
 }
@@ -112,6 +113,15 @@ export function bozzaDaModello(m: ModelloFasi, comeCopia: boolean): BozzaModello
 
 const pesoIntero = (peso: number): number =>
   Math.min(100, Math.max(1, Math.round(Number.isFinite(peso) ? peso : 1)));
+const giorniModello = (giorni: number | null | undefined): number | null =>
+  giorni != null && Number.isInteger(giorni) && giorni >= 1 && giorni <= 3650 ? giorni : null;
+/** Giorni e parallelo solo se ci sono: i modelli senza restano come prima. */
+const tempoModello = (giorni: number | null | undefined, inParallelo: boolean | null | undefined): Pick<SottofaseModello, "giorni" | "in_parallelo"> => ({
+  ...(giorniModello(giorni) ? { giorni: giorniModello(giorni) } : {}),
+  ...(inParallelo ? { in_parallelo: true } : {}),
+});
+const sottofasePulita = (s: SottofaseModello): SottofaseModello =>
+  ({ nome: s.nome.trim(), peso: pesoIntero(s.peso), ...tempoModello(s.giorni, s.in_parallelo) });
 
 export function validaBozza(b: BozzaModello): EsitoBozza {
   const nome = b.nome.trim();
@@ -120,7 +130,7 @@ export function validaBozza(b: BozzaModello): EsitoBozza {
   const fasi = b.fasi
     .map((f) => ({
       nome: f.nome.trim(),
-      sottofasi: f.sottofasi.map((s) => ({ nome: s.nome.trim(), peso: pesoIntero(s.peso) })).filter((s) => s.nome),
+      sottofasi: f.sottofasi.map(sottofasePulita).filter((s) => s.nome),
     }))
     .filter((f) => f.nome);
   if (fasi.length === 0) return { ok: false, errore: "Un modello ha almeno una fase, con un nome." };
@@ -137,7 +147,7 @@ export function validaBozza(b: BozzaModello): EsitoBozza {
 /** Quello che arriva a «aggiungi_fasi_commessa» per un modello scelto. */
 export function fasiPerCommessa(m: Pick<ModelloFasi, "fasi"> & Partial<Pick<ModelloFasi,"ambito">>): FaseModello[] {
   if(m.ambito === "contratto") return [];
-  return m.fasi.map((f) => ({ nome: f.nome, sottofasi: f.sottofasi.map((s) => ({ nome: s.nome, peso: pesoIntero(s.peso) })) }));
+  return m.fasi.map((f) => ({ nome: f.nome, sottofasi: f.sottofasi.map(sottofasePulita) }));
 }
 
 // ── riordino, senza toccare l'originale ─────────────────────────────────────

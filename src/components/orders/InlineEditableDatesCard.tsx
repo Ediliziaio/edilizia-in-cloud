@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { CalendarDays, CalendarPlus, MoreHorizontal, Pencil } from "lucide-react";
+import { CalendarDays, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,8 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { planningDay, planningTime, validatePlanning, type OrderPlanningDates } from "@/lib/orders/planning";
 
 interface InlineEditableDatesCardProps {
@@ -33,17 +30,20 @@ interface InlineEditableDatesCardProps {
   onOpenSchedule?: () => void;
 }
 const DATE_FIELDS = [
-  ["work_start_date", "Inizio lavori"], ["work_end_date", "Fine lavori"],
-  ["expected_date", "Posa prevista"], ["warehouse_arrival_date", "Arrivo materiali"],
+  ["work_start_date", "Inizio lavori previsto"], ["work_end_date", "Fine lavori prevista"],
+  ["warehouse_arrival_date", "Arrivo materiali"], ["expected_date", "Posa prevista"],
 ] as const;
+/** In lettura (31/10/2026): inizio e fine previsti sempre, l'arrivo materiali solo se c'è, la posa no. */
+const DATE_VISIBILI = DATE_FIELDS.filter(([field]) => field !== "expected_date");
 
 /** Read dates first, edit together. The order is already a calendar event:
- * never generate/delete a second pair of start/end appointments. */
+ * never generate/delete a second pair of start/end appointments.
+ * Appuntamenti, cronoprogramma e calendario hanno i loro posti: qui solo le date. */
 export function InlineEditableDatesCard(props: InlineEditableDatesCardProps) {
   return <PlanningDatesPanel key={props.orderId} {...props} />;
 }
 function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
-  workStartTime, workEndTime, updatedAt, orderCode, orderDescription, defaultAddress, onOpenSchedule}: InlineEditableDatesCardProps) {
+  workStartTime, workEndTime, updatedAt}: InlineEditableDatesCardProps) {
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const { canEditOrders } = usePermissions();
@@ -61,8 +61,6 @@ function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workSt
   const [draft, setDraft] = useState<OrderPlanningDates>(persisted);
   const [editVersion, setEditVersion] = useState(updatedAt);
   const [saving, setSaving] = useState(false);
-  const [appointmentPreset, setAppointmentPreset] = useState<{type: string; title: string; date?: string} | null>(null);
-  const orderRef = [orderCode, orderDescription].filter(Boolean).join(" - ");
   const refresh = () => {
     for (const key of [["order", orderId], ["orders", "detail", orderId], ["orders", "diary-header", orderId],
       ["calendar-orders"], ["appointments"], ["order-appointments", orderId], ["order-schedule-health", orderId],
@@ -70,9 +68,6 @@ function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workSt
       void qc.invalidateQueries({ queryKey: key });
   };
   const edit = () => { setDraft({...displayed}); setEditVersion(updatedAt); setOpen(true); };
-  const planAppointment = (type: string, title: string, day?: string | null) => {
-    if (!readonly) setAppointmentPreset({type, title: title + (orderRef ? " · " + orderRef : ""), date: planningDay(day) || undefined});
-  };
   const save = async () => {
     if (saving || readonly) return;
     const problem = validatePlanning(draft);
@@ -95,10 +90,7 @@ function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workSt
       toast.error(error instanceof Error ? error.message : "Date non salvate. Riprova.");
     } finally { setSaving(false); }
   };
-  const inconsistent = validatePlanning(displayed) ||
-    (displayed.expected_date && displayed.work_start_date && displayed.work_end_date &&
-      (displayed.expected_date < displayed.work_start_date || displayed.expected_date > displayed.work_end_date)
-      ? "La posa prevista è fuori dal periodo lavori: verifica le date." : null);
+  const inconsistent = validatePlanning(displayed);
   return <>
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
@@ -107,7 +99,7 @@ function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workSt
       </CardHeader>
       <CardContent className="space-y-3">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-          {DATE_FIELDS.map(([field, label]) => {
+          {DATE_VISIBILI.filter(([field]) => field !== "warehouse_arrival_date" || displayed[field]).map(([field, label]) => {
             const day = planningDay(displayed[field]);
             const time = field === "work_start_date" ? displayed.work_start_time : field === "work_end_date" ? displayed.work_end_time : null;
             return <div key={field}><dt className="text-xs text-muted-foreground">{label}</dt>
@@ -115,23 +107,8 @@ function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workSt
           })}
         </dl>
         {inconsistent && <p role="alert" className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">{inconsistent}</p>}
-        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-          {!readonly && <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" aria-label="Pianifica appuntamento" variant="outline" size="sm" className="min-h-10"><CalendarPlus className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">Pianifica appuntamento</span><span className="sm:hidden">Appuntamento</span><MoreHorizontal className="ml-1.5 h-3.5 w-3.5" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => planAppointment("sopralluogo_preventivo", "Sopralluogo", displayed.work_start_date)}>Sopralluogo</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => planAppointment("rilievo_tecnico", "Rilievo misure", displayed.work_start_date)}>Rilievo misure</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => planAppointment("collaudo", "Collaudo lavori", displayed.work_end_date)}>Collaudo</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>}
-          {onOpenSchedule && <Button type="button" variant="ghost" size="sm" onClick={onOpenSchedule}>Cronoprogramma</Button>}
-          <Button asChild variant="ghost" size="sm"><Link to="/azienda/calendario" aria-label="Apri calendario"><span className="hidden sm:inline">Apri calendario</span><span className="sm:hidden">Calendario</span></Link></Button>
-        </div>
       </CardContent>
     </Card>
-    <AppointmentDialog open={!!appointmentPreset} onOpenChange={next => {if (!next) setAppointmentPreset(null);}}
-      onSaved={() => {refresh(); setAppointmentPreset(null);}} defaultOrderId={orderId}
-      defaultDate={appointmentPreset?.date} defaultAppointmentType={appointmentPreset?.type ?? "sopralluogo_preventivo"}
-      defaultTitle={appointmentPreset?.title ?? ""} defaultAddress={defaultAddress} showOrderSelect={false} requireTime hideMarketingFields />
     <Dialog open={open} onOpenChange={next => {if (!saving) setOpen(next);}}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>Modifica date del cantiere</DialogTitle><DialogDescription>Periodo generale della commessa. Le singole lavorazioni mantengono le proprie date.</DialogDescription></DialogHeader>

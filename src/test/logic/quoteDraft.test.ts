@@ -4,7 +4,7 @@ import { readQuoteDraft, serializeQuoteDraft, quoteDraftSchema, type QuoteDraft 
 describe("bozza completa preventivo classico", () => {
   const draft: QuoteDraft = {
     step: 2, partialQuoteId: null, contactId: null, clientName: "Cliente prova", clientEmail: "",
-    clientPhone: "", clientCompany: "", clientAddress: "", clientFiscalCode: "", clientVatNumber: "",
+    clientPhone: "", clientCompany: "", clientAddress: "", clientFiscalCode: "", clientVatNumber: "", clientCodiceUnivoco: "",
     title: "Offerta", description: "Progetto", validityDays: 30, notes: "Nota cliente",
     internalNotes: "Nota riservata", tipoLavoro: "Bagno", indirizzoLavori: "",
     pianoInstallazione: 0, kmCantiere: 0, salespersonId: null, sedeId: null,

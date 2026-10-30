@@ -138,7 +138,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     descrizione: "", meteo: "", oreLavorate: "" as CampoHoursDraft, oreStraordinario: 0,
     percentuale: 0, fasiDichiarate: {} as Record<string, number>, materialiSel: {} as Record<string, RapportinoMaterialDraft>,
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
-    sottofasiSpunte: [] as string[], presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
+    sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
   const bozzaAttivata = useRef(false);
@@ -200,9 +200,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiCommessa), [sottofasiCommessa]);
   // Le sottofasi spuntate in QUESTO rapportino (valgono quando viene approvato).
   const [sottofasiSpunte, setSottofasiSpunte] = useState<string[]>([]);
+  // Quelle su cui si è lavorato oggi senza finirle: danno l'inizio reale della sottofase.
+  const [sottofasiLavorate, setSottofasiLavorate] = useState<string[]>([]);
   // Cosa direbbe il rapportino per ogni fase dichiarata, sottofasi comprese (anche per il riepilogo).
   const percentualiFinali = useMemo(
-    () => new Map(fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte).map((v) => [v.phase_id, v.percentuale] as const)),
+    () => new Map(fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate).map((v) => [v.phase_id, v.percentuale] as const)),
     [fasiDichiarate, sottofasiDi, sottofasiSpunte],
   );
 
@@ -271,11 +273,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, presenzeSel, firmaClienteNome }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, presenzeSel, firmaClienteNome]);
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
-    if (bozzaAttivata.current || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.firmaClienteNome.trim()) {
+    if (bozzaAttivata.current || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
     }
@@ -287,7 +289,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setOreStraordinario(Number(b.oreStraordinario) || 0); setMeteo(b.meteo || ""); setPercentuale(Number(b.percentuale) || 0);
     setFasiDichiarate(b.fasiDichiarate || {}); setMaterialiSel(b.materialiSel || {}); setMezziSel(b.mezziSel || {});
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
-    setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []);
+    setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []);
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || "");
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
@@ -414,6 +416,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       if (Array.isArray(r.fasi_lavorate)) {
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
         setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
+        setSottofasiLavorate(sottofasiSpuntate(r.fasi_lavorate, "sottofasi_lavorate"));
         setFotoFase(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).flatMap(f => (Array.isArray(f.foto) ? f.foto : []).map((u): [string, string] => [u, f.phase_id]))));
       }
       if (Array.isArray(r.materiali_usati)) {
@@ -650,7 +653,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         nomi: Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
         fotoUrls,
         fotoFase,
-        base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte),
+        base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate),
       });
 
       // ── Firme: dataURL → PNG → bucket campo-rapportini ──
@@ -1085,6 +1088,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                         spunte={sottofasiSpunte}
                         onSpunta={(id, spuntata) =>
                           setSottofasiSpunte(prev => (spuntata ? [...new Set([...prev, id])] : prev.filter(x => x !== id)))
+                        }
+                        lavorate={sottofasiLavorate}
+                        onLavorata={(id, si) =>
+                          setSottofasiLavorate(prev => (si ? [...new Set([...prev, id])] : prev.filter(x => x !== id)))
                         }
                       />
                     );

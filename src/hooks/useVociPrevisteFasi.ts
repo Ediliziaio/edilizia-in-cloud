@@ -17,7 +17,9 @@ export interface VocePrevista extends VocePrevistaFase {
   unita: string | null;
   importo: number | null;
   tariffa_id: string | null;
-  origine: "preventivo" | "computo_rst";
+  origine: "preventivo" | "computo_rst" | "computo" | "listino";
+  /** La sottofase che questa voce misura (31/10/2026), se la fase è divisa per voci. */
+  subphase_id: string | null;
   origine_codice: string | null;
 }
 
@@ -38,7 +40,7 @@ export function useVociPrevisteFasi(orderId: string | null | undefined, abilitat
     queryFn: async (): Promise<VocePrevista[]> => {
       const { data, error } = await db
         .from("order_work_phase_voci")
-        .select("id, phase_id, position, descrizione, unita, quantita, costo_manodopera, costo_materiali, importo, tariffa_id, origine, origine_codice")
+        .select("id, phase_id, position, descrizione, unita, quantita, costo_manodopera, costo_materiali, importo, tariffa_id, origine, origine_codice, subphase_id")
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("position", { ascending: true });
@@ -56,6 +58,7 @@ export function useVociPrevisteFasi(orderId: string | null | undefined, abilitat
         tariffa_id: (v.tariffa_id as string | null) ?? null,
         origine: v.origine as VocePrevista["origine"],
         origine_codice: (v.origine_codice as string | null) ?? null,
+        subphase_id: (v.subphase_id as string | null) ?? null,
       }));
     },
   });

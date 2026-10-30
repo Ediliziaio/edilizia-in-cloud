@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
+import { INFO_TIPO_FORNITORE, TIPI_FORNITORE, isTipoFornitore, proponiTipo } from "@/lib/fornitori/tipiFornitore";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -304,7 +305,48 @@ function FornitoreDialogAperta({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier-categoria">Categoria</Label>
+                    <Label htmlFor="supplier-genere">Che fornitore è</Label>
+                    <Select
+                      value={isTipoFornitore(formData.tipo) ? formData.tipo : "none"}
+                      onValueChange={(v) => updateField("tipo", v === "none" ? "" : v)}
+                    >
+                      <SelectTrigger id="supplier-genere">
+                        <SelectValue placeholder="Scegli…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Da decidere</SelectItem>
+                        {TIPI_FORNITORE.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {INFO_TIPO_FORNITORE[t].etichetta}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Il tipo decide se le sue fatture vanno su una commessa o nelle spese generali. */}
+                    {isTipoFornitore(formData.tipo) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {INFO_TIPO_FORNITORE[formData.tipo].esempi}.{" "}
+                        {INFO_TIPO_FORNITORE[formData.tipo].commessa === "si"
+                          ? "Le sue fatture vanno su una commessa."
+                          : INFO_TIPO_FORNITORE[formData.tipo].commessa === "no"
+                            ? "Spesa generale: le sue fatture non vanno su una commessa."
+                            : "Le sue fatture vanno su una commessa solo quando servono a un cantiere."}
+                      </p>
+                    ) : (() => {
+                      const proposta = proponiTipo({ nome: formData.name, categoriaScheda: formData.product_category });
+                      return proposta ? (
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => updateField("tipo", proposta.tipo)}
+                        >
+                          Proposto: {INFO_TIPO_FORNITORE[proposta.tipo].etichetta} ({proposta.motivo.toLowerCase()})
+                        </button>
+                      ) : null;
+                    })()}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="supplier-categoria">Cosa vende</Label>
                     <Popover
                       open={categoryPopoverOpen}
                       onOpenChange={setCategoryPopoverOpen}
@@ -429,7 +471,7 @@ function FornitoreDialogAperta({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier-tipo">Tipo fornitore</Label>
+                    <Label htmlFor="supplier-tipo">Italiano o estero</Label>
                     <Select
                       value={formData.is_foreign ? "estero" : "italiano"}
                       onValueChange={(v) =>

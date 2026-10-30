@@ -1,3 +1,4 @@
+import { isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Ruoli dei referenti: a chi va l'ordine, a chi la fattura, chi riceve il camion. */
@@ -51,6 +52,8 @@ export interface Supplier {
   phone: string | null;
   website: string | null;
   product_category: string | null;
+  /** Dove va il costo: vedi src/lib/fornitori/tipiFornitore.ts. */
+  tipo?: string | null;
   notes: string | null;
   payment_method: string | null;
   is_active: boolean;
@@ -100,6 +103,8 @@ export interface SupplierFormData {
   phone: string;
   website: string;
   product_category: string;
+  /** Uno dei TIPI_FORNITORE, o vuoto. */
+  tipo: string;
   notes: string;
   payment_method: string;
   is_active: boolean;
@@ -142,6 +147,7 @@ export const emptyForm: SupplierFormData = {
   phone: "",
   website: "",
   product_category: "",
+  tipo: "",
   notes: "",
   payment_method: "",
   is_active: true,
@@ -221,6 +227,7 @@ export function supplierToForm(s: Supplier): SupplierFormData {
     phone: s.phone || "",
     website: s.website || "",
     product_category: s.product_category || "",
+    tipo: s.tipo ?? "",
     notes: s.notes || "",
     payment_method: s.payment_method || "",
     is_active: s.is_active ?? true,
@@ -366,6 +373,7 @@ export function payloadFornitore(data: SupplierFormData) {
     phone: normalizeOptional(data.phone),
     website: sitoFornitore(data.website),
     product_category: normalizeOptional(data.product_category),
+    tipo: isTipoFornitore(data.tipo) ? data.tipo : null,
     notes: normalizeOptional(data.notes),
     payment_method: normalizeOptional(data.payment_method),
     is_active: data.is_active,

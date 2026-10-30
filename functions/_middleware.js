@@ -2545,6 +2545,8 @@ function ogImageFor(pathname) {
   if (p === "/funzionalita" || p.startsWith("/funzionalita/")) return OG_IMAGES.funzionalita;
   if (p === "/prezzi") return OG_IMAGES.prezzi;
   if (p.startsWith("/per/")) return OG_IMAGES.perTipo;
+  const confronto = /^\/confronto(?:\/vs-(teamsystem|primus|excel|edilnet|buildertrend))?$/.exec(p);
+  if (confronto) return `https://www.ediliziaincloud.com/og/confronto-${confronto[1] ?? "hub"}.jpg`;
   if (p === "/confronto" || p.startsWith("/confronto/")) return OG_IMAGES.confronto;
   if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG_IMAGES.citta;
   if (p === "/blog" || p.startsWith("/blog/")) return OG_IMAGES.blog;

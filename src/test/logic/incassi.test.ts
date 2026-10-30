@@ -72,6 +72,12 @@ describe("registraIncassi: un incasso per fattura, dalla funzione atomica", () =
     ]);
   });
 
+  it("un incasso parziale: l'importo scelto al posto del residuo (30/10/2026)", async () => {
+    const d = db([]);
+    await registraIncassi(d, "az-1", [{ id: "f1", numero: "FT-1", residuo: 120.5 }], { metodo: "contanti", data: "2026-10-30" });
+    expect(d.rpc).toHaveBeenCalledWith("registra_incasso_atomico", expect.objectContaining({ p_importo: 120.5, p_metodo: "contanti" }));
+  });
+
   it("niente residuo, niente chiamata", async () => {
     const d = db([]);
     const esito = await registraIncassi(d, "az-1", [{ id: "a", numero: "1", residuo: 0 }], { metodo: "bonifico", data: "2026-09-25" });

@@ -74,6 +74,61 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // Il piano in fila (pianoInSequenza): giorni e date di più sottofasi in una volta.
+  const pianificaTutte = useMutation({
+    mutationFn: async (passi: ReadonlyArray<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => {
+      for (const { id, data_inizio, data_fine, giorni } of passi) {
+        const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // L'ordine conta: il piano in fila le mette una dopo l'altra in quest'ordine.
+  const riordina = useMutation({
+    mutationFn: async (ids: ReadonlyArray<string>) => {
+      for (const [position, id] of ids.entries()) {
+        const { error } = await db.from("order_work_subphases").update({ position }).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // Insieme alla precedente invece che dopo.
+  const parallelo = useMutation({
+    mutationFn: async ({ id, in_parallelo }: { id: string; in_parallelo: boolean }) => {
+      const { error } = await db.from("order_work_subphases").update({ in_parallelo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // Quante persone ci lavorano.
+  const risorse = useMutation({
+    mutationFn: async ({ id, risorse: n }: { id: string; risorse: number | null }) => {
+      const { error } = await db.from("order_work_subphases").update({ risorse: n }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
+  // Una sottofase per ogni voce del computo che non ce l'ha (sottofasi_dalle_voci).
+  const dalleVoci = useMutation({
+    mutationFn: async (phaseId: string) => {
+      const { data, error } = await db.rpc("sottofasi_dalle_voci", { p_phase_id: phaseId });
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+    onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["voci-previste-fasi"] }); },
+    onError,
+  });
+
   // Il peso di ogni sottofase diventa il suo tempo necessario (pesiDaGiorni).
   const pesa = useMutation({
     mutationFn: async (pesi: ReadonlyArray<{ id: string; peso: number }>) => {
@@ -95,5 +150,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

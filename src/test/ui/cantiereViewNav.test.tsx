@@ -60,7 +60,7 @@ describe("viste del cantiere", () => {
   });
   it("un collegamento diretto prevale sulla vista memorizzata e apre i dettagli", async () => {
     mount("?tab=cantiere&vista_cantiere=squadra#section-diario");
-    expect(screen.getByRole("button", { name: "Diario" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Rapportini" })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(screen.getByText("Eventi economici")).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: "Lavorazioni" }));
     expect(screen.getByLabelText("URL corrente").textContent).not.toContain("#");

@@ -13,6 +13,7 @@
  */
 
 import { planningDay } from "./planning";
+import { fineLavorativa, primoLavorativo, realeSottofase, tuttiIGiorni, type GiornoLavorativo } from "./sottofasi";
 
 export type StatoFase = "da_iniziare" | "in_corso" | "completata";
 
@@ -295,13 +296,15 @@ export function intervalloCronoprogramma(
   traguardi: ReadonlyArray<Traguardo>,
   oggi: string,
   periodo?: "previsto" | "confronto",
+  /** Altre date da far stare nel grafico: le sottofasi (anche stimate) sotto le fasi. */
+  extra: ReadonlyArray<string> = [],
 ): Asse {
   // The operational view is independent of old administrative milestones.
   // A closed job must not keep growing to today. Legacy callers retain their axis.
   if (periodo) {
     const date = fasi.flatMap(f => [f.previstoInizio, f.previstoFine,
       ...(periodo === "confronto" ? [f.realeInizio, f.realeFine] : [])])
-      .concat(traguardi.filter(t => t.tipo === "inizio_lavori" || t.tipo === "fine_lavori").map(t => t.data))
+      .concat(traguardi.filter(t => t.tipo === "inizio_lavori" || t.tipo === "fine_lavori").map(t => t.data), extra)
       .filter((d): d is string => !!d && !!planningDay(d)).sort();
     if (!date.length) date.push(...fasi.flatMap(f => [f.realeInizio, f.realeFine]).filter((d): d is string => !!d && !!planningDay(d)));
     date.sort();
@@ -311,7 +314,7 @@ export function intervalloCronoprogramma(
     const da = aggiungiGiorni(date[0], -3), a = aggiungiGiorni(date[date.length - 1], 3);
     return { da, a, giorni: giorniTra(da, a) + 1 };
   }
-  const date: string[] = [oggi, ...traguardi.map((t) => t.data)];
+  const date: string[] = [oggi, ...traguardi.map((t) => t.data), ...extra];
   for (const f of fasi) {
     for (const d of [f.previstoInizio, f.previstoFine, f.realeInizio, f.realeFine]) if (d) date.push(d);
   }
@@ -385,6 +388,16 @@ export interface SottofaseCrono {
   ritardo: number;
   /** Fuori dalle date previste della sua fase (dati di prima che la fase si allargasse da sola). */
   fuoriDallaFase: boolean;
+  /** Senza date salvate: messa in fila dai suoi giorni, dopo la sottofase precedente. */
+  stimata: boolean;
+  /** Il primo giorno di lavoro dai rapportini approvati. */
+  realeInizio: string | null;
+  /** Giorni di rapportino in cui ci si è lavorato. */
+  giorniLavorati: number;
+  /** Il giorno in cui è stata spuntata, se fatta. */
+  realeFine: string | null;
+  /** Giorni tra la fine prevista e quella reale: > 0 dopo, < 0 prima. */
+  scarto: number;
 }
 
 /**
@@ -394,17 +407,58 @@ export interface SottofaseCrono {
  */
 export function sottofasiCronoprogramma(
   fase: Pick<FaseCrono, "previstoInizio" | "previstoFine">,
-  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null }>,
+  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; fatta_il?: string | null; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null; in_parallelo?: boolean; iniziata_il?: string | null; giorni_lavorati?: number; peso?: number }>,
   oggi: string,
+  lavorativo: GiornoLavorativo = tuttiIGiorni,
 ): SottofaseCrono[] {
   const out: SottofaseCrono[] = [];
+  // Nessuna sottofase ha date né giorni (31/10/2026): si dividono il periodo della fase
+  // in fila, in proporzione al peso, così il grafico della fase si rispecchia sotto.
+  const nessunPiano = sottofasi.every((s) => !planningDay(s.data_inizio) && !planningDay(s.data_fine) && !(s.giorni && s.giorni >= 1));
+  if (nessunPiano && sottofasi.length > 0 && fase.previstoInizio && fase.previstoFine && fase.previstoFine >= fase.previstoInizio) {
+    const totaleGiorni = giorniTra(fase.previstoInizio, fase.previstoFine) + 1;
+    const pesi = sottofasi.map((s) => (s.peso && s.peso > 0 ? s.peso : 1));
+    const totalePeso = pesi.reduce((t, p) => t + p, 0);
+    let fatti = 0;
+    let accumulato = 0;
+    sottofasi.forEach((s, i) => {
+      accumulato += pesi[i];
+      const fino = i === sottofasi.length - 1 ? totaleGiorni : Math.max(fatti + 1, Math.round((accumulato / totalePeso) * totaleGiorni));
+      const da = aggiungiGiorni(fase.previstoInizio!, Math.min(fatti, totaleGiorni - 1));
+      const a = aggiungiGiorni(fase.previstoInizio!, Math.min(fino, totaleGiorni) - 1);
+      fatti = Math.min(fino, totaleGiorni);
+      const reale = realeSottofase({ fatta: s.fatta, fatta_il: s.fatta_il ?? null, data_inizio: da, data_fine: a, giorni: null });
+      out.push({
+        id: s.id, nome: s.name, fatta: s.fatta, previstoInizio: da, previstoFine: a, giorni: s.giorni ?? null,
+        ritardo: 0, fuoriDallaFase: false, stimata: true,
+        realeInizio: planningDay(s.iniziata_il) || null, giorniLavorati: s.giorni_lavorati ?? 0,
+        realeFine: reale?.finita ?? null, scarto: reale?.scarto ?? 0,
+      });
+    });
+    return out;
+  }
+  // Le sottofasi con i soli giorni si mettono in fila dopo la precedente (dall'inizio
+  // della fase per la prima), o con la precedente se «in parallelo», contando i
+  // giorni di lavoro: così il grafico le mostra anche prima di salvare le date.
+  let cursore: string | null = fase.previstoInizio ? primoLavorativo(fase.previstoInizio, lavorativo) : null;
+  let inizioPrecedente: string | null = null;
   for (const s of sottofasi) {
     const inizio = planningDay(s.data_inizio) || null;
     let fine = planningDay(s.data_fine) || null;
     if (inizio && !fine && s.giorni && s.giorni >= 1) fine = aggiungiGiorni(inizio, s.giorni - 1);
-    const da = inizio ?? fine;
-    const a = fine ?? inizio;
+    let da = inizio ?? fine;
+    let a = fine ?? inizio;
+    let stimata = false;
+    if (!da && cursore && s.giorni && s.giorni >= 1) {
+      da = s.in_parallelo && inizioPrecedente ? inizioPrecedente : cursore;
+      a = fineLavorativa(da, s.giorni, lavorativo);
+      stimata = true;
+    }
     if (!da || !a || a < da) continue;
+    const dopo = primoLavorativo(aggiungiGiorni(a, 1), lavorativo);
+    if (!cursore || dopo > cursore) cursore = dopo;
+    inizioPrecedente = da;
+    const reale = realeSottofase({ fatta: s.fatta, fatta_il: s.fatta_il ?? null, data_inizio: da, data_fine: a, giorni: null });
     out.push({
       id: s.id,
       nome: s.name,
@@ -412,8 +466,14 @@ export function sottofasiCronoprogramma(
       previstoInizio: da,
       previstoFine: a,
       giorni: s.giorni ?? null,
-      ritardo: s.fatta ? 0 : Math.max(0, giorniTra(a, oggi)),
+      // Una stima dai giorni non è un impegno: il ritardo lo dicono solo le date salvate.
+      ritardo: s.fatta || stimata ? 0 : Math.max(0, giorniTra(a, oggi)),
       fuoriDallaFase: !!((fase.previstoInizio && da < fase.previstoInizio) || (fase.previstoFine && a > fase.previstoFine)),
+      stimata,
+      realeInizio: planningDay(s.iniziata_il) || null,
+      giorniLavorati: s.giorni_lavorati ?? 0,
+      realeFine: reale?.finita ?? null,
+      scarto: reale?.scarto ?? 0,
     });
   }
   return out;

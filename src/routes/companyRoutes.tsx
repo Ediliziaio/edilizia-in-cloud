@@ -43,6 +43,19 @@ function LegacyCommessaEditRedirect() {
   return <Navigate to={`${id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"}${location.search}`} replace />;
 }
 
+/** Il vecchio dettaglio di una fattura in `invoices`: ora è lo stesso dettaglio dell'hub. */
+function RimandoFatturaImportata() {
+  const { id } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/azienda/documenti/importata/${id ?? ""}${location.search}${location.hash}`} replace />;
+}
+
+/** Un indirizzo vecchio che porta al nuovo tenendo i parametri (?tab, ?q…) e l'ancora. */
+function RimandoConParametri({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}${location.hash}`} replace />;
+}
+
 /** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
 const vedeOrdiniOAcquisti = (p: Permissions) => p.canViewOrders || p.canManagePurchasing;
 
@@ -371,8 +384,6 @@ const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"))
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
 const NuovoTemplate = lazy(() => import("@/pages/azienda/firma-elettronica/nuovo-template"));
-const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
-const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 
 // Billing mode guard
@@ -381,7 +392,9 @@ import { BillingActivationGuard } from "@/components/billing/BillingActivationGu
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
+const DettaglioFatturaImportata = lazy(() => import("@/pages/azienda/fatturazione/DettaglioFatturaImportata"));
 const FattureRicevutePage = lazy(() => import("@/pages/azienda/fatturazione/FattureRicevutePage"));
+const TipiFornitoriPage = lazy(() => import("@/pages/azienda/fatturazione/TipiFornitoriPage"));
 const FattureEmesseImportate = lazy(() => import("@/pages/azienda/fatturazione/FattureEmesseImportate"));
 const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
@@ -765,34 +778,42 @@ export default function CompanyRoutesContainer() {
             vecchio resta valido e ci porta, per non rompere i collegamenti. */}
         <Route path="come-stiamo-andando" element={<Navigate to="/azienda/cruscotto/aziendale" replace />} />
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />
-        {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
-        <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="fatturazione/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard></FeatureRoute>)} />
+        {/* Una sola pagina fatture per entrambi i modi: chi fattura con un altro
+            programma usa lo stesso hub, in sola lettura per la creazione. L'indirizzo
+            vecchio porta lì con i suoi parametri. */}
+        <Route path="fatturazione" element={<RimandoConParametri to="/azienda/documenti" />} />
+        {/* Il dettaglio di una fattura in `invoices` (vecchi link, notifiche, segnalibri):
+            porta al dettaglio dell'hub, uguale per tutte le modalità. */}
+        <Route path="fatturazione/:id" element={<RimandoFatturaImportata />} />
         {/* Scadenzario: NON legato alla modalita' di fatturazione. Contiene anche
             pagamenti fornitori, costi e scadenze fiscali, che esistono in entrambe
             le modalita'; e sette punti dell'app ci rimandano (cruscotto, previsionale,
             fornitori, menu). Vincolarlo a "external" li mandava tutti a vuoto. */}
         <Route path="scadenzario" element={withCompanyPermission("canViewScadenzario", <ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><Scadenzario /></FeatureRoute></ErrorBoundary>)} />
 
-        {/* Native billing routes — gated: documenti (core) + billing mode native */}
-        <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
+        {/* Hub fatture — gated: documenti (core). Le pagine si leggono in entrambi i modi;
+            creare e modificare un documento (nuovo, editor) resta del modo nativo. */}
+        <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DocumentiFiscaliList /></FeatureRoute>)} />
         <Route path="documenti/nuovo" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaWriteGuard fallback="/azienda/documenti"><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
         {/* Fatture ricevute = passive: valgono per QUALSIASI modalità (anche provider
             esterno tipo FIC) → niente BillingModeGuard requiredMode="native". */}
         <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureRicevutePage /></FeatureRoute>)} />
+        <Route path="documenti/tipi-fornitori" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><TipiFornitoriPage /></FeatureRoute>)} />
         {/* Lo storico delle emesse importate da un altro programma: vale per qualsiasi modalità. */}
         <Route path="documenti/emesse-importate" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureEmesseImportate /></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<Navigate to="/azienda/documenti?tab=incassi" replace />} />
-        <Route path="documenti/registro-iva" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/registro-iva" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><RegistroIVA /></FeatureRoute>)} />
         <Route path="documenti/anagrafiche" element={<Navigate to="/azienda/documenti?tab=rubrica" replace />} />
-        <Route path="documenti/anagrafiche/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/anagrafiche/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><AnagraficaDetail /></FeatureRoute>)} />
         <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
         <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
-        <Route path="documenti/report" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/:id/dettaglio" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/report" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><ReportFatturazione /></FeatureRoute>)} />
+        {/* Una fattura emessa con un altro programma: stessa impaginazione del dettaglio, in sola lettura. */}
+        <Route path="documenti/importata/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DettaglioFatturaImportata /></FeatureRoute>)} />
+        <Route path="documenti/:id/dettaglio" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DocumentoDetail /></FeatureRoute>)} />
         <Route path="documenti/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaDocumentEditorGuard><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaDocumentEditorGuard>)} />
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
