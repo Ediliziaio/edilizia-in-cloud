@@ -13,6 +13,7 @@ import { SerieUnitaDialog } from "@/components/orders/generali/unita/SerieUnitaD
 import { TabellaUnita } from "@/components/orders/generali/unita/TabellaUnita";
 import { TabelloneUnita } from "@/components/orders/generali/unita/TabelloneUnita";
 import { UnitaDialog } from "@/components/orders/generali/unita/UnitaDialog";
+import { BottoneListino } from "@/components/orders/generali/vendita/BottoneListino";
 import { STILE_STATO, dataBreve, euro } from "@/components/orders/generali/unita/aspetto";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
@@ -76,6 +77,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
                 <ToggleGroupItem value="tabellone" aria-label="Tabellone"><LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> Tabellone</ToggleGroupItem>
                 <ToggleGroupItem value="tabella" aria-label="Tabella"><Table2 className="mr-1.5 h-3.5 w-3.5" /> Tabella</ToggleGroupItem>
               </ToggleGroup>
+              <BottoneListino generaleId={generaleId} operazione={riepilogo.generale.nome} unita={e.unita} vedeImporti={e.permessi.importi} />
               {gestisci && (
                 <Button size="sm" onClick={() => setSerie(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
               )}
@@ -127,6 +129,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
 
       <UnitaDialog
         generaleId={generaleId}
+        operazione={riepilogo.generale.nome}
         unita={unitaAperta}
         elenco={e}
         conti={conti}

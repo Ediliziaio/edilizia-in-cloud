@@ -54,7 +54,11 @@ describe("l'elenco di partenza", () => {
 
   it("lo sviluppo ha le voci di ogni unità, con la fideiussione 122/2005 solo dove si è incassato", () => {
     const voci = vociDelModello("sviluppo");
-    expect(voci.filter((v) => v.ambito === "figlia").map((v) => v.id)).toEqual(["preliminare", "fideiussione_122", "rogito", "ape", "accatastamento"]);
+    expect(voci.filter((v) => v.ambito === "figlia").map((v) => v.id)).toEqual([
+      "preliminare", "fideiussione_122", "rogito", "ape", "accatastamento",
+      // Il materiale per vendere (30/10/2026): facoltativo, lo usano tabellone e scheda vendita.
+      "planimetria", "capitolato_unita", "foto_render",
+    ]);
     expect(voce(voci, "fideiussione_122")).toMatchObject({ soloConIncassi: true, obbligatoria: true, conScadenza: true });
     expect(voci.map((v) => v.id)).toEqual(expect.arrayContaining([
       "atto_acquisto", "visure_catastali", "titolo_edilizio", "progetto_computo", "business_plan",

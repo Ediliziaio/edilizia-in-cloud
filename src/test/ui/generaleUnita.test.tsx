@@ -32,6 +32,12 @@ vi.mock("@/hooks/useGeneraleUnita", () => {
     useEliminaMovimento: ferma,
   };
 });
+// Il materiale di vendita (planimetria, foto, scheda, listino) ha la sua prova: generaleVenditaUi.test.tsx.
+vi.mock("@/components/orders/generali/vendita/MaterialeUnita", () => ({
+  MaterialeUnita: ({ sigla, puoCaricare }: { sigla: string; puoCaricare: boolean }) => <p>{`Materiale di ${sigla}${puoCaricare ? ", si carica" : ""}`}</p>,
+}));
+vi.mock("@/components/orders/generali/vendita/SchedaVendita", () => ({ SchedaVendita: (): null => null }));
+vi.mock("@/components/orders/generali/vendita/BottoneListino", () => ({ BottoneListino: () => <button type="button">Listino</button> }));
 vi.mock("@/components/orders/generali/ScegliCliente", () => ({
   ScegliCliente: ({ id, valore, onCambia }: { id: string; valore: string | null; onCambia: (v: string | null) => void }) => (
     <select id={id} value={valore ?? ""} onChange={(e) => onCambia(e.target.value || null)}>
@@ -141,6 +147,15 @@ describe("da computer", () => {
     expect(within(finestra).getByRole("button", { name: /Dividi A1/ })).toBeVisible();
   });
 
+  it("strumento di vendita: listino in testa, planimetria e foto sotto lo stato, scheda vendita in una sua linguetta", () => {
+    disegna();
+    expect(screen.getByRole("button", { name: "Listino" })).toBeVisible();
+    fireEvent.click(casella("A1"));
+    const finestra = screen.getByRole("dialog");
+    expect(within(finestra).getByText("Materiale di A1, si carica")).toBeVisible();
+    expect(within(finestra).getByRole("tab", { name: "Scheda vendita" })).toBeVisible();
+  });
+
   it("non si rimette in vendita un'unità con dei pagamenti", () => {
     disegna();
     fireEvent.click(casella("A2"));
@@ -211,6 +226,14 @@ describe("da telefono, a 375 px", () => {
     // Le caselle stanno in una griglia da quattro: niente spazio vuoto a destra.
     expect(casella("A2").closest("ul")).toHaveClass("grid-cols-4");
     expect(screen.getByRole("note")).toHaveTextContent("Garanzie D.Lgs. 122/2005 per A2.");
+    // Listino e scheda vendita si preparano dal computer.
+    expect(screen.queryByRole("button", { name: "Listino" })).toBeNull();
+  });
+
+  it("planimetria e foto si guardano, non si caricano", () => {
+    disegna(true);
+    fireEvent.click(casella("A1"));
+    expect(within(screen.getByRole("dialog")).getByText("Materiale di A1")).toBeVisible();
   });
 
   it("si cambia lo stato confermando il prezzo che c'è; niente pagamenti, dati né divisione", () => {
