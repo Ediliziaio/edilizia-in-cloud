@@ -10,6 +10,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
 interface CantiereLite {
   id: string;
@@ -19,7 +20,14 @@ interface CantiereLite {
   work_description: string | null;
 }
 
-Deno.serve(async (req) => {
+// Un giro passa su tutte le aziende con il giornale automatico acceso, cantiere
+// per cantiere, e per ognuno chiama l'AI: 66 secondi al giorno oltre i 5 s nella
+// misura del 20/09/2026, e cresce con le aziende. pg_net ha un solo worker e
+// finché questa non risponde la coda di TUTTI i cron resta ferma (il job 49
+// aspetta 120 secondi). Con la risposta rapida pg_net riceve 202 entro 5 secondi
+// e il lavoro finisce sotto EdgeRuntime.waitUntil; chi la chiama col service role
+// continua a ricevere il riepilogo completo. Vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("auto-genera-giornale-cantiere", async (req) => {
   if (req.method !== "POST" && req.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });
   }

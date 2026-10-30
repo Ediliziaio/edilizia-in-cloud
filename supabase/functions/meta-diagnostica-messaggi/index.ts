@@ -15,9 +15,19 @@
  * i DM non arriveranno finché Meta non chiude la App Review.
  *
  * Non scrive niente: nessuna iscrizione, nessun messaggio, nessun contatto.
- * Protetta dal segreto cron (x-cron-secret); senza dipendenze da _shared così
- * resta una sonda isolata.
+ * Protetta dal segreto cron (x-cron-secret).
+ *
+ * Un giro interroga Graph una pagina alla volta, con 12 secondi di tetto per
+ * chiamata: su più pagine supera comodamente il minuto (94 secondi al giorno
+ * oltre i 5 s nella misura del 20/09/2026). Oggi non la chiama nessun job —
+ * si lancia a mano — ma pg_net ha un solo worker, e se domani qualcuno le
+ * attacca un cron la coda di tutti gli altri si ferma per tutto il giro. Con
+ * serveConMetricheRapida pg_net riceve 202 entro 5 secondi e il lavoro finisce
+ * sotto EdgeRuntime.waitUntil; chi la lancia a mano continua a ricevere il
+ * rapporto completo, e in Salute compare la durata vera (prima non era misurata
+ * affatto). Vedi _shared/rispostaRapidaCron.ts.
  */
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
@@ -47,7 +57,7 @@ async function decifra(valore: string, segreto: string): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
-Deno.serve(async (req) => {
+serveConMetricheRapida("meta-diagnostica-messaggi", async (req) => {
   const cronSecret = Deno.env.get("CRON_SECRET");
   if (!cronSecret || req.headers.get("x-cron-secret") !== cronSecret) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {

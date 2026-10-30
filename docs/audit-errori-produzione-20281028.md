@@ -281,6 +281,78 @@ restituisce ancora le sue 5 righe.
 
 ---
 
+## 7. Corretto — le altre tre funzioni lente chiamate da cron
+
+**Cosa:** l'elenco in testa a `20280920230000_cron_attese_brevi_pg_net` nominava
+quattro funzioni «ancora lente», in ordine di peso sulla coda (secondi al giorno
+passati oltre i cinque, misurati da `function_edge_logs` il 20/09/2026). Il
+punto 2 ha convertito la prima. Le altre tre giravano ancora sotto `Deno.serve`
+nudo:
+
+| Funzione | Peso sulla coda (20/09) | Job | Attesa di pg_net |
+| --- | --- | --- | --- |
+| `meta-diagnostica-messaggi` | 94 s/giorno | nessuno oggi | — |
+| `auto-genera-giornale-cantiere` | 66 s/giorno | 49, `4 16 * * *` | 120.000 ms |
+| `elena-cs-health-daily` | 64 s/giorno | 88, `5 5 * * *` | 150.000 ms |
+
+**Causa:** la stessa del punto 2, e non serve un guasto per vederla. Un giro di
+`auto-genera-giornale-cantiere` passa su tutte le aziende col giornale
+automatico acceso, cantiere per cantiere, e per ognuno chiama l'AI; uno di
+`elena-cs-health-daily` calcola il punteggio di salute di ogni cliente e chiama
+l'LLM sui casi al margine; uno di `meta-diagnostica-messaggi` interroga Graph
+una pagina alla volta con dodici secondi di tetto per chiamata. Tutte e tre
+crescono coi dati — aziende, clienti, pagine — e finché non rispondono la coda
+di **tutti** i cron resta ferma, fino al `timeout_milliseconds` del job: due
+minuti e mezzo per Elena.
+
+In più nessuna delle tre era **misurata**: non comparivano in
+`system_health_metrics`, quindi quanto tenessero ferma la coda non lo sapeva
+nessuno. È esattamente la condizione in cui era `meta-ads-sync-insights` prima
+del punto 2, e il motivo per cui il blocco del 20 settembre è stato scoperto
+solo dai timeout di altri.
+
+**Correzione:** tutte e tre passate a `serveConMetricheRapida`. A `pg_net`
+rispondono 202 entro cinque secondi e finiscono il lavoro sotto
+`EdgeRuntime.waitUntil`; chi le chiama a mano o col service role riceve l'esito
+completo come prima, perché il discrimine è lo User-Agent. Per Elena questo
+conta due volte: chiude il run del workflow con `completeWorkflowRun`, cioè nel
+database e non nella risposta HTTP, quindi il 202 non perde niente.
+
+**Prova:** `src/test/logic/funzioniLenteRispostaRapida.test.ts` — per ognuna
+delle quattro verifica l'import di `withMetricsRapida.ts`, la chiamata a
+`serveConMetricheRapida` col nome giusto, e che non resti un `Deno.serve(` nudo
+(un secondo punto d'ingresso non misurato vanificherebbe la conversione).
+Verificato che diventa rosso rimettendo `Deno.serve` in una delle tre. Il
+comportamento vero — 202 a pg_net, esito completo agli altri — è già coperto da
+`rispostaRapidaCron.test.ts`.
+
+**Due note:**
+
+- `meta-diagnostica-messaggi` oggi **non la chiama nessun job**: non c'è in
+  `cron.job` e nessuna funzione SQL la nomina (verificato su `pg_proc.prosrc`).
+  Si lancia a mano. La conversione quindi non sblocca niente adesso: serve
+  perché la misura compaia in Salute, e perché il giorno in cui qualcuno le
+  attacca un cron — il mestiere di una sonda è girare da sola — la coda non si
+  fermi di nuovo. Il prezzo è che la sonda non è più senza dipendenze da
+  `_shared`, come il suo commento dichiarava: il commento è stato aggiornato.
+- Le attese dei job **non** sono state accorciate, per la stessa ragione del
+  punto 2: «prima la funzione, poi l'attesa». Da fare **dopo** il deploy:
+
+```sql
+select cron.alter_job(49, command := replace(
+  (select command from cron.job where jobid = 49),
+  'timeout_milliseconds := 120000', 'timeout_milliseconds := 15000'));
+select cron.alter_job(88, command := replace(
+  (select command from cron.job where jobid = 88),
+  'timeout_milliseconds := 150000', 'timeout_milliseconds := 15000'));
+```
+
+L'elenco in testa alla migrazione `20280920230000` resta come è: è un file già
+applicato, e la riga «funzioni ancora lente» ora è vuota — di quelle quattro non
+ne resta nessuna.
+
+---
+
 ## Spiegati e lasciati come sono
 
 Errori veri, ma che fanno il loro mestiere: rifiutano. Nessuno va corretto.
@@ -328,15 +400,12 @@ Errori veri, ma che fanno il loro mestiere: rifiutano. Nessuno va corretto.
 
 ### Lavoro tecnico a sé
 
-4. **Tre funzioni lente chiamate da cron ancora da convertire.** Dall'elenco in
-   testa a `20280920230000_cron_attese_brevi_pg_net`, oggi tutte e tre girano
-   ancora sotto `Deno.serve` nudo e con l'attesa del job a 120.000 o 150.000 ms:
-   `meta-diagnostica-messaggi`, `auto-genera-giornale-cantiere`,
-   `elena-cs-health-daily`. Nessuna ha prodotto timeout nella finestra guardata
-   (`net._http_response` conserva poche ore), ma il meccanismo è identico a
-   quello del punto 2. In più **non sono misurate**: non compaiono in
-   `system_health_metrics`, quindi quanto tengano ferma la coda non lo sa
-   nessuno — esattamente la condizione in cui era `meta-ads-sync-insights`.
+4. ~~**Tre funzioni lente chiamate da cron ancora da convertire.**~~
+   **Fatto**, vedi il punto 7: `meta-diagnostica-messaggi`,
+   `auto-genera-giornale-cantiere` ed `elena-cs-health-daily` sono passate a
+   `serveConMetricheRapida`. Resta da accorciare l'attesa dei job 49 e 88
+   **dopo** il deploy (il comando è nel punto 7), insieme a quella del job 129
+   del punto 2.
 
 5. **`email_estrazione_tentativi` non registra l'uso AI.** `ai_model_usage_log`
    non ha **nessuna** riga con `task_kind = 'email_estrai_allegato'`, benché la
@@ -404,12 +473,21 @@ per primo.
 
 ## Verifiche eseguite
 
-- `npx vitest run` sui cinque file di prova nuovi più
-  `emailTriagePersistenza.test.ts`: **29 verdi**.
+- `npx vitest run` sui sei file di prova nuovi più
+  `emailTriagePersistenza.test.ts` e `rispostaRapidaCron.test.ts`: **45 verdi**.
+  Ogni prova nuova è stata vista diventare rossa rimettendo il difetto.
 - `npx vitest run` sui sette test esistenti che toccano le funzioni cambiate
   (`allarmeAIAgganci`, `funzioniChiamateSenzaJwt`, `silvioMemoryWorker`,
   `silvioContextHardening`, `censimentoEdgeAccessi20260926`,
   `platformAutomationServices`, `cronMancantiCampagneNotifiche`): **179 verdi**.
+- `npx vitest run` sui cinque test esistenti che toccano le tre funzioni del
+  punto 7 (`customerOsContract`, `funzioniChiamateSenzaJwt`,
+  `funzioniSenzaJwtConControllo`, `fvFirmaFlussoCompleto`,
+  `srGenerazioneSalvataggio`): **460 verdi, uno rosso che non è mio** —
+  `customerOsContract > CockpitTab integra 6 sezioni chiave` cerca «at-risk» in
+  `src/pages/admin/cs/CockpitTab.tsx`, un file del frontend che non ho toccato;
+  fallisce identico sul branch pulito, rotto dal commit `793866d3b2`. Segnalato
+  e non corretto: è fuori da questo lavoro.
 - `npm run typecheck:ci` (col cricchetto): **640 errori, soglia 703, nessuno
   nuovo** — 27 file migliorati rispetto all'istantanea. Il primo giro aveva
   trovato due TS7018 nel test del logger (`details` e `hint` a `null` senza
