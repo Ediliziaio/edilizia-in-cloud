@@ -263,10 +263,12 @@ function NumeriChiave({ r, t }: { r: RiepilogoGenerale; t: TotaliGenerale }) {
       )}
       {r.permessi.margini ? (
         <Riquadro
-          etichetta="Margine"
+          etichetta={`Margine delle ${def.figlia.tante.toLowerCase()}`}
           valore={euro(t.margine)}
           tono={t.margine !== null && t.margine < 0 ? "rosso" : t.margine !== null && t.margine > 0 ? "verde" : undefined}
-          nota="ricavi meno costi registrati"
+          // Somma i margini delle commesse dentro: i costi registrati sulla generale (terreno, oneri, tecnici)
+          // non ci sono. Il margine dell'operazione intera lo dà il piano economico.
+          nota="senza i costi comuni: quello dell'operazione è nel piano economico"
         />
       ) : (
         <Riquadro etichetta="Avanzamento" valore={`${Math.round(t.avanzamento)}%`} />
