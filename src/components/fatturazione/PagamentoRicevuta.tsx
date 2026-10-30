@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Undo2 } from "lucide-react";
+import { Banknote, Check, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -87,7 +87,7 @@ export function useSegnaRicevutaPagata() {
     onSuccess: (_, { id, pagata, numero }) => {
       invalida();
       // Un clic sbagliato si annulla dal messaggio stesso.
-      toast.success(pagata ? `Fattura ${numero ?? ""} segnata pagata` : `Fattura ${numero ?? ""} di nuovo da pagare`, {
+      toast.success(pagata ? `Fattura ${numero ?? ""}: ${PAROLE_PAGAMENTO_RICEVUTA.fatto.toLowerCase()}` : `Fattura ${numero ?? ""} ${PAROLE_PAGAMENTO_RICEVUTA.annulla}`, {
         action: {
           label: "Annulla",
           onClick: () => { void segna(id, !pagata).then(invalida).catch((e) => toast.error("Non annullato", { description: e instanceof Error ? e.message : undefined })); },
@@ -98,26 +98,51 @@ export function useSegnaRicevutaPagata() {
   });
 }
 
-/** Nella riga: «Pagata il …» (clic per tornare a «da pagare») oppure «Segna pagata». */
+/** Le parole, in un posto solo: se il titolare ne preferisce altre, si cambiano qui. */
+export const PAROLE_PAGAMENTO_RICEVUTA = { fatto: "Pagata", azione: "Segna pagata", annulla: "di nuovo da pagare" };
+
+/**
+ * Tre forme, una per posto:
+ * - `chip`: nella colonna Stato, solo quando è pagata («Pagata 15/10», clic per tornare indietro);
+ * - `icona`: tra le azioni della riga, solo quando è da pagare (una spunta, senza testo);
+ * - `pulsante`: nella scheda da telefono, sempre, con le parole.
+ */
 export function PagamentoRicevutaCella({
-  id, numero, tipo, pagataIl, compatta = false,
-}: { id: string; numero: string; tipo: string; pagataIl: string | null | undefined; compatta?: boolean }) {
+  id, numero, tipo, pagataIl, forma = "pulsante",
+}: { id: string; numero: string; tipo: string; pagataIl: string | null | undefined; forma?: "chip" | "icona" | "pulsante" }) {
   const segna = useSegnaRicevutaPagata();
   const inCorso = segna.isPending && segna.variables?.id === id;
   if (isNotaCreditoRicevuta(tipo)) return null;
+  const P = PAROLE_PAGAMENTO_RICEVUTA;
   if (pagataIl) {
+    if (forma === "icona") return null;
     return (
       <button
         type="button"
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: false, numero })}
-        title="Pagata: clic per segnarla di nuovo da pagare"
-        className={cn("group inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100", compatta && "px-1.5")}
+        title={`${P.fatto}: clic per segnarla ${P.annulla}`}
+        className="group inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
       >
-        {inCorso ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 group-hover:hidden" />}
-        {!inCorso && <Undo2 className="hidden h-3 w-3 group-hover:inline" />}
-        Pagata {formatDateShort(pagataIl)}
+        {inCorso ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Check className="h-2.5 w-2.5 group-hover:hidden" />}
+        {!inCorso && <Undo2 className="hidden h-2.5 w-2.5 group-hover:inline" />}
+        {P.fatto} {formatDateShort(pagataIl)}
       </button>
+    );
+  }
+  if (forma === "chip") return null;
+  if (forma === "icona") {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={inCorso}
+        onClick={() => segna.mutate({ id, pagata: true, numero })}
+        title={P.azione}
+        aria-label={`${P.azione}: fattura ${numero}`}
+      >
+        {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+      </Button>
     );
   }
   return (
@@ -126,10 +151,10 @@ export function PagamentoRicevutaCella({
       size="sm"
       disabled={inCorso}
       onClick={() => segna.mutate({ id, pagata: true, numero })}
-      className="h-7 gap-1 px-2 text-xs"
+      className={cn("h-8 gap-1 px-2.5 text-xs")}
     >
       {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-      Segna pagata
+      {P.azione}
     </Button>
   );
 }
