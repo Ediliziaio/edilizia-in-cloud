@@ -172,6 +172,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const anagrafica: [string, string][] = [];
   if (!i.nascondiCliente) {
     anagrafica.push(["Committente", i.committente?.trim() || "Da definire"]);
+    if (i.datiFiscaliCommittente?.trim()) anagrafica.push(["Dati fiscali", i.datiFiscaliCommittente.trim()]);
     if (i.indirizzoIntervento?.trim()) anagrafica.push(["Immobile / intervento", i.indirizzoIntervento.trim()]);
   }
   if (anagrafica.length) coppia(anagrafica);

@@ -1,3 +1,4 @@
+import type { DatiFiscaliCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import { z } from "zod";
 import { valutaFormula } from "./computoStrutturato";
 import { cronoprogrammaSchema } from "./cronoprogrammaSchema";
@@ -34,6 +35,10 @@ export const bozzaComputoSchema = z.object({
   // Il cliente come negli altri preventivi (29/10/2026): il contatto del CRM, i recapiti, il cointestatario e
   // l'indirizzo dei lavori in quattro campi. `indirizzo` resta il testo che va nel PDF, ricomposto dai quattro.
   clienteId: z.string().max(80).default(""), clienteEmail: z.string().max(200).default(""), clienteTelefono: z.string().max(60).default(""),
+  // Privato o azienda (30/10/2026): un privato ha il codice fiscale, un'azienda partita IVA, PEC e codice destinatario.
+  clienteTipo: z.enum(["privato", "azienda"]).default("privato"),
+  clienteCodiceFiscale: z.string().max(20).default(""), clientePartitaIva: z.string().max(20).default(""),
+  clientePec: z.string().max(200).default(""), clienteSdi: z.string().max(10).default(""),
   cointestatario_nome: z.string().max(120).default(""), cointestatario_cognome: z.string().max(120).default(""),
   cointestatario_codice_fiscale: z.string().max(40).default(""), cointestatario_email: z.string().max(200).default(""),
   cointestatario_telefono: z.string().max(60).default(""),
@@ -205,6 +210,10 @@ export function vociPerAnteprima(bozza: BozzaComputo, senzaPrezzi = false) {
 
 export const chiaveBozzaComputo = (company: string, user: string, order: string) =>
   `computo-nativo:v1:${encodeURIComponent(company)}:${encodeURIComponent(user)}:${encodeURIComponent(order)}`;
+
+/** I dati fiscali del cliente della bozza, nella forma comune a tutti i preventivi. */
+export const datiFiscaliBozza = (b: BozzaComputo): DatiFiscaliCliente => ({ tipo: b.clienteTipo ?? "privato", codiceFiscale: b.clienteCodiceFiscale,
+  partitaIva: b.clientePartitaIva, pec: b.clientePec, codiceSdi: b.clienteSdi });
 
 export function leggiBozzaComputo(raw: string): BozzaComputo {
   return bozzaComputoSchema.parse(JSON.parse(raw));

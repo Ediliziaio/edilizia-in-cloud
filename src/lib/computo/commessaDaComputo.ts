@@ -75,6 +75,13 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     const patch: Record<string, unknown> = { payment_phases: fasiDaRate(d.rate) };
     if (d.bozza.clienteId) patch.contact_id = d.bozza.clienteId;
     if (d.bozza.indirizzo.trim()) patch.client_address = d.bozza.indirizzo.trim();
+    // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).
+    const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
+    if (cf) patch.client_fiscal_code = cf;
+    if (d.bozza.clienteTipo === "azienda") {
+      if (piva) patch.client_vat_number = piva;
+      if (d.bozza.committente.trim()) patch.client_company = d.bozza.committente.trim();
+    }
     const { error } = await supabase.from("quotes").update(patch as never).eq("id", riga.id);
     if (error) throw new Error(`Rate e cliente non salvati sul preventivo: ${error.message}`);
   }

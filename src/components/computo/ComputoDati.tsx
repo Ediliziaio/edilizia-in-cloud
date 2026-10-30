@@ -7,9 +7,9 @@
  * Prima del 29/10/2026 erano otto caselle in colonna, senza CRM e con
  * l'indirizzo in una riga sola: il PDF non sapeva a chi intestare la firma.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Mail, Phone, User, Users, X } from "lucide-react";
+import { Building2, Check, FileBadge, Mail, Phone, User, Users, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
@@ -23,11 +23,13 @@ import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 import { testoIndirizzo } from "@/lib/preventivatore/indirizzoLavori";
-import type { BozzaComputo } from "@/lib/computo/editorNativo";
+import { datiFiscaliBozza, type BozzaComputo } from "@/lib/computo/editorNativo";
+import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 
 interface Contatto {
   id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
   address: string | null; city: string | null; province: string | null; postal_code: string | null;
+  company_name: string | null; fiscal_code: string | null; vat_number: string | null;
 }
 
 const nomeContatto = (c: Contatto) => `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
@@ -62,7 +64,7 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
     enabled: !!companyId && aperto,
     queryFn: async (): Promise<Contatto[]> => {
       let q = supabase.from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, address, city, province, postal_code")
+        .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")
         .eq("company_id", companyId!).is("deleted_at", null).limit(20);
       for (const filtro of filtriRicercaContatti(cerca)) q = q.or(filtro);
       const { data, error } = await q.order("first_name");
@@ -72,10 +74,22 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
   });
 
   const scegli = (c: Contatto) => {
-    onChange({ clienteId: c.id, committente: nomeContatto(c).slice(0, 160), clienteEmail: c.email ?? "", clienteTelefono: c.phone ?? "" });
+    // Un contatto con ragione sociale o partita IVA è un'azienda: il preventivo si intesta a lei, con i suoi dati fiscali.
+    const azienda = !!(c.company_name?.trim() || c.vat_number?.trim());
+    onChange({ clienteId: c.id, committente: (azienda && c.company_name?.trim() ? c.company_name.trim() : nomeContatto(c)).slice(0, 160),
+      clienteEmail: c.email ?? "", clienteTelefono: c.phone ?? "", clienteTipo: azienda ? "azienda" : "privato",
+      clienteCodiceFiscale: (c.fiscal_code ?? "").slice(0, 20), clientePartitaIva: (c.vat_number ?? "").slice(0, 20) });
     indirizzo.dalContatto(c.id, { indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
     setAperto(false);
   };
+  const tipo = bozza.clienteTipo ?? "privato";
+  const avvisi = avvisiDatiFiscali(datiFiscaliBozza(bozza));
+  const campo = (id: string, nome: string, Icona: typeof User, input: ReactNode, avviso?: string) =>
+    <div className="min-w-0 space-y-1">
+      <Label htmlFor={id} className="flex h-4 items-center gap-1 text-xs"><Icona className="h-3 w-3 text-slate-500" />{nome}</Label>
+      {input}
+      {avviso && <p role="status" className="text-[11px] text-amber-700">{avviso}</p>}
+    </div>;
   const testo = (nome: string, key: "titolo" | "oggetto" | "numero" | "dataDocumento" | "revisione" | "tecnico", max: number, placeholder = "") =>
     <div className="min-w-0 space-y-1"><Label htmlFor={`native-${key}`} className="text-xs">{nome}</Label>
       <Input id={`native-${key}`} className="h-9" maxLength={max} placeholder={placeholder} value={bozza[key] ?? ""} onChange={e => onChange({ [key]: e.target.value })} /></div>;
@@ -96,7 +110,7 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
                   <CommandInput placeholder="Cerca per nome, email o telefono…" value={cerca} onValueChange={setCerca} />
                   <CommandList><CommandEmpty>Nessun contatto trovato</CommandEmpty><CommandGroup>
                     {contatti.map(c => <CommandItem key={c.id} value={c.id} onSelect={() => scegli(c)}>
-                      <div className="min-w-0"><p className="truncate text-sm">{nomeContatto(c)}</p>
+                      <div className="min-w-0"><p className="truncate text-sm">{c.company_name?.trim() || nomeContatto(c)}</p>
                         <p className="truncate text-[11px] text-muted-foreground">{[c.email, c.phone, c.city].filter(Boolean).join(" · ")}</p></div>
                     </CommandItem>)}
                   </CommandGroup></CommandList>
@@ -104,13 +118,31 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
               </PopoverContent>
             </Popover>}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="min-w-0 space-y-1"><Label htmlFor="native-committente" className="text-xs">Committente</Label>
-          <Input id="native-committente" className="h-9" maxLength={160} placeholder="Nome e cognome o ragione sociale" value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} /></div>
-        <div className="min-w-0 space-y-1"><Label htmlFor="native-email" className="flex items-center gap-1 text-xs"><Mail className="h-3 w-3" />Email</Label>
-          <Input id="native-email" type="email" className="h-9" maxLength={200} value={bozza.clienteEmail} onChange={e => onChange({ clienteEmail: e.target.value })} /></div>
-        <div className="min-w-0 space-y-1"><Label htmlFor="native-telefono" className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />Telefono</Label>
-          <Input id="native-telefono" type="tel" inputMode="tel" className="h-9" maxLength={60} value={bozza.clienteTelefono} onChange={e => onChange({ clienteTelefono: e.target.value })} /></div>
+      <div role="radiogroup" aria-label="Tipo di cliente" className="inline-flex rounded-lg border bg-slate-50 p-0.5">
+        {(["privato", "azienda"] as const).map(t => <button key={t} type="button" role="radio" aria-checked={tipo === t}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${tipo === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+          onClick={() => onChange({ clienteTipo: t })}>
+          {t === "privato" ? <><User className="h-3.5 w-3.5" />Privato</> : <><Building2 className="h-3.5 w-3.5" />Azienda</>}
+        </button>)}
+      </div>
+      {/* Tutte le etichette con l'icona e la stessa altezza: prima «Committente» stava più in basso di «Email» e «Telefono». */}
+      <div className="grid items-start gap-3 sm:grid-cols-3">
+        {campo("native-committente", tipo === "azienda" ? "Ragione sociale" : "Nome e cognome", tipo === "azienda" ? Building2 : User,
+          <Input id="native-committente" className="h-9" maxLength={160} placeholder={tipo === "azienda" ? "Es. Rossi Costruzioni S.r.l." : "Es. Mario Rossi"} value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} />)}
+        {campo("native-email", "Email", Mail,
+          <Input id="native-email" type="email" className="h-9" maxLength={200} value={bozza.clienteEmail} onChange={e => onChange({ clienteEmail: e.target.value })} />)}
+        {campo("native-telefono", "Telefono", Phone,
+          <Input id="native-telefono" type="tel" inputMode="tel" className="h-9" maxLength={60} value={bozza.clienteTelefono} onChange={e => onChange({ clienteTelefono: e.target.value })} />)}
+      </div>
+      <div className={`grid items-start gap-3 ${tipo === "azienda" ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+        {tipo === "azienda" && campo("native-piva", "Partita IVA", FileBadge,
+          <Input id="native-piva" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} inputMode="numeric" placeholder="11 cifre" value={bozza.clientePartitaIva} onChange={e => onChange({ clientePartitaIva: e.target.value })} />, avvisi.partitaIva)}
+        {campo("native-cf", tipo === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale", FileBadge,
+          <Input id="native-cf" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={tipo === "azienda" ? "Di solito uguale alla partita IVA" : "16 caratteri"} value={bozza.clienteCodiceFiscale} onChange={e => onChange({ clienteCodiceFiscale: e.target.value })} />, avvisi.codiceFiscale)}
+        {tipo === "azienda" && campo("native-pec", "PEC", Mail,
+          <Input id="native-pec" type="email" className="h-9" maxLength={200} value={bozza.clientePec} onChange={e => onChange({ clientePec: e.target.value })} />)}
+        {tipo === "azienda" && campo("native-sdi", "Codice destinatario (SDI)", FileBadge,
+          <Input id="native-sdi" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} placeholder="7 caratteri" value={bozza.clienteSdi} onChange={e => onChange({ clienteSdi: e.target.value })} />, avvisi.codiceSdi)}
       </div>
       <Cointestatario form={bozza} onChange={(campo, valore) => onChange({ [campo]: valore ?? "" })} />
       <IndirizzoDeiLavori conSpunta={indirizzo.conSpunta} etichettaUguale="Lavori allo stesso indirizzo del contatto"

@@ -27,6 +27,8 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   stato?: string | null;
   quadro?: QuadroEconomico | null;
   committente?: string | null;
+  /** «C.F. …» o «P.IVA … · PEC …»: sotto il committente, nell'anagrafica del preventivo. */
+  datiFiscaliCommittente?: string | null;
   oggetto?: string | null;
   senzaPrezzi?: boolean;
   presentazione?: "tecnico" | "preventivo";

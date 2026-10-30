@@ -38,9 +38,10 @@ import { applicaVarianteComputo } from "@/lib/computo/variantiPdf";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import {
-  bozzaVuota, calcolaVoce, numeroEditor, leggiBozzaComputo, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima, ConflittoBozzaComputo,
+  bozzaVuota, calcolaVoce, datiFiscaliBozza, numeroEditor, leggiBozzaComputo, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima, ConflittoBozzaComputo,
   type BozzaComputo, type VoceEditor,
 } from "@/lib/computo/editorNativo";
+import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 
 const desktopSnapshot = () => window.matchMedia("(min-width: 1280px)").matches;
 const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEditor/AddVocePicker"));
@@ -174,6 +175,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   }, [bozzaPdf]);
   const erroreIva = bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false ? calcolaIvaComputo(totale - sconto.importo, bozza).errore : "";
   const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
+    datiFiscaliCommittente: bozza.mostraDatiCliente === false ? null : rigaDatiFiscali(datiFiscaliBozza(bozza)),
     stato: "Bozza - non ancora inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
     numero: bozza.numero, ivaModalita: bozza.ivaModalita, ivaAliquota: bozza.ivaAliquota, ivaNota: bozza.ivaNota,
     indirizzoIntervento: bozza.mostraDatiCliente === false ? "" : bozza.indirizzo,

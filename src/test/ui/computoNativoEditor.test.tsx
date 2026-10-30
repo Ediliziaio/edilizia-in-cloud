@@ -98,7 +98,7 @@ describe("editor computo integrato", () => {
   });
   it("passa fra le cinque fasi conservando dati e computo e salva le varianti PDF", async () => {
     render(<ComputoNativoEditor storageKey="ui-fasi" />);
-    change("Committente", "Cliente di prova");
+    change("Nome e cognome", "Cliente di prova");
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     expect(screen.getByRole("region", { name: "Progetto e allegati" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
