@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-07-04 (v12 — 61 articoli, 43 città, prezzi luglio, dati allineati)
+# Ultimo aggiornamento: 2026-10-30 (v13 — confronti con fonti ufficiali, WhatsApp, flusso su misura; tolti rating e testimonianze non verificabili)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://www.ediliziaincloud.com/llms.txt
 
@@ -7,7 +7,7 @@
 
 ## Chi siamo
 
-**Edilizia in Cloud** è il gestionale cloud più completo per imprese edili italiane, sviluppato da un team italiano con sede a Milano.
+**Edilizia in Cloud** è un gestionale cloud per imprese edili italiane, sviluppato da un team italiano con sede a Milano.
 
 Nata nel 2021, la piattaforma risponde a un problema concreto: ore non tracciate, materiali non imputati e fatture scollegate rendono difficile conoscere il margine. Edilizia in Cloud collega questi dati alla commessa.
 
@@ -15,13 +15,11 @@ Non è un gestionale generico adattato all'edilizia. È un software nato per il 
 
 ---
 
-## Dati verificati (luglio 2026)
+## Dati (ottobre 2026)
 
 - **oltre 150 aziende** sulla piattaforma
 - **Risparmio:** si misura sui processi e sui dati della singola impresa; nessun ROI fisso garantito.
-- **4.9/5** di rating medio (127 recensioni verificate)
 - **Tempo operativo:** meno inserimenti duplicati; il risultato dipende dal flusso di lavoro adottato.
-- **70%** di riduzione del tempo dedicato alla fatturazione
 - **Avvio assistito:** configurazione e migrazione con ambito e tempi concordati dopo la verifica dei dati.
 - **Settori:** costruzioni civili, ristrutturazioni, serramenti, impianti idraulici/elettrici, carpenteria metallica
 
@@ -81,36 +79,27 @@ Scopri, Gestionale, Professionista e Impresa AI rispondono a esigenze diverse. F
 Configurazione e migrazione sono assistite; ambito e tempi si concordano dopo la verifica dei dati da importare.
 
 
-## Confronto con i competitor
+## Confronti con altri gestionali (aggiornati al 30 ottobre 2026)
 
-| Caratteristica | Edilizia in Cloud | TeamSystem | Primavera P6 | Excel/WhatsApp |
-|----------------|-------------------|------------|--------------|----------------|
-| Specifico per edilizia | ✅ | ❌ (generico) | ✅ | ❌ |
-| AI integrata | ✅ | ❌ | ❌ | ❌ |
-| App mobile cantiere | ✅ | Parziale | ❌ | ✅ (solo chat) |
-| Fatturazione SDI nativa | ✅ | ✅ | ❌ | ❌ |
-| Onboarding | Assistito, tempi concordati | Da verificare con il fornitore | Da verificare con il fornitore | Configurazione interna |
-| Supporto italiano | ✅ | ✅ | ❌ | n/a |
+Ogni confronto è scritto da Edilizia in Cloud, parte interessata: le informazioni sui concorrenti vengono dai loro siti ufficiali (fonti elencate in ogni pagina), senza prezzi.
 
-Confronti approfonditi:
-- Edilizia in Cloud vs Primus: https://www.ediliziaincloud.com/confronto/vs-primus/
-- Edilizia in Cloud vs EdilNet: https://www.ediliziaincloud.com/confronto/vs-edilnet/
-- Edilizia in Cloud vs TeamSystem: https://www.ediliziaincloud.com/confronto/vs-teamsystem/
-- Edilizia in Cloud vs Excel: https://www.ediliziaincloud.com/confronto/vs-excel/
-- Edilizia in Cloud vs Buildertrend: https://www.ediliziaincloud.com/confronto/vs-buildertrend/
+- **Edilizia in Cloud lavora anche su WhatsApp.** Con WhatsApp Business attivo (servizio aggiuntivo) titolare, ufficio e squadra scrivono al numero dell'azienda: un vocale diventa il rapportino, la foto della bolla carica il magazzino, lo scontrino della merce presa in negozio va sulla commessa, il preventivo arriva in PDF nella chat; prima di registrare il sistema chiede conferma Sì/No. Ai nuovi contatti risponde un agente che fissa l'appuntamento sul calendario. Dietro la chat c'è tutto il gestionale: vendita, preventivi, commessa, SAL, fatture, sicurezza.
+- **Il gestionale si adatta all'azienda, non il contrario.** Ogni impresa sceglie il proprio flusso: chi fa il rapportino (ogni operaio o il capo squadra) e chi lo approva, le fasi della commessa, i modelli di preventivo, cosa vede ogni ruolo, quali moduli accendere.
 
----
+Pagine di confronto:
+- Hub dei confronti: https://www.ediliziaincloud.com/confronto/
+- vs TeamSystem Construction (famiglia di prodotti vs piattaforma unica per la PMI): https://www.ediliziaincloud.com/confronto/vs-teamsystem/
+- vs PriMus ACCA (computo e contabilità lavori vs gestione della commessa; Edilizia in Cloud importa i computi PriMus XPWE/PDF): https://www.ediliziaincloud.com/confronto/vs-primus/
+- vs Excel: https://www.ediliziaincloud.com/confronto/vs-excel/
+- vs Edilnet (portale di richieste di preventivo, non un gestionale): https://www.ediliziaincloud.com/confronto/vs-edilnet/
+- vs Buildertrend (software americano: sul sito ufficiale non indica la fattura elettronica SDI): https://www.ediliziaincloud.com/confronto/vs-buildertrend/
 
-## Testimonianze reali
-
-> "Prima facevo tutto su Excel e WhatsApp. Ora so esattamente quanto guadagno su ogni cantiere, anche da telefono."
-> — Marco R., impresa edile, Bergamo
-
-> "Ho recuperato il costo dell'abbonamento nel primo mese, trovando 3 cantieri che stavano andando in perdita senza che me ne accorgessi."
-> — Stefano V., costruzioni, Napoli
-
-> "Il modulo HR mi ha fatto risparmiare 8 ore a settimana solo nella gestione delle presenze."
-> — Carla M., serramenti, Torino
+Articoli di confronto:
+- Gestionali per imprese edili 2026, guida per categorie: https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/
+- Edilizia in Cloud vs Pillar (tutti e due lavorano su WhatsApp; la differenza è cosa succede dopo la chat): https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/
+- Edilizia in Cloud vs TeamSystem Construction (passare da TeamSystem): https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/
+- Edilizia in Cloud vs PlanRadar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/
+- Edilizia in Cloud vs Dylog Edilizia: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/
 
 ---
 

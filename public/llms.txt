@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-09-02 (v10 — +3 calcolatori, +15 guide; v9 — 88 guide + calcolatore margine, +15 guide normativa/template/confronti, +6 verticali di mestiere)
+# Ultimo aggiornamento: 2026-10-30 (v11 — confronti riscritti con fonti ufficiali, WhatsApp, flusso su misura dell'azienda)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -21,7 +21,6 @@
 - **Dimensione aziendale:** 1–50 dipendenti
 - **Lingua:** Italiano
 - **Deploy:** Web, iOS, Android
-- **Rating:** 4.9/5 (127 recensioni verificate)
 
 ## Piani e avvio
 
@@ -54,7 +53,6 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 
 - **oltre 150 aziende** usano Edilizia in Cloud attivamente
 - **Risparmio:** si misura sui processi e sui dati della singola impresa; nessun ROI fisso garantito.
-- **Rating 4.9/5** — media da 127 recensioni verificate
 - **Tempo operativo:** meno inserimenti duplicati; il risultato dipende dal flusso di lavoro adottato.
 - **Fatturazione:** documenti collegati alle commesse per ridurre gli inserimenti manuali.
 - **Avvio assistito:** configurazione e migrazione con ambito e tempi concordati dopo la verifica dei dati.
@@ -117,13 +115,27 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - Chi controlla davvero i numeri della tua impresa edile (commercialista, consulente e controllo di gestione: chi fa cosa): https://www.ediliziaincloud.com/blog/chi-gestisce-i-numeri-impresa-edile/
 - Excel, WhatsApp e carta: quanto costa davvero gestire un'impresa edile così: https://www.ediliziaincloud.com/blog/excel-whatsapp-carta-gestione-impresa-edile/
 
-## Confronti software gestionali edilizia (2026-07)
+## Confronti con altri gestionali (aggiornati al 30 ottobre 2026)
 
-- I migliori software gestionali per l'edilizia 2026 (confronto completo con pro e contro): https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/
-- Edilizia in Cloud vs TeamSystem Construction: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/
+Ogni confronto è scritto da Edilizia in Cloud, parte interessata: le informazioni sui concorrenti vengono dai loro siti ufficiali (fonti elencate in ogni pagina), senza prezzi.
+
+- **Edilizia in Cloud lavora anche su WhatsApp.** Con WhatsApp Business attivo (servizio aggiuntivo) titolare, ufficio e squadra scrivono al numero dell'azienda: un vocale diventa il rapportino, la foto della bolla carica il magazzino, lo scontrino della merce presa in negozio va sulla commessa, il preventivo arriva in PDF nella chat; prima di registrare il sistema chiede conferma Sì/No. Ai nuovi contatti risponde un agente che fissa l'appuntamento sul calendario. Dietro la chat c'è tutto il gestionale: vendita, preventivi, commessa, SAL, fatture, sicurezza.
+- **Il gestionale si adatta all'azienda, non il contrario.** Ogni impresa sceglie il proprio flusso: chi fa il rapportino (ogni operaio o il capo squadra) e chi lo approva, le fasi della commessa, i modelli di preventivo, cosa vede ogni ruolo, quali moduli accendere.
+
+Pagine di confronto:
+- Hub dei confronti: https://www.ediliziaincloud.com/confronto/
+- vs TeamSystem Construction (famiglia di prodotti vs piattaforma unica per la PMI): https://www.ediliziaincloud.com/confronto/vs-teamsystem/
+- vs PriMus ACCA (computo e contabilità lavori vs gestione della commessa; Edilizia in Cloud importa i computi PriMus XPWE/PDF): https://www.ediliziaincloud.com/confronto/vs-primus/
+- vs Excel: https://www.ediliziaincloud.com/confronto/vs-excel/
+- vs Edilnet (portale di richieste di preventivo, non un gestionale): https://www.ediliziaincloud.com/confronto/vs-edilnet/
+- vs Buildertrend (software americano: sul sito ufficiale non indica la fattura elettronica SDI): https://www.ediliziaincloud.com/confronto/vs-buildertrend/
+
+Articoli di confronto:
+- Gestionali per imprese edili 2026, guida per categorie: https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/
+- Edilizia in Cloud vs Pillar (tutti e due lavorano su WhatsApp; la differenza è cosa succede dopo la chat): https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/
+- Edilizia in Cloud vs TeamSystem Construction (passare da TeamSystem): https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/
 - Edilizia in Cloud vs PlanRadar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/
 - Edilizia in Cloud vs Dylog Edilizia: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/
-- Edilizia in Cloud vs Pillar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/
 
 ## Nuove landing funzionalità (2026-07)
 
