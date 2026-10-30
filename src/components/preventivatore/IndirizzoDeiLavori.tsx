@@ -10,7 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import type { CampoIndirizzo, Indirizzo } from "@/lib/preventivatore/indirizzoLavori";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
+import type { CampoIndirizzo as CampoLavori, Indirizzo } from "@/lib/preventivatore/indirizzoLavori";
 
 interface Props {
   /** I lavori sono in un altro posto: si vedono i campi. */
@@ -22,7 +24,7 @@ interface Props {
   /** Il testo dell'indirizzo del cliente, mostrato mentre i lavori sono «uguale». */
   riassunto: string;
   /** Si scrive in un campo dei lavori. */
-  onScrivi: (campo: CampoIndirizzo, valore: string) => void;
+  onScrivi: (campo: CampoLavori, valore: string) => void;
   /** Con false non c'è la spunta: non c'è un indirizzo del cliente da copiare, si scrive e basta. */
   conSpunta?: boolean;
   /** Il testo della spunta: «cliente» nei serramenti, «contatto» negli edili. */
@@ -67,12 +69,13 @@ export function IndirizzoDeiLavori({
         <div role="group" aria-label="Indirizzo dei lavori" className={cn("grid grid-cols-12 gap-3 max-sm:gap-2", conSpunta ? "mt-1" : "mt-2")}>
           <div className="col-span-12">
             <Label htmlFor={`${id}-via`} className="text-xs">Via e numero</Label>
-            <Input
+            {/* La ricerca riempie anche città, CAP e provincia qui accanto. */}
+            <CampoIndirizzo
               id={`${id}-via`}
               value={lavori.indirizzo ?? ""}
-              onChange={(e) => onScrivi("indirizzo", e.target.value)}
+              onChange={(v) => onScrivi("indirizzo", v)}
+              onScegli={(a) => riempiCampi(a, (campo, valore) => onScrivi(campo === "via" ? "indirizzo" : campo, valore))}
               placeholder="Via Roma 12"
-              autoComplete="off"
               className="h-9"
             />
           </div>

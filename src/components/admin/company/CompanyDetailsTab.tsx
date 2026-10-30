@@ -5,6 +5,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi, type IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -39,6 +41,11 @@ import {
   getEffectivePaymentStatus, PAYMENT_STATUS_META,
 } from "@/lib/paymentStatus";
 import { cn } from "@/lib/utils";
+
+const CAMPI_SEDE = {
+  legal: { via: "legal_address", citta: "legal_city", provincia: "legal_province", cap: "legal_postal_code" },
+  operational: { via: "operational_address", citta: "operational_city", provincia: "operational_province", cap: "operational_postal_code" },
+} as const;
 
 interface CompanyDetailsTabProps {
   company: Company;
@@ -135,6 +142,10 @@ export function CompanyDetailsTab({
   const watchedLegalProv = form.watch("legal_province") as string | undefined;
   const watchedOpCap = form.watch("operational_postal_code") as string | undefined;
   const watchedOpProv = form.watch("operational_province") as string | undefined;
+
+  // L'indirizzo scelto dalla ricerca compila anche città, provincia e CAP della stessa sede.
+  const scegliSede = (sede: keyof typeof CAMPI_SEDE) => (a: IndirizzoTrovato) =>
+    riempiCampi(a, (campo, valore) => form.setValue(CAMPI_SEDE[sede][campo], valore, { shouldDirty: true, shouldValidate: true }));
 
   const v = useMemo(
     () => ({
@@ -457,7 +468,16 @@ export function CompanyDetailsTab({
                 <FormField control={form.control} name="legal_address" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Indirizzo</FormLabel>
-                    <FormControl><Input placeholder="Via Roma, 1" {...field} /></FormControl>
+                    <FormControl>
+                      <CampoIndirizzo
+                        placeholder="Via Roma, 1"
+                        name={field.name}
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        onScegli={scegliSede("legal")}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -543,7 +563,16 @@ export function CompanyDetailsTab({
                   <FormField control={form.control} name="operational_address" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Indirizzo</FormLabel>
-                      <FormControl><Input placeholder="Via Roma, 1" {...field} /></FormControl>
+                      <FormControl>
+                        <CampoIndirizzo
+                          placeholder="Via Roma, 1"
+                          name={field.name}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          onScegli={scegliSede("operational")}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />

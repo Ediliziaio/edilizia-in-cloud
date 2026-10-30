@@ -39,6 +39,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -560,10 +562,12 @@ export default function WarehouseManager() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-2">
-                <Label>Indirizzo</Label>
-                <Input
+                <Label htmlFor="magazzino-indirizzo">Indirizzo</Label>
+                <CampoIndirizzo
+                  id="magazzino-indirizzo"
                   value={form.address ?? ""}
-                  onChange={(e) => f("address", e.target.value)}
+                  onChange={(v) => f("address", v)}
+                  onScegli={(a) => riempiCampi(a, (campo, valore) => f(({ via: "address", citta: "city", cap: "postal_code", provincia: "province" } as const)[campo], valore))}
                   placeholder="Via Roma 1"
                 />
               </div>

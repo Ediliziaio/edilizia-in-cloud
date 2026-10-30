@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck, AlertTriangle,
@@ -168,8 +170,18 @@ function BillingDataForm({
         </div>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Indirizzo sede legale *</Label>
-        <Input value={f.legal_address} onChange={set("legal_address")} placeholder="Via e numero civico" className="h-9 text-sm" />
+        <Label htmlFor="attivazione-indirizzo-legale" className="text-xs">Indirizzo sede legale *</Label>
+        <CampoIndirizzo
+          id="attivazione-indirizzo-legale"
+          value={f.legal_address}
+          onChange={(v) => setF((prev) => ({ ...prev, legal_address: v }))}
+          onScegli={(a) => setF((prev) => ({
+            ...prev,
+            ...campiDaTrovato(a, { via: "legal_address", citta: "legal_city", cap: "legal_postal_code", provincia: "legal_province" }),
+          }))}
+          placeholder="Via e numero civico"
+          className="h-9 text-sm"
+        />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="space-y-1 col-span-1 sm:col-span-2">

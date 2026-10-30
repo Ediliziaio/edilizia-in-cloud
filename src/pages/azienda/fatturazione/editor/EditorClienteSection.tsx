@@ -3,6 +3,8 @@ import { useState, useMemo } from "react";
 import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -51,6 +53,10 @@ const TIPO_BADGE: Record<string, { label: string; className: string }> = {
 };
 
 type NewClientForm = NuovoClienteForm;
+
+const CAMPI_INDIRIZZO_CLIENTE = {
+  via: "indirizzo_via", cap: "indirizzo_cap", citta: "indirizzo_comune", provincia: "indirizzo_provincia",
+} as const;
 
 export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const [search, setSearch] = useState("");
@@ -115,6 +121,13 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     if (!snapshot) return;
     const updated = { ...snapshot, [field]: value };
     dispatch({ type: "SET_CLIENTE", anagrafica_id: state.anagrafica_id ?? "", snapshot: updated });
+  }
+
+  // L'indirizzo scelto dalla ricerca scrive via, CAP, comune e provincia in un colpo solo:
+  // quattro updateSnapshotField di fila partirebbero tutti dallo stesso snapshot e l'ultimo coprirebbe gli altri.
+  function updateSnapshotFields(patch: Partial<ClienteSnapshot>) {
+    if (!snapshot) return;
+    dispatch({ type: "SET_CLIENTE", anagrafica_id: state.anagrafica_id ?? "", snapshot: { ...snapshot, ...patch } });
   }
 
   // Create quick B2C client (occasionale)
@@ -392,8 +405,15 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 {editingSnapshot && !disabled ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="col-span-2">
-                      <Label className="text-[9px] text-muted-foreground">Via/Indirizzo</Label>
-                      <Input value={snapshot!.indirizzo_via ?? ""} onChange={(e) => updateSnapshotField("indirizzo_via", e.target.value)} className="h-6 text-[11px]" placeholder="Via Roma 1" />
+                      <Label htmlFor="cliente-indirizzo-via" className="text-[9px] text-muted-foreground">Via/Indirizzo</Label>
+                      <CampoIndirizzo
+                        id="cliente-indirizzo-via"
+                        value={snapshot!.indirizzo_via ?? ""}
+                        onChange={(v) => updateSnapshotField("indirizzo_via", v)}
+                        onScegli={(a) => updateSnapshotFields(campiDaTrovato(a, CAMPI_INDIRIZZO_CLIENTE))}
+                        className="h-6 text-[11px]"
+                        placeholder="Via Roma 1"
+                      />
                     </div>
                     <div>
                       <Label className="text-[9px] text-muted-foreground">CAP</Label>
@@ -618,7 +638,14 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     Indirizzo * (via, CAP, comune)
                   </div>
                   <div>
-                    <Input placeholder="Via / Indirizzo" value={newForm.indirizzo_via ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_via: e.target.value })} className="h-7 text-xs" />
+                    <CampoIndirizzo
+                      aria-label="Via / Indirizzo"
+                      placeholder="Via / Indirizzo"
+                      value={newForm.indirizzo_via ?? ""}
+                      onChange={(v) => setNewForm({ ...newForm, indirizzo_via: v })}
+                      onScegli={(a) => setNewForm((p) => ({ ...p, ...campiDaTrovato(a, CAMPI_INDIRIZZO_CLIENTE) }))}
+                      className="h-7 text-xs"
+                    />
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
                     <Input placeholder="CAP" value={newForm.indirizzo_cap ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_cap: e.target.value })} className="h-7 text-xs" maxLength={5} />

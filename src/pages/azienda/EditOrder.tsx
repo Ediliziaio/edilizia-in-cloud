@@ -3,6 +3,7 @@ import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { agreedContractValue } from "@/lib/orders/contractValue";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -140,6 +141,8 @@ function EditOrderInner() {
 
   // ── Modulo Appaltatori (visibili solo se order_type='appaltatore_lavoro') ──
   const [workAddress, setWorkAddress] = useState("");
+  // Le coordinate dell'indirizzo scelto tra i suggerimenti: valgono finché il testo resta quello scelto.
+  const [workCoords, setWorkCoords] = useState<{ testo: string; lat: number; lng: number } | null>(null);
   const [workDescription, setWorkDescription] = useState("");
   const [materialsLocation, setMaterialsLocation] = useState("");
   const [orderTypeState, setOrderTypeState] = useState<"cliente" | "appaltatore_lavoro">("cliente");
@@ -799,8 +802,10 @@ function EditOrderInner() {
 
       // Geocoding automatico cantiere (best-effort, in background):
       // aggiorna work_lat/lng senza bloccare né far fallire il salvataggio.
+      // Indirizzo scelto tra i suggerimenti: le sue coordinate, senza ricalcolarle.
       if (orderTypeState === "appaltatore_lavoro" && workAddress.trim()) {
-        void geocodeBestEffort([workAddress]).then((coords) => {
+        const scelte = workCoords && workCoords.testo === workAddress.trim() ? { lat: workCoords.lat, lng: workCoords.lng } : null;
+        void (scelte ? Promise.resolve(scelte) : geocodeBestEffort([workAddress])).then((coords) => {
           if (!coords) return;
           return supabase
             .from("orders")
@@ -1287,10 +1292,14 @@ function EditOrderInner() {
                   <MapPin className="h-3.5 w-3.5" />
                   Indirizzo cantiere
                 </Label>
-                <Input
+                <CampoIndirizzo
                   id="workAddress"
                   value={workAddress}
-                  onChange={(e) => setWorkAddress(e.target.value)}
+                  onChange={setWorkAddress}
+                  onScegli={(a) => {
+                    setWorkAddress(a.testo);
+                    setWorkCoords(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null);
+                  }}
                   placeholder="Via del cantiere, 5 — 20100 Milano"
                   maxLength={250}
                 />

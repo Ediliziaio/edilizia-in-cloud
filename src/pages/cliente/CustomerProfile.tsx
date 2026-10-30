@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { useToast } from "@/hooks/use-toast";
 import { User, Save, Loader2, KeyRound } from "lucide-react";
 
@@ -148,12 +149,12 @@ export default function CustomerProfile() {
           <div className="bg-background border border-border/60 rounded-2xl p-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="address">Indirizzo Residenza / Sede Legale</Label>
-              <Textarea id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 123, 20100 Milano (MI)" maxLength={200} rows={2} className="rounded-xl" />
+              <CampoIndirizzo id="address" value={address} onChange={setAddress} placeholder="Via Roma 123, 20100 Milano (MI)" maxLength={200} className="rounded-xl h-11" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="siteAddress">Indirizzo Cantiere</Label>
-              <Textarea id="siteAddress" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="Via del Cantiere 5, 00100 Roma" maxLength={200} rows={2} className="rounded-xl" />
+              <CampoIndirizzo id="siteAddress" value={siteAddress} onChange={setSiteAddress} placeholder="Via del Cantiere 5, 00100 Roma" maxLength={200} className="rounded-xl h-11" />
             </div>
           </div>
         </div>

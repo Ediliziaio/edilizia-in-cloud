@@ -52,6 +52,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -796,10 +797,11 @@ export function BagniTemplateEditor({ embedded = false, localModule }: Props) {
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">Indirizzo completo</Label>
-                  <Input
+                  <Label htmlFor="modello-indirizzo-completo" className="text-xs">Indirizzo completo</Label>
+                  <CampoIndirizzo
+                    id="modello-indirizzo-completo"
                     value={form.indirizzo_completo ?? ""}
-                    onChange={(e) => set("indirizzo_completo", e.target.value)}
+                    onChange={(v) => set("indirizzo_completo", v)}
                     placeholder={companyAnagrafica?.indirizzo_completo ? `${companyAnagrafica.indirizzo_completo} · dal profilo` : "Es. Via Roma 42 · 20121 Milano (MI)"}
                   />
                 </div>

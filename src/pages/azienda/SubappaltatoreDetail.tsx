@@ -22,6 +22,7 @@ import { format, differenceInDays, parseISO } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CampoIndirizzo } from '@/components/shared/CampoIndirizzo';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -1139,8 +1140,8 @@ export default function SubappaltatoreDetail() {
                 <Input type="date" max={DATA_MASSIMA} value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
               </div>
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
-                <Label>Indirizzo sede</Label>
-                <Input value={anagraficaForm.indirizzo} onChange={(e) => setAnagraficaForm(f => ({ ...f, indirizzo: e.target.value }))} />
+                <Label htmlFor="subappaltatore-dettaglio-indirizzo">Indirizzo sede</Label>
+                <CampoIndirizzo id="subappaltatore-dettaglio-indirizzo" value={anagraficaForm.indirizzo} onChange={(v) => setAnagraficaForm(f => ({ ...f, indirizzo: v }))} />
               </div>
               <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
                 <Label>Note</Label>

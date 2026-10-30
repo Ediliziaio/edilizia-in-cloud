@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type KeyboardEvent } from "react";
 import { Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,14 +6,20 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ComuneAutocomplete } from "@/components/shared/ComuneAutocomplete";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import type { Comune } from "@/lib/comuni/useComuni";
+import type { IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 
-export function InlineField({ label, value, onSave, type = "text", options, disabled = false, comuneMode, onSelectComune, validate }: {
+export function InlineField({ label, value, onSave, type = "text", options, disabled = false, comuneMode, onSelectComune, indirizzo = false, onSelectIndirizzo, validate }: {
   label: string; value: string; onSave: (v: string) => void; type?: string; options?: string[]; disabled?: boolean;
   /** Se impostato, in modifica usa l'autocomplete comuni (per Città / CAP). */
   comuneMode?: "comune" | "cap";
   /** Selezione di un comune dall'autocomplete: il padre riempie tutti i campi indirizzo. */
   onSelectComune?: (c: Comune) => void;
+  /** In modifica cerca l'indirizzo (via e civico) mentre si scrive. */
+  indirizzo?: boolean;
+  /** Indirizzo scelto dalla ricerca: il padre salva via, città, CAP e provincia insieme. Senza, si salva la riga intera. */
+  onSelectIndirizzo?: (a: IndirizzoTrovato) => void;
   /**
    * Controllo di forma sul valore digitato: restituisce il messaggio d'errore
    * oppure null se va bene. Se fallisce il campo NON si salva e resta aperto
@@ -29,6 +35,8 @@ export function InlineField({ label, value, onSave, type = "text", options, disa
   useEffect(() => { setDraft(value || ""); setErrore(null); }, [value]);
 
   const [saved, setSaved] = useState(false);
+  // Scelto un indirizzo, il padre ha già salvato: l'uscita dal campo che segue non salva anche il testo.
+  const indirizzoScelto = useRef(false);
 
   const commit = () => {
     if (draft === (value || "")) {
@@ -98,24 +106,50 @@ export function InlineField({ label, value, onSave, type = "text", options, disa
     );
   }
 
+  const tasti = (e: KeyboardEvent) => {
+    // Invio ed Esc sulla lista dei suggerimenti dell'indirizzo li usa il campo (preventDefault): qui non contano.
+    if (e.defaultPrevented) return;
+    if (e.key === "Enter") commit();
+    if (e.key === "Escape") { setDraft(value || ""); setErrore(null); setEditing(false); }
+  };
+
   return (
     <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
       <Label className="text-xs text-muted-foreground truncate">{label}</Label>
       {editing ? (
         <div className="space-y-0.5">
-          <Input
-            autoFocus
-            type={type}
-            value={draft}
-            onChange={(e) => { setDraft(e.target.value); if (errore) setErrore(null); }}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") { setDraft(value || ""); setErrore(null); setEditing(false); }
-            }}
-            aria-invalid={!!errore}
-            className={`h-7 text-xs px-1 ${errore ? "border-destructive focus-visible:ring-destructive" : ""}`}
-          />
+          {indirizzo ? (
+            <div onKeyDown={tasti}>
+              <CampoIndirizzo
+                autoFocus
+                aria-label={label}
+                value={draft}
+                onChange={(v) => { setDraft(v); if (errore) setErrore(null); }}
+                onBlur={() => { if (!indirizzoScelto.current) commit(); }}
+                onScegli={onSelectIndirizzo ? (a) => {
+                  indirizzoScelto.current = true;
+                  onSelectIndirizzo(a);
+                  setEditing(false);
+                  setErrore(null);
+                  setSaved(true);
+                  setTimeout(() => setSaved(false), 1500);
+                } : undefined}
+                aria-invalid={!!errore}
+                className={`h-7 text-xs px-1 ${errore ? "border-destructive focus-visible:ring-destructive" : ""}`}
+              />
+            </div>
+          ) : (
+            <Input
+              autoFocus
+              type={type}
+              value={draft}
+              onChange={(e) => { setDraft(e.target.value); if (errore) setErrore(null); }}
+              onBlur={commit}
+              onKeyDown={tasti}
+              aria-invalid={!!errore}
+              className={`h-7 text-xs px-1 ${errore ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            />
+          )}
           {errore && <p className="text-[11px] leading-4 text-destructive">{errore}</p>}
         </div>
       ) : (
@@ -124,7 +158,7 @@ export function InlineField({ label, value, onSave, type = "text", options, disa
             className={`text-xs min-h-[32px] flex items-center rounded px-1 flex-1 ${
               disabled ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
             }`}
-            onClick={() => !disabled && setEditing(true)}
+            onClick={() => { if (disabled) return; indirizzoScelto.current = false; setEditing(true); }}
           >
             {value || <span className="text-muted-foreground">—</span>}
           </p>

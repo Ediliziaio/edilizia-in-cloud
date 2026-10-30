@@ -1330,7 +1330,20 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
                     <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts}
+                      indirizzo
+                      onSelectIndirizzo={(a) => {
+                        const extra: Record<string, string | null> = {};
+                        if (a.citta) extra.city = a.citta;
+                        if (a.cap) extra.postal_code = a.cap;
+                        // Provincia nuova: la regione si svuota e la ricalcola il trigger dalla provincia.
+                        if (a.provincia && a.provincia !== (contact.province || "").trim().toUpperCase()) {
+                          extra.province = a.provincia;
+                          extra.region = null;
+                        }
+                        updateField.mutate({ field: "address", value: a.via || null, extra });
+                      }}
+                    />
                     <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts}
                       comuneMode="comune"
                       onSelectComune={(c) => {

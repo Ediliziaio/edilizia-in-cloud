@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Loader2, UserCheck, AlertTriangle, Copy, Check } from "lucide-react";
 
 interface ConvertToCustomerDialogProps {
@@ -71,9 +73,9 @@ export function ConvertToCustomerDialog({
   // Ora teniamo l'address come solo "via + civico" e copiamo separatamente
   // city/province/postal_code/country. Idem per indirizzo cantiere.
   const [address, setAddress] = useState(contact.address || "");
-  const [city] = useState(contact.city || "");
-  const [postalCode] = useState(contact.postal_code || "");
-  const [provinceState] = useState(contact.province || "");
+  const [city, setCity] = useState(contact.city || "");
+  const [postalCode, setPostalCode] = useState(contact.postal_code || "");
+  const [provinceState, setProvinceState] = useState(contact.province || "");
   const [country] = useState(contact.country || "Italia");
   const [siteAddress] = useState(contact.site_address || "");
   const [siteCity] = useState(contact.site_city || "");
@@ -288,11 +290,12 @@ export function ConvertToCustomerDialog({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="cc-addr">Indirizzo</Label>
-                <Textarea
+                <CampoIndirizzo
                   id="cc-addr"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  rows={2}
+                  onChange={setAddress}
+                  onScegli={(a) => riempiCampi(a, (campo, valore) =>
+                    ({ via: setAddress, citta: setCity, cap: setPostalCode, provincia: setProvinceState })[campo](valore))}
                 />
               </div>
               <div className="space-y-1">

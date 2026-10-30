@@ -40,6 +40,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -1343,10 +1345,13 @@ function StepCliente({
           />
         </div>
         <div className="col-span-12">
-          <Label className="text-xs">Indirizzo</Label>
-          <Input
+          <Label htmlFor="sr-cliente-indirizzo" className="text-xs">Indirizzo</Label>
+          {/* La ricerca riempie anche città, CAP e provincia (e i lavori, se seguono il cliente). */}
+          <CampoIndirizzo
+            id="sr-cliente-indirizzo"
             value={form.cliente_indirizzo ?? ""}
-            onChange={(e) => indirizzo.cambiaCliente("indirizzo", e.target.value)}
+            onChange={(v) => indirizzo.cambiaCliente("indirizzo", v)}
+            onScegli={(a) => riempiCampi(a, (campo, valore) => indirizzo.cambiaCliente(campo === "via" ? "indirizzo" : campo, valore))}
             placeholder="Via Tortona 33"
             className="h-9"
           />

@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { REGION_OPTIONS } from "@/lib/italianRegions";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1090,8 +1091,23 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       {(!hideEmpty || contactAddress) && !showNewContactForm && (
                         <div className="space-y-1 max-sm:hidden">
-                          <Label className="text-xs text-muted-foreground">Indirizzo</Label>
-                          <Input value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="Via e numero civico" className="h-10 sm:h-8 text-sm" />
+                          <Label htmlFor="opp-contatto-indirizzo" className="text-xs text-muted-foreground">Indirizzo</Label>
+                          <CampoIndirizzo
+                            id="opp-contatto-indirizzo"
+                            value={contactAddress}
+                            onChange={setContactAddress}
+                            onScegli={(a) => {
+                              setContactAddress(a.via);
+                              if (a.citta) setContactCity(a.citta);
+                              // Provincia nuova: la regione si svuota e la ricalcola il trigger dalla provincia.
+                              if (a.provincia && a.provincia !== contactProvince.trim().toUpperCase()) {
+                                setContactProvince(a.provincia);
+                                setContactRegion("");
+                              }
+                            }}
+                            placeholder="Via e numero civico"
+                            className="h-10 sm:h-8 text-sm"
+                          />
                         </div>
                       )}
 

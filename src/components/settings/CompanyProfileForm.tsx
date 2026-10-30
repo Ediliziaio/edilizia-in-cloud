@@ -9,6 +9,8 @@ import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
@@ -311,7 +313,15 @@ export function CompanyProfileForm({
         </h3>
         <div className="space-y-2">
           <Label htmlFor="legalAddress">Indirizzo</Label>
-          <Input id="legalAddress" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} placeholder="Via Roma 1" maxLength={200} />
+          <CampoIndirizzo
+            id="legalAddress"
+            value={legalAddress}
+            onChange={setLegalAddress}
+            onScegli={(a) => riempiCampi(a, (campo, valore) =>
+              ({ via: setLegalAddress, citta: setLegalCity, provincia: setLegalProvince, cap: setLegalPostalCode })[campo](valore))}
+            placeholder="Via Roma 1"
+            maxLength={200}
+          />
         </div>
         {/* Telefono: la città a tutta riga, provincia e CAP affiancati (tre colonne da 95 px non bastavano). */}
         <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
@@ -343,7 +353,17 @@ export function CompanyProfileForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="operationalAddress">Indirizzo</Label>
-          <Input id="operationalAddress" value={operationalAddress} onChange={(e) => setOperationalAddress(e.target.value)} placeholder="Via Roma 1" maxLength={200} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
+          <CampoIndirizzo
+            id="operationalAddress"
+            value={operationalAddress}
+            onChange={setOperationalAddress}
+            onScegli={(a) => riempiCampi(a, (campo, valore) =>
+              ({ via: setOperationalAddress, citta: setOperationalCity, provincia: setOperationalProvince, cap: setOperationalPostalCode })[campo](valore))}
+            placeholder="Via Roma 1"
+            maxLength={200}
+            disabled={sameAddress}
+            className={sameAddress ? "bg-muted" : ""}
+          />
         </div>
         <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2 max-sm:col-span-2">

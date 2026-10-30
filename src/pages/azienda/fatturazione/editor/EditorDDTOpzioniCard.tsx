@@ -13,6 +13,8 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import type { IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCallback, useMemo } from "react";
@@ -109,7 +111,29 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
         }
         return;
       }
-      dispatch({ type: "SET_FIELD", field: "ddt_indirizzo_consegna", value: { ...current, free_text: trimmed } });
+      // Il testo si salva com'è: tagliato a ogni tasto, lo spazio appena scritto spariva.
+      dispatch({ type: "SET_FIELD", field: "ddt_indirizzo_consegna", value: { ...current, free_text: val } });
+    },
+    [state.ddt_indirizzo_consegna, dispatch],
+  );
+
+  // Indirizzo scelto dalla ricerca: si salva diviso (via, CAP, comune, provincia) come lo legge il PDF del DDT.
+  // È un luogo nuovo, quindi il testo libero e i campi del luogo di prima non restano; il riferimento sì.
+  const handleLuogoScelto = useCallback(
+    (a: IndirizzoTrovato) => {
+      const current = (state.ddt_indirizzo_consegna ?? {}) as Record<string, unknown>;
+      const riferimento = current.riferimento ?? current.descrizione;
+      dispatch({
+        type: "SET_FIELD",
+        field: "ddt_indirizzo_consegna",
+        value: {
+          ...(riferimento ? { riferimento } : {}),
+          address: a.via || null,
+          postal_code: a.cap || null,
+          city: a.citta || null,
+          province: a.provincia || null,
+        },
+      });
     },
     [state.ddt_indirizzo_consegna, dispatch],
   );
@@ -263,13 +287,14 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       </div>
 
       <div>
-        <Label className="text-[10px] text-muted-foreground">Luogo di destinazione</Label>
-        <Textarea
-          rows={2}
+        <Label htmlFor="ddt-luogo-destinazione" className="text-[10px] text-muted-foreground">Luogo di destinazione</Label>
+        <CampoIndirizzo
+          id="ddt-luogo-destinazione"
           value={indirizzoConsegnaFreeText}
-          onChange={(e) => handleLuogoChange(e.target.value)}
+          onChange={handleLuogoChange}
+          onScegli={handleLuogoScelto}
           disabled={disabled}
-          className="text-xs resize-none"
+          className="text-xs"
           placeholder="Indirizzo cantiere o luogo consegna…"
         />
       </div>
@@ -351,11 +376,12 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
               />
             </div>
             <div>
-              <Label className="text-[10px] text-muted-foreground">Indirizzo</Label>
-              <Input
+              <Label htmlFor="ddt-vettore-indirizzo" className="text-[10px] text-muted-foreground">Indirizzo</Label>
+              <CampoIndirizzo
+                id="ddt-vettore-indirizzo"
                 placeholder="Via, comune"
                 value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.address as string ?? ""}
-                onChange={(e) => setVettoreField({ address: e.target.value })}
+                onChange={(v) => setVettoreField({ address: v })}
                 disabled={disabled}
                 className="h-7 text-xs"
               />

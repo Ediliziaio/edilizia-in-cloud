@@ -40,6 +40,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { InlineField } from "@/components/marketing/contacts/InlineField";
+import type { IndirizzoTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
 import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
@@ -47,6 +48,17 @@ import { campiDaCompletare, sembraAzienda } from "@/lib/clienti/anagraficaClient
 
 /** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
 const NESSUN_AGENTE = "__nessuno";
+
+/** Città, CAP, provincia e coordinate dell'indirizzo scelto, coi nomi della residenza ("") o del cantiere ("site_"). */
+function altriCampi(a: IndirizzoTrovato, prefisso: "" | "site_"): Record<string, string | number | null> {
+  const [lat, lng] = prefisso === "" ? ["address_lat", "address_lng"] : ["site_lat", "site_lng"];
+  return {
+    ...(a.citta ? { [`${prefisso}city`]: a.citta } : {}),
+    ...(a.cap ? { [`${prefisso}postal_code`]: a.cap } : {}),
+    ...(a.provincia ? { [`${prefisso}province`]: a.provincia } : {}),
+    ...(a.lat != null && a.lng != null ? { [lat]: a.lat, [lng]: a.lng } : {}),
+  };
+}
 
 interface LinkedContact {
   id: string;
@@ -131,10 +143,10 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
 
   // Update singolo campo (pattern marketing updateField)
   const updateField = useMutation({
-    mutationFn: async ({ field, value }: { field: string; value: string | null }) => {
+    mutationFn: async ({ field, value, extra }: { field: string; value: string | null; extra?: Record<string, string | number | null> }) => {
       const { data, error } = await supabase
         .from("profiles")
-        .update({ [field]: value } as never)
+        .update({ [field]: value, ...(extra ?? {}) } as never)
         .eq("id", customer.id)
         .select("id");
       if (error) throw error;
@@ -143,9 +155,9 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
       if (!data || data.length === 0) {
         throw new Error("Modifica non salvata: non hai il permesso di modificare questo cliente.");
       }
-      return { field, value };
+      return { field, value, extra };
     },
-    onSuccess: ({ field, value }) => {
+    onSuccess: ({ field, value, extra }) => {
       queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       onSaved?.();
@@ -155,7 +167,9 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
       // cantiere → site_lat/lng). Fire-and-forget: errori ignorati.
       const residenceFields = ["address", "city", "postal_code", "province"];
       const siteFields = ["site_address", "site_city", "site_postal_code", "site_province"];
-      const merged = { ...customer, [field]: value } as Record<string, string | null>;
+      const merged = { ...customer, ...(extra ?? {}), [field]: value } as Record<string, string | null>;
+      // Indirizzo scelto dalla ricerca: le coordinate sono già salvate insieme.
+      if (extra && ("address_lat" in extra || "site_lat" in extra)) return;
       if (residenceFields.includes(field)) {
         void geocodeBestEffort([merged.address, merged.postal_code, merged.city, merged.province])
           .then((coords) => {
@@ -444,6 +458,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="Indirizzo"
                       value={customer.address || ""}
                       onSave={(v) => updateField.mutate({ field: "address", value: v || null })}
+                      indirizzo
+                      onSelectIndirizzo={(a) => updateField.mutate({ field: "address", value: a.via || null, extra: altriCampi(a, "") })}
                     />
                   )}
                   {matchesSearch("Città") && (
@@ -506,6 +522,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="Indirizzo"
                       value={customer.site_address || ""}
                       onSave={(v) => updateField.mutate({ field: "site_address", value: v || null })}
+                      indirizzo
+                      onSelectIndirizzo={(a) => updateField.mutate({ field: "site_address", value: a.via || null, extra: altriCampi(a, "site_") })}
                     />
                   )}
                   {matchesSearch("Città cantiere") && (
