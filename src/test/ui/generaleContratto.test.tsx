@@ -22,6 +22,12 @@ vi.mock("@/hooks/useGeneraleContrattoSal", () => ({
   useCreaSal: nessuno, useEmettiSal: nessuno, useAnnullaSal: nessuno, useRegistraRitenuta: nessuno,
   documentoSal: vi.fn(),
 }));
+// Fatture dei SAL (sessione cg-fatture): nessuna fattura ancora, l'utente può fatturare.
+vi.mock("@/hooks/useGeneraleFatture", () => ({
+  useFattureGenerale: () => ({ data: { fatture: [] as unknown[], puoFatturare: true } }),
+  useDatiFatturaGenerale: () => ({ data: undefined as undefined, isLoading: true, error: null }),
+  useCreaFatturaGenerale: nessuno,
+}));
 vi.mock("@/hooks/useGeneraleContrattoElenco", () => ({
   useElencoPrezzi: () => ({ data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() }),
   useComputo: () => ({ data: [] as unknown[], isLoading: false, isError: false }),
@@ -118,12 +124,14 @@ describe("la scheda del contratto", () => {
     expect(screen.getByRole("link", { name: "O-0025" })).toHaveAttribute("href", "/azienda/ordini/f1");
     expect(screen.getByText(/Ritenuta nel registro/)).toBeVisible();
     expect(screen.getByRole("button", { name: /Link per il committente/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Crea fattura/ })).toBeVisible();
   });
 
   it("chi non può modificare legge soltanto", () => {
     disegna(<SchedaContratto riepilogo={riepilogo} totali={totali} puoModificare={false} />, "/azienda/ordini/g?scheda=contratto&sezione=sal");
     expect(screen.queryByRole("button", { name: /Nuovo SAL/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Link per il committente/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Crea fattura/ })).toBeNull();
     expect(screen.getByRole("button", { name: /Documento/ })).toBeVisible();
   });
 

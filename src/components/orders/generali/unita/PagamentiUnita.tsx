@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BottoneFattura } from "@/components/orders/generali/fatture/BottoneFattura";
 import { dataBreve, euro, leggiCampo, oggi } from "@/components/orders/generali/unita/aspetto";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
 import { useAggiungiMovimento, useEliminaMovimento } from "@/hooks/useGeneraleUnita";
@@ -58,6 +59,7 @@ export function PagamentiUnita({ generaleId, unita: u, gestisci }: Props) {
                 {m.descrizione && <span className="text-muted-foreground"> · {m.descrizione}</span>}
               </span>
               <span className="tabular-nums">{euro(m.importo)}</span>
+              {m.tipo !== "permuta" && <BottoneFattura generaleId={generaleId} origine="movimento" id={m.id} crea={gestisci} compatto />}
               {gestisci && (
                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Togli ${NOMI_MOVIMENTO[m.tipo].toLowerCase()} del ${dataBreve(m.data)}`}
                   disabled={elimina.isPending} onClick={() => togli(m.id)}>
