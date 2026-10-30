@@ -1,7 +1,8 @@
 // Banco di prova della generazione AI delle planimetrie.
 //
 //   node scripts/planimetrie-banco/esegui.ts --modello oracolo
-//   OPENROUTER_API_KEY=… node scripts/planimetrie-banco/esegui.ts --modello google/gemini-2.5-flash [--solo g01,s02] [--max-usd 1]
+//   node scripts/planimetrie-banco/esegui.ts --modello google/gemini-2.5-flash [--solo g01,s02] [--max-usd 1]
+//   (chiave: OPENROUTER_API_KEY=… in ~/edilizia-in-cloud/.env.planimetrie, escluso da git)
 //
 // «oracolo» risponde con la verità nel formato del modello: costo zero, serve a
 // collaudare costruzione, controllo e punteggio. Con un modello vero si usa lo
@@ -9,6 +10,7 @@
 // Ogni giro salva i risultati in risultati/ e una riga in STORICO.md.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generaPlanimetria, type ChiamaModello, type Messaggio, type RichiestaGenerazione } from "../../supabase/functions/planimetria-genera/genera.ts";
@@ -29,9 +31,16 @@ const modello = argomento("modello") ?? "oracolo";
 const solo = argomento("solo")?.split(",") ?? null;
 const maxUsd = Number(argomento("max-usd") ?? "1.5");
 const nota = argomento("nota") ?? "";
-const chiave = process.env.OPENROUTER_API_KEY;
+// La chiave sta in ~/edilizia-in-cloud/.env.planimetrie (escluso da git), oppure nell'ambiente.
+function chiaveDaFile(): string | undefined {
+  const file = join(homedir(), "edilizia-in-cloud", ".env.planimetrie");
+  if (!existsSync(file)) return undefined;
+  const riga = readFileSync(file, "utf8").split(/\r?\n/).find((r) => r.startsWith("OPENROUTER_API_KEY="));
+  return riga?.slice("OPENROUTER_API_KEY=".length).trim().replace(/^["']|["']$/g, "") || undefined;
+}
+const chiave = process.env.OPENROUTER_API_KEY || chiaveDaFile();
 if (modello !== "oracolo" && !chiave) {
-  console.error("Manca OPENROUTER_API_KEY.");
+  console.error("Manca OPENROUTER_API_KEY (in ~/edilizia-in-cloud/.env.planimetrie o nell'ambiente).");
   process.exit(1);
 }
 
