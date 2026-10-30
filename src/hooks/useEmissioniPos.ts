@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apriUrlDocumentoPos } from "@/lib/sicurezza/apriPdfPos";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { chiamaServerPos } from "@/hooks/usePos";
+import { chiamaServerPos, emettiPos } from "@/hooks/usePos";
 import { readAllPages } from "@/lib/personale/readAllPages";
 
 export interface EmissionePos {
@@ -33,7 +33,7 @@ export function useContenutiPerEmissione(companyId: string, posId: string, enabl
 export function usePreparaEmissione(companyId: string, posId: string) {
   const qc=useQueryClient();
   return useMutation({
-    mutationFn: (snapshotId: string) => chiamaServerPos<{ emissione_id: string }>({azione:"emetti",company_id:companyId,pos_id:posId,snapshot_id:snapshotId}),
+    mutationFn: async (snapshotId: string) => ({ emissione_id: (await emettiPos({ companyId, posId, snapshotId })).emissioneId ?? "" }),
     onSuccess:()=>toast.success("Copia conservata con PDF, allegati e impronte"),
     onError:e=>toast.error(e instanceof Error?e.message:"Emissione non completata"),
     onSettled:()=>qc.invalidateQueries({queryKey:["pos"]}),

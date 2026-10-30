@@ -3,6 +3,8 @@
  * sicurezza dell'impresa, allegati, e le azioni che passano dal server
  * (crea, dati dell'app, lavorazioni proposte dall'AI, approvazione).
  */
+import { disegnaPdfPosNelBrowser } from "@/lib/sicurezza/disegnaPdfPos";
+import { anteprimaPdfConBrowser, emettiPdfConBrowser, ErroreDisegnoPos, type DipendenzePdfPos } from "@/lib/sicurezza/posPdfBrowser";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { toast } from "sonner";
@@ -125,19 +127,28 @@ export function usePos(id: string | undefined) {
 // ── Server ───────────────────────────────────────────────────────────────────
 
 export class ErrorePos extends Error {
-  constructor(message: string, readonly mancanti: VoceMancante[] = []) {
+  constructor(message: string, readonly mancanti: VoceMancante[] = [], readonly status?: number) {
     super(message);
   }
 }
 
-async function rispostaServerPos(corpo: Record<string, unknown>): Promise<Response> {
+/** Che cosa sa fare questo editor: il server lo legge a ogni richiesta e rifiuta di approvare ciò che l'editor non può riesaminare. */
+const CAPACITA_CLIENT = { versione_client: 2, versione_psc_client: 1, versione_prodotti_client: 1, versione_tecnica_client: 1, versione_fonti_tecniche_client: 1, versione_mezzi_client: 1, versione_documenti_mezzi_client: 1, versione_requisiti_addetti_client: 1 };
+const URL_GENERA_POS = () => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`;
+
+async function tokenPos(): Promise<string> {
   const { data: sessione } = await supabase.auth.getSession();
   const token = sessione.session?.access_token;
   if (!token) throw new ErrorePos("Sessione scaduta: accedi di nuovo e riprova");
-  return fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`, {
+  return token;
+}
+
+async function rispostaServerPos(corpo: Record<string, unknown>): Promise<Response> {
+  const token = await tokenPos();
+  return fetch(URL_GENERA_POS(), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...corpo, versione_client: 2, versione_psc_client: 1, versione_prodotti_client: 1, versione_tecnica_client: 1, versione_fonti_tecniche_client: 1, versione_mezzi_client: 1, versione_documenti_mezzi_client: 1, versione_requisiti_addetti_client: 1 }),
+    body: JSON.stringify({ ...corpo, ...CAPACITA_CLIENT }),
   });
 }
 
@@ -159,8 +170,7 @@ export function messaggioServerPos(status: number, json: Record<string, unknown>
   return semplice && semplice.length <= 200 && !/^[{<\[]/.test(semplice) ? semplice : predefinito;
 }
 
-export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promise<T> {
-  const res = await rispostaServerPos(corpo);
+async function leggiRispostaPos<T>(res: Response): Promise<T> {
   const testo = await res.text();
   let json: Record<string, unknown> = {};
   try {
@@ -169,9 +179,47 @@ export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promis
     // risposta non JSON: il messaggio è il testo
   }
   if (!res.ok || json.ok === false) {
-    throw new ErrorePos(messaggioServerPos(res.status, json, testo), Array.isArray(json.mancanti) ? (json.mancanti as VoceMancante[]) : []);
+    throw new ErrorePos(messaggioServerPos(res.status, json, testo), Array.isArray(json.mancanti) ? (json.mancanti as VoceMancante[]) : [], res.status);
   }
   return json as T;
+}
+
+export async function chiamaServerPos<T>(corpo: Record<string, unknown>): Promise<T> {
+  return leggiRispostaPos<T>(await rispostaServerPos(corpo));
+}
+
+/** Il PDF disegnato dal browser arriva al server come multipart: i dati di sempre nel campo «meta», il file nel campo «pdf». */
+async function caricaPdfServerPos(meta: Record<string, unknown>, pdf: Uint8Array): Promise<{ emissione_id: string; approvato_da_nome?: string }> {
+  const token = await tokenPos();
+  const modulo = new FormData();
+  modulo.set("meta", JSON.stringify({ ...meta, ...CAPACITA_CLIENT }));
+  modulo.set("pdf", new Blob([pdf as BlobPart], { type: "application/pdf" }), "POS.pdf");
+  // Nessun Content-Type scritto a mano: lo mette il browser, insieme al confine del multipart.
+  return leggiRispostaPos(await fetch(URL_GENERA_POS(), { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: modulo }));
+}
+
+const dipendenzePdfPos: DipendenzePdfPos = { chiama: chiamaServerPos, carica: caricaPdfServerPos, disegna: disegnaPdfPosNelBrowser };
+
+/**
+ * Quando ripiegare sulle azioni di sempre (il PDF lo disegna il server): se il browser non è riuscito a disegnare, o se
+ * il server in linea è ancora quello di prima e non conosce le azioni nuove (frontend e funzioni si pubblicano in momenti
+ * diversi). Un conflitto, un permesso negato o un carattere senza glifo NON ripiegano: il server direbbe lo stesso.
+ */
+const ripiegaSulServer = (e: unknown) =>
+  e instanceof ErroreDisegnoPos || (e instanceof ErrorePos && e.status === 400 && /Azione non riconosciuta/i.test(e.message));
+
+/** Approva il POS, o emette una copia del contenuto archiviato (`snapshotId`), con il PDF disegnato dal browser. */
+export async function emettiPos(r: { companyId: string; posId: string; attesaUpdatedAt?: string | null; snapshotId?: string }):
+  Promise<{ gia?: true; emissioneId?: string; approvatoDaNome?: string }> {
+  try {
+    return await emettiPdfConBrowser(dipendenzePdfPos, r);
+  } catch (e) {
+    if (!ripiegaSulServer(e)) throw e;
+    const server = await chiamaServerPos<{ approvato_da_nome?: string; emissione_id?: string }>(r.snapshotId
+      ? { azione: "emetti", company_id: r.companyId, pos_id: r.posId, snapshot_id: r.snapshotId }
+      : { azione: "approva", company_id: r.companyId, pos_id: r.posId, attesa_updated_at: r.attesaUpdatedAt });
+    return { emissioneId: server.emissione_id, approvatoDaNome: server.approvato_da_nome };
+  }
 }
 
 export function useCreaPos() {
@@ -197,9 +245,10 @@ export function useApprovaPos() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({posId,attesaUpdatedAt}:{posId:string;attesaUpdatedAt:string|null}) => {
+    mutationFn: async ({posId,attesaUpdatedAt}:{posId:string;attesaUpdatedAt:string|null}) => {
       if(!companyId || attesaUpdatedAt===undefined) throw new Error("Ricarica il POS prima di approvarlo");
-      return chiamaServerPos<{ approvato_da_nome: string }>({ azione: "approva", company_id: companyId, pos_id: posId, attesa_updated_at:attesaUpdatedAt });
+      const r = await emettiPos({ companyId, posId, attesaUpdatedAt });
+      return { approvato_da_nome: r.approvatoDaNome ?? "" };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pos"] });
@@ -437,7 +486,17 @@ export function useArchiviaModelloPos() {
 }
 
 
+/** L'anteprima: il PDF lo disegna il browser; dove non può (o il server è quello di prima), lo disegna il server come sempre. */
 export async function pdfAnteprimaPos(companyId:string,posId:string): Promise<Blob> {
+  try {
+    return await anteprimaPdfConBrowser(dipendenzePdfPos,{companyId,posId});
+  } catch (e) {
+    if(!ripiegaSulServer(e)) throw e;
+    return pdfAnteprimaDalServer(companyId,posId);
+  }
+}
+
+async function pdfAnteprimaDalServer(companyId:string,posId:string): Promise<Blob> {
   const res=await rispostaServerPos({azione:"anteprima_pdf",company_id:companyId,pos_id:posId});
   if(!res.ok) {
     const testo=await res.text().catch(()=>"");

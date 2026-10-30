@@ -8,6 +8,7 @@ import { sha256Hex } from "./improntaDocumento.ts";
 import { generaPdfPos } from "./posPdf.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
 import { leggiLegamePdfPos } from "./posPdfLegame.ts";
+import { fontsRiferimentoPos } from "./posGlifi.ts";
 
 pdfMake.addVirtualFileSystem(vfs);
 const emissioneId = "33333333-3333-4333-8333-333333333333";
@@ -42,4 +43,12 @@ Deno.test("Legame: ciò che non è un PDF intero non lancia eccezioni e non dich
   assert.equal(leggiLegamePdfPos(strToU8("non sono un PDF")), null);
   assert.equal(leggiLegamePdfPos(new Uint8Array()), null);
   assert.equal(leggiLegamePdfPos(pdf.slice(0, Math.floor(pdf.length / 2))), null);
+});
+
+Deno.test("Font: i due Roboto del server hanno gli stessi byte di quelli che il client incorpora nel PDF del browser", async () => {
+  // Gli stessi due valori sono verificati lato client in src/test/logic/posPdfBrowserMotore.test.ts contro il pdfmake del client.
+  assert.deepEqual(await fontsRiferimentoPos(), [
+    { nome: "Roboto-Regular.ttf", sha256: "ab9c18a75da1636435afd2398ffce325496644a8f258f918c92c4baf34a68625" },
+    { nome: "Roboto-Medium.ttf", sha256: "4cb9d8a346d7d9190ef145daad9a85d58e2592043b199cdb8ed52ff535c64047" },
+  ]);
 });
