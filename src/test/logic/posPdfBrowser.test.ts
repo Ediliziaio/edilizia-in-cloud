@@ -88,25 +88,29 @@ describe("Annullare mentre il PDF si prepara", () => {
     expect(chiamate).toEqual([]);
   });
 
-  it("annullando mentre il server prepara, appena la prenotazione c'è la libera e non disegna", async () => {
+  it("annullando mentre il server prepara, la fase diventa «annullo» SUBITO (il server può metterci un po' a rispondere) e, appena la prenotazione c'è, la libera e non disegna", async () => {
     const attesa = aspetta<unknown>();
-    const { dip, chiamate } = prova({ chiama: (c) => c.azione === "prepara_emissione" ? attesa.promessa : { ok: true } });
+    const { dip, chiamate, fasi, opzioni } = prova({ chiama: (c) => c.azione === "prepara_emissione" ? attesa.promessa : { ok: true } });
     const c = new AbortController();
-    const esito = emettiPdfConBrowser(dip, richiesta, { segnale: c.signal });
+    const esito = emettiPdfConBrowser(dip, richiesta, opzioni(c.signal));
     const atteso = expect(esito).rejects.toBeInstanceOf(ErroreAnnullato);
-    c.abort(); attesa.ok(prenotazione);
+    c.abort();
+    expect(fasi).toEqual(["prepara", "annullo"]);   // prima ancora che il server risponda
+    attesa.ok(prenotazione);
     await atteso;
     expect(dip.disegna).not.toHaveBeenCalled();
     expect(chiamate.map((x) => x.azione)).toEqual(["prepara_emissione", "annulla_emissione"]);
+    expect(fasi).toEqual(["prepara", "annullo"]);   // e nessun'altra fase dopo
   });
 
   it("annullando mentre il Worker disegna, il disegno si ferma, la prenotazione si libera e NON è un errore di disegno (niente ripiego sul server)", async () => {
-    const { dip, chiamate } = prova({ disegna: (_p, segnale) => new Promise((_ok, ko) => { segnale?.addEventListener("abort", () => ko(new ErroreAnnullato())); }) });
+    const { dip, chiamate, fasi, opzioni } = prova({ disegna: (_p, segnale) => new Promise((_ok, ko) => { segnale?.addEventListener("abort", () => ko(new ErroreAnnullato())); }) });
     const c = new AbortController();
-    const esito = emettiPdfConBrowser(dip, richiesta, { segnale: c.signal });
+    const esito = emettiPdfConBrowser(dip, richiesta, opzioni(c.signal));
     const atteso = expect(esito).rejects.toBeInstanceOf(ErroreAnnullato);
     await vi.waitFor(() => expect(dip.disegna).toHaveBeenCalled());
     c.abort();
+    expect(fasi).toEqual(["prepara", "disegna", "annullo"]);
     await atteso;
     expect(chiamate.at(-1)?.azione).toBe("annulla_emissione");
     expect(dip.carica).not.toHaveBeenCalled();
@@ -114,13 +118,14 @@ describe("Annullare mentre il PDF si prepara", () => {
 
   it("una volta iniziato il caricamento non si annulla più: il server potrebbe già aver conservato, e il risultato conta", async () => {
     const attesa = aspetta<{ emissione_id: string; approvato_da_nome?: string }>();
-    const { dip, chiamate } = prova({ carica: () => attesa.promessa });
+    const { dip, chiamate, fasi, opzioni } = prova({ carica: () => attesa.promessa });
     const c = new AbortController();
-    const esito = emettiPdfConBrowser(dip, richiesta, { segnale: c.signal });
+    const esito = emettiPdfConBrowser(dip, richiesta, opzioni(c.signal));
     await vi.waitFor(() => expect(dip.carica).toHaveBeenCalled());
     c.abort(); attesa.ok({ emissione_id: "emissione-1", approvato_da_nome: "Mario Rossi" });
     expect(await esito).toEqual({ emissioneId: "emissione-1", approvatoDaNome: "Mario Rossi" });
     expect(chiamate.map((x) => x.azione)).toEqual(["prepara_emissione"]);
+    expect(fasi).toEqual(["prepara", "disegna", "conserva"]);   // nessun «annullo»: l'operazione non si ferma, e l'avviso sarebbe falso
   });
 });
 
@@ -143,12 +148,13 @@ describe("Anteprima con il PDF disegnato dal browser", () => {
   });
 
   it("annullando mentre il Worker disegna, l'anteprima si ferma senza ripiego e senza errori", async () => {
-    const { dip } = prova({ chiama: () => anteprima, disegna: (_p, segnale) => new Promise((_ok, ko) => { segnale?.addEventListener("abort", () => ko(new ErroreAnnullato())); }) });
+    const { dip, fasi, opzioni } = prova({ chiama: () => anteprima, disegna: (_p, segnale) => new Promise((_ok, ko) => { segnale?.addEventListener("abort", () => ko(new ErroreAnnullato())); }) });
     const c = new AbortController();
-    const esito = anteprimaPdfConBrowser(dip, { companyId: "azienda-a", posId: "pos-1" }, { segnale: c.signal });
+    const esito = anteprimaPdfConBrowser(dip, { companyId: "azienda-a", posId: "pos-1" }, opzioni(c.signal));
     const atteso = expect(esito).rejects.toBeInstanceOf(ErroreAnnullato);
     await vi.waitFor(() => expect(dip.disegna).toHaveBeenCalled());
     c.abort();
+    expect(fasi).toEqual(["prepara", "disegna", "annullo"]);
     await atteso;
   });
 });

@@ -202,7 +202,9 @@ describe("Avanzamento, annullamento e messaggi", () => {
     act(() => { esito = h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" }); });
     await waitFor(() => expect(h.result.current.fase).toBe("disegna"));
     act(() => { h.result.current.annulla(); });
+    expect(h.result.current.fase).toBe("annullo");   // il riscontro è immediato: il pulsante dice «Annullo…» finché il server non ha liberato la prenotazione
     expect((await esito).annullato).toBe(true);
+    await waitFor(() => expect(h.result.current.fase).toBeNull());
     expect(azioni()).toEqual(["prepara_emissione", "annulla_emissione"]);
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();

@@ -15,6 +15,7 @@ describe("Fasi del PDF", () => {
     expect(etichettaFasePdf("disegna")).toBe("Disegno il PDF…");
     expect(etichettaFasePdf("conserva")).toBe("Lo conservo…");
     expect(etichettaFasePdf("server")).toBe("Lo preparo sul server…");
+    expect(etichettaFasePdf("annullo")).toBe("Annullo…");        // il riscontro subito dopo il clic su «Annulla»
     expect(etichettaFasePdf(null)).toBeUndefined();
   });
 
@@ -37,8 +38,8 @@ describe("Annulla", () => {
     }
   });
 
-  it("non compare quando non si può più fermare (si conserva, o lavora il server) né quando non c'è nulla in corso", () => {
-    for (const fase of ["conserva", "server", null] as const) {
+  it("non compare quando non si può più fermare (si conserva, o lavora il server), né mentre si annulla, né quando non c'è nulla in corso", () => {
+    for (const fase of ["conserva", "server", "annullo", null] as const) {
       const { container, unmount } = render(<AnnullaPdf fase={fase} onAnnulla={vi.fn()} />);
       expect(container.querySelector("button")).toBeNull();
       unmount();
