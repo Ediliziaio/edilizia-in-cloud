@@ -11,7 +11,8 @@
 --      la stessa regola: niente fatture sulla commessa dell'unità.
 --   3. Il riepilogo della generale:
 --      · conta fatture e incassi registrati sulla generale stessa (SAL di
---        contratto fatturato sul contratto);
+--        contratto fatturato sul contratto), e anche le fatture fatte con la
+--        fatturazione dell'app (documenti_fiscali), non solo le importate;
 --      · dice quali figlie sono unità divise (valgono zero: non sono «in perdita»);
 --      · dà per ogni figlia caparre e acconti incassati (per la fideiussione 122/2005).
 --
@@ -261,6 +262,49 @@ as $$
      and not exists (select 1 from f join public.invoices i3 on i3.id = f.id where i3.order_id = u.order_id);
 $$;
 
+-- Le fatture di un gruppo di commesse, con le stesse regole del cruscotto:
+--   · fatture dell'app (documenti_fiscali, legate con ordine_id): fattura e fattura PA
+--     in più, nota di credito in meno; bozze, annullate e rifiutate no;
+--   · fatture importate (invoices): solo fatture vere, al netto delle note collegate,
+--     e non la copia di una fattura dell'app (stessa commessa, stesso giorno, stesso totale).
+-- Importi IVA compresa, come la scala della generale.
+create or replace function public.generale_fatture_righe(p_azienda uuid, p_ordini uuid[])
+returns table (order_id uuid, fatturato numeric, incassato numeric)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with app as (
+    select d.ordine_id as order_id, d.data_emissione as giorno,
+           case when d.tipo = 'nota_credito' then -1 else 1 end * coalesce(d.totale_documento, 0) as fatturato,
+           case when d.tipo = 'nota_credito' then 0
+                when d.stato = 'pagata' then coalesce(d.totale_documento, 0)
+                else least(coalesce(d.importo_pagato, 0), coalesce(d.totale_documento, 0)) end as incassato,
+           coalesce(d.totale_documento, 0) as totale
+      from public.documenti_fiscali d
+     where d.company_id = p_azienda and d.deleted_at is null
+       and d.ordine_id = any (p_ordini)
+       and d.tipo in ('fattura', 'fattura_pa', 'nota_credito')
+       and coalesce(d.stato, '') not in ('bozza', 'annullata', 'rifiutata')
+  )
+  select a.order_id, a.fatturato, a.incassato from app a
+  union all
+  select i.order_id,
+         coalesce(i.total, 0) - public.nc_collegate_importo(i.id),
+         case when i.status in ('paid', 'pagata') then coalesce(i.total, 0) - public.nc_collegate_importo(i.id)
+              else least(coalesce(i.paid_amount, 0), coalesce(i.total, 0)) end
+    from public.invoices i
+   where i.company_id = p_azienda
+     and i.order_id = any (p_ordini)
+     and i.deleted_at is null
+     and i.document_type in ('invoice', 'fattura', 'fattura_accompagnatoria', 'parcella')
+     and i.status not in ('cancelled', 'canceled', 'annullata', 'credited')
+     and not exists (select 1 from app a where a.order_id = i.order_id and a.giorno = i.issue_date and abs(a.totale - coalesce(i.total, 0)) < 0.01);
+$$;
+
+revoke all on function public.generale_fatture_righe(uuid, uuid[]) from public, anon, authenticated;
+
 create or replace function public.commessa_generale_riepilogo(p_generale_id uuid)
 returns jsonb
 language plpgsql
@@ -311,17 +355,9 @@ begin
      where o.commessa_generale_id = p_generale_id and o.deleted_at is null
   ),
   fatture as (
-    select i.order_id,
-           sum(coalesce(i.total, 0) - public.nc_collegate_importo(i.id)) as fatturato,
-           sum(case when i.status in ('paid', 'pagata') then coalesce(i.total, 0) - public.nc_collegate_importo(i.id)
-                    else least(coalesce(i.paid_amount, 0), coalesce(i.total, 0)) end) as incassato
-      from public.invoices i
-     where i.order_id in (select id from figlie)
-       and i.company_id = v_azienda
-       and i.deleted_at is null
-       and i.document_type in ('invoice', 'fattura', 'fattura_accompagnatoria', 'parcella')
-       and i.status not in ('cancelled', 'canceled', 'annullata', 'credited')
-     group by i.order_id
+    select x.order_id, sum(x.fatturato) as fatturato, sum(x.incassato) as incassato
+      from public.generale_fatture_righe(v_azienda, array(select id from figlie)) x
+     group by x.order_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', f.id, 'codice', f.order_code, 'nome', f.description,
@@ -344,16 +380,10 @@ begin
 
   -- Fatture registrate sulla generale stessa (es. SAL di contratto fatturato sul contratto).
   select case when v_importi then jsonb_build_object(
-           'fatturato', coalesce(sum(coalesce(i.total, 0) - public.nc_collegate_importo(i.id)), 0),
-           'incassato', coalesce(sum(case when i.status in ('paid', 'pagata') then coalesce(i.total, 0) - public.nc_collegate_importo(i.id)
-                                          else least(coalesce(i.paid_amount, 0), coalesce(i.total, 0)) end), 0)) end
+           'fatturato', coalesce(sum(x.fatturato), 0),
+           'incassato', coalesce(sum(x.incassato), 0)) end
     into v_fatture_generale
-    from public.invoices i
-   where i.order_id = p_generale_id
-     and i.company_id = v_azienda
-     and i.deleted_at is null
-     and i.document_type in ('invoice', 'fattura', 'fattura_accompagnatoria', 'parcella')
-     and i.status not in ('cancelled', 'canceled', 'annullata', 'credited');
+    from public.generale_fatture_righe(v_azienda, array[p_generale_id]) x;
 
   return jsonb_build_object(
     'generale', v_generale,
