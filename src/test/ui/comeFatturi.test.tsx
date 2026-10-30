@@ -156,13 +156,13 @@ describe("registrare la scelta", () => {
     expect(cardNativa()).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("tornare a «un altro programma» dice che le fatture fatte qui non si cancellano", async () => {
+  it("tornare a «un altro programma» dice che le fatture fatte qui restano in elenco e che non se ne creano di nuove", async () => {
     s.azienda = { ...SCELTO_NATIVO };
     vedi();
     fireEvent.click(cardEsterna());
     const dialogo = await screen.findByRole("alertdialog");
     expect(within(dialogo).getByText("Fatturi con un altro programma?")).toBeInTheDocument();
-    expect(dialogo).toHaveTextContent("Le fatture fatte con Edilizia in Cloud non si cancellano: le ritrovi se tornerai a questa scelta.");
+    expect(dialogo).toHaveTextContent("Le fatture fatte con Edilizia in Cloud non si cancellano: restano in Fatture accanto a quelle del programma, ma da qui non ne crei di nuove.");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Sì, fatturo con un altro programma" }));
     await waitFor(() => expect(s.scritture).toHaveLength(1));
     expect(s.scritture[0].payload).toMatchObject({ billing_mode: "external" });

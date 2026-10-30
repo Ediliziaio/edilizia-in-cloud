@@ -24,6 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Search, Truck, Link2, ArrowRightLeft, Users } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
+import { useBillingMode } from "@/contexts/BillingModeContext";
+import { ClientiFiscaliImportatiTable } from "@/components/fatturazione/HubEsterno";
 
 const TIPO_COLORS: Record<string, string> = {
   B2B: "bg-blue-100 text-blue-700",
@@ -59,6 +61,8 @@ export default function AnagraficheList({
   const [mainTab, setMainTab] = useState<"anagrafiche" | "riconciliazione">(
     "anagrafiche",
   );
+  // Chi fattura con un altro programma: i clienti vengono dalle fatture importate.
+  const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
 
   return (
     <div className={cn("space-y-6", !embedded && "p-6")}>
@@ -118,7 +122,7 @@ export default function AnagraficheList({
         </TabsList>
 
         <TabsContent value="anagrafiche">
-          <AnagraficheTable />
+          {esterna ? <ClientiFiscaliImportatiTable /> : <AnagraficheTable />}
         </TabsContent>
 
         <TabsContent value="riconciliazione">

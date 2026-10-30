@@ -133,7 +133,7 @@ describe("dalla fattura si vedono, annullano e abbinano gli incassi (30/10/2026)
 
   it("elenco: «Incassi e banca» è una voce del menu della riga, non una scheda", () => {
     expect(elenco).toContain("<IncassiFatturaDialog");
-    expect(elenco).toMatch(/!isMobile && haIncassi\(doc\) && \(\s*<DropdownMenuItem onClick=\{\(\) => setIncassiId\(doc\.id\)\}>/);
+    expect(elenco).toMatch(/!isMobile && !esterna && haIncassi\(doc\) && \(\s*<DropdownMenuItem onClick=\{\(\) => setIncassiId\(doc\.id\)\}>/);
   });
 
   it("una fattura scaduta si incassa come le altre", () => {

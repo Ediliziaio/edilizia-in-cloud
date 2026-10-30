@@ -175,12 +175,12 @@ export const macroAreas: MacroArea[] = [
     title: "Finanza",
     icon: Euro,
     items: [
-      // ─── Sub-gruppo: Fatturazione e Documenti (billing_native) ───
-      { title: "Fatture", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", groupLabel: "Fatturazione e Documenti" },
+      // ─── Sub-gruppo: Fatturazione e Documenti ───
+      // Una voce sola per entrambi i modi: chi fattura con un altro programma usa lo
+      // stesso hub (senza creare documenti). Flag di piano: documenti, come la rotta.
+      { title: "Fatture", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti", groupLabel: "Fatturazione e Documenti" },
       // Report Fiscali e Impostazioni Fatt. rimosse dalla sidebar (non navigazione quotidiana).
       // Le pagine restano intatte e raggiungibili dall'header della pagina Fatture.
-      // ─── Fatturazione esterna (billing_external) ───
-      { title: "Fatturazione", url: "/azienda/fatturazione", icon: Receipt, permissionKey: "canViewBilling", featureKey: "billing_external", groupLabel: "Fatturazione e Documenti" },
       { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "fatturazione" },
       // Le fatture dei FORNITORI arrivano comunque, che tu emetta con un
       // gestionale esterno o dal modulo nativo: marcarla "billing_external"
@@ -313,10 +313,9 @@ export const internalNavItems: NavItem[] = [
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewCosts", moduleKey: "forecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", category: "internal", subcategory: "gi_finanza" },
-  { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
   { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewScadenzario", featureKey: "fatturazione", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti", category: "internal", subcategory: "gi_finanza" },
-  { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
+  { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti", category: "internal", subcategory: "gi_finanza" },
   // "Report" rimosso da internalNavItems (allineato con rimozione da sidebar principale)
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", category: "internal", subcategory: "gi_finanza" },
   

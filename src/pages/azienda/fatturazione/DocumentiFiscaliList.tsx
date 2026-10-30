@@ -59,6 +59,10 @@ import AnagraficheList from "./AnagraficheList";
 import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
 import FiscalWorkspace from "@/components/fatturazione/FiscalWorkspace";
+import { useBillingMode } from "@/contexts/BillingModeContext";
+import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
+import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaPagataImportataDialog, importataPagabile, PROVIDER_LABELS } from "@/components/fatturazione/GestionaleEsterno";
+import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
@@ -197,6 +201,10 @@ function DocumentiFiscaliHub() {
     setSearchParams(next, { replace: false });
   };
 
+  // Chi fattura con un altro programma vede le stesse schede: dove il dato nativo
+  // non c'è (incassi, invii SDI) la scheda legge le fatture importate o lo dice.
+  const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
+
   // Mobile: colonna flessibile, così le linguette (order -1) scendono sotto il
   // titolo della scheda (order -2), che sta dentro il componente figlio.
   return (
@@ -205,8 +213,8 @@ function DocumentiFiscaliHub() {
 
       {activeHubTab === "fatture" && <DocumentiFiscaliListInner />}
       {activeHubTab === "rubrica" && <AnagraficheList embedded />}
-      {activeHubTab === "incassi" && <RegistroIncassi embedded />}
-      {activeHubTab === "sdi" && <CassettoSDI embedded />}
+      {activeHubTab === "incassi" && (esterna ? <RegistroIncassiImportate /> : <RegistroIncassi embedded />)}
+      {activeHubTab === "sdi" && (esterna ? <CassettoSdiEsterno /> : <CassettoSDI embedded />)}
       {activeHubTab === "fiscalita" && <FiscalWorkspace />}
     </div>
   );
@@ -227,10 +235,24 @@ function DocumentiFiscaliListInner() {
   const { effectiveCompany } = useAuth();
   const [abbinaAperto, setAbbinaAperto] = useState(false);
 
+  // Chi fattura con un altro programma: vede anche le importate, non crea documenti.
+  const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
+  const puoCreare = !esterna && !isCommercialistaMode;
+  const [importataAperta, setImportataAperta] = useState<string | null>(null);
+  const [incassoImportata, setIncassoImportata] = useState<DocumentoFiscale | null>(null);
+  const apriDocumento = (doc: DocumentoFiscale) => {
+    // Le importate da un gestionale hanno il loro dettaglio (righe e XML originale);
+    // le vecchie fatture scritte a mano in `invoices`, senza gestionale, il loro.
+    if (doc.origine === "importata" && doc.external_provider) setImportataAperta(doc.id);
+    else if (doc.origine === "importata") navigate(`/azienda/fatturazione/${doc.id}`);
+    else navigate(`/azienda/documenti/${doc.id}/dettaglio`);
+  };
+
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
   const [statoFilter, setStatoFilter] = useState<string>("all");
-  const [searchRaw, setSearchRaw] = useState("");
+  // «?cerca=» arriva da Clienti fiscali: le fatture di quel cliente.
+  const [searchRaw, setSearchRaw] = useState(() => searchParams.get("cerca") ?? "");
   const search = useDebounce(searchRaw, 300);
   const [page, setPage] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
@@ -312,6 +334,7 @@ function DocumentiFiscaliListInner() {
       showDeleted: isTrash,
       ordinamento: (activeTab === "fattura" || activeTab === "nota_credito") ? "progressivo" as const : "data" as const,
       sdi: sdiFilter,
+      conImportate: esterna,
   };
 
   const { data, isLoading, isError, isFetching, refetch } = useDocumentiFiscali(filters);
@@ -445,6 +468,10 @@ function DocumentiFiscaliListInner() {
   }, [docs]);
 
   const hasFilters = statoFilter !== "all" || searchRaw || selectedMonth;
+  // Le fasi SDI e le bozze sono del documento nativo: a chi importa non servono.
+  const statiFiltro = esterna
+    ? STATI_FILTRO_DOCUMENTI.filter((o) => o.value !== "bozza" && !o.value.startsWith("sdi:"))
+    : STATI_FILTRO_DOCUMENTI;
 
   const clearFilters = () => {
     setStatoFilter("all");
@@ -458,7 +485,7 @@ function DocumentiFiscaliListInner() {
   const handleAction = async (action: string, doc: DocumentoFiscale) => {
     switch (action) {
       case "view":
-        navigate(`/azienda/documenti/${doc.id}/dettaglio`);
+        apriDocumento(doc);
         break;
       case "edit":
         navigate(`/azienda/documenti/${doc.id}`);
@@ -568,7 +595,11 @@ function DocumentiFiscaliListInner() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Fatturazione</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Gestisci documenti fiscali, SDI, incassi e scadenze operative.</p>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {esterna
+                  ? <>Le fatture del tuo gestionale, con incassi e scadenze<span className="max-sm:hidden">: si creano lì, qui si consultano e si abbinano alle commesse</span>.</>
+                  : "Gestisci documenti fiscali, SDI, incassi e scadenze operative."}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -590,17 +621,22 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Emesse importate</span>
               </Link>
             </Button>
+            {esterna && !isCommercialistaMode && effectiveCompany?.id && (
+              <GestionaleEsternoAzioni companyId={effectiveCompany.id} />
+            )}
             {!isCommercialistaMode && (
               <>
-                {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
+                {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
+                    Chi importa imposta il collegamento al gestionale, non la numerazione. */}
                 {!isMobile && (
                   <Button variant="outline" size="sm" asChild className="gap-1.5">
-                    <Link to="/azienda/impostazioni/fatturazione-nativa">
+                    <Link to={esterna ? "/azienda/impostazioni/fatturazione" : "/azienda/impostazioni/fatturazione-nativa"}>
                       <Settings2 className="h-4 w-4" />
                       <span className="hidden sm:inline">Impostazioni</span>
                     </Link>
                   </Button>
                 )}
+                {puoCreare && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:gap-1 max-sm:px-3 max-sm:text-xs">
@@ -626,11 +662,14 @@ function DocumentiFiscaliListInner() {
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {esterna && effectiveCompany?.id && <ImportInCorsoBanner companyId={effectiveCompany.id} />}
 
       {/* ── Monthly Timeline ───────────────────────────── */}
       {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
@@ -719,7 +758,7 @@ function DocumentiFiscaliListInner() {
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
-              {STATI_FILTRO_DOCUMENTI.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+              {statiFiltro.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
@@ -741,7 +780,7 @@ function DocumentiFiscaliListInner() {
         )}
       </div>
 
-      {!isTrash && (activeTab === "fattura" || activeTab === "nota_credito") && (
+      {!isTrash && !esterna && (activeTab === "fattura" || activeTab === "nota_credito") && (
         <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Le bozze senza numero sono in fondo all'anno; le trovi anche con il filtro Bozza.</p>
       )}
 
@@ -758,24 +797,26 @@ function DocumentiFiscaliListInner() {
                 <FileSpreadsheet className="h-4 w-4 mr-1.5" />
                 Esporta XLS
               </Button>
-              <Button variant="outline" size="sm" onClick={() => void handleBulkExportXml()}>
+              {!esterna && <Button variant="outline" size="sm" onClick={() => void handleBulkExportXml()}>
                 <FileText className="h-4 w-4 mr-1.5" />
                 Esporta XML (zip)
-              </Button>
+              </Button>}
             </>
           )}
 
-          {!isTrash && (
+          {!isTrash && !esterna && (
             <Button variant="outline" size="sm" onClick={() => setBulkPayOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1.5" />
               Segna pagati
             </Button>
           )}
 
-          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-1.5" />
-            Elimina
-          </Button>
+          {!esterna && (
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Elimina
+            </Button>
+          )}
 
           <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">
             <X className="h-4 w-4" />
@@ -824,9 +865,9 @@ function DocumentiFiscaliListInner() {
           <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4 max-sm:hidden" />
           <p className="text-lg font-medium max-sm:text-sm">{currentTab.emptyTitle}</p>
           <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">
-            {hasFilters ? "Prova a modificare i filtri." : currentTab.emptyDescription}
+            {hasFilters ? "Prova a modificare i filtri." : esterna ? "I documenti arrivano dal tuo gestionale a ogni sincronizzazione." : currentTab.emptyDescription}
           </p>
-          {!hasFilters && !isTrash && (
+          {!hasFilters && !isTrash && puoCreare && (
             <Button className="mt-4 max-sm:hidden" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=${currentTab.tipos?.[0] ?? "fattura"}`)}>
               <Plus className="h-4 w-4 mr-1" /> {currentTab.label === "Fatture" ? "Crea la tua prima fattura" : `Nuovo ${currentTab.label.toLowerCase().replace(/i$/, "o")}`}
             </Button>
@@ -844,7 +885,7 @@ function DocumentiFiscaliListInner() {
               <button
                 key={doc.id}
                 type="button"
-                onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
+                onClick={() => apriDocumento(doc)}
                 className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
               >
                 <div className="min-w-0 flex-1">
@@ -907,7 +948,7 @@ function DocumentiFiscaliListInner() {
                     <TableRow
                       key={doc.id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
+                      onClick={() => apriDocumento(doc)}
                     >
                       {/* Checkbox */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -963,7 +1004,7 @@ function DocumentiFiscaliListInner() {
                           <Badge className={cn("text-[10px]", ddtFatturato ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200")}>
                             {ddtFatturato ? "✓ Fatturato" : "⏳ Da fatturare"}
                           </Badge>
-                        ) : faseSdi(doc) ? (
+                        ) : doc.origine !== "importata" && faseSdi(doc) ? (
                           // Fattura elettronica: la fase SDI, e accanto l'incasso
                           // quando c'è (una fattura può essere pagata e mai inviata).
                           <div className="flex flex-wrap items-center gap-1">
@@ -980,6 +1021,9 @@ function DocumentiFiscaliListInner() {
                       {/* Cliente */}
                       <TableCell className="text-sm font-medium">
                         {doc.cliente_snapshot?.ragione_sociale || "—"}
+                        {doc.origine === "importata" && doc.external_provider && (
+                          <span className="block text-[11px] font-normal text-muted-foreground">da {PROVIDER_LABELS[doc.external_provider] ?? doc.external_provider}</span>
+                        )}
                       </TableCell>
 
                       {/* Storna Fattura (solo NC) */}
@@ -990,7 +1034,8 @@ function DocumentiFiscaliListInner() {
                               className="text-xs text-primary hover:underline"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
+                                if (doc.origine === "importata") setImportataAperta(doc.documento_correlato_id!);
+                                else navigate(`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
                               }}
                             >
                               Vedi fattura originale
@@ -1071,7 +1116,21 @@ function DocumentiFiscaliListInner() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {isTrash ? (
+                            {doc.origine === "importata" ? (
+                              // Fattura del gestionale: si consulta e si incassa, non si modifica.
+                              <>
+                                <DropdownMenuItem onClick={() => apriDocumento(doc)}>
+                                  <Eye className="h-4 w-4 mr-2" /> Visualizza
+                                </DropdownMenuItem>
+                                {importataPagabile(doc) && (
+                                  <DropdownMenuItem onClick={() => setIncassoImportata(doc)}>
+                                    <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
+                                  </DropdownMenuItem>
+                                )}
+                              </>
+                            ) : isTrash && esterna ? (
+                              <DropdownMenuItem disabled>Nel cestino</DropdownMenuItem>
+                            ) : isTrash ? (
                               <>
                                 <DropdownMenuItem onClick={() => handleAction("restore", doc)}>
                                   <RotateCcw className="h-4 w-4 mr-2" /> Ripristina
@@ -1086,14 +1145,16 @@ function DocumentiFiscaliListInner() {
                                 <DropdownMenuItem onClick={() => handleAction("view", doc)}>
                                   <Eye className="h-4 w-4 mr-2" /> Visualizza
                                 </DropdownMenuItem>
-                                {doc.stato === "bozza" && (
+                                {doc.stato === "bozza" && puoCreare && (
                                   <DropdownMenuItem onClick={() => handleAction("edit", doc)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Modifica
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
-                                  <Copy className="h-4 w-4 mr-2" /> Duplica
-                                </DropdownMenuItem>
+                                {puoCreare && (
+                                  <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
+                                    <Copy className="h-4 w-4 mr-2" /> Duplica
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 {/* Niente export su telefono. */}
                                 {!isMobile && (
@@ -1101,7 +1162,7 @@ function DocumentiFiscaliListInner() {
                                     <Download className="h-4 w-4 mr-2" /> Scarica PDF
                                   </DropdownMenuItem>
                                 )}
-                                {doc.tipo === "ddt" && (
+                                {doc.tipo === "ddt" && !esterna && (
                                   <DropdownMenuItem
                                     onClick={() => handleAction("save_pdf", doc)}
                                     disabled={ddtPdf.isUploading}
@@ -1117,7 +1178,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* Proforma: converti in fattura */}
-                                {doc.tipo === "proforma" && doc.stato !== "annullata" && (
+                                {puoCreare && doc.tipo === "proforma" && doc.stato !== "annullata" && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_proforma", doc)}>
@@ -1127,7 +1188,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* DDT: fattura da DDT */}
-                                {doc.tipo === "ddt" && !doc.ddt_fattura_id && (
+                                {puoCreare && doc.tipo === "ddt" && !doc.ddt_fattura_id && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("fattura_ddt", doc)}>
@@ -1137,7 +1198,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* Fatture: NC */}
-                                {NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo) && (
+                                {puoCreare && NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo) && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => handleAction("nc", doc)}>
@@ -1150,13 +1211,14 @@ function DocumentiFiscaliListInner() {
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
-                                {/* Storico, annulla incasso, abbina al bonifico. Da telefono no. */}
-                                {!isMobile && haIncassi(doc) && (
+                                {/* Storico, annulla incasso, abbina al bonifico. Da telefono no.
+                                    Solo fatture native: le importate hanno il loro registro. */}
+                                {!isMobile && !esterna && haIncassi(doc) && (
                                   <DropdownMenuItem onClick={() => setIncassiId(doc.id)}>
                                     <Landmark className="h-4 w-4 mr-2" /> Incassi e banca
                                   </DropdownMenuItem>
                                 )}
-                {isDocumentoEliminabile(doc) && (
+                {!esterna && isDocumentoEliminabile(doc) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
@@ -1228,7 +1290,7 @@ function DocumentiFiscaliListInner() {
             titolo="Stato"
             valore={statoFilter}
             onScegli={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}
-            scelte={STATI_FILTRO_DOCUMENTI}
+            scelte={statiFiltro}
           />
         )}
       </PannelloFiltri>
@@ -1322,6 +1384,12 @@ function DocumentiFiscaliListInner() {
       />
     </div>
 
+      {effectiveCompany?.id && importataAperta && (
+        <EmessaImportataDettaglio key={importataAperta} id={importataAperta} companyId={effectiveCompany.id} onClose={() => setImportataAperta(null)} />
+      )}
+      {effectiveCompany?.id && (
+        <SegnaPagataImportataDialog fattura={incassoImportata} companyId={effectiveCompany.id} onClose={() => setIncassoImportata(null)} />
+      )}
       {effectiveCompany?.id && (
         <AbbinaFattureCommesseDialog
           open={abbinaAperto}
