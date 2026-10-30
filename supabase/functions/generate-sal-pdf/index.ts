@@ -4,7 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 
-import {buildSalHtml,type SalRecord} from "./render.ts";
+import {buildSalHtml,type ContrattoSal,type SalRecord} from "./render.ts";
 import {maturatoPrecedente} from "../_shared/salNetto.ts";
 
 Deno.serve(async (req) => {
@@ -85,6 +85,12 @@ Deno.serve(async (req) => {
     const {data:prior,error:priorError}=await supabase.from("sal_records").select("id,numero_sal,stato,importo_totale").eq("order_id",sal.order_id).eq("company_id",company_id).lt("numero_sal",sal.numero_sal).in("stato",["emesso","approvato","firmato"]).order("numero_sal",{ascending:false}).limit(2);
     if(priorError || (prior?.length===2 && prior[0].numero_sal===prior[1].numero_sal))throw new Error("Storico SAL non verificabile o numerazione duplicata");
     const previous=maturatoPrecedente(sal,prior??[]);
+    // SAL di contratto di una commessa generale: periodo, ritenuta, anticipazione e netto.
+    // Per i SAL di commessa non c'è la riga e il documento resta com'era.
+    const {data:contrattoSal,error:contrattoError}=await supabase.from("generale_sal").select("periodo_dal,periodo_al,lordo,ritenuta_pct,ritenuta,recupero_pct,recupero_anticipazione,netto,riferimento_contratto,cig,cup,split_payment,reverse_charge").eq("sal_id",sal_id).eq("company_id",company_id).maybeSingle();
+    // Tabella non ancora creata (funzione pubblicata prima della migrazione): come un SAL di commessa.
+    if(contrattoError && !["42P01","PGRST205"].includes(contrattoError.code ?? ""))throw new Error("Dati del contratto del SAL non verificabili");
+    const contratto=(contrattoSal ?? null) as ContrattoSal|null;
 
     // Fetch azienda
     const { data: azienda } = await supabase
@@ -113,7 +119,7 @@ Deno.serve(async (req) => {
       sal_voci: Array.isArray(sal.sal_voci) ? sal.sal_voci : [],
     };
     // Validate before granting a public signature link.
-    buildSalHtml(salWithVoci,order,azienda,null,undefined,previous);
+    buildSalHtml(salWithVoci,order,azienda,null,undefined,previous,contratto);
 
     // Token di firma per il committente: RIUSA quello ancora valido e non
     // firmato — prima ogni export ne inseriva uno nuovo, lasciando righe
@@ -160,7 +166,7 @@ Deno.serve(async (req) => {
       ? `${branding.siteUrl}/firma-sal/${signToken.token}`
       : null;
 
-    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter,previous);
+    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter,previous,contratto);
     const filename = `sal-${sal.numero_sal}-${sal.data_emissione}.html`;
 
     return new Response(JSON.stringify({ html, filename, signature_url: signatureUrl, signature_token: signToken?.token }), {

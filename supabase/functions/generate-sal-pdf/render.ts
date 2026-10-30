@@ -58,6 +58,50 @@ interface Azienda {
   email?: string | null;
 }
 
+/**
+ * SAL di contratto di una commessa generale (tabella generale_sal): periodo, dati del contratto
+ * e lordo → ritenuta → recupero dell'anticipazione → netto. Assente per i SAL di commessa.
+ */
+export interface ContrattoSal {
+  periodo_dal: string | null;
+  periodo_al: string | null;
+  lordo: number;
+  ritenuta_pct: number;
+  ritenuta: number;
+  recupero_pct: number;
+  recupero_anticipazione: number;
+  netto: number;
+  riferimento_contratto: string | null;
+  cig: string | null;
+  cup: string | null;
+  split_payment: boolean;
+  reverse_charge: boolean;
+}
+
+function fmtPct(n: number): string {
+  return `${Number(n).toLocaleString("it-IT", {maximumFractionDigits:4})}%`;
+}
+
+/** Il blocco del contratto sotto la quota nuova: dal lordo al netto da liquidare. */
+export function buildContrattoHtml(c: ContrattoSal, daFatturare: number): string {
+  const n=(v:unknown)=>Number(v);
+  if(![c.lordo,c.ritenuta,c.recupero_anticipazione,c.netto].every(v=>Number.isFinite(n(v))))throw new Error("Importi del SAL di contratto non validi");
+  if(Math.abs(n(c.lordo)-daFatturare)>0.01)throw new Error("Lordo del SAL di contratto diverso dalla quota nuova: verificare lo storico");
+  if(Math.abs(n(c.lordo)-n(c.ritenuta)-n(c.recupero_anticipazione)-n(c.netto))>0.01)throw new Error("Netto del SAL di contratto non coerente");
+  const riga=(etichetta:string,valore:number,forte=false)=>`<tr style="border-bottom:1px solid #f1f5f9;${forte?"font-weight:700;":""}"><td style="padding:6px 10px;font-size:9pt;">${etichetta}</td><td style="padding:6px 10px;text-align:right;font-size:9pt;">${fmtEur(valore)}</td></tr>`;
+  const iva=c.split_payment ? "Fattura in scissione dei pagamenti (art. 17-ter DPR 633/72): l'IVA è versata dal committente." : c.reverse_charge ? "Fattura in inversione contabile (art. 17, c. 6, DPR 633/72): senza IVA." : "";
+  return `
+  <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;margin:0 0 20px;">
+    <tbody>
+      ${riga("Lavori di questo SAL",n(c.lordo),true)}
+      ${riga(`Ritenuta di garanzia ${fmtPct(c.ritenuta_pct)}`,-n(c.ritenuta))}
+      ${n(c.recupero_anticipazione)!==0 ? riga(`Recupero dell'anticipazione ${fmtPct(c.recupero_pct)}`,-n(c.recupero_anticipazione)) : ""}
+      ${riga("Netto da liquidare",n(c.netto),true)}
+    </tbody>
+  </table>
+  ${iva ? `<p style="margin:-12px 0 20px;font-size:8pt;color:#64748b;">${escHtml(iva)}</p>` : ""}`;
+}
+
 const STATO_LABELS: Record<string, string> = {
   bozza: "BOZZA",
   emesso: "EMESSO",
@@ -65,7 +109,7 @@ const STATO_LABELS: Record<string, string> = {
   firmato: "FIRMATO DAL CLIENTE",
 };
 
-export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null, brandFooter?: string, previous=0): string {
+export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null, brandFooter?: string, previous=0, contratto: ContrattoSal | null = null): string {
   const colore = /^#[a-f0-9]{6}$/i.test(azienda.colore_primario??"") ? azienda.colore_primario! : "#0ea5e9";
   const voci: SalVoce[] = sal.sal_voci || [];
   if(!voci.length || voci.some(v=>!v.descrizione?.trim() || !Number.isFinite(Number(v.importo_sal)) || Number(v.importo_sal)<0 || !Number.isFinite(Number(v.importo_contrattuale)) || Number(v.importo_contrattuale)<0 || !Number.isFinite(Number(v.percentuale_avanzamento)) || Number(v.percentuale_avanzamento)<0 || Number(v.percentuale_avanzamento)>100 || Math.floor((Math.round(Number(v.importo_contrattuale)*100)*Math.round(Number(v.percentuale_avanzamento)*100)+5_000)/10_000)!==Math.round(Number(v.importo_sal)*100)))throw new Error("Voci SAL incomplete o non valide");
@@ -74,6 +118,9 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const totaleSal = Math.round(voci.reduce((s,v)=>s+Math.round(Number(v.importo_sal)*100),0))/100;
   if(!Number.isFinite(Number(sal.importo_totale)) || Math.abs(totaleSal-Number(sal.importo_totale))>0.01 || !Number.isFinite(previous))throw new Error("Totale SAL non coerente: verificare voci e storico");
   const economic=nettoSal(totaleSal,previous);
+  const contrattoHtml=contratto ? buildContrattoHtml(contratto,economic.daFatturare) : "";
+  const datiContratto=contratto ? [contratto.riferimento_contratto && `Contratto ${contratto.riferimento_contratto}`, contratto.cig && `CIG ${contratto.cig}`, contratto.cup && `CUP ${contratto.cup}`].filter(Boolean).join(" · ") : "";
+  const periodo=contratto?.periodo_al ? `Lavori ${contratto.periodo_dal ? `dal ${fmtDate(contratto.periodo_dal)} ` : ""}al ${fmtDate(contratto.periodo_al)}` : "";
   const percMedia = totaleContrattuale > 0 ? (totaleSal / totaleContrattuale) * 100 : 0;
 
   const indirizzo = [azienda.indirizzo, azienda.cap, azienda.citta].filter(Boolean).join(", ");
@@ -153,6 +200,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       }
       ${cliente ? `<div style="font-size:9pt;color:#475569;margin-top:4px;">Committente: ${escHtml(cliente)}${order?.customer?.address ? ` — ${escHtml(order.customer.address)}` : ""}</div>` : ""}
       ${indirizzoCantiere ? `<div style="font-size:9pt;color:#475569;margin-top:4px;">Cantiere: ${escHtml(indirizzoCantiere)}</div>` : ""}
+      ${datiContratto ? `<div style="font-size:9pt;color:#475569;margin-top:4px;">${escHtml(datiContratto)}</div>` : ""}
+      ${periodo ? `<div style="font-size:9pt;color:#475569;margin-top:4px;">${periodo}</div>` : ""}
       <div style="font-size:8pt;color:#94a3b8;margin-top:2px;">Data emissione: ${fmtDate(sal.data_emissione)}</div>
     </div>
     <div style="text-align:right;">
@@ -206,6 +255,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     <p style="margin-top:8px;color:#64748b;">Importi IVA esclusa. Questo documento non è una fattura e non attesta un pagamento. Acconti e fatture già emesse devono essere verificati prima della fatturazione.</p>
     ${sal.stato === "bozza" ? '<p style="margin-top:8px;color:#b45309;font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}
   </div>
+  ${contrattoHtml}
   ${sal.note ? `
   <div style="background:#f8fafc;border-left:3px solid ${colore};padding:10px 14px;border-radius:0 4px 4px 0;margin-bottom:20px;">
     <div style="font-size:8pt;font-weight:600;color:#475569;margin-bottom:3px;">NOTE</div>
