@@ -36,6 +36,7 @@ vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () =>
 vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
   useAvanzamentoCommessa: () => ({ percentuale: null as number | null, peso: "uguale", daMostrare: (locale: unknown) => locale }),
 }));
+vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true, sabato: false, setSabato: () => {} }) }));
 vi.mock("@/hooks/useSottofasi", () => ({ useSottofasi: () => ({ perFase: stato.sottofasi }) }));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({ useCostiMaterialiFasi: () => ({ data: { acquisti: [] as unknown[], movimenti: [] as unknown[] } }) }));
 vi.mock("@/hooks/useVociPrevisteFasi", () => ({ useVociPrevisteFasi: () => ({ data: [] as unknown[] }) }));

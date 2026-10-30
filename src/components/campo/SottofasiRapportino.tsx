@@ -1,7 +1,9 @@
 // src/components/campo/SottofasiRapportino.tsx
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { avanzamentoDaSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
+import { avanzamentoDaSottofasi, intervalloSottofase, type Sottofase } from "@/lib/orders/sottofasi";
+import { giornoLocale } from "@/lib/orders/cronoprogramma";
+import { testoPiano } from "@/components/orders/SottofasiFase";
 
 interface SottofasiRapportinoProps {
   nomeFase: string;
@@ -14,6 +16,8 @@ interface SottofasiRapportinoProps {
 /** Nel rapportino del capocantiere: le sottofasi di una fase, al posto dello slider. */
 export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta }: SottofasiRapportinoProps) {
   const fatta = (s: Sottofase) => s.fatta || spunte.includes(s.id);
+  const oggi = giornoLocale(new Date().toISOString());
+  const inRitardo = (s: Sottofase) => { const i = intervalloSottofase(s); return !fatta(s) && !!i && i[1] < oggi; };
   const anteprima = avanzamentoDaSottofasi(sottofasi.map((s) => ({ peso: s.peso, fatta: fatta(s) }))) ?? 0;
   return (
     <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
@@ -31,8 +35,13 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta }: S
                 onCheckedChange={(v) => onSpunta(s.id, v === true)}
                 aria-label={`${s.name}: ${s.fatta ? "già fatta" : "da fare"}`}
               />
-              <span className={cn(fatta(s) && "text-muted-foreground line-through")}>{s.name}</span>
-              {s.fatta && <span className="text-[11px] text-muted-foreground">già fatta</span>}
+              <span className="min-w-0 flex-1">
+                <span className={cn(fatta(s) && "text-muted-foreground line-through")}>{s.name}</span>
+                {testoPiano(s) && <span className={cn("block text-[11px] tabular-nums", inRitardo(s) ? "font-medium text-rose-700" : "text-muted-foreground")}>
+                  {testoPiano(s)}{inRitardo(s) ? " · in ritardo" : ""}
+                </span>}
+              </span>
+              {s.fatta && <span className="shrink-0 text-[11px] text-muted-foreground">già fatta</span>}
             </label>
           </li>
         ))}

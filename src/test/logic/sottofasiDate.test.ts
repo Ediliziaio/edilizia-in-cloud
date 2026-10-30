@@ -1,7 +1,7 @@
 // src/test/logic/sottofasiDate.test.ts
 import { describe, expect, it } from "vitest";
 import {
-  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, pianoInSequenza, pianoSottofase, sottofaseDaRiga,
+  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, pianoInSequenza, calendarioCantiere, fasiDaSpostare, realeSottofase, pianoSottofase, sottofaseDaRiga,
 } from "@/lib/orders/sottofasi";
 import { sottofasiCronoprogramma } from "@/lib/orders/cronoprogramma";
 
@@ -73,7 +73,7 @@ describe("sottofasi con date e giorni", () => {
 describe("pianoInSequenza", () => {
   const fase = { start_date: "2025-09-15", end_date: "2025-09-22" };
   const s = (id: string, giorni: number | null, extra: Record<string, unknown> = {}) =>
-    ({ id, name: id, fatta: false, data_inizio: null, data_fine: null, giorni, ...extra });
+    ({ id, name: id, fatta: false, data_inizio: null as string | null, data_fine: null as string | null, giorni, ...extra });
 
   it("mette le sottofasi in fila dall'inizio della fase e dice i giorni liberi", () => {
     const p = pianoInSequenza(fase, [s("a", 3), s("b", 2)], "2025-10-01");
@@ -115,5 +115,49 @@ describe("sottofasiCronoprogramma con i soli giorni", () => {
       ["b", "2025-09-18", "2025-09-21", true, false],
       ["c", "2025-09-22", "2025-09-23", true, true],
     ]);
+  });
+});
+
+describe("calendario del cantiere, parallelo, reale, fasi da spostare", () => {
+  // 15/09/2025 è un lunedì; l'8/12 è festa.
+  const lun_ven = calendarioCantiere({ sabato: false, chiusure: new Set(["2025-12-08"]) });
+  const fase = { start_date: "2025-09-15", end_date: "2025-09-22" };
+  const s = (id: string, giorni: number, extra: Record<string, unknown> = {}) =>
+    ({ id, name: id, fatta: false, data_inizio: null as string | null, data_fine: null as string | null, giorni, ...extra });
+
+  it("conta solo i giorni di lavoro: 5 giorni dal lunedì finiscono il venerdì, i 4 dopo saltano il weekend", () => {
+    const p = pianoInSequenza(fase, [s("a", 5), s("b", 4)], "2025-09-01", lun_ven);
+    expect(p.passi.map(x => [x.data_inizio, x.data_fine])).toEqual([["2025-09-15", "2025-09-19"], ["2025-09-22", "2025-09-25"]]);
+    expect(p.giorniInPiu).toBe(3);
+  });
+
+  it("col sabato lavorativo e saltando le chiusure dell'azienda", () => {
+    const con_sabato = calendarioCantiere({ sabato: true, chiusure: new Set() });
+    expect(pianoInSequenza(fase, [s("a", 6)], "2025-09-01", con_sabato).passi[0].data_fine).toBe("2025-09-20");
+    expect(pianoInSequenza({ start_date: "2025-12-05", end_date: null }, [s("a", 2)], "2025-09-01", lun_ven).passi[0].data_fine).toBe("2025-12-09");
+  });
+
+  it("una sottofase in parallelo parte con la precedente, e la fila riprende dopo la più lunga", () => {
+    const p = pianoInSequenza(fase, [s("a", 2), s("b", 3, { in_parallelo: true }), s("c", 1)], "2025-09-01");
+    expect(p.passi.map(x => [x.id, x.data_inizio, x.data_fine])).toEqual([
+      ["a", "2025-09-15", "2025-09-16"], ["b", "2025-09-15", "2025-09-17"], ["c", "2025-09-18", "2025-09-18"],
+    ]);
+  });
+
+  it("previsto e reale: finita due giorni dopo, o uno prima", () => {
+    const base = { fatta: true, data_inizio: "2025-09-15", data_fine: "2025-09-17", giorni: 3 };
+    expect(realeSottofase({ ...base, fatta_il: "2025-09-19T10:00:00" })).toEqual({ finita: "2025-09-19", scarto: 2 });
+    expect(realeSottofase({ ...base, fatta_il: "2025-09-16T10:00:00" })).toEqual({ finita: "2025-09-16", scarto: -1 });
+    expect(realeSottofase({ ...base, fatta: false, fatta_il: null })).toBeNull();
+  });
+
+  it("le fasi dopo che si sovrappongono: di quanto spostarle", () => {
+    const dopo = [
+      { id: "f2", name: "Impianti", start_date: "2025-09-20", end_date: "2025-09-30" },
+      { id: "f3", name: "Finiture", start_date: "2025-10-01", end_date: "2025-10-10" },
+      { id: "f4", name: "Senza date", start_date: null, end_date: null },
+    ];
+    expect(fasiDaSpostare("2025-09-23", dopo)).toEqual({ sovrapposte: ["Impianti"], giorni: 4, daSpostare: ["f2", "f3"] });
+    expect(fasiDaSpostare("2025-09-19", dopo).giorni).toBe(0);
   });
 });

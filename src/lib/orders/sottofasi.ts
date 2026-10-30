@@ -24,6 +24,8 @@ export interface Sottofase {
   data_fine?: string | null;
   /** Tempo necessario, in giorni di lavoro: può essere meno della finestra. */
   giorni?: number | null;
+  /** Parte insieme alla precedente invece che dopo (31/10/2026). */
+  in_parallelo?: boolean;
 }
 
 const pesoValido = (peso: number): number => (Number.isFinite(peso) && peso >= 1 ? peso : 1);
@@ -82,7 +84,7 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
  * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
  * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
  */
-export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni)";
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo)";
 
 /** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
 export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {
@@ -104,6 +106,7 @@ export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
     data_inizio: giornoValido(r.data_inizio),
     data_fine: giornoValido(r.data_fine),
     giorni: giorniValidi(r.giorni),
+    in_parallelo: r.in_parallelo === true,
   };
 }
 
@@ -249,35 +252,78 @@ export interface PianoInSequenza {
   giorniLiberi: number;
 }
 
+/** Se un giorno («yyyy-MM-dd») è di lavoro in cantiere. */
+export type GiornoLavorativo = (giorno: string) => boolean;
+
+/** Ogni giorno conta: il calendario di prima, e quello dei test. */
+export const tuttiIGiorni: GiornoLavorativo = () => true;
+
+/**
+ * Il calendario del cantiere: dal lunedì al venerdì (il sabato se si lavora),
+ * mai la domenica né i giorni di chiusura dell'azienda.
+ */
+export function calendarioCantiere({ sabato, chiusure }: { sabato: boolean; chiusure: ReadonlySet<string> }): GiornoLavorativo {
+  return (giorno) => {
+    const [a, m, g] = giorno.split("-").map(Number);
+    const dow = new Date(Date.UTC(a, m - 1, g)).getUTCDay();
+    if (dow === 0 || (dow === 6 && !sabato)) return false;
+    return !chiusure.has(giorno);
+  };
+}
+
+/** Il primo giorno di lavoro da `giorno` in poi (al massimo un anno avanti). */
+export function primoLavorativo(giorno: string, lavorativo: GiornoLavorativo): string {
+  let d = giorno;
+  for (let i = 0; i < 366 && !lavorativo(d); i++) d = fineDaGiorni(d, 2);
+  return d;
+}
+
+/** L'ultimo giorno di un lavoro di `giorni` giorni lavorativi che parte da `inizio`. */
+export function fineLavorativa(inizio: string, giorni: number, lavorativo: GiornoLavorativo): string {
+  let d = primoLavorativo(inizio, lavorativo);
+  for (let n = 1; n < giorni; n++) d = primoLavorativo(fineDaGiorni(d, 2), lavorativo);
+  return d;
+}
+
 /**
  * Le sottofasi una dopo l'altra dentro la fase (31/10/2026, richiesta di Florin):
  * si scrivono solo i giorni, le date le calcola il piano partendo dall'inizio
- * della fase (o da oggi, se la fase non ha date). Le sottofasi già fatte e datate
- * restano dove sono e la fila riparte dopo di loro. Se la fila esce dalla fase
- * lo dice (giorniInPiu): salvando, la fase si allunga (fase_allarga_a_sottofasi).
+ * della fase (o da oggi, se la fase non ha date), contando solo i giorni di
+ * lavoro del calendario. Una sottofase «in parallelo» parte con la precedente.
+ * Le sottofasi già fatte e datate restano dove sono e la fila riparte dopo di
+ * loro. Se la fila esce dalla fase lo dice (giorniInPiu): salvando, la fase si
+ * allunga (fase_allarga_a_sottofasi).
  */
 export function pianoInSequenza(
   fase: { start_date: string | null; end_date: string | null },
-  sottofasi: ReadonlyArray<Pick<Sottofase, "id" | "name" | "fatta" | "data_inizio" | "data_fine" | "giorni">>,
+  sottofasi: ReadonlyArray<Pick<Sottofase, "id" | "name" | "fatta" | "data_inizio" | "data_fine" | "giorni" | "in_parallelo">>,
   oggi: string,
+  lavorativo: GiornoLavorativo = tuttiIGiorni,
 ): PianoInSequenza {
-  const inizio = fase.start_date ?? oggi;
+  const inizio = primoLavorativo(fase.start_date ?? oggi, lavorativo);
   const passi: PassoInSequenza[] = [];
   const senzaGiorni: string[] = [];
   let cursore = inizio;
+  let inizioPrecedente: string | null = null;
+  const avanza = (fine: string) => {
+    const dopo = primoLavorativo(fineDaGiorni(fine, 2), lavorativo);
+    if (dopo > cursore) cursore = dopo;
+  };
   for (const s of sottofasi) {
     const fissa = s.fatta ? intervalloSottofase(s) : null;
     if (fissa) {
       passi.push({ id: s.id, data_inizio: fissa[0], data_fine: fissa[1], giorni: s.giorni ?? giorniFinestra(fissa[0], fissa[1]), ferma: true, oltreLaFase: false });
-      const dopo = fineDaGiorni(fissa[1], 2);
-      if (dopo > cursore) cursore = dopo;
+      avanza(fissa[1]);
+      inizioPrecedente = fissa[0];
       continue;
     }
     // Una già fatta senza date non si ripianifica, e non è un errore.
     if (!s.giorni || s.giorni < 1) { if (!s.fatta) senzaGiorni.push(s.name); continue; }
-    const fine = fineDaGiorni(cursore, s.giorni);
-    passi.push({ id: s.id, data_inizio: cursore, data_fine: fine, giorni: s.giorni, ferma: false, oltreLaFase: false });
-    cursore = fineDaGiorni(fine, 2);
+    const da = s.in_parallelo && inizioPrecedente ? primoLavorativo(inizioPrecedente, lavorativo) : cursore;
+    const fine = fineLavorativa(da, s.giorni, lavorativo);
+    passi.push({ id: s.id, data_inizio: da, data_fine: fine, giorni: s.giorni, ferma: false, oltreLaFase: false });
+    avanza(fine);
+    inizioPrecedente = da;
   }
   const fine = passi.reduce<string | null>((m, p) => (!m || p.data_fine > m ? p.data_fine : m), null);
   const giorniFase = fase.start_date && fase.end_date && fase.end_date >= fase.start_date ? giorniFinestra(fase.start_date, fase.end_date) : null;
@@ -285,4 +331,33 @@ export function pianoInSequenza(
   const giorniInPiu = fine && fase.end_date && fine > fase.end_date ? giorniFinestra(fase.end_date, fine) - 1 : 0;
   const giorniLiberi = fine && fase.end_date && fine < fase.end_date ? giorniFinestra(fine, fase.end_date) - 1 : 0;
   return { passi, senzaGiorni, inizio, fine, giorniFase, giorniInPiu, giorniLiberi };
+}
+
+/**
+ * Previsto e reale di una sottofase fatta: il giorno in cui è stata spuntata
+ * contro la fine prevista. `scarto` > 0 = finita dopo, < 0 = prima.
+ */
+export function realeSottofase(s: Pick<Sottofase, "fatta" | "fatta_il" | "data_inizio" | "data_fine" | "giorni">): { finita: string; scarto: number } | null {
+  if (!s.fatta || !s.fatta_il) return null;
+  const d = new Date(s.fatta_il);
+  if (Number.isNaN(d.getTime())) return null;
+  const due = (n: number) => String(n).padStart(2, "0");
+  const finita = `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}`;
+  const i = intervalloSottofase(s);
+  return { finita, scarto: i ? (finita >= i[1] ? giorniFinestra(i[1], finita) - 1 : 1 - giorniFinestra(finita, i[1])) : 0 };
+}
+
+/**
+ * Le fasi dopo questa che si sovrappongono alla sua fine, e di quanti giorni
+ * spostarle tutte perché la prima riparta il giorno dopo.
+ */
+export function fasiDaSpostare(
+  fineFase: string | null,
+  fasiDopo: ReadonlyArray<{ id: string; name: string; start_date: string | null; end_date: string | null }>,
+): { sovrapposte: string[]; giorni: number; daSpostare: string[] } {
+  const datate = fasiDopo.filter((f) => f.start_date);
+  const sovrapposte = fineFase ? datate.filter((f) => f.start_date! <= fineFase) : [];
+  if (!fineFase || sovrapposte.length === 0) return { sovrapposte: [], giorni: 0, daSpostare: [] };
+  const prima = sovrapposte.reduce((m, f) => (f.start_date! < m ? f.start_date! : m), sovrapposte[0].start_date!);
+  return { sovrapposte: sovrapposte.map((f) => f.name), giorni: giorniFinestra(prima, fineFase), daSpostare: datate.map((f) => f.id) };
 }

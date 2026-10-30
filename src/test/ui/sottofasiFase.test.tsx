@@ -139,7 +139,7 @@ describe("SottofasiFase", () => {
     fireEvent.change(screen.getByLabelText("Giorni per Esecuzione"), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText("Giorni per Verifica"), { target: { value: "2" } });
     const piano = screen.getByLabelText("Piano delle sottofasi di Allestimento");
-    expect(piano).toHaveTextContent("7 giorni");
+    expect(piano).toHaveTextContent("dal 15/09 al 21/09");
     expect(piano).toHaveTextContent("Resta 1 giorno libero nella fase.");
     fireEvent.change(screen.getByLabelText("Giorni per Verifica"), { target: { value: "4" } });
     expect(screen.getByRole("alert")).toHaveTextContent("1 giorno in più della fase: «Allestimento» finirebbe il 23/09.");
@@ -149,6 +149,45 @@ describe("SottofasiFase", () => {
       { id: "s1", data_inizio: "2025-09-15", data_fine: "2025-09-19", giorni: 5 },
       { id: "s2", data_inizio: "2025-09-20", data_fine: "2025-09-23", giorni: 4 },
     ]);
+  });
+
+  it("riordina con le frecce e mette una sottofase insieme alla precedente", () => {
+    const a = { ...azioni(), onRiordina: vi.fn(), onParallelo: vi.fn() };
+    render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a}
+      sottofasi={[riga({ id: "s1", name: "Tracce" }), riga({ id: "s2", name: "Cavi" }), riga({ id: "s3", name: "Frutti" })]} />);
+    expect(screen.getByRole("button", { name: "Sposta su Tracce" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Sposta giù Tracce" }));
+    expect(a.onRiordina).toHaveBeenCalledWith(["s2", "s1", "s3"]);
+    expect(screen.queryByRole("button", { name: "Tracce insieme alla precedente" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cavi insieme alla precedente" }));
+    expect(a.onParallelo).toHaveBeenCalledWith("s2", true);
+  });
+
+  it("una sottofase fatta dice quando è finita rispetto al previsto", () => {
+    render(<SottofasiFase nomeFase="Impianto" puoModificare={false} puoSegnare {...azioni()}
+      sottofasi={[riga({ fatta: true, fatta_il: "2025-09-19T10:00:00", data_inizio: "2025-09-15", data_fine: "2025-09-17", giorni: 3 })]} />);
+    expect(screen.getByText("finita il 19/09 (+2 gg)")).toBeInTheDocument();
+  });
+
+  it("se la fase finisce dopo l'inizio della successiva lo dice e propone di spostarle", () => {
+    const onSpostaFasiDopo = vi.fn();
+    render(<SottofasiFase nomeFase="Allestimento" dateFase={{ start_date: "2025-09-15", end_date: "2025-09-23" }} puoModificare puoSegnare {...azioni()}
+      fasiDopo={[{ id: "f2", name: "Impianti", start_date: "2025-09-20", end_date: "2025-09-30" }, { id: "f3", name: "Finiture", start_date: "2025-10-01", end_date: null }]}
+      onSpostaFasiDopo={onSpostaFasiDopo} sottofasi={[riga()]} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("«Allestimento» finisce il 23/09: si sovrappone a «Impianti».");
+    fireEvent.click(screen.getByRole("button", { name: "Sposta le 2 fasi successive di 4 gg" }));
+    expect(onSpostaFasiDopo).toHaveBeenCalledWith(4, ["f2", "f3"]);
+  });
+
+  it("con il calendario del cantiere conta i giorni di lavoro e si può includere il sabato", () => {
+    const setSabato = vi.fn();
+    const lavorativo = (d: string) => ![0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay());
+    render(<SottofasiFase nomeFase="Allestimento" dateFase={{ start_date: "2025-09-15", end_date: "2025-09-26" }} puoModificare puoSegnare
+      {...azioni()} onPianificaTutte={vi.fn()} calendario={{ lavorativo, sabato: false, setSabato }}
+      sottofasi={[riga({ id: "s1", name: "Esecuzione", giorni: 5 }), riga({ id: "s2", name: "Verifica", giorni: 2 })]} />);
+    expect(screen.getByText("22/09 → 23/09 · 2 gg")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Si lavora il sabato"));
+    expect(setSabato).toHaveBeenCalledWith(true);
   });
 
   it("pesa per giorni quando tutte le sottofasi hanno i giorni", () => {
