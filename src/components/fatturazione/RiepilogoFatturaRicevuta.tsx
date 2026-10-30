@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -218,7 +219,25 @@ export function RiepilogoFatturaRicevuta({
     onSuccess: (id) => collegaFornitore.mutate(id),
     onError: (e: Error) => toast.error("Fornitore non aggiunto", { description: e.message }),
   });
-  const occupato = collegaFornitore.isPending || aggiungiFornitore.isPending;
+  // La commessa senza ordine d'acquisto: commessa_collega_fattura_ricevuta (la stessa
+  // della scheda commessa) contabilizza se serve e porta il costo sulla commessa.
+  const [scegliCommessa, setScegliCommessa] = useState(false);
+  useEffect(() => setScegliCommessa(false), [fatturaId]);
+  const collegaCommessa = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data, error } = await (supabase as any).rpc("commessa_collega_fattura_ricevuta", { p_fattura_id: fatturaId, p_order_id: orderId });
+      if (error) throw error;
+      return data as { esito: string };
+    },
+    onSuccess: (esito) => {
+      setScegliCommessa(false);
+      aggiorna();
+      queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
+      toast.success(esito?.esito === "contabilizzata_e_collegata" ? "Fattura contabilizzata e messa sulla commessa" : "Fattura messa sulla commessa");
+    },
+    onError: (e: Error) => toast.error("Commessa non collegata", { description: e.message }),
+  });
+  const occupato = collegaFornitore.isPending || aggiungiFornitore.isPending || collegaCommessa.isPending;
 
   const f = d?.fattura;
   const righe = useMemo(() => righeLeggibili(f?.righe), [f?.righe]);
@@ -337,24 +356,52 @@ export function RiepilogoFatturaRicevuta({
                 </dd>
 
                 <dt className="text-muted-foreground">Commessa</dt>
-                <dd className="flex flex-wrap items-center gap-1.5">
+                <dd className="space-y-1.5">
                   {(() => {
                     const commesse = [d.costo?.commessa, ...d.ordini.map((o) => o.commessa)].filter((c): c is { id: string; order_code: string } => !!c);
                     const uniche = [...new Map(commesse.map((c) => [c.id, c])).values()];
-                    if (d.costo?.ripartito) return <span>Ripartita su più commesse</span>;
-                    if (!uniche.length) {
-                      return d.suggerita ? (
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-muted-foreground">Nessuna · l'AI suggerisce</span>
-                          <Link to={`/azienda/ordini/${d.suggerita.id}`} className="underline-offset-2 hover:underline">
+                    // Si sceglie qui solo senza ordine d'acquisto (con l'ordine la commessa viene
+                    // da lì) e se il costo non è ripartito su più commesse.
+                    const sceglibile = d.ordini.length === 0 && !d.costo?.ripartito && f.stato !== "rifiutata";
+                    return (
+                      <>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {d.costo?.ripartito ? <span>Ripartita su più commesse</span>
+                            : uniche.length ? uniche.map((c) => (
+                              <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
+                            )) : <span className="text-muted-foreground">Nessuna</span>}
+                          {sceglibile && !scegliCommessa ? (
+                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
+                              {uniche.length ? "Cambia" : "Scegli commessa"}
+                            </Button>
+                          ) : null}
+                        </div>
+                        {sceglibile && !uniche.length && d.suggerita && !scegliCommessa ? (
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-muted-foreground">L'AI suggerisce</span>
                             <Badge variant="outline" className="border-dashed">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
-                          </Link>
-                        </span>
-                      ) : <span className="text-muted-foreground">Nessuna</span>;
-                    }
-                    return uniche.map((c) => (
-                      <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
-                    ));
+                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
+                              Collega
+                            </Button>
+                          </div>
+                        ) : null}
+                        {sceglibile && scegliCommessa ? (
+                          <div className="flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <OrderSelectCombobox
+                                companyId={companyId ?? undefined}
+                                value={undefined}
+                                disabled={occupato}
+                                placeholder="Cerca la commessa…"
+                                onChange={(id) => collegaCommessa.mutate(id)}
+                              />
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => setScegliCommessa(false)}>Annulla</Button>
+                          </div>
+                        ) : null}
+                      </>
+                    );
                   })()}
                 </dd>
 
