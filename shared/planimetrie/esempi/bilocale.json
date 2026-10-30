@@ -1,0 +1,423 @@
+{
+  "schema": 1,
+  "unita": "cm",
+  "titolo": "Bilocale di esempio",
+  "scala": 50,
+  "nord": 0,
+  "riferimenti": {
+    "indirizzo": "Via di Esempio 1, Milano",
+    "note": "Esempio per sviluppo e test: misure inventate."
+  },
+  "livelli": [
+    {
+      "id": "pt",
+      "nome": "Piano terra",
+      "quota": 0,
+      "proposte": [],
+      "fatto": {
+        "muri": [
+          {
+            "id": "m1",
+            "p1": {
+              "x": 0,
+              "y": 0
+            },
+            "p2": {
+              "x": 830,
+              "y": 0
+            },
+            "spessore": 30,
+            "altezza": 270,
+            "tipo": "esterno",
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "m2",
+            "p1": {
+              "x": 830,
+              "y": 0
+            },
+            "p2": {
+              "x": 830,
+              "y": 630
+            },
+            "spessore": 30,
+            "altezza": 270,
+            "tipo": "esterno",
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "m3",
+            "p1": {
+              "x": 830,
+              "y": 630
+            },
+            "p2": {
+              "x": 0,
+              "y": 630
+            },
+            "spessore": 30,
+            "altezza": 270,
+            "tipo": "esterno",
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "m4",
+            "p1": {
+              "x": 0,
+              "y": 630
+            },
+            "p2": {
+              "x": 0,
+              "y": 0
+            },
+            "spessore": 30,
+            "altezza": 270,
+            "tipo": "esterno",
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "m5",
+            "p1": {
+              "x": 515,
+              "y": 0
+            },
+            "p2": {
+              "x": 515,
+              "y": 630
+            },
+            "spessore": 10,
+            "altezza": 270,
+            "tipo": "tramezzo",
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "m6",
+            "p1": {
+              "x": 515,
+              "y": 365
+            },
+            "p2": {
+              "x": 830,
+              "y": 365
+            },
+            "spessore": 10,
+            "altezza": 270,
+            "tipo": "tramezzo",
+            "stato": "esistente",
+            "origine": "rilevata"
+          }
+        ],
+        "aperture": [
+          {
+            "id": "a1",
+            "muroId": "m3",
+            "tipo": "portafinestra",
+            "offset": 440,
+            "larghezza": 240,
+            "altezza": 240,
+            "davanzale": 0,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "a2",
+            "muroId": "m4",
+            "tipo": "porta",
+            "offset": 340,
+            "larghezza": 90,
+            "altezza": 220,
+            "davanzale": 0,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "a3",
+            "muroId": "m1",
+            "tipo": "finestra",
+            "offset": 600,
+            "larghezza": 120,
+            "altezza": 140,
+            "davanzale": 100,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "a4",
+            "muroId": "m2",
+            "tipo": "finestra",
+            "offset": 450,
+            "larghezza": 60,
+            "altezza": 100,
+            "davanzale": 120,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "a5",
+            "muroId": "m5",
+            "tipo": "porta",
+            "offset": 100,
+            "larghezza": 80,
+            "altezza": 210,
+            "davanzale": 0,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          },
+          {
+            "id": "a6",
+            "muroId": "m5",
+            "tipo": "porta",
+            "offset": 450,
+            "larghezza": 70,
+            "altezza": 210,
+            "davanzale": 0,
+            "manovra": "battente",
+            "verso": {
+              "cardine": "p1",
+              "lato": "sinistra"
+            },
+            "stato": "esistente",
+            "origine": "rilevata"
+          }
+        ],
+        "locali": [
+          {
+            "id": "l1",
+            "nome": "Soggiorno con angolo cottura",
+            "destinazione": "soggiorno",
+            "contorno": [
+              {
+                "x": 15,
+                "y": 15
+              },
+              {
+                "x": 510,
+                "y": 15
+              },
+              {
+                "x": 510,
+                "y": 615
+              },
+              {
+                "x": 15,
+                "y": 615
+              }
+            ],
+            "altezza": 270,
+            "finiture": {
+              "pavimento": "gres porcellanato"
+            },
+            "origine": "rilevata"
+          },
+          {
+            "id": "l2",
+            "nome": "Camera",
+            "destinazione": "camera",
+            "contorno": [
+              {
+                "x": 520,
+                "y": 15
+              },
+              {
+                "x": 815,
+                "y": 15
+              },
+              {
+                "x": 815,
+                "y": 360
+              },
+              {
+                "x": 520,
+                "y": 360
+              }
+            ],
+            "altezza": 270,
+            "finiture": {
+              "pavimento": "parquet"
+            },
+            "origine": "rilevata"
+          },
+          {
+            "id": "l3",
+            "nome": "Bagno",
+            "destinazione": "bagno",
+            "contorno": [
+              {
+                "x": 520,
+                "y": 370
+              },
+              {
+                "x": 815,
+                "y": 370
+              },
+              {
+                "x": 815,
+                "y": 615
+              },
+              {
+                "x": 520,
+                "y": 615
+              }
+            ],
+            "altezza": 270,
+            "finiture": {
+              "pavimento": "gres",
+              "rivestimento": {
+                "materiale": "ceramica",
+                "altezza": 200
+              }
+            },
+            "origine": "rilevata"
+          }
+        ],
+        "elementi": [
+          {
+            "id": "e1",
+            "tipo": "letto_matrimoniale",
+            "posizione": {
+              "x": 667,
+              "y": 190
+            },
+            "rotazione": 0,
+            "larghezza": 160,
+            "profondita": 200,
+            "localeId": "l2",
+            "origine": "rilevata"
+          },
+          {
+            "id": "e2",
+            "tipo": "wc",
+            "posizione": {
+              "x": 770,
+              "y": 590
+            },
+            "rotazione": 180,
+            "larghezza": 40,
+            "profondita": 55,
+            "localeId": "l3",
+            "origine": "rilevata"
+          },
+          {
+            "id": "e3",
+            "tipo": "lavabo",
+            "posizione": {
+              "x": 650,
+              "y": 590
+            },
+            "rotazione": 180,
+            "larghezza": 60,
+            "profondita": 45,
+            "localeId": "l3",
+            "origine": "rilevata"
+          },
+          {
+            "id": "e4",
+            "tipo": "doccia",
+            "posizione": {
+              "x": 775,
+              "y": 415
+            },
+            "rotazione": 0,
+            "larghezza": 80,
+            "profondita": 80,
+            "localeId": "l3",
+            "origine": "rilevata"
+          },
+          {
+            "id": "e5",
+            "tipo": "divano",
+            "posizione": {
+              "x": 260,
+              "y": 300
+            },
+            "rotazione": 0,
+            "larghezza": 220,
+            "profondita": 90,
+            "localeId": "l1",
+            "origine": "rilevata"
+          },
+          {
+            "id": "e6",
+            "tipo": "cucina_lineare",
+            "posizione": {
+              "x": 400,
+              "y": 50
+            },
+            "rotazione": 0,
+            "larghezza": 240,
+            "profondita": 60,
+            "localeId": "l1",
+            "origine": "rilevata"
+          }
+        ],
+        "quote": [
+          {
+            "id": "q1",
+            "p1": {
+              "x": -15,
+              "y": -15
+            },
+            "p2": {
+              "x": 845,
+              "y": -15
+            },
+            "scostamento": -60
+          },
+          {
+            "id": "q2",
+            "p1": {
+              "x": -15,
+              "y": -15
+            },
+            "p2": {
+              "x": -15,
+              "y": 645
+            },
+            "scostamento": 60
+          }
+        ],
+        "testi": [
+          {
+            "id": "x1",
+            "posizione": {
+              "x": 60,
+              "y": 245
+            },
+            "testo": "Ingresso"
+          }
+        ]
+      }
+    }
+  ]
+}
