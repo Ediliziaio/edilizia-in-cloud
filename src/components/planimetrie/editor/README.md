@@ -7,8 +7,18 @@ Prova locale, senza database:
 npx vite --config vite.planimetria-local.config.ts   # http://127.0.0.1:8084
 ```
 
-`?esempio` parte da un bilocale con misure stimate, `?nuova` da una pianta vuota,
-`?telefono` forza la vista da telefono. La pianta resta nel `localStorage` del browser.
+`?esempio` e `?trilocale` aprono gli esempi della fase 1 (`shared/planimetrie/esempi/`),
+`?stimate` un bilocale con misure stimate, `?nuova` una pianta vuota, `?telefono` la
+vista da telefono. Il documento resta nel `localStorage` del browser.
+
+Ingresso e uscita del componente sono il documento della fase 1:
+
+```tsx
+<EditorPlanimetria piantaIniziale={planimetria} onChange={(p) => salva(p)} />
+```
+
+`onChange` arriva a ogni modifica completa (non durante i trascinamenti) con una
+`Planimetria` pronta per `useSalvaVersionePlanimetria`.
 
 ## Cosa fa
 
@@ -27,7 +37,12 @@ npx vite --config vite.planimetria-local.config.ts   # http://127.0.0.1:8084
   strumento e si clicca la parete); un clic sulla porta già selezionata ne gira
   il verso (quattro posizioni).
 - **Stanze**: nome, «che stanza è» (bagno, cucina…), mq del pavimento e perimetro
-  subito, sulla pianta e nel pannello, col totale.
+  subito, sulla pianta e nel pannello, col totale. I numeri sono quelli di
+  `calcolaQuantita` (fase 1): gli stessi che userà il computo.
+- **Stanze che si chiudono da sole**: tre o quattro pareti che fanno un giro diventano
+  una stanza; una parete che taglia una stanza la divide in due.
+- **Da controllare**: i problemi di `controllaPlanimetria` in parole semplici; un clic
+  porta all'oggetto.
 - **Com'è oggi / Progetto**: nel progetto le pareti di oggi non si spostano: si
   demoliscono (gialle, un secondo clic le rimette) e quelle nuove nascono rosse.
 - **Misure stimate**: a righe viola, in corsivo con «≈»; si confermano una per
@@ -58,7 +73,7 @@ la velocità di disegno ma la semplicità delle interazioni.
 
 | File | Cosa |
 |---|---|
-| `adattatore.ts` | **unico punto di contatto col modello** (tipi, mq, perimetro). Oggi provvisorio; con la fase 1 diventa un ponte verso `shared/planimetrie/` |
+| `adattatore.ts` | **unico punto di contatto col modello della fase 1**: documento ⇄ pianta di lavoro (`daPlanimetria`, `aPlanimetria`), stanze/mq/problemi della vista (`datiVista`) |
 | `comandi.ts` | ogni modifica è una funzione pura `pianta → pianta` (stanze, pareti, aperture, stato, stimate) |
 | `geometria.ts` | proiezioni e aggancio del cursore (angoli, pareti, dritto, allineamento, griglia 5 cm) |
 | `storia.ts` | annulla/ripeti (al massimo 200 passi) |
@@ -69,15 +84,21 @@ la velocità di disegno ma la semplicità delle interazioni.
 | `EditorPlanimetria.tsx` | gesti, tastiera, barra, stato |
 | `esempio.ts` | bilocale per la pagina di prova |
 
-Test: `src/test/logic/planimetrieEditor.test.ts`.
+Test: `src/test/logic/planimetrieEditor.test.ts` (comandi) e
+`planimetrieEditorModello.test.ts` (il giro documento → editor → documento su bilocale
+e trilocale non cambia nessuna quantità).
 
-Unità: centimetri, asse y verso il basso. Il contorno delle stanze sta sull'asse dei
-muri; i mq si calcolano sul contorno interno (spostato di mezzo spessore per lato).
+La pianta di lavoro usa coordinate dello schermo (y in giù) e tiene le stanze sull'asse
+dei muri, così spostando una parete gli angoli la seguono. Il documento ha y in su e
+locali al filo interno: la conversione sta tutta nell'adattatore. Nel progetto i locali
+si richiudono dalle pareti (`ricostruisciLocali`) e tengono gli id della proposta, così
+le chiavi del computo non cambiano da una modifica all'altra.
 
 ## Lasciato per dopo
 
-- Nel progetto le stanze non si ricalcolano dalle pareti nuove/demolite: lo farà il
-  modello della fase 1 (stato di fatto + proposte, ognuna con i suoi locali).
+- Una sola proposta (A) e un solo livello nell'interfaccia; il documento ne regge di più
+  e l'editor le conserva intatte.
+- Arredi, quote e testi del documento si vedono ma non si spostano ancora.
 - Stanze non rettangolari si fanno solo da codice (`aggiungiStanza` accetta un
   contorno qualunque); nell'interfaccia c'è il rettangolo.
 - Elementi (sanitari, arredi), quote libere e testi: dopo il modello della fase 1.
