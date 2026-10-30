@@ -21,7 +21,9 @@ import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import {
   incassiSenzaBonifico,
   ordinaMovimentiPerFattura,
+  type FatturaPerAbbinamento,
   type IncassoFattura,
+  type MovimentoBanca,
   type Proposta,
 } from "@/lib/fatturazione/abbinaBanca";
 import { useAbbinaBonifico, useMovimentiBancaPerFattura } from "@/hooks/useIncassiFattura";
@@ -39,43 +41,78 @@ interface Props {
   incassi: IncassoFattura[];
 }
 
+/** La fattura nativa: accrediti da movimenti_banca_per_fattura, abbinamento con riconcilia_bonifico_fattura. */
 export function AbbinaBonificoDialog({ open, onOpenChange, doc, incassi }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
-        {open && <Scelta doc={doc} incassi={incassi} onOpenChange={onOpenChange} />}
+        {open && <SceltaNativa doc={doc} incassi={incassi} onOpenChange={onOpenChange} />}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SceltaNativa({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
+  const banca = useMovimentiBancaPerFattura(doc.id, true);
+  const abbina = useAbbinaBonifico();
+  return (
+    <SceltaBonifico
+      fattura={{
+        numero: doc.numero,
+        numero_progressivo: doc.numero_progressivo,
+        anno: doc.anno,
+        cliente: nomeCliente(doc.cliente_snapshot),
+        residuo: residuoDaIncassare(doc),
+        data_emissione: doc.data_emissione,
+      }}
+      incassi={incassi}
+      banca={banca}
+      inCorso={abbina.isPending}
+      onAbbina={(scelta) =>
+        abbina.mutate(
+          { transactionId: scelta.transactionId, documentoId: doc.id, movimentoId: scelta.incassoId, punteggio: scelta.punteggio },
+          { onSuccess: () => onOpenChange(false) },
+        )
+      }
+      onChiudi={() => onOpenChange(false)}
+    />
   );
 }
 
 /** "nuovo" = registra un incasso dal bonifico; altrimenti l'id dell'incasso già registrato. */
 type Destinazione = "nuovo" | string;
 
-function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
-  const banca = useMovimentiBancaPerFattura(doc.id, true);
-  const abbina = useAbbinaBonifico();
+export interface SceltaBonificoProps {
+  fattura: FatturaPerAbbinamento;
+  incassi: IncassoFattura[];
+  /** Gli accrediti liberi: lo stato di una query (nativa o, domani, della fattura importata). */
+  banca: {
+    isLoading: boolean;
+    isError: boolean;
+    error: unknown;
+    data?: { bancaCollegata: boolean; movimenti: MovimentoBanca[] };
+  };
+  inCorso: boolean;
+  /** incassoId null = pagamento nuovo dal bonifico; altrimenti il legame con quell'incasso. */
+  onAbbina: (scelta: { transactionId: string; incassoId: string | null; punteggio: number }) => void;
+  onChiudi: () => void;
+}
+
+/**
+ * Il contenuto del dialogo, senza dati propri: lo stesso aspetto per la
+ * fattura nativa e per quella importata da un gestionale, che gli passa i
+ * suoi accrediti e la sua azione di abbinamento. Va dentro un DialogContent.
+ */
+export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onChiudi }: SceltaBonificoProps) {
   const [cerca, setCerca] = useState("");
   const [scelto, setScelto] = useState<Proposta | null>(null);
   const [destinazione, setDestinazione] = useState<Destinazione>("nuovo");
 
-  const residuo = residuoDaIncassare(doc);
+  const residuo = fattura.residuo;
   const liberi = useMemo(() => incassiSenzaBonifico(incassi), [incassi]);
   const proposte = useMemo(
-    () =>
-      ordinaMovimentiPerFattura(
-        banca.data?.movimenti ?? [],
-        {
-          numero: doc.numero,
-          numero_progressivo: doc.numero_progressivo,
-          anno: doc.anno,
-          cliente: nomeCliente(doc.cliente_snapshot),
-          residuo,
-          data_emissione: doc.data_emissione,
-        },
-        incassi,
-      ),
-    [banca.data, doc, incassi, residuo],
+    () => ordinaMovimentiPerFattura(banca.data?.movimenti ?? [], fattura, incassi),
+    [banca.data, fattura, incassi],
   );
   const filtrate = useMemo(() => {
     const q = cerca.trim().toLowerCase();
@@ -98,16 +135,12 @@ function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
   };
 
   const conferma = () => {
-    if (!scelto || abbina.isPending) return;
-    abbina.mutate(
-      {
-        transactionId: scelto.movimento.id,
-        documentoId: doc.id,
-        movimentoId: destinazione === "nuovo" ? null : destinazione,
-        punteggio: scelto.punteggio,
-      },
-      { onSuccess: () => onOpenChange(false) },
-    );
+    if (!scelto || inCorso) return;
+    onAbbina({
+      transactionId: scelto.movimento.id,
+      incassoId: destinazione === "nuovo" ? null : destinazione,
+      punteggio: scelto.punteggio,
+    });
   };
 
   const nuovoPossibile = residuo > 0;
@@ -118,7 +151,7 @@ function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
       <DialogHeader>
         <DialogTitle>Abbina al movimento della banca</DialogTitle>
         <DialogDescription className="max-sm:sr-only">
-          Fattura n. {doc.numero}
+          Fattura n. {fattura.numero}
           {residuo > 0 ? ` · da incassare ${formatCurrency(residuo)}` : " · già incassata"}. Scegli l'accredito che la paga.
         </DialogDescription>
       </DialogHeader>
@@ -128,7 +161,7 @@ function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : banca.isError ? (
-        <p className="text-sm text-destructive">{(banca.error as Error).message}</p>
+        <p className="text-sm text-destructive">{banca.error instanceof Error ? banca.error.message : "Movimenti della banca non disponibili"}</p>
       ) : !banca.data?.bancaCollegata ? (
         <div className="rounded-lg border border-dashed p-4 text-sm">
           <p className="font-medium">Nessuna banca collegata</p>
@@ -136,7 +169,7 @@ function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
             Collega il conto in Tesoreria: i bonifici in entrata arrivano da soli e si abbinano alle fatture.
           </p>
           <Button asChild size="sm" variant="outline" className="mt-3">
-            <Link to="/azienda/tesoreria" onClick={() => onOpenChange(false)}>
+            <Link to="/azienda/tesoreria" onClick={onChiudi}>
               <Landmark className="mr-1.5 h-4 w-4" /> Vai a Tesoreria
             </Link>
           </Button>
@@ -231,11 +264,11 @@ function Scelta({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
       )}
 
       <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={abbina.isPending} className="max-sm:hidden">
+        <Button variant="outline" onClick={onChiudi} disabled={inCorso} className="max-sm:hidden">
           Annulla
         </Button>
-        <Button onClick={conferma} disabled={!confermabile || abbina.isPending}>
-          {abbina.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+        <Button onClick={conferma} disabled={!confermabile || inCorso}>
+          {inCorso && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
           Abbina
         </Button>
       </DialogFooter>

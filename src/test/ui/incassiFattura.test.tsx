@@ -19,7 +19,9 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-import { IncassiFattura } from "@/components/fatturazione/IncassiFattura";
+import { IncassiFattura, PannelloIncassi } from "@/components/fatturazione/IncassiFattura";
+import { SceltaBonifico } from "@/components/fatturazione/AbbinaBonificoDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 const fattura = (x: Partial<DocumentoFiscale> = {}) => ({
   id: "doc-37", numero: "FT-2026-0037", numero_progressivo: 37, anno: 2026, tipo: "fattura",
@@ -164,5 +166,61 @@ describe("«Abbina al bonifico»", () => {
     expect(await screen.findByText("Pagata · abbinata al bonifico del 11/10")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Abbina al bonifico/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Segna pagata/ })).toBeNull();
+  });
+});
+
+describe("lo stesso aspetto per una fattura importata (dati e azioni passati da fuori)", () => {
+  it("il pannello mostra lo storico e chiama le azioni di chi lo usa, senza RPC proprie", async () => {
+    const onAnnulla = vi.fn();
+    const onAbbina = vi.fn();
+    render(
+      <MemoryRouter>
+        <PannelloIncassi
+          incassi={[riga({ id: "pag-1", importo: 250, bonifico_id: "tx-1", bonifico_data: "2026-10-05" })]}
+          caricamento={false}
+          errore={null}
+          stato="parziale"
+          puoSegnarePagata={false}
+          puoAbbinare
+          onSegnaPagata={vi.fn()}
+          onAbbina={onAbbina}
+          onAnnulla={onAnnulla}
+          annullaInCorso={false}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Pagata in parte · abbinata al bonifico del 05/10")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Abbina al bonifico/ }));
+    expect(onAbbina).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Annulla incasso di/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla incasso" }));
+    expect(onAnnulla).toHaveBeenCalledWith(expect.objectContaining({ id: "pag-1" }));
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("la scelta del bonifico ordina e restituisce la scelta a chi la usa", () => {
+    const onAbbina = vi.fn();
+    render(
+      <MemoryRouter>
+        <Dialog open><DialogContent>
+        <SceltaBonifico
+          fattura={{ numero: "FIC-12", cliente: "Bianchi Spa", residuo: 800, data_emissione: "2026-10-01" }}
+          incassi={[]}
+          banca={{ isLoading: false, isError: false, error: null, data: { bancaCollegata: true, movimenti: [
+            { id: "tx-x", data: "2026-10-03", importo: 90, descrizione: "Altro", controparte: null, riferimento: null, conto: null },
+            { id: "tx-y", data: "2026-10-04", importo: 800, descrizione: "Saldo FIC-12", controparte: "Bianchi Spa", riferimento: null, conto: null },
+          ] } }}
+          inCorso={false}
+          onAbbina={onAbbina}
+          onChiudi={vi.fn()}
+        />
+        </DialogContent></Dialog>
+      </MemoryRouter>,
+    );
+    const voci = within(screen.getByRole("list", { name: "Movimenti della banca" })).getAllByRole("button");
+    fireEvent.click(voci[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Abbina" }));
+    expect(onAbbina).toHaveBeenCalledWith({ transactionId: "tx-y", incassoId: null, punteggio: 100 });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

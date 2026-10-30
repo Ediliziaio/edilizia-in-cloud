@@ -46,19 +46,76 @@ interface Props {
   pagabile: boolean;
 }
 
+/** La fattura nativa: storico da incassi_fattura, annullo con storna_incasso_atomico. */
 export function IncassiFattura({ doc, pagabile }: Props) {
   const incassi = useIncassiFattura(doc.id);
   const annulla = useAnnullaIncasso();
   const [pagaAperto, setPagaAperto] = useState(false);
   const [abbinaAperto, setAbbinaAperto] = useState(false);
-  const [daAnnullare, setDaAnnullare] = useState<IncassoFattura | null>(null);
 
   const elenco = incassi.data ?? [];
-  const statoBanca = descriviPagamentoBanca(doc.stato, elenco);
   const residuo = residuoDaIncassare(doc);
   // Il bonifico si abbina se resta da incassare, o se c'è un incasso fatto a mano ancora senza bonifico.
   const abbinabile = pagabile || (residuo <= 0 && incassiSenzaBonifico(elenco).length > 0
     && !["annullata", "stornata", "bozza"].includes(doc.stato));
+
+  return (
+    <>
+      <PannelloIncassi
+        incassi={elenco}
+        caricamento={incassi.isLoading}
+        errore={incassi.isError ? (incassi.error as Error).message : null}
+        stato={doc.stato === "pagata" ? "pagata" : doc.stato === "parzialmente_pagata" ? "parziale" : "altro"}
+        puoSegnarePagata={pagabile}
+        puoAbbinare={abbinabile}
+        onSegnaPagata={() => setPagaAperto(true)}
+        onAbbina={() => setAbbinaAperto(true)}
+        onAnnulla={(i) => annulla.mutate(i.id)}
+        annullaInCorso={annulla.isPending}
+      />
+      <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
+      <AbbinaBonificoDialog open={abbinaAperto} onOpenChange={setAbbinaAperto} doc={doc} incassi={elenco} />
+    </>
+  );
+}
+
+export interface PannelloIncassiProps {
+  incassi: IncassoFattura[];
+  caricamento: boolean;
+  errore: string | null;
+  /** Lo stato del pagamento, comune a fatture native e importate. */
+  stato: "pagata" | "parziale" | "altro";
+  puoSegnarePagata: boolean;
+  puoAbbinare: boolean;
+  onSegnaPagata: () => void;
+  onAbbina: () => void;
+  /** Chiamato dopo la conferma. */
+  onAnnulla: (incasso: IncassoFattura) => void;
+  annullaInCorso: boolean;
+}
+
+/**
+ * Storico, annulla, segna pagata, abbina: solo l'aspetto. La fattura nativa
+ * lo alimenta con le sue RPC; quella importata da un gestionale può fare lo
+ * stesso con il suo registro, e le due si vedono uguali.
+ */
+export function PannelloIncassi({
+  incassi: elenco,
+  caricamento,
+  errore,
+  stato,
+  puoSegnarePagata,
+  puoAbbinare,
+  onSegnaPagata,
+  onAbbina,
+  onAnnulla,
+  annullaInCorso,
+}: PannelloIncassiProps) {
+  const [daAnnullare, setDaAnnullare] = useState<IncassoFattura | null>(null);
+  const statoBanca = descriviPagamentoBanca(
+    stato === "pagata" ? "pagata" : stato === "parziale" ? "parzialmente_pagata" : "",
+    elenco,
+  );
 
   return (
     <div className="space-y-3">
@@ -68,12 +125,12 @@ export function IncassiFattura({ doc, pagabile }: Props) {
         </p>
       )}
 
-      {incassi.isLoading ? (
+      {caricamento ? (
         <div className="flex justify-center py-2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-      ) : incassi.isError ? (
-        <p className="text-xs text-muted-foreground">{(incassi.error as Error).message}</p>
+      ) : errore ? (
+        <p className="text-xs text-muted-foreground">{errore}</p>
       ) : elenco.length === 0 ? (
         <p className="text-xs text-muted-foreground">Nessun incasso registrato.</p>
       ) : (
@@ -107,7 +164,7 @@ export function IncassiFattura({ doc, pagabile }: Props) {
                   size="sm"
                   className="h-7 shrink-0 px-2 text-xs text-destructive hover:text-destructive"
                   onClick={() => setDaAnnullare(i)}
-                  disabled={annulla.isPending}
+                  disabled={annullaInCorso}
                   aria-label={`Annulla incasso di ${formatCurrency(i.importo)}`}
                 >
                   <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla
@@ -118,23 +175,20 @@ export function IncassiFattura({ doc, pagabile }: Props) {
         </ul>
       )}
 
-      {(pagabile || abbinabile) && (
+      {(puoSegnarePagata || puoAbbinare) && (
         <div className="flex gap-2">
-          {pagabile && (
-            <Button variant="outline" size="sm" className="flex-1" onClick={() => setPagaAperto(true)}>
+          {puoSegnarePagata && (
+            <Button variant="outline" size="sm" className="flex-1" onClick={onSegnaPagata}>
               <CreditCard className="mr-1 h-4 w-4" /> Segna pagata
             </Button>
           )}
-          {abbinabile && (
-            <Button variant="outline" size="sm" className="flex-1" onClick={() => setAbbinaAperto(true)}>
+          {puoAbbinare && (
+            <Button variant="outline" size="sm" className="flex-1" onClick={onAbbina}>
               <Landmark className="mr-1 h-4 w-4" /> Abbina al bonifico
             </Button>
           )}
         </div>
       )}
-
-      <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
-      <AbbinaBonificoDialog open={abbinaAperto} onOpenChange={setAbbinaAperto} doc={doc} incassi={elenco} />
 
       <AlertDialog open={!!daAnnullare} onOpenChange={(o) => !o && setDaAnnullare(null)}>
         <AlertDialogContent>
@@ -151,7 +205,7 @@ export function IncassiFattura({ doc, pagabile }: Props) {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (daAnnullare) annulla.mutate(daAnnullare.id);
+                if (daAnnullare) onAnnulla(daAnnullare);
                 setDaAnnullare(null);
               }}
             >
