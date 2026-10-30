@@ -168,9 +168,10 @@ function RigaSottofase({ s, asse, segni, oggi }: { s: SottofaseCrono; asse: Asse
         {b.width > 0 && (
           <span
             data-testid={`sottofase-barra-${s.id}`}
-            className={cn("absolute top-2 h-3 rounded-sm", s.fatta ? "bg-emerald-400" : s.ritardo > 0 ? "bg-rose-300" : "bg-sky-300", s.fuoriDallaFase && "ring-1 ring-amber-500")}
+            className={cn("absolute top-2 h-3 rounded-sm", s.fatta ? "bg-emerald-400" : s.ritardo > 0 ? "bg-rose-300" : "bg-sky-300",
+              s.stimata && "border border-dashed border-sky-500 bg-sky-100", s.fuoriDallaFase && "ring-1 ring-amber-500")}
             style={{ left: `${b.left}%`, width: `${b.width}%` }}
-            title={`${s.nome}: ${quando}${s.fatta ? " · fatta" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
+            title={`${s.nome}: ${quando}${s.fatta ? " · fatta" : ""}${s.stimata ? " · stimata dai giorni, date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
           />
         )}
       </div>
@@ -536,6 +537,8 @@ export function CronoprogrammaCommessa({
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-amber-500" />Scostamento storico, fase chiusa</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-500" />Chiusura senza inizio rilevato</span>
         {sotto.size > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300" />Sottofase prevista (verde se fatta)</span>}
+        {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm border border-dashed border-sky-500 bg-sky-100" />Sottofase stimata dai giorni</span>}
+        {[...sotto.values()].some(r => r.some(s => s.fuoriDallaFase)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300 ring-1 ring-amber-500" />Sottofase oltre le date della fase</span>}
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />Oggi</span>
         <span className="text-[11px]">Date reali dai rapportini e dalla chiusura delle fasi. Clic su una fase per il dettaglio.</span>
       </div>

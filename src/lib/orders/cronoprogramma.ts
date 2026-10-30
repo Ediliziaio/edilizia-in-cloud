@@ -385,6 +385,8 @@ export interface SottofaseCrono {
   ritardo: number;
   /** Fuori dalle date previste della sua fase (dati di prima che la fase si allargasse da sola). */
   fuoriDallaFase: boolean;
+  /** Senza date salvate: messa in fila dai suoi giorni, dopo la sottofase precedente. */
+  stimata: boolean;
 }
 
 /**
@@ -398,13 +400,23 @@ export function sottofasiCronoprogramma(
   oggi: string,
 ): SottofaseCrono[] {
   const out: SottofaseCrono[] = [];
+  // Le sottofasi con i soli giorni si mettono in fila dopo la precedente (dall'inizio
+  // della fase per la prima): così il grafico le mostra anche prima di salvare le date.
+  let cursore: string | null = fase.previstoInizio || null;
   for (const s of sottofasi) {
     const inizio = planningDay(s.data_inizio) || null;
     let fine = planningDay(s.data_fine) || null;
     if (inizio && !fine && s.giorni && s.giorni >= 1) fine = aggiungiGiorni(inizio, s.giorni - 1);
-    const da = inizio ?? fine;
-    const a = fine ?? inizio;
+    let da = inizio ?? fine;
+    let a = fine ?? inizio;
+    let stimata = false;
+    if (!da && cursore && s.giorni && s.giorni >= 1) {
+      da = cursore;
+      a = aggiungiGiorni(cursore, s.giorni - 1);
+      stimata = true;
+    }
     if (!da || !a || a < da) continue;
+    cursore = aggiungiGiorni(a, 1);
     out.push({
       id: s.id,
       nome: s.name,
@@ -414,6 +426,7 @@ export function sottofasiCronoprogramma(
       giorni: s.giorni ?? null,
       ritardo: s.fatta ? 0 : Math.max(0, giorniTra(a, oggi)),
       fuoriDallaFase: !!((fase.previstoInizio && da < fase.previstoInizio) || (fase.previstoFine && a > fase.previstoFine)),
+      stimata,
     });
   }
   return out;

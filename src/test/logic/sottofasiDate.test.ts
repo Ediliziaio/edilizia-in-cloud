@@ -1,7 +1,7 @@
 // src/test/logic/sottofasiDate.test.ts
 import { describe, expect, it } from "vitest";
 import {
-  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, pianoSottofase, sottofaseDaRiga,
+  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, pianoInSequenza, pianoSottofase, sottofaseDaRiga,
 } from "@/lib/orders/sottofasi";
 import { sottofasiCronoprogramma } from "@/lib/orders/cronoprogramma";
 
@@ -66,6 +66,54 @@ describe("sottofasi con date e giorni", () => {
     expect(righe.map((r) => [r.id, r.previstoFine, r.ritardo, r.fuoriDallaFase])).toEqual([
       ["1", "2026-08-03", 0, true],
       ["2", "2026-08-19", 6, false],
+    ]);
+  });
+});
+
+describe("pianoInSequenza", () => {
+  const fase = { start_date: "2025-09-15", end_date: "2025-09-22" };
+  const s = (id: string, giorni: number | null, extra: Record<string, unknown> = {}) =>
+    ({ id, name: id, fatta: false, data_inizio: null, data_fine: null, giorni, ...extra });
+
+  it("mette le sottofasi in fila dall'inizio della fase e dice i giorni liberi", () => {
+    const p = pianoInSequenza(fase, [s("a", 3), s("b", 2)], "2025-10-01");
+    expect(p.passi.map(x => [x.data_inizio, x.data_fine])).toEqual([["2025-09-15", "2025-09-17"], ["2025-09-18", "2025-09-19"]]);
+    expect(p.giorniFase).toBe(8);
+    expect(p.giorniLiberi).toBe(3);
+    expect(p.giorniInPiu).toBe(0);
+  });
+
+  it("con più giorni della fase dice quanti sono in più e quale sottofase esce", () => {
+    const p = pianoInSequenza(fase, [s("a", 5), s("b", 4)], "2025-10-01");
+    expect(p.fine).toBe("2025-09-23");
+    expect(p.giorniInPiu).toBe(1);
+    expect(p.passi.map(x => x.oltreLaFase)).toEqual([false, true]);
+  });
+
+  it("le fatte e datate restano ferme, chi non ha giorni resta fuori, senza date della fase parte da oggi", () => {
+    const p = pianoInSequenza(fase, [s("a", 2, { fatta: true, data_inizio: "2025-09-15", data_fine: "2025-09-16" }), s("b", null), s("c", 1)], "2025-10-01");
+    expect(p.passi.map(x => [x.id, x.data_inizio, x.ferma])).toEqual([["a", "2025-09-15", true], ["c", "2025-09-17", false]]);
+    expect(p.senzaGiorni).toEqual(["b"]);
+    expect(pianoInSequenza({ start_date: null, end_date: null }, [s("a", 2)], "2025-10-01").passi[0].data_inizio).toBe("2025-10-01");
+  });
+});
+
+describe("sottofasiCronoprogramma con i soli giorni", () => {
+  it("le mette in fila dopo la precedente, segnate come stimate", () => {
+    const righe = sottofasiCronoprogramma(
+      { previstoInizio: "2025-09-15", previstoFine: "2025-09-22" },
+      [
+        { id: "a", name: "A", fatta: false, data_inizio: "2025-09-15", data_fine: "2025-09-17", giorni: 3 },
+        { id: "b", name: "B", fatta: false, giorni: 4 },
+        { id: "c", name: "C", fatta: false, giorni: 2 },
+        { id: "d", name: "D", fatta: false },
+      ],
+      "2025-09-01",
+    );
+    expect(righe.map(r => [r.id, r.previstoInizio, r.previstoFine, r.stimata, r.fuoriDallaFase])).toEqual([
+      ["a", "2025-09-15", "2025-09-17", false, false],
+      ["b", "2025-09-18", "2025-09-21", true, false],
+      ["c", "2025-09-22", "2025-09-23", true, true],
     ]);
   });
 });

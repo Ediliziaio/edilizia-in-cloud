@@ -132,6 +132,25 @@ describe("SottofasiFase", () => {
     expect(screen.getByRole("status")).toHaveTextContent("«Impianto» si allunga: dal 28/10 al 04/11.");
   });
 
+  it("si scrivono i giorni sulle righe: il piano le mette in fila nella fase, dice i giorni in più e salva le date", () => {
+    const a = { ...azioni(), onPianificaTutte: vi.fn() };
+    render(<SottofasiFase nomeFase="Allestimento" dateFase={{ start_date: "2025-09-15", end_date: "2025-09-22" }} puoModificare puoSegnare
+      {...a} sottofasi={[riga({ id: "s1", name: "Esecuzione" }), riga({ id: "s2", name: "Verifica" })]} />);
+    fireEvent.change(screen.getByLabelText("Giorni per Esecuzione"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Giorni per Verifica"), { target: { value: "2" } });
+    const piano = screen.getByLabelText("Piano delle sottofasi di Allestimento");
+    expect(piano).toHaveTextContent("7 giorni");
+    expect(piano).toHaveTextContent("Resta 1 giorno libero nella fase.");
+    fireEvent.change(screen.getByLabelText("Giorni per Verifica"), { target: { value: "4" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("1 giorno in più della fase: «Allestimento» finirebbe il 23/09.");
+    expect(screen.getByText("20/09 → 23/09 · 4 gg · oltre la fase")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Metti le date e allunga la fase di 1 gg" }));
+    expect(a.onPianificaTutte).toHaveBeenCalledWith([
+      { id: "s1", data_inizio: "2025-09-15", data_fine: "2025-09-19", giorni: 5 },
+      { id: "s2", data_inizio: "2025-09-20", data_fine: "2025-09-23", giorni: 4 },
+    ]);
+  });
+
   it("pesa per giorni quando tutte le sottofasi hanno i giorni", () => {
     const a = { ...azioni(), onPesa: vi.fn() };
     const { rerender } = render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga({ giorni: 10 }), riga({ id: "s2", name: "Cavi" })]} />);

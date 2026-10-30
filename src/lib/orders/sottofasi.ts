@@ -222,3 +222,67 @@ export function sottofasiSpuntate(fasiLavorate: unknown): string[] {
     return Array.isArray(spunte) ? spunte.filter((x): x is string => typeof x === "string") : [];
   });
 }
+
+export interface PassoInSequenza {
+  id: string;
+  data_inizio: string;
+  data_fine: string;
+  giorni: number;
+  /** Già fatta e datata: le sue date restano com'erano. */
+  ferma: boolean;
+  /** Finisce dopo la fine della fase. */
+  oltreLaFase: boolean;
+}
+
+export interface PianoInSequenza {
+  passi: PassoInSequenza[];
+  /** Le sottofasi senza giorni: restano senza date. */
+  senzaGiorni: string[];
+  inizio: string;
+  /** L'ultimo giorno di lavoro delle sottofasi in fila. */
+  fine: string | null;
+  /** I giorni della fase (estremi compresi), se ha le due date. */
+  giorniFase: number | null;
+  /** Giorni oltre la fine della fase; 0 se ci stanno. */
+  giorniInPiu: number;
+  /** Giorni della fase che restano liberi dopo l'ultima sottofase. */
+  giorniLiberi: number;
+}
+
+/**
+ * Le sottofasi una dopo l'altra dentro la fase (31/10/2026, richiesta di Florin):
+ * si scrivono solo i giorni, le date le calcola il piano partendo dall'inizio
+ * della fase (o da oggi, se la fase non ha date). Le sottofasi già fatte e datate
+ * restano dove sono e la fila riparte dopo di loro. Se la fila esce dalla fase
+ * lo dice (giorniInPiu): salvando, la fase si allunga (fase_allarga_a_sottofasi).
+ */
+export function pianoInSequenza(
+  fase: { start_date: string | null; end_date: string | null },
+  sottofasi: ReadonlyArray<Pick<Sottofase, "id" | "name" | "fatta" | "data_inizio" | "data_fine" | "giorni">>,
+  oggi: string,
+): PianoInSequenza {
+  const inizio = fase.start_date ?? oggi;
+  const passi: PassoInSequenza[] = [];
+  const senzaGiorni: string[] = [];
+  let cursore = inizio;
+  for (const s of sottofasi) {
+    const fissa = s.fatta ? intervalloSottofase(s) : null;
+    if (fissa) {
+      passi.push({ id: s.id, data_inizio: fissa[0], data_fine: fissa[1], giorni: s.giorni ?? giorniFinestra(fissa[0], fissa[1]), ferma: true, oltreLaFase: false });
+      const dopo = fineDaGiorni(fissa[1], 2);
+      if (dopo > cursore) cursore = dopo;
+      continue;
+    }
+    // Una già fatta senza date non si ripianifica, e non è un errore.
+    if (!s.giorni || s.giorni < 1) { if (!s.fatta) senzaGiorni.push(s.name); continue; }
+    const fine = fineDaGiorni(cursore, s.giorni);
+    passi.push({ id: s.id, data_inizio: cursore, data_fine: fine, giorni: s.giorni, ferma: false, oltreLaFase: false });
+    cursore = fineDaGiorni(fine, 2);
+  }
+  const fine = passi.reduce<string | null>((m, p) => (!m || p.data_fine > m ? p.data_fine : m), null);
+  const giorniFase = fase.start_date && fase.end_date && fase.end_date >= fase.start_date ? giorniFinestra(fase.start_date, fase.end_date) : null;
+  for (const p of passi) p.oltreLaFase = !p.ferma && !!fase.end_date && p.data_fine > fase.end_date;
+  const giorniInPiu = fine && fase.end_date && fine > fase.end_date ? giorniFinestra(fase.end_date, fine) - 1 : 0;
+  const giorniLiberi = fine && fase.end_date && fine < fase.end_date ? giorniFinestra(fine, fase.end_date) - 1 : 0;
+  return { passi, senzaGiorni, inizio, fine, giorniFase, giorniInPiu, giorniLiberi };
+}

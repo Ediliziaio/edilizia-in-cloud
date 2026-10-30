@@ -212,7 +212,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -641,6 +641,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                   onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
                   onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
                   onPesa: (pesi) => pesaSottofasi.mutate(pesi),
+                  onPianificaTutte: (passi) => pianificaSottofasi.mutate(passi),
                   onElimina: (id) => eliminaSottofase.mutate(id),
                 }}
               />
@@ -774,6 +775,7 @@ interface PhaseCardProps {
     onRinomina: (id: string, nome: string) => void;
     onPianifica: (id: string, piano: PianoSottofase) => void;
     onPesa: (pesi: Array<{ id: string; peso: number }>) => void;
+    onPianificaTutte: (passi: Array<{ id: string } & PianoSottofase>) => void;
     onElimina: (id: string) => void;
   };
 }

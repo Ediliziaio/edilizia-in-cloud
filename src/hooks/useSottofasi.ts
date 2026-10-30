@@ -74,6 +74,18 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // Il piano in fila (pianoInSequenza): giorni e date di più sottofasi in una volta.
+  const pianificaTutte = useMutation({
+    mutationFn: async (passi: ReadonlyArray<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => {
+      for (const { id, data_inizio, data_fine, giorni } of passi) {
+        const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
   // Il peso di ogni sottofase diventa il suo tempo necessario (pesiDaGiorni).
   const pesa = useMutation({
     mutationFn: async (pesi: ReadonlyArray<{ id: string; peso: number }>) => {
@@ -95,5 +107,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, pesa, elimina };
 }
