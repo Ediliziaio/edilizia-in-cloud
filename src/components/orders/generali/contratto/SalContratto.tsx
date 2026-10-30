@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { BottoneFattura } from "@/components/orders/generali/fatture/BottoneFattura";
 import { useAuth } from "@/contexts/AuthContext";
 import { documentoSal, useAnnullaSal, useEmettiSal, useRegistraRitenuta } from "@/hooks/useGeneraleContrattoSal";
 import type { FigliaGenerale } from "@/lib/orders/commesseGenerali";
@@ -177,6 +178,7 @@ function SchedaSal({ generaleId, sal: s, perFiglia, puoModificare, apertoDiParte
             {inCorso === "link" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Link2 className="mr-1.5 h-3.5 w-3.5" />} Link per il committente
           </Button>
         )}
+        {s.diContratto && salEmesso(s) && <BottoneFattura generaleId={generaleId} origine="sal" id={s.id} crea={puoModificare} />}
         {s.diContratto && salEmesso(s) && s.ritenuta > 0 && (
           s.registro ? (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">

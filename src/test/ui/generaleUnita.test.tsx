@@ -18,6 +18,8 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`, useCriterioRipartizione: () => ({ data: { criterio: "auto", disponibile: false } }) }));
+// Fatture dei pagamenti (sessione cg-fatture): qui non si provano, il bottone resta spento.
+vi.mock("@/hooks/useGeneraleFatture", () => ({ useFattureGenerale: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useGeneraleUnita", () => {
   const ferma = () => ({ mutate: vi.fn(), isPending: false });
   return {
