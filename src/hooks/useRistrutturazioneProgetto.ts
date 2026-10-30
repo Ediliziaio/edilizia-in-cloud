@@ -628,7 +628,7 @@ export function normalizeTemplate(row: Record<string, unknown> | null, companyId
     show_percorso: (r.show_percorso as boolean | null) ?? true,
     cover_title_size: (r.cover_title_size as number | null) ?? 30,
     cover_text_align: (r.cover_text_align as RstTemplatePdf["cover_text_align"]) ?? "left",
-    default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
+    default_iva_pct: (r.default_iva_pct as number | null) ?? IVA_PREDEFINITA_PCT,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
     // Anche questi due si perdevano qui: il logo di copertina e la galleria dei

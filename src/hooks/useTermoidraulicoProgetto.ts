@@ -143,7 +143,7 @@ function totaliDaRighe(
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
-    // Come il default della colonna iva_pct (22): prima qui c'era 10 (05/10/2026).
+    // IVA di riserva unica, come il default della colonna iva_pct (10% dal 27/10/2026).
     iva_pct: Number(parametri.iva_pct ?? IVA_PREDEFINITA_PCT),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
@@ -624,8 +624,7 @@ export function normalizeTemplate(row: Record<string, unknown> | null, companyId
     show_percorso: (r.show_percorso as boolean | null) ?? true,
     cover_title_size: (r.cover_title_size as number | null) ?? 30,
     cover_text_align: (r.cover_text_align as IdrTemplatePdf["cover_text_align"]) ?? "left",
-    // Come il default della colonna default_iva_pct (22), non 10 (05/10/2026).
-    default_iva_pct: (r.default_iva_pct as number | null) ?? 22,
+    default_iva_pct: (r.default_iva_pct as number | null) ?? IVA_PREDEFINITA_PCT,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
     // Anche questi due si perdevano qui: il logo di copertina e la galleria dei
