@@ -925,7 +925,7 @@ function DocumentiFiscaliListInner() {
                   {showColScadenza && <TableHead className="w-40">Prox. Scadenza</TableHead>}
                   {showColFatturaCollegata && <TableHead className="w-36">Fattura Collegata</TableHead>}
                   <TableHead className="text-right w-28">Importo</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1093,8 +1093,19 @@ function DocumentiFiscaliListInner() {
                         {formatCurrency(doc.totale_documento)}
                       </TableCell>
 
-                      {/* Azioni */}
+                      {/* Azioni: «Incassata» a vista finché c'è da incassare, il resto nel menu. */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                        {!isTrash && (doc.origine === "importata" ? importataPagabile(doc) : isDocumentoPagabile(doc)) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs"
+                            onClick={() => (doc.origine === "importata" ? setIncassoImportata(doc) : handleAction("pagata", doc))}
+                          >
+                            <CreditCard className="h-3.5 w-3.5" /> Incassata
+                          </Button>
+                        )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" aria-label="Altre azioni" className="h-8 w-8">
@@ -1215,6 +1226,7 @@ function DocumentiFiscaliListInner() {
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
