@@ -43,6 +43,8 @@ import {
 } from "../../../../supabase/functions/_shared/posModello";
 import { AperturaSezioniContext, Campo } from "@/components/sicurezza/pos/campi";
 import { CosaManca } from "@/components/sicurezza/pos/CosaManca";
+import { InvioPos, useIncaricoCse, type DestinatarioPos } from "@/components/sicurezza/pos/InvioPos";
+import { useEmissioniPos } from "@/hooks/useEmissioniPos";
 import { BarraSezioniPos, NavSezioniPos, type VoceMenuSezione } from "@/components/sicurezza/pos/MenuSezioniPos";
 import { useSezioniApertePos, useStickyNelDocumento } from "@/components/sicurezza/pos/useSezioniPos";
 import {
@@ -311,6 +313,30 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
   const subappalto = bozza.impresa.ruolo === "esecutrice_subappalto";
   const conCse = bozza.procedure_psc.psc_presente;
+  // L'invio del POS parte dal PDF approvato della revisione corrente; il CSE della commessa precompila il destinatario.
+  const emissioni = useEmissioniPos(companyId || pos.company_id, pos.id, approvato && puoScrivere);
+  const emissioneCorrente = emissioni.data?.find((e) => e.stato === "completa" && e.revisione === pos.revisione) ?? null;
+  const cse = useIncaricoCse(companyId || pos.company_id, pos.order_id, approvato && puoScrivere && conCse);
+  const indirizzoCantiere = [bozza.opera.cantiere.via, [bozza.opera.cantiere.localita, bozza.opera.cantiere.provincia ? `(${bozza.opera.cantiere.provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  /** A invio riuscito: la data entra nelle date della consegna e si salva subito (è un fatto già avvenuto, non una bozza). */
+  const registraInvio = async (tipo: DestinatarioPos, quando: string) => {
+    const nuovo: IterPos = { ...iter, [tipo === "cse" ? "cse_inviato_il" : "affidataria_inviato_il"]: quando };
+    try {
+      const aggiornato = await salva.mutateAsync({ iter: nuovo, attesa_updated_at: versioneLetta.current });
+      versioneLetta.current = aggiornato.updated_at;
+      setIter(nuovo);
+      toast.success("Invio registrato: da oggi corrono i 15 giorni per la verifica");
+    } catch {
+      // Il salvataggio ha già mostrato il suo errore: la data resta nella bozza della consegna, da salvare.
+      setIter(nuovo); setIterSporco(true);
+    }
+  };
+  const invio = (tipo: DestinatarioPos) => (
+    <InvioPos tipo={tipo} companyId={companyId || pos.company_id} orderId={pos.order_id} emissioneId={emissioneCorrente?.id ?? null}
+      codice={pos.commessa?.order_code || "POS"} revisione={pos.revisione} impresa={bozza.impresa.ragione_sociale} cantiere={indirizzoCantiere}
+      nomeIniziale={tipo === "cse" ? (cse.data?.nome ?? "") : bozza.impresa.subappalto_a} emailIniziale={tipo === "cse" ? (cse.data?.email ?? "") : ""}
+      disabilitato={sporco || iterSporco || salva.isPending} onInviato={(t, q) => void registraInvio(t, q)} />
+  );
   // Art. 101 c. 3: con una verifica negativa i lavori non possono iniziare, anche se il POS è approvato nell'app.
   const verificaNegativa = verificaIterNegativa(bozza, iter);
   const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : "Approvato") : "Bozza";
@@ -461,7 +487,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               </div>
               {subappalto && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-                  <h3 className="text-sm font-semibold sm:col-span-3">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+                    <h3 className="text-sm font-semibold">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
+                    {approvato && puoScrivere && invio("affidataria")}
+                  </div>
                   <Campo id="iter-aff-inv" label="Consegnato il" type="date" value={iter.affidataria_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     hint={iter.affidataria_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.affidataria_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_inviato_il: v || null }))} />
@@ -473,7 +502,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               )}
               {conCse && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-                  <h3 className="text-sm font-semibold sm:col-span-3">Coordinatore per l'esecuzione (CSE)</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+                    <h3 className="text-sm font-semibold">Coordinatore per l'esecuzione (CSE)</h3>
+                    {approvato && puoScrivere && invio("cse")}
+                  </div>
                   <Campo id="iter-cse-inv" label="Trasmesso il" type="date" value={iter.cse_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     hint={iter.cse_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.cse_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_inviato_il: v || null }))} />
