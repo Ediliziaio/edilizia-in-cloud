@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
         Resa ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 ("GDPR") e del D.Lgs.
         196/2003 e ss.mm.ii. ("Codice Privacy").
         <br />
-        Ultimo aggiornamento: 26 ottobre 2026 · Versione: 1.2
+        Ultimo aggiornamento: 30 ottobre 2026 · Versione: 1.3
       </p>
 
       <h2>Indice</h2>
@@ -618,8 +618,11 @@ export default function PrivacyPolicy() {
         <tbody>
           <tr>
             <td>Supabase Inc.</td>
-            <td>Database, autenticazione, storage applicativo</td>
-            <td>Extra-UE, con Clausole Contrattuali Standard (SCC)</td>
+            <td>Database, autenticazione, storage applicativo, funzioni server</td>
+            <td>
+              UE (Irlanda, datacenter AWS eu-west-1); eventuale accesso del supporto tecnico dagli USA
+              con Clausole Contrattuali Standard (SCC)
+            </td>
           </tr>
           <tr>
             <td>Cloudflare Inc.</td>
@@ -648,10 +651,15 @@ export default function PrivacyPolicy() {
             <td>UE (Francia, Germania; Finlandia per Enable Banking)</td>
           </tr>
           <tr>
+            <td>Openapi S.p.A. (openapi.it)</td>
+            <td>Trasmissione e ricezione delle fatture elettroniche tramite il Sistema di Interscambio (SDI)</td>
+            <td>Italia / UE</td>
+          </tr>
+          <tr>
             <td>Aruba S.p.A.</td>
             <td>
-              Trasmissione e ricezione fatture elettroniche tramite SDI, conservazione digitale a
-              norma
+              Canale alternativo per la trasmissione delle fatture elettroniche tramite SDI e la
+              conservazione digitale a norma, se scelto dall&apos;azienda cliente
             </td>
             <td>Italia / UE</td>
           </tr>
