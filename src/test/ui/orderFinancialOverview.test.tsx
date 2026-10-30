@@ -56,7 +56,8 @@ describe("La commessa in numeri: previsto e reale", () => {
     expect(cella("Costi sostenuti")).toHaveTextContent("Da pagare 150,00");
     expect(cella("Margine reale")).toHaveTextContent("600,00");
     expect(cella("Margine reale")).toHaveTextContent("60%");
-    expect(cella("Margine reale")).toHaveTextContent("Costi oltre il previsto di 100,00");
+    expect(cella("Costi sostenuti")).toHaveTextContent("Oltre il previsto di 100,00");
+    expect(cella("Margine reale")).toHaveTextContent("A fine lavori ≈ 600,00");
     expect(cella("Incassato")).toHaveTextContent("200,00");
     expect(cella("Incassato")).toHaveTextContent("Da incassare 1.020,00");
     fireEvent.click(cella("Margine reale"));
@@ -79,7 +80,16 @@ describe("La commessa in numeri: previsto e reale", () => {
     state.previsto = { ...state.previsto, costo: 0 };
     mount();
     expect(cella("Margine previsto")).toHaveTextContent("—");
-    expect(cella("Margine reale")).not.toHaveTextContent("oltre il previsto");
+    expect(cella("Margine reale")).not.toHaveTextContent("A fine lavori");
+  });
+
+  it("a metà lavori: quanto previsto è già speso e il margine stimato a fine lavori", () => {
+    state.costs = 120; state.margin = 880; state.pct = 88;
+    mount();
+    expect(cella("Costi sostenuti")).toHaveTextContent("Speso il 40% del previsto · restano 180,00");
+    expect(screen.getByRole("progressbar", { name: "Previsto già speso" })).toHaveAttribute("aria-valuenow", "40");
+    expect(cella("Margine reale")).toHaveTextContent("880,00");
+    expect(cella("Margine reale")).toHaveTextContent("A fine lavori ≈ 700,00 € · 70%");
   });
 
   it("niente da pagare: lo dice", () => {
@@ -122,7 +132,7 @@ describe("La commessa in numeri: previsto e reale", () => {
 
   it.each([{ installmentsLoading: true }, { installmentsError: true }])("non dichiara incassi prima di caricarli", s => {
     mount(s);
-    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("progressbar", { name: "Percentuale incassata" })).toBeNull();
     expect(cella("Incassato")).not.toHaveTextContent("Da incassare");
   });
 

@@ -84,6 +84,12 @@ export function OrderFinancialOverview(props: Props) {
       ? "Caricamento costi…"
       : quality.status === "ready" ? "Sui costi registrati" : quality.issues[0]?.label ?? quality.label;
   const scarto = numeri.scostamento;
+  const fine = realeReady && previstoReady ? numeri.aFinire : null;
+  const costiHint = !realeReady || !fine || scarto == null
+    ? realeHint
+    : scarto > 0.5
+      ? `Oltre il previsto di ${formatCurrency(scarto)}`
+      : `Speso il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
   const previstoHint = !previstoReady
     ? previsto.isError ? "Lavorazioni non disponibili" : "Caricamento lavorazioni…"
     : !numeri.previsto
@@ -154,7 +160,8 @@ export function OrderFinancialOverview(props: Props) {
                   : `Da incassare ${formatCurrency(payments.remaining)}${payments.nextDate ? ` · ${payments.overdue ? "scaduta il" : "prossima"} ${format(parseISO(payments.nextDate), "d MMM", { locale: it })}` : ""}`}
               tone={payments.overdue || payments.excess > 0.01 ? "text-red-200" : payments.status === "Saldato" ? "text-emerald-200" : "text-white"}
               progresso={paymentReady ? payments.percent : undefined}
-              progressoAvviso={payments.overdue}
+              progressoNome="Percentuale incassata"
+              progressoColore={payments.overdue ? "bg-amber-400" : "bg-emerald-400"}
               onClick={props.onOpenPayments}
               apri
             />
@@ -163,7 +170,10 @@ export function OrderFinancialOverview(props: Props) {
             <Cella
               label="Costi sostenuti"
               value={realeReady ? formatCurrency(numeri.reale.costi) : "—"}
-              hint={realeReady ? realeHint : realeHint}
+              hint={costiHint}
+              progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
+              progressoNome="Previsto già speso"
+              progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
               evidenza={canViewCosts && !cassaLoading && !cassaError && esposizione.daPagare > 0.005
                 ? `Da pagare ${formatCurrency(esposizione.daPagare)}`
                 : canViewCosts && !cassaLoading && !cassaError ? "Tutto pagato" : undefined}
@@ -174,13 +184,10 @@ export function OrderFinancialOverview(props: Props) {
               label="Margine reale"
               value={realeReady ? formatCurrency(numeri.reale.margine) : "—"}
               aside={realeReady ? pctTesto(numeri.reale.marginePct) : undefined}
-              hint={!realeReady ? realeHint : scarto == null
-                ? quality.label
-                : Math.abs(scarto) < 0.5
-                  ? "Costi in linea col previsto"
-                  : scarto > 0
-                    ? `Costi oltre il previsto di ${formatCurrency(scarto)}`
-                    : `Costi sotto il previsto di ${formatCurrency(-scarto)}`}
+              evidenza={fine ? `A fine lavori ≈ ${formatCurrency(fine.margine)} · ${pctTesto(fine.marginePct)}` : undefined}
+              evidenzaTitolo="Stima: ai costi sostenuti si aggiunge il previsto che resta da spendere. Se si è già oltre il previsto, contano i costi veri."
+              evidenzaTono={fine && fine.margine < 0 ? "text-red-200" : "text-emerald-200"}
+              hint={!realeReady ? realeHint : fine && fine.residuo > 0.5 ? "Ad oggi: ricavo intero meno i costi fin qui" : quality.label}
               tone={realeReady ? toneMargine(numeri.reale.margine, quality.status === "partial") : "text-white"}
               onClick={props.onOpenEconomics}
             />
@@ -200,9 +207,10 @@ function Etichetta({ titolo, sotto }: { titolo: string; sotto: string }) {
   );
 }
 
-function Cella({ label, value, aside, hint, tone = "text-white", evidenza, evidenzaTitolo, progresso, progressoAvviso, onClick, apri }: {
+function Cella({ label, value, aside, hint, tone = "text-white", evidenza, evidenzaTitolo, evidenzaTono = "text-orange-200", progresso, progressoNome, progressoColore = "bg-emerald-400", onClick, apri }: {
   label: string; value: string; aside?: string; hint: string; tone?: string;
-  evidenza?: string; evidenzaTitolo?: string; progresso?: number; progressoAvviso?: boolean;
+  evidenza?: string; evidenzaTitolo?: string; evidenzaTono?: string;
+  progresso?: number; progressoNome?: string; progressoColore?: string;
   onClick: () => void; apri?: boolean;
 }) {
   return (
@@ -215,11 +223,11 @@ function Cella({ label, value, aside, hint, tone = "text-white", evidenza, evide
         <span className={`text-lg font-bold leading-tight tabular-nums max-sm:text-[13px] ${tone}`}>{value}</span>
         {aside && <span className={`text-sm font-semibold tabular-nums max-sm:text-[11px] ${tone}`}>{aside}</span>}
       </span>
-      {evidenza && <span title={evidenzaTitolo} className="mt-1 block text-xs font-semibold text-orange-200 tabular-nums max-sm:mt-0.5 max-sm:text-[10px]">{evidenza}</span>}
+      {evidenza && <span title={evidenzaTitolo} className={`mt-1 block text-xs font-semibold tabular-nums ${evidenzaTono} max-sm:mt-0.5 max-sm:text-[10px]`}>{evidenza}</span>}
       {progresso !== undefined && (
-        <span role="progressbar" aria-label="Percentuale incassata" aria-valuenow={Math.round(progresso)} aria-valuemin={0} aria-valuemax={100}
+        <span role="progressbar" aria-label={progressoNome} aria-valuenow={Math.round(progresso)} aria-valuemin={0} aria-valuemax={100}
           className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/15">
-          <span className={`block h-full rounded-full ${progressoAvviso ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${progresso}%` }} />
+          <span className={`block h-full rounded-full ${progressoColore}`} style={{ width: `${progresso}%` }} />
         </span>
       )}
       {hint && <span className="mt-1 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>}

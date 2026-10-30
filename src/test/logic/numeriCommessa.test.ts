@@ -15,6 +15,7 @@ describe("numeri della commessa: previsto e reale", () => {
     const n = numeriCommessa({ ...base, costoPrevistoLavorazioni: 0 });
     expect(n.previsto).toBeNull();
     expect(n.scostamento).toBeNull();
+    expect(n.aFinire).toBeNull();
   });
 
   it("dice quante lavorazioni non hanno un previsto", () => {
@@ -25,5 +26,15 @@ describe("numeri della commessa: previsto e reale", () => {
     const n = numeriCommessa({ ...base, ricavo: 0 });
     expect(n.previsto?.marginePct).toBeNull();
     expect(n.reale.marginePct).toBeNull();
+  });
+
+  it("a metà lavori la stima a fine lavori conta il previsto, non il margine ottimista di oggi", () => {
+    const n = numeriCommessa({ ...base, costiReali: 30_000, margineReale: 90_689.89 });
+    expect(n.aFinire).toEqual({ costo: 85_000, margine: 35_689.89, marginePct: 29.6, residuo: 55_000, spesoPct: 35 });
+  });
+
+  it("oltre il previsto la stima a fine lavori segue i costi veri", () => {
+    const n = numeriCommessa(base);
+    expect(n.aFinire).toMatchObject({ costo: 85_533, margine: 35_156.89, residuo: 0, spesoPct: 101 });
   });
 });
