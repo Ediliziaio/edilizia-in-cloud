@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  avanzamentoDaSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, riepilogoSottofasi, type Sottofase,
+  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, pesiDaGiorni, riepilogoSottofasi, type Sottofase,
 } from "@/lib/orders/sottofasi";
 
 export interface PianoSottofase {
@@ -29,6 +29,8 @@ export function testoPiano(s: Pick<Sottofase, "data_inizio" | "data_fine" | "gio
 interface SottofasiFaseProps {
   nomeFase: string;
   sottofasi: Sottofase[];
+  /** Le date previste della fase: l'editor dice se la sottofase la farà allungare. */
+  dateFase?: { start_date: string | null; end_date: string | null };
   /** Se la fase è già avviata (o chiusa) e non ha ancora sottofasi: l'avanzamento che ha adesso. */
   avviata?: { percentuale: number; chiusa: boolean } | null;
   /** L'ufficio aggiunge, rinomina e toglie. */
@@ -48,7 +50,7 @@ interface SottofasiFaseProps {
 
 /** I passi di una fase: spuntati, ne decidono l'avanzamento. */
 export function SottofasiFase({
-  nomeFase, sottofasi, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPesa, onElimina, className,
+  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPesa, onElimina, className,
 }: SottofasiFaseProps) {
   const [nuova, setNuova] = useState("");
   const [aperta, setAperta] = useState(false);
@@ -152,6 +154,8 @@ export function SottofasiFase({
             {inPiano === s.id && onPianifica && (
               <PianoRiga
                 sottofase={s}
+                nomeFase={nomeFase}
+                dateFase={dateFase}
                 onAnnulla={() => setInPiano(null)}
                 onSalva={(piano) => { onPianifica(s.id, piano); setInPiano(null); }}
               />
@@ -187,8 +191,10 @@ export function SottofasiFase({
 }
 
 /** Inizio, fine e giorni di una sottofase. Inizio e giorni danno la fine; due date danno i giorni. */
-function PianoRiga({ sottofase, onSalva, onAnnulla }: {
+function PianoRiga({ sottofase, nomeFase, dateFase, onSalva, onAnnulla }: {
   sottofase: Sottofase;
+  nomeFase: string;
+  dateFase?: { start_date: string | null; end_date: string | null };
   onSalva: (piano: PianoSottofase) => void;
   onAnnulla: () => void;
 }) {
@@ -199,6 +205,18 @@ function PianoRiga({ sottofase, onSalva, onAnnulla }: {
   const giorniOk = giorni === "" || (Number.isInteger(n) && n >= 1 && n <= 3650);
   const invertite = !!inizio && !!fine && fine < inizio;
 
+  // La fase si allarga solo se ha già delle date: senza, prende quelle della sottofase.
+  const allungata = (() => {
+    if (!dateFase?.start_date || !dateFase.end_date || invertite || !giorniOk) return null;
+    const dopo = dateFaseConSottofasi(dateFase, [{ data_inizio: inizio || null, data_fine: fine || null, giorni: giorni ? n : null }]);
+    return dopo.start_date !== dateFase.start_date || dopo.end_date !== dateFase.end_date ? dopo : null;
+  })();
+
+  const cambiaInizio = (v: string) => {
+    setInizio(v);
+    // Con i giorni già scritti, spostare l'inizio sposta la fine.
+    if (v && Number.isInteger(n) && n >= 1 && n <= 3650 && giorni) setFine(fineDaGiorni(v, n));
+  };
   const cambiaGiorni = (v: string) => {
     setGiorni(v);
     const g = Number(v);
@@ -212,7 +230,7 @@ function PianoRiga({ sottofase, onSalva, onAnnulla }: {
   return (
     <div className="flex basis-full flex-wrap items-end gap-2 pb-1 pl-6">
       <label className="grid gap-0.5 text-[11px] text-muted-foreground">Inizio
-        <Input type="date" value={inizio} onChange={(e) => setInizio(e.target.value)} className="h-8 w-36 text-sm" aria-label={`Inizio di ${sottofase.name}`} />
+        <Input type="date" value={inizio} onChange={(e) => cambiaInizio(e.target.value)} className="h-8 w-36 text-sm" aria-label={`Inizio di ${sottofase.name}`} />
       </label>
       <label className="grid gap-0.5 text-[11px] text-muted-foreground">Fine
         <Input type="date" value={fine} min={inizio || undefined} onChange={(e) => cambiaFine(e.target.value)} className="h-8 w-36 text-sm" aria-label={`Fine di ${sottofase.name}`} />
@@ -224,7 +242,9 @@ function PianoRiga({ sottofase, onSalva, onAnnulla }: {
         onClick={() => onSalva({ data_inizio: inizio || null, data_fine: fine || null, giorni: giorni ? n : null })}>Salva</Button>
       <Button size="sm" variant="ghost" className="h-8" onClick={onAnnulla}>Annulla</Button>
       {invertite && <p role="alert" className="basis-full text-xs text-rose-700">La fine è prima dell'inizio.</p>}
-      <p className="basis-full text-[11px] text-muted-foreground">Se la sottofase esce dalle date della fase, la fase si allunga per contenerla.</p>
+      {allungata?.start_date && allungata.end_date
+        ? <p role="status" className="basis-full text-xs text-amber-800">«{nomeFase}» si allunga: dal {breve(allungata.start_date)} al {breve(allungata.end_date)}. Le squadre che seguono la fase si spostano con lei.</p>
+        : <p className="basis-full text-[11px] text-muted-foreground">Se la sottofase esce dalle date della fase, la fase si allunga per contenerla.</p>}
     </div>
   );
 }

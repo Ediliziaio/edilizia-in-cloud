@@ -122,6 +122,16 @@ describe("SottofasiFase", () => {
     expect(screen.queryByRole("button", { name: "Date e giorni di Tracce" })).not.toBeInTheDocument();
   });
 
+  it("spostare l'inizio con i giorni già scritti sposta la fine, e dice di quanto si allunga la fase", () => {
+    render(<SottofasiFase nomeFase="Impianto" dateFase={{ start_date: "2026-10-28", end_date: "2026-10-31" }} puoModificare puoSegnare
+      {...azioni()} onPianifica={vi.fn()} sottofasi={[riga({ data_inizio: "2026-10-28", data_fine: "2026-10-30", giorni: 3 })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date e giorni di Tracce" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Inizio di Tracce"), { target: { value: "2026-11-02" } });
+    expect(screen.getByLabelText("Fine di Tracce")).toHaveValue("2026-11-04");
+    expect(screen.getByRole("status")).toHaveTextContent("«Impianto» si allunga: dal 28/10 al 04/11.");
+  });
+
   it("pesa per giorni quando tutte le sottofasi hanno i giorni", () => {
     const a = { ...azioni(), onPesa: vi.fn() };
     const { rerender } = render(<SottofasiFase nomeFase="Impianto" puoModificare puoSegnare {...a} sottofasi={[riga({ giorni: 10 }), riga({ id: "s2", name: "Cavi" })]} />);

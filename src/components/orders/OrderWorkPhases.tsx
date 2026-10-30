@@ -1230,6 +1230,7 @@ function PhaseCard({
               <SottofasiFase
                 nomeFase={phase.name}
                 sottofasi={sottofasi}
+                dateFase={{ start_date: phase.start_date, end_date: phase.end_date }}
                 // Una fase già avviata (o chiusa) che si divide in sottofasi riparte da quelle fatte: si avvisa.
                 avviata={phase.status !== "da_iniziare" || phase.percentuale > 0 ? { percentuale: actualPct, chiusa: phase.status === "completata" } : null}
                 puoModificare={canEditOrders}
