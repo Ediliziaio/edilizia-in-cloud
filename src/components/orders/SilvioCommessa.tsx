@@ -14,16 +14,10 @@
  * lavora conferma (vedi docs/silvio-commessa-piano.md).
  */
 import { useState } from "react";
-import { BarChart3, FileUp, MessageSquare, Sparkles, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BarChart3, FileUp, MessageSquare, Users } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
-import { cn } from "@/lib/utils";
-
-/** Apre la chat di Silvio sopra la pagina (SilvioFAB ascolta «silvio:open-chat»). */
-export function apriChatSilvio(draft: string) {
-  window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
-}
+import { SilvioBottone, apriChatSilvio } from "@/components/silvio/SilvioAiuto";
 
 export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare, onRapportiniDaDocumenti, className }: {
   orderId: string;
@@ -39,9 +33,7 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" className={cn("h-8 gap-1.5 border-violet-200 text-violet-900", className)}>
-            <Sparkles className="h-4 w-4 text-violet-600" />Silvio AI
-          </Button>
+          <SilvioBottone etichetta="Silvio AI" className={className} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuItem onSelect={() => apriChatSilvio(`Sulla ${riferimento}: `)}>
