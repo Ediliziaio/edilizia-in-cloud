@@ -15,6 +15,7 @@ import rate from "../../../supabase/migrations/20280925020000_rate_commessa_e_fa
 import annullata from "../../../supabase/migrations/20280925020100_rata_libera_se_fattura_annullata.sql?raw";
 import bonifico from "../../../supabase/migrations/20280925020200_bonifico_su_fattura_interna.sql?raw";
 import dallaFattura from "../../../supabase/migrations/20281030293000_fattura_incassi_e_banca.sql?raw";
+import importate from "../../../supabase/migrations/20281030294000_annulla_pagamento_importate.sql?raw";
 import notturna from "../../../supabase/functions/bank-auto-reconcile/index.ts?raw";
 import tesoreria from "@/components/tesoreria/BankReconciliation.tsx?raw";
 import modificaCommessa from "@/pages/azienda/EditOrder.tsx?raw";
@@ -193,5 +194,27 @@ describe("dalla fattura: incassi, annulli e bonifico senza doppioni (30/10/2026)
     expect(notturna).toContain('p_match_type: "auto"');
     expect(notturna).not.toContain("p_movimento_id");
     expect(dallaFattura).toContain("p_movimento_id uuid DEFAULT NULL::uuid");
+  });
+});
+
+describe("annullare un incasso di una fattura importata (30/10/2026)", () => {
+  const annulla = funzione(importate, "annulla_pagamento_importata");
+  const storico = funzione(importate, "pagamenti_fattura_importata");
+
+  it("toglie il pagamento e, se veniva da un bonifico, libera il movimento", () => {
+    expect(annulla).toContain("DELETE FROM public.invoice_payments WHERE id = p.id;");
+    expect(annulla).toMatch(/UPDATE public\.bank_reconciliations\s+SET unmatched_at = now\(\)/);
+    expect(annulla).toContain("SET linked_invoice_id = NULL, reconciliation_status = 'pending', reconciled_at = NULL");
+    expect(annulla).toContain("'importo', p.amount");
+  });
+
+  it("solo chi registra incassi, nella propria azienda; mai da anon", () => {
+    for (const corpo of [annulla, storico]) {
+      expect(corpo).toContain("public.user_can_access_company(");
+      expect(corpo).toContain("public.puo_incassare_fatture(");
+    }
+    for (const firma of ["annulla_pagamento_importata(uuid)", "pagamenti_fattura_importata(uuid)"]) {
+      expect(importate).toContain(`REVOKE ALL ON FUNCTION public.${firma} FROM PUBLIC, anon;`);
+    }
   });
 });

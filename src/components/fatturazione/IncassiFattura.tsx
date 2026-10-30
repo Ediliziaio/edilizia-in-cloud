@@ -27,7 +27,12 @@ import {
   incassiSenzaBonifico,
   type IncassoFattura,
 } from "@/lib/fatturazione/abbinaBanca";
-import { useAnnullaIncasso, useIncassiFattura } from "@/hooks/useIncassiFattura";
+import {
+  useAnnullaIncasso,
+  useAnnullaPagamentoImportata,
+  useIncassiFattura,
+  usePagamentiFatturaImportata,
+} from "@/hooks/useIncassiFattura";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { AbbinaBonificoDialog } from "@/components/fatturazione/AbbinaBonificoDialog";
 import type { DocumentoFiscale } from "@/types/fatturazione";
@@ -76,6 +81,37 @@ export function IncassiFattura({ doc, pagabile }: Props) {
       <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
       <AbbinaBonificoDialog open={abbinaAperto} onOpenChange={setAbbinaAperto} doc={doc} incassi={elenco} />
     </>
+  );
+}
+
+/**
+ * La fattura importata da un gestionale: lo stesso pannello delle native, con
+ * lo storico dei pagamenti registrati in app e «Annulla» (toglie il pagamento
+ * qui e su Fatture in Cloud). Saldo e acconto restano le azioni dell'hub.
+ */
+export function IncassiFatturaImportata({
+  invoiceId,
+  stato,
+}: {
+  invoiceId: string;
+  /** Dal pagato della fattura: 'pagata', 'parziale' o 'altro'. */
+  stato: PannelloIncassiProps["stato"];
+}) {
+  const pagamenti = usePagamentiFatturaImportata(invoiceId);
+  const annulla = useAnnullaPagamentoImportata();
+  return (
+    <PannelloIncassi
+      incassi={pagamenti.data ?? []}
+      caricamento={pagamenti.isLoading}
+      errore={pagamenti.isError ? (pagamenti.error as Error).message : null}
+      stato={stato}
+      puoSegnarePagata={false}
+      puoAbbinare={false}
+      onSegnaPagata={() => undefined}
+      onAbbina={() => undefined}
+      onAnnulla={(i) => annulla.mutate(i.id)}
+      annullaInCorso={annulla.isPending}
+    />
   );
 }
 

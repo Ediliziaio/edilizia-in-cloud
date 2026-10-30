@@ -108,3 +108,63 @@ export function useAbbinaBonifico() {
     onError: (err: Error) => toast.error("Abbinamento non riuscito", { description: err.message }),
   });
 }
+
+// ── Fatture importate da un gestionale (30/10/2026) ──────────────────────────
+// Lo storico viene da invoice_payments (pagamenti_fattura_importata), nella
+// stessa forma delle native. «Annulla» toglie il pagamento nel database
+// (annulla_pagamento_importata, che libera anche il bonifico) e poi dal
+// gestionale con billing-payment-push { azione: "annulla" }.
+
+export function usePagamentiFatturaImportata(invoiceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["incassi-fattura", "importata", invoiceId] as const,
+    enabled: Boolean(invoiceId) && enabled,
+    queryFn: async (): Promise<IncassoFattura[]> => {
+      const { data, error } = await rpc("pagamenti_fattura_importata", { p_invoice_id: invoiceId });
+      if (error) throw new Error(error.message || "Incassi non disponibili");
+      return ((data as IncassoFattura[] | null) ?? []).map((i) => ({
+        ...i,
+        importo: Number(i.importo),
+        bonifico_importo: i.bonifico_importo == null ? null : Number(i.bonifico_importo),
+      }));
+    },
+  });
+}
+
+export type EsitoAnnulloImportata = { gestionale: "ok" | "problema" | "nessuno"; messaggio?: string };
+
+export function useAnnullaPagamentoImportata() {
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pagamentoId: string): Promise<EsitoAnnulloImportata> => {
+      const { data, error } = await rpc("annulla_pagamento_importata", { p_payment_id: pagamentoId });
+      if (error) throw new Error(error.message || "Incasso non annullato");
+      const r = (data ?? {}) as { invoice_id?: string; importo?: number; provider?: string | null };
+      if (r.provider !== "fattureincloud" || !r.invoice_id) return { gestionale: "nessuno" };
+      try {
+        const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
+          body: { invoice_id: r.invoice_id, azione: "annulla", importo: Number(r.importo || 0) },
+        });
+        if (pErr) return { gestionale: "problema", messaggio: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi." };
+        if (pr?.ok || pr?.skipped) return { gestionale: "ok" };
+        return { gestionale: "problema", messaggio: String(pr?.messaggio ?? "Aggiornamento su Fatture in Cloud non riuscito.") };
+      } catch {
+        return { gestionale: "problema", messaggio: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi." };
+      }
+    },
+    onSuccess: (esito) => {
+      aggiornaDopoIncasso(queryClient, companyId);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      if (esito.gestionale === "problema") {
+        toast.warning("Incasso annullato qui, ma su Fatture in Cloud la fattura risulta ancora pagata", {
+          description: esito.messaggio,
+          duration: 10000,
+        });
+      } else {
+        toast.success(esito.gestionale === "ok" ? "Incasso annullato · aggiornata anche su Fatture in Cloud" : "Incasso annullato");
+      }
+    },
+    onError: (err: Error) => toast.error("Incasso non annullato", { description: err.message }),
+  });
+}
