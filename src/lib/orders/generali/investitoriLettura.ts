@@ -2,7 +2,8 @@
 // Le righe di generale_fonti, generale_fonti_movimenti, generale_rendiconti e
 // unita_immobiliari lette senza fidarsi della forma: numeri come stringhe, campi vuoti.
 import {
-  TIPI_FONTE, TIPI_MOVIMENTO, type Fonte, type Movimento, type TipoFonte, type TipoMovimento,
+  FORME_DEBITO, PIANI_RIMBORSO, TIPI_FONTE, TIPI_MOVIMENTO,
+  type FormaDebito, type Fonte, type Movimento, type PianoRimborso, type TipoFonte, type TipoMovimento,
 } from "@/lib/orders/generali/investitoriConti";
 
 type Riga = Record<string, unknown>;
@@ -16,8 +17,8 @@ const testo = (v: unknown): string | null => (typeof v === "string" && v.trim() 
 const giorno = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 
 export const COLONNE_FONTE =
-  "id, tipo, nome, soggetto, cliente_id, email, impegno, quota_utile_pct, tasso_pct, data_inizio, scadenza, nota, ordine";
-export const COLONNE_MOVIMENTO = "id, fonte_id, tipo, data, importo, nota";
+  "id, tipo, nome, soggetto, cliente_id, email, impegno, quota_utile_pct, tasso_pct, data_inizio, scadenza, nota, ordine, forma, spese_iniziali, rimborso, ammortamento_dal";
+export const COLONNE_MOVIMENTO = "id, fonte_id, tipo, data, importo, nota, unita_id";
 export const COLONNE_RENDICONTO =
   "id, fonte_id, fonte_nome, destinatario, oggetto, stato, errore, pdf_path, created_at, inviato_at";
 
@@ -38,6 +39,10 @@ export function leggiFonti(data: unknown): Fonte[] {
       scadenza: giorno(r.scadenza),
       nota: testo(r.nota),
       ordine: numero(r.ordine) ?? 0,
+      forma: (FORME_DEBITO as readonly unknown[]).includes(r.forma) ? (r.forma as FormaDebito) : null,
+      speseIniziali: Math.max(0, numero(r.spese_iniziali) ?? 0),
+      rimborso: (PIANI_RIMBORSO as readonly unknown[]).includes(r.rimborso) ? (r.rimborso as PianoRimborso) : "scadenza",
+      ammortamentoDal: giorno(r.ammortamento_dal),
     }));
 }
 
@@ -51,6 +56,7 @@ export function leggiMovimenti(data: unknown): Movimento[] {
       data: giorno(r.data)!,
       importo: Math.max(0, numero(r.importo) ?? 0),
       nota: testo(r.nota),
+      unitaId: testo(r.unita_id),
     }));
 }
 

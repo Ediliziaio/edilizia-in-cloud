@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
@@ -14,7 +15,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { messaggioInvestitori, useSalvaFonte, type FonteDaSalvare } from "@/hooks/useGeneraleInvestitori";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
-import { NOMI_FONTE, TIPI_FONTE, aCapitale, aPrestito, type Fonte, type TipoFonte } from "@/lib/orders/generali/investitoriConti";
+import {
+  FORME_DEBITO, NOMI_FONTE, NOMI_FORMA, NOMI_RIMBORSO, PIANI_RIMBORSO, TIPI_FONTE, aCapitale, aDebito, aPrestito,
+  type FormaDebito, type Fonte, type PianoRimborso, type TipoFonte,
+} from "@/lib/orders/generali/investitoriConti";
 import { nomeContatto } from "@/lib/orders/generali/investitoriLettura";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +66,10 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
   const [inizio, setInizio] = useState(fonte?.dataInizio ?? "");
   const [scadenza, setScadenza] = useState(fonte?.scadenza ?? "");
   const [nota, setNota] = useState(fonte?.nota ?? "");
+  const [forma, setForma] = useState<FormaDebito>(fonte?.forma ?? (tipoIniziale === "finanziamento" ? "finanziamento" : "mutuo_fondiario"));
+  const [spese, setSpese] = useState(testoNumero(fonte?.speseIniziali || null));
+  const [rimborso, setRimborso] = useState<PianoRimborso>(fonte?.rimborso ?? "scadenza");
+  const [ammortamento, setAmmortamento] = useState(fonte?.ammortamentoDal ?? "");
 
   const clientiPerId = useMemo(() => new Map(clienti.map((c) => [c.id, c])), [clienti]);
   const scegliContatto = (id: string | null) => {
@@ -76,6 +84,7 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
   const valImpegno = impegno.trim() === "" ? 0 : leggiImporto(impegno);
   const valQuota = quotaFissa ? leggiImporto(quota) : null;
   const valTasso = tasso.trim() === "" ? null : leggiImporto(tasso);
+  const valSpese = spese.trim() === "" ? 0 : leggiImporto(spese);
   const errori = {
     nome: nome.trim() === "" ? "Scrivi il nome di chi mette i soldi." : null,
     impegno: valImpegno === null || valImpegno < 0 ? "Scrivi un importo, ad esempio 150.000." : null,
@@ -83,6 +92,8 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
     tasso: aPrestito(tipo) && valTasso !== null && (valTasso < 0 || valTasso > 100) ? "Un tasso tra 0 e 100." : null,
     email: email.trim() !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? "L'indirizzo email non sembra giusto." : null,
     date: aPrestito(tipo) && inizio && scadenza && scadenza < inizio ? "La scadenza viene prima dell'inizio." : null,
+    spese: aPrestito(tipo) && (valSpese === null || valSpese < 0) ? "Scrivi un importo, ad esempio 2.500." : null,
+    rate: aPrestito(tipo) && rimborso === "rate" && !scadenza ? "A rate serve la scadenza: è il giorno dell'ultima rata." : null,
   };
   const [tentato, setTentato] = useState(false);
   const valido = !Object.values(errori).some(Boolean);
@@ -94,8 +105,8 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
       id: fonte?.id,
       tipo,
       nome,
-      soggetto: tipo === "banca" ? "societa" : soggetto,
-      clienteId: tipo === "propri" || tipo === "banca" ? null : clienteId,
+      soggetto: aDebito(tipo) ? "societa" : soggetto,
+      clienteId: tipo === "propri" || aDebito(tipo) ? null : clienteId,
       email: email.trim() || null,
       impegno: valImpegno ?? 0,
       quotaUtilePct: aCapitale(tipo) ? valQuota : null,
@@ -103,6 +114,10 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
       dataInizio: inizio || null,
       scadenza: aPrestito(tipo) ? scadenza || null : null,
       nota: nota.trim() || null,
+      forma: aDebito(tipo) ? forma : null,
+      speseIniziali: aPrestito(tipo) ? valSpese ?? 0 : 0,
+      rimborso: aPrestito(tipo) ? rimborso : "scadenza",
+      ammortamentoDal: aPrestito(tipo) && rimborso === "rate" ? ammortamento || null : null,
     };
     salva.mutate(dati, {
       onSuccess: () => { toast.success(fonte ? "Fonte aggiornata" : "Fonte aggiunta"); onOpenChange(false); },
@@ -144,7 +159,7 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="fonte-nome">{tipo === "banca" ? "Banca" : tipo === "propri" ? "Chi" : "Nome dell'investitore"}</Label>
+          <Label htmlFor="fonte-nome">{tipo === "banca" ? "Banca" : tipo === "finanziamento" ? "Chi finanzia" : tipo === "propri" ? "Chi" : "Nome dell'investitore"}</Label>
           <Input id="fonte-nome" value={nome} onChange={(e) => setNome(e.target.value)} aria-invalid={(tentato && !!errori.nome) || undefined} />
           {tentato && <Errore testo={errori.nome} />}
         </div>
@@ -156,9 +171,21 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
           </RadioGroup>
         )}
 
+        {aDebito(tipo) && (
+          <div className="space-y-1.5">
+            <Label htmlFor="fonte-forma">Che finanziamento è</Label>
+            <Select value={forma} onValueChange={(v) => setForma(v as FormaDebito)}>
+              <SelectTrigger id="fonte-forma"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FORME_DEBITO.map((f) => <SelectItem key={f} value={f}>{NOMI_FORMA[f]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="fonte-impegno">{tipo === "banca" ? "Importo deliberato" : "Impegno"} <span className="font-normal text-muted-foreground">(€)</span></Label>
+            <Label htmlFor="fonte-impegno">{aDebito(tipo) ? "Importo deliberato" : "Impegno"} <span className="font-normal text-muted-foreground">(€)</span></Label>
             <Input id="fonte-impegno" inputMode="decimal" value={impegno} onChange={(e) => setImpegno(e.target.value)} aria-invalid={!!errori.impegno || undefined} />
             <Errore testo={errori.impegno} />
           </div>
@@ -180,9 +207,36 @@ function Modulo({ onOpenChange, generaleId, fonte, tipoIniziale }: Props) {
               <Input id="fonte-scadenza" type="date" value={scadenza} onChange={(e) => setScadenza(e.target.value)} aria-invalid={!!errori.date || undefined} />
               <Errore testo={errori.date} />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fonte-spese">Spese <span className="font-normal text-muted-foreground">(€, istruttoria, perizia, notaio…)</span></Label>
+              <Input id="fonte-spese" inputMode="decimal" value={spese} onChange={(e) => setSpese(e.target.value)} aria-invalid={!!errori.spese || undefined} />
+              <Errore testo={errori.spese} />
+            </div>
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              Interessi semplici su ogni euro, dal giorno del versamento a quello del rimborso. Senza scadenza contano fino alla fine dell'operazione.
+              Interessi semplici su ogni euro, dal giorno {aDebito(tipo) ? "dell'erogazione" : "del versamento"} a quello del rimborso. Senza scadenza contano fino alla fine dell'operazione.
+              {aDebito(tipo) && " Le erogazioni a SAL si registrano come movimenti; quelle non ancora fatte entrano quando il piano ne ha bisogno."}
             </p>
+            <fieldset className="space-y-2 rounded-md border p-3 sm:col-span-2">
+              <legend className="px-1 text-sm font-medium">Piano di rimborso</legend>
+              <RadioGroup value={rimborso} onValueChange={(v) => setRimborso(v as PianoRimborso)} className="space-y-2">
+                {PIANI_RIMBORSO.map((r) => (
+                  <Label key={r} htmlFor={`fonte-rimborso-${r}`} className="flex gap-2 font-normal">
+                    <RadioGroupItem id={`fonte-rimborso-${r}`} value={r} className="mt-0.5" />
+                    <span>
+                      <span className="block text-sm">{NOMI_RIMBORSO[r].nome}</span>
+                      <span className="block text-xs text-muted-foreground">{NOMI_RIMBORSO[r].aiuto}</span>
+                    </span>
+                  </Label>
+                ))}
+              </RadioGroup>
+              {rimborso === "rate" && (
+                <div className="space-y-1.5 pl-6">
+                  <Label htmlFor="fonte-ammortamento">Prima rata dal <span className="font-normal text-muted-foreground">(vuoto = dall'inizio)</span></Label>
+                  <Input id="fonte-ammortamento" type="date" className="max-w-[12rem]" value={ammortamento} onChange={(e) => setAmmortamento(e.target.value)} />
+                  <Errore testo={errori.rate} />
+                </div>
+              )}
+            </fieldset>
           </div>
         )}
 

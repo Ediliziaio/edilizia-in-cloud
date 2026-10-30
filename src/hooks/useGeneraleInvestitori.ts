@@ -10,7 +10,7 @@ import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { numeriPerInvestitori } from "@/lib/orders/generali/pianoConti";
 import {
   calcolaInvestitori, numeriDalPiano,
-  type Fonte, type Movimento, type TipoFonte, type TipoMovimento,
+  type FormaDebito, type Fonte, type Movimento, type PianoRimborso, type TipoFonte, type TipoMovimento,
 } from "@/lib/orders/generali/investitoriConti";
 import {
   COLONNE_FONTE, COLONNE_MOVIMENTO, COLONNE_RENDICONTO, contaVendite, leggiFonti, leggiMovimenti, leggiRendiconti,
@@ -175,6 +175,10 @@ export interface FonteDaSalvare {
   dataInizio: string | null;
   scadenza: string | null;
   nota: string | null;
+  forma: FormaDebito | null;
+  speseIniziali: number;
+  rimborso: PianoRimborso;
+  ammortamentoDal: string | null;
 }
 
 const fontePerDb = (f: FonteDaSalvare) => ({
@@ -189,6 +193,10 @@ const fontePerDb = (f: FonteDaSalvare) => ({
   data_inizio: f.dataInizio || null,
   scadenza: f.scadenza || null,
   nota: f.nota?.trim() || null,
+  forma: f.forma,
+  spese_iniziali: Math.max(0, Math.round(f.speseIniziali * 100) / 100),
+  rimborso: f.rimborso,
+  ammortamento_dal: f.ammortamentoDal || null,
 });
 
 function useInvalida(generaleId: string) {
@@ -238,7 +246,7 @@ export function useEliminaFonte(generaleId: string) {
   });
 }
 
-export interface MovimentoDaSalvare { fonteId: string; tipo: TipoMovimento; data: string; importo: number; nota: string | null }
+export interface MovimentoDaSalvare { fonteId: string; tipo: TipoMovimento; data: string; importo: number; nota: string | null; unitaId?: string | null }
 
 export function useAggiungiMovimento(generaleId: string) {
   const invalida = useInvalida(generaleId);
@@ -254,6 +262,7 @@ export function useAggiungiMovimento(generaleId: string) {
         data: m.data,
         importo: Math.round(m.importo * 100) / 100,
         nota: m.nota?.trim() || null,
+        unita_id: m.unitaId ?? null,
       });
       if (error) throw error;
     },

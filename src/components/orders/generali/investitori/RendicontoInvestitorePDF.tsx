@@ -56,7 +56,8 @@ const s = StyleSheet.create({
   footerText: { fontSize: 7, color: C.gray500 },
 });
 
-const EURO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 });
+// «always»: in italiano Intl non mette il punto nelle cifre a quattro (3000 invece di 3.000).
+const EURO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0, useGrouping: "always" });
 /** «€ 1.250.000», «− € 3.500». */
 const soldi = (n: number | null | undefined) =>
   n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n < -0.5 ? "− " : ""}€ ${EURO.format(Math.abs(n))}`;
@@ -155,6 +156,9 @@ export function RendicontoInvestitorePDF({ d, platformName = "Edilizia in Cloud"
             {c.rendimentoNome}: ad oggi è quanto le è già stato pagato, a finire quanto deve ancora ricevere.
             {c.interessiMaturati !== null ? ` Interessi maturati fino a oggi: ${soldi(c.interessiMaturati)}.` : ""}
             {c.rendimentoPct !== null ? ` Rendimento atteso sul capitale: ${percento(c.rendimentoPct)}.` : ""}
+            {c.tir !== null ? ` Rendimento annuo composto (TIR): ${percento(c.tir)}.` : ""}
+            {c.spese ? ` Spese del finanziamento: ${soldi(c.spese)}.` : ""}
+            {c.costoAnnuo !== null ? ` Costo effettivo annuo, interessi e spese: ${percento(c.costoAnnuo)}.` : ""}
             {c.quotaPct !== null ? ` Quota dell'utile: ${percento(c.quotaPct)}.` : ""} Conteggio fino al {giorno(c.fine)}.
           </Text>
         </View>

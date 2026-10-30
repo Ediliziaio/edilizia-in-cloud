@@ -37,6 +37,11 @@ export interface DatiRendiconto {
     quotaPct: number | null;
     spettaAFine: number;
     rendimentoPct: number | null;
+    /** TIR annuo dal suo punto di vista. */
+    tir: number | null;
+    /** Solo per chi presta: le spese del finanziamento e il costo effettivo annuo. */
+    spese: number | null;
+    costoAnnuo: number | null;
     regola: string;
     fine: string;
     movimenti: { data: string; tipo: string; importo: number }[];
@@ -50,6 +55,8 @@ const NOMI_MOV: Record<string, string> = {
   rimborso: "Rimborso del capitale",
   distribuzione: "Utile distribuito",
   interessi: "Interessi pagati",
+  spese: "Spese pagate",
+  accollo: "Accollo all'acquirente",
 };
 
 /** Avanzamento medio delle figlie, pesato sull'importo quando chi guarda lo vede. */
@@ -121,6 +128,9 @@ export function datiRendiconto(input: {
       quotaPct: c.quota ? c.quota.stima : null,
       spettaAFine: c.spettaAFine,
       rendimentoPct: c.rendimentoPct,
+      tir: c.tir,
+      spese: c.spese ? c.spese.stima : null,
+      costoAnnuo: c.costoAnnuo,
       regola: c.regola,
       fine: c.fineConteggio,
       movimenti: c.movimenti.map((m) => ({ data: m.data, tipo: NOMI_MOV[m.tipo] ?? m.tipo, importo: m.importo })),

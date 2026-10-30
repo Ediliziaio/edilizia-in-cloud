@@ -153,7 +153,7 @@ describe("ripartizione dell'utile", () => {
     expect(fuori.utile.interessiTolti.stima).toBe(10_000);
     expect(fuori.utile.stima).toBe(90_000);
     expect(fuori.fonti.find((c) => c.fonte.id === "P")!.rendimento.stima).toBe(90_000);
-    expect(spiegaRegola(fuori)[0]).toContain("meno gli interessi");
+    expect(spiegaRegola(fuori)[0]).toContain("meno il costo del debito");
   });
 
   it("previsto sull'impegno, stima sui versamenti veri; il già distribuito è «ad oggi»", () => {
@@ -202,7 +202,7 @@ describe("copertura del capitale massimo", () => {
     expect(r.copertura).toEqual([
       { gruppo: "propri", nome: "Mezzi propri", impegno: 100_000, dentro: 100_000 },
       { gruppo: "investitori", nome: "Investitori", impegno: 200_000, dentro: 0 },
-      { gruppo: "banca", nome: "Banca", impegno: 300_000, dentro: 120_000 },
+      { gruppo: "debito", nome: "Banca e finanziamenti", impegno: 300_000, dentro: 120_000 },
     ]);
     expect(r.totali.impegno).toBe(600_000);
     expect(r.scoperto).toBe(100_000);
@@ -241,7 +241,7 @@ describe("dal piano", () => {
 describe("lettura", () => {
   it("legge fonti e movimenti senza fidarsi della forma", () => {
     expect(leggiFonti([{ id: "a", tipo: "capitale", nome: " ", impegno: "1000.5", quota_utile_pct: "25", data_inizio: "2027-01-01T00:00:00" }, { id: "b", tipo: "boh" }, null])).toEqual([
-      { id: "a", tipo: "capitale", nome: "Fonte senza nome", soggetto: "persona", clienteId: null, email: null, impegno: 1000.5, quotaUtilePct: 25, tassoPct: null, dataInizio: "2027-01-01", scadenza: null, nota: null, ordine: 0 },
+      { id: "a", tipo: "capitale", nome: "Fonte senza nome", soggetto: "persona", clienteId: null, email: null, impegno: 1000.5, quotaUtilePct: 25, tassoPct: null, dataInizio: "2027-01-01", scadenza: null, nota: null, ordine: 0, forma: null, speseIniziali: 0, rimborso: "scadenza", ammortamentoDal: null },
     ]);
     expect(leggiFonti({})).toEqual([]);
     expect(leggiMovimenti([{ id: "m", fonte_id: "a", tipo: "versamento", data: "2027-02-03", importo: "10" }, { id: "x", fonte_id: "a", tipo: "versamento", data: null }])).toHaveLength(1);

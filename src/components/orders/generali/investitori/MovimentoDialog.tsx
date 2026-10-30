@@ -10,9 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { messaggioInvestitori, useAggiungiMovimento } from "@/hooks/useGeneraleInvestitori";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
-import { NOMI_MOVIMENTO, movimentiAmmessi, nomeVersamento, type Fonte, type TipoMovimento } from "@/lib/orders/generali/investitoriConti";
+import { NOMI_MOVIMENTO, aDebito, movimentiAmmessi, nomeVersamento, type Fonte, type TipoMovimento } from "@/lib/orders/generali/investitoriConti";
 
-interface Props { open: boolean; onOpenChange: (o: boolean) => void; generaleId: string; fonte: Fonte; oggi: string }
+interface Props {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  generaleId: string;
+  fonte: Fonte;
+  oggi: string;
+  /** Le unità della generale, per legare un accollo o un frazionamento a quella venduta. */
+  unita?: { id: string; nome: string }[];
+}
+
+const NESSUNA = "nessuna";
 
 export function MovimentoDialog(props: Props) {
   return (
@@ -22,13 +32,15 @@ export function MovimentoDialog(props: Props) {
   );
 }
 
-function Modulo({ onOpenChange, generaleId, fonte, oggi }: Props) {
+function Modulo({ onOpenChange, generaleId, fonte, oggi, unita = [] }: Props) {
   const aggiungi = useAggiungiMovimento(generaleId);
   const ammessi = movimentiAmmessi(fonte.tipo);
   const [tipo, setTipo] = useState<TipoMovimento>("versamento");
   const [data, setData] = useState(oggi);
   const [importo, setImporto] = useState("");
   const [nota, setNota] = useState("");
+  const [unitaId, setUnitaId] = useState<string>(NESSUNA);
+  const conUnita = aDebito(fonte.tipo) && (tipo === "accollo" || tipo === "rimborso") && unita.length > 0;
   const [tentato, setTentato] = useState(false);
   const valore = leggiImporto(importo);
   const errImporto = valore === null || valore <= 0 ? "Scrivi un importo maggiore di zero." : null;
@@ -39,7 +51,7 @@ function Modulo({ onOpenChange, generaleId, fonte, oggi }: Props) {
     setTentato(true);
     if (errImporto || errData || aggiungi.isPending) return;
     aggiungi.mutate(
-      { fonteId: fonte.id, tipo, data, importo: valore!, nota: nota.trim() || null },
+      { fonteId: fonte.id, tipo, data, importo: valore!, nota: nota.trim() || null, unitaId: conUnita && unitaId !== NESSUNA ? unitaId : null },
       {
         onSuccess: () => { toast.success(`${nome(tipo)} registrato`); onOpenChange(false); },
         onError: (e) => toast.error(messaggioInvestitori(e, "il movimento")),
@@ -74,6 +86,21 @@ function Modulo({ onOpenChange, generaleId, fonte, oggi }: Props) {
           </div>
         </div>
         {tentato && (errData || errImporto) && <p className="text-xs text-destructive">{errData ?? errImporto}</p>}
+        {tipo === "accollo" && (
+          <p className="text-xs text-muted-foreground">La quota di mutuo passa all'acquirente: il debito scende senza che esca cassa.</p>
+        )}
+        {conUnita && (
+          <div className="space-y-1.5">
+            <Label htmlFor="mov-unita">Unità venduta <span className="font-normal text-muted-foreground">(facoltativa)</span></Label>
+            <Select value={unitaId} onValueChange={setUnitaId}>
+              <SelectTrigger id="mov-unita"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NESSUNA}>Nessuna</SelectItem>
+                {unita.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="mov-nota">Nota <span className="font-normal text-muted-foreground">(facoltativa)</span></Label>
           <Input id="mov-nota" value={nota} onChange={(e) => setNota(e.target.value)} maxLength={500} placeholder="Es. bonifico del 12/03" />

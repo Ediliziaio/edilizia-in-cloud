@@ -63,8 +63,9 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
 
   const n = inv.numeri;
   const massimo = n?.capitaleMassimo ?? null;
-  // Rendimento atteso dell'operazione: l'utile da dividere sul capitale massimo che chiede.
-  const rendimento = n && massimo && massimo > 0 ? c.utile.stima / massimo : null;
+  // Rendimento atteso dell'operazione (prima del debito) e dei mezzi propri (dopo debito e investitori).
+  const { progetto, mezziPropri, leva } = c.rendimenti;
+  const rendimento = progetto.roi;
   return (
     <section aria-label="Investitori" className="rounded-lg border bg-card px-4 py-3">
       {intestazione}
@@ -75,10 +76,18 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
           etichetta="Rendimento atteso"
           valore={percento(rendimento)}
           tono={rendimento !== null && rendimento < 0 ? "text-destructive" : undefined}
-          nota={n ? `utile ${euro(c.utile.stima)} sul capitale massimo` : undefined}
+          nota={n ? `ROI dell'operazione${progetto.tir !== null ? ` · TIR ${percento(progetto.tir)}` : ""}` : undefined}
         />
-        <Numero etichetta="Da restituire a fine operazione" valore={euro(c.totali.spettaAFine)} nota={`${c.fonti.length} ${c.fonti.length === 1 ? "fonte" : "fonti"}`} />
+        <Numero
+          etichetta="Rendimento dei mezzi propri"
+          valore={percento(mezziPropri?.roe ?? null)}
+          tono={mezziPropri?.roe != null && mezziPropri.roe < 0 ? "text-destructive" : undefined}
+          nota={mezziPropri ? (leva !== null ? `ROE · leva ${leva >= 0 ? "+" : "−"}${Math.abs(Math.round(leva * 1000) / 10).toLocaleString("it-IT")} punti` : "ROE") : "aggiungi i mezzi propri"}
+        />
       </div>
+      {c.costoDebito.totale >= 1 && (
+        <p className="mt-2 text-xs text-muted-foreground">Costo del debito stimato: {euro(c.costoDebito.totale)} tra interessi e spese.</p>
+      )}
       {n && c.scoperto >= 1 && (
         <p className="mt-2 text-xs text-destructive">
           Le fonti non coprono il picco di esposizione: mancano {euro(c.scoperto)}.

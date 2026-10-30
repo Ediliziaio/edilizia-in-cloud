@@ -16,6 +16,8 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+// I grafici misurano il contenitore: in jsdom basta che non cadano.
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Edil Srl" } }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[], isLoading: false }) }));
 vi.mock("@/hooks/useGeneraleInvestitori", async () => {
@@ -53,7 +55,9 @@ const riepilogo = (margini = true): RiepilogoGenerale => ({
 const totali = {} as TotaliGenerale;
 const NUMERI: NumeriOperazione = {
   marginePrevisto: 300_000, margineStima: 240_000, capitaleMassimo: 600_000, meseCapitaleMassimo: "2027-09",
-  capitaleInvestitoOggi: 250_000, inizio: "2027-01", fine: "2028-12", interessiNelPiano: true,
+  capitaleInvestitoOggi: 250_000, inizio: "2027-01", fine: "2028-12", interessiNelPiano: false,
+  fabbisogno: [{ mese: "2027-01", importo: 350_000 }, { mese: "2027-09", importo: 600_000 }, { mese: "2028-12", importo: 0 }],
+  tirProgetto: 0.2,
 };
 
 const disegna = (r = riepilogo(), puoModificare = true) => {
@@ -88,13 +92,35 @@ describe("il modulo Investitori", () => {
 
   it("elenca le fonti con previsto, ad oggi e a finire, e quanto spetta a ciascuna", () => {
     disegna();
-    const tabella = screen.getByRole("table");
+    const tabella = within(screen.getByRole("region", { name: "Le fonti" })).getByRole("table");
     expect(within(tabella).getAllByText("Previsto")).toHaveLength(2);
     expect(within(tabella).getAllByText("Ad oggi")).toHaveLength(2);
     expect(within(tabella).getAllByText("A finire")).toHaveLength(2);
     expect(within(tabella).getByText("Mario Rossi")).toBeInTheDocument();
     expect(within(tabella).getByText(/Investitore a capitale · pro quota/)).toBeInTheDocument();
     expect(within(tabella).getByText(/Banca o mutuo · 4% annuo/)).toBeInTheDocument();
+    expect(within(tabella).getAllByText(/TIR .* l'anno/).length).toBeGreaterThan(0);
+  });
+
+  it("mostra il rendimento dell'operazione contro quello dei mezzi propri, e la leva", () => {
+    disegna();
+    const r = screen.getByRole("region", { name: "Rendimento e leva" });
+    expect(r).toHaveTextContent("ROI");
+    expect(r).toHaveTextContent("TIR del progetto");
+    expect(r).toHaveTextContent("ROE");
+    expect(r).toHaveTextContent("TIR dei mezzi propri");
+    expect(r).toHaveTextContent("Effetto leva");
+    expect(within(r).getByLabelText("Tasso")).toBeInTheDocument();
+    expect(within(r).getByLabelText("Banca e finanziamenti")).toBeInTheDocument();
+  });
+
+  it("mostra il costo del debito e le fonti nel tempo", () => {
+    disegna();
+    const c = screen.getByRole("region", { name: "Costo del debito" });
+    expect(c).toHaveTextContent("Interessi");
+    expect(c).toHaveTextContent("Spese");
+    expect(c).toHaveTextContent("Il piano non ha una voce «Oneri finanziari»");
+    expect(screen.getByRole("region", { name: "Fonti nel tempo" })).toHaveTextContent("Fabbisogno del piano");
   });
 
   it("divide il capitale per fonte e avvisa se le fonti non coprono il picco", () => {
@@ -102,7 +128,7 @@ describe("il modulo Investitori", () => {
     const copertura = screen.getByRole("region", { name: "Capitale per fonte" });
     expect(within(copertura).getByText("Mezzi propri")).toBeInTheDocument();
     expect(within(copertura).getByText("Investitori")).toBeInTheDocument();
-    expect(within(copertura).getByText("Banca")).toBeInTheDocument();
+    expect(within(copertura).getByText("Banca e finanziamenti")).toBeInTheDocument();
     expect(within(copertura).getByText(/Mancano 100\.000\s€ per coprire il picco/)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("al picco di esposizione");
   });
@@ -152,7 +178,9 @@ describe("il modulo Investitori", () => {
     expect(r).toHaveTextContent("350.000");
     expect(r).toHaveTextContent("600.000");
     expect(r).toHaveTextContent("Rendimento atteso");
+    // 240.000 di margine sul capitale massimo di 600.000.
     expect(r).toHaveTextContent("40%");
+    expect(r).toHaveTextContent("Rendimento dei mezzi propri");
     expect(r).toHaveTextContent("mancano 100.000");
   });
 });

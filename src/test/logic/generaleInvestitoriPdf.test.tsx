@@ -51,7 +51,7 @@ describe("PDF del rendiconto all'investitore", () => {
     fonti: [
       fonte({ id: "M", tipo: "capitale", nome: "Mario Rossi", impegno: 200_000, email: "mario@example.com" }),
       fonte({ id: "P", tipo: "propri", nome: "Edil Srl", impegno: 200_000 }),
-      fonte({ id: "B", tipo: "banca", nome: "Banca Locale", impegno: 300_000, tassoPct: 4.5, dataInizio: "2027-02-01", scadenza: "2028-12-31" }),
+      fonte({ id: "B", tipo: "banca", nome: "Banca Locale", impegno: 300_000, tassoPct: 4.5, dataInizio: "2027-02-01", scadenza: "2028-12-31", speseIniziali: 3000 }),
     ],
     movimenti: [
       { id: "1", fonteId: "M", tipo: "versamento", data: "2027-01-15", importo: 200_000, nota: null },
@@ -85,6 +85,7 @@ describe("PDF del rendiconto all'investitore", () => {
     expect(t).toContain("Pro quota");
     expect(t).toContain("Rogito di A1 a maggio.");
     expect(t).toContain("Capitale massimo (settembre 2027)");
+    expect(t).toContain("Rendimento annuo composto (TIR)");
     // I costi voce per voce non ci sono, né i nomi degli altri investitori.
     expect(t).not.toContain("Banca Locale");
   });
@@ -95,6 +96,8 @@ describe("PDF del rendiconto all'investitore", () => {
     expect(t).toContain("Interessi");
     expect(t).toContain("Interessi maturati fino a oggi");
     expect(t).toContain("4,5% annuo");
+    expect(t).toContain("Spese del finanziamento: € 3.000");
+    expect(t).toContain("Costo effettivo annuo");
     expect(t).toContain("non è ancora pronto");
   });
 });

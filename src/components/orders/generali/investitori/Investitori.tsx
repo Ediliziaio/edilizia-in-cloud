@@ -6,7 +6,7 @@
 // Dati sensibili: la vede chi vede i margini. Da tablet e computer (telefono: false).
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
-  AlertTriangle, Building2, ChevronDown, ChevronRight, FileText, Landmark, Loader2, Pencil, Plus, Trash2, User, Wallet,
+  AlertTriangle, Building2, ChevronDown, ChevronRight, CreditCard, FileText, Landmark, Loader2, Pencil, Plus, Trash2, User, Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -21,18 +21,19 @@ import { TONI, dataBreve, euro, nomeMese, nomePiano, percento } from "@/componen
 import { FonteDialog } from "@/components/orders/generali/investitori/FonteDialog";
 import { MovimentoDialog } from "@/components/orders/generali/investitori/MovimentoDialog";
 import { RendicontoDialog } from "@/components/orders/generali/investitori/RendicontoDialog";
+import { RendimentoLeva } from "@/components/orders/generali/investitori/RendimentoLeva";
 import {
   linkPdfRendiconto, messaggioInvestitori, useEliminaFonte, useEliminaMovimento, useGeneraleInvestitori,
   useRendicontiInviati, useVenditeGenerale,
 } from "@/hooks/useGeneraleInvestitori";
 import {
-  NOMI_FONTE, NOMI_MOVIMENTO, aCapitale, nomeVersamento, spiegaRegola,
+  NOMI_FONTE, NOMI_FORMA, NOMI_MOVIMENTO, NOMI_RIMBORSO, aCapitale, aDebito, nomeVersamento, spiegaRegola,
   type Colonne, type ContiInvestitori, type ContoFonte, type Fonte, type TipoFonte,
 } from "@/lib/orders/generali/investitoriConti";
 import { cn } from "@/lib/utils";
 
-const ICONE: Record<TipoFonte, typeof User> = { propri: Wallet, capitale: User, prestito: User, banca: Landmark };
-const COLORI_GRUPPO = { propri: "bg-slate-500", investitori: "bg-sky-600", banca: "bg-amber-500" } as const;
+const ICONE: Record<TipoFonte, typeof User> = { propri: Wallet, capitale: User, prestito: User, banca: Landmark, finanziamento: CreditCard };
+const COLORI_GRUPPO = { propri: "bg-slate-500", investitori: "bg-sky-600", debito: "bg-amber-500" } as const;
 
 export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
   const g = riepilogo.generale;
@@ -112,6 +113,8 @@ export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
             <RegolaUtile conti={conti} haPiano={!!inv.numeri} />
           </div>
 
+          <RendimentoLeva conti={conti} fonti={inv.fonti} movimenti={inv.movimenti} numeri={inv.numeri} oggi={inv.oggi} />
+
           <section aria-label="Le fonti" className="overflow-x-auto rounded-lg border bg-card">
             <table className="w-full min-w-[56rem] text-sm">
               <thead className="border-b text-xs text-muted-foreground">
@@ -172,7 +175,10 @@ export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
 
       <FonteDialog open={!!modifica} onOpenChange={(o) => !o && setModifica(null)} generaleId={g.id} fonte={modifica?.fonte ?? null} tipoIniziale={modifica?.tipo} />
       {movimentoPer && (
-        <MovimentoDialog open onOpenChange={(o) => !o && setMovimentoPer(null)} generaleId={g.id} fonte={movimentoPer} oggi={inv.oggi} />
+        <MovimentoDialog
+          open onOpenChange={(o) => !o && setMovimentoPer(null)} generaleId={g.id} fonte={movimentoPer} oggi={inv.oggi}
+          unita={riepilogo.figlie.map((f) => ({ id: f.id, nome: f.codice ? `${f.codice} · ${f.nome}` : f.nome }))}
+        />
       )}
       {rendicontoPer && (
         <RendicontoDialog
@@ -242,10 +248,11 @@ function Cifre({ col, bordo }: { col: Colonne; bordo?: boolean }) {
 }
 
 function descrizioneFonte(f: Fonte): string {
-  const parti: string[] = [NOMI_FONTE[f.tipo].nome];
+  const parti: string[] = [aDebito(f.tipo) && f.forma ? NOMI_FORMA[f.forma] : NOMI_FONTE[f.tipo].nome];
   if (aCapitale(f.tipo)) parti.push(f.quotaUtilePct !== null ? `quota fissa ${percento(f.quotaUtilePct / 100, 2)}` : "pro quota");
   else {
     if (f.tassoPct !== null) parti.push(`${percento(f.tassoPct / 100, 2)} annuo`);
+    if (f.rimborso && f.rimborso !== "scadenza") parti.push(NOMI_RIMBORSO[f.rimborso].nome.toLowerCase());
     if (f.scadenza) parti.push(`scade il ${dataBreve(f.scadenza)}`);
   }
   return parti.join(" · ");
@@ -275,6 +282,7 @@ function RigaFonte({ c, aperta, onApri, children }: { c: ContoFonte; aperta: boo
               rendimento {percento(c.rendimentoPct)}
             </span>
           )}
+          {c.tir !== null && <span className="block text-xs text-muted-foreground">TIR {percento(c.tir)} l'anno</span>}
         </td>
       </tr>
       {aperta && (
@@ -339,6 +347,13 @@ function DettaglioFonte({
         {c.interessiMaturati !== null && (
           <p>Interessi maturati fino a oggi: <span className="font-medium tabular-nums">{euro(c.interessiMaturati)}</span></p>
         )}
+        {c.spese && c.spese.stima > 0 && (
+          <p>Spese: <span className="font-medium tabular-nums">{euro(c.spese.stima)}</span>{c.spese.aFinire > 0 && <span className="text-muted-foreground"> (da pagare {euro(c.spese.aFinire)})</span>}</p>
+        )}
+        {c.costoAnnuo !== null && <p>Costo effettivo, interessi e spese: <span className="font-medium tabular-nums">{percento(c.costoAnnuo)} l'anno</span></p>}
+        {c.daVersare - c.daUsare >= 1 && (
+          <p className="text-muted-foreground">Secondo il piano dell'impegno serviranno {euro(c.daUsare)} su {euro(c.daVersare)} ancora da versare.</p>
+        )}
         {c.fonte.email && <p className="truncate text-muted-foreground">Rendiconti a {c.fonte.email}</p>}
         {c.fonte.nota && <p className="whitespace-pre-wrap text-muted-foreground">{c.fonte.nota}</p>}
         <div className="flex flex-wrap gap-2">
@@ -360,13 +375,14 @@ function PrimoPasso({ puoModificare, onNuova }: { puoModificare: boolean; onNuov
     <div className="rounded-lg border border-dashed bg-card px-4 py-6">
       <p className="font-medium">Da dove arrivano i soldi dell'operazione?</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Aggiungi le fonti: i mezzi propri, gli investitori (a capitale o a prestito) e la banca. Vedrai se coprono il capitale massimo del piano e quanto spetta a ciascuno.
+        Aggiungi le fonti: i mezzi propri, gli investitori (a capitale o a prestito), la banca o il mutuo e gli altri finanziamenti. Vedrai se coprono il capitale massimo del piano, quanto costa il debito, quanto spetta a ciascuno e quanto rendono i tuoi soldi.
       </p>
       {puoModificare ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => onNuova("propri")}><Wallet className="mr-1.5 h-4 w-4" /> Mezzi propri</Button>
           <Button size="sm" variant="outline" onClick={() => onNuova("capitale")}><User className="mr-1.5 h-4 w-4" /> Investitore</Button>
           <Button size="sm" variant="outline" onClick={() => onNuova("banca")}><Landmark className="mr-1.5 h-4 w-4" /> Banca o mutuo</Button>
+          <Button size="sm" variant="outline" onClick={() => onNuova("finanziamento")}><CreditCard className="mr-1.5 h-4 w-4" /> Fido, prestito soci, leasing</Button>
         </div>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">Le fonti le aggiunge chi può modificare la commessa.</p>
