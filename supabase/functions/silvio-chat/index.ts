@@ -250,14 +250,15 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
     if (entity_type === "order") {
       const { data, error } = await supabaseAdmin
         .from("orders")
-        .select("id, description, total_amount, expected_date, cliente_snapshot:customer_id(id, profile_data)")
+        // 31/10/2026: prima chiedeva ai profili una colonna che non esiste: la lettura falliva
+        // in silenzio e Silvio non sapeva MAI quale commessa fosse aperta.
+        .select("id, order_code, description, total_amount, expected_date, client_name, client_company")
         .eq("id", entity_id)
         .eq("company_id", companyId)
         .maybeSingle();
+      if (error) console.warn("[silvio-chat] contesto commessa", error.message);
       if (error || !data) return "";
-      const cliente = (data.cliente_snapshot?.profile_data as { full_name?: string; ragione_sociale?: string } | undefined)?.full_name
-        ?? (data.cliente_snapshot?.profile_data as { ragione_sociale?: string } | undefined)?.ragione_sociale
-        ?? "cliente sconosciuto";
+      const cliente = data.client_company || data.client_name || "cliente sconosciuto";
       // Saldata = niente più da incassare, con la regola della scheda commessa.
       const { data: rate } = await supabaseAdmin.rpc("silvio_tool_rate_commessa", {
         p_company_id: companyId,
@@ -266,20 +267,20 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       const stato = !rate?.ok ? "aperta" : Number(rate.residuo_eur ?? 0) <= 0 ? "saldata" : "aperta";
       const importoOrder = showAmounts ? `, importo totale €${data.total_amount}` : "";
       // Il quadro vero (fasi, persone, ditte, mezzi, rapportini) lo dà quadro_commessa (31/10/2026).
-      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}. ` +
+      return `Sta guardando la commessa ${data.order_code ?? data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}. ` +
         `Per qualunque domanda su questa commessa chiama PRIMA quadro_commessa con order_id="${data.id}".`;
     }
     if (entity_type === "customer") {
       const { data, error } = await supabaseAdmin
         .from("profiles")
-        .select("id, profile_data, role")
+        .select("id, first_name, last_name, email")
         .eq("id", entity_id)
         .eq("company_id", companyId)
         .maybeSingle();
+      if (error) console.warn("[silvio-chat] contesto cliente", error.message);
       if (error || !data) return "";
-      const pd = (data.profile_data ?? {}) as { full_name?: string; ragione_sociale?: string; email?: string };
-      const nome = pd.full_name ?? pd.ragione_sociale ?? "Cliente senza nome";
-      return `Sta guardando il cliente "${nome}"${pd.email ? ` (${pd.email})` : ""}.`;
+      const nome = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "Cliente senza nome";
+      return `Sta guardando il cliente "${nome}"${data.email ? ` (${data.email})` : ""}.`;
     }
     if (entity_type === "invoice") {
       const { data, error } = await supabaseAdmin
@@ -297,24 +298,26 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
     if (entity_type === "quote") {
       const { data, error } = await supabaseAdmin
         .from("quotes")
-        .select("id, title, total_amount, status, customer_id, created_at")
+        .select("id, quote_number, title, total, status, client_name, client_company, created_at")
         .eq("id", entity_id)
         .eq("company_id", companyId)
         .maybeSingle();
+      if (error) console.warn("[silvio-chat] contesto preventivo", error.message);
       if (error || !data) return "";
-      const importoQuote = showAmounts ? `, importo €${data.total_amount}` : "";
-      return `Sta guardando il preventivo "${data.title ?? data.id.slice(0, 8)}"${importoQuote}, stato: ${data.status}, creato il ${data.created_at?.split("T")[0]}.`;
+      const importoQuote = showAmounts ? `, importo €${data.total}` : "";
+      const clienteQuote = data.client_company || data.client_name;
+      return `Sta guardando il preventivo ${data.quote_number ?? ""} "${data.title ?? data.id.slice(0, 8)}"${clienteQuote ? ` di ${clienteQuote}` : ""}${importoQuote}, stato: ${data.status}, creato il ${data.created_at?.split("T")[0]}.`;
     }
     if (entity_type === "employee") {
       const { data, error } = await supabaseAdmin
-        .from("profiles")
-        .select("id, profile_data, role")
+        .from("employees")
+        .select("id, first_name, last_name, qualifica")
         .eq("id", entity_id)
         .eq("company_id", companyId)
         .maybeSingle();
+      if (error) console.warn("[silvio-chat] contesto dipendente", error.message);
       if (error || !data) return "";
-      const pd = (data.profile_data ?? {}) as { full_name?: string };
-      return `Sta guardando il dipendente "${pd.full_name ?? "senza nome"}" (ruolo: ${data.role}).`;
+      return `Sta guardando il dipendente "${`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "senza nome"}"${data.qualifica ? ` (${data.qualifica})` : ""}.`;
     }
     if (entity_type === "mezzo") {
       const { data, error } = await supabaseAdmin
