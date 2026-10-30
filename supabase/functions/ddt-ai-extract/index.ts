@@ -15,6 +15,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 
 const DDT_EXTRACTION_PROMPT = `Sei un esperto di logistica e amministrazione edilizia italiana ed europea.
 Analizza il PDF/immagine allegato (Documento di Trasporto / DDT o CMR internazionale) ed estrai TUTTI i dati strutturati.
@@ -212,6 +213,12 @@ Deno.serve(async (req) => {
           cors,
         );
       }
+      // Dallo storage si legge con la chiave di servizio un bucket e un percorso
+      // scelti da chi chiama (l'app manda il file in base64; questo ramo serve
+      // ad ai-document-analyzer): solo quelli ammessi, vedi _shared/storageAmmesso.ts.
+      const fileAmmesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_ANALISI_DOCUMENTI, { companyId: company_id, userId });
+      if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+      if (!fileAmmesso.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
       const { data: file, error: dlErr } = await supabaseAdmin.storage
         .from(storage_bucket)
         .download(storage_path);

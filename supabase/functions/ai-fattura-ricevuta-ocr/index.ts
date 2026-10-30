@@ -22,6 +22,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { BUCKET_OCR_FATTURA, valutaFile } from "../_shared/storageAmmesso.ts";
 
 const SYSTEM_PROMPT = `Estrai da fattura passiva italiana i seguenti campi in JSON.
 
@@ -106,9 +107,14 @@ serve(async (req: Request) => {
     const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
     if (paymentBlock) return paymentBlock;
 
-    const isUserScoped = storagePath.startsWith(`${userId}/`);
-    const isCompanyScoped = storagePath.startsWith(`${companyId}/`);
-    if (!isUserScoped && !isCompanyScoped) {
+    // Download e link firmato sono con la chiave di servizio. Il solo prefisso
+    // utente/azienda non bastava (30/10/2026): il bucket era libero (con la
+    // cartella della propria azienda si leggeva anche hr-documenti) e un
+    // `%2e%2e` nel percorso faceva uscire la richiesta dallo storage. Ora bucket
+    // e cartella devono essere tra quelli di _shared/storageAmmesso.ts.
+    const fileAmmesso = valutaFile({ bucket, path: storagePath }, BUCKET_OCR_FATTURA, { companyId, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, corsHeaders);
+    if (!fileAmmesso.conChiaveDiServizio) {
       return errorResponse("storage_path fuori scope utente/azienda", 403, corsHeaders);
     }
 

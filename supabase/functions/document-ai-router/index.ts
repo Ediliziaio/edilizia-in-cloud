@@ -33,6 +33,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -247,6 +248,13 @@ Deno.serve(async (req) => {
       );
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
+    // Download con la chiave di servizio di un bucket e un percorso scelti da chi
+    // chiama (arrivano da ai-document-analyzer, che inoltra quelli del modale
+    // «Importa documento»): solo quelli, vedi _shared/storageAmmesso.ts.
+    const fileAmmesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_ANALISI_DOCUMENTI, { companyId: company_id, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    if (!fileAmmesso.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
 
     if (file_size && file_size > 18 * 1024 * 1024) {
       return errorResponse("File troppo grande per classifier (max 18MB)", 413, cors);

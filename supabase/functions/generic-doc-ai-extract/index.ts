@@ -20,6 +20,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 
 // Schema specifico per tipo doc — guida il prompt a produrre JSON tipizzato
 const SCHEMA_BY_TYPE: Record<string, string> = {
@@ -231,10 +232,19 @@ Deno.serve(async (req) => {
     // Fino al 24/09/2026 il file si scaricava sempre con la chiave di servizio,
     // controllando solo che l'utente fosse dell'azienda indicata: bastava
     // passare il percorso di un file di un'altra azienda per farselo leggere.
-    // Un file nella cartella dell'azienda ({company_id}/...) si scarica come
+    // Un file nelle cartelle dell'azienda dei bucket che l'app usa si scarica come
     // prima; qualunque altro percorso con i permessi di chi chiama, così chi
     // non potrebbe aprirlo non lo apre nemmeno passando da qui.
-    const nellaCartellaDellAzienda = storage_path.startsWith(`${company_id}/`) && !storage_path.includes("..");
+    //
+    // 30/10/2026: il controllo di allora (`startsWith` + `includes("..")`) si
+    // aggirava con `%2e%2e`, che il parser degli indirizzi legge come «sali di una
+    // cartella» (la richiesta usciva dallo storage con la chiave di servizio), e
+    // il bucket era libero: con un percorso nella cartella della PROPRIA azienda si
+    // leggeva anche hr-documenti. Ora bucket e percorso devono avere una forma pulita
+    // e la chiave di servizio vale solo per le coppie di _shared/storageAmmesso.ts.
+    const ammesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_LETTURA_GENERICA, { companyId: company_id, userId });
+    if (!ammesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    const nellaCartellaDellAzienda = ammesso.conChiaveDiServizio;
     const scaricatore = nellaCartellaDellAzienda
       ? supabaseAdmin
       : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {

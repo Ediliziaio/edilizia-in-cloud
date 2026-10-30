@@ -30,6 +30,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 
 interface AnalyzeRequest {
   storage_bucket: string;
@@ -545,6 +546,15 @@ serve(async (req) => {
     const companyId = company_id ?? profile?.company_id;
     if (!companyId) return errorResponse("company_id non risolto per utente", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+
+    // Bucket e percorso li sceglie chi chiama, e da qui partono il download, la
+    // COPIA in altri bucket e l'inoltro ai parser, tutti con la chiave di servizio:
+    // solo i file che il modale «Importa documento» carica nella cartella
+    // dell'azienda (30/10/2026; un `%2e%2e` farebbe uscire la richiesta dallo
+    // storage, vedi _shared/storageAmmesso.ts).
+    const fileAmmesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_ANALISI_DOCUMENTI, { companyId, userId });
+    if (!fileAmmesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+    if (!fileAmmesso.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
 
     // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
     const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);

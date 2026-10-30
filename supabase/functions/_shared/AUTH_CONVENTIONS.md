@@ -64,6 +64,7 @@ lì in `PUBBLICHE_DI_PROPOSITO`, col motivo.
 - ❌ Auth check inline duplicato (copia-incolla di `auth.getUser`) — usa gli helper condivisi.
 - ❌ Skip dell'auth check perché "tanto è cron" — se la function è privileged, **doppio check**: `CRON_SECRET` + (se chiamabile da user) `requireRole`.
 - ❌ `verify_jwt = false` senza un motivo documentato in commento sopra la sezione `[functions.<name>]` in `config.toml`.
+- ❌ Scaricare con la chiave di servizio un file il cui `storage_bucket` o `storage_path` arriva dalla richiesta, con il solo `startsWith("<azienda>/")`. supabase-js non codifica l'indirizzo e `%2e%2e` esce dallo storage fino a `/rest/v1/…` con i poteri del servizio; il bucket libero legge anche `hr-documenti`. Usa `valutaFile` di `_shared/storageAmmesso.ts` con l'elenco dei bucket che l'app carica davvero (la chiave di servizio solo per quelli, il resto 403 o con i diritti di chi chiama); se il bucket è fisso basta `percorsoStorageSicuro(path)`. Il test `src/test/security/funzioniAiBucketAmmessi.test.ts` ferma una funzione nuova che legge `storage_bucket` senza la regola.
 
 ## Come aggiungere una nuova function privileged
 

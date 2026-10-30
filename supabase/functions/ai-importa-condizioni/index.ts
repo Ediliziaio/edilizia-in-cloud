@@ -16,6 +16,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { BUCKET_IMPORT_CONDIZIONI, valutaFile } from "../_shared/storageAmmesso.ts";
 
 const SYSTEM_PROMPT = `Sei l'assistente di un gestionale per imprese edili italiane. Ricevi un documento (contratto, condizioni di vendita, preventivo con clausole, informativa privacy) e devi produrre il blocco "Condizioni contrattuali e termini legali" da stampare in coda ai preventivi.
 
@@ -54,6 +55,16 @@ Deno.serve(async (req) => {
       return errorResponse("Serve `text` oppure storage_bucket + storage_path", 400, cors);
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
+    // Bucket e percorso li sceglie chi chiama e il download è con la chiave di
+    // servizio: solo il file che l'import carica nella cartella dell'azienda
+    // (vedi _shared/storageAmmesso.ts; un `%2e%2e` farebbe uscire la richiesta
+    // dallo storage).
+    if (!testo) {
+      const file = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_IMPORT_CONDIZIONI, { companyId: company_id, userId });
+      if (!file.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
+      if (!file.conChiaveDiServizio) return errorResponse("File fuori dalle cartelle ammesse", 403, cors);
+    }
 
     // eslint-disable-next-line no-explicit-any
     const userContent: any[] = [];

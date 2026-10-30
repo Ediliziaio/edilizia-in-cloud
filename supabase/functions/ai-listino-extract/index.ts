@@ -26,6 +26,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 
 interface ExtractPayload {
   storage_path: string;
@@ -235,6 +236,11 @@ serve(async (req: Request) => {
     // Verifica che storage_path inizi con userId (path-scoped policy)
     if (!storagePath.startsWith(`${userId}/`)) {
       return errorResponse("storage_path fuori scope utente", 403, corsHeaders);
+    }
+    // `startsWith` da solo non basta (30/10/2026): `<utente>/%2e%2e/…` lo passa e
+    // il download esce dallo storage con la chiave di servizio (_shared/storageAmmesso.ts).
+    if (!percorsoStorageSicuro(storagePath)) {
+      return errorResponse("storage_path non valido", 400, corsHeaders);
     }
 
     const pdfBase64 = await downloadPdfBase64(supabaseAdmin, storagePath);

@@ -9,6 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { extractPdfWithCoverage } from "../_shared/pdfExtraction.ts";
+import { nomeBucketSicuro, percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 // 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 
 interface Payload {
@@ -45,6 +46,10 @@ Deno.serve(async (req: Request) => {
     const bucket = interna && typeof payload.bucket === "string" && payload.bucket ? payload.bucket : "silvio-uploads";
     const path = typeof payload.storage_path === "string" ? payload.storage_path.trim() : "";
     if (!path) return errorResponse("storage_path mancante", 400, corsHeaders);
+    // `startsWith` da solo non basta (30/10/2026): `<azienda>/%2e%2e/…` lo passa e
+    // poi il parser degli indirizzi fa uscire il download dallo storage, con la
+    // chiave di servizio. Forma pulita di bucket e percorso: _shared/storageAmmesso.ts.
+    if (!nomeBucketSicuro(bucket) || !percorsoStorageSicuro(path)) return errorResponse("Bucket o percorso del file non validi", 400, corsHeaders);
     if (!path.startsWith(`${companyId}/`)) return errorResponse("storage_path non autorizzato (cross-company)", 403, corsHeaders);
     if (payload.max_chars !== undefined && (typeof payload.max_chars !== "number" || !Number.isFinite(payload.max_chars) || payload.max_chars <= 0)) {
       return errorResponse("Limite di lettura non valido", 400, corsHeaders);
