@@ -20,17 +20,28 @@ Render AI ─► Planimetrie ─► elenco piante + «Nuova pianta» (Disegna ·
 | `/azienda/render/planimetrie` | `RenderPlanimetrieHub` |
 | `/azienda/render/planimetrie/:id` | `RenderPlanimetriaScheda` |
 | `/azienda/render/planimetrie/:id/stanza/:localeId?livello=&ambito=` | `RenderPlanimetriaStanza` |
-| `/azienda/render/planimetrie/nuova?da=disegno\|documento\|testo`, `/:id/modifica` | `RenderPlanimetriaIngresso` (**provvisoria**) |
+| `/azienda/render/planimetrie/nuova?da=disegno\|documento\|testo` | `RenderPlanimetriaNuova` (editor vuoto, o pianta dall'AI da controllare) |
+| `/azienda/render/planimetrie/:id/modifica` | `RenderPlanimetriaModifica` (editor sulla versione corrente) |
 
 Gli indirizzi stanno tutti in `src/lib/planimetrie/render/percorsi.ts`.
 
-### Da collegare unendo i rami
+### Editor e generazione con l'AI (fasi 2 e 3)
 
-- **Editor (fase 2)** su `/:id/modifica`: oggi `RenderPlanimetriaIngresso` dice «Ci stiamo
-  lavorando». «Disegna» crea già la pianta vuota (`creaPlanimetria`) e porta lì.
-- **Generazione AI (fase 3)** su `nuova?da=documento|testo`: oggi la stessa schermata provvisoria.
+- **Disegna** (`nuova?da=disegno`): editor vuoto; al primo «Salva» si chiede il nome e si
+  crea la pianta (`planimetria_crea`), poi si va alla scheda.
+- **Carica PDF o foto / Descrivi a parole** (`nuova?da=documento|testo`): il file (o il
+  testo) va a `planimetria-genera`; la pianta torna già controllata e si apre nell'editor
+  con le misure stimate in viola e gli avvisi della funzione. Se la scala è da confermare
+  (disegno senza quote) si scrive una misura vera di una stanza e tutta la pianta si
+  adegua. Si salva con l'origine indicata dalla funzione (`ai_pdf`, `ai_foto`,
+  `ai_schizzo`, `ai_testo`). Crediti finiti o funzione che non risponde: una frase
+  semplice e «Disegnala a mano».
+- **Modifica la pianta** (`/:id/modifica`): editor sulla versione corrente; «Salva»
+  aggiunge una versione con `planimetria_salva_versione` e la versione attesa. Se
+  qualcun altro ha salvato nel frattempo, niente sovrascrittura: un avviso e «Ricarica».
 
-Basta cambiare le rotte in `src/routes/companyRoutes.tsx` (o i percorsi in `percorsi.ts`).
+Logica in `src/components/planimetrie/editor/salvataggio.ts` e `generazione.ts`, provata
+in `src/test/logic/planimetrieEditorSalvataggio.test.ts`.
 
 ## Come funziona il render
 

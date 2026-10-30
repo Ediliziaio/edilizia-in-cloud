@@ -2,10 +2,8 @@
  * Planimetrie nella sezione Render AI (fase 5b): gli indirizzi delle pagine.
  *
  * Un solo posto per gli ingressi che portano ad altre fasi: «Disegna» apre l'editor
- * (fase 2), «Carica PDF o foto» e «Descrivi a parole» la generazione con l'AI (fase 3).
- * Finché quelle pagine non sono collegate, gli ingressi portano a
- * `RenderPlanimetriaIngresso`, che lo dice in chiaro. Chi unisce i rami cambia solo qui
- * (e le rotte in src/routes/companyRoutes.tsx).
+ * (fase 2, `RenderPlanimetriaNuova` e `RenderPlanimetriaModifica`), «Carica PDF o foto» e
+ * «Descrivi a parole» la generazione con l'AI (fase 3) e poi l'editor.
  */
 export type ModoNuovaPianta = "disegno" | "documento" | "testo";
 
