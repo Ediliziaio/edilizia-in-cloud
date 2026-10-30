@@ -1,0 +1,17 @@
+planimetrie-wasm (Edilizia in Cloud) usa, senza modificarli, i crate di CADCraft:
+
+CADCraft — https://github.com/storytold/cadcraft (commit f536bf406f01541006c81deec47ec842acc83158)
+Copyright (c) 2026 ArtCraft Team and the CADCraft contributors.
+Licensed under the MIT License or the Apache License, Version 2.0, at your option.
+Crate usati: cadcraft-geom, cadcraft-color, cadcraft-doc, cadcraft-io (e, tramite io,
+cadcraft-dxf, cadcraft-render, cadcraft-fonts, cadcraft-dwg).
+
+cadcraft-io dipende da acadrust (lettura/scrittura DWG, https://github.com/hakanaktt/acadrust),
+licenza Mozilla Public License 2.0, usato senza modifiche come libreria separata; il sorgente
+è su crates.io e nel repository indicato.
+
+Il generatore PDF (craft-pdf / krilla 0.8.2) incorpora quattro profili ICC compatti di
+Clinton Ingram, CC0-1.0. Elenco completo delle dipendenze e delle licenze: Cargo.lock e
+https://github.com/storytold/cadcraft/blob/f536bf406f01541006c81deec47ec842acc83158/NOTICE
+
+Il nome e i marchi ArtCraft non sono coperti dalla licenza e non vanno usati nell'interfaccia.

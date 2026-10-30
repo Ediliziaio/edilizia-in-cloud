@@ -1,0 +1,43 @@
+{
+  "titolo": "Trilocale di prova (fase 0)",
+  "scala": 50,
+  "muri": [
+    { "id": "m1", "p1": [0, 0], "p2": [1000, 0], "spessore": 30 },
+    { "id": "m2", "p1": [1000, 0], "p2": [1000, 750], "spessore": 30 },
+    { "id": "m3", "p1": [1000, 750], "p2": [0, 750], "spessore": 30 },
+    { "id": "m4", "p1": [0, 750], "p2": [0, 0], "spessore": 30 },
+    { "id": "v1", "p1": [400, 0], "p2": [400, 750], "spessore": 10 },
+    { "id": "h1", "p1": [0, 450], "p2": [400, 450], "spessore": 10 },
+    { "id": "h3", "p1": [400, 450], "p2": [1000, 450], "spessore": 10 },
+    { "id": "v2", "p1": [250, 0], "p2": [250, 450], "spessore": 10 },
+    { "id": "h2", "p1": [0, 250], "p2": [250, 250], "spessore": 10, "stato": "da_demolire" },
+    { "id": "n1", "p1": [800, 0], "p2": [800, 200], "spessore": 10, "stato": "nuovo" }
+  ],
+  "aperture": [
+    { "muro": "m1", "tipo": "porta", "distanza": 450, "larghezza": 90, "apre_verso": "sinistra" },
+    { "muro": "m2", "tipo": "finestra", "distanza": 100, "larghezza": 150 },
+    { "muro": "m2", "tipo": "finestra", "distanza": 550, "larghezza": 120 },
+    { "muro": "m3", "tipo": "portafinestra", "distanza": 100, "larghezza": 140, "apre_verso": "sinistra" },
+    { "muro": "m3", "tipo": "finestra", "distanza": 650, "larghezza": 120 },
+    { "muro": "m4", "tipo": "finestra", "distanza": 600, "larghezza": 60 },
+    { "muro": "v1", "tipo": "porta", "distanza": 300, "larghezza": 80, "apre_verso": "sinistra" },
+    { "muro": "v1", "tipo": "porta", "distanza": 520, "larghezza": 80, "apre_verso": "sinistra" },
+    { "muro": "h3", "tipo": "porta", "distanza": 250, "larghezza": 80, "apre_verso": "sinistra", "cerniera_fine": true },
+    { "muro": "v2", "tipo": "porta", "distanza": 80, "larghezza": 70, "apre_verso": "sinistra" },
+    { "muro": "v2", "tipo": "porta", "distanza": 320, "larghezza": 70, "apre_verso": "sinistra" }
+  ],
+  "testi": [
+    { "p": [650, 225], "testo": "Soggiorno-cucina" },
+    { "p": [700, 600], "testo": "Camera" },
+    { "p": [200, 600], "testo": "Cameretta" },
+    { "p": [125, 125], "testo": "Bagno", "altezza": 15 },
+    { "p": [125, 350], "testo": "Ripostiglio", "altezza": 15 },
+    { "p": [325, 225], "testo": "Disimp.", "altezza": 15 }
+  ],
+  "quote": [
+    { "p1": [0, 0], "p2": [1000, 0], "distanza": -80 },
+    { "p1": [1000, 0], "p2": [1000, 750], "distanza": -80 },
+    { "p1": [0, 750], "p2": [400, 750], "distanza": 60 },
+    { "p1": [400, 750], "p2": [1000, 750], "distanza": 60 }
+  ]
+}

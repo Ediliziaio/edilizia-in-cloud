@@ -44,20 +44,20 @@ describe("modello della planimetria", () => {
     const p = stanzaSemplice();
     const esito = validaPlanimetria(JSON.parse(JSON.stringify(p)));
     expect(esito.ok).toBe(true);
-    if (esito.ok) expect(esito.planimetria).toEqual(p);
+    if (esito.ok === true) expect(esito.planimetria).toEqual(p);
   });
 
   it("rifiuta ciò che non è una pianta, con un messaggio comprensibile", () => {
     const esito = validaPlanimetria("ciao");
     expect(esito.ok).toBe(false);
-    if (!esito.ok) expect(esito.errori[0]).toMatch(/non è una pianta/i);
+    if (esito.ok === false) expect(esito.errori[0]).toMatch(/non è una pianta/i);
   });
 
   it("rifiuta una pianta di una versione futura dello schema", () => {
     const p = { ...nuovaPlanimetria(), schema: VERSIONE_SCHEMA + 1 };
     const esito = validaPlanimetria(p);
     expect(esito.ok).toBe(false);
-    if (!esito.ok) expect(esito.errori.join(" ")).toMatch(/versione più nuova/i);
+    if (esito.ok === false) expect(esito.errori.join(" ")).toMatch(/versione più nuova/i);
   });
 
   it("segnala misure negative o mancanti dicendo dove", () => {
@@ -66,7 +66,7 @@ describe("modello della planimetria", () => {
     delete (p.livelli[0].fatto.locali[0] as { altezza?: number }).altezza;
     const esito = validaPlanimetria(p);
     expect(esito.ok).toBe(false);
-    if (!esito.ok) {
+    if (esito.ok === false) {
       expect(esito.errori).toContain("Piano terra, stato di fatto, parete m2: lo spessore deve essere un numero maggiore di zero.");
       expect(esito.errori).toContain("Piano terra, stato di fatto, locale «Camera»: l'altezza deve essere un numero maggiore di zero.");
     }
@@ -78,7 +78,7 @@ describe("modello della planimetria", () => {
     (p.livelli[0].fatto.muri[0] as { origine: string }).origine = "inventata";
     const esito = validaPlanimetria(p);
     expect(esito.ok).toBe(false);
-    if (!esito.ok) {
+    if (esito.ok === false) {
       expect(esito.errori.some(e => /apertura a1: il tipo/.test(e))).toBe(true);
       expect(esito.errori.some(e => /parete m1: l'origine/.test(e))).toBe(true);
     }
@@ -89,7 +89,7 @@ describe("modello della planimetria", () => {
     p.livelli.push({ id: "p1", nome: "Primo piano", quota: 300, fatto: { ...p.livelli[0].fatto, locali: [], aperture: [] }, proposte: [] });
     const esito = validaPlanimetria(p);
     expect(esito.ok).toBe(false);
-    if (!esito.ok) expect(esito.errori.some(e => /m1.*usato due volte/.test(e))).toBe(true);
+    if (esito.ok === false) expect(esito.errori.some(e => /m1.*usato due volte/.test(e))).toBe(true);
   });
 
   it("una proposta ha un id e il suo stato completo; gli ambiti sono fatto e progetto:<id>", () => {
