@@ -159,6 +159,8 @@ function SezioneHarness() {
 describe("Adozione e duplicazione dalla sezione lavorazioni", () => {
   it("l’attivazione conserva i riepiloghi precedenti e richiede un nuovo riesame", () => {
     render(<SezioneHarness />);
+    // Le funzioni avanzate stanno in un riquadro chiuso: si apre, poi si attiva.
+    fireEvent.click(screen.getByRole("button", { name: /Funzioni avanzate/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "Attiva schede tecniche" }),
     );
@@ -174,6 +176,8 @@ describe("Adozione e duplicazione dalla sezione lavorazioni", () => {
   });
   it("duplica l’intera scheda tecnica senza ereditare la conferma", () => {
     render(<SezioneHarness />);
+    // Le funzioni avanzate stanno in un riquadro chiuso: si apre, poi si attiva.
+    fireEvent.click(screen.getByRole("button", { name: /Funzioni avanzate/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "Attiva schede tecniche" }),
     );

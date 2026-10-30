@@ -534,6 +534,10 @@ export interface VoceMancante {
   riferimento: string;
   sezione: SezionePos;
   testo: string;
+  /** La lavorazione a cui si riferisce: l'editor conta le voci scheda per scheda. */
+  lavorazione_id?: string;
+  /** Voci dello stesso tipo ripetute per ogni lavorazione: l'editor le raggruppa invece di elencarle una a una. */
+  gruppo?: "prodotti-riesame" | "prodotti-identifica";
 }
 
 const vuoto = (s: string | null | undefined) => !s || !s.trim();
@@ -647,6 +651,9 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   }
   pos.lavorazioni.forEach((l, i) => {
     const nome = l.titolo.trim() || `n. ${i + 1}`;
+    // Le voci di una scheda portano l'id della lavorazione: l'editor sa quante ne mancano a ognuna.
+    const addL = (riferimento: string, _sezione: SezionePos, testo: string, gruppo?: VoceMancante["gruppo"]) =>
+      m.push({ riferimento, sezione: "lavorazioni", testo, lavorazione_id: l.id, ...(gruppo ? { gruppo } : {}) });
     const manca: string[] = [];
     if (vuoto(l.descrizione)) manca.push("descrizione");
     if (vuoto(l.rischi)) manca.push("rischi");
@@ -660,31 +667,31 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     } else if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) manca.push("macchine, opere provvisionali e impianti (anche «nessuna»)");
     if (vuoto(l.sostanze)) manca.push("sostanze pericolose (anche «nessuna»)");
     if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push("impresa con cui si svolge");
-    if (manca.length) add("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
+    if (manca.length) addL("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
     // Con la tabella per rischio ogni rischio ha le sue misure (proprie o comuni a tutta la lavorazione): è il senso della lettera g).
     const valutazione = valutazioneAttiva(l);
     if (valutazione) {
       const conMisureComuni = righeDiTesto(valutazione.misure_comuni).length > 0;
       valutazione.righe.forEach((r, k) => {
-        if (vuoto(r.rischio) && (!vuoto(r.misure) || !vuoto(r.dpi))) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: la riga ${k + 1} ha misure o DPI ma non dice il rischio`);
-        else if (!vuoto(r.rischio) && vuoto(r.misure) && !conMisureComuni) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: rischio «${r.rischio.trim()}» senza misure (scrivile, o mettile fra quelle comuni)`);
+        if (vuoto(r.rischio) && (!vuoto(r.misure) || !vuoto(r.dpi))) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: la riga ${k + 1} ha misure o DPI ma non dice il rischio`);
+        else if (!vuoto(r.rischio) && vuoto(r.misure) && !conMisureComuni) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: rischio «${r.rischio.trim()}» senza misure (scrivile, o mettile fra quelle comuni)`);
       });
     }
     if (pos.versione_prodotti === 1) {
-      if (!l.prodotti_riesaminati) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`);
-      if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`);
+      if (!l.prodotti_riesaminati) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`, "prodotti-riesame");
+      if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`, "prodotti-identifica");
       for (const p of l.prodotti || []) {
         const errori = erroriProdottoPos(p, l.fase_id);
-        if (errori.length) add("3.2.1 e)", "lavorazioni", `Prodotto «${p.nome || "senza nome"}» in «${nome}»: ${errori.join(", ")}`);
-        if (p.sds_necessaria === "si" && nessuno(l.sostanze)) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: sostanze dichiarate assenti ma prodotto con SDS richiesta`);
+        if (errori.length) addL("3.2.1 e)", "lavorazioni", `Prodotto «${p.nome || "senza nome"}» in «${nome}»: ${errori.join(", ")}`);
+        if (p.sds_necessaria === "si" && nessuno(l.sostanze)) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: sostanze dichiarate assenti ma prodotto con SDS richiesta`);
       }
     }
-    if(pos.versione_requisiti_addetti===1){const e=erroriRequisitiAddettiPos(l.requisiti_addetti,l,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 l)","lavorazioni",`Requisiti addetti in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_documenti_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const fonte=a.anagrafica?.modalita==="inventario"?a.anagrafica.fonte?.mezzo_id||null:null;const e=erroriDocumentazioneMezzo(a.documentazione,fonte,a.anagrafica?.utilizzo_dal||"",a.anagrafica?.utilizzo_al||"");if(e.length)add("3.2.1 d)","lavorazioni",`Documentazione attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
-    if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) add("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
-    if (l.origine !== "utente" && !l.verificata) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
+    if(pos.versione_requisiti_addetti===1){const e=erroriRequisitiAddettiPos(l.requisiti_addetti,l,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 l)","lavorazioni",`Requisiti addetti in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_documenti_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const fonte=a.anagrafica?.modalita==="inventario"?a.anagrafica.fonte?.mezzo_id||null:null;const e=erroriDocumentazioneMezzo(a.documentazione,fonte,a.anagrafica?.utilizzo_dal||"",a.anagrafica?.utilizzo_al||"");if(e.length)addL("3.2.1 d)","lavorazioni",`Documentazione attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
+    if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) addL("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
+    if (l.origine !== "utente" && !l.verificata) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
   });
 
   // Sostanze: servono le schede di sicurezza allegate
