@@ -13,9 +13,9 @@ vi.mock("sonner", () => ({ toast: { success: (m: string) => s.toast.push(m), err
 
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
 
-const monta = (pagataIl: string | null, tipo = "expense") => render(
+const monta = (pagataIl: string | null, tipo = "expense", forma: "chip" | "icona" | "pulsante" = "pulsante") => render(
   <QueryClientProvider client={new QueryClient()}>
-    <PagamentoRicevutaCella id="r1" numero="611" tipo={tipo} pagataIl={pagataIl} />
+    <PagamentoRicevutaCella id="r1" numero="611" tipo={tipo} pagataIl={pagataIl} forma={forma} />
   </QueryClientProvider>,
 );
 
@@ -28,7 +28,18 @@ describe("Pagamento delle fatture ricevute", () => {
     fireEvent.click(screen.getByRole("button", { name: /Segna pagata/ }));
     await waitFor(() => expect(s.chiamate).toHaveLength(1));
     expect(s.chiamate[0]).toEqual(["segna_fattura_ricevuta_pagata", { p_id: "r1", p_pagata: true, p_data: null }]);
-    await waitFor(() => expect(s.toast[0]).toContain("segnata pagata"));
+    await waitFor(() => expect(s.toast[0]).toContain("pagata"));
+  });
+
+  it("nell'elenco: da pagare solo un'icona tra le azioni, pagata solo il chip nello stato", () => {
+    monta(null, "expense", "icona");
+    expect(screen.getByRole("button", { name: "Segna pagata: fattura 611" })).not.toHaveTextContent(/\w/);
+    cleanup();
+    monta(null, "expense", "chip");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    cleanup();
+    monta("2026-10-15", "expense", "icona");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("pagata: mostra il giorno e un clic la riporta da pagare", async () => {

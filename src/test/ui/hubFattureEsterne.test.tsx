@@ -127,9 +127,9 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti/importata/inv-1");
   });
 
-  it("«Incassata» è a vista nella riga e apre l'incasso della fattura", () => {
+  it("l'icona «Segna incassata» è nella riga e apre l'incasso della fattura", () => {
     monta();
-    fireEvent.click(screen.getByRole("button", { name: /Incassata/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Segna incassata/ }));
     expect(screen.getByText("Incasso di FPR 12/26")).toBeInTheDocument();
   });
 

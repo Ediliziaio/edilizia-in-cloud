@@ -1354,10 +1354,10 @@ export default function FattureRicevutePage() {
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
-                    {/* Letta / contabilizzata e, sotto, se l'hai pagata: un clic per segnarla. */}
+                    {/* Letta / contabilizzata e, se è pagata, un chip piccolo sotto. */}
                     <div className="flex flex-col items-start gap-1">
                       <StatoBadge stato={f.stato} storico={f.storico_esterno} />
-                      <PagamentoRicevutaCella id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
+                      <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -1438,6 +1438,8 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Da pagare: una spunta tra le azioni, non un pulsante in ogni riga. */}
+                      <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                       <Button
                         variant="ghost"
                         size="icon"
