@@ -1,0 +1,18 @@
+[
+ "g01-bilocale",
+ "g02-trilocale",
+ "g03-quadrilocale",
+ "g04-trilocale-lungo",
+ "g05-monolocale",
+ "g06-trilocale-pdf",
+ "g07-quadrilocale-pdf",
+ "c01-catastale-bilocale",
+ "c02-catastale-trilocale",
+ "c03-catastale-quadrilocale",
+ "s01-schizzo-bilocale",
+ "s02-schizzo-trilocale",
+ "s03-schizzo-senza-misure",
+ "t01-bilocale-testo",
+ "t02-trilocale-testo",
+ "t03-quadrilocale-testo"
+]

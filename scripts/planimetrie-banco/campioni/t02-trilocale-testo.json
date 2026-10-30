@@ -1,0 +1,34 @@
+{
+ "id": "t02-trilocale-testo",
+ "ingresso": "descrizione",
+ "stile": "testo",
+ "testo": "Trilocale 75 mq, si entra nel soggiorno di 25 mq; cucina abitabile 3 x 3,5; due camere, matrimoniale 14 mq e singola 9 mq; un bagno 2 x 2,5 e un disimpegno che porta alle camere.",
+ "locali": [
+  {
+   "destinazione": "soggiorno",
+   "area_mq": 25
+  },
+  {
+   "destinazione": "cucina",
+   "area_mq": 10.5
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 14
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 9
+  },
+  {
+   "destinazione": "bagno",
+   "area_mq": 5
+  },
+  {
+   "destinazione": "disimpegno",
+   "area_mq": null
+  }
+ ],
+ "aperture": null,
+ "misura_utente": null
+}

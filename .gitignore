@@ -4,6 +4,7 @@
 .env.*.local
 .env.production
 .env.staging
+.env.planimetrie
 
 # Logs
 logs
