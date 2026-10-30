@@ -39,6 +39,8 @@ import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
+import { SilvioAiuto } from "@/components/silvio/SilvioAiuto";
+import { controlliFasi, type AzioneSilvio } from "@/lib/orders/silvioControlli";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
@@ -144,6 +146,8 @@ interface OrderWorkPhasesProps {
   orderCode?: string | null;
   /** Non più usato: i rapportini stanno nella vista Rapportini (31/10/2026). */
   onOpenReports?: () => void;
+  /** Silvio delle fasi: date e ritardi si sistemano nel cronoprogramma. */
+  onApriCronoprogramma?: () => void;
   view?: "lavorazioni";
   /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
   importoContratto?: number | null;
@@ -151,7 +155,7 @@ interface OrderWorkPhasesProps {
   organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, organizationContent, onApriCronoprogramma }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -161,6 +165,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   const puoSquadre = canEditOrders || canEditOperai;
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
   const [assegnaPersona, setAssegnaPersona] = useState(false);
+  // Silvio delle fasi apre «Ditte e contratti», «Assegna» o il cronoprogramma (31/10/2026).
+  const [ditteAperto, setDitteAperto] = useState(false);
   const [organizzazioneOrdine, setOrganizzazioneOrdine] = useState<string | null>(null);
   const organizzazioneAperta = organizzazioneOrdine === orderId;
   const [turniOrdine, setTurniOrdine] = useState<string | null>(null);
@@ -257,6 +263,16 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   // Cronoprogramma. Se i rapportini non si leggono, restano le chiusure.
   const { rapportini } = useCronoprogramma(orderId, null);
   const oggi = giornoLocale(new Date().toISOString());
+  const puntiFasi = useMemo(() => {
+    const voci = new Map<string, number>();
+    for (const v of vociPreviste ?? []) voci.set(v.phase_id, (voci.get(v.phase_id) ?? 0) + 1);
+    return controlliFasi(phases, voci, oggi);
+  }, [phases, vociPreviste, oggi]);
+  const azioneSilvio = (a: AzioneSilvio) => {
+    if (a === "ditte") setDitteAperto(true);
+    else if (a === "assegna") setAssegnaPersona(true);
+    else onApriCronoprogramma?.();
+  };
   const calendario = useCalendarioCantiere();
   const tempiFasi = useMemo(
     () => new Map(fasiCronoprogramma(
@@ -476,7 +492,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
               {/* Rapportini e «Scrivi rapportini» stanno solo nella vista Rapportini (31/10/2026). */}
-              {!telefono && <DitteContrattiCommessa orderId={orderId} />}
+              {!telefono && canEditOrders && (
+                <SilvioAiuto
+                  titolo="Silvio · le fasi della commessa"
+                  descrizione="Cosa manca perché le fasi siano pronte: date, chi le fa, costi. Ogni punto ha la sua azione."
+                  punti={puntiFasi}
+                  onAzione={azioneSilvio}
+                  intestazioneChat={`Commessa ${orderCode ?? ""}: fasi ${phases.map((p) => `«${p.name}» (${p.start_date ?? "senza inizio"} → ${p.end_date ?? "senza fine"}, ${p.percentuale}%)`).join(", ")}.`}
+                  domande={["In che ordine vanno fatte le fasi?", "Quante persone servono per finire in tempo?", "Cosa manca per partire?", "Dividi le fasi in sottofasi"]}
+                />
+              )}
+              {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}

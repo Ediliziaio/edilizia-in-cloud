@@ -44,11 +44,17 @@ interface Contratto { id: string; subappaltatore_id: string; stato: string; nume
 
 const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
-export function DitteContrattiCommessa({ orderId }: { orderId: string }) {
+export function DitteContrattiCommessa({ orderId, aperto: apertoFuori, onAperto }: {
+  orderId: string;
+  /** Aperto da fuori: Silvio delle fasi porta qui per ditte, costi e voci dal listino. */
+  aperto?: boolean; onAperto?: (v: boolean) => void;
+}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
-  const [aperto, setAperto] = useState(false);
+  const [apertoDentro, setApertoDentro] = useState(false);
+  const aperto = apertoFuori ?? apertoDentro;
+  const setAperto = (v: boolean) => { setApertoDentro(v); onAperto?.(v); };
   if (!canEditOrders || !canViewCosts) return null;
   return (
     <>
