@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { useRegiaOperativa } from "@/hooks/useRegiaOperativa";
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -56,6 +56,7 @@ function dati(): ReturnType<typeof useRegiaOperativa> {
   return {
     isLoading: false,
     error: null,
+    documentiDaConfermare: 0,
     agenda: [
       ...Array.from({ length: 9 }, (_, i) => ({
         id: `lavoro-${i}`,
@@ -176,6 +177,24 @@ describe("panoramica operativa azienda", () => {
         screen.getByRole("region", { name: "Commesse da seguire" }),
       ).getByRole("link", { name: /LAVORO-0/ }),
     ).toHaveAttribute("href", "/azienda/ordini/order-0");
+  });
+
+  it("tra le cose da sbloccare conta i documenti letti dalle email che aspettano una conferma", () => {
+    mocks.regia.mockReturnValue({ ...dati(), documentiDaConfermare: 3 });
+    apri();
+    const link = screen.getByRole("link", { name: /3 documenti dalle email da confermare/ });
+    expect(link).toHaveAttribute("href", "/azienda/email/documenti");
+    expect(link).toHaveTextContent("Fatture e bolle lette dagli allegati");
+  });
+
+  it("un documento solo si dice al singolare, e a zero l'area non c'è", () => {
+    mocks.regia.mockReturnValue({ ...dati(), documentiDaConfermare: 1 });
+    apri();
+    expect(screen.getByRole("link", { name: /^1 documento dalle email da confermare/ })).toBeInTheDocument();
+    cleanup();
+    mocks.regia.mockReturnValue({ ...dati(), documentiDaConfermare: 0 });
+    apri();
+    expect(screen.queryByText(/dalle email da confermare/)).not.toBeInTheDocument();
   });
 
   it("distingue un errore di caricamento dall'assenza di eventi", () => {

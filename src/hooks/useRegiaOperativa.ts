@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
 import { useCruscottoWorkOrders } from "@/hooks/useCruscottoWorkOrders";
 import { faseConclusiva, isLateWork } from "@/lib/cruscottoMetrics";
 import { leggiAgendaOperativa } from "@/lib/regia/agendaOperativa";
@@ -89,6 +91,10 @@ export function useRegiaOperativa() {
     },
   });
 
+  // Documenti letti dagli allegati delle email che aspettano una conferma: solo per chi vede le email.
+  const permessi = usePermissions();
+  const documenti = useDocumentiDaConfermareCount(companyId, !!permessi.canViewMarketingEmail);
+
   const puoApprovare = usePuoApprovareCantiere();
   const approvare = useDaApprovareCantieri(puoApprovare);
 
@@ -156,6 +162,7 @@ export function useRegiaOperativa() {
       ticket: ticket.data ?? 0,
     },
     daApprovare: puoApprovare ? totaleDaApprovare(approvare.data) : null,
+    documentiDaConfermare: documenti.data ?? 0,
     cantieriInRitardo: daSeguireBase.inRitardo,
     merceInRitardo: merceInRitardo.data ?? { totale: 0, voci: [] },
     daSeguire,

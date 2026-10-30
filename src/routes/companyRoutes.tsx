@@ -339,6 +339,7 @@ const EmailTriagePage = lazy(() => import("@/pages/azienda/EmailTriagePage"));
 const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage"));
 // 🆕 MP-EMAIL-AI: impostazioni AI casella (apprendimento + regole instradamento)
 const EmailAiSettingsPage = lazy(() => import("@/pages/azienda/email/EmailAiSettingsPage"));
+const DocumentiDaConfermarePage = lazy(() => import("@/pages/azienda/email/DocumentiDaConfermarePage"));
 // 🆕 Sprint S1: modulo Sopralluoghi (Beta, gate via feature flag surveys_module)
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const NuovoSopralluogo = lazy(() => import("@/pages/azienda/sopralluoghi/NuovoSopralluogo"));
@@ -711,6 +712,7 @@ export default function CompanyRoutesContainer() {
         <Route path="email" element={withCompanyPermission("canViewMarketingEmail", <EmailClientPage />)} />
         {/* 🆕 MP-EMAIL-AI: impostazioni AI casella (apprendimento + regole) */}
         <Route path="email/ai" element={withCompanyPermission("canViewMarketingEmail", <EmailAiSettingsPage />)} />
+        <Route path="email/documenti" element={withCompanyPermission("canViewMarketingEmail", <DocumentiDaConfermarePage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
         <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiList />)} />
         <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <SolaLetturaWriteGuard fallback="/azienda/sopralluoghi"><NuovoSopralluogo /></SolaLetturaWriteGuard>)} />

@@ -222,6 +222,14 @@ function RegiaOperativa() {
       to: "/azienda/ordini",
       grave: false,
     });
+  if ((r.documentiDaConfermare ?? 0) > 0)
+    blocchi.push({
+      id: "documenti",
+      titolo: `${r.documentiDaConfermare} ${r.documentiDaConfermare === 1 ? "documento dalle email da confermare" : "documenti dalle email da confermare"}`,
+      dettaglio: "Fatture e bolle lette dagli allegati",
+      to: "/azienda/email/documenti",
+      grave: false,
+    });
   if (r.numeri.ticket > 0)
     blocchi.push({
       id: "ticket",
