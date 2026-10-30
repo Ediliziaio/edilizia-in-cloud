@@ -85,7 +85,7 @@ export function CrmSpeedToLead({ companyId, days }: { companyId: string; days: n
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Timer className="h-4 w-4" aria-hidden="true" /> Velocità sul lead
-          <span className="ml-auto text-xs font-normal text-muted-foreground">tempo al 1° contatto</span>
+          <span className="ml-auto text-xs font-normal text-muted-foreground">lead degli ultimi {days} giorni · tempo al 1° contatto</span>
         </div>
 
         {q.isLoading ? (

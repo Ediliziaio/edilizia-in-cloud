@@ -60,7 +60,7 @@ export default function AdminSettingsSuperAdmins() {
     <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0">
       <AdminHeroHeader
         icon={Shield}
-        title="Gestione Utenti Piattaforma"
+        title="Gestione Team"
         subtitle="Team interno e utenti multi-azienda in un'unica vista."
       />
 
@@ -68,7 +68,7 @@ export default function AdminSettingsSuperAdmins() {
       <AdminHubTabs<TeamTab>
         activeTab={activeTab}
         onChange={handleTabChange}
-        ariaLabel="Sezioni gestione utenti piattaforma"
+        ariaLabel="Sezioni gestione team"
         tabs={tabs as AdminHubTab<TeamTab>[]}
       />
 

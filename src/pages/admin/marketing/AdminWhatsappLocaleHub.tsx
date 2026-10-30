@@ -47,8 +47,17 @@ export default function AdminWhatsappLocaleHub() {
 
   return (
     <div className="space-y-4">
+      {/* Intestazione compatta: titolo + una riga di spiegazione, tab a destra.
+          «dal telefono» lo distingue dal WhatsApp ufficiale di Meta. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight">WhatsApp dal telefono</h1>
+          <p className="text-sm text-muted-foreground max-sm:hidden">
+            Numeri collegati col QR: chat, campagne a freddo con follow-up e regole di risposta.
+          </p>
+        </div>
       <Tabs value={tab} onValueChange={vai}>
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto">
           <TabsTrigger value="conversazioni" className="gap-1.5">
             <MessageCircle className="h-4 w-4" /> Conversazioni
           </TabsTrigger>
@@ -60,6 +69,7 @@ export default function AdminWhatsappLocaleHub() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+      </div>
 
       <Suspense fallback={<Attesa />}>
         {tab === "conversazioni" && <Inbox />}

@@ -377,7 +377,12 @@ function DialogProvaEmail({
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────
-export default function SettingsEmailDomain() {
+export default function SettingsEmailDomain({
+  linkPreferenze,
+}: {
+  /** Dove stanno «Mittente e aspetto» quando questa pagina è montata altrove (es. la scheda «Dominio» della pagina Email admin). */
+  linkPreferenze?: string;
+} = {}) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -389,7 +394,7 @@ export default function SettingsEmailDomain() {
   // La stessa pagina vive in /azienda/impostazioni e in /admin/impostazioni:
   // Preferenze email è la pagina accanto.
   const { pathname } = useLocation();
-  const percorsoPreferenze = pathname.replace(/dominio-email\/?$/, "preferenze-email");
+  const percorsoPreferenze = linkPreferenze ?? pathname.replace(/dominio-email\/?$/, "preferenze-email");
   const notaDelCanale = (p: ProvenienzaCanale) => notaProvenienza(p, percorsoPreferenze);
 
   const [inputDomain, setInputDomain] = useState("");
@@ -609,7 +614,8 @@ export default function SettingsEmailDomain() {
     );
 
     return (
-      <div className="max-w-3xl space-y-6">
+      // Fino a 1600px: da lg lo stato attuale e il modulo per il dominio stanno affiancati.
+      <div className="max-w-[1600px] space-y-6">
         {!puoModificare && (
           <AvvisoSolaLettura>
             Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
@@ -625,6 +631,7 @@ export default function SettingsEmailDomain() {
             </Button>
           </div>
         )}
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         {/* Banner stato attuale: dominio fallback piattaforma */}
         <Card className="border-blue-200 bg-blue-50/40">
           <CardContent className="p-4">
@@ -729,6 +736,7 @@ export default function SettingsEmailDomain() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
         {/* Finestra di prova: attiva anche nel passo 1 (parte dal dominio della piattaforma) */}
         <DialogProvaEmail
@@ -769,7 +777,8 @@ export default function SettingsEmailDomain() {
   const tuttiDaQui = provenienza.marketing === "dal_dominio" && provenienza.transactional === "dal_dominio";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    // Fino a 1600px: le righe DNS sono lunghe e da xl la guida sta a destra invece di sotto.
+    <div className="max-w-[1600px] space-y-6">
       {!puoModificare && (
         <AvvisoSolaLettura>
           Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
@@ -913,7 +922,8 @@ export default function SettingsEmailDomain() {
         </Alert>
       )}
 
-      <Card>
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle className="text-base">Righe da copiare nel pannello del dominio</CardTitle>
           <CardDescription>
@@ -1005,6 +1015,7 @@ export default function SettingsEmailDomain() {
           )}
         </Card>
       )}
+      </div>
 
       {tuttiDaQui && (
         <Alert className="border-green-600">

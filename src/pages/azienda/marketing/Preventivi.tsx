@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +75,9 @@ export default function Preventivi() {
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
+  // Dall'admin (/admin/marketing/preventivi) si resta nell'admin: prima la
+  // creazione AI portava sempre a /azienda/marketing/preventivi/:id.
+  const routePrefix = useMarketingRoutePrefix();
   // I «Listini lavorazioni» dei moduli attivi, spostati qui dopo il ritiro delle pagine-hub di modulo.
   const { moduli: moduliVendita } = useModuliVendita();
   const listiniModuli = moduliVendita.filter((m) => LISTINO_SLUGS.has(m.modulo.slug) && m.isEnabled);
@@ -345,14 +349,14 @@ export default function Preventivi() {
         open={showComputoModal}
         onOpenChange={handleComputoModalOpenChange}
         initialComputoId={smartComputoId}
-        onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+        onComplete={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
       />
 
       {/* Modal AI: Foto/audio/testo → Preventivo (multi-foto, audio 3min) */}
       <QuoteFromCaptureDialog
         open={showFotoModal}
         onOpenChange={setShowFotoModal}
-        onQuoteCreated={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+        onQuoteCreated={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
       />
 
       {/* Storico operativo degli import AI: riprende computi/listini/fatture senza perderli. */}

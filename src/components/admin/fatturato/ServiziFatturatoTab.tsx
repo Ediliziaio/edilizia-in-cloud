@@ -8,6 +8,7 @@
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -154,8 +155,8 @@ export function ServiziFatturatoTab() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <Wallet className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nessun incasso servizi registrato.<br />Registra gli incassi dai Clienti-Servizio per popolare questa vista.</p>
-            <a href="/admin/marketing/clienti-servizio" className="text-sm font-medium text-primary underline">Vai ai Clienti-Servizio →</a>
+            <p className="text-sm text-muted-foreground">Nessun incasso servizi registrato.<br />Registra gli incassi dai Clienti Servizi per popolare questa vista.</p>
+            <Link to="/admin/marketing/clienti-servizio" className="text-sm font-medium text-primary underline">Vai ai Clienti Servizi →</Link>
           </CardContent>
         </Card>
       ) : (

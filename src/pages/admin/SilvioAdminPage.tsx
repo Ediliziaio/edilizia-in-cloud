@@ -102,7 +102,7 @@ export default function SilvioAdminPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto p-4">
+    <div className="space-y-4 max-w-[1600px] mx-auto p-4">
       {/* HEADER — stesso stile arancione di Silvio cliente */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -112,14 +112,14 @@ export default function SilvioAdminPage() {
           <div>
             <h1 className="text-2xl font-bold">Silvio</h1>
             <p className="text-xs text-muted-foreground">
-              Co-founder AI · cross-tenant · 5 tool Revenue attivi
+              Socio AI · vede tutte le aziende
             </p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => navigate("/admin/silvio/approvazioni")}
+            onClick={() => navigate("/admin/ai?tab=approvals")}
           >
             <ShieldCheck className="h-4 w-4 mr-1.5" />
             Approvazioni

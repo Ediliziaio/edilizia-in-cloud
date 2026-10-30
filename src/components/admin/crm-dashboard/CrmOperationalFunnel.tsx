@@ -107,8 +107,10 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
         sb.from("outreach_send_queue").select("id", { count: "exact", head: true }).eq("company_id", companyId).not("opened_at", "is", null),
         // Senza le risposte automatiche (ferie, conferme di ricezione): non sono risposte ottenute.
         sb.from("outreach_replies").select("id", { count: "exact", head: true }).eq("company_id", companyId).or("intent.is.null,intent.neq.auto_reply"),
-        supabase.from("marketing_opportunities").select("id", { count: "exact", head: true }).eq("company_id", companyId).neq("status", "won"),
-        supabase.from("marketing_opportunities").select("value").eq("company_id", companyId).eq("status", "won").limit(5000),
+        // Opportunità APERTE come nella pagina Opportunità (status open, non
+        // eliminate). Prima: «tutto tranne vinte», cestino compreso (233 vs 229).
+        supabase.from("marketing_opportunities").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "open").is("deleted_at", null),
+        supabase.from("marketing_opportunities").select("value").eq("company_id", companyId).eq("status", "won").is("deleted_at", null).limit(5000),
       ]);
       const wonRows = (won.data ?? []) as { value: number | null }[];
       return {
@@ -132,7 +134,7 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
         { key: "inviate", label: "Email inviate", phase: "hsl(217 86% 52%)", n: d.inviate },
         { key: "aperte", label: "Aperte", phase: "hsl(217 78% 42%)", n: d.aperte },
         { key: "risposte", label: "Risposte", phase: "hsl(43 96% 50%)", n: d.risposte },
-        { key: "opportunita", label: "Opportunità", phase: "hsl(160 84% 42%)", n: d.opportunita },
+        { key: "opportunita", label: "Opportunità aperte", phase: "hsl(160 84% 42%)", n: d.opportunita },
         { key: "vinti", label: "Vinti", phase: "hsl(160 84% 30%)", n: d.vinti },
       ]
     : [];
@@ -156,6 +158,7 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
             <Send className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           Funnel operativo · outreach → cliente
+          <span className="text-xs font-normal text-muted-foreground">· da sempre, indipendente dal periodo</span>
           <span className="ml-auto hidden items-center gap-3 text-[11px] font-normal text-muted-foreground sm:flex">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: PHASE.reach }} /> Raggiungere</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: PHASE.engage }} /> Coinvolgere</span>

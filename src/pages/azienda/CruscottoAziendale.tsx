@@ -144,9 +144,9 @@ export default function CruscottoAziendale() {
       // Le etichette mese ("gen '26") restano generate client-side: stesso
       // formato e stesso ordine di prima.
       return Array.from({ length: 12 }, (_, index) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - (11 - index));
-        date.setDate(1);
+        // dal primo del mese: a fine mese (29-31) setMonth saltava un mese e ne ripeteva un altro
+        const oggi = new Date();
+        const date = new Date(oggi.getFullYear(), oggi.getMonth() - (11 - index), 1);
         date.setHours(0, 0, 0, 0);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");

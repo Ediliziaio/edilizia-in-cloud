@@ -39,7 +39,7 @@ describe("AdminSettingsSuperAdmins — bugfix P0/P1", () => {
 
     it("usa AdminHeroHeader coerente con altri hub admin", () => {
       expect(pageSource).toContain("AdminHeroHeader");
-      expect(pageSource).toContain('title="Gestione Utenti Piattaforma"');
+      expect(pageSource).toContain('title="Gestione Team"');
     });
   });
 

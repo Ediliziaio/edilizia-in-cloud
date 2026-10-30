@@ -25,13 +25,16 @@ export function renderLayout(params: {
    * opzione la testata resta com'era per tutte le altre email.
    */
   fasciaSenzaLogo?: boolean;
+  /** Testata bassa (logo a 30px): le email di piattaforma, dove il logo non deve rubare la scena al testo. */
+  testataCompatta?: boolean;
 }): string {
-  const { branding, innerBodyHtml, preheaderText, isMarketing, fasciaSenzaLogo } = params;
+  const { branding, innerBodyHtml, preheaderText, isMarketing, fasciaSenzaLogo, testataCompatta } = params;
+  const altezzaLogo = testataCompatta ? 30 : 48;
 
   const logoBlock = branding.logoUrl
     ? `<img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(
         branding.companyName,
-      )}" height="48" style="display:block;border:0;outline:none;text-decoration:none;max-height:48px;" />`
+      )}" height="${altezzaLogo}" style="display:block;border:0;outline:none;text-decoration:none;max-height:${altezzaLogo}px;" />`
     : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:${branding.primaryColor};">${escapeHtml(branding.companyName)}</div>`;
 
   const marketingFooter = isMarketing
@@ -105,7 +108,7 @@ export function renderLayout(params: {
         <table role="presentation" class="container" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
           <!-- HEADER con logo -->
           ${!branding.logoUrl && fasciaSenzaLogo ? fasciaNome(branding) : `<tr>
-            <td class="px-24" style="padding:24px;border-bottom:3px solid ${branding.primaryColor};">
+            <td class="px-24" style="padding:${testataCompatta ? "16px 24px" : "24px"};border-bottom:3px solid ${branding.primaryColor};">
               ${logoBlock}
             </td>
           </tr>`}

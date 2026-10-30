@@ -165,8 +165,9 @@ export function useMonthlyOrdersExtended(
     if (!query.data) return [];
     const buckets: Record<string, { count: number; value: number }> = {};
     for (let i = months - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
+      // dal primo del mese: a fine mese (29-31) setMonth saltava un mese e ne ripeteva un altro
+      const oggi = new Date();
+      const d = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       buckets[key] = { count: 0, value: 0 };
     }

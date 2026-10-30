@@ -623,7 +623,7 @@ export default function CsvImportPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-[1600px]">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Import CSV Lead</h1>

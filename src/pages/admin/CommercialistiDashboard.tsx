@@ -14,6 +14,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { IntestazioneArea } from "@/components/admin/fatturato/AreaUI";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
@@ -186,6 +187,15 @@ export default function CommercialistiDashboard() {
     });
   }, [studi, search, statusFilter, sortKey, inactiveOnly, activity, nowMs]);
 
+  const gruppiStato = useMemo(() => {
+    const ordine = ["active", "pending_contract", "suspended", "archived"];
+    const m = new Map<string, Studio[]>();
+    for (const s of filtered) m.set(s.status ?? "", [...(m.get(s.status ?? "") ?? []), s]);
+    return [...m.entries()]
+      .sort(([a], [b]) => (ordine.indexOf(a) < 0 ? 99 : ordine.indexOf(a)) - (ordine.indexOf(b) < 0 ? 99 : ordine.indexOf(b)))
+      .map(([stato, lista]) => ({ stato, etichetta: FIRM_STATUS_LABEL[stato] ?? (stato || "Senza stato"), studi: lista }));
+  }, [filtered]);
+
   const inactiveCount = useMemo(() => {
     if (activityLoading) return undefined;
     const cutoff = nowMs - 30 * 86_400_000;
@@ -199,15 +209,12 @@ export default function CommercialistiDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex items-center gap-3">
-        <Calculator className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Commercialisti</h1>
-          <p className="text-muted-foreground">
-            Studi commercialisti e le aziende clienti che gestiscono in delega.
-          </p>
-        </div>
-      </div>
+      <IntestazioneArea
+        icona={Calculator}
+        titolo="Commercialisti"
+        spiegazione="Studi commercialisti e le aziende clienti che gestiscono in delega."
+        badge={!isLoading && studi.length > 0 ? <Badge variant="outline">{studi.length} studi</Badge> : undefined}
+      />
 
       {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} inactiveCount={inactiveCount} onInactiveClick={() => setInactiveOnly(true)} />}
 
@@ -279,8 +286,13 @@ export default function CommercialistiDashboard() {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((s) => {
+        // Raggruppati per stato (attivi prima); su schermo largo due colonne.
+        <div className="space-y-4">
+        {gruppiStato.map((g) => (
+        <section key={g.stato} className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.etichetta} · {g.studi.length}</h2>
+        <ul className="grid items-start gap-2 xl:grid-cols-2">
+          {g.studi.map((s) => {
             const isOpen = expanded === s.id;
             const azOper = s.companies.filter((c) => c.access_mode === "operational").length;
             const azRead = s.companies.filter((c) => c.access_mode === "read_only").length;
@@ -402,6 +414,9 @@ export default function CommercialistiDashboard() {
             );
           })}
         </ul>
+        </section>
+        ))}
+        </div>
       )}
 
       <AlertDialog open={!!suspendTarget} onOpenChange={(o) => { if (!o) setSuspendTarget(null); }}>

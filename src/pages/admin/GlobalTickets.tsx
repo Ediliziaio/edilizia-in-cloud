@@ -40,7 +40,9 @@ function useSupportStats(enabled: boolean) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
       const [lastMsgRes, conversationsRes] = await Promise.all([
-        sp.rpc("admin_support_last_message_by_company").limit(5000),
+        // Una riga per azienda (DISTINCT ON nel DB): il limite è solo un tetto
+        // di sicurezza, non scarica messaggi.
+        sp.rpc("admin_support_last_message_by_company").limit(1000),
         supabase
           .from("support_conversations")
           .select("company_id, status, updated_at, created_at")

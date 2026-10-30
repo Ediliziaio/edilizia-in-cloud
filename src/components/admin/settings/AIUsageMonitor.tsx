@@ -492,7 +492,7 @@ export function AIUsageMonitor() {
     }
   };
 
-  const { data, isLoading, isRefetching, refetch } = useAIUsageMonitor({
+  const { data, isLoading, isRefetching, refetch, error: usageError } = useAIUsageMonitor({
     provider,
     dateFrom: !invalidRange && dateFrom ? dateFrom : undefined,
     dateTo: !invalidRange && dateTo ? dateTo : undefined,
@@ -616,6 +616,26 @@ export function AIUsageMonitor() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Intervallo date non valido. I dati mostrati potrebbero non essere filtrati.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Errore di lettura in pagina: prima finiva solo in console e la
+          scheda mostrava costi a zero come se non ci fossero consumi. */}
+      {usageError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            {usageError instanceof Error ? usageError.message : "Lettura dei consumi AI non riuscita."}{" "}
+            I numeri qui sotto non sono affidabili finché la lettura non riesce.
+          </AlertDescription>
+        </Alert>
+      )}
+      {data?.diagnostic?.truncated && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Troppe righe nel periodo scelto: i totali sono parziali. Restringi l'intervallo di date.
           </AlertDescription>
         </Alert>
       )}

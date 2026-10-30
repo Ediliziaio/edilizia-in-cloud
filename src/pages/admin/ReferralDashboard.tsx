@@ -5,6 +5,7 @@ import { Gift, Plus, AlertCircle, RefreshCw, Loader2, BarChart3, Wallet, Award, 
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { IntestazioneArea } from "@/components/admin/fatturato/AreaUI";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ReferralStatCards } from "@/components/admin/referral/ReferralStatCards";
@@ -181,7 +182,9 @@ export default function ReferralDashboard() {
   const { data: referralCompanies = [], isError: referralCompaniesError } = useQuery({
     queryKey: ["referral_companies"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("referral_companies").select("*");
+      // Tetto come per gli altri log referral: oltre 2.000 aziende portate
+      // servirà una paginazione vera; per ora le più recenti.
+      const { data, error } = await supabase.from("referral_companies").select("*").order("referred_at", { ascending: false }).limit(2000);
       if (error) throw error;
       const rows = (data ?? []) as ReferralCompany[];
       if (rows.length === 0) return [] as ReferralCompany[];
@@ -207,7 +210,7 @@ export default function ReferralDashboard() {
   const { data: payouts = [] } = useQuery({
     queryKey: ["referral_payouts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("referral_payouts").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("referral_payouts").select("*").order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data ?? []) as ReferralPayout[];
     },
@@ -387,18 +390,16 @@ export default function ReferralDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="hidden md:flex items-center gap-3">
-          <Gift className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Programma Referral</h1>
-            <p className="text-muted-foreground">Gestisci affiliati, commissioni e payout · <span className="text-xs italic">Commissioni calcolate sul prezzo di listino</span></p>
-          </div>
-        </div>
-        <Button onClick={() => setReferrerDialogOpen(true)} className="self-end sm:self-auto">
-          <Plus className="h-4 w-4 mr-2" /> Nuovo Referrer
-        </Button>
-      </div>
+      <IntestazioneArea
+        icona={Gift}
+        titolo="Programma referral"
+        spiegazione="Partner, aziende portate, commissioni e pagamenti · commissioni calcolate sul prezzo di listino"
+        azioni={
+          <Button onClick={() => setReferrerDialogOpen(true)} className="gap-2" aria-label="Nuovo partner">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuovo partner</span>
+          </Button>
+        }
+      />
 
       <ReferralStatCards
         referrers={referrers}
@@ -439,10 +440,10 @@ export default function ReferralDashboard() {
             <MousePointerClick className="h-4 w-4 mr-2" /> Conversioni
           </TabsTrigger>
           <TabsTrigger value="analytics">
-            <BarChart3 className="h-4 w-4 mr-2" /> Analytics
+            <BarChart3 className="h-4 w-4 mr-2" /> Analisi
           </TabsTrigger>
           <TabsTrigger value="payouts" className="relative">
-            <Wallet className="h-4 w-4 mr-2" /> Payout
+            <Wallet className="h-4 w-4 mr-2" /> Pagamenti
             {pendingPayoutCount > 0 && (
               <Badge variant="destructive" className="ml-1.5 h-5 min-w-5 px-1 text-xs">
                 {pendingPayoutCount}
@@ -450,7 +451,7 @@ export default function ReferralDashboard() {
             )}
           </TabsTrigger>
           <TabsTrigger value="tiers">
-            <Award className="h-4 w-4 mr-2" /> Tier & Materiali
+            <Award className="h-4 w-4 mr-2" /> Livelli e materiali
           </TabsTrigger>
           <TabsTrigger value="rules">
             <SlidersHorizontal className="h-4 w-4 mr-2" /> Regole

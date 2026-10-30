@@ -29,7 +29,10 @@ export function CrmUnitEconomics({ companyId, days }: { companyId: string; days:
       const [costs, leads, won] = await Promise.all([
         sb.from("campaign_costs").select("spend_amount,date").eq("company_id", companyId).gte("date", sinceIso.slice(0, 10)),
         supabase.from("marketing_contacts").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", sinceIso),
-        supabase.from("marketing_opportunities").select("value,created_at").eq("company_id", companyId).eq("status", "won").gte("created_at", sinceIso).limit(5000),
+        // Clienti = opportunità VINTE nel periodo (won_at), come nel resto della
+        // dashboard: prima contava le vinte CREATE nel periodo, e una trattativa
+        // aperta a gennaio e chiusa ieri non entrava mai.
+        supabase.from("marketing_opportunities").select("value,won_at").eq("company_id", companyId).eq("status", "won").is("deleted_at", null).gte("won_at", sinceIso).limit(5000),
       ]);
       const spesa = (costs.error ? [] : costs.data ?? []).reduce((s: number, r: { spend_amount: number | null }) => s + (r.spend_amount ?? 0), 0);
       const wonRows = (won.data ?? []) as { value: number | null }[];

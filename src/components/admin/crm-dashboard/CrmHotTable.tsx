@@ -38,9 +38,10 @@ const shortDate = (iso: string | null) => {
   return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" }).format(d);
 };
 
+/** Probabilità vuota = 50%, come il «Ponderato» della pagina Opportunità. */
 const normProb = (p: number | null) => {
-  const v = p ?? 0;
-  return v > 1 ? v / 100 : v;
+  if (p == null) return 0.5;
+  return p > 1 ? p / 100 : p;
 };
 
 /* ────────────────────────── tipi riga ────────────────────────── */
@@ -413,6 +414,7 @@ export function CrmHotTable({ companyId }: { companyId: string }) {
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Flame className="h-4 w-4 text-orange-500" aria-hidden="true" />
           Da lavorare adesso
+          <span className="text-xs font-normal text-muted-foreground">· oggi, indipendente dal periodo</span>
         </div>
         <span className="hidden text-xs text-muted-foreground sm:inline">
           {view === "leads"

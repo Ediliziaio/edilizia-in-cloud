@@ -17,6 +17,7 @@ import {
   HandCoins,
   CreditCard,
   Info,
+  Mail,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -168,6 +169,9 @@ export default function CreateCompany() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsLegal, setSameAsLegal] = useState(false);
+  // il benvenuto all'amministratore si può non mandare (es. azienda di prova,
+  // o lo avvisi tu a voce): senza, entra con la password scelta qui
+  const [inviaBenvenuto, setInviaBenvenuto] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedReferrerId, setSelectedReferrerId] = useState<string>("none");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("none");
@@ -285,6 +289,7 @@ export default function CreateCompany() {
         legalProvince: data.legalProvince?.toUpperCase() || null,
         legalPostalCode: data.legalPostalCode?.trim() || null,
         planId: planIdToSend,
+        inviaBenvenuto,
       };
 
       if (sameAsLegal) {
@@ -401,6 +406,11 @@ export default function CreateCompany() {
         queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesUserCounts }),
         queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesHealth }),
         queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesLastAccess }),
+        // Una nuova azienda cambia anche i numeri di Fatturato e della home admin.
+        queryClient.invalidateQueries({ queryKey: ["admin-fatturato-snapshot"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-revenue-dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-home-soldi"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-home-aziende"] }),
       ]);
 
       toast({
@@ -570,25 +580,27 @@ export default function CreateCompany() {
                       <label className="text-sm font-medium">Piano</label>
                       <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Trial standard (14 giorni)" />
+                          <SelectValue placeholder="Senza piano · prova di 14 giorni" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Trial standard (14 giorni)</SelectItem>
+                          <SelectItem value="none">Senza piano · prova di 14 giorni</SelectItem>
                           {plans.map((p: any) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name}
-                              {p.slug === "scopri"
-                                ? " · Free"
+                              {/* come decide create-company: prezzo 0 = gratis; senza giorni
+                                  di prova un piano a pagamento chiede il pagamento al primo accesso */}
+                              {p.slug === "scopri" || Number(p.price_monthly ?? 0) === 0
+                                ? " · gratis"
                                 : p.trial_days
-                                  ? ` · ${p.trial_days}g trial`
-                                  : ""}
+                                  ? ` · prova ${p.trial_days} giorni`
+                                  : " · senza prova: paga al primo accesso"}
                               {p.price_monthly ? ` · €${p.price_monthly}/mese` : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        "Scopri" è gratuito; gli altri partono in trial.
+                        I piani gratis partono senza scadenza; gli altri con la prova del piano, o col pagamento al primo accesso se il piano non ne ha.
                       </p>
                     </div>
 
@@ -1089,13 +1101,44 @@ export default function CreateCompany() {
                 <li>Creazione utente admin (email confermata)</li>
                 <li>Assegnazione ruolo <code>company_admin</code></li>
                 <li>
-                  {selectedPlanId === "none"
-                    ? "Trial 14 giorni"
-                    : "Piano selezionato (trial / free in base al piano)"}
+                  {(() => {
+                    if (selectedPlanId === "none") return "Senza piano: prova di 14 giorni";
+                    const p = (plans as Array<{ id: string; name: string; slug: string; trial_days: number | null; price_monthly: number | null }>).find((x) => x.id === selectedPlanId);
+                    if (!p) return "Piano selezionato";
+                    if (p.slug === "scopri" || Number(p.price_monthly ?? 0) === 0) return `${p.name}: gratis, senza scadenza`;
+                    return p.trial_days ? `${p.name}: prova di ${p.trial_days} giorni` : `${p.name}: senza prova, il pagamento si attiva al primo accesso`;
+                  })()}
                 </li>
                 <li>Stati ordine pre-popolati dal template settore</li>
                 {selectedReferrerId !== "none" && <li>Collegamento al referrer selezionato</li>}
               </ul>
+            </CardContent>
+          </Card>
+
+          {/* Le email che partono davvero (vedi create-company e system-emails-tick):
+              prima partiva anche una «copia dei termini accettati» falsa. */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mail className="h-4 w-4" />
+                Email al cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <Checkbox checked={inviaBenvenuto} onCheckedChange={(v) => setInviaBenvenuto(v === true)} className="mt-0.5" />
+                <span>
+                  <span className="font-medium text-foreground">Invia l'email di benvenuto</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Subito all'amministratore: «Benvenuto in Edilizia in Cloud», con email e password scritte qui e il bottone per entrare.
+                    Senza, gliele dai tu.
+                  </span>
+                </span>
+              </label>
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Dopo 48 ore</span>, solo se non ha ancora creato il primo cantiere:
+                «Manca poco per partire», una volta sola. Nessun'altra email parte dalla creazione.
+              </div>
             </CardContent>
           </Card>
 

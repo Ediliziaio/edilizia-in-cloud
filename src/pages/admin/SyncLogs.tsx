@@ -135,7 +135,7 @@ function SyncLogs() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold hidden md:block">Sync Logs</h1>
+          <h1 className="text-2xl font-bold hidden md:block">Sincronizzazioni</h1>
           <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar</p>
         </div>
         <Alert variant="destructive">
@@ -165,19 +165,19 @@ function SyncLogs() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <h1 className="text-2xl font-bold hidden md:block">Log di Sistema</h1>
+      {/* il titolo lo dà l'hub Operazioni: qui solo le schede */}
       <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList>
-          <TabsTrigger value="sync">Sync Calendar</TabsTrigger>
+          <TabsTrigger value="sync">Calendario Google</TabsTrigger>
           <TabsTrigger value="stripe" className="gap-1">
             <CreditCard className="h-3.5 w-3.5" />
             Stripe
           </TabsTrigger>
           <TabsTrigger value="dunning" className="gap-1">
             <Mail className="h-3.5 w-3.5" />
-            Dunning
+            Recupero pagamenti
           </TabsTrigger>
-          <TabsTrigger value="edge">Edge Functions</TabsTrigger>
+          <TabsTrigger value="edge">Funzioni server</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sync" className="space-y-6 mt-4">
@@ -213,7 +213,7 @@ function SyncLogs() {
               <p className={`text-2xl font-bold ${successRate >= 90 ? "text-emerald-600" : successRate >= 70 ? "text-yellow-600" : "text-destructive"}`}>
                 {successRate}%
               </p>
-              <p className="text-xs text-muted-foreground">Success rate</p>
+              <p className="text-xs text-muted-foreground">Riuscite</p>
             </div>
           </div>
 

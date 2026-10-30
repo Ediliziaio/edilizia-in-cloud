@@ -15,9 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  TrendingUp, DollarSign, Users, RefreshCw, Loader2,
+  TrendingUp, RefreshCw, Loader2,
   AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3, Sparkles,
-  Gift, ShieldCheck, Activity, Percent, Zap,
+  Activity, Zap,
 } from "lucide-react";
 import {
   Bar,
@@ -38,6 +38,8 @@ import {
   getAdminRevenueBreakdown,
   getCompanyMonthlyRevenue,
   isRevenueEligibleCompany,
+  applyPlanPriceOverride,
+  ADMIN_REVENUE_COMPANY_SELECT,
 } from "@/lib/adminRevenue";
 
 function fmt(value: number): string {
@@ -118,17 +120,20 @@ function useRevenueDashboard() {
     queryFn: async () => {
       const [plansRes, subsRes] = await Promise.all([
         supabase.from("subscription_plans").select("id,name,price_monthly,price_yearly"),
+        // Stessa select e stessa regola di Aziende e del riepilogo dell'hub:
+        // niente cancellate, prezzo custom (override) dove c'è.
         supabase
           .from("companies")
-          .select("id,name,status,payment_method,stripe_customer_id,stripe_subscription_status,is_platform_admin_company,subscription_plan_id,subscription_plans:subscription_plan_id(id,name,price_monthly,price_yearly),company_subscriptions(status,stripe_subscription_id,billing_period)")
-          .eq("is_platform_admin_company", false),
+          .select(ADMIN_REVENUE_COMPANY_SELECT)
+          .eq("is_platform_admin_company", false)
+          .is("deleted_at", null),
       ]);
 
       if (plansRes.error) throw plansRes.error;
       if (subsRes.error) throw subsRes.error;
 
       const plans = (plansRes.data ?? []) as Plan[];
-      const companies = (subsRes.data ?? []) as RevenueCompany[];
+      const companies = applyPlanPriceOverride((subsRes.data ?? []) as unknown as RevenueCompany[]);
       const revenueBreakdown = getAdminRevenueBreakdown(companies);
       const paidCompanies = companies.filter(isRevenueEligibleCompany);
 
@@ -185,24 +190,14 @@ function useMrrSnapshots() {
 // ─── Revenue Tab ──────────────────────────────────────────
 
 function RevenueTab() {
-  const { data, isLoading, refetch, isFetching } = useRevenueDashboard();
+  const { data, isLoading } = useRevenueDashboard();
 
-  const kpis = [
-    { label: "MRR pagante", value: fmt(data?.mrr ?? 0), sub: "Solo aziende con pagamento reale", icon: DollarSign, color: "text-emerald-600" },
-    { label: "ARR", value: fmt(data?.arr ?? 0), sub: "Proiezione annuale pagante", icon: TrendingUp, color: "text-blue-600" },
-    { label: "Aziende paganti", value: String(data?.payingCount ?? 0), sub: `${data?.accessActiveCompanies ?? 0} con accesso attivo`, icon: ShieldCheck, color: "text-primary" },
-    { label: "ARPU", value: fmt(data?.arpu ?? 0), sub: "Ricavo medio mensile", icon: Percent, color: "text-violet-600" },
-  ];
-  const hasNonPayingAccess = (data?.nonPayingActiveCompanies ?? 0) > 0 || (data?.freeActiveCompanies ?? 0) > 0;
+  // MRR, ARR, paganti e ARPU li mostra già il riepilogo dell'hub Fatturato
+  // sopra a questo tab (stessa regola di calcolo): qui non si ripetono. Anche
+  // «Aggiorna» sta nell'intestazione dell'hub e ricarica pure questi dati.
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-          Aggiorna
-        </Button>
-      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-48">
@@ -210,35 +205,9 @@ function RevenueTab() {
         </div>
       ) : (
         <>
-          {hasNonPayingAccess && (
-            <Alert className="border-amber-300 bg-amber-50">
-              <Gift className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
-                <span className="font-semibold">{data?.nonPayingActiveCompanies ?? 0}</span> aziende attive non paganti
-                e <span className="font-semibold">{data?.freeActiveCompanies ?? 0}</span> su piano gratuito sono escluse dal MRR.
-                Valore teorico escluso: <span className="font-semibold">{fmt(data?.excludedMrr ?? 0)}/mese</span>.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Aziende non paganti e MRR escluso stanno nel riquadro dell'hub sopra. */}
 
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-            {kpis.map((k) => (
-              <Card key={k.label}>
-                <CardContent className="p-4 md:p-5 flex items-center gap-3">
-                  <div className="rounded-full bg-muted p-3">
-                    <k.icon className={`h-5 w-5 ${k.color}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">{k.label}</p>
-                    <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
-                    <p className="text-xs text-muted-foreground truncate">{k.sub}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-4 xl:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">MRR per piano</CardTitle>
@@ -274,8 +243,8 @@ function RevenueTab() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Breakdown operativo</CardTitle>
-                <CardDescription>Quota MRR, ARPU e numero aziende</CardDescription>
+                <CardTitle className="text-base">Per piano</CardTitle>
+                <CardDescription>Aziende, MRR, quota sul totale e ricavo medio</CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 {(data?.byPlan ?? []).length === 0 ? (
@@ -288,7 +257,7 @@ function RevenueTab() {
                         <th className="text-right px-4 py-2">Aziende</th>
                         <th className="text-right px-4 py-2">MRR</th>
                         <th className="text-right px-4 py-2">Quota</th>
-                        <th className="text-right px-4 py-2">ARPU</th>
+                        <th className="text-right px-4 py-2">Medio</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -308,35 +277,18 @@ function RevenueTab() {
             </Card>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                Copertura pagante
-              </div>
-              <p className="mt-2 text-2xl font-bold">
-                {data && data.accessActiveCompanies > 0
-                  ? `${Math.round((data.payingCount / data.accessActiveCompanies) * 100)}%`
-                  : "0%"}
-              </p>
-              <p className="text-xs text-muted-foreground">Paganti su aziende con accesso attivo</p>
+          {/* resta solo la copertura: aziende totali e MRR escluso sono nel riquadro sopra */}
+          <div className="rounded-lg border bg-card p-4 flex items-center gap-4">
+            <Activity className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium">Copertura pagante</p>
+              <p className="text-xs text-muted-foreground">Aziende che pagano su quelle con accesso attivo</p>
             </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                Aziende totali
-              </div>
-              <p className="mt-2 text-2xl font-bold">{data?.totalCompanies ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Escluse aziende tecniche di piattaforma</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Gift className="h-4 w-4 text-muted-foreground" />
-                MRR escluso
-              </div>
-              <p className="mt-2 text-2xl font-bold text-amber-600">{fmt(data?.excludedMrr ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">Valore teorico non pagante</p>
-            </div>
+            <p className="ml-auto text-2xl font-bold">
+              {data && data.accessActiveCompanies > 0
+                ? `${Math.round((data.payingCount / data.accessActiveCompanies) * 100)}%`
+                : "0%"}
+            </p>
           </div>
         </>
       )}
@@ -578,6 +530,11 @@ function LTVCACTab() {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">LTV</span> (valore nel tempo) è quanto incassi in media da un cliente finché resta;{" "}
+        <span className="font-medium text-foreground">CAC</span> (costo di acquisizione) è quanto spendi in marketing per portarne uno nuovo.
+        Un rapporto LTV : CAC da 3 in su è sano.
+      </p>
       {/* KPI Cards */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -745,12 +702,15 @@ const REVENUE_TABS = new Set(["revenue", "reconciliation", "ltv-cac", "render-ec
 export default function AdminRevenueDashboard() {
   const { permissions } = useSuperAdminPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab") ?? "revenue";
+  // Vive dentro l'hub Fatturato, che usa già ?tab= per le sue sezioni: il
+  // sotto-tab qui sta in ?vista= così i due non si pestano i piedi.
+  const requestedTab = searchParams.get("vista") ?? "revenue";
   const activeTab = REVENUE_TABS.has(requestedTab) ? requestedTab : "revenue";
 
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
-    next.set("tab", value);
+    if (value === "revenue") next.delete("vista");
+    else next.set("vista", value);
     setSearchParams(next, { replace: true });
   };
 
@@ -758,36 +718,31 @@ export default function AdminRevenueDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="hidden md:block">
-        <h1 className="text-2xl font-bold">Revenue Platform</h1>
-        <p className="text-muted-foreground">Dati finanziari aggregati e riconciliazione Stripe</p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="h-auto overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="revenue" className="gap-2">
             <TrendingUp className="h-4 w-4" />
-            Revenue
+            Ricavi
           </TabsTrigger>
           <TabsTrigger value="reconciliation" className="gap-2">
             <ArrowUpDown className="h-4 w-4" />
             Riconciliazione Stripe
           </TabsTrigger>
-          <TabsTrigger value="ltv-cac" className="gap-2">
+          <TabsTrigger value="ltv-cac" className="gap-2" title="LTV = quanto incassi in media da un cliente in tutta la sua vita; CAC = quanto spendi per acquisirne uno">
             <BarChart3 className="h-4 w-4" />
             LTV / CAC
           </TabsTrigger>
           <TabsTrigger value="render-economics" className="gap-2">
             <Sparkles className="h-4 w-4" />
-            Render Economics
+            Costi render
           </TabsTrigger>
           <TabsTrigger value="ai-margins" className="gap-2">
             <Zap className="h-4 w-4" />
-            AI Provider
+            Fornitori AI
           </TabsTrigger>
           <TabsTrigger value="servizi-extra" className="gap-2">
             <TrendingUp className="h-4 w-4" />
-            Servizi Extra
+            Servizi extra
           </TabsTrigger>
         </TabsList>
 

@@ -120,7 +120,7 @@ export default function PlatformHealthPage() {
   const funzioni = data?.funzioni ?? [];
 
   return (
-    <div className="p-3 md:p-6 space-y-4">
+    <div className="p-3 md:p-6 space-y-4 max-w-[1600px]">
       <div className="flex items-start justify-between gap-3">
         <div className="hidden md:flex items-center gap-3">
           <Activity className="h-6 w-6 text-blue-500" />
@@ -260,6 +260,8 @@ export default function PlatformHealthPage() {
             </Card>
           )}
 
+          {/* Job e funzioni affiancati su schermo largo. */}
+          <div className="grid gap-4 2xl:grid-cols-2 items-start">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -360,6 +362,7 @@ export default function PlatformHealthPage() {
               )}
             </CardContent>
           </Card>
+          </div>
 
           <ErroriRecenti />
 

@@ -178,3 +178,47 @@ export function getAdminRevenueBreakdown(companies: AdminRevenueCompanyLike[]) {
     }
   );
 }
+
+// ── Una sola regola per l'MRR pagante (Aziende e Fatturato) ─────────────────
+// Elenco Aziende e hub Fatturato leggevano le aziende con select diverse e
+// davano due MRR diversi. Entrambi usano ora questa select (piano, abbonamento,
+// override di prezzo) e `applyPlanPriceOverride`, sempre senza le aziende
+// cancellate (`deleted_at`) e senza quella di piattaforma.
+export const ADMIN_REVENUE_COMPANY_SELECT =
+  "id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_subscriptions(status, stripe_subscription_id, billing_period), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)";
+
+interface PlanPriceOverrideRow {
+  service: string | null;
+  custom_plan_price_eur: number | null;
+  override_expires_at: string | null;
+  is_enabled: boolean | null;
+}
+
+/**
+ * Override prezzo piano (company_billing_overrides, service='plan').
+ * Il tab Billing può assegnare un prezzo custom: MRR/KPI/CSV devono usare
+ * QUELLO, non il listino. Le query embeddano gli override e qui il prezzo del
+ * piano viene sostituito prima di ogni calcolo (getCompanyMonthlyRevenue &co
+ * leggono subscription_plans.price_monthly). Il prezzo annuale diventa il
+ * mensile custom × 12, così l'override vince anche sugli abbonamenti annuali.
+ */
+export function applyPlanPriceOverride<T>(rows: T[]): T[] {
+  const adesso = new Date();
+  return rows.map((r) => {
+    const row = r as { subscription_plans?: unknown; company_billing_overrides?: PlanPriceOverrideRow[] | null };
+    const ov = (row.company_billing_overrides ?? []).find((o) =>
+      o.service === "plan" &&
+      o.is_enabled !== false &&
+      (!o.override_expires_at || new Date(o.override_expires_at) >= adesso) &&
+      typeof o.custom_plan_price_eur === "number" &&
+      Number.isFinite(o.custom_plan_price_eur) &&
+      o.custom_plan_price_eur >= 0,
+    );
+    if (!ov || !row.subscription_plans) return r;
+    const prezzo = ov.custom_plan_price_eur as number;
+    return {
+      ...row,
+      subscription_plans: { ...(row.subscription_plans as object), price_monthly: prezzo, price_yearly: prezzo * 12 },
+    } as T;
+  });
+}

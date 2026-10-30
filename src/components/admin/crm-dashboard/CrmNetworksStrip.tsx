@@ -59,7 +59,7 @@ export function CrmNetworksStrip() {
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Store className="h-4 w-4" aria-hidden="true" /> Reti &amp; canali
-          <span className="ml-auto text-xs font-normal text-muted-foreground">referral + white-label · dettaglio nel tab Partner</span>
+          <span className="ml-auto text-xs font-normal text-muted-foreground">oggi, indipendente dal periodo · dettaglio nel tab Partner</span>
         </div>
         {q.isLoading ? (
           <div className="flex items-center justify-center py-6 text-muted-foreground">

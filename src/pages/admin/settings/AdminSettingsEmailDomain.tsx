@@ -17,11 +17,11 @@ const SettingsEmailDomain = lazy(
   () => import("@/pages/azienda/settings/SettingsEmailDomain"),
 );
 
-export default function AdminSettingsEmailDomain() {
+export default function AdminSettingsEmailDomain({ linkPreferenze }: { /** Dove stanno «Mittente e aspetto» quando la pagina è montata nella pagina Email. */ linkPreferenze?: string } = {}) {
   return (
     <PlatformCompanyProvider>
       <Suspense fallback={<Skeleton className="h-[600px] w-full" />}>
-        <SettingsEmailDomain />
+        <SettingsEmailDomain linkPreferenze={linkPreferenze} />
       </Suspense>
     </PlatformCompanyProvider>
   );

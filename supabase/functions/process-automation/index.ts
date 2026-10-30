@@ -1,3 +1,4 @@
+// Cambio piano in _shared/changeCompanyPlan.ts: lo stato dell'azienda segue il piano (30/10/2026).
 /**
  * process-automation — esegue i nodi delle automazioni (trigger, delay, azioni).
  *

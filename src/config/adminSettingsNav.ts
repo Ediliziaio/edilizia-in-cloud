@@ -1,8 +1,8 @@
 import {
   User, Users, Server, Mail, Bell,
-  ScrollText, Globe, Zap, Plug, Landmark, Filter,
-  Webhook, Activity, CalendarDays, Wrench, Variable, Package,
-  MessageCircle, AtSign, GitBranch,
+  ScrollText, Zap, Plug, Landmark, Filter,
+  Webhook, CalendarDays, Wrench, Variable, Package,
+  GitBranch, Shield, KeyRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -56,6 +56,7 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Configurazione generale della piattaforma",
         icon: Server,
         url: "/admin/impostazioni/piattaforma",
+        permission: "can_manage_admins",
       },
       {
         id: "campi-personalizzati",
@@ -84,7 +85,7 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       {
         id: "calendari",
         label: "Calendari marketing",
-        description: "Calendari CRM, disponibilita e sync Google/Apple",
+        description: "Calendari CRM, disponibilità e sincronizzazione Google/Apple",
         icon: CalendarDays,
         url: "/admin/impostazioni/calendari",
         permission: "can_manage_admins",
@@ -100,25 +101,12 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       {
         id: "banking",
         label: "Banking",
-        description: "Conti bancari e impostazioni pagamenti",
+        description: "Collegamento Open Banking (Salt Edge) e situazione delle connessioni per azienda",
         icon: Landmark,
         url: "/admin/impostazioni/banking",
         permission: "can_manage_admins",
       },
-      {
-        id: "banking-overview",
-        label: "Vista Globale Banche",
-        description: "Stato connessioni Open Banking per tutte le aziende",
-        icon: Activity,
-        url: "/admin/impostazioni/banking-overview",
-        permission: "can_manage_admins",
-      },
-      // NB: "Agenti AI", "Monitor AI", "AI Test Lab", "Silvio Hub" sono state
-      // consolidate in 3 pagine sulla sidebar principale (Revenue):
-      //   /admin/ai-config   (Routing/Personas/KB/Pricing/Governance/Voci/Chatbot)
-      //   /admin/ai-monitor  (Usage/TestLab/Health)
-      //   /admin/ai-operate  (Approvals/Queue/Policies/Agents/Chief/Personas/Memory/Learning)
-      // I vecchi link redirezionano automaticamente. Vedi adminRoutes.tsx.
+      // L'AI sta tutta in /admin/ai, nel menu principale.
     ],
   },
   {
@@ -127,32 +115,21 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       {
         id: "email",
         label: "Email",
-        description: "Provider, template e statistiche invii",
+        description: "Provider, mittente e aspetto, dominio, invii e consegna",
         icon: Mail,
         url: "/admin/impostazioni/email",
-      },
-      {
-        id: "dominio-email",
-        label: "Dominio email",
-        description: "Collega il dominio da cui partono le email di EdiliziaInCloud",
-        icon: AtSign,
-        url: "/admin/impostazioni/dominio-email",
+        permission: "can_manage_admins",
       },
       {
         id: "notifiche",
         label: "Notifiche",
-        description: "Alert e notifiche per gli admin",
+        description: "Avvisi per gli amministratori",
         icon: Bell,
         url: "/admin/impostazioni/notifiche",
-      },
-      {
-        id: "whatsapp-locale",
-        label: "WhatsApp Locale",
-        description: "Numeri WhatsApp non-ufficiali (gateway self-hosted) per marketing e outreach",
-        icon: MessageCircle,
-        url: "/admin/impostazioni/whatsapp-locale",
         permission: "can_manage_admins",
       },
+      // WhatsApp dal telefono sta nel Marketing (/admin/marketing/whatsapp-locale):
+      // qui era lo stesso pannello una seconda volta.
       {
         id: "meta-lead-esclusioni",
         label: "Filtro Lead Meta",
@@ -169,10 +146,11 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       {
         id: "operazioni",
         label: "Operazioni",
-        description: "Sync logs, alert failure, import CSV, audit applicativo, GDPR",
+        description: "Sincronizzazioni, import CSV, GDPR",
         icon: Wrench,
-        url: "/admin/operazioni",
-        permission: "can_manage_admins",
+        // dentro le impostazioni: prima /admin/operazioni usciva dal menu delle impostazioni
+        url: "/admin/impostazioni/operazioni",
+        permission: "can_view_platform_stats",
       },
       {
         id: "audit",
@@ -183,33 +161,35 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         permission: "can_manage_admins",
       },
       {
-        id: "ip-allowlist",
-        label: "IP Allowlist",
-        description: "Gestisci gli IP autorizzati per l'accesso",
-        icon: Globe,
-        url: "/admin/impostazioni/ip-allowlist",
+        id: "sicurezza",
+        label: "Sicurezza",
+        description: "Stato della sicurezza della piattaforma e IP autorizzati",
+        icon: Shield,
+        url: "/admin/impostazioni/sicurezza",
         permission: "can_manage_admins",
       },
       {
-        id: "feature-flags",
-        label: "Funzionalità Azienda",
-        description: "Abilita/disabilita funzionalità per azienda",
-        icon: Zap,
-        url: "/admin/feature-flags",
+        id: "api-mcp",
+        label: "API e MCP",
+        description: "Chiavi per collegare Claude, ChatGPT e altri sistemi",
+        icon: KeyRound,
+        url: "/admin/impostazioni/api-mcp",
         permission: "can_manage_admins",
       },
+      // «Funzionalità Azienda» sta nel menu principale (Prodotto): qui portava
+      // fuori dalle impostazioni e la barra laterale cambiava del tutto.
       {
         id: "webhooks",
-        label: "Webhook Outbound",
-        description: "Notifica sistemi esterni",
+        label: "Webhook in uscita",
+        description: "Avvisi verso sistemi esterni",
         icon: Zap,
         url: "/admin/impostazioni/webhooks",
         permission: "can_manage_admins",
       },
       {
         id: "webhook-logs",
-        label: "Webhook Log",
-        description: "Log webhook in entrata (GoCardless, Stripe, Telnyx)",
+        label: "Registro webhook",
+        description: "Webhook in entrata (GoCardless, Stripe, Telnyx)",
         icon: Webhook,
         url: "/admin/impostazioni/webhook-logs",
         permission: "can_manage_admins",

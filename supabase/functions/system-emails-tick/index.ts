@@ -96,7 +96,10 @@ Deno.serve(async (req) => {
           templateName: "setup_incomplete",
           companyId: c.company_id,
           adminClient: admin,
-          props: { recipientName: c.admin_name || "Admin", setupUrl: siteUrl ? `${siteUrl}/azienda` : "" },
+          // email della piattaforma: logo e firma di Edilizia in Cloud, il nome
+          // dell'azienda nel testo
+          platformBranding: true,
+          props: { recipientName: c.admin_name || "Admin", companyName: c.company_name, setupUrl: siteUrl ? `${siteUrl}/azienda` : "" },
         }),
       );
       if (ok) result.setup_incomplete++;

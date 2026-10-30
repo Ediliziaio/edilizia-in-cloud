@@ -228,6 +228,9 @@ Deno.serve(conMetriche("public-checkout", async (req) => {
           recipientName: firstName || "Admin",
           loginUrl: `${base}/login`,
           roleLabel: "Amministratore",
+          companyName,
+          loginEmail: email,
+          passwordGiaScelta: true,
         },
       });
       await sendEmailUnified({

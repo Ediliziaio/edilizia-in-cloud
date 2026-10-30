@@ -23,6 +23,7 @@ import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
 import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
 import { InfoStrip } from "@/components/admin/InfoStrip";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
+import { IntestazioneArea } from "@/components/admin/fatturato/AreaUI";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
 import {
@@ -199,6 +200,16 @@ export default function ProduttoriDashboard() {
     });
   }, [produttori, search, statusFilter, billingFilter, sortKey, inactiveOnly, activity, nowMs]);
 
+  const gruppiStato = useMemo(() => {
+    const ordine = ["active", "trial", "suspended"];
+    const pos = (x: string) => (ordine.indexOf(x) < 0 ? 99 : ordine.indexOf(x));
+    const m = new Map<string, typeof filtered>();
+    for (const p of filtered) m.set(p.status ?? "", [...(m.get(p.status ?? "") ?? []), p]);
+    return [...m.entries()]
+      .sort(([a], [b]) => pos(a) - pos(b))
+      .map(([stato, lista]) => ({ stato, etichetta: companyStatusLabelIt(stato), produttori: lista }));
+  }, [filtered]);
+
   const inactiveCount = useMemo(() => {
     if (activityLoading) return undefined;
     const cutoff = nowMs - 30 * 86_400_000;
@@ -212,20 +223,17 @@ export default function ProduttoriDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Factory className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Produttori</h1>
-            <p className="text-muted-foreground">
-              Fabbriche white-label che gestiscono i propri rivenditori, col proprio brand e dominio.
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} className="self-end gap-1.5 sm:self-auto">
-          <Plus className="h-4 w-4" /> Crea produttore
-        </Button>
-      </div>
+      <IntestazioneArea
+        icona={Factory}
+        titolo="Produttori"
+        spiegazione="Fabbriche white-label che gestiscono i propri rivenditori, col proprio brand e dominio."
+        badge={!isLoading && produttori.length > 0 ? <Badge variant="outline">{produttori.length} produttori</Badge> : undefined}
+        azioni={
+          <Button onClick={() => setCreateOpen(true)} className="gap-1.5" aria-label="Crea produttore">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Crea produttore</span>
+          </Button>
+        }
+      />
 
       {/* Analytics: KPI ricchi + grafici (stile mega dashboard) */}
       {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} inactiveCount={inactiveCount} onInactiveClick={() => setInactiveOnly(true)} />}
@@ -308,8 +316,13 @@ export default function ProduttoriDashboard() {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((p) => {
+        // Raggruppati per stato (attivi, in prova, sospesi); due colonne su xl.
+        <div className="space-y-4">
+        {gruppiStato.map((g) => (
+        <section key={g.stato} className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.etichetta} · {g.produttori.length}</h2>
+        <ul className="grid items-start gap-2 xl:grid-cols-2">
+          {g.produttori.map((p) => {
             const isOpen = expanded === p.id;
             const rivMrr = p.rivenditori.reduce((s, r) => s + (r.plan_price || 0), 0);
             const rivAttivi = p.rivenditori.filter((r) => r.status === "active").length;
@@ -413,6 +426,9 @@ export default function ProduttoriDashboard() {
             );
           })}
         </ul>
+        </section>
+        ))}
+        </div>
       )}
 
       <CreateProduttoreDialog open={createOpen} onOpenChange={setCreateOpen} />

@@ -38,11 +38,13 @@ export function CrmAgentTargetsCard({ companyId }: { companyId: string }) {
     queryFn: async () => {
       const opps = await supabase
         .from("marketing_opportunities")
-        .select("assigned_to,status,value,updated_at")
+        .select("assigned_to,status,value,won_at")
         .eq("company_id", companyId)
         .eq("status", "won")
         .is("deleted_at", null)
-        .gte("updated_at", monthStart.toISOString())
+        // Vinte NEL mese = data di chiusura (won_at), non l'ultima modifica:
+        // una nota aggiunta oggi a una vinta di marzo la spostava nel mese corrente.
+        .gte("won_at", monthStart.toISOString())
         .limit(5000);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const targets = await (supabase.from("marketing_agent_targets") as any)
@@ -111,6 +113,7 @@ export function CrmAgentTargetsCard({ companyId }: { companyId: string }) {
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Goal className="h-4 w-4" aria-hidden="true" /> Obiettivo vs vinto del mese (per agente)
+          <span className="ml-auto text-xs font-normal text-muted-foreground">mese in corso, indipendente dal periodo</span>
         </div>
         {q.isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">

@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, FileText } from "lucide-react";
+import { Mail, FileText, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IntestazioneArea, RigaRiepilogo } from "@/components/admin/fatturato/AreaUI";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -287,23 +289,44 @@ export default function DunningTemplatesPage() {
   // Template selezionato (oppure il primo disponibile)
   const selectedTemplate =
     templates?.find((t) => t.id === selectedId) ?? templates?.[0] ?? null;
+  const attivi = (templates ?? []).filter((t) => t.is_active).length;
+  const ultimoGiorno = (templates ?? []).length
+    ? Math.max(...(templates ?? []).map((t) => t.trigger_days_overdue ?? 0))
+    : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header pagina */}
-      <div>
-        <h1 className="text-2xl font-bold">Template Email Dunning</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gestisci i messaggi automatici inviati alle aziende con pagamenti scaduti
-        </p>
-      </div>
+    <div className="space-y-4">
+      <IntestazioneArea
+        icona={Mail}
+        titolo="Modelli di recupero"
+        spiegazione="I testi dei solleciti per le aziende con pagamenti scaduti, passo per passo"
+      />
+
+      <RigaRiepilogo
+        voci={[
+          { etichetta: "Passi", valore: isLoading ? "…" : templates?.length ?? 0, dettaglio: "nella sequenza" },
+          { etichetta: "Attivi", valore: isLoading ? "…" : attivi, tono: attivi > 0 ? "buono" : "spento" },
+          { etichetta: "Spenti", valore: isLoading ? "…" : (templates?.length ?? 0) - attivi, tono: "spento" },
+          { etichetta: "Ultimo sollecito", valore: isLoading ? "…" : ultimoGiorno == null ? "—" : `${ultimoGiorno} gg`, dettaglio: "dopo la scadenza" },
+        ]}
+      />
+
+      {/* Avviso onesto: process-dunning ha i testi scritti nel codice e non
+          legge dunning_email_templates; li usa solo execute-playbooks. */}
+      <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertDescription>
+          Questi modelli valgono per i playbook; le email automatiche di recupero pagamento usano ancora testi fissi.
+          Modificarli qui non cambia le email che partono da sole per i pagamenti scaduti.
+        </AlertDescription>
+      </Alert>
 
       {/* Layout due colonne */}
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[280px_1fr] xl:grid-cols-[320px_1fr]">
         {/* Colonna sinistra: lista step */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
-            Sequenza dunning
+            Sequenza dei solleciti
           </p>
 
           {isLoading ? (
@@ -311,7 +334,8 @@ export default function DunningTemplatesPage() {
           ) : !templates || templates.length === 0 ? (
             <div className="py-8 text-center rounded-lg border border-dashed">
               <Mail className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Nessun template trovato</p>
+              <p className="text-sm text-muted-foreground">Nessun modello ancora</p>
+              <p className="mt-1 px-3 text-xs text-muted-foreground">I passi della sequenza si creano nel database (tabella dunning_email_templates).</p>
             </div>
           ) : (
             templates.map((template) => (

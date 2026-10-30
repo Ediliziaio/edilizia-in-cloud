@@ -27,7 +27,7 @@ function getNotificationMeta(n: AdminNotification) {
       return { icon: Building, color: "text-blue-600 bg-blue-500/10", label: "Nuova azienda", desc: d.company_name || "Registrata", link: d.company_id ? `/admin/aziende/${d.company_id}` : undefined };
     case "new_ticket":
     case "ticket_created":
-      return { icon: MessageSquare, color: "text-yellow-600 bg-yellow-500/10", label: "Nuovo ticket", desc: d.subject || "Supporto", link: "/admin/ticket" };
+      return { icon: MessageSquare, color: "text-yellow-600 bg-yellow-500/10", label: "Nuovo ticket", desc: d.subject || "Supporto", link: "/admin/cs?tab=assistenza" };
     case "payment_failed":
     case "invoice.payment_failed":
       return { icon: CreditCard, color: "text-red-600 bg-red-500/10", label: "Pagamento fallito", desc: d.company_name || "", link: d.company_id ? `/admin/aziende/${d.company_id}` : undefined };

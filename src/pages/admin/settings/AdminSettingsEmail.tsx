@@ -18,7 +18,22 @@
  * URL state: ?tab=<id> via useSearchParams (replace mode, niente history pollution).
  * Lazy-mount: pattern visitedTabs preservato, ogni tab montato solo dopo prima visita.
  */
-import { lazy, Suspense, useMemo, useState } from "react";
+/**
+ * AdminSettingsEmail — la pagina Email della piattaforma, con UN solo livello di schede.
+ *
+ * Prima c'erano schede dentro schede (la «Configurazione» ne aveva altre sei, con nomi
+ * inglesi: Delivery Log, Outbox, Rate Limits…) e «Mittente e aspetto» e «Dominio» stavano
+ * in due pagine a parte. Ora è tutto qui, una scheda per argomento (30/10/2026).
+ *
+ * Desktop (≥md): elenco delle schede a sinistra, contenuto a destra.
+ * Telefono (<md): una tendina in alto al posto dell'elenco.
+ *
+ * La scheda sta nell'URL: ?scheda=<id> (replace, niente cronologia sporca). I vecchi
+ * ?tab= (settings, templates, …) vengono tradotti nella scheda nuova.
+ * Ogni scheda si monta alla prima visita e poi resta montata ma nascosta: cambiare
+ * scheda non perde filtri o modifiche non salvate.
+ */
+import { lazy, Suspense, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +47,12 @@ import {
   FileText,
   PenLine,
   Variable,
+  Palette,
+  AtSign,
+  ScrollText,
+  Inbox,
+  ShieldCheck,
+  Euro,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,127 +69,93 @@ import {
 import { cn } from "@/lib/utils";
 
 import { EmailTestPanel } from "@/components/admin/settings/EmailTestPanel";
-import { AdminTransactionalLogPanel } from "@/components/admin/AdminTransactionalLogPanel";
 
-// Lazy import dei sub-component pesanti.
-// NOTA: i nomi dei tab e i sub-component sono invariati rispetto alla versione
-// precedente — qui cambia solo l'orchestrazione/layout della shell.
-const EmailSettingsTab = lazy(() => import("@/components/admin/settings/EmailSettingsTab"));
-const EmailDeliverabilityDashboard = lazy(() =>
-  import("@/components/admin/settings/EmailDeliverabilityDashboard").then((m) => ({
-    default: m.EmailDeliverabilityDashboard,
-  })),
-);
-const EmailSuppressionsTable = lazy(() =>
-  import("@/components/admin/settings/EmailSuppressionsTable").then((m) => ({
-    default: m.EmailSuppressionsTable,
-  })),
-);
-const EmailRateLimitsPanel = lazy(() =>
-  import("@/components/admin/settings/EmailRateLimitsPanel").then((m) => ({
-    default: m.EmailRateLimitsPanel,
-  })),
-);
-const EmailTemplatesPanel = lazy(() =>
-  import("@/components/admin/settings/EmailTemplatesPanel").then((m) => ({
-    default: m.EmailTemplatesPanel,
-  })),
-);
-const PlatformEmailSignaturePanel = lazy(() =>
-  import("@/components/admin/settings/PlatformEmailSignaturePanel").then((m) => ({
-    default: m.PlatformEmailSignaturePanel,
-  })),
-);
-const PlatformCustomFieldsPanel = lazy(() =>
-  import("@/components/admin/settings/PlatformCustomFieldsPanel").then((m) => ({
-    default: m.PlatformCustomFieldsPanel,
-  })),
-);
+// I pannelli pesanti si scaricano solo quando si apre la loro scheda.
+const lazyNamed = <K extends string>(loader: () => Promise<Record<K, ComponentType>>, key: K) =>
+  lazy(() => loader().then((m) => ({ default: m[key] })));
 
-type TabId =
-  | "settings"
-  | "templates"
-  | "custom-fields"
-  | "signature"
-  | "deliverability"
-  | "suppressions"
-  | "rate-limits"
-  | "test";
+const EmailWebhookConfig = lazyNamed(() => import("@/components/admin/settings/email/EmailWebhookConfig"), "EmailWebhookConfig");
+const EmailProviderConfig = lazy(() =>
+  import("@/components/admin/settings/email/EmailProviderConfig").then((m) => ({ default: m.EmailProviderConfig })),
+);
+const EmailPricingConfig = lazyNamed(() => import("@/components/admin/settings/email/EmailPricingConfig"), "EmailPricingConfig");
+const WhatsAppPricingConfig = lazyNamed(() => import("@/components/admin/settings/email/WhatsAppPricingConfig"), "WhatsAppPricingConfig");
+const EmailDashboard = lazyNamed(() => import("@/components/admin/settings/email/EmailDashboard"), "EmailDashboard");
+const EmailDeliveryLog = lazyNamed(() => import("@/components/admin/settings/email/EmailDeliveryLog"), "EmailDeliveryLog");
+const EmailOutboxPanel = lazyNamed(() => import("@/components/admin/settings/email/EmailOutboxPanel"), "EmailOutboxPanel");
+const EmailDeliverabilityDashboard = lazyNamed(() => import("@/components/admin/settings/EmailDeliverabilityDashboard"), "EmailDeliverabilityDashboard");
+const EmailSuppressionsTable = lazyNamed(() => import("@/components/admin/settings/EmailSuppressionsTable"), "EmailSuppressionsTable");
+const EmailRateLimitsPanel = lazyNamed(() => import("@/components/admin/settings/EmailRateLimitsPanel"), "EmailRateLimitsPanel");
+const EmailTemplatesPanel = lazyNamed(() => import("@/components/admin/settings/EmailTemplatesPanel"), "EmailTemplatesPanel");
+const PlatformEmailSignaturePanel = lazyNamed(() => import("@/components/admin/settings/PlatformEmailSignaturePanel"), "PlatformEmailSignaturePanel");
+const PlatformCustomFieldsPanel = lazyNamed(() => import("@/components/admin/settings/PlatformCustomFieldsPanel"), "PlatformCustomFieldsPanel");
+const AdminSettingsEmailPreferences = lazy(() => import("./AdminSettingsEmailPreferences"));
+const AdminSettingsEmailDomain = lazy(() => import("./AdminSettingsEmailDomain"));
 
-interface TabDef {
-  id: TabId;
+const BASE = "/admin/impostazioni/email";
+
+type SchedaEmail =
+  | "provider"
+  | "mittente"
+  | "dominio"
+  | "modelli"
+  | "campi"
+  | "firma"
+  | "andamento"
+  | "invii"
+  | "coda"
+  | "consegna"
+  | "bloccati"
+  | "limiti"
+  | "prezzi"
+  | "prova";
+
+interface SchedaDef {
+  id: SchedaEmail;
   label: string;
-  shortLabel?: string;
   description: string;
   icon: LucideIcon;
   skeletonHeight: string;
 }
 
-const TABS: readonly TabDef[] = [
-  {
-    id: "settings",
-    label: "Configurazione",
-    description: "Provider SMTP e parametri base",
-    icon: Settings,
-    skeletonHeight: "h-[400px]",
-  },
-  {
-    id: "templates",
-    label: "Template",
-    description: "Email transazionali e marketing",
-    icon: FileText,
-    skeletonHeight: "h-[500px]",
-  },
-  {
-    id: "custom-fields",
-    label: "Campi personalizzati",
-    shortLabel: "Campi",
-    description: "Variabili dinamiche disponibili nei template",
-    icon: Variable,
-    skeletonHeight: "h-[500px]",
-  },
-  {
-    id: "signature",
-    label: "Firma",
-    description: "Firma piattaforma applicata alle email",
-    icon: PenLine,
-    skeletonHeight: "h-[400px]",
-  },
-  {
-    id: "deliverability",
-    label: "Deliverability",
-    description: "Bounce, complaint rate, DNS",
-    icon: BarChart3,
-    skeletonHeight: "h-[400px]",
-  },
-  {
-    id: "suppressions",
-    label: "Soppressioni",
-    description: "Lista email bloccate / unsubscribe",
-    icon: Ban,
-    skeletonHeight: "h-[400px]",
-  },
-  {
-    id: "rate-limits",
-    label: "Rate Limits",
-    description: "Throttling invio per provider",
-    icon: Gauge,
-    skeletonHeight: "h-[300px]",
-  },
-  {
-    id: "test",
-    label: "Test Invio",
-    shortLabel: "Test",
-    description: "Invia email di prova al volo",
-    icon: Send,
-    skeletonHeight: "h-[300px]",
-  },
+const SCHEDE_EMAIL: readonly SchedaDef[] = [
+  { id: "provider", label: "Provider", description: "Servizi di invio (campagne e messaggi di servizio) e ritorni degli esiti", icon: Settings, skeletonHeight: "h-[400px]" },
+  { id: "mittente", label: "Mittente e aspetto", description: "Nome del mittente, risposte, logo e colori delle email della piattaforma", icon: Palette, skeletonHeight: "h-[600px]" },
+  { id: "dominio", label: "Dominio", description: "Il dominio da cui partono le email della piattaforma e le sue righe DNS", icon: AtSign, skeletonHeight: "h-[600px]" },
+  { id: "modelli", label: "Modelli", description: "Testi delle email di servizio e di marketing", icon: FileText, skeletonHeight: "h-[500px]" },
+  { id: "campi", label: "Campi nei modelli", description: "Le variabili che si possono usare nei modelli", icon: Variable, skeletonHeight: "h-[500px]" },
+  { id: "firma", label: "Firma", description: "Firma della piattaforma in fondo alle email", icon: PenLine, skeletonHeight: "h-[400px]" },
+  { id: "andamento", label: "Andamento", description: "Quante email partono, arrivano e tornano indietro", icon: BarChart3, skeletonHeight: "h-[400px]" },
+  { id: "invii", label: "Invii", description: "Ogni email spedita, con esito ed errore", icon: ScrollText, skeletonHeight: "h-[400px]" },
+  { id: "coda", label: "Coda", description: "Email in attesa di partire o da ritentare", icon: Inbox, skeletonHeight: "h-[400px]" },
+  { id: "consegna", label: "Consegna e DNS", description: "Rimbalzi, segnalazioni di spam e stato DNS per azienda", icon: ShieldCheck, skeletonHeight: "h-[400px]" },
+  { id: "bloccati", label: "Indirizzi bloccati", description: "Chi si è disiscritto o non riceve più email", icon: Ban, skeletonHeight: "h-[400px]" },
+  { id: "limiti", label: "Limiti", description: "Quante email al minuto e al giorno può spedire ogni servizio", icon: Gauge, skeletonHeight: "h-[300px]" },
+  { id: "prezzi", label: "Prezzi e margini", description: "Quanto costano e quanto facciamo pagare email e messaggi WhatsApp", icon: Euro, skeletonHeight: "h-[400px]" },
+  { id: "prova", label: "Invio di prova", description: "Manda un'email di prova al volo", icon: Send, skeletonHeight: "h-[300px]" },
 ] as const;
 
-const VALID_TAB_IDS = new Set<TabId>(TABS.map((t) => t.id));
+const SCHEDE_VALIDE = new Set<SchedaEmail>(SCHEDE_EMAIL.map((t) => t.id));
+const SCHEDA_PREDEFINITA: SchedaEmail = "provider";
 
-function isValidTab(value: string | null): value is TabId {
-  return value !== null && VALID_TAB_IDS.has(value as TabId);
+/** I vecchi ?tab= dei link già in giro, tradotti nella scheda nuova. */
+const DA_VECCHIO_TAB: Record<string, SchedaEmail> = {
+  settings: "provider",
+  templates: "modelli",
+  "custom-fields": "campi",
+  signature: "firma",
+  deliverability: "consegna",
+  suppressions: "bloccati",
+  "rate-limits": "limiti",
+  test: "prova",
+};
+
+function schedaEmailDaParametri(params: URLSearchParams): SchedaEmail {
+  const scheda = params.get("scheda");
+  if (scheda && SCHEDE_VALIDE.has(scheda as SchedaEmail)) return scheda as SchedaEmail;
+  const vecchio = params.get("tab");
+  if (vecchio && DA_VECCHIO_TAB[vecchio]) return DA_VECCHIO_TAB[vecchio];
+  return SCHEDA_PREDEFINITA;
 }
 
 const FAILED_STATUSES = ["failed", "bounced", "error"];
@@ -229,52 +216,48 @@ function SystemHealthBadge() {
 
 export default function AdminSettingsEmail() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const activeTab: TabId = isValidTab(tabParam) ? tabParam : "settings";
+  const activeTab = schedaEmailDaParametri(searchParams);
 
-  // PERF: lazy-mount delle 8 tab. Senza, tutti i 7 lazy chunk verrebbero
-  // scaricati al primo paint anche se l'utente vede solo "Configurazione".
-  const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set<TabId>([activeTab]));
+  const [visitedTabs, setVisitedTabs] = useState<Set<SchedaEmail>>(() => new Set<SchedaEmail>([activeTab]));
 
-  // Il tab attivo può cambiare anche SENZA passare da handleTabChange
-  // (?tab= modificato da link esterni, back/forward, ri-click sulla voce di
-  // menu): va marcato visitato anche in quel caso, altrimenti il pannello
-  // resta vuoto. State-update-in-render (pattern React docs) per evitare
-  // il flash di un frame vuoto che darebbe useEffect.
+  // La scheda può cambiare anche senza passare da handleTabChange (link, avanti/indietro):
+  // va segnata come visitata anche lì, altrimenti il pannello resta vuoto.
   if (!visitedTabs.has(activeTab)) {
     const merged = new Set(visitedTabs);
     merged.add(activeTab);
     setVisitedTabs(merged);
   }
 
-  const handleTabChange = (next: TabId) => {
+  const handleTabChange = (next: SchedaEmail) => {
     setSearchParams(
       (prev) => {
         const sp = new URLSearchParams(prev);
-        if (next === "settings") sp.delete("tab");
-        else sp.set("tab", next);
+        sp.delete("tab");
+        if (next === SCHEDA_PREDEFINITA) sp.delete("scheda");
+        else sp.set("scheda", next);
         return sp;
       },
       { replace: true },
     );
-    setVisitedTabs((prev) => {
-      if (prev.has(next)) return prev;
-      const merged = new Set(prev);
-      merged.add(next);
-      return merged;
-    });
   };
 
   const activeDef = useMemo(
-    () => TABS.find((t) => t.id === activeTab) ?? TABS[0],
+    () => SCHEDE_EMAIL.find((t) => t.id === activeTab) ?? SCHEDE_EMAIL[0],
     [activeTab],
   );
 
-  const isMounted = (id: TabId) => visitedTabs.has(id);
+  const pannello = (id: SchedaEmail, contenuto: ReactNode) => {
+    if (!visitedTabs.has(id)) return null;
+    const def = SCHEDE_EMAIL.find((t) => t.id === id)!;
+    return (
+      <div key={id} hidden={activeTab !== id} className="space-y-6">
+        <Suspense fallback={<Skeleton className={def.skeletonHeight} />}>{contenuto}</Suspense>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span
@@ -284,28 +267,25 @@ export default function AdminSettingsEmail() {
             <Mail className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold leading-tight">Configurazione Email Platform</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Provider, template, deliverability, soppressioni e rate limits in un unico hub.
+            <h1 className="text-2xl font-bold leading-tight">Email</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">
+              Servizi di invio, mittente, dominio, modelli e andamento delle email della piattaforma.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 max-sm:hidden">
           <SystemHealthBadge />
-          <Badge variant="outline" className="font-normal">
-            {TABS.length} sezioni
-          </Badge>
         </div>
       </div>
 
-      {/* Mobile: Select per la navigazione tab. Visibile solo <md. */}
+      {/* Telefono: tendina al posto dell'elenco. */}
       <div className="md:hidden">
-        <Select value={activeTab} onValueChange={(v) => handleTabChange(v as TabId)}>
-          <SelectTrigger aria-label="Seleziona sezione email" className="w-full">
-            <SelectValue placeholder="Seleziona sezione" />
+        <Select value={activeTab} onValueChange={(v) => handleTabChange(v as SchedaEmail)}>
+          <SelectTrigger aria-label="Scegli la sezione" className="w-full">
+            <SelectValue placeholder="Scegli la sezione" />
           </SelectTrigger>
           <SelectContent>
-            {TABS.map((tab) => {
+            {SCHEDE_EMAIL.map((tab) => {
               const Icon = tab.icon;
               return (
                 <SelectItem key={tab.id} value={tab.id}>
@@ -320,18 +300,12 @@ export default function AdminSettingsEmail() {
         </Select>
       </div>
 
-      {/* Layout sidebar + main (desktop) / stack (mobile) */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        {/* Sidebar desktop */}
-        <nav
-          role="navigation"
-          aria-label="Navigazione configurazione email"
-          className="hidden md:block md:w-64 lg:w-72 shrink-0"
-        >
+        <nav aria-label="Sezioni email" className="hidden md:block md:w-56 lg:w-60 shrink-0 md:sticky md:top-4">
           <Card className="overflow-hidden">
-            <CardContent className="p-2">
+            <CardContent className="p-1.5">
               <ul className="flex flex-col gap-0.5">
-                {TABS.map((tab) => {
+                {SCHEDE_EMAIL.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = tab.id === activeTab;
                   return (
@@ -340,33 +314,19 @@ export default function AdminSettingsEmail() {
                         type="button"
                         onClick={() => handleTabChange(tab.id)}
                         aria-current={isActive ? "page" : undefined}
-                        aria-label={`${tab.label} — ${tab.description}`}
+                        title={tab.description}
                         className={cn(
-                          "group w-full flex items-start gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
-                          "border-l-2",
+                          "group w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors border-l-2",
                           isActive
                             ? "border-l-primary bg-primary/10 text-foreground font-semibold"
                             : "border-l-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                         )}
                       >
                         <Icon
-                          className={cn(
-                            "h-4 w-4 mt-0.5 shrink-0",
-                            isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
-                          )}
+                          className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")}
                           aria-hidden="true"
                         />
-                        <span className="min-w-0 flex-1">
-                          <span className="block leading-tight">{tab.label}</span>
-                          <span
-                            className={cn(
-                              "block text-[11px] font-normal leading-snug mt-0.5",
-                              isActive ? "text-muted-foreground" : "text-muted-foreground/80",
-                            )}
-                          >
-                            {tab.description}
-                          </span>
-                        </span>
+                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
                       </button>
                     </li>
                   );
@@ -376,91 +336,46 @@ export default function AdminSettingsEmail() {
           </Card>
         </nav>
 
-        {/* Main area */}
-        <section className="flex-1 min-w-0">
-          <Card>
-            <CardContent className="p-4 sm:p-6">
-              {/* Sub-header sezione attiva */}
-              <div className="mb-4 sm:mb-6 flex items-start gap-3 pb-4 border-b">
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0"
-                  aria-hidden="true"
-                >
-                  <activeDef.icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold leading-tight">{activeDef.label}</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">{activeDef.description}</p>
-                </div>
+        <section className="flex-1 min-w-0" aria-label={activeDef.label}>
+          {/* «Mittente e aspetto» ha già il suo titolo dentro: niente doppione. */}
+          <div className={cn("mb-3 max-sm:hidden", activeTab === "mittente" && "hidden")}>
+            <h2 className="text-base font-semibold leading-tight">{activeDef.label}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{activeDef.description}</p>
+          </div>
+          {pannello(
+            "provider",
+            <>
+              <EmailWebhookConfig />
+              <div className="grid grid-cols-1 items-start gap-6 2xl:grid-cols-2">
+                <EmailProviderConfig stream="marketing" />
+                <EmailProviderConfig stream="transactional" />
               </div>
-
-              {/* Pannelli — ogni tab viene montato alla prima visita e poi
-                  resta montato ma NASCOSTO (`hidden`) quando non attivo: così
-                  cambiare sezione non smonta il componente e non perde stato
-                  interno (filtri, scroll, modifiche non salvate della Firma,
-                  editor template). I lazy chunk restano scaricati on-demand. */}
-              <div role="tabpanel" aria-label={activeDef.label}>
-                {isMounted("settings") && (
-                  <div hidden={activeTab !== "settings"} className="space-y-4">
-                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                      <EmailSettingsTab />
-                    </Suspense>
-                    {/* Log invii transazionali reali (email_delivery_log):
-                        sta qui accanto alla configurazione del provider, NON
-                        in /admin/email che è il client di posta personale. */}
-                    <AdminTransactionalLogPanel />
-                  </div>
-                )}
-                {isMounted("templates") && (
-                  <div hidden={activeTab !== "templates"}>
-                    <Suspense fallback={<Skeleton className="h-[500px]" />}>
-                      <EmailTemplatesPanel />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("custom-fields") && (
-                  <div hidden={activeTab !== "custom-fields"}>
-                    <Suspense fallback={<Skeleton className="h-[500px]" />}>
-                      <PlatformCustomFieldsPanel />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("signature") && (
-                  <div hidden={activeTab !== "signature"}>
-                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                      <PlatformEmailSignaturePanel />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("deliverability") && (
-                  <div hidden={activeTab !== "deliverability"}>
-                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                      <EmailDeliverabilityDashboard />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("suppressions") && (
-                  <div hidden={activeTab !== "suppressions"}>
-                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                      <EmailSuppressionsTable />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("rate-limits") && (
-                  <div hidden={activeTab !== "rate-limits"}>
-                    <Suspense fallback={<Skeleton className="h-[300px]" />}>
-                      <EmailRateLimitsPanel />
-                    </Suspense>
-                  </div>
-                )}
-                {isMounted("test") && (
-                  <div hidden={activeTab !== "test"}>
-                    <EmailTestPanel />
-                  </div>
-                )}
+            </>,
+          )}
+          {pannello("mittente", <AdminSettingsEmailPreferences linkDominio={`${BASE}?scheda=dominio`} />)}
+          {pannello("dominio", <AdminSettingsEmailDomain linkPreferenze={`${BASE}?scheda=mittente`} />)}
+          {pannello("modelli", <EmailTemplatesPanel />)}
+          {pannello("campi", <PlatformCustomFieldsPanel />)}
+          {pannello("firma", <PlatformEmailSignaturePanel />)}
+          {pannello("andamento", <EmailDashboard />)}
+          {pannello("invii", <EmailDeliveryLog />)}
+          {pannello("coda", <EmailOutboxPanel />)}
+          {pannello("consegna", <EmailDeliverabilityDashboard />)}
+          {pannello("bloccati", <EmailSuppressionsTable />)}
+          {pannello("limiti", <EmailRateLimitsPanel />)}
+          {pannello(
+            "prezzi",
+            <>
+              <EmailPricingConfig />
+              {/* I prezzi WhatsApp stavano in una sotto-scheda «Prezzi WhatsApp» dentro Email: ora sono qui sotto,
+                  con un titolo che dice chiaro che non sono email. */}
+              <div className="space-y-2 border-t pt-6">
+                <h3 className="text-base font-semibold">Messaggi WhatsApp</h3>
+                <WhatsAppPricingConfig />
               </div>
-            </CardContent>
-          </Card>
+            </>,
+          )}
+          {pannello("prova", <EmailTestPanel />)}
         </section>
       </div>
     </div>

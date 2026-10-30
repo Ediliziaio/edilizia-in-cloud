@@ -1,3 +1,4 @@
+// Cambio piano in _shared/changeCompanyPlan.ts: lo stato dell'azienda segue il piano (30/10/2026).
 // Deno provides the runtime types; avoid a network-only type import at deployment.
 import { getCorsHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";

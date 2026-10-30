@@ -40,9 +40,9 @@ const fallback = (
 );
 
 const TABS = [
-  { value: "usage", label: "Usage & Costi", icon: Coins },
-  { value: "test-lab", label: "Test Lab", icon: FlaskConical },
-  { value: "health", label: "Health", icon: HeartPulse },
+  { value: "usage", label: "Consumi e costi", icon: Coins },
+  { value: "test-lab", label: "Prove modelli", icon: FlaskConical },
+  { value: "health", label: "Salute", icon: HeartPulse },
 ];
 
 export default function AIMonitorPage() {
@@ -70,12 +70,12 @@ export default function AIMonitorPage() {
       {!isNested && (
         <AIPageHeader
           icon={Activity}
-          title="AI · Monitor"
+          title="AI · Controllo"
           subtitle="Monitoring"
           description="Osservabilità completa del sistema AI: dove vanno i soldi, quale modello costa di più, qual è la latenza p95, chi sta producendo output di qualità. Tutto in tempo reale."
           quickLinks={[
-            { label: "Configurazione", to: "/admin/ai-config", icon: Settings },
-            { label: "Operate (azioni)", to: "/admin/ai-operate", icon: Bot },
+            { label: "Configurazione", to: "/admin/ai?section=config", icon: Settings },
+            { label: "Operativo", to: "/admin/ai", icon: Bot },
           ]}
         />
       )}
@@ -87,7 +87,7 @@ export default function AIMonitorPage() {
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <Settings className="h-3 w-3" />
-            Config
+            Configurazione
           </button>
           <button
             type="button"
@@ -95,7 +95,7 @@ export default function AIMonitorPage() {
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <Bot className="h-3 w-3" />
-            Operate
+            Operativo
           </button>
         </div>
       )}
@@ -108,7 +108,7 @@ export default function AIMonitorPage() {
           usage: (
             <>
               <SectionAlert.info
-                title="Usage & Costi per azienda"
+                title="Consumi e costi per azienda"
                 description="Aggregato costi/ricavi/margini per giorno, mese e azienda. Drill-down per feature (render/chat/voice/doc/automation), provider (OpenAI/Anthropic/...) e modello specifico."
                 bullets={[
                   "KPI: costo totale, ricavi, margine %, top spender",
@@ -136,7 +136,7 @@ export default function AIMonitorPage() {
                   "Rating utenti alimenta self-improvement loop (in AI Operate → Learning)",
                 ]}
                 related={[
-                  { label: "Self-learning loop", to: "/admin/ai-operate?tab=learning" },
+                  { label: "Self-learning loop", to: "/admin/ai?tab=learning" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -148,7 +148,7 @@ export default function AIMonitorPage() {
           health: (
             <>
               <SectionAlert.success
-                title="Health Dashboard"
+                title="Salute AI"
                 description="Stato del sistema AI a colpo d'occhio. Aggrega 4 view DB: missioni multi-agent, performance per agent, tool health, self-learning runs."
                 bullets={[
                   "Missioni: attive, in attesa approval, failed/total ultimi 7gg",

@@ -233,6 +233,17 @@ export default function Announcements() {
     active: "Attivi",
   };
 
+  // Riepilogo in alto: cosa è in onda adesso e cosa è fermo.
+  const adesso = Date.now();
+  const scaduto = (a: { expires_at: string | null }) => !!a.expires_at && new Date(a.expires_at).getTime() <= adesso;
+  const inOnda = announcements.filter((a) => a.is_active && !scaduto(a)).length;
+  const scaduti = announcements.filter((a) => scaduto(a)).length;
+  const spenti = announcements.filter((a) => !a.is_active && !scaduto(a)).length;
+  const ordineTipi = ["banner", "changelog", "maintenance"];
+  const gruppiAnnunci = [...new Set([...ordineTipi, ...announcements.map((a) => a.type)])]
+    .map((type) => ({ type, items: announcements.filter((a) => a.type === type) }))
+    .filter((g) => g.items.length > 0);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -259,20 +270,72 @@ export default function Announcements() {
         </Dialog>
       </div>
 
+      {announcements.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { etichetta: "In onda ora", valore: inOnda, tono: inOnda > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground" },
+            { etichetta: "Spenti", valore: spenti, tono: "text-foreground" },
+            { etichetta: "Scaduti", valore: scaduti, tono: scaduti > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground" },
+            { etichetta: "Totale", valore: announcements.length, tono: "text-foreground" },
+          ].map((k) => (
+            <div key={k.etichetta} className="rounded-lg border bg-card p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.etichetta}</p>
+              <p className={`text-2xl font-semibold tabular-nums leading-tight ${k.tono}`}>{k.valore}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {announcements.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Nessun annuncio creato</CardContent></Card>
+        // Stato vuoto utile: cosa si può pubblicare e dove lo vedono le aziende.
+        <Card>
+          <CardContent className="py-8 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-muted p-2.5"><Megaphone className="h-5 w-5 text-muted-foreground" /></div>
+              <div>
+                <p className="font-medium">Nessun annuncio per ora</p>
+                <p className="text-sm text-muted-foreground">Un annuncio compare in alto nell'app delle aziende che scegli.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border p-3">
+                <p className="text-sm font-medium">Banner</p>
+                <p className="text-xs text-muted-foreground">Una novità, una promozione, un invito a un webinar.</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-sm font-medium">Changelog</p>
+                <p className="text-xs text-muted-foreground">Cosa è cambiato nell'ultima versione.</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-sm font-medium">Manutenzione</p>
+                <p className="text-xs text-muted-foreground">Un fermo programmato, con la scadenza che lo toglie da solo.</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Puoi mandarlo a tutte le aziende, solo a quelle in prova o solo a quelle attive, e vedere l'anteprima prima di pubblicarlo.
+            </p>
+            <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />Crea il primo annuncio</Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-3">
-          {announcements.map((a) => (
+        // Raggruppati per tipo (banner / changelog / manutenzione), due colonne su schermo largo.
+        <div className="space-y-5">
+          {gruppiAnnunci.map((g) => (
+          <section key={g.type} className="space-y-2">
+            <h2 className="text-sm font-semibold text-muted-foreground">
+              {typeLabels[g.type] || g.type} <span className="font-normal">· {g.items.length}</span>
+            </h2>
+          <div className="grid gap-3 lg:grid-cols-2">
+          {g.items.map((a) => (
             <Card key={a.id}>
-              <CardContent className="pt-6">
+              <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Megaphone className="h-4 w-4 text-muted-foreground shrink-0" />
                       <h3 className="font-semibold">{a.title}</h3>
-                      <Badge variant={a.is_active ? "default" : "secondary"} className="text-xs">
-                        {a.is_active ? "Attivo" : "Disattivo"}
+                      <Badge variant={a.is_active && !scaduto(a) ? "default" : "secondary"} className="text-xs">
+                        {scaduto(a) ? "Scaduto" : a.is_active ? "In onda" : "Spento"}
                       </Badge>
                       <Badge variant="outline" className="text-xs">{typeLabels[a.type] || a.type}</Badge>
                       <Badge variant="outline" className="text-xs">→ {targetLabels[a.target_status] || a.target_status}</Badge>
@@ -327,6 +390,9 @@ export default function Announcements() {
                 </div>
               </CardContent>
             </Card>
+          ))}
+          </div>
+          </section>
           ))}
         </div>
       )}

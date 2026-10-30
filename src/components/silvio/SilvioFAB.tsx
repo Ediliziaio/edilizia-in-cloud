@@ -166,9 +166,9 @@ const MODE_CONTENT: Record<"azienda" | "admin", ModeContent> = {
       // approvals/queue/policies/agents/chief/personas/memory/learning).
       // Le 21 personas superadmin (silvio_admin_personas) e le memorie
       // dedicate (silvio_persona_memory) sono già accessibili via tab.
-      azioni_proposte: "/admin/ai-operate?tab=approvals",
-      personas_18: "/admin/ai-operate?tab=personas",
-      ai_memoria: "/admin/ai-operate?tab=memory",
+      azioni_proposte: "/admin/ai?tab=approvals",
+      personas_18: "/admin/ai?tab=personas",
+      ai_memoria: "/admin/ai?tab=memory",
       cross_tenant: "/admin/aziende",
       search_commesse: "/admin/aziende",
       documenti: "/admin",
@@ -329,7 +329,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     if (location.pathname === "/admin" || location.pathname === "/admin/") return "Home Superadmin";
     if (location.pathname.startsWith("/admin/email")) return "Email Superadmin";
     if (location.pathname.startsWith("/admin/aziende")) return "Aziende clienti";
-    if (location.pathname.startsWith("/admin/ai-operate")) return "AI Operatività";
+    if (location.pathname.startsWith("/admin/ai")) return "AI Operatività";
     if (location.pathname.startsWith("/admin/")) return "Area Superadmin";
     return "Pagina corrente";
   }, [location.pathname, pageContext?.route_label]);

@@ -4,7 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Bell, Building2, Clock, MessageSquare, CreditCard, Pause, Users, Loader2, Monitor, Mail } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Bell, Building2, Clock, MessageSquare, CreditCard, Pause, Users, Loader2, Monitor, Mail, Info, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Prefs {
@@ -57,11 +59,29 @@ const items: NotifItem[] = [
   { key: "new_referral_signup", icon: Users, label: "Nuovo referral", desc: "Quando un referrer porta una nuova registrazione" },
 ];
 
+/**
+ * Preferenze notifiche del super admin (tabella `admin_notification_prefs`).
+ *
+ * ONESTÀ (30/10/2026): nessuna edge function né funzione del database legge `admin_notification_prefs`:
+ * gli avvisi partono (o non partono) a prescindere da questi interruttori. La pagina lo dice in alto.
+ */
+function AvvisoNonUsate() {
+  return (
+    <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <Info className="h-4 w-4" />
+      <AlertTitle>Queste preferenze non sono ancora usate dagli avvisi</AlertTitle>
+      <AlertDescription>
+        Le scelte si salvano, ma oggi nessun avviso le legge: accenderle o spegnerle non cambia cosa ricevi.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export default function NotificationsTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: prefs = defaults, isLoading } = useQuery({
+  const { data: prefs = defaults, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-notification-prefs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,6 +115,22 @@ export default function NotificationsTab() {
     mutation.mutate(updated);
   };
 
+  if (isError) {
+    // Un errore non va mostrato come «tutto acceso»: i valori di partenza sembrerebbero quelli salvati.
+    return (
+      <div className="space-y-4">
+        <AvvisoNonUsate />
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            Non riesco a leggere le preferenze.
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
@@ -106,6 +142,8 @@ export default function NotificationsTab() {
   }
 
   return (
+    <div className="space-y-4">
+    <AvvisoNonUsate />
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Preferenze Notifiche</CardTitle>
@@ -122,24 +160,26 @@ export default function NotificationsTab() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        {/* Da lg due colonne: sei righe brevi non devono occupare tutta l'altezza con metà schermo vuota. */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {items.map(({ key, icon: Icon, label, desc }) => {
             const emailKey = `${key}_email` as keyof Prefs;
             return (
-              <div key={key} className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div key={key} className="flex items-center justify-between gap-4 rounded-lg border p-3 sm:p-4">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="rounded-lg bg-primary/10 p-2 mt-0.5 shrink-0">
                     <Icon className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0">
                     <Label className="text-sm font-medium">{label}</Label>
-                    <p className="text-xs text-muted-foreground mt-1">{desc}</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">{desc}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="flex flex-col items-center gap-1">
                     <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
                     <Switch
+                      aria-label={`${label}: nell'app`}
                       checked={prefs[key]}
                       onCheckedChange={() => toggle(key)}
                       disabled={mutation.isPending}
@@ -148,6 +188,7 @@ export default function NotificationsTab() {
                   <div className="flex flex-col items-center gap-1">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                     <Switch
+                      aria-label={`${label}: per email`}
                       checked={prefs[emailKey]}
                       onCheckedChange={() => toggle(emailKey)}
                       disabled={mutation.isPending}
@@ -160,5 +201,6 @@ export default function NotificationsTab() {
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

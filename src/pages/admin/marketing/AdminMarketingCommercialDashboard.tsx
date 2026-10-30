@@ -20,6 +20,7 @@ import {
   TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3, Crosshair, Package, Share2, MapPin,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
 import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
@@ -38,6 +39,7 @@ import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
 import { CampaignCostsCard } from "@/components/admin/crm-dashboard/CampaignCostsCard";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
 import { CrmMapTab } from "@/components/admin/crm-dashboard/CrmMapTab";
+import { CrmChannelResultsCard } from "@/components/admin/crm-dashboard/CrmChannelResultsCard";
 import { HeroAurora } from "@/components/admin/HeroAurora";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -80,22 +82,34 @@ interface OppRow {
   value: number | null;
   probability: number | null;
   created_at: string | null;
-  updated_at: string | null;
+  won_at: string | null;
+  lost_at: string | null;
   stage_id: string | null;
+  pipeline_id: string | null;
 }
 interface StageRow {
   id: string;
   name: string | null;
   position: number | null;
+  pipeline_id: string | null;
 }
+interface PipelineRow {
+  id: string;
+  name: string | null;
+  position: number | null;
+}
+/** Probabilità vuota = 50%, come il «Ponderato» della pagina Opportunità
+ *  (OpportunityStatsStrip): prima qui valeva 0 e il forecast era più basso. */
 const normProb = (p: number | null) => {
-  const v = p ?? 0;
-  return v > 1 ? v / 100 : v; // accetta sia 0-100 sia 0-1
+  if (p == null) return 0.5;
+  return p > 1 ? p / 100 : p; // accetta sia 0-100 sia 0-1
 };
 
 export default function AdminMarketingCommercialDashboard() {
   const { companyId } = useAdminMarketing();
   const [period, setPeriod] = useState<PeriodKey>("30");
+  // Pipeline mostrata in «Pipeline per stadio» (null = quella con più aperte).
+  const [pipelineScelta, setPipelineScelta] = useState<string | null>(null);
   // "Adesso" catturato una volta a mount: Date.now() è impuro e non può stare
   // dentro useMemo (regola purity del React Compiler).
   const [nowMs] = useState(() => Date.now());
@@ -107,7 +121,7 @@ export default function AdminMarketingCommercialDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunities")
-        .select("status,value,probability,created_at,updated_at,stage_id")
+        .select("status,value,probability,created_at,won_at,lost_at,stage_id,pipeline_id")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .limit(5000);
@@ -117,16 +131,32 @@ export default function AdminMarketingCommercialDashboard() {
   });
 
   const stages = useQuery({
-    queryKey: ["crm-dash", "stages", companyId],
+    // Chiave diversa da CrmHotTable ("stages", senza pipeline_id): stessa
+    // chiave con colonne diverse = chi arriva primo vince e l'altro legge male.
+    queryKey: ["crm-dash", "stages-con-pipeline", companyId],
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
-        .select("id,name,position")
+        .select("id,name,position,pipeline_id")
         .eq("company_id", companyId)
         .order("position", { ascending: true });
       if (error) throw error;
       return (data ?? []) as StageRow[];
+    },
+  });
+
+  const pipelines = useQuery({
+    queryKey: ["crm-dash", "pipelines", companyId],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_pipelines")
+        .select("id,name,position")
+        .eq("company_id", companyId)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PipelineRow[];
     },
   });
 
@@ -172,7 +202,7 @@ export default function AdminMarketingCommercialDashboard() {
     },
   });
 
-  const isLoading = opps.isLoading || stages.isLoading || contactStats.isLoading;
+  const isLoading = opps.isLoading || stages.isLoading || pipelines.isLoading || contactStats.isLoading;
   // "||", non "&&": se anche UNA sola fonte fallisce i KPI sono incompleti e
   // l'utente deve vederlo (prima serviva il fallimento di entrambe).
   const isError = opps.isError || contactStats.isError;
@@ -197,15 +227,20 @@ export default function AdminMarketingCommercialDashboard() {
     const pipelineOpenValue = open.reduce((s, x) => s + (x.value ?? 0), 0);
     const forecast = open.reduce((s, x) => s + (x.value ?? 0) * normProb(x.probability), 0);
 
-    const wonWin = o.filter((x) => x.status === "won" && inWin(x.updated_at));
-    const wonPrior = o.filter((x) => x.status === "won" && inPrior(x.updated_at));
+    // Vinte/perse NEL periodo = data di chiusura (won_at / lost_at), una regola
+    // sola per tutta la dashboard. Prima si usava updated_at: una nota scritta
+    // oggi su una vinta di marzo la contava tra le vinte del mese.
+    const wonWin = o.filter((x) => x.status === "won" && inWin(x.won_at));
+    const wonPrior = o.filter((x) => x.status === "won" && inPrior(x.won_at));
     const wonValue = wonWin.reduce((s, x) => s + (x.value ?? 0), 0);
     const wonValuePrior = wonPrior.reduce((s, x) => s + (x.value ?? 0), 0);
 
-    const closedWin = o.filter((x) => (x.status === "won" || x.status === "lost") && inWin(x.updated_at));
-    const winRate = closedWin.length ? (wonWin.length / closedWin.length) * 100 : 0;
-    const closedPrior = o.filter((x) => (x.status === "won" || x.status === "lost") && inPrior(x.updated_at));
-    const winRatePrior = closedPrior.length ? (wonPrior.length / closedPrior.length) * 100 : 0;
+    const lostWin = o.filter((x) => x.status === "lost" && inWin(x.lost_at)).length;
+    const lostPrior = o.filter((x) => x.status === "lost" && inPrior(x.lost_at)).length;
+    const closedWin = wonWin.length + lostWin;
+    const winRate = closedWin ? (wonWin.length / closedWin) * 100 : 0;
+    const closedPrior = wonPrior.length + lostPrior;
+    const winRatePrior = closedPrior ? (wonPrior.length / closedPrior) * 100 : 0;
 
     // Lead nuovi / caldi: COUNT esatti server-side (vedi contactStats sopra).
     const newLeads = contactStats.data?.newLeads ?? 0;
@@ -228,7 +263,7 @@ export default function AdminMarketingCommercialDashboard() {
     const sparkWon = Array.from({ length: 8 }, () => 0);
     for (const x of o) {
       if (x.status !== "won") continue;
-      const i = weekIdx(x.updated_at);
+      const i = weekIdx(x.won_at);
       if (i >= 0) sparkWon[i] += x.value ?? 0;
     }
 
@@ -248,9 +283,19 @@ export default function AdminMarketingCommercialDashboard() {
     };
   }, [opps.data, contactStats.data, days, nowMs]);
 
+  // «Pipeline per stadio»: una pipeline alla volta. Prima metteva in fila i 116
+  // stadi di 13 pipeline (con nomi ripetuti: «Nuovo» tredici volte).
   const pipelineByStage = useMemo(() => {
-    const o = (opps.data ?? []).filter((x) => (x.status ?? "open") === "open");
-    const st = stages.data ?? [];
+    const aperte = (opps.data ?? []).filter((x) => (x.status ?? "open") === "open");
+    const pl = pipelines.data ?? [];
+    const apertePerPipeline = new Map<string, number>();
+    for (const x of aperte) if (x.pipeline_id) apertePerPipeline.set(x.pipeline_id, (apertePerPipeline.get(x.pipeline_id) ?? 0) + 1);
+    const opzioni = pl.map((p) => ({ id: p.id, name: p.name ?? "—", aperte: apertePerPipeline.get(p.id) ?? 0 }));
+    const predefinita = [...opzioni].sort((a, b) => b.aperte - a.aperte)[0]?.id ?? null;
+    const selId = pipelineScelta && opzioni.some((p) => p.id === pipelineScelta) ? pipelineScelta : predefinita;
+
+    const o = aperte.filter((x) => x.pipeline_id === selId);
+    const st = (stages.data ?? []).filter((s) => s.pipeline_id === selId);
     const byStage = new Map<string, { count: number; value: number }>();
     for (const x of o) {
       if (!x.stage_id) continue;
@@ -260,13 +305,21 @@ export default function AdminMarketingCommercialDashboard() {
       byStage.set(x.stage_id, cur);
     }
     const rows = st.map((s) => ({
+      id: s.id,
       name: s.name ?? "—",
       count: byStage.get(s.id)?.count ?? 0,
       value: byStage.get(s.id)?.value ?? 0,
     }));
     const maxCount = Math.max(1, ...rows.map((r) => r.count));
-    return { rows, maxCount, total: o.length };
-  }, [opps.data, stages.data]);
+    return {
+      rows,
+      maxCount,
+      total: o.length,
+      opzioni,
+      selId,
+      selName: opzioni.find((p) => p.id === selId)?.name ?? "",
+    };
+  }, [opps.data, stages.data, pipelines.data, pipelineScelta]);
 
   // Snapshot compatto da passare alla edge function crm-ai-insights.
   const aiMetrics = useMemo<Record<string, unknown>>(
@@ -280,6 +333,7 @@ export default function AdminMarketingCommercialDashboard() {
       lead_nuovi: kpis.newLeads,
       lead_nuovi_delta_pct: Math.round(kpis.newLeadsDelta),
       caldi_senza_followup: kpis.hotNoFollowup,
+      pipeline_mostrata: pipelineByStage.selName,
       pipeline_per_stadio: pipelineByStage.rows.map((r) => ({
         stadio: r.name,
         opportunita: r.count,
@@ -308,9 +362,10 @@ export default function AdminMarketingCommercialDashboard() {
                 <BarChart3 className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Dashboard commerciale</p>
-                <h1 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">AEDIX · CRM</h1>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-blue-50/80">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Marketing · AEDIX</p>
+                <h1 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">Dashboard CRM</h1>
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-blue-50/80">
+                  <span className="max-sm:hidden">Trattative, lead e canali di vendita della piattaforma ·</span>
                   {dateLabel} ·
                   <span className="inline-flex items-center gap-1 font-medium text-emerald-300">
                     <span className="relative flex h-2 w-2">
@@ -349,11 +404,11 @@ export default function AdminMarketingCommercialDashboard() {
 
           {/* KPI chiave dentro l'hero */}
           <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-            <HeroKpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
-            <HeroKpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
+            <HeroKpi icon={Layers} label="Pipeline aperta (oggi)" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
+            <HeroKpi icon={Target} label="Forecast pesato (oggi)" value={eurCompact(kpis.forecast)} loading={isLoading} />
             <HeroKpi icon={Trophy} label={`Vinto (${days}g)`} value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`} delta={kpis.wonDelta} spark={kpis.sparkWon} loading={isLoading} />
-            <HeroKpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
-            <HeroKpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} spark={kpis.sparkLeads} loading={isLoading} />
+            <HeroKpi icon={TrendingUp} label={`Win rate (${days}g)`} value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
+            <HeroKpi icon={UserPlus} label={`Lead nuovi (${days}g)`} value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} spark={kpis.sparkLeads} loading={isLoading} />
             <HeroKpi icon={Flame} label="Caldi senza follow-up" value={String(kpis.hotNoFollowup)} tone="warn" hint="da 5+ giorni" loading={isLoading} />
           </div>
         </div>
@@ -393,19 +448,28 @@ export default function AdminMarketingCommercialDashboard() {
         <TabsContent value="overview" className="space-y-4 pt-5">
           <CrmAiInsightsBanner metrics={aiMetrics} />
 
-          <Reveal><CrmOperationalFunnel companyId={companyId} /></Reveal>
-
-          <Reveal><CrmUnitEconomics companyId={companyId} days={days} /></Reveal>
-          {/* Input spese: senza questa card CPL/CAC/ROAS restavano per sempre
-              "aggiungi i costi" — non esisteva NESSUN posto dove inserirli. */}
-          <Reveal><CampaignCostsCard companyId={companyId} /></Reveal>
-
-          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
-            <CrmChannelRoi companyId={companyId} days={days} />
-            <CrmSpeedToLead companyId={companyId} days={days} />
+          {/* Imbuto (da sempre) accanto ai risultati per canale (periodo). */}
+          <Reveal className="grid items-start gap-4 xl:grid-cols-2">
+            <CrmOperationalFunnel companyId={companyId} />
+            <CrmChannelResultsCard companyId={companyId} days={days} />
           </Reveal>
 
-          <Reveal><CrmTrendCard companyId={companyId} /></Reveal>
+          {/* Da computer due colonne: a tutta larghezza una card sola lasciava
+              metà schermo vuoto. */}
+          <Reveal className="grid items-start gap-4 xl:grid-cols-2">
+            <CrmUnitEconomics companyId={companyId} days={days} />
+            {/* Input spese: senza questa card CPL/CAC/ROAS restavano per sempre
+                "aggiungi i costi" — non esisteva NESSUN posto dove inserirli. */}
+            <CampaignCostsCard companyId={companyId} />
+          </Reveal>
+
+          <Reveal className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <CrmChannelRoi companyId={companyId} days={days} />
+            <CrmSpeedToLead companyId={companyId} days={days} />
+            <div className="lg:col-span-2 xl:col-span-1">
+              <CrmTrendCard companyId={companyId} days={days} />
+            </div>
+          </Reveal>
 
           <Reveal><CrmHotTable companyId={companyId} /></Reveal>
 
@@ -415,10 +479,25 @@ export default function AdminMarketingCommercialDashboard() {
             <CardContent className="p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Layers className="h-4 w-4" aria-hidden="true" /> Pipeline per stadio
-                <span className="ml-auto text-xs font-normal text-muted-foreground">
-                  {pipelineByStage.total} opportunità aperte
-                </span>
+                <span className="text-xs font-normal text-muted-foreground">· oggi</span>
+                {pipelineByStage.opzioni.length > 1 && (
+                  <Select value={pipelineByStage.selId ?? undefined} onValueChange={setPipelineScelta}>
+                    <SelectTrigger className="ml-auto h-8 w-auto max-w-[55%] gap-1 text-xs font-normal" aria-label="Pipeline">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelineByStage.opzioni.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} · {p.aperte}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
+              <p className="-mt-2 mb-3 text-xs text-muted-foreground">
+                {pipelineByStage.total} opportunità aperte{pipelineByStage.opzioni.length > 1 ? ` in ${pipelineByStage.selName}` : ""}
+              </p>
               {isLoading ? (
                 <div className="flex items-center justify-center py-10 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
@@ -430,7 +509,7 @@ export default function AdminMarketingCommercialDashboard() {
               ) : (
                 <div className="flex flex-col gap-2.5 text-[13px]">
                   {pipelineByStage.rows.map((r) => (
-                    <div key={r.name}>
+                    <div key={r.id}>
                       <div className="mb-1 flex justify-between">
                         <span>{r.name}</span>
                         <span className="text-muted-foreground">
@@ -454,25 +533,28 @@ export default function AdminMarketingCommercialDashboard() {
             <CrmAlertsCard companyId={companyId} />
           </Reveal>
 
-          <Reveal><CrmNetworksStrip /></Reveal>
-
-          <Reveal><CrmAccountsCard companyId={companyId} /></Reveal>
+          <Reveal className="grid items-start gap-4 xl:grid-cols-2">
+            <CrmNetworksStrip />
+            <CrmAccountsCard companyId={companyId} />
+          </Reveal>
         </TabsContent>
 
         {/* ─── PIPELINE ─────────────────────────────────────────────── */}
         <TabsContent value="pipeline" className="space-y-4 pt-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <CrmFunnelCard companyId={companyId} />
-            <CrmWinLossCard companyId={companyId} />
+          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <CrmFunnelCard companyId={companyId} days={days} />
+            <CrmWinLossCard companyId={companyId} days={days} />
+            <div className="md:col-span-2 xl:col-span-1">
+              <CrmVelocityCard companyId={companyId} />
+            </div>
           </div>
-          <CrmVelocityCard companyId={companyId} />
         </TabsContent>
 
         {/* ─── CLUSTER & LTV ────────────────────────────────────────── */}
         <TabsContent value="cluster" className="space-y-4 pt-5">
           <CrmProductCards companyId={companyId} />
-          <CrmChannelsCard companyId={companyId} />
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <CrmChannelsCard companyId={companyId} />
             <CrmClustersCard companyId={companyId} />
             <CrmFirmographicsCard companyId={companyId} />
           </div>
@@ -486,7 +568,7 @@ export default function AdminMarketingCommercialDashboard() {
         {/* ─── TEAM ─────────────────────────────────────────────────── */}
         <TabsContent value="team" className="space-y-4 pt-5">
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <CrmTeamCard companyId={companyId} />
+            <CrmTeamCard companyId={companyId} days={days} />
             <CrmAgentTargetsCard companyId={companyId} />
           </div>
         </TabsContent>

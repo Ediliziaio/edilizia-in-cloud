@@ -41,6 +41,7 @@ export default function PlanDetail() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const { user } = useAuth();
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  const [disattivaOpen, setDisattivaOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: plan, isLoading, isError, refetch } = useQuery({
@@ -66,7 +67,11 @@ export default function PlanDetail() {
       const { count, error } = await supabase
         .from("companies")
         .select("id", { count: "exact", head: true })
-        .eq("subscription_plan_id", id);
+        .eq("subscription_plan_id", id)
+        // Come nelle altre pagine admin: fuori l'azienda di piattaforma e le
+        // cancellate (restano 30 giorni nel database ma non sono clienti).
+        .eq("is_platform_admin_company", false)
+        .is("deleted_at", null);
       if (error) throw error;
       return count ?? 0;
     },
@@ -170,6 +175,28 @@ export default function PlanDetail() {
         .select("id")
         .single();
       if (error) throw error;
+      // Le funzionalità vanno con il piano: le righe del piano originale, più
+      // quelle accese solo da plans_included (che citano lo slug vecchio e non
+      // varrebbero per la copia). Prima la copia nasceva con quasi tutto spento.
+      if (data?.id) {
+        const [{ data: righe, error: errRighe }, { data: flagDelPiano, error: errFlag }] = await Promise.all([
+          supabase.from("plan_feature_defaults")
+            .select("feature_key, access_level, is_enabled, limit_value, credits_included, credit_type, notes")
+            .eq("plan_id", plan.id),
+          supabase.from("platform_feature_flags").select("key").contains("plans_included", [plan.slug]),
+        ]);
+        if (errRighe || errFlag) throw new Error(`Piano copiato, ma le funzionalità no: ${(errRighe ?? errFlag)!.message}`);
+        const giaInRiga = new Set((righe ?? []).map((r) => r.feature_key));
+        const copia = [
+          ...(righe ?? []).map((r) => ({ ...r, plan_id: data.id })),
+          ...(flagDelPiano ?? []).filter((f) => !giaInRiga.has(f.key))
+            .map((f) => ({ plan_id: data.id, feature_key: f.key, access_level: "enabled", is_enabled: true })),
+        ];
+        if (copia.length > 0) {
+          const { error: errCopia } = await supabase.from("plan_feature_defaults").insert(copia as never);
+          if (errCopia) throw new Error(`Piano copiato, ma le funzionalità no: ${errCopia.message}`);
+        }
+      }
       if (user?.id && data?.id) {
         await supabase.from("admin_audit_log").insert({
           user_id: user.id,
@@ -246,24 +273,39 @@ export default function PlanDetail() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Button variant="ghost" onClick={() => navigate("/admin/piani")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Torna ai piani
+      {/* Intestazione compatta: indietro, nome e stato del piano, azioni a destra
+          (solo icone da telefono). */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate("/admin/piani")} aria-label="Torna ai piani">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/admin/piani?edit=${plan.id}`)}
-          >
-            <Edit className="h-4 w-4 mr-1.5" />
-            Modifica
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{plan.name}</h1>
+            <Badge variant={plan.is_active ? "default" : "secondary"}>
+              {plan.is_active ? "Attivo" : "Disattivo"}
+            </Badge>
+            {plan.price_monthly === 0 && (
+              <Badge variant="outline" className="border-green-500 text-green-600">Gratis</Badge>
+            )}
+            <Badge variant="secondary" className="gap-1">
+              <Building2 className="h-3 w-3" />
+              {companyCount ?? 0} aziende
+            </Badge>
+          </div>
+          <p className="hidden truncate text-sm text-muted-foreground sm:block">
+            {plan.description || "Nessuna descrizione"} · <code className="text-xs">{plan.slug}</code>
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => navigate(`/admin/piani?edit=${plan.id}`)} aria-label="Modifica">
+            <Edit className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Modifica</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => toggleActiveMutation.mutate(!plan.is_active)}
+            onClick={() => (plan.is_active ? setDisattivaOpen(true) : toggleActiveMutation.mutate(true))}
             disabled={toggleActiveMutation.isPending}
           >
             {plan.is_active ? "Disattiva" : "Attiva"}
@@ -273,48 +315,25 @@ export default function PlanDetail() {
             size="sm"
             onClick={() => setDuplicateConfirmOpen(true)}
             disabled={duplicatePlanMutation.isPending}
+            aria-label="Duplica"
           >
-            <Copy className="h-4 w-4 mr-1.5" />
-            Duplica
+            <Copy className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Duplica</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
             onClick={() => setDeleteConfirmOpen(true)}
+            aria-label="Elimina"
           >
-            <Trash2 className="h-4 w-4 mr-1.5" />
-            Elimina
+            <Trash2 className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Elimina</span>
           </Button>
         </div>
       </div>
 
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Package className="h-6 w-6 text-primary" />
-            {plan.name}
-          </h1>
-          <p className="text-muted-foreground">{plan.description || plan.slug}</p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <Badge variant={plan.is_active ? "default" : "secondary"}>
-              {plan.is_active ? "Attivo" : "Disattivo"}
-            </Badge>
-            <code className="text-xs bg-muted px-2 py-0.5 rounded">{plan.slug}</code>
-            {plan.price_monthly === 0 && (
-              <Badge variant="outline" className="border-green-500 text-green-600">Gratis</Badge>
-            )}
-            {(companyCount ?? 0) > 0 && (
-              <Badge variant="secondary" className="gap-1">
-                <Building2 className="h-3 w-3" />
-                {companyCount} aziende
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -523,13 +542,33 @@ export default function PlanDetail() {
         </Card>
       )}
 
+      <AlertDialog open={disattivaOpen} onOpenChange={setDisattivaOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disattivare il piano «{plan.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Non si potrà più scegliere per le aziende nuove né per i cambi di piano.
+              {(companyCount ?? 0) > 0
+                ? ` Le ${companyCount} aziende che lo usano oggi restano su questo piano finché non le sposti.`
+                : " Nessuna azienda lo usa oggi."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { toggleActiveMutation.mutate(false); setDisattivaOpen(false); }}>
+              Disattiva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={duplicateConfirmOpen} onOpenChange={setDuplicateConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Duplicare il piano "{plan.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Sarà creata una copia disattiva con slug univoco. Potrai rinominarla e modificarla
-              prima di attivarla. Gli ID Stripe non vengono copiati.
+              Sarà creata una copia disattiva con slug univoco e le stesse funzionalità. Potrai
+              rinominarla e modificarla prima di attivarla. Gli ID Stripe non vengono copiati.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

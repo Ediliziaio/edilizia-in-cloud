@@ -96,6 +96,9 @@ async function loadPlatformEmailDefaults(
  * + companies.name. Se company senza override → fallback a platform_settings
  * (firma/footer/support configurati dal SuperAdmin) → hardcoded EiC.
  */
+/** Logo di Edilizia in Cloud per le email (public/email/, servito dall'app). */
+export const PLATFORM_EMAIL_LOGO_URL = "https://app.ediliziaincloud.com/email/logo-edilizia-in-cloud.png";
+
 export async function loadBranding(
   companyId: string | null,
   adminClient: SupabaseClient,
@@ -108,10 +111,11 @@ export async function loadBranding(
   const fallbackFooter = platformDefaults.email_default_footer_text || null;
   const fallbackSupport = platformDefaults.email_default_support_mail || "supporto@ediliziaincloud.com";
 
-  // Default branding EiC (company senza id)
+  // Default branding EiC (company senza id). Il logo vero in testata: senza,
+  // le email della piattaforma mostravano solo «Edilizia in Cloud» scritto.
   const defaultBranding: Branding = {
     companyName: fallbackCompanyName,
-    logoUrl: null,
+    logoUrl: PLATFORM_EMAIL_LOGO_URL,
     primaryColor: "#1E3A5F",
     secondaryColor: "#F97316",
     footerText: fallbackFooter,

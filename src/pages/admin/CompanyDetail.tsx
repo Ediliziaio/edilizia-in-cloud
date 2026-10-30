@@ -45,6 +45,7 @@ import {
   Ticket,
   ListChecks,
   ShieldAlert,
+  AlertTriangle,
   Palette,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -126,7 +127,7 @@ export default function CompanyDetail() {
 
   // Studio(i) commercialista che gestiscono questa azienda (delega). Il super admin
   // può leggere accountant_company_access + accountant_firms via RLS.
-  const { data: accountantInfo = [] } = useQuery({
+  const { data: accountantInfo = [], isError: accountantError, refetch: refetchAccountant } = useQuery({
     queryKey: ["admin-company-accountant", id],
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
@@ -138,7 +139,8 @@ export default function CompanyDetail() {
         .select("status, access_mode, accountant_firms!inner(id, name)")
         .eq("company_id", id)
         .in("status", ["active", "invited", "suspended"]);
-      if (error) return [];
+      // Prima l'errore diventava «nessuno studio»: ora si vede un avviso.
+      if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({
         status: r.status as string,
@@ -463,6 +465,16 @@ export default function CompanyDetail() {
               </span>
             ))}{" "}
             (commercialista).
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {accountantError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Non riesco a sapere se l'azienda è seguita da uno studio commercialista.</span>
+            <Button variant="outline" size="sm" onClick={() => void refetchAccountant()}>Riprova</Button>
           </AlertDescription>
         </Alert>
       )}

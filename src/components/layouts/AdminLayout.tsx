@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getSubdomainUrl } from "@/utils/subdomainNav";
 import { toast } from "sonner";
 import { safeRedirect } from "@/utils/safeRedirect";
@@ -194,16 +194,14 @@ const allNavItems: AdminNavItem[] = [
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
   //    duplicava parzialmente "Registro Attività" già presente in
-  //    Impostazioni → Sistema. Ora vive lì come singola voce.
-  //    L'hub /admin/operazioni resta funzionante per i deep link.
+  //    Impostazioni → Sistema. Ora vive lì (/admin/impostazioni/operazioni);
+  //    /admin/operazioni rimanda lì tenendo la scheda.
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "super_admin", subcategory: "sa_growth" },
   { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "super_admin", subcategory: "sa_growth" },
   { title: "Commercialisti", url: "/admin/commercialisti", icon: Calculator, permission: "super_admin", subcategory: "sa_growth" },
-  // NB (audit superadmin 2026-06): le route orfane /admin/campagne (A/B test
-  // legacy su crm_campaigns, duplica l'Email Marketing dell'hub) e
-  // /admin/cohort (la UI è pronta ma cohort_revenue_view NON esiste nel DB →
-  // la pagina mostra solo un errore) restano volutamente FUORI dalla nav.
-  // Cohort si potrà linkare quando la view verrà creata via migration.
+  // /admin/campagne (A/B test su crm_campaigns, vuota) ora rimanda all'Email
+  // Marketing. cohort_revenue_view adesso esiste: le coorti hanno la loro voce.
+  { title: "Coorti di ricavo", url: "/admin/cohort", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [
@@ -215,10 +213,14 @@ const adminMarketingNavItems: AdminNavItem[] = [
   { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "crm_operatore", subcategory: "sa_mkt_crm" },
   { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "crm_operatore", subcategory: "sa_mkt_crm" },
   { title: "Simulatore ROI", url: "/admin/marketing/simulatore-roi", icon: Calculator, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  // pagine che esistevano ma non si raggiungevano da nessuna parte
+  { title: "Report", url: "/admin/marketing/reportistica", icon: BarChart3, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Moduli lead Meta", url: "/admin/marketing/lead-forms", icon: FileText, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "SMS Marketing", url: "/admin/marketing/sms", icon: MessageSquare, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
-  { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
-  { title: "WhatsApp Locale", url: "/admin/marketing/whatsapp-locale", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
+  // due WhatsApp diversi: quello ufficiale di Meta e quello dal telefono (gateway locale)
+  { title: "WhatsApp (Meta)", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
+  { title: "WhatsApp dal telefono", url: "/admin/marketing/whatsapp-locale", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
   { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
 ];
@@ -241,6 +243,19 @@ function getAvatarColor(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// «Torna indietro» dalle impostazioni riporta alla pagina da cui si è entrati,
+// non sempre alla dashboard. La ricorda AdminLayout a ogni pagina fuori dalle
+// impostazioni (sessionStorage: può non esserci, allora si torna a /admin).
+const CHIAVE_PRIMA_DELLE_IMPOSTAZIONI = "admin:prima-delle-impostazioni";
+function paginaPrimaDelleImpostazioni(): string {
+  try {
+    const p = sessionStorage.getItem(CHIAVE_PRIMA_DELLE_IMPOSTAZIONI);
+    return p && p.startsWith("/admin") && !p.startsWith("/admin/impostazioni") ? p : "/admin";
+  } catch {
+    return "/admin";
+  }
 }
 
 function AdminSettingsSidebar() {
@@ -284,7 +299,7 @@ function AdminSettingsSidebar() {
             variant="ghost"
             size="sm"
             className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
-            onClick={() => navigate("/admin")}
+            onClick={() => navigate(paginaPrimaDelleImpostazioni())}
           >
             <ArrowLeft className="h-4 w-4" />
             Torna indietro
@@ -559,7 +574,7 @@ function AdminMainSidebar() {
                   </SidebarMenuItem>
                 )}
                 {permissions.can_manage_companies && (() => {
-                  const badge = getBadgeForNavItem("/admin/cs-tasks", sidebarBadges);
+                  const badge = getBadgeForNavItem("/admin/attivita", sidebarBadges);
                   return (
                     <SidebarMenuItem key="top-attivita">
                       <SidebarMenuButton asChild tooltip="Attività">
@@ -867,6 +882,10 @@ export function AdminLayout() {
   const soloCrm = role === "platform_callcenter";
   const soloSuperAdmin = role === "super_admin";
   const isSettingsRoute = location.pathname.startsWith("/admin/impostazioni");
+  useEffect(() => {
+    if (isSettingsRoute) return;
+    try { sessionStorage.setItem(CHIAVE_PRIMA_DELLE_IMPOSTAZIONI, location.pathname + location.search); } catch { /* senza storage si torna a /admin */ }
+  }, [isSettingsRoute, location.pathname, location.search]);
 
   // Mobile: no sidebar at all — bottom nav replaces it
   if (isMobile) {

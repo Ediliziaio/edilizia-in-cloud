@@ -930,10 +930,8 @@ function OrdersListInner() {
     const months = Array.from({ length: 12 }, (_, index) => {
       const date = isYearCorrente || (hasSelectedYear && selectedYear)
         ? new Date(isYearCorrente ? currentYear : selectedYear!, index, 1)
-        : new Date();
-      if (!(isYearCorrente || (hasSelectedYear && selectedYear))) {
-        date.setMonth(date.getMonth() - (11 - index));
-      }
+        // dal primo del mese: a fine mese (29-31) setMonth saltava un mese e ne ripeteva un altro
+        : new Date(new Date().getFullYear(), new Date().getMonth() - (11 - index), 1);
       date.setDate(1);
       date.setHours(0, 0, 0, 0);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;

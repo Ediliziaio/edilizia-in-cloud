@@ -12,7 +12,7 @@ import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -333,7 +333,9 @@ export default function SettingsBilling() {
               </CardTitle>
               <CardDescription>
                 Le fatture del cassetto fiscale AdE passano tutte dallo SDI. Per importarle collega
-                un provider con il bollino <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[10px] align-middle">Emesse + Ricevute</Badge>{" "}
+                un provider con il bollino{" "}
+                {/* span, non Badge: Badge è un div e dentro il paragrafo della descrizione non può stare */}
+                <span className={`${badgeVariants({ variant: "secondary" })} bg-emerald-100 text-emerald-800 text-[10px] align-middle`}>Emesse + Ricevute</span>{" "}
                 e le trovi in <strong>Fatturazione → Fatture ricevute</strong>, senza inserirle a mano.
                 Con gli altri provider vengono importate solo le emesse.
               </CardDescription>

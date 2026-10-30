@@ -31,9 +31,10 @@ import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppres
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Reveal } from "@/components/admin/Reveal";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
+import { CrmChannelResultsCard } from "@/components/admin/crm-dashboard/CrmChannelResultsCard";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
-  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox, BarChart3,
+  Radar, Mail, MessageSquare, Smartphone, Phone, Workflow, ArrowRight, Inbox, BarChart3,
 } from "lucide-react";
 
 /**
@@ -108,12 +109,13 @@ function OutreachCockpit() {
   return (
     <div className="min-h-full bg-muted/30">
       <div className="space-y-6 p-4 sm:p-6">
-        {/* Header pagina — hero brand (navy + arancione). Senza sottotitolo: è
-            una console di tutti i giorni, la testata stretta lascia spazio ai dati. */}
+        {/* Header pagina — hero brand (navy + arancione): titolo, una riga di
+            spiegazione, azione a destra. Compatta: è una console di tutti i giorni. */}
         <BrandPageHeader
           icon={Radar}
           eyebrow="Cold Outreach"
           title="Outreach Engine"
+          subtitle="Contatti a freddo su email, SMS, WhatsApp e telefono: cosa parte oggi, chi risponde, cosa diventa trattativa."
           actions={<OutreachComposeDialog companyId={companyId} />}
         />
 
@@ -162,10 +164,19 @@ function OutreachCockpit() {
               </button>
             </Reveal>
 
-            <Reveal className="space-y-3" delay={0.06}>
-              <SectionLabel>Risposte calde</SectionLabel>
-              <OutreachHotQueue companyId={companyId} onOpenMailbox={() => setTab("posta")} />
-            </Reveal>
+            {/* Da computer due colonne: risposte da lavorare accanto ai numeri
+                per canale (prima una sotto l'altra, metà schermo vuoto). */}
+            <div className="grid items-start gap-6 xl:grid-cols-2">
+              <Reveal className="space-y-3" delay={0.06}>
+                <SectionLabel>Risposte calde</SectionLabel>
+                <OutreachHotQueue companyId={companyId} onOpenMailbox={() => setTab("posta")} />
+              </Reveal>
+
+              <Reveal className="space-y-3" delay={0.09}>
+                <SectionLabel>Per canale</SectionLabel>
+                <CrmChannelResultsCard companyId={companyId} days={7} />
+              </Reveal>
+            </div>
 
             <Reveal className="space-y-3" delay={0.12}>
               <SectionLabel>Rubrica &amp; deliverability</SectionLabel>
@@ -175,15 +186,22 @@ function OutreachCockpit() {
               <OutreachRubricaCard companyId={companyId} />
             </Reveal>
 
+            {/* Scorciatoie divise per canale: due WhatsApp diversi (Meta = API
+                ufficiale con template; dal telefono = numeri collegati col QR). */}
             <Reveal className="space-y-3" delay={0.18}>
-              <SectionLabel>Scorciatoie</SectionLabel>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SectionLabel>Canali</SectionLabel>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                <Shortcut to="/admin/marketing/email" icon={Mail} label="Email" desc="Campagne e template" />
+                <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
+                <Shortcut to="/admin/marketing/whatsapp" icon={MessageSquare} label="WhatsApp (Meta)" desc="API ufficiale: broadcast e template" />
+                <Shortcut to="/admin/marketing/whatsapp-locale" icon={Smartphone} label="WhatsApp dal telefono" desc="Numeri collegati col QR: campagne e chat" />
+              </div>
+              <SectionLabel>Strumenti</SectionLabel>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Trova nuovi lead (6 sorgenti + AI)" />
                 <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Pipeline opportunità" desc="Le risposte calde diventano deal" />
-                <Shortcut to="/admin/marketing/email" icon={Mail} label="Email marketing" desc="Campagne e template" />
-                <Shortcut to="/admin/marketing/whatsapp" icon={MessageSquare} label="WhatsApp" desc="Broadcast e template" />
-                <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
                 <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Automazioni" desc="Flussi e sequenze" />
+                <Shortcut to="/admin/marketing/dashboard" icon={BarChart3} label="Dashboard CRM" desc="Trattative, vinte e canali" />
               </div>
             </Reveal>
           </TabsContent>

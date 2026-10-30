@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({ loading: false, error: null as Error | null, r
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: undefined as unknown, isLoading: state.loading, error: state.error, refetch: state.refetch, isFetching: false }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+// La pagina decide se il nome azienda è un link alla scheda (solo super admin).
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null as { email?: string } | null, role: null as string | null }) }));
 afterEach(() => { cleanup(); state.loading = false; state.error = null; state.refetch.mockClear(); });
 describe("Insoluti: dati disponibili e percorso", () => {
   it("non presenta zeri come dati reali durante il caricamento", () => {

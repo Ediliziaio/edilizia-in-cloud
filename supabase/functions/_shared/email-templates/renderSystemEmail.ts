@@ -27,7 +27,20 @@ export interface RenderSystemEmailOpts {
   appBaseUrl?: string;
   /** Rimuove eventuali token {non_risolti} residui prima dell'invio. */
   stripUnresolved?: boolean;
+  /**
+   * Logo da mettere in testata al posto del nome scritto. Le email a marchio
+   * Edilizia in Cloud lo hanno sempre (LOGO_EIC); quelle a marchio azienda
+   * solo se l'azienda ne ha uno.
+   */
+  logoUrl?: string | null;
 }
+
+/** Il logo di Edilizia in Cloud per le email (public/email/, servito dall'app). */
+const LOGO_EIC = "https://app.ediliziaincloud.com/email/logo-edilizia-in-cloud.png";
+// La testata dei modelli generati: il nome scritto in arancio.
+const TESTATA_SCRITTA = /<div style="font-family:Arial;font-size:21px;font-weight:700;color:#F97316;">([^<]*)<\/div>/;
+const testataConLogo = (src: string, alt: string) =>
+  `<img src="${src.replace(/"/g, "&quot;")}" alt="${alt.replace(/"/g, "&quot;")}" height="30" style="display:block;border:0;outline:none;text-decoration:none;height:30px;width:auto;max-width:180px;" />`;
 
 const DEFAULT_ORANGE = "#F97316";
 const escAttr = (s: string) => s.replace(/"/g, "&quot;");
@@ -83,6 +96,14 @@ export function renderSystemEmail(
 
   let subject = applyVars(def.subject, merged);
   let html = applyVars(def.html, merged);
+  // Testata: il logo invece del nome scritto (prima del cambio di colore sotto,
+  // che riconosce la testata dal suo arancio)
+  const logo = def.brand === "eic" ? LOGO_EIC : opts.logoUrl;
+  if (logo) {
+    html = html.replace(TESTATA_SCRITTA, (_m, nome: string) => testataConLogo(logo, nome || "Edilizia in Cloud"))
+      // col logo la fascia si abbassa: il testo deve arrivare prima
+      .replace('<td style="padding:22px 24px;border-bottom:3px solid #F97316;"><img', '<td style="padding:16px 24px;border-bottom:3px solid #F97316;"><img');
+  }
   html = html.split("https://app.ediliziaincloud.com").join(appBase);
 
   // White-label: solo per email a brand azienda, tematizza il colore

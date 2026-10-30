@@ -62,9 +62,10 @@ function KpiCard({
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide truncate">
             {label}
           </p>
-          <p className="text-xl font-bold leading-tight mt-0.5">
+          {/* div, non p: lo Skeleton è un div e dentro un paragrafo non può stare */}
+          <div className="text-xl font-bold leading-tight mt-0.5">
             {loading ? <Skeleton className="h-6 w-16 mt-1" /> : value}
-          </p>
+          </div>
           {subtitle && !loading && (
             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
           )}
@@ -420,15 +421,15 @@ const QUICK_LINKS: Array<{
   {
     to: "/admin/impostazioni/audit",
     icon: FileText,
-    label: "Audit Log",
-    desc: "Cronologia azioni super admin",
+    label: "Registro attività",
+    desc: "Cronologia delle azioni dei super admin",
     accent: "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300",
   },
   {
-    to: "/admin/impostazioni/ai-usage",
+    to: "/admin/ai?section=monitor",
     icon: Cpu,
-    label: "AI Usage",
-    desc: "Utilizzo e costi modelli AI",
+    label: "Utilizzo AI",
+    desc: "Utilizzo e costi dei modelli AI",
     accent: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
   },
   {
@@ -448,15 +449,15 @@ const QUICK_LINKS: Array<{
   {
     to: "/admin/impostazioni/webhooks",
     icon: Webhook,
-    label: "Webhooks",
-    desc: "Endpoint e log chiamate",
+    label: "Webhook",
+    desc: "Indirizzi esterni da avvisare",
     accent: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   },
   {
     to: "/admin/impostazioni/email",
     icon: Mail,
     label: "Email",
-    desc: "Template e deliverability",
+    desc: "Mittente, dominio, modelli e consegna",
     accent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   },
   {
@@ -590,34 +591,33 @@ export default function PlatformInfoTab() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* KPI Overview */}
+    <div className="space-y-4">
+      {/* Riepilogo in alto: numeri della piattaforma */}
       <PlatformKPIs stats={stats} loading={isLoading} />
 
-      {/* Maintenance */}
-      <MaintenanceCard
-        settings={settings}
-        isLoading={settingsLoading}
-        onToggle={(v) => saveMutation.mutate({ maintenance_mode: v ? "true" : "false" })}
-        isSaving={saveMutation.isPending}
-      />
-
-      {/* URL Applicazione */}
-      <SiteUrlCard
-        settings={settings}
-        isLoading={settingsLoading}
-        onSave={(updates) => saveMutation.mutate(updates)}
-        isSaving={saveMutation.isPending}
-      />
-
-      {/* System Status */}
-      <SystemStatusCard />
-
-      {/* Quick Links */}
-      <QuickLinksCard />
-
-      {/* Platform Info */}
-      <PlatformInfoCard />
+      {/* Da xl due colonne: a sinistra cosa si cambia (manutenzione, indirizzo), a destra lo stato dei servizi.
+          Prima erano sei card una sotto l'altra con metà schermo vuota. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        <div className="min-w-0 space-y-4">
+          <MaintenanceCard
+            settings={settings}
+            isLoading={settingsLoading}
+            onToggle={(v) => saveMutation.mutate({ maintenance_mode: v ? "true" : "false" })}
+            isSaving={saveMutation.isPending}
+          />
+          <SiteUrlCard
+            settings={settings}
+            isLoading={settingsLoading}
+            onSave={(updates) => saveMutation.mutate(updates)}
+            isSaving={saveMutation.isPending}
+          />
+          <PlatformInfoCard />
+        </div>
+        <div className="min-w-0 space-y-4">
+          <SystemStatusCard />
+          <QuickLinksCard />
+        </div>
+      </div>
     </div>
   );
 }

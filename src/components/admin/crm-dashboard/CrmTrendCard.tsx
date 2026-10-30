@@ -1,5 +1,5 @@
 /**
- * CrmTrendCard — andamento settimanale (ultime 12 settimane) di Lead nuovi e
+ * CrmTrendCard — andamento nel periodo scelto (per giorno/settimana/mese) di Lead nuovi e
  * Opportunità create. ComposedChart animato in stile Cruscotto (barre a
  * gradiente + linea "Totale" morbida), dati reali (created_at su
  * marketing_contacts / marketing_opportunities). Empty-state se non c'è storia.
@@ -11,61 +11,80 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Loader2 } from "lucide-react";
 import { BrandTrendChart } from "@/components/admin/BrandTrendChart";
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const WEEKS = 12;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Granularità secondo il periodo scelto in testata: 7 giorni → per giorno,
+ * 30/90 giorni → per settimana, 12 mesi → per mese (30 giorni). Al massimo
+ * 13 intervalli, così bastano poche COUNT esatte (prima: 5.000 righe scaricate,
+ * che con gli import da decine di migliaia di contatti troncavano il grafico).
+ */
+function intervalli(days: number) {
+  if (days <= 7) return { stepMs: DAY_MS, n: days, unita: "giorno" as const };
+  if (days <= 90) return { stepMs: 7 * DAY_MS, n: Math.ceil(days / 7), unita: "settimana" as const };
+  return { stepMs: 30 * DAY_MS, n: Math.ceil(days / 30), unita: "mese" as const };
+}
 
 // Palette brand: blu (lead), arancione (opportunità), verde (linea totale).
 const C_LEAD = "hsl(217 91% 60%)";
 const C_OPP = "hsl(24 95% 53%)";
 const C_TOT = "hsl(160 84% 39%)";
 
-export function CrmTrendCard({ companyId }: { companyId: string }) {
+export function CrmTrendCard({ companyId, days }: { companyId: string; days: number }) {
   const [nowMs] = useState(() => Date.now());
-  const sinceIso = useMemo(() => new Date(nowMs - WEEKS * WEEK_MS).toISOString(), [nowMs]);
+  const { stepMs, n, unita } = intervalli(days);
 
   const q = useQuery({
-    queryKey: ["crm-dash", "trend", companyId, sinceIso],
+    queryKey: ["crm-dash", "trend", companyId, days, nowMs],
     staleTime: 60_000,
     queryFn: async () => {
-      const [contacts, opps] = await Promise.all([
-        supabase.from("marketing_contacts").select("created_at").eq("company_id", companyId).gte("created_at", sinceIso).limit(5000),
-        supabase.from("marketing_opportunities").select("created_at").eq("company_id", companyId).gte("created_at", sinceIso).limit(5000),
+      const ranges = Array.from({ length: n }, (_, i) => {
+        const end = nowMs - (n - 1 - i) * stepMs;
+        return { start: new Date(end - stepMs).toISOString(), end: new Date(end).toISOString() };
+      });
+      const cnt = (r: { count: number | null; error: unknown }) => (r.error ? 0 : r.count ?? 0);
+      const [lead, opp] = await Promise.all([
+        Promise.all(
+          ranges.map((r) =>
+            supabase
+              .from("marketing_contacts")
+              .select("id", { count: "exact", head: true })
+              .eq("company_id", companyId)
+              .gte("created_at", r.start)
+              .lt("created_at", r.end),
+          ),
+        ),
+        Promise.all(
+          ranges.map((r) =>
+            supabase
+              .from("marketing_opportunities")
+              .select("id", { count: "exact", head: true })
+              .eq("company_id", companyId)
+              .is("deleted_at", null)
+              .gte("created_at", r.start)
+              .lt("created_at", r.end),
+          ),
+        ),
       ]);
-      return {
-        contacts: (contacts.data ?? []) as { created_at: string }[],
-        opps: (opps.data ?? []) as { created_at: string }[],
-      };
+      return { lead: lead.map(cnt), opp: opp.map(cnt) };
     },
   });
 
   const data = useMemo(() => {
-    // Etichetta = inizio settimana in data reale ("12 mag"), non "-Ns" criptico.
-    const fmt = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
-    const buckets = Array.from({ length: WEEKS }, (_, i) => {
-      const weeksAgo = WEEKS - 1 - i;
+    // Etichetta = inizio dell'intervallo in data reale ("12 mag").
+    const fmt = new Intl.DateTimeFormat("it-IT", unita === "mese" ? { month: "short", year: "2-digit" } : { day: "numeric", month: "short" });
+    return Array.from({ length: n }, (_, i) => {
+      const lead = q.data?.lead[i] ?? 0;
+      const opp = q.data?.opp[i] ?? 0;
+      const ultimo = i === n - 1;
       return {
-        label: weeksAgo === 0 ? "questa" : fmt.format(new Date(nowMs - weeksAgo * WEEK_MS)),
-        lead: 0,
-        opp: 0,
+        label: ultimo && unita === "giorno" ? "oggi" : ultimo && unita === "settimana" ? "questa" : fmt.format(new Date(nowMs - (n - i) * stepMs)),
+        lead,
+        opp,
+        tot: lead + opp,
       };
     });
-    const idx = (iso: string) => {
-      const t = new Date(iso).getTime();
-      if (Number.isNaN(t)) return -1;
-      const weeksAgo = Math.floor((nowMs - t) / WEEK_MS);
-      const i = WEEKS - 1 - weeksAgo;
-      return i >= 0 && i < WEEKS ? i : -1;
-    };
-    for (const c of q.data?.contacts ?? []) {
-      const i = idx(c.created_at);
-      if (i >= 0) buckets[i].lead++;
-    }
-    for (const o of q.data?.opps ?? []) {
-      const i = idx(o.created_at);
-      if (i >= 0) buckets[i].opp++;
-    }
-    return buckets.map((b) => ({ ...b, tot: b.lead + b.opp }));
-  }, [q.data, nowMs]);
+  }, [q.data, nowMs, n, stepMs, unita]);
 
   const total = data.reduce((s, d) => s + d.lead + d.opp, 0);
 
@@ -73,7 +92,7 @@ export function CrmTrendCard({ companyId }: { companyId: string }) {
     <Card>
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Activity className="h-4 w-4" aria-hidden="true" /> Andamento · ultime 12 settimane
+          <Activity className="h-4 w-4" aria-hidden="true" /> Andamento · ultimi {days} giorni, per {unita}
           <span className="ml-auto flex flex-wrap items-center gap-3 text-[11px] font-normal text-muted-foreground">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: C_LEAD }} /> Lead</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: C_OPP }} /> Opportunità</span>
@@ -86,7 +105,7 @@ export function CrmTrendCard({ companyId }: { companyId: string }) {
           </div>
         ) : total === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
-            Nessuna attività nelle ultime 12 settimane.
+            Nessuna attività nel periodo.
           </p>
         ) : (
           <BrandTrendChart

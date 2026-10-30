@@ -13,8 +13,8 @@
  */
 import { monthlyMrrSeries, formatMrrAxis, type MrrSnapshot } from "@/lib/adminRevenueHistory";
 import { lazy, Suspense } from "react";
-import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Wallet,
@@ -26,11 +26,10 @@ import {
   Settings2,
   Users,
   TrendingUp,
-  ShieldCheck,
-  DollarSign,
   Euro,
   AlertCircle,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -47,11 +46,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
 import { AdminSummaryPanel } from "@/components/admin/AdminSummaryPanel";
-import { AdminStatusCards } from "@/components/admin/AdminStatusCards";
 import { AdminHubTabs, type AdminHubTab } from "@/components/admin/AdminHubTabs";
+import { RigaRiepilogo } from "@/components/admin/fatturato/AreaUI";
 import {
   getAdminRevenueBreakdown,
   isRevenueEligibleCompany,
+  applyPlanPriceOverride,
+  ADMIN_REVENUE_COMPANY_SELECT,
   type AdminRevenueCompanyLike,
 } from "@/lib/adminRevenue";
 
@@ -83,11 +84,17 @@ function useFatturatoSnapshot() {
       since.setDate(1);
       since.setMonth(since.getMonth() - 11);
       const fromDate = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-01`;
-      const [subsRes, snapshotsRes] = await Promise.all([
+      const oggi = new Date();
+      const inizioMese = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+      const meseCorrente = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, "0")}`;
+      const [subsRes, snapshotsRes, serviziRes, extraRes] = await Promise.all([
+        // Stessa select e stessa regola dell'elenco Aziende (KPI «MRR pagante»):
+        // niente azienda di piattaforma, niente cancellate, prezzo custom dove c'è.
         supabase
           .from("companies")
-          .select("id,status,payment_method,stripe_customer_id,stripe_subscription_status,is_platform_admin_company,subscription_plan_id,subscription_plans:subscription_plan_id(price_monthly,price_yearly),company_subscriptions(status,stripe_subscription_id,billing_period)")
-          .eq("is_platform_admin_company", false),
+          .select(ADMIN_REVENUE_COMPANY_SELECT)
+          .eq("is_platform_admin_company", false)
+          .is("deleted_at", null),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("mrr_snapshots")
@@ -95,10 +102,22 @@ function useFatturatoSnapshot() {
           .gte("data", fromDate)
           .order("data", { ascending: false })
           .limit(400),
+        // Canale «Servizi»: incassato del mese dai clienti-servizio.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("aedix_service_billings")
+          .select("importo_incassato,periodo")
+          .gte("periodo", `${meseCorrente}-01`)
+          .limit(5000),
+        // Canali «Add-on» (SMS, WhatsApp, email) e «Render e AI»: ricavo del mese.
+        supabase.rpc("get_extra_services_economics" as never, {
+          _from: inizioMese.toISOString(),
+          _to: oggi.toISOString(),
+        } as never),
       ]);
 
       if (subsRes.error) throw subsRes.error;
-      const companies = (subsRes.data ?? []) as AdminRevenueCompanyLike[];
+      const companies = applyPlanPriceOverride((subsRes.data ?? []) as AdminRevenueCompanyLike[]);
       const breakdown = getAdminRevenueBreakdown(companies);
       const paidCompanies = companies.filter(isRevenueEligibleCompany);
       const mrr = breakdown.mrr;
@@ -112,9 +131,25 @@ function useFatturatoSnapshot() {
       const chartError = !!snapshotsRes.error;
       const chart = monthlyMrrSeries((snapshotsRes.data ?? []) as MrrSnapshot[]);
 
+      // I canali secondari non fermano la pagina: se una fonte non risponde la
+      // card dice «non disponibile» invece di mostrare 0 € come fosse vero.
+      const serviziMese = serviziRes.error
+        ? null
+        : ((serviziRes.data ?? []) as { importo_incassato: number | null; periodo: string | null }[])
+            .filter((b) => (b.periodo ?? "").slice(0, 7) === meseCorrente)
+            .reduce((t, b) => t + (Number(b.importo_incassato) || 0), 0);
+      const extra = extraRes.error
+        ? null
+        : ((extraRes.data as unknown as { servizi?: { key: string; revenue: number | null }[] } | null)?.servizi ?? []);
+      const ricavoDi = (chiavi: string[]) =>
+        extra == null ? null : extra.filter((x) => chiavi.includes(x.key)).reduce((t, x) => t + (Number(x.revenue) || 0), 0);
+
       return {
         mrr,
         arr,
+        serviziMese,
+        addonMese: ricavoDi(["sms", "whatsapp", "email"]),
+        renderAiMese: ricavoDi(["render", "ai"]),
         arpu,
         payingCount: breakdown.payingCompanies,
         totalCompanies: breakdown.totalCompanies,
@@ -130,9 +165,18 @@ function useFatturatoSnapshot() {
 }
 
 export default function AdminFatturatoHub() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { permissions } = useSuperAdminPermissions();
   const { data: snapshot, isLoading, refetch, isFetching } = useFatturatoSnapshot();
+  const queryClient = useQueryClient();
+  // «Aggiorna» ricarica il riepilogo e anche i dati del tab Ricavi sotto.
+  const aggiorna = () => {
+    void refetch();
+    void queryClient.invalidateQueries({ queryKey: ["admin-revenue-dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin", "mrr-snapshots"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] });
+  };
 
   const tabParam = searchParams.get("tab");
   const requestedTab: FatturatoTab = isValidTab(tabParam) ? tabParam : "revenue";
@@ -204,18 +248,25 @@ export default function AdminFatturatoHub() {
       <AdminHeroHeader
         icon={Wallet}
         title="Fatturato"
-        subtitle="Ricavi, piani, fatture, promozioni e recupero pagamenti in un'unica vista."
+        subtitle="Quanto entra, da quale canale, e chi deve ancora pagare."
         actions={
           <>
+            {/* bottone, non link: l'intestazione scura colora solo i bottoni (col link
+                restava un rettangolo bianco vuoto) */}
+            <Button variant="outline" size="sm" className="gap-2" aria-label="Insoluti" onClick={() => navigate("/admin/insoluti")}>
+              <AlertCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Insoluti</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void refetch()}
+              onClick={aggiorna}
               disabled={isFetching}
               className="gap-2"
+              aria-label="Aggiorna"
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              Aggiorna
+              <span className="hidden sm:inline">Aggiorna</span>
             </Button>
           </>
         }
@@ -229,6 +280,45 @@ export default function AdminFatturatoHub() {
         tabs={tabs as AdminHubTab<FatturatoTab>[]}
       />
 
+      {/* ─── Ricavi per canale: sempre visibili, una card per fonte di
+         incasso. Ogni card porta alla sezione che la spiega. ───────────── */}
+      <RigaRiepilogo
+        voci={[
+          {
+            etichetta: "Abbonamenti",
+            icona: CreditCard,
+            valore: isLoading ? "…" : fmtCurrency(snapshot?.mrr ?? 0),
+            dettaglio: isLoading ? undefined : `al mese · ${snapshot?.payingCount ?? 0} paganti`,
+            tono: "buono",
+            onClick: activeTab === "revenue" ? undefined : () => handleTabChange("revenue"),
+          },
+          {
+            etichetta: "Servizi",
+            icona: PackageIcon,
+            valore: isLoading ? "…" : snapshot?.serviziMese == null ? "n.d." : fmtCurrency(snapshot.serviziMese),
+            dettaglio: snapshot?.serviziMese == null && !isLoading ? "dati non disponibili" : "incassato questo mese",
+            tono: snapshot?.serviziMese == null ? "spento" : "neutro",
+            onClick: tabs.some((t) => t.id === "servizi") && activeTab !== "servizi" ? () => handleTabChange("servizi") : undefined,
+          },
+          {
+            etichetta: "Add-on",
+            icona: Ticket,
+            valore: isLoading ? "…" : snapshot?.addonMese == null ? "n.d." : fmtCurrency(snapshot.addonMese),
+            dettaglio: snapshot?.addonMese == null && !isLoading ? "dati non disponibili" : "SMS, WhatsApp, email · mese",
+            tono: snapshot?.addonMese == null ? "spento" : "neutro",
+            to: "/admin/fatturato?vista=servizi-extra",
+          },
+          {
+            etichetta: "Render e AI",
+            icona: Sparkles,
+            valore: isLoading ? "…" : snapshot?.renderAiMese == null ? "n.d." : fmtCurrency(snapshot.renderAiMese),
+            dettaglio: snapshot?.renderAiMese == null && !isLoading ? "dati non disponibili" : "consumi pagati · mese",
+            tono: snapshot?.renderAiMese == null ? "spento" : "neutro",
+            to: "/admin/fatturato?vista=servizi-extra",
+          },
+        ]}
+      />
+
       {/* ─── Riepilogo top-level: visibile SOLO sul tab Revenue (default) ─
          Sugli altri tab il dashboard interno della pagina mostra già metriche
          specifiche, evitiamo rumore visivo. */}
@@ -238,15 +328,8 @@ export default function AdminFatturatoHub() {
             icon={Wallet}
             eyebrow="Riepilogo fatturato"
             title="Vista economica piattaforma"
-            subtitle="MRR, ARR e aziende paganti calcolati in tempo reale."
+            subtitle="L'MRR pagante è nella prima card in alto: qui quello che ne deriva."
             kpis={[
-              {
-                label: "MRR pagante",
-                value: isLoading ? <Skeleton className="h-6 w-20 bg-white/20" /> : fmtCurrency(snapshot?.mrr ?? 0),
-                caption: "ricavo mensile reale",
-                icon: DollarSign,
-                tone: "emerald",
-              },
               {
                 label: "ARR proiettato",
                 value: isLoading ? <Skeleton className="h-6 w-24 bg-white/20" /> : fmtCurrency(snapshot?.arr ?? 0),
@@ -255,43 +338,33 @@ export default function AdminFatturatoHub() {
                 tone: "blue",
               },
               {
-                label: "Aziende paganti",
-                value: isLoading ? <Skeleton className="h-6 w-10 bg-white/20" /> : (snapshot?.payingCount ?? 0),
-                caption: `${snapshot?.accessActiveCompanies ?? 0} con accesso attivo`,
-                icon: ShieldCheck,
+                label: "Ricavo medio",
+                value: isLoading ? <Skeleton className="h-6 w-16 bg-white/20" /> : fmtCurrency(snapshot?.arpu ?? 0),
+                caption: "al mese per azienda pagante",
+                icon: Euro,
                 tone: "orange",
               },
               {
-                label: "ARPU",
-                value: isLoading ? <Skeleton className="h-6 w-16 bg-white/20" /> : fmtCurrency(snapshot?.arpu ?? 0),
-                caption: "ricavo medio per cliente",
-                icon: Euro,
+                label: "Aziende",
+                value: isLoading ? <Skeleton className="h-6 w-16 bg-white/20" /> : `${snapshot?.accessActiveCompanies ?? 0} / ${snapshot?.totalCompanies ?? 0}`,
+                caption: `con accesso / registrate · ${Math.max(0, (snapshot?.accessActiveCompanies ?? 0) - (snapshot?.payingCount ?? 0))} non pagano`,
+                icon: Users,
+                tone: "blue",
+              },
+              {
+                label: "MRR escluso",
+                value: isLoading ? <Skeleton className="h-6 w-16 bg-white/20" /> : fmtCurrency(snapshot?.excludedMrr ?? 0),
+                caption: "listino delle aziende che non pagano",
+                icon: TrendingUp,
                 tone: "orange",
               },
             ]}
             chartEyebrow="Storico mensile disponibile · fino a 12 mesi"
-            chartTitle="MRR Stripe + interno"
+            chartTitle="MRR per mese: Stripe e interno"
             chartLegend={[
               { label: "MRR Stripe", color: "blue" },
-              { label: "MRR Interno", color: "orange" },
-              { label: "N. aziende", color: "slate" },
-            ]}
-            chartQuickStats={[
-              {
-                label: "MRR Corrente",
-                value: isLoading ? <Skeleton className="h-5 w-20" /> : fmtCurrency(snapshot?.mrr ?? 0),
-                tone: "blue",
-              },
-              {
-                label: "ARR",
-                value: isLoading ? <Skeleton className="h-5 w-20" /> : fmtCurrency(snapshot?.arr ?? 0),
-                tone: "orange",
-              },
-              {
-                label: "Paganti",
-                value: isLoading ? <Skeleton className="h-5 w-10" /> : String(snapshot?.payingCount ?? 0),
-                tone: "neutral",
-              },
+              { label: "MRR interno", color: "orange" },
+              { label: "Aziende", color: "slate" },
             ]}
           >
             {isLoading ? (
@@ -370,39 +443,8 @@ export default function AdminFatturatoHub() {
             )}
           </AdminSummaryPanel>
 
-          {/* ─── Status cards quick filter ─────────────────────────────── */}
-          <AdminStatusCards
-            cards={[
-              {
-                label: "Paganti",
-                value: isLoading ? "…" : String(snapshot?.payingCount ?? 0),
-                caption: "aziende con MRR reale",
-                icon: ShieldCheck,
-                tone: "emerald",
-              },
-              {
-                label: "Totale aziende",
-                value: isLoading ? "…" : String(snapshot?.totalCompanies ?? 0),
-                caption: "registrate in piattaforma",
-                icon: Users,
-                tone: "blue",
-              },
-              {
-                label: "Non paganti attive",
-                value: isLoading ? "…" : String((snapshot?.accessActiveCompanies ?? 0) - (snapshot?.payingCount ?? 0)),
-                caption: "accesso attivo, no MRR",
-                icon: AlertCircle,
-                tone: "amber",
-              },
-              {
-                label: "MRR escluso",
-                value: isLoading ? "…" : fmtCurrency(snapshot?.excludedMrr ?? 0),
-                caption: "valore teorico non incassato",
-                icon: TrendingUp,
-                tone: "orange",
-              },
-            ]}
-          />
+          {/* La riga «Paganti / Totale aziende / Non paganti / MRR escluso» ripeteva
+              numeri già sopra: è confluita nel riquadro. */}
         </>
       )}
 

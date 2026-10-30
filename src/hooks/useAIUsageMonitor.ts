@@ -95,6 +95,10 @@ export interface AIUsageDiagnostic {
   render_sessions_zero_cost: number;          // completed ma cost 0/null (config gratis o miss-tracking)
   render_sessions_error: string | null;
   ai_usage_log_error: string | null;
+  /** db_aggregate = somme dal DB; paged_rows = ripiego a pagine (funzione DB assente). */
+  ai_usage_source: "db_aggregate" | "paged_rows";
+  /** true se si è toccato il tetto di sicurezza delle pagine: numeri parziali. */
+  truncated: boolean;
 }
 
 export interface AIUsageFilters {
@@ -111,6 +115,54 @@ interface RawUsageRow {
   cost_eur: number;
   feature: string | null;
   created_at: string;
+}
+
+/**
+ * Riga di consumo già sommata: una per (azienda, provider, modello, feature,
+ * giorno). Arriva così dalla funzione DB `admin_ai_usage_aggregato`; nel
+ * ripiego le righe grezze vengono ricondotte qui con richieste = 1.
+ */
+interface UsageAggRow {
+  company_id: string;
+  provider: string;
+  model: string;
+  feature: string | null;
+  giorno: string; // YYYY-MM-DD (Europe/Rome)
+  richieste: number;
+  costo_eur: number;
+}
+
+/** PostgREST restituisce al massimo 1000 righe per chiamata. */
+const PAGE_SIZE = 1000;
+/** Tetto di sicurezza: 200 pagine = 200.000 righe. */
+const MAX_PAGES = 200;
+
+type PageResult<T> = { data: T[] | null; error: { message: string; code?: string } | null };
+
+/**
+ * Legge TUTTE le righe a blocchi di 1000 con .range(): prima la lettura di
+ * ai_usage_log non aveva limite e PostgREST la tagliava a 1000 righe senza
+ * dirlo (ottobre 2026: 2.227 righe → costi del mese a metà).
+ */
+async function leggiTutteLePagine<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<{ rows: T[]; error: { message: string; code?: string } | null; truncated: boolean }> {
+  const rows: T[] = [];
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const from = i * PAGE_SIZE;
+    const res = await page(from, from + PAGE_SIZE - 1);
+    if (res.error) return { rows, error: res.error, truncated: false };
+    const chunk = res.data ?? [];
+    rows.push(...chunk);
+    if (chunk.length < PAGE_SIZE) return { rows, error: null, truncated: false };
+  }
+  return { rows, error: null, truncated: true };
+}
+
+/** La funzione DB non esiste ancora in questo ambiente (migrazione non applicata). */
+function isMissingFunction(err: { code?: string; message: string } | null): boolean {
+  if (!err) return false;
+  return err.code === "PGRST202" || err.code === "42883" || /could not find the function/i.test(err.message);
 }
 
 /**
@@ -186,25 +238,87 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         ? new Date(filters.dateTo + "T23:59:59.999")
         : now;
 
+      const dayKey = (d: Date) => {
+        // YYYY-MM-DD in local timezone (allinea col grouping della UI italiana)
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      };
+
       // ── Query 1: ai_usage_log ───────────────────────────────────────────
-      let logQuery = supabase
-        .from("ai_usage_log" as never)
-        .select("company_id, model, provider, cost_eur, feature, created_at" as never)
-        .gte("created_at" as never, dateFrom.toISOString())
-        .lte("created_at" as never, dateTo.toISOString());
+      // Prima scelta: somme fatte dal DB (admin_ai_usage_aggregato), poche
+      // centinaia di righe. Ripiego se la funzione non c'è ancora: lettura
+      // della tabella a pagine di 1000, ordinata per avere pagine stabili.
+      const providerFilter = filters.provider && filters.provider !== "all" ? filters.provider : null;
+      const companyFilter = filters.companyId && filters.companyId !== "all" ? filters.companyId : null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sp = supabase as any;
 
-      if (filters.provider && filters.provider !== "all") {
-        logQuery = logQuery.eq("provider" as never, filters.provider);
-      }
-      if (filters.companyId && filters.companyId !== "all") {
-        logQuery = logQuery.eq("company_id" as never, filters.companyId);
-      }
+      let usageSource: AIUsageDiagnostic["ai_usage_source"] = "db_aggregate";
+      let usageRawRows = 0;
+      let usageTruncated = false;
+      let usageAgg: UsageAggRow[] = [];
 
-      const logRes = await logQuery;
-      // Fail-soft: anche ai_usage_log può fallire (RLS/missing) — non blocchiamo
-      const rows: RawUsageRow[] = logRes.error ? [] : ((logRes.data ?? []) as RawUsageRow[]);
-      if (logRes.error) {
-        console.warn("[useAIUsageMonitor] ai_usage_log read failed:", logRes.error.message);
+      const aggRes = await leggiTutteLePagine<{
+        company_id: string; provider: string; model: string; feature: string | null;
+        giorno: string; richieste: number | string; costo_eur: number | string | null;
+      }>((from, to) =>
+        sp
+          .rpc("admin_ai_usage_aggregato", {
+            p_da: dateFrom.toISOString(),
+            p_a: dateTo.toISOString(),
+            p_provider: providerFilter,
+            p_company_id: companyFilter,
+          })
+          .range(from, to),
+      );
+
+      if (!aggRes.error) {
+        usageTruncated = aggRes.truncated;
+        usageAgg = aggRes.rows.map((r) => ({
+          company_id: r.company_id,
+          provider: r.provider,
+          model: r.model,
+          feature: r.feature,
+          giorno: r.giorno,
+          richieste: Number(r.richieste) || 0,
+          costo_eur: Number(r.costo_eur) || 0,
+        }));
+        usageRawRows = usageAgg.reduce((n, r) => n + r.richieste, 0);
+      } else if (isMissingFunction(aggRes.error)) {
+        usageSource = "paged_rows";
+        const pagedRes = await leggiTutteLePagine<RawUsageRow>((from, to) => {
+          let q = supabase
+            .from("ai_usage_log" as never)
+            .select("id, company_id, model, provider, cost_eur, feature, created_at" as never)
+            .gte("created_at" as never, dateFrom.toISOString())
+            .lte("created_at" as never, dateTo.toISOString());
+          if (providerFilter) q = q.eq("provider" as never, providerFilter);
+          if (companyFilter) q = q.eq("company_id" as never, companyFilter);
+          return q
+            .order("created_at" as never, { ascending: true })
+            .order("id" as never, { ascending: true })
+            .range(from, to) as unknown as PromiseLike<PageResult<RawUsageRow>>;
+        });
+        // Errore visibile in pagina: prima veniva solo scritto in console e la
+        // scheda mostrava costi a zero come se non ci fossero consumi.
+        if (pagedRes.error) {
+          throw new Error(`Lettura dei consumi AI non riuscita: ${pagedRes.error.message}`);
+        }
+        usageTruncated = pagedRes.truncated;
+        usageRawRows = pagedRes.rows.length;
+        usageAgg = pagedRes.rows.map((row) => ({
+          company_id: row.company_id,
+          provider: row.provider,
+          model: row.model,
+          feature: row.feature,
+          giorno: dayKey(new Date(row.created_at)),
+          richieste: 1,
+          costo_eur: row.cost_eur == null || Number.isNaN(Number(row.cost_eur)) ? 0 : Number(row.cost_eur),
+        }));
+      } else {
+        throw new Error(`Lettura dei consumi AI non riuscita: ${aggRes.error.message}`);
       }
 
       // ── Query 2: render_sessions (merge unificato) ──────────────────────
@@ -212,49 +326,33 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
       //   - status = 'completed' (i render in-flight non hanno costo reale)
       //   - processing_completed_at nel range OPPURE created_at nel range
       //     (rendering vecchi senza processing_completed_at usano created_at)
-      // Non possiamo fare OR cross-column con .or() facilmente — facciamo
-      // 2 query parallele e dedupiamo. Più pragmatico: query con OR PostgREST.
-      type RenderQueryShape = {
-        gte: (col: string, val: string) => {
-          lte: (col: string, val: string) => {
-            eq: (col: string, val: string) => RenderQueryShape;
-            then: <T>(cb: (r: { data: RawRenderSession[] | null; error: { message: string } | null }) => T) => Promise<T>;
-          };
-          eq: (col: string, val: string) => RenderQueryShape;
-        };
-        eq: (col: string, val: string) => RenderQueryShape;
-        or: (filter: string) => RenderQueryShape;
-      };
+      // Il builder di PostgREST si modifica a ogni chiamata: per paginare ne
+      // creiamo uno nuovo per ogni blocco.
       // SELECT ampliato: include cost_real (legacy) come fallback se cost_real_api è NULL,
       // + revenue_eur e cost_billed per il calcolo del margine.
-      let renderQuery = (supabase
-        .from("render_sessions" as never)
-        .select(
-          "company_id, status, provider_key, provider_model, cost_real_api, cost_real, revenue_eur, cost_billed, processing_completed_at, created_at" as never,
-        ) as unknown as RenderQueryShape);
-
       // Filtro range usando created_at come campo principale (sempre presente).
       // Includiamo anche le sessioni completate fuori range ma create dentro
       // (caso edge: render avviato a fine giornata, completato il giorno dopo).
-      renderQuery = renderQuery
-        .gte("created_at", dateFrom.toISOString())
-        .lte("created_at", dateTo.toISOString());
-
-      if (filters.provider && filters.provider !== "all") {
-        renderQuery = renderQuery.eq("provider_key", filters.provider);
-      }
-      if (filters.companyId && filters.companyId !== "all") {
-        renderQuery = renderQuery.eq("company_id", filters.companyId);
-      }
-
-      const renderRes = await (renderQuery as unknown as Promise<{
-        data: RawRenderSession[] | null;
-        error: { message: string } | null;
-      }>);
-      const renderRows: RawRenderSession[] = renderRes.error ? [] : (renderRes.data ?? []);
-      if (renderRes.error) {
-        console.warn("[useAIUsageMonitor] render_sessions read failed:", renderRes.error.message);
-      }
+      // Anche i render a pagine di 1000 (stesso taglio silenzioso di PostgREST).
+      // L'errore resta nella diagnostica (banner rosso in pagina), non blocca
+      // i costi delle chiamate AI.
+      const renderPaged = await leggiTutteLePagine<RawRenderSession>((from, to) => {
+        let q = supabase
+          .from("render_sessions" as never)
+          .select(
+            "id, company_id, status, provider_key, provider_model, cost_real_api, cost_real, revenue_eur, cost_billed, processing_completed_at, created_at" as never,
+          )
+          .gte("created_at" as never, dateFrom.toISOString())
+          .lte("created_at" as never, dateTo.toISOString());
+        if (providerFilter) q = q.eq("provider_key" as never, providerFilter);
+        if (companyFilter) q = q.eq("company_id" as never, companyFilter);
+        return q
+          .order("created_at" as never, { ascending: true })
+          .order("id" as never, { ascending: true })
+          .range(from, to) as unknown as PromiseLike<PageResult<RawRenderSession>>;
+      });
+      const renderRes = { error: renderPaged.error };
+      const renderRows: RawRenderSession[] = renderPaged.error ? [] : renderPaged.rows;
 
       // ── Fetch companies for label ───────────────────────────────────────
       const { data: companies, error: companiesError } = await supabase
@@ -292,13 +390,6 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
       type GlobalModelAgg = ModelAgg & { companies: Set<string> };
       const globalModels = new Map<string, GlobalModelAgg>();
 
-      const dayKey = (d: Date) => {
-        // YYYY-MM-DD in local timezone (allinea col grouping della UI italiana)
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${dd}`;
-      };
 
       const trackModelDetail = (
         entry: NonNullable<ReturnType<typeof byCompany.get>>,
@@ -307,16 +398,17 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         model: string,
         cost: number,
         revenue: number,
+        n = 1,
       ) => {
         const key = `${provider}|${model}`;
         const cur = entry.models_detail.get(key) ?? { provider, model, requests: 0, cost: 0, revenue: 0 };
-        cur.requests += 1;
+        cur.requests += n;
         cur.cost += cost;
         cur.revenue += revenue;
         entry.models_detail.set(key, cur);
 
         const gcur = globalModels.get(key) ?? { provider, model, requests: 0, cost: 0, revenue: 0, companies: new Set<string>() };
-        gcur.requests += 1;
+        gcur.requests += n;
         gcur.cost += cost;
         gcur.revenue += revenue;
         gcur.companies.add(company_id);
@@ -325,13 +417,13 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
 
       const trackDaily = (
         entry: NonNullable<ReturnType<typeof byCompany.get>>,
-        ts: string,
+        k: string, // YYYY-MM-DD
         cost: number,
+        n = 1,
       ) => {
-        const k = dayKey(new Date(ts));
         const cur = entry.daily.get(k) ?? { cost: 0, requests: 0 };
         cur.cost += cost;
-        cur.requests += 1;
+        cur.requests += n;
         entry.daily.set(k, cur);
       };
 
@@ -363,28 +455,30 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         return entry;
       };
 
-      // Aggregate ai_usage_log (revenue stimato via markup default)
-      for (const row of rows) {
+      // Aggregate ai_usage_log (revenue stimato via markup default).
+      // Ogni riga è già una somma: `richieste` chiamate, `costo_eur` totale.
+      const todayKey = dayKey(todayStart);
+      for (const row of usageAgg) {
         if (!row.company_id) continue;
         const entry = ensureEntry(row.company_id);
-        const isToday = new Date(row.created_at) >= todayStart;
-        const rawCost = row.cost_eur;
-        const cost = rawCost == null || Number.isNaN(Number(rawCost)) ? 0 : Number(rawCost);
+        const isToday = row.giorno === todayKey;
+        const cost = row.costo_eur;
+        const n = row.richieste;
         // ai_usage_log non traccia revenue → stima con markup factor
         const revenue = cost * DEFAULT_AI_MARKUP_FACTOR;
 
         if (isToday) {
           entry.today_cost += cost;
-          entry.today_requests += 1;
+          entry.today_requests += n;
         }
         entry.month_cost += cost;
         entry.month_revenue += revenue;
-        entry.month_requests += 1;
-        entry.models.set(row.model, (entry.models.get(row.model) ?? 0) + 1);
-        entry.providers.set(row.provider, (entry.providers.get(row.provider) ?? 0) + 1);
+        entry.month_requests += n;
+        entry.models.set(row.model, (entry.models.get(row.model) ?? 0) + n);
+        entry.providers.set(row.provider, (entry.providers.get(row.provider) ?? 0) + n);
         // 🆕 drill-down + timeline
-        trackModelDetail(entry, row.company_id, row.provider, row.model, cost, revenue);
-        trackDaily(entry, row.created_at, cost);
+        trackModelDetail(entry, row.company_id, row.provider, row.model, cost, revenue, n);
+        trackDaily(entry, row.giorno, cost, n);
 
         // Feature breakdown
         const feat = categorizeFeature({
@@ -395,7 +489,7 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         const fb = ensureFeature(feat);
         fb.cost += cost;
         fb.revenue += revenue;
-        fb.requests += 1;
+        fb.requests += n;
       }
 
       // Aggregate render_sessions (con fallback su cost_real legacy)
@@ -445,7 +539,7 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         entry.providers.set(providerLabel, (entry.providers.get(providerLabel) ?? 0) + 1);
         // 🆕 drill-down + timeline
         trackModelDetail(entry, r.company_id, providerLabel, modelLabel, cost, revenue);
-        trackDaily(entry, ts ?? r.created_at, cost);
+        trackDaily(entry, dayKey(new Date(ts ?? r.created_at)), cost);
 
         // Feature breakdown: render
         const fb = ensureFeature("render");
@@ -538,14 +632,16 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         .sort((a, b) => b.cost_eur - a.cost_eur);
 
       const diagnostic: AIUsageDiagnostic = {
-        ai_usage_log_rows: rows.length,
+        ai_usage_log_rows: usageRawRows,
+        ai_usage_source: usageSource,
+        truncated: usageTruncated || renderPaged.truncated,
         render_sessions_rows: renderRows.length,
         render_sessions_completed: renderCompletedCount,
         render_sessions_with_cost: renderWithCostCount,
         render_sessions_used_legacy_cost: renderUsedLegacyCost,
         render_sessions_zero_cost: renderZeroCostCount,
         render_sessions_error: renderRes.error?.message ?? null,
-        ai_usage_log_error: logRes.error?.message ?? null,
+        ai_usage_log_error: null,
       };
 
       // 🆕 topModels GLOBALI cross-company

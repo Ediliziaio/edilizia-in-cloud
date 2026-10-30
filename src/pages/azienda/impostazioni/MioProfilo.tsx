@@ -461,7 +461,7 @@ export default function MioProfilo() {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl space-y-5">
+      <div className="max-w-[1600px] space-y-5">
         <div className="flex items-center gap-4">
           <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
           <div className="space-y-2">
@@ -478,7 +478,7 @@ export default function MioProfilo() {
   }
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-[1600px]">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
       {/* ── Header con avatar ── */}

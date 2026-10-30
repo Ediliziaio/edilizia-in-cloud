@@ -130,10 +130,12 @@ export default function AdminDashboard() {
 }
 
 function Tessera({
-  etichetta, valore, dettaglio, tono = "neutro",
+  etichetta, valore, dettaglio, tono = "neutro", to,
 }: {
   etichetta: string; valore: string | number; dettaglio?: string;
   tono?: "neutro" | "buono" | "attenzione" | "critico";
+  /** Se c'è, la tessera intera porta alla pagina di dettaglio. */
+  to?: string;
 }) {
   const colori = {
     neutro: "text-foreground",
@@ -141,13 +143,21 @@ function Tessera({
     attenzione: "text-amber-600 dark:text-amber-400",
     critico: "text-destructive",
   }[tono];
-  return (
-    <div className="rounded-lg border bg-card p-3">
+  const contenuto = (
+    <>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{etichetta}</p>
       <p className={`text-2xl font-semibold tabular-nums leading-tight ${colori}`}>{valore}</p>
       {dettaglio && <p className="text-xs text-muted-foreground mt-0.5">{dettaglio}</p>}
-    </div>
+    </>
   );
+  if (to) {
+    return (
+      <Link to={to} className="block rounded-lg border bg-card p-3 transition-colors hover:bg-muted/50">
+        {contenuto}
+      </Link>
+    );
+  }
+  return <div className="rounded-lg border bg-card p-3">{contenuto}</div>;
 }
 
 function plurale(n: number, uno: string, tanti: string) {
@@ -163,22 +173,28 @@ function SoldiInUnaRiga({ s }: { s: Soldi }) {
           etichetta="Incassato al mese"
           valore={formatCurrency(s.mrr_incassato)}
           dettaglio={plurale(s.aziende_paganti, "azienda pagante", "aziende paganti")}
+          to="/admin/fatturato"
         />
         <Tessera
           etichetta="Regalato a listino"
           valore={formatCurrency(s.a_listino_non_fatturato)}
           dettaglio={`${plurale(s.aziende_comped, "azienda", "aziende")} con piano concesso, al mese`}
+          to="/admin/aziende?revenue=complimentary"
         />
         <Tessera
           etichetta="Insoluti"
           valore={s.insoluti_n > 0 ? formatCurrency(s.insoluti_totale) : "Nessuno"}
-          dettaglio={s.insoluti_n > 0 ? plurale(s.insoluti_n, "azienda con carta rifiutata", "aziende con carta rifiutata") : "Tutti i pagamenti sono passati"}
+          // Conta tutte le posizioni di v_insoluti (fatture aperte scadute, carte
+          // rifiutate, solleciti), non solo le carte rifiutate.
+          dettaglio={s.insoluti_n > 0 ? plurale(s.insoluti_n, "azienda con pagamenti non saldati", "aziende con pagamenti non saldati") : "Nessun pagamento in sospeso"}
           tono={s.insoluti_n > 0 ? "critico" : "buono"}
+          to="/admin/insoluti"
         />
         <Tessera
           etichetta="Tool a costo, questo mese"
           valore={formatCurrency(s.tool_a_costo_mese)}
           dettaglio="Render, AI, email e WhatsApp dal 1° del mese"
+          to="/admin/fatturato?vista=servizi-extra"
         />
       </div>
     </section>
@@ -215,7 +231,38 @@ function AziendeTabella({ righe }: { righe: Azienda[] }) {
         sottotitolo={`${plurale(righe.length, "azienda", "aziende")} · ${entrateSettimana} entrate negli ultimi 7 giorni`}
         link={{ to: "/admin/aziende", testo: "Tutte le aziende" }}
       />
-      <Card>
+      {righe.length === 0 && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Nessuna azienda cliente ancora.{" "}
+            <Link to="/admin/aziende/nuova" className="font-medium text-primary underline underline-offset-2">Crea la prima</Link>
+          </CardContent>
+        </Card>
+      )}
+      {/* Da telefono: una riga densa per azienda invece della tabella da 760px. */}
+      {righe.length > 0 && (
+        <Card className="md:hidden">
+          <ul className="divide-y">
+            {righe.map((a) => {
+              const giorni = giorniDa(a.ultimo_accesso);
+              return (
+                <li key={a.id} className="flex items-center gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/admin/aziende/${a.id}`} className="block truncate text-sm font-medium">{a.nome}</Link>
+                    <p className={`truncate text-xs ${giorni === null || giorni > 30 ? "text-destructive" : "text-muted-foreground"}`}>
+                      {a.ultimo_accesso ? formatDistanceToNow(new Date(a.ultimo_accesso), { addSuffix: true, locale: it }) : "mai entrata"}
+                      {` · ${a.utenti_attivi_7g}/${a.utenti_totali} utenti`}
+                    </p>
+                  </div>
+                  {a.insoluto ? <Badge variant="destructive" className="text-[10px]">insoluto</Badge> : <StatoBadge stato={a.stato} />}
+                  <Salute score={a.salute} />
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+      <Card className={righe.length === 0 ? "hidden" : "hidden md:block"}>
         <CardContent className="p-0 overflow-x-auto">
           <Table className="min-w-[760px]">
             <TableHeader>

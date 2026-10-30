@@ -1,23 +1,22 @@
-import { Building2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Landmark } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import CompanyTesoreriaCard from "./banking/CompanyTesoreriaCard";
 
 /**
- * Tab Banking (admin): gestione globale del modulo Tesoreria per le aziende.
+ * Scheda «Collegamento» di Banking (admin): come si collegano i conti (Salt Edge) e per quali aziende
+ * la Tesoreria è davvero accesa (sola lettura, si cambia da Funzionalità).
  *
- * Il collegamento Salt Edge AIS beta e' configurato nei segreti del backend,
- * non da questa schermata.
+ * Il collegamento Salt Edge AIS beta è configurato nei segreti del backend, non da questa schermata.
  */
 export default function BankingSettingsTab() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Alert>
         <Landmark className="h-4 w-4" />
         <AlertDescription>
-          Il collegamento dei conti correnti usa <strong>Salt Edge</strong> (Open Banking PSD2, beta):
-          le credenziali sono configurate nei secret del progetto, non da qui. Le aziende collegano i
-          conti da <em>Impostazioni → Integrazioni</em>.
+          I conti correnti si collegano con <strong>Salt Edge</strong> (Open Banking PSD2, beta). Le credenziali stanno nei
+          segreti del progetto, non da qui. Le aziende collegano i loro conti da <em>Impostazioni → Integrazioni</em>, se hanno
+          la Tesoreria accesa.
         </AlertDescription>
       </Alert>
 
@@ -25,6 +24,3 @@ export default function BankingSettingsTab() {
     </div>
   );
 }
-
-// Re-export dell'icona Building2 per compat (alcuni import esterni potrebbero esistere)
-export { Building2 };

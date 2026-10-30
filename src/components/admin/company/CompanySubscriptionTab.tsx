@@ -370,6 +370,7 @@ export function CompanySubscriptionTab({
               currentPlanName={currentPlan?.name ?? null}
               currentPlanId={company.subscription_plan_id ?? null}
               isCurrentlyComped={effectiveStatus === "comped"}
+              stripeAttivo={["active", "trialing", "past_due"].includes(String(company.stripe_subscription_status ?? ""))}
             />
             {companyStatus !== "suspended" ? (
               <Button variant="outline" size="sm" disabled={isUpdatingStatus} onClick={async () => { if (await confirm({ title: `Sospendere ${company.name}?`, description: "L’azienda perderà temporaneamente l’accesso alla piattaforma. Potrai riattivarla da questa pagina.", confirmLabel: "Sospendi azienda", variant: "destructive" })) onSuspend(); }}>
@@ -532,13 +533,15 @@ interface PlanOption {
  * mostriamo un warning.
  */
 function GiftPlanButton({
-  companyId, companyName, currentPlanName, currentPlanId, isCurrentlyComped,
+  companyId, companyName, currentPlanName, currentPlanId, isCurrentlyComped, stripeAttivo = false,
 }: {
   companyId: string;
   companyName: string;
   currentPlanName: string | null;
   currentPlanId: string | null;
   isCurrentlyComped: boolean;
+  /** abbonamento Stripe ancora aperto: il regalo non lo chiude e il cliente continuerebbe a pagare */
+  stripeAttivo?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -794,6 +797,16 @@ function GiftPlanButton({
                 )}
               </div>
 
+              {stripeAttivo && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    L'azienda ha un abbonamento Stripe ancora attivo: regalando il piano Stripe
+                    continuerebbe ad addebitare. Prima annulla l'abbonamento (Stripe o «Cambia piano»).
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {isCurrentlyComped && (
                 <Alert>
                   <Sparkles className="h-4 w-4" />
@@ -813,6 +826,7 @@ function GiftPlanButton({
             <Button
               onClick={() => giftMutation.mutate()}
               disabled={
+                stripeAttivo ||
                 !selectedPlanId ||
                 !reason.trim() ||
                 expiryInvalid ||

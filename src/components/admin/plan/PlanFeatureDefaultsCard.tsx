@@ -137,6 +137,9 @@ export function PlanFeatureDefaultsCard({ planId, planSlug, planName }: Props) {
       const payload = {
         plan_id: planId,
         feature_key: row.flag.key,
+        // access_level è quello che decide: il trigger ricalcola is_enabled da lui,
+        // e scrivere solo is_enabled non cambiava niente (o accendeva una riga nuova)
+        access_level: (newEnabled ? "enabled" : "disabled") as "enabled" | "disabled",
         is_enabled: newEnabled,
         limit_value: row.defaultRow?.limit_value ?? null,
         credits_included: row.defaultRow?.credits_included ?? null,
@@ -197,6 +200,7 @@ export function PlanFeatureDefaultsCard({ planId, planSlug, planName }: Props) {
       const payload = {
         plan_id: planId,
         feature_key: editorTarget.flag.key,
+        access_level: (editorForm.is_enabled ? "enabled" : "disabled") as "enabled" | "disabled",
         is_enabled: editorForm.is_enabled,
         limit_value: limit,
         credits_included: credits,

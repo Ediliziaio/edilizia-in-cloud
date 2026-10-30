@@ -158,46 +158,54 @@ export default function AdminOnboardingConfig() {
   });
 
   // Stats aggregate: quante aziende usano ciascun template
+  // Conteggi fatti dal DB (head:true, nessuna riga scaricata): per ogni
+  // template quante aziende lo hanno e quante lo hanno finito. Prima si
+  // scaricavano fino a 10.000 righe per contarle nel browser.
+  const templateIds = templates.map((t) => t.id);
   const { data: templateStats = [] } = useQuery({
-    queryKey: ["admin-onboarding-template-stats"],
+    queryKey: ["admin-onboarding-template-stats", templateIds],
+    enabled: templateIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("company_onboarding" as never)
-        .select("template_id, status")
-        // il cap default PostgREST è 1000: oltre le 1000 aziende i KPI
-        // "aziende in onboarding"/completion rate venivano calcolati su un
-        // campione troncato senza alcun avviso.
-        .limit(10000);
-      if (error) throw error;
-      const byTpl = new Map<string, { assigned: number; completed: number }>();
-      for (const r of (data ?? []) as Array<{ template_id: string; status: string }>) {
-        if (!byTpl.has(r.template_id)) byTpl.set(r.template_id, { assigned: 0, completed: 0 });
-        const v = byTpl.get(r.template_id)!;
-        v.assigned++;
-        if (r.status === "completed") v.completed++;
-      }
-      return Array.from(byTpl.entries()).map(([id, s]) => ({ id, ...s })) as TemplateStats[];
+      const results = await Promise.all(
+        templateIds.map(async (id) => {
+          const [assignedRes, completedRes] = await Promise.all([
+            supabase
+              .from("company_onboarding" as never)
+              .select("template_id", { count: "exact", head: true })
+              .eq("template_id", id as never),
+            supabase
+              .from("company_onboarding" as never)
+              .select("template_id", { count: "exact", head: true })
+              .eq("template_id", id as never)
+              .eq("status", "completed" as never),
+          ]);
+          if (assignedRes.error) throw assignedRes.error;
+          if (completedRes.error) throw completedRes.error;
+          return { id, assigned: assignedRes.count ?? 0, completed: completedRes.count ?? 0 };
+        }),
+      );
+      return results.filter((r) => r.assigned > 0) as TemplateStats[];
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // Stats step-level per il template selezionato
+  // Stats step-level per il template selezionato: un conteggio head:true per
+  // passo (pochi passi per template) invece di scaricare fino a 50.000 righe.
   const { data: stepCompletions = [] } = useQuery({
-    queryKey: ["admin-onboarding-step-completions", selectedTemplateId],
+    queryKey: ["admin-onboarding-step-completions", selectedTemplateId, steps.map((s) => s.id)],
     enabled: !!selectedTemplateId && steps.length > 0,
     queryFn: async () => {
-      const stepIds = steps.map((s) => s.id);
-      const { data, error } = await supabase
-        .from("company_onboarding_completions" as never)
-        .select("step_id")
-        .in("step_id" as never, stepIds as never)
-        .limit(50000); // cap default 1000 → barre di completamento sottostimate
-      if (error) throw error;
-      const counts = new Map<string, number>();
-      for (const r of (data ?? []) as Array<{ step_id: string }>) {
-        counts.set(r.step_id, (counts.get(r.step_id) ?? 0) + 1);
-      }
-      return Array.from(counts.entries()).map(([step_id, completions]) => ({ step_id, completions })) as StepCompletionCount[];
+      const results = await Promise.all(
+        steps.map(async (st) => {
+          const { count, error } = await supabase
+            .from("company_onboarding_completions" as never)
+            .select("step_id", { count: "exact", head: true })
+            .eq("step_id", st.id as never);
+          if (error) throw error;
+          return { step_id: st.id, completions: count ?? 0 };
+        }),
+      );
+      return results.filter((r) => r.completions > 0) as StepCompletionCount[];
     },
     staleTime: 2 * 60 * 1000,
   });

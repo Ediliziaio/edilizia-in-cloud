@@ -9,9 +9,9 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, Copy, Loader2, Ticket } from 'lucide-react';
+import { RigaRiepilogo, StatoVuoto } from '@/components/admin/fatturato/AreaUI';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
@@ -101,95 +101,95 @@ export default function PromoCodes() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Utilizzabili = attivi, non scaduti, non esauriti. Il resto sta sotto.
+  const adesso = Date.now();
+  const usabile = (c: PromoCode) =>
+    c.is_active &&
+    (!c.valid_until || new Date(c.valid_until).getTime() >= adesso) &&
+    (!c.max_uses || c.uses_count < c.max_uses);
+  const gruppi = { usabili: codes.filter(usabile), chiusi: codes.filter((c) => !usabile(c)) };
+  const inScadenza = gruppi.usabili.filter((c) => c.valid_until && new Date(c.valid_until).getTime() - adesso < 14 * 86_400_000).length;
+
   if (!permissions.billing_write) return <AccessDenied />;
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Ticket className="h-6 w-6 text-primary" /> Codici Promo
-          </h1>
-          <p className="text-muted-foreground">Gestisci sconti e promozioni</p>
-        </div>
-        <Button onClick={() => setOpen(true)} className="self-end sm:self-auto">
-          <Plus className="h-4 w-4 mr-2" /> Nuovo Codice
+      {/* Titolo e sottotitolo li dà già l'hub Fatturato (unico punto d'accesso): qui solo le azioni. */}
+      <div className="flex justify-end">
+        <Button onClick={() => setOpen(true)} className="flex-1 sm:flex-none">
+          <Plus className="h-4 w-4 mr-2" /> Nuovo codice
         </Button>
       </div>
 
+      <RigaRiepilogo
+        voci={[
+          { etichetta: "Codici utilizzabili", valore: isLoading ? "…" : gruppi.usabili.length, tono: gruppi.usabili.length ? "buono" : "spento" },
+          { etichetta: "Spenti o scaduti", valore: isLoading ? "…" : gruppi.chiusi.length, tono: "spento" },
+          { etichetta: "Utilizzi totali", valore: isLoading ? "…" : codes.reduce((t, c) => t + (c.uses_count ?? 0), 0) },
+          { etichetta: "In scadenza", valore: isLoading ? "…" : inScadenza, dettaglio: "entro 14 giorni", tono: inScadenza ? "attenzione" : "neutro" },
+        ]}
+      />
+
       <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table className="min-w-[500px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Codice</TableHead>
-                <TableHead>Sconto</TableHead>
-                <TableHead>Utilizzi</TableHead>
-                <TableHead>Scadenza</TableHead>
-                <TableHead>Attivo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : codes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nessun codice promo creato
-                  </TableCell>
-                </TableRow>
-              ) : (
-                codes.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <code className="font-mono font-bold">{c.code}</code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(c.code);
-                            toast.success('Copiato');
-                          }}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      {c.description && (
-                        <p className="text-xs text-muted-foreground">{c.description}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {c.discount_type === 'percentage'
-                          ? `${c.discount_value}%`
-                          : `€${c.discount_value}`}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {c.uses_count}{c.max_uses ? ` / ${c.max_uses}` : ' / ∞'}
-                    </TableCell>
-                    <TableCell>
-                      {c.valid_until
-                        ? format(new Date(c.valid_until), 'dd/MM/yyyy', { locale: it })
-                        : '---'}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={c.is_active}
-                        onCheckedChange={(v) => toggleMutation.mutate({ id: c.id, is_active: v })}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+          ) : codes.length === 0 ? (
+            <StatoVuoto
+              icona={Ticket}
+              titolo="Nessun codice promo"
+              testo="Un codice dà uno sconto in percentuale o in euro sull'abbonamento. Puoi limitarne gli utilizzi e la scadenza."
+              azione={<Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Crea il primo codice</Button>}
+            />
+          ) : (
+            ([["Utilizzabili", gruppi.usabili], ["Spenti, scaduti o esauriti", gruppi.chiusi]] as const).map(([titolo, lista]) =>
+              lista.length === 0 ? null : (
+                <section key={titolo}>
+                  <h2 className="bg-muted/50 px-3 py-1.5 text-xs font-semibold md:px-4">{titolo} · {lista.length}</h2>
+                  <ul className="divide-y">
+                    {lista.map((c) => (
+                      <li key={c.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[minmax(0,2fr)_7rem_7rem_8rem_auto] md:px-4 ${titolo === "Utilizzabili" ? "" : "opacity-70"}`}>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <code className="truncate font-mono text-sm font-bold">{c.code}</code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              aria-label="Copia codice"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(c.code);
+                                toast.success('Copiato');
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          {c.description && <p className="truncate text-xs text-muted-foreground">{c.description}</p>}
+                          {/* Da telefono sconto, utilizzi e scadenza stanno qui sotto. */}
+                          <p className="text-xs text-muted-foreground md:hidden">
+                            {c.discount_type === 'percentage' ? `${c.discount_value}%` : `€${c.discount_value}`}
+                            {` · ${c.uses_count}${c.max_uses ? `/${c.max_uses}` : ''} usi`}
+                            {c.valid_until ? ` · fino al ${format(new Date(c.valid_until), 'dd/MM/yyyy', { locale: it })}` : ''}
+                          </p>
+                        </div>
+                        <div className="hidden md:block">
+                          <Badge variant="outline">{c.discount_type === 'percentage' ? `${c.discount_value}%` : `€${c.discount_value}`}</Badge>
+                        </div>
+                        <p className="hidden text-sm tabular-nums md:block">{c.uses_count}{c.max_uses ? ` / ${c.max_uses}` : ' / ∞'} usi</p>
+                        <p className="hidden text-sm md:block">{c.valid_until ? format(new Date(c.valid_until), 'dd/MM/yyyy', { locale: it }) : 'senza scadenza'}</p>
+                        <Switch
+                          aria-label={c.is_active ? 'Disattiva codice' : 'Attiva codice'}
+                          checked={c.is_active}
+                          onCheckedChange={(v) => toggleMutation.mutate({ id: c.id, is_active: v })}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ),
+            )
+          )}
         </CardContent>
       </Card>
 

@@ -40,7 +40,7 @@ export function CrmChannelRoi({ companyId, days }: { companyId: string; days: nu
       const sb = supabase as any;
       const [costs, won] = await Promise.all([
         sb.from("campaign_costs").select("source,spend_amount,date").eq("company_id", companyId).gte("date", sinceIso.slice(0, 10)),
-        supabase.from("marketing_opportunities").select("value,contact_id").eq("company_id", companyId).eq("status", "won").gte("updated_at", sinceIso).limit(5000),
+        supabase.from("marketing_opportunities").select("value,contact_id").eq("company_id", companyId).eq("status", "won").is("deleted_at", null).gte("won_at", sinceIso).limit(5000),
       ]);
 
       const wonRows = (won.data ?? []) as { value: number | null; contact_id: string | null }[];
@@ -102,7 +102,7 @@ export function CrmChannelRoi({ companyId, days }: { companyId: string; days: nu
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Radar className="h-4 w-4" aria-hidden="true" /> ROI per canale
-          <span className="ml-auto text-xs font-normal text-muted-foreground">scala i verdi · taglia i rossi</span>
+          <span className="ml-auto text-xs font-normal text-muted-foreground">ultimi {days} giorni · scala i verdi, taglia i rossi</span>
         </div>
 
         {q.isLoading ? (

@@ -9,7 +9,7 @@ export default function AdminSettingsWebhookLogs() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Webhook Log</h1>
+        <h1 className="text-2xl font-bold">Registro webhook</h1>
         <p className="text-muted-foreground">
           Monitora i webhook in entrata da GoCardless, Stripe e Telnyx. Ritenta i falliti.
         </p>

@@ -72,12 +72,22 @@ export function AICostHealthPanel() {
 
   return (
     <div className="mb-4 space-y-3">
+      {/* Due misure diverse nella stessa scheda: questo pannello legge il
+          registro delle chiamate (ai_call_ledger: ogni chiamata del router,
+          anche fallite o ripetute); la tabella «per azienda» sotto legge i
+          consumi addebitati (ai_usage_log + render_sessions). I totali non
+          coincidono per costruzione: lo diciamo in chiaro. */}
+      <p className="text-xs text-muted-foreground">
+        Questo riquadro conta <strong>tutte le chiamate registrate</strong> dal sistema AI (anche quelle fallite o
+        ripetute). I costi per azienda più sotto contano invece <strong>i consumi registrati per azienda</strong>:
+        i due totali possono essere diversi.
+      </p>
       {/* Spike banner */}
       <Card className={`p-3 ${s.is_spike ? "border-red-300 bg-red-50" : "border-slate-200"}`}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <span className="flex items-center gap-1.5 font-semibold text-slate-800">
             {s.is_spike && <AlertTriangle className="h-4 w-4 text-red-600" />}
-            Spesa AI oggi: {eur(s.oggi_eur)}
+            Spesa AI oggi (tutte le chiamate): {eur(s.oggi_eur)}
           </span>
           <span className="text-slate-500">ieri {eur(s.ieri_eur)}</span>
           <span className="text-slate-500">media 7g {eur(s.media_7g_eur)}</span>
@@ -103,7 +113,7 @@ export function AICostHealthPanel() {
       {/* Salute per modello */}
       <Card className="overflow-hidden p-0">
         <div className="border-b bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
-          Salute per modello · ultimi {data.finestra_giorni} giorni
+          Salute per modello · tutte le chiamate registrate · ultimi {data.finestra_giorni} giorni
           {tot?.error_rate_pct != null && (
             <span className="ml-2 font-normal text-slate-500">
               (totale {tot.chiamate} chiamate, {tot.error_rate_pct}% errori, {eur(tot.costo_eur)})

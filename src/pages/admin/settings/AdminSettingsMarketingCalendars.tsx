@@ -8,7 +8,7 @@ export default function AdminSettingsMarketingCalendars() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Calendari marketing</h1>
           <p className="text-muted-foreground">
-            Configura calendari CRM, disponibilita e sincronizzazione Google/Apple per il calendario appuntamenti interno.
+            Configura calendari CRM, disponibilità e sincronizzazione Google/Apple per il calendario appuntamenti interno.
           </p>
         </div>
         <SettingsMarketingCalendars />

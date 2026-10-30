@@ -273,12 +273,12 @@ export default function AdminServiceClients() {
         }
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
     onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: e instanceof Error ? e.message : String(e) }),
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_clients").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); toast.success("Eliminato"); setDeleteTarget(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); toast.success("Eliminato"); setDeleteTarget(null); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
   // Cambio stato rapido dalla lista (senza aprire il dialog completo).
@@ -287,7 +287,7 @@ export default function AdminServiceClients() {
       const { error } = await sb().from("aedix_service_clients").update({ stato, updated_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
@@ -346,6 +346,29 @@ export default function AdminServiceClients() {
     });
   }, [rows, search, filtServizio, filtStato]);
 
+  // Contratti raggruppati per servizio; dentro ogni servizio prima gli attivi,
+  // poi in pausa, poi i cessati. Il ricorrente del gruppo conta solo gli attivi.
+  const gruppiServizio = useMemo(() => {
+    const ordineStato: Record<string, number> = { attivo: 0, pausa: 1, cessato: 2 };
+    const m = new Map<string, ServiceClient[]>();
+    for (const r of filtered) m.set(r.product_line_id, [...(m.get(r.product_line_id) ?? []), r]);
+    return [...m.entries()]
+      .map(([id, rs]) => {
+        const line = lineMap.get(id);
+        const attivi = rs.filter((r) => r.stato === "attivo");
+        return {
+          id,
+          nome: line?.nome ?? "Servizio non trovato",
+          colore: line?.colore ?? null,
+          attivi: attivi.length,
+          altri: rs.length - attivi.length,
+          mrr: attivi.reduce((t, r) => t + (r.ricorrenza === "mensile" ? Number(r.importo) : r.ricorrenza === "annuale" ? Number(r.importo) / 12 : 0), 0),
+          righe: [...rs].sort((a, b) => (ordineStato[a.stato] ?? 9) - (ordineStato[b.stato] ?? 9) || a.cliente_nome.localeCompare(b.cliente_nome, "it")),
+        };
+      })
+      .sort((a, b) => b.mrr - a.mrr || a.nome.localeCompare(b.nome, "it"));
+  }, [filtered, lineMap]);
+
   const hasFilters = search.trim() !== "" || filtServizio !== "tutti" || filtStato !== "tutti";
   const canSave = !!draft.cliente_nome?.trim() && !!draft.product_line_id && !!draft.billing_model;
   const apriDaConsole = (serviceClientId: string, cosa: "modifica" | "incassi") => {
@@ -387,10 +410,11 @@ export default function AdminServiceClients() {
       <BrandPageHeader
         icon={Users}
         eyebrow="CRM · Servizi"
-        title={vista === "marketing" ? "Clienti marketing" : "Clienti-Servizio"}
+        title="Clienti Servizi"
         subtitle={vista === "marketing"
-          ? "Per ogni azienda seguita nel marketing: lead arrivati e seguiti, appuntamenti, vendite, costi per lead e per vendita, venduto e provvigione del mese."
-          : "Le relazioni ricorrenti cliente ↔ servizio (retainer, provvigioni, performance). Collega ogni cliente a un contatto CRM o a un'azienda."}
+          ? "Lead, appuntamenti, vendite e provvigione del mese per ogni cliente marketing."
+          : vista === "clienti" ? "Quanto vale ogni cliente, sommando tutti i suoi servizi."
+          : "I contratti ricorrenti per servizio: retainer, provvigioni, performance."}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Icon-only su mobile: la CTA primaria deve restare leggibile. */}
@@ -399,7 +423,7 @@ export default function AdminServiceClients() {
               <span className="hidden sm:inline">Chiudi il mese</span>
             </Button>
             <Button onClick={openNew} className="gap-2 flex-1 sm:flex-none">
-              <Plus className="h-4 w-4" /> Nuovo cliente-servizio
+              <Plus className="h-4 w-4" /> <span className="sm:hidden">Nuovo</span><span className="hidden sm:inline">Nuovo cliente-servizio</span>
             </Button>
           </div>
         }
@@ -508,7 +532,7 @@ export default function AdminServiceClients() {
               <Button variant="outline" size="sm" onClick={() => { setSearch(""); setFiltServizio("tutti"); setFiltStato("tutti"); }}>Azzera filtri</Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <Table className="min-w-[960px]">
                 <TableHeader className="[&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500">
                   <TableRow>
@@ -522,8 +546,19 @@ export default function AdminServiceClients() {
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {filtered.map((r) => {
+                {gruppiServizio.map((g) => (
+                  <TableBody key={g.id}>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableCell colSpan={3} className="py-1.5 text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full" style={{ background: g.colore ?? "hsl(var(--chart-1))" }} />
+                          {g.nome} · {g.attivi} attiv{g.attivi === 1 ? "o" : "i"}{g.altri > 0 ? ` · ${g.altri} in pausa o cessat${g.altri === 1 ? "o" : "i"}` : ""}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right text-xs font-semibold tabular-nums">{eur(g.mrr)}<span className="font-normal text-muted-foreground">/mese</span></TableCell>
+                      <TableCell colSpan={4} className="py-1.5" />
+                    </TableRow>
+                    {g.righe.map((r) => {
                     const line = lineMap.get(r.product_line_id);
                     const bs = billSummary.per.get(r.id);
                     const inRitardo = r.stato === "attivo" && !!bs && bs.dovutoMese > bs.incassatoMese;
@@ -580,9 +615,44 @@ export default function AdminServiceClients() {
                         </TableCell>
                       </TableRow>
                     );
-                  })}
-                </TableBody>
+                    })}
+                  </TableBody>
+                ))}
               </Table>
+            </div>
+          )}
+          {/* Da telefono: card dense per servizio, niente tabella da 960px. */}
+          {!isLoading && !isError && filtered.length > 0 && (
+            <div className="md:hidden">
+              {gruppiServizio.map((g) => (
+                <section key={g.id}>
+                  <h2 className="flex items-center justify-between gap-2 bg-muted/50 px-3 py-1.5 text-xs font-semibold">
+                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: g.colore ?? "hsl(var(--chart-1))" }} />
+                      {g.nome} · {g.righe.length}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{eur(g.mrr)}/mese</span>
+                  </h2>
+                  <ul className="divide-y">
+                    {g.righe.map((r) => {
+                      const bs = billSummary.per.get(r.id);
+                      return (
+                        <li key={r.id} className={`flex items-center gap-2 px-3 py-2 ${r.stato === "cessato" ? "opacity-55" : ""}`}>
+                          <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openEdit(r)}>
+                            <p className="truncate text-sm font-medium">{r.cliente_nome}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {eur(r.importo)}/{r.ricorrenza === "mensile" ? "mese" : r.ricorrenza === "annuale" ? "anno" : "una tantum"}
+                              {bs ? ` · incassato ${eur(bs.incassatoTot)}` : ""}
+                            </p>
+                          </button>
+                          <Badge variant="secondary" className={`shrink-0 border-0 ${STATI[r.stato] ?? ""}`}>{r.stato}</Badge>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo, commerciale: r.commerciale })} aria-label="Incassi"><Wallet className="h-4 w-4" /></Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
             </div>
           )}
         </CardContent>

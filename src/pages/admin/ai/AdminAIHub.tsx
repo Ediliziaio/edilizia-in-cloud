@@ -51,27 +51,27 @@ export default function AdminAIHub() {
   const tabs = [
     {
       id: "operate" as const,
-      label: "Operate",
+      label: "Operativo",
       icon: Bot,
-      description: "Approvals, queue, agents, chief, personas, memory, learning",
+      description: "Approvazioni, coda, agenti, capo di gabinetto, personas, memoria, apprendimento",
     },
     {
       id: "monitor" as const,
-      label: "Monitor",
+      label: "Controllo",
       icon: BarChart3,
-      description: "Usage, costi, test lab, health AI",
+      description: "Consumi e costi, prove modelli, salute AI",
     },
     {
       id: "config" as const,
-      label: "Config",
+      label: "Configurazione",
       icon: Settings2,
-      description: "Routing modelli, personas cliente, KB, pricing, governance",
+      description: "Scelta modelli, personas cliente, base di conoscenza, prezzi, regole",
     },
     {
       id: "memoria" as const,
       label: "Memoria Clienti",
       icon: Brain,
-      description: "Memoria delle 18 AI personas CLIENTI, vista cross-company (≠ memoria Personas Admin in Operate)",
+      description: "Memoria delle personas AI dei clienti, vista su tutte le aziende (diversa dalla memoria delle personas interne in Operativo)",
     },
   ];
 
@@ -105,7 +105,7 @@ export default function AdminAIHub() {
       <AdminHeroHeader
         icon={Sparkles}
         title="Intelligenza Artificiale"
-        subtitle="Operate, monitor, config e memoria AI in un'unica vista."
+        subtitle="Operativo, controllo, configurazione e memoria AI in un'unica vista."
       />
 
       {/* ─── Tab navigation ─────────────────────────────────────────────── */}

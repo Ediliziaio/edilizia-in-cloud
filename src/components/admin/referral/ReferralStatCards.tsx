@@ -1,5 +1,5 @@
 import { Users, Building2, TrendingUp, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RigaRiepilogo } from "@/components/admin/fatturato/AreaUI";
 import { formatCurrency } from "@/lib/formatters";
 import type { Referrer, ReferralCompany } from "@/pages/admin/ReferralDashboard";
 
@@ -19,27 +19,22 @@ export function ReferralStatCards({ referrers, referralCompanies, getMonthlyComm
   // → importo diverso da quello mostrato in Panoramica. Ora coincidono.
   const toPay = referrers.reduce((sum, r) => sum + Math.max(0, r.total_earned - r.total_paid), 0);
 
-  const cards = [
-    { title: "Referrer Attivi", value: activeReferrers.toString(), icon: Users, description: `${referrers.length} totali` },
-    { title: "Aziende Portate", value: totalCompanies.toString(), icon: Building2, description: "Totale registrazioni" },
-    { title: "Commissioni Mensili", value: formatCurrency(monthlyTotal), icon: TrendingUp, description: "Stima questo mese" },
-    { title: "Da Pagare", value: formatCurrency(toPay > 0 ? toPay : 0), icon: Wallet, description: `${formatCurrency(totalPaid)} già pagati` },
-  ];
-
+  // Stessa riga di riepilogo delle altre pagine dell'area: due card per riga
+  // da telefono, quattro su schermo largo.
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {cards.map((card) => (
-        <Card key={card.title}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-            <card.icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{card.value}</div>
-            <p className="text-xs text-muted-foreground">{card.description}</p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <RigaRiepilogo
+      voci={[
+        { etichetta: "Partner attivi", icona: Users, valore: activeReferrers, dettaglio: `${referrers.length} in tutto` },
+        { etichetta: "Aziende portate", icona: Building2, valore: totalCompanies, dettaglio: "registrazioni totali" },
+        { etichetta: "Commissioni del mese", icona: TrendingUp, valore: formatCurrency(monthlyTotal), dettaglio: "stima sul listino" },
+        {
+          etichetta: "Da pagare",
+          icona: Wallet,
+          valore: formatCurrency(toPay > 0 ? toPay : 0),
+          dettaglio: `${formatCurrency(totalPaid)} già pagati`,
+          tono: toPay > 0 ? "attenzione" : "neutro",
+        },
+      ]}
+    />
   );
 }

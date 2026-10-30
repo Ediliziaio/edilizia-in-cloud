@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -86,6 +87,28 @@ interface Connessioni {
   calcolato_il: string;
 }
 
+// Raggruppamento per tipo di canale: le integrazioni arrivano come nomi
+// tecnici (stripe, telnyx, meta_whatsapp…) in un elenco unico ordinato per
+// errori. Divise per tipo si legge subito «i pagamenti vanno, la telefonia no».
+const GRUPPI_CANALE = [
+  { id: "pagamenti", etichetta: "Pagamenti", match: /stripe|paypal|sdi|fattur|openapi|zucchetti/ },
+  { id: "banche", etichetta: "Banche", match: /banc|bank|fabrick|salt|tink|nordigen|gocardless|psd2/ },
+  { id: "email", etichetta: "Email", match: /email|mail|smtp|imap|resend|sendgrid|brevo/ },
+  { id: "telefonia", etichetta: "Telefonia e SMS", match: /telnyx|twilio|sms|voip|voce|eleven/ },
+  { id: "meta", etichetta: "Meta (WhatsApp, Facebook, Instagram)", match: /meta|whatsapp|facebook|instagram/ },
+  { id: "ai", etichetta: "Intelligenza artificiale", match: /openai|gemini|anthropic|claude|openrouter|mistral|replicate|fal|ai_/ },
+  { id: "infrastruttura", etichetta: "Infrastruttura e mappe", match: /.*/ },
+] as const;
+
+function gruppoCanale(nome: string): (typeof GRUPPI_CANALE)[number] {
+  const n = nome.toLowerCase();
+  return GRUPPI_CANALE.find((g) => g.match.test(n)) ?? GRUPPI_CANALE[GRUPPI_CANALE.length - 1];
+}
+
+function isSana(stato: string | null): boolean {
+  return stato === "healthy" || stato === "ok";
+}
+
 function quando(iso: string | null): string {
   if (!iso) return "mai";
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: it });
@@ -136,13 +159,17 @@ export default function ConnessioniPage() {
   const chiavi = data?.chiavi_api ?? [];
   const webhook = data?.webhook ?? [];
   const caselle = data?.caselle_email ?? [];
+  const gruppiIntegrazioni = GRUPPI_CANALE.map((g) => ({
+    ...g,
+    righe: integrazioni.filter((i) => gruppoCanale(i.integrazione).id === g.id),
+  })).filter((g) => g.righe.length > 0);
   // Se il database non ha ancora la migrazione che le conta, la sezione
   // semplicemente non compare invece di mostrare «NaN/undefined».
   const casellePresenti = typeof r?.caselle_email_totali === "number";
   const caselleFerme = r?.caselle_email_ferme ?? 0;
 
   return (
-    <div className="p-3 md:p-6 space-y-4">
+    <div className="p-3 md:p-6 space-y-4 max-w-[1600px]">
       <div className="hidden md:flex items-center gap-3">
         <Plug className="h-6 w-6 text-blue-500" />
         <div>
@@ -194,7 +221,7 @@ export default function ConnessioniPage() {
             </Alert>
           )}
 
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
             <Tessera
               etichetta="Integrazioni in errore"
               valore={`${r.integrazioni_in_errore}/${r.integrazioni_monitorate}`}
@@ -235,7 +262,27 @@ export default function ConnessioniPage() {
                 Integrazioni
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+            <CardContent className="p-0">
+              {/* Telefono: card dense, una per servizio, raggruppate per tipo. */}
+              <div className="md:hidden divide-y">
+                {gruppiIntegrazioni.map((g) => (
+                  <div key={g.id} className="px-3 py-2 space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.etichetta}</p>
+                    {g.righe.map((i) => (
+                      <div key={i.integrazione} className="flex items-center gap-2 text-sm">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${isSana(i.stato_attuale) ? "bg-emerald-500" : "bg-destructive"}`} />
+                        <span className="font-medium truncate flex-1">{i.integrazione}</span>
+                        {i.errori_7g > 0 && <span className="text-xs text-destructive tabular-nums">{i.errori_7g} errori</span>}
+                        <span className={`text-[11px] whitespace-nowrap ${i.controllo_fermo ? "text-amber-600" : "text-muted-foreground"}`}>
+                          {quando(i.ultimo_controllo)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: tabella con una riga-titolo per ogni tipo di canale. */}
+              <div className="hidden md:block overflow-x-auto">
               <Table className="min-w-[620px]">
                 <TableHeader>
                   <TableRow>
@@ -248,11 +295,21 @@ export default function ConnessioniPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {integrazioni.map((i) => (
+                  {gruppiIntegrazioni.map((g) => (
+                    <Fragment key={g.id}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell colSpan={6} className="py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {g.etichetta}
+                          <span className="ml-2 font-normal normal-case tracking-normal">
+                            {g.righe.filter((i) => isSana(i.stato_attuale)).length}/{g.righe.length} funzionanti
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                  {g.righe.map((i) => (
                     <TableRow key={i.integrazione}>
                       <TableCell className="font-medium text-sm">{i.integrazione}</TableCell>
                       <TableCell>
-                        {i.stato_attuale === "healthy" || i.stato_attuale === "ok" ? (
+                        {isSana(i.stato_attuale) ? (
                           <Badge className="text-[10px] gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                             <CheckCircle2 className="h-3 w-3" /> {i.stato_attuale}
                           </Badge>
@@ -273,13 +330,23 @@ export default function ConnessioniPage() {
                           {quando(i.ultimo_controllo)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate" title={i.ultimo_errore ?? ""}>
+                      <TableCell className="text-xs max-w-[320px] truncate" title={i.ultimo_errore ?? ""}>
                         {i.ultimo_errore ?? "—"}
                       </TableCell>
                     </TableRow>
                   ))}
+                    </Fragment>
+                  ))}
+                  {integrazioni.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                        Nessun controllo negli ultimi 7 giorni: il giro che verifica le integrazioni non sta scrivendo.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -345,6 +412,8 @@ export default function ConnessioniPage() {
             </Card>
           )}
 
+          {/* Chiavi API e webhook affiancati su schermo largo. */}
+          <div className="grid gap-4 2xl:grid-cols-2 items-start">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -466,6 +535,7 @@ export default function ConnessioniPage() {
               )}
             </CardContent>
           </Card>
+          </div>
         </>
       )}
     </div>

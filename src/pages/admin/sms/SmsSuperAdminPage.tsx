@@ -359,13 +359,16 @@ export default function SmsSuperAdminPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Intestazione compatta: titolo + una riga di spiegazione. */}
       <div>
-        <h1 className="text-2xl font-bold">SMS Marketing — SuperAdmin</h1>
-        <p className="text-muted-foreground">Gestione P&L, prezzi e tenant</p>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Prezzi e pacchetti SMS</h1>
+        <p className="text-sm text-muted-foreground">
+          Quanto pagano le aziende per gli SMS, quanto costano a noi e chi li usa.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
         {kpis.map((k) => (
           <KpiCard key={k.title} {...k} />
         ))}

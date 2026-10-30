@@ -29,6 +29,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Send, MessageCircle, AlertTriangle, Ban, WifiOff, ExternalLink, Loader2, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -102,6 +106,9 @@ export default function AdminWhatsappLocaleCampagne() {
     return n;
   });
   const [archivioAperto, setArchivioAperto] = useState(false);
+  // Avvio (o ripresa) di una campagna di massa: prima partiva al primo clic
+  // sul menu stato, senza dire a quante persone stava per scrivere.
+  const [avvioPer, setAvvioPer] = useState<Riepilogo | null>(null);
 
   // Nuova campagna
   const [nome, setNome] = useState("");
@@ -501,19 +508,38 @@ export default function AdminWhatsappLocaleCampagne() {
   });
 
   return (
-    <div className="space-y-6 p-1">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Campagne WhatsApp Locale</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Messaggi a freddo con follow-up automatico. Il ritmo lo impongono i cap dei numeri,
-            non la campagna.
+    <div className="space-y-4 p-1 sm:space-y-6">
+      {/* Intestazione compatta: titolo + una riga + azione a destra. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight">Campagne</h2>
+          <p className="text-sm text-muted-foreground max-sm:hidden">
+            Messaggi a freddo con follow-up automatico. Il ritmo lo impongono i limiti dei numeri, non la campagna.
           </p>
         </div>
-        <Button onClick={() => setCreaAperto(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Nuova campagna
+        <Button onClick={() => setCreaAperto(true)} className="shrink-0">
+          <Plus className="h-4 w-4 sm:mr-2" /> <span className="max-sm:sr-only">Nuova campagna</span>
         </Button>
       </div>
+
+      {/* Riepilogo: quattro numeri sulle campagne non archiviate. */}
+      {!isLoading && campagne.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          {[
+            { label: "In corso", value: campagneAttive.length },
+            { label: "Da inviare", value: campagne.filter((c) => !IN_ARCHIVIO.has(c.stato)).reduce((s, c) => s + (c.da_inviare ?? 0), 0) },
+            // Come il «contattati» di ogni campagna (CampagnaFlusso): primo
+            // messaggio partito, che poi abbia avuto follow-up o risposta.
+            { label: "Contattati", value: campagne.reduce((s, c) => s + (c.inviati ?? 0) + (c.followup_inviati ?? 0) + (c.risposti ?? 0), 0) },
+            { label: "Risposte", value: campagne.reduce((s, c) => s + (c.risposti ?? 0), 0) },
+          ].map((k) => (
+            <Card key={k.label} className="px-3 py-2.5">
+              <div className="text-lg font-bold leading-tight tabular-nums">{k.value.toLocaleString("it-IT")}</div>
+              <div className="text-xs text-muted-foreground">{k.label}</div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Un numero bannato o caduto ferma gli invii in silenzio: qui deve
           urlare. Rosso se non resta nessun numero a coprire, ambra altrimenti. */}
@@ -603,6 +629,9 @@ export default function AdminWhatsappLocaleCampagne() {
           <p className="text-sm text-muted-foreground mt-1">
             Creane una, carica i destinatari da un filtro sui contatti e avviala.
           </p>
+          <Button className="mt-4" onClick={() => setCreaAperto(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Crea la prima campagna
+          </Button>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -620,6 +649,10 @@ export default function AdminWhatsappLocaleCampagne() {
                 if (stato === c.stato) return;
                 if (stato === "annullata") {
                   if (window.confirm(`Annullare "${c.nome}"? Gli invii si fermano per sempre; i dati restano.`)) annulla.mutate(c.id);
+                  return;
+                }
+                if (stato === "in_corso") {
+                  setAvvioPer(c);
                   return;
                 }
                 cambiaStato.mutate({ id: c.id, stato });
@@ -682,6 +715,53 @@ export default function AdminWhatsappLocaleCampagne() {
           )}
         </div>
       )}
+
+      {/* ── Conferma avvio campagna ── */}
+      <AlertDialog open={!!avvioPer} onOpenChange={(o) => { if (!o) setAvvioPer(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {avvioPer?.avviata_at ? "Riprendere" : "Avviare"} «{avvioPer?.nome}»?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Partono i messaggi WhatsApp a{" "}
+                  <strong className="text-foreground">
+                    {(avvioPer?.da_inviare ?? 0).toLocaleString("it-IT")}{" "}
+                    {avvioPer?.da_inviare === 1 ? "destinatario" : "destinatari"}
+                  </strong>
+                  {avvioPer && avvioPer.totali !== avvioPer.da_inviare
+                    ? ` (su ${avvioPer.totali.toLocaleString("it-IT")} in lista)`
+                    : ""}
+                  .
+                </p>
+                <p>
+                  Oggi i numeri collegati possono mandarne ancora {residuoOggi.toLocaleString("it-IT")}: il resto
+                  parte nei giorni successivi, al ritmo dei limiti anti-ban.
+                </p>
+                {avvioPer && avvioPer.da_inviare === 0 && (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    La lista non ha nessuno da contattare: carica prima i destinatari.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!avvioPer || avvioPer.da_inviare === 0}
+              onClick={() => {
+                if (avvioPer) cambiaStato.mutate({ id: avvioPer.id, stato: "in_corso" });
+                setAvvioPer(null);
+              }}
+            >
+              {avvioPer?.avviata_at ? "Riprendi" : "Avvia"} la campagna
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Nuova campagna ── */}
       <Dialog open={creaAperto} onOpenChange={(o) => { if (!o) chiudiEditor(); else setCreaAperto(true); }}>

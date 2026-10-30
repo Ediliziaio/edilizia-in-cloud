@@ -7,11 +7,12 @@
  *
  * Barre in puro CSS con palette --chart-*, empty-state onesto.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter, Radar, Wrench, MapPin, Loader2 } from "lucide-react";
+import { useCrmSegmenti } from "./useCrmSegmenti";
 
 const eur = (n: number) => {
   const v = Math.round(n || 0);
@@ -50,6 +51,7 @@ function SectionCard({
   isLoading,
   isEmpty,
   emptyText,
+  note,
   children,
 }: {
   title: string;
@@ -57,6 +59,8 @@ function SectionCard({
   isLoading: boolean;
   isEmpty: boolean;
   emptyText: string;
+  /** Nota a destra del titolo: periodo o «oggi, indipendente dal periodo». */
+  note?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -64,6 +68,7 @@ function SectionCard({
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" aria-hidden="true" /> {title}
+          {note && <span className="ml-auto text-xs font-normal text-muted-foreground">{note}</span>}
         </div>
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -80,24 +85,43 @@ function SectionCard({
 }
 
 // ─── Funnel conversioni ─────────────────────────────────────────────────────
-export function CrmFunnelCard({ companyId }: { companyId: string }) {
+/**
+ * Coorte del periodo: lead CREATI nel periodo → quanti di loro hanno
+ * un'opportunità → quante opportunità VINTE nel periodo (won_at).
+ */
+export function CrmFunnelCard({ companyId, days }: { companyId: string; days: number }) {
+  const [nowMs] = useState(() => Date.now());
+  const sinceIso = useMemo(() => new Date(nowMs - days * 86_400_000).toISOString(), [nowMs, days]);
   const q = useQuery({
-    queryKey: ["crm-dash", "funnel", companyId],
+    queryKey: ["crm-dash", "funnel", companyId, sinceIso],
     staleTime: 60_000,
     queryFn: async () => {
-      const [contacts, opps] = await Promise.all([
-        supabase.from("marketing_contacts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      const [contacts, opps, won] = await Promise.all([
+        supabase
+          .from("marketing_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .gte("created_at", sinceIso),
         supabase
           .from("marketing_opportunities")
-          .select("status,contact_id")
+          .select("contact_id")
           .eq("company_id", companyId)
           .is("deleted_at", null)
+          .gte("created_at", sinceIso)
           .limit(5000),
+        supabase
+          .from("marketing_opportunities")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("status", "won")
+          .is("deleted_at", null)
+          .gte("won_at", sinceIso),
       ]);
       if (opps.error) throw opps.error;
       return {
         leads: contacts.count ?? 0,
-        opps: (opps.data ?? []) as { status: string | null; contact_id: string | null }[],
+        opps: (opps.data ?? []) as { contact_id: string | null }[],
+        won: won.error ? 0 : won.count ?? 0,
       };
     },
   });
@@ -106,18 +130,25 @@ export function CrmFunnelCard({ companyId }: { companyId: string }) {
     const leads = q.data?.leads ?? 0;
     const opps = q.data?.opps ?? [];
     const oppContacts = new Set(opps.map((o) => o.contact_id).filter(Boolean)).size;
-    const won = opps.filter((o) => o.status === "won").length;
+    const won = q.data?.won ?? 0;
     const rate = (cur: number, prev: number) => (prev > 0 ? ` · ${Math.round((cur / prev) * 100)}%` : "");
     return [
-      { label: "Lead", value: leads, hint: String(leads) },
-      { label: "Opportunità", value: oppContacts, hint: `${oppContacts}${rate(oppContacts, leads)}` },
-      { label: "Vinti", value: won, hint: `${won}${rate(won, oppContacts)}` },
+      { label: "Lead nuovi", value: leads, hint: leads.toLocaleString("it-IT") },
+      { label: "Con opportunità", value: oppContacts, hint: `${oppContacts}${rate(oppContacts, leads)}` },
+      { label: "Vinte", value: won, hint: `${won}${rate(won, oppContacts)}` },
     ];
   }, [q.data]);
 
-  const empty = (q.data?.leads ?? 0) === 0 && (q.data?.opps.length ?? 0) === 0;
+  const empty = (q.data?.leads ?? 0) === 0 && (q.data?.opps.length ?? 0) === 0 && (q.data?.won ?? 0) === 0;
   return (
-    <SectionCard title="Funnel conversioni" icon={Filter} isLoading={q.isLoading} isEmpty={empty} emptyText="Ancora nessun lead.">
+    <SectionCard
+      title="Funnel conversioni"
+      note={`ultimi ${days} giorni`}
+      icon={Filter}
+      isLoading={q.isLoading}
+      isEmpty={empty}
+      emptyText="Nessun lead nel periodo."
+    >
       <BarList rows={rows} color="hsl(var(--chart-2))" />
     </SectionCard>
   );
@@ -125,12 +156,13 @@ export function CrmFunnelCard({ companyId }: { companyId: string }) {
 
 // ─── Fonti + ROI ────────────────────────────────────────────────────────────
 export function CrmChannelsCard({ companyId }: { companyId: string }) {
+  const seg = useCrmSegmenti(companyId);
   const q = useQuery({
     queryKey: ["crm-dash", "channels", companyId],
     staleTime: 60_000,
     queryFn: async () => {
-      const [contacts, costs, opps] = await Promise.all([
-        supabase.from("marketing_contacts").select("source").eq("company_id", companyId).limit(5000),
+      // Lead per fonte: li conta il database su tutti i contatti (useCrmSegmenti).
+      const [costs, opps] = await Promise.all([
         supabase.from("campaign_costs").select("source,spend_amount").eq("company_id", companyId).limit(5000),
         supabase
           .from("marketing_opportunities")
@@ -139,9 +171,8 @@ export function CrmChannelsCard({ companyId }: { companyId: string }) {
           .is("deleted_at", null)
           .limit(5000),
       ]);
-      if (contacts.error) throw contacts.error;
+      if (opps.error) throw opps.error;
       return {
-        contacts: (contacts.data ?? []) as { source: string | null }[],
         costs: (costs.data ?? []) as { source: string | null; spend_amount: number | null }[],
         opps: (opps.data ?? []) as { source: string | null; status: string | null }[],
       };
@@ -150,12 +181,9 @@ export function CrmChannelsCard({ companyId }: { companyId: string }) {
 
   const rows = useMemo<BarRow[]>(() => {
     const d = q.data;
-    if (!d) return [];
+    if (!d || !seg.data) return [];
     const leads = new Map<string, number>();
-    for (const c of d.contacts) {
-      const s = (c.source || "—").trim() || "—";
-      leads.set(s, (leads.get(s) ?? 0) + 1);
-    }
+    for (const f of seg.data.fonti) leads.set(f.fonte, (leads.get(f.fonte) ?? 0) + f.n);
     const spend = new Map<string, number>();
     for (const c of d.costs) {
       const s = (c.source || "—").trim() || "—";
@@ -176,18 +204,19 @@ export function CrmChannelsCard({ companyId }: { companyId: string }) {
         const w = won.get(source) ?? 0;
         const base = oppCount.get(source) ?? n;
         const wr = base > 0 ? Math.round((w / base) * 100) : 0;
-        const parts = [String(n)];
+        const parts = [n.toLocaleString("it-IT")];
         if (sp > 0) parts.push(`CPL ${eur(sp / n)}`);
         if (w > 0) parts.push(`${wr}%`);
         return { label: source, value: n, hint: parts.join(" · ") };
       });
-  }, [q.data]);
+  }, [q.data, seg.data]);
 
   return (
     <SectionCard
       title="Fonti · costo-lead · win%"
+      note="tutti i contatti, indipendente dal periodo"
       icon={Radar}
-      isLoading={q.isLoading}
+      isLoading={q.isLoading || seg.isLoading}
       isEmpty={rows.length === 0}
       emptyText="Nessuna fonte tracciata sui contatti."
     >
@@ -198,42 +227,17 @@ export function CrmChannelsCard({ companyId }: { companyId: string }) {
 
 // ─── Cluster mestiere + zona ────────────────────────────────────────────────
 export function CrmClustersCard({ companyId }: { companyId: string }) {
-  const q = useQuery({
-    queryKey: ["crm-dash", "clusters", companyId],
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_contacts")
-        .select("tipo,province,ai_predicted_value_eur")
-        .eq("company_id", companyId)
-        .limit(5000);
-      if (error) throw error;
-      return (data ?? []) as { tipo: string | null; province: string | null; ai_predicted_value_eur: number | null }[];
-    },
-  });
+  // Conta il database su TUTTI i contatti (prima: campione di 5.000).
+  const q = useCrmSegmenti(companyId);
 
   const { trades, regions } = useMemo(() => {
-    const t = new Map<string, { n: number; val: number }>();
-    const r = new Map<string, number>();
-    for (const c of q.data ?? []) {
-      const trade = (c.tipo || "").trim();
-      if (trade) {
-        const cur = t.get(trade) ?? { n: 0, val: 0 };
-        cur.n += 1;
-        cur.val += c.ai_predicted_value_eur ?? 0;
-        t.set(trade, cur);
-      }
-      const prov = (c.province || "").trim();
-      if (prov) r.set(prov, (r.get(prov) ?? 0) + 1);
-    }
-    const trades: BarRow[] = [...t.entries()]
-      .sort((a, b) => b[1].n - a[1].n)
-      .slice(0, 6)
-      .map(([label, { n, val }]) => ({ label, value: n, hint: val > 0 ? `${n} · ${eur(val)}` : String(n) }));
-    const regions: BarRow[] = [...r.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([label, n]) => ({ label, value: n }));
+    const d = q.data;
+    const trades: BarRow[] = (d?.mestieri ?? []).map((m) => ({
+      label: m.mestiere,
+      value: m.n,
+      hint: m.valore > 0 ? `${m.n.toLocaleString("it-IT")} · ${eur(m.valore)}` : m.n.toLocaleString("it-IT"),
+    }));
+    const regions: BarRow[] = (d?.zone ?? []).map((z) => ({ label: z.zona, value: z.n, hint: z.n.toLocaleString("it-IT") }));
     return { trades, regions };
   }, [q.data]);
 
@@ -241,6 +245,7 @@ export function CrmClustersCard({ companyId }: { companyId: string }) {
   return (
     <SectionCard
       title="Segmentazione"
+      note="oggi, indipendente dal periodo"
       icon={Wrench}
       isLoading={q.isLoading}
       isEmpty={empty}

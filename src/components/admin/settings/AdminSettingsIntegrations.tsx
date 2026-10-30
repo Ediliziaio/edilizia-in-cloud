@@ -1,4 +1,4 @@
-import { useState, forwardRef, useRef, useEffect, useMemo } from "react";
+import { useState, forwardRef, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -695,17 +695,17 @@ function IntegrationsKPIs({
 // ─── QUICK LINKS ──────────────────────────────────────────────────────────────
 
 const QUICK_LINKS = [
-  { to: "/admin/impostazioni/webhooks", label: "Webhook endpoints" },
-  { to: "/admin/impostazioni/webhook-logs", label: "Webhook logs" },
-  { to: "/admin/impostazioni/email", label: "Email (SMTP / template)" },
-  { to: "/admin/impostazioni/banking", label: "Banking (GoCardless)" },
+  { to: "/admin/impostazioni/email", label: "Email (servizi di invio, modelli)" },
+  { to: "/admin/impostazioni/banking", label: "Banche (Salt Edge)" },
+  { to: "/admin/impostazioni/webhooks", label: "Webhook in uscita" },
+  { to: "/admin/impostazioni/webhook-logs", label: "Registro webhook" },
 ];
 
 function QuickLinksRow() {
   return (
     <Card>
       <CardContent className="p-3 flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground mr-1">Correlate:</span>
+        <span className="text-xs text-muted-foreground mr-1">Altre integrazioni, nelle loro pagine:</span>
         {QUICK_LINKS.map((l) => (
           <Button key={l.to} asChild size="sm" variant="ghost" className="h-7 text-xs">
             <Link to={l.to}>
@@ -759,53 +759,78 @@ export default function AdminSettingsIntegrations() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  return (
-    <div className="space-y-6">
-      {/* KPI overview */}
-      <IntegrationsKPIs settings={settings} isLoading={settingsLoading} />
-
-      {/* Lead Facebook/Instagram dei brand della piattaforma → CRM del superadmin */}
-      <AdminMetaLeadsCard />
-
-      {/* Stripe */}
-      <StripeSettingsCard
+  const apiCard = (title: (typeof API_CARDS)[number]["title"]) => {
+    const card = API_CARDS.find((c) => c.title === title)!;
+    return (
+      <ApiKeyCard
+        key={card.title}
+        icon={card.icon}
+        title={card.title}
+        description={card.description}
+        tooltipText={card.tooltipText}
+        fields={[...card.fields]}
         settings={settings}
         isLoading={settingsLoading}
         onSave={(updates) => saveMutation.mutate(updates)}
         isSaving={saveMutation.isPending}
         saveSucceededAt={saveSucceededAt}
+        integrationKey={"integrationKey" in card ? card.integrationKey : undefined}
       />
+    );
+  };
 
-      {/* API Cards */}
-      {API_CARDS.map((card) => (
-        <ApiKeyCard
-          key={card.title}
-          icon={card.icon}
-          title={card.title}
-          description={card.description}
-          tooltipText={card.tooltipText}
-          fields={[...card.fields]}
+  // Raggruppate per tema (30/10/2026): prima erano otto card una sotto l'altra, a metà larghezza.
+  return (
+    <div className="space-y-6">
+      {/* Riepilogo: quante configurate, quante mancano, Stripe vero o di prova */}
+      <IntegrationsKPIs settings={settings} isLoading={settingsLoading} />
+
+      <GruppoIntegrazioni titolo="Pagamenti" descrizione="Abbonamenti e incassi delle aziende">
+        <StripeSettingsCard
           settings={settings}
           isLoading={settingsLoading}
           onSave={(updates) => saveMutation.mutate(updates)}
           isSaving={saveMutation.isPending}
           saveSucceededAt={saveSucceededAt}
-          integrationKey={"integrationKey" in card ? card.integrationKey : undefined}
         />
-      ))}
+      </GruppoIntegrazioni>
 
-      {/* Google Calendar Policies */}
-      <GoogleCalendarPoliciesCard
-        settings={settings}
-        isLoading={settingsLoading}
-        onToggle={(key, value) =>
-          saveMutation.mutate({ [key]: value ? "true" : "false" })
-        }
-        isSaving={saveMutation.isPending}
-      />
+      <GruppoIntegrazioni titolo="Social, Meta e WhatsApp" descrizione="Lead da Facebook e Instagram, collegamento Meta delle aziende, WhatsApp Business">
+        {/* Lead Facebook/Instagram dei brand della piattaforma → CRM del superadmin */}
+        <div className="xl:col-span-2"><AdminMetaLeadsCard /></div>
+        {apiCard("Integrazioni Meta")}
+        {apiCard("WhatsApp")}
+      </GruppoIntegrazioni>
 
-      {/* Quick links a pagine correlate */}
+      <GruppoIntegrazioni titolo="Google" descrizione="Calendari e mappe">
+        {apiCard("Google Calendar")}
+        <GoogleCalendarPoliciesCard
+          settings={settings}
+          isLoading={settingsLoading}
+          onToggle={(key, value) =>
+            saveMutation.mutate({ [key]: value ? "true" : "false" })
+          }
+          isSaving={saveMutation.isPending}
+        />
+        {apiCard("Google Maps")}
+      </GruppoIntegrazioni>
+
+      {/* Email, banche e webhook hanno pagine loro */}
       <QuickLinksRow />
     </div>
+  );
+}
+
+function GruppoIntegrazioni({
+  titolo, descrizione, children,
+}: { titolo: string; descrizione: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3" aria-label={titolo}>
+      <div>
+        <h2 className="text-base font-semibold">{titolo}</h2>
+        <p className="text-xs text-muted-foreground max-sm:hidden">{descrizione}</p>
+      </div>
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">{children}</div>
+    </section>
   );
 }

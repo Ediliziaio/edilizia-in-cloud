@@ -10,13 +10,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Building2, Trophy, Bell, Loader2, Flame, Hourglass, CalendarX, UserX, ShieldCheck } from "lucide-react";
+import { useCrmSegmenti } from "./useCrmSegmenti";
 
 const eur = (n: number) => {
   const v = Math.round(n || 0);
   if (Math.abs(v) >= 1000) return `€${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k`;
   return `€${v}`;
 };
-const isHot = (t: string | null) => /hot|cald|high|alto|^a$/i.test(t || "");
 
 function Shell({
   title,
@@ -24,6 +24,7 @@ function Shell({
   isLoading,
   isEmpty,
   emptyText,
+  note,
   children,
 }: {
   title: string;
@@ -31,6 +32,8 @@ function Shell({
   isLoading: boolean;
   isEmpty: boolean;
   emptyText: string;
+  /** Nota a destra del titolo (es. «oggi, indipendente dal periodo»). */
+  note?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -38,6 +41,7 @@ function Shell({
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" aria-hidden="true" /> {title}
+          {note && <span className="ml-auto text-xs font-normal text-muted-foreground">{note}</span>}
         </div>
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -55,74 +59,25 @@ function Shell({
 
 // ─── Aziende / Account ──────────────────────────────────────────────────────
 export function CrmAccountsCard({ companyId }: { companyId: string }) {
-  const q = useQuery({
-    queryKey: ["crm-dash", "accounts", companyId],
-    staleTime: 60_000,
-    queryFn: async () => {
-      const [contacts, opps] = await Promise.all([
-        supabase
-          .from("marketing_contacts")
-          .select("id,company_name,first_name,last_name,is_decision_maker,ai_score_tier,tipo")
-          .eq("company_id", companyId)
-          .limit(5000),
-        supabase
-          .from("marketing_opportunities")
-          .select("contact_id,value,status")
-          .eq("company_id", companyId)
-          .is("deleted_at", null)
-          .limit(5000),
-      ]);
-      if (contacts.error) throw contacts.error;
-      return {
-        contacts: (contacts.data ?? []) as {
-          id: string;
-          company_name: string | null;
-          first_name: string;
-          last_name: string | null;
-          is_decision_maker: boolean | null;
-          ai_score_tier: string | null;
-          tipo: string | null;
-        }[],
-        opps: (opps.data ?? []) as { contact_id: string | null; value: number | null; status: string | null }[],
-      };
-    },
-  });
-
-  const rows = useMemo(() => {
-    const d = q.data;
-    if (!d) return [];
-    const pipelineByContact = new Map<string, number>();
-    for (const o of d.opps) {
-      if (o.contact_id && (o.status ?? "open") === "open") {
-        pipelineByContact.set(o.contact_id, (pipelineByContact.get(o.contact_id) ?? 0) + (o.value ?? 0));
-      }
-    }
-    const byCompany = new Map<
-      string,
-      { contacts: number; dm: string | null; pipeline: number; hot: number; trade: string | null }
-    >();
-    for (const c of d.contacts) {
-      const name = (c.company_name || "").trim();
-      if (!name) continue;
-      const cur = byCompany.get(name) ?? { contacts: 0, dm: null, pipeline: 0, hot: 0, trade: null };
-      cur.contacts += 1;
-      cur.pipeline += pipelineByContact.get(c.id) ?? 0;
-      if (isHot(c.ai_score_tier)) cur.hot += 1;
-      if (!cur.trade && c.tipo) cur.trade = c.tipo;
-      if (c.is_decision_maker && !cur.dm) {
-        cur.dm = `${c.first_name} ${c.last_name ?? ""}`.trim();
-      }
-      byCompany.set(name, cur);
-    }
-    return [...byCompany.entries()]
-      .map(([company, v]) => ({ company, ...v }))
-      .sort((a, b) => b.pipeline - a.pipeline || b.contacts - a.contacts)
-      .slice(0, 8);
-  }, [q.data]);
+  // Conta il database su TUTTI i contatti (prima: campione di 5.000).
+  const q = useCrmSegmenti(companyId);
+  const rows = useMemo(
+    () =>
+      (q.data?.aziende ?? []).map((a) => ({
+        company: a.azienda,
+        contacts: a.contatti,
+        dm: a.decision_maker,
+        pipeline: a.pipeline,
+        hot: a.caldi,
+        trade: a.mestiere,
+      })),
+    [q.data],
+  );
 
   return (
     <Shell
       title="Aziende / Account"
+      note={q.data?.approssimato ? "oggi · prime aziende scelte su un campione" : "oggi, indipendente dal periodo"}
       icon={Building2}
       isLoading={q.isLoading}
       isEmpty={rows.length === 0}
@@ -168,23 +123,45 @@ export function CrmAccountsCard({ companyId }: { companyId: string }) {
 }
 
 // ─── Classifica team ────────────────────────────────────────────────────────
-export function CrmTeamCard({ companyId }: { companyId: string }) {
+export function CrmTeamCard({ companyId, days }: { companyId: string; days: number }) {
+  const [nowMs] = useState(() => Date.now());
+  const sinceIso = useMemo(() => new Date(nowMs - days * 86_400_000).toISOString(), [nowMs, days]);
   const q = useQuery({
-    queryKey: ["crm-dash", "team", companyId],
+    queryKey: ["crm-dash", "team", companyId, sinceIso],
     staleTime: 60_000,
     queryFn: async () => {
-      const [acts, opps] = await Promise.all([
-        supabase.from("marketing_contact_activities").select("created_by").eq("company_id", companyId).limit(5000),
+      // Tutto nel periodo scelto: attività fatte, vinte (won_at) e perse (lost_at).
+      const [acts, won, lost] = await Promise.all([
+        supabase
+          .from("marketing_contact_activities")
+          .select("created_by")
+          .eq("company_id", companyId)
+          .gte("created_at", sinceIso)
+          .limit(5000),
         supabase
           .from("marketing_opportunities")
           .select("assigned_to,status,value")
           .eq("company_id", companyId)
+          .eq("status", "won")
           .is("deleted_at", null)
+          .gte("won_at", sinceIso)
+          .limit(5000),
+        supabase
+          .from("marketing_opportunities")
+          .select("assigned_to,status,value")
+          .eq("company_id", companyId)
+          .eq("status", "lost")
+          .is("deleted_at", null)
+          .gte("lost_at", sinceIso)
           .limit(5000),
       ]);
       if (acts.error) throw acts.error;
       const a = (acts.data ?? []) as { created_by: string | null }[];
-      const o = (opps.data ?? []) as { assigned_to: string | null; status: string | null; value: number | null }[];
+      const o = [...(won.data ?? []), ...(lost.data ?? [])] as {
+        assigned_to: string | null;
+        status: string | null;
+        value: number | null;
+      }[];
       const ids = [
         ...new Set([...a.map((x) => x.created_by), ...o.map((x) => x.assigned_to)].filter(Boolean)),
       ] as string[];
@@ -229,6 +206,7 @@ export function CrmTeamCard({ companyId }: { companyId: string }) {
   return (
     <Shell
       title="Classifica agenti (per conversione)"
+      note={`ultimi ${days} giorni`}
       icon={Trophy}
       isLoading={q.isLoading}
       isEmpty={rows.length === 0}
@@ -270,32 +248,25 @@ const TONE: Record<AlertTone, string> = {
 
 export function CrmAlertsCard({ companyId }: { companyId: string }) {
   const [nowMs] = useState(() => Date.now());
+  const seg = useCrmSegmenti(companyId);
   const q = useQuery({
     queryKey: ["crm-dash", "alerts", companyId],
     staleTime: 60_000,
     queryFn: async () => {
-      const [contacts, opps, stages] = await Promise.all([
-        supabase
-          .from("marketing_contacts")
-          .select("ai_score_tier,last_activity_at,is_decision_maker,company_name")
-          .eq("company_id", companyId)
-          .limit(5000),
+      // I contatti caldi li conta il database (useCrmSegmenti): qui servono
+      // solo le opportunità aperte e le soglie di stallo.
+      const [opps, stages] = await Promise.all([
         supabase
           .from("marketing_opportunities")
           .select("status,stage_changed_at,next_action_date,stage_id")
           .eq("company_id", companyId)
+          .eq("status", "open")
           .is("deleted_at", null)
           .limit(5000),
         supabase.from("marketing_pipeline_stages").select("id,stalled_threshold_days").eq("company_id", companyId),
       ]);
-      if (contacts.error) throw contacts.error;
+      if (opps.error) throw opps.error;
       return {
-        contacts: (contacts.data ?? []) as {
-          ai_score_tier: string | null;
-          last_activity_at: string | null;
-          is_decision_maker: boolean | null;
-          company_name: string | null;
-        }[],
         opps: (opps.data ?? []) as {
           status: string | null;
           stage_changed_at: string | null;
@@ -311,27 +282,12 @@ export function CrmAlertsCard({ companyId }: { companyId: string }) {
     const d = q.data;
     if (!d) return [];
     const out: { tone: AlertTone; icon: typeof Flame; text: string }[] = [];
-    const fiveDays = nowMs - 5 * 86_400_000;
 
-    const hotCold = d.contacts.filter(
-      (c) => isHot(c.ai_score_tier) && (!c.last_activity_at || new Date(c.last_activity_at).getTime() < fiveDays),
-    ).length;
+    const hotCold = seg.data?.caldi_senza_followup ?? 0;
     if (hotCold > 0)
       out.push({ tone: "warn", icon: Flame, text: `${hotCold} lead caldi senza follow-up da 5+ giorni` });
 
-    const dmByCompany = new Map<string, boolean>();
-    for (const c of d.contacts) {
-      const k = (c.company_name || "").trim();
-      if (!k) continue;
-      if (c.is_decision_maker) dmByCompany.set(k, true);
-      else if (!dmByCompany.has(k)) dmByCompany.set(k, false);
-    }
-    const hotCompaniesNoDm = new Set(
-      d.contacts
-        .filter((c) => isHot(c.ai_score_tier) && (c.company_name || "").trim())
-        .map((c) => (c.company_name || "").trim())
-        .filter((k) => dmByCompany.get(k) === false),
-    ).size;
+    const hotCompaniesNoDm = seg.data?.aziende_calde_senza_dm ?? 0;
     if (hotCompaniesNoDm > 0)
       out.push({ tone: "info", icon: UserX, text: `${hotCompaniesNoDm} aziende calde senza decision maker identificato` });
 
@@ -351,13 +307,14 @@ export function CrmAlertsCard({ companyId }: { companyId: string }) {
       out.push({ tone: "warn", icon: CalendarX, text: `${overdue} prossime azioni in scadenza o scadute` });
 
     return out;
-  }, [q.data, nowMs]);
+  }, [q.data, seg.data, nowMs]);
 
   return (
     <Shell
       title="Alert intelligenti"
+      note="oggi, indipendente dal periodo"
       icon={Bell}
-      isLoading={q.isLoading}
+      isLoading={q.isLoading || seg.isLoading}
       isEmpty={false}
       emptyText=""
     >

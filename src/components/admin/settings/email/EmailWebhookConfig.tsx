@@ -39,6 +39,9 @@ const RESEND_WEBHOOK_SECRET_KEY = "email_resend_webhook_secret";
 export function EmailWebhookConfig() {
   const queryClient = useQueryClient();
   const [showSecret, setShowSecret] = useState(false);
+  // Gli indirizzi da copiare contengono il segreto: a schermo resta coperto finché non si preme «Mostra».
+  // «Copia» copia sempre l'indirizzo completo.
+  const [mostraIndirizzi, setMostraIndirizzi] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState("");
   const [mailgunSigningKey, setMailgunSigningKey] = useState("");
   const [resendWebhookSecret, setResendWebhookSecret] = useState("");
@@ -105,6 +108,10 @@ export function EmailWebhookConfig() {
         ? "&secret=<SUPABASE_WEBHOOK_SECRET>"
         : "&secret=<configura-secret>"}`,
   }), [baseWebhookUrl, effectiveDisplaySecret, secretSource]);
+
+  const segretoInChiaro = effectiveDisplaySecret ? `secret=${encodeURIComponent(effectiveDisplaySecret)}` : null;
+  const aSchermo = (url: string) =>
+    mostraIndirizzi || !segretoInChiaro ? url : url.replace(segretoInChiaro, "secret=••••••••");
 
   const copyValue = async (value: string, label: string) => {
     try {
@@ -224,6 +231,7 @@ export function EmailWebhookConfig() {
                 size="icon"
                 className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
                 onClick={() => setShowSecret((current) => !current)}
+                aria-label={showSecret ? "Nascondi i segreti" : "Mostra i segreti"}
               >
                 {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -300,15 +308,25 @@ export function EmailWebhookConfig() {
           </Alert>
         )}
 
+        {segretoInChiaro && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">Negli indirizzi qui sotto il segreto è coperto. «Copia» copia l'indirizzo completo.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setMostraIndirizzi((v) => !v)}>
+              {mostraIndirizzi ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
+              {mostraIndirizzi ? "Nascondi" : "Mostra"}
+            </Button>
+          </div>
+        )}
+
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs text-muted-foreground">URL webhook marketing</Label>
-              <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => copyValue(webhookUrls.marketing, "Webhook marketing")}>
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label="Copia l'indirizzo per le campagne" onClick={() => copyValue(webhookUrls.marketing, "Webhook marketing")}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <Input readOnly value={webhookUrls.marketing} className="bg-muted font-mono text-xs" />
+            <Input readOnly value={aSchermo(webhookUrls.marketing)} className="bg-muted font-mono text-xs" />
             <p className="text-xs text-muted-foreground">
               Da usare per Elastic Email marketing e provider bulk. Lato Elastic Email le Notification settings sono disponibili sui piani PRO.
             </p>
@@ -317,11 +335,11 @@ export function EmailWebhookConfig() {
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs text-muted-foreground">URL webhook transazionale</Label>
-              <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => copyValue(webhookUrls.transactional, "Webhook transazionale")}>
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label="Copia l'indirizzo per i messaggi di servizio" onClick={() => copyValue(webhookUrls.transactional, "Webhook transazionale")}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <Input readOnly value={webhookUrls.transactional} className="bg-muted font-mono text-xs" />
+            <Input readOnly value={aSchermo(webhookUrls.transactional)} className="bg-muted font-mono text-xs" />
             <p className="text-xs text-muted-foreground">
               Da usare per eventi di delivery dei provider di sistema. Il parser è unico e distingue automaticamente lo stream.
             </p>

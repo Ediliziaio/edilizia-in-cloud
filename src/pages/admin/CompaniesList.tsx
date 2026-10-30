@@ -42,7 +42,7 @@ import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/comp
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters, type CompanyFilters } from "@/hooks/superadmin/useCompanyFilters";
-import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, type AdminRevenueState } from "@/lib/adminRevenue";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, applyPlanPriceOverride, ADMIN_REVENUE_COMPANY_SELECT, type AdminRevenueState } from "@/lib/adminRevenue";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -168,35 +168,8 @@ function sanitizeOrSearchTerm(value: string): string {
   return value.trim().replace(/[,%]/g, " ").replace(/\s+/g, " ");
 }
 
-// ── Override prezzo piano (company_billing_overrides, service='plan') ──────
-// Il tab Billing può assegnare un prezzo custom: MRR/KPI/CSV devono usare
-// QUELLO, non il listino. Le query embeddano gli override e qui il prezzo del
-// piano viene sostituito prima di ogni calcolo (getCompanyMonthlyRevenue &co
-// leggono subscription_plans.price_monthly).
-interface PlanPriceOverrideRow {
-  service: string | null;
-  custom_plan_price_eur: number | null;
-  override_expires_at: string | null;
-  is_enabled: boolean | null;
-}
-function applyPlanPriceOverride<T>(rows: T[]): T[] {
-  return rows.map((r) => {
-    const row = r as { subscription_plans?: unknown; company_billing_overrides?: PlanPriceOverrideRow[] | null };
-    const ov = (row.company_billing_overrides ?? []).find((o) =>
-      o.service === "plan" &&
-      o.is_enabled !== false &&
-      (!o.override_expires_at || new Date(o.override_expires_at) >= new Date()) &&
-      typeof o.custom_plan_price_eur === "number" &&
-      Number.isFinite(o.custom_plan_price_eur) &&
-      o.custom_plan_price_eur >= 0,
-    );
-    if (!ov || !row.subscription_plans) return r;
-    return {
-      ...row,
-      subscription_plans: { ...(row.subscription_plans as object), price_monthly: ov.custom_plan_price_eur },
-    } as T;
-  });
-}
+// Override prezzo piano: `applyPlanPriceOverride` sta in @/lib/adminRevenue,
+// condivisa con l'hub Fatturato perché i due MRR coincidano sempre.
 
 function csvCell(value: unknown): string {
   return escapeCsvCell(value as string | number | null | undefined, ",");
@@ -347,7 +320,7 @@ export default function CompaniesList() {
     queryFn: async () => {
       let q = supabase
         .from("companies")
-        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)")
+        .select(ADMIN_REVENUE_COMPANY_SELECT)
         .eq("is_platform_admin_company", false)
         // Le aziende cancellate restano nel database per 30 giorni ma non
         // devono comparire nell'operatività né nei conteggi.
@@ -560,7 +533,7 @@ export default function CompaniesList() {
       let query = supabase
         .from("companies")
         .select(
-          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)",
+          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users), company_subscriptions(status, stripe_subscription_id, billing_period), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)",
           { count: "exact" }
         )
         .eq("is_platform_admin_company", false)
@@ -1217,6 +1190,11 @@ export default function CompaniesList() {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.revenueIntelligence() });
+      // Lo stato cambia MRR e conteggi: anche Fatturato e la home admin.
+      queryClient.invalidateQueries({ queryKey: ["admin-fatturato-snapshot"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-revenue-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-home-soldi"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-home-aziende"] });
       toast.success("Stato azienda aggiornato");
     },
     onError: (error) => {
@@ -1280,6 +1258,7 @@ export default function CompaniesList() {
           stripe_subscription_status: c.stripe_subscription_status,
           is_platform_admin_company: c.is_platform_admin_company,
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
+          company_subscriptions: c.company_subscriptions,
         }))}
         healthData={healthData}
         healthStatus={isHealthRowsLoading ? "loading" : isHealthRowsError ? "error" : undefined}

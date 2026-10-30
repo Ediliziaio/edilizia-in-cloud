@@ -36,10 +36,14 @@ export async function changeCompanyPlan(supabaseAdmin: any, userId: string, body
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("subscription_plans")
-      .select("id, name, stripe_price_monthly_id, stripe_price_yearly_id, price_monthly")
+      .select("id, name, slug, is_active, trial_days, stripe_price_monthly_id, stripe_price_yearly_id, price_monthly")
       .eq("id", new_plan_id)
       .single();
     if (planErr || !newPlan) return errorResponse("Piano non trovato", 404, corsH);
+    // un piano disattivato non si sceglie più (né per le aziende nuove né per i cambi)
+    if (newPlan.is_active === false) {
+      return errorResponse(`Il piano «${newPlan.name}» è disattivato: riattivalo o scegline un altro`, 400, corsH);
+    }
 
     // No-op check: se il piano non cambia, torna subito success idempotente
     if (company.subscription_plan_id === new_plan_id) {
@@ -133,9 +137,24 @@ export async function changeCompanyPlan(supabaseAdmin: any, userId: string, body
     }
 
     // --- Commit: aggiornamento DB ------------------------------------------
+    // Lo stato segue il piano, con la stessa regola della creazione azienda
+    // (create-company): verso un piano gratis una prova diventa «free»; da
+    // «free» a un piano a pagamento parte la prova del piano (senza giorni di
+    // prova, il pagamento si attiva al primo accesso). Prima cambiava solo il
+    // piano e un'azienda passata da Scopri a Pro restava «free».
+    const nuovoGratis = newPlan.slug === "scopri" || Number(newPlan.price_monthly ?? -1) === 0;
+    const statoDopo: Record<string, unknown> = {};
+    if (nuovoGratis && company.status === "trial") {
+      statoDopo.status = "free";
+      statoDopo.trial_ends_at = null;
+    } else if (!nuovoGratis && company.status === "free") {
+      const giorni = Number(newPlan.trial_days ?? 0);
+      statoDopo.status = "trial";
+      statoDopo.trial_ends_at = new Date(Date.now() + Math.max(0, giorni) * 86400 * 1000).toISOString();
+    }
     const { error: updateErr } = await supabaseAdmin
       .from("companies")
-      .update({ subscription_plan_id: new_plan_id })
+      .update({ subscription_plan_id: new_plan_id, ...statoDopo })
       .eq("id", company_id);
     if (updateErr) {
       // Se il DB fallisce DOPO Stripe sync, abbiamo drift: logga esplicitamente.

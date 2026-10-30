@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3 } from "lucide-react";
 import { useCohortData, toCohortMatrix } from "@/hooks/superadmin/useCohortData";
+import { RigaRiepilogo } from "@/components/admin/fatturato/AreaUI";
 import type { CohortMatrixEntry, CohortRow } from "@/hooks/superadmin/useCohortData";
 
 // ─── Costanti ────────────────────────────────────────────
@@ -274,16 +275,29 @@ function CohortSkeleton() {
 export function CohortChart() {
   const { data: rows, isLoading, isError } = useCohortData();
   const matrix = toCohortMatrix(rows ?? []);
+  // Riepilogo: quante cohort, quante aziende acquisite e quante ne restano
+  // in media dopo 1, 3 e 6 mesi (stessa media del grafico churn).
+  const churn = buildChurnData(rows ?? []);
+  const retentionAl = (mese: number) => churn.find((p) => p.period === mese)?.retention ?? null;
+  const acquisite = (rows ?? []).filter((r) => r.period_number === 0).reduce((t, r) => t + (r.total_users || 0), 0);
+  const pct = (v: number | null) => (v == null ? "—" : `${v}%`);
+  const tono = (v: number | null) => (v == null ? "spento" as const : v >= 60 ? "buono" as const : v >= 40 ? "attenzione" as const : "critico" as const);
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold">Analisi Cohort</h2>
-        <p className="text-sm text-muted-foreground">
-          Retention delle aziende per mese di acquisizione
-        </p>
-      </div>
+      {/* Il titolo lo dà la pagina: qui subito i numeri. */}
+      {!isError && (
+        <RigaRiepilogo
+          colonne={5}
+          voci={[
+            { etichetta: "Cohort", valore: isLoading ? "…" : matrix.length, dettaglio: "mesi di arrivo" },
+            { etichetta: "Aziende acquisite", valore: isLoading ? "…" : acquisite, dettaglio: "in tutte le cohort" },
+            { etichetta: "Restano dopo 1 mese", valore: isLoading ? "…" : pct(retentionAl(1)), tono: tono(retentionAl(1)) },
+            { etichetta: "Dopo 3 mesi", valore: isLoading ? "…" : pct(retentionAl(3)), tono: tono(retentionAl(3)) },
+            { etichetta: "Dopo 6 mesi", valore: isLoading ? "…" : pct(retentionAl(6)), tono: tono(retentionAl(6)) },
+          ]}
+        />
+      )}
 
       {/* Stato errore */}
       {isError && (
@@ -296,8 +310,8 @@ export function CohortChart() {
 
       <Tabs defaultValue="matrice">
         <TabsList>
-          <TabsTrigger value="matrice">Matrice Retention</TabsTrigger>
-          <TabsTrigger value="churn">Churn per Cohort</TabsTrigger>
+          <TabsTrigger value="matrice">Chi resta, per mese</TabsTrigger>
+          <TabsTrigger value="churn">Andamento medio</TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Heatmap */}

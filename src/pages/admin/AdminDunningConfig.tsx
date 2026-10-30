@@ -247,14 +247,8 @@ export default function AdminDunningConfig() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">Dunning — Recupero Pagamenti</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Sequenza email automatica per abbonamenti scaduti e trial esauriti
-          </p>
-        </div>
+      {/* Titolo e sottotitolo li dà già l'hub Fatturato (unico punto d'accesso): qui solo le azioni. */}
+      <div className="flex justify-end">
         <Button
           onClick={() => triggerDunning.mutate()}
           disabled={triggerDunning.isPending}
@@ -292,6 +286,9 @@ export default function AdminDunningConfig() {
         </Alert>
       )}
 
+      {/* Su schermo largo sequenza e parametri stanno affiancati, invece di
+          due riquadri a tutta larghezza con mezzo schermo vuoto. */}
+      <div className="grid items-start gap-4 md:gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {/* Sequenza Dunning Abbonamenti */}
       <Card>
         <CardHeader>
@@ -427,6 +424,8 @@ export default function AdminDunningConfig() {
           </Button>
         </CardContent>
       </Card>
+
+      </div>
 
       {/* Log tentativi */}
       <Card>

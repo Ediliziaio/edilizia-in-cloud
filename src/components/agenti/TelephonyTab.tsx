@@ -50,7 +50,7 @@ interface PhoneNumberV2 {
 
 export function TelephonyTab() {
   const isAdminContext = useLocation().pathname.startsWith("/admin");
-  const settingsUrl = isAdminContext ? "/admin/ai-config" : "/azienda/impostazioni/numeri-telefono";
+  const settingsUrl = isAdminContext ? "/admin/ai?section=config" : "/azienda/impostazioni/numeri-telefono";
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);

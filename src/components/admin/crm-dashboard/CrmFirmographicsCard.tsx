@@ -2,15 +2,13 @@
  * CrmFirmographicsCard — cluster dei contatti per SETTORE (codice ATECO) e per
  * DIMENSIONE azienda (company_size). Completa il cluster per mestiere/zona.
  *
- * Le colonne ateco_code / company_size non sono nei tipi generati finché la
- * migration non è applicata → query non tipizzata, fail-open (empty-state se
- * mancano o sono vuote). I dati si popolano compilando i contatti.
+ * I conteggi li fa il database su tutti i contatti (useCrmSegmenti); empty-state
+ * se ATECO e dimensione non sono compilati.
  */
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Factory, Users, Building, Loader2 } from "lucide-react";
+import { useCrmSegmenti } from "./useCrmSegmenti";
 
 interface Row {
   label: string;
@@ -37,33 +35,16 @@ function Bars({ rows, color }: { rows: Row[]; color: string }) {
 }
 
 export function CrmFirmographicsCard({ companyId }: { companyId: string }) {
-  const q = useQuery({
-    queryKey: ["crm-dash", "firmographics", companyId],
-    staleTime: 60_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from("marketing_contacts") as any)
-        .select("ateco_code,company_size")
-        .eq("company_id", companyId)
-        .limit(5000);
-      if (error) return [] as { ateco_code: string | null; company_size: string | null }[];
-      return (data ?? []) as { ateco_code: string | null; company_size: string | null }[];
-    },
-  });
+  // Conta il database su TUTTI i contatti (prima: campione di 5.000).
+  const q = useCrmSegmenti(companyId);
 
-  const { ateco, sizes } = useMemo(() => {
-    const a = new Map<string, number>();
-    const s = new Map<string, number>();
-    for (const c of q.data ?? []) {
-      const at = (c.ateco_code || "").trim();
-      if (at) a.set(at, (a.get(at) ?? 0) + 1);
-      const sz = (c.company_size || "").trim();
-      if (sz) s.set(sz, (s.get(sz) ?? 0) + 1);
-    }
-    const top = (m: Map<string, number>): Row[] =>
-      [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([label, value]) => ({ label, value }));
-    return { ateco: top(a), sizes: top(s) };
-  }, [q.data]);
+  const { ateco, sizes } = useMemo(
+    () => ({
+      ateco: (q.data?.ateco ?? []).map((a) => ({ label: a.ateco, value: a.n })),
+      sizes: (q.data?.dimensioni ?? []).map((d) => ({ label: d.dimensione, value: d.n })),
+    }),
+    [q.data],
+  );
 
   const empty = ateco.length === 0 && sizes.length === 0;
 
@@ -72,6 +53,7 @@ export function CrmFirmographicsCard({ companyId }: { companyId: string }) {
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Factory className="h-4 w-4" aria-hidden="true" /> Settore (ATECO) e dimensione
+          <span className="ml-auto text-xs font-normal text-muted-foreground">oggi, indipendente dal periodo</span>
         </div>
         {q.isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">

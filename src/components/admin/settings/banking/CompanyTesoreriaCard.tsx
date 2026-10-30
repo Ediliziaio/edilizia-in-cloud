@@ -1,209 +1,279 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Building2, Search, Link2, AlertCircle } from "lucide-react";
+import { Building2, Search, Link2, AlertCircle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+/**
+ * Tesoreria per azienda: SOLA LETTURA dello stato vero.
+ *
+ * Prima qui c'era un interruttore che scriveva `companies.tesoreria_enabled`, colonna che nessuno legge:
+ * la Tesoreria si accende dalla funzionalità «tesoreria» (resolve_company_feature: eccezione dell'azienda in
+ * company_feature_overrides → valore del piano in plan_feature_defaults → piani inclusi nel flag → valore
+ * predefinito del flag). L'interruttore mostrava uno stato falso e non accendeva niente (30/10/2026).
+ * Ora la scheda ricalcola lo stato con la stessa regola e rimanda a /admin/feature-flags per cambiarlo.
+ */
+
+export type LivelloAccesso = "enabled" | "preview" | "disabled";
+export type FonteStato = "eccezione" | "piano" | "piano_incluso" | "predefinito";
 
 interface CompanyRow {
   id: string;
   name: string;
-  tesoreria_enabled: boolean;
+  livello: LivelloAccesso;
+  fonte: FonteStato;
   active_connections: number;
 }
 
-/**
- * FIX: prima il componente faceva N+1 queries (1 per ogni azienda) per contare
- * le connessioni bancarie attive. Con 100 aziende significava 100 round-trip.
- * Ora due query parallele + aggregazione client-side.
- */
+interface Override {
+  company_id: string;
+  access_level: LivelloAccesso | null;
+  is_enabled: boolean | null;
+  expires_at: string | null;
+}
+
+/** Stessa regola di resolve_company_feature, per una azienda. Esportata per i test. */
+export function statoTesoreria(args: {
+  override?: Pick<Override, "access_level" | "is_enabled" | "expires_at"> | null;
+  pianoDefault?: { access_level: LivelloAccesso | null; is_enabled: boolean | null } | null;
+  pianoSlug?: string | null;
+  pianiInclusi?: string[] | null;
+  predefinito?: boolean | null;
+  adesso?: number;
+}): { livello: LivelloAccesso; fonte: FonteStato } {
+  const adesso = args.adesso ?? Date.now();
+  const ov = args.override;
+  if (ov && ov.is_enabled !== null && (!ov.expires_at || new Date(ov.expires_at).getTime() > adesso)) {
+    return { livello: ov.access_level ?? (ov.is_enabled ? "enabled" : "disabled"), fonte: "eccezione" };
+  }
+  const pd = args.pianoDefault;
+  if (pd) {
+    return { livello: pd.access_level ?? (pd.is_enabled ? "enabled" : "disabled"), fonte: "piano" };
+  }
+  if (args.pianoSlug && args.pianiInclusi?.includes(args.pianoSlug)) {
+    return { livello: "enabled", fonte: "piano_incluso" };
+  }
+  return { livello: args.predefinito ? "enabled" : "disabled", fonte: "predefinito" };
+}
+
+const ETICHETTA_LIVELLO: Record<LivelloAccesso, string> = {
+  enabled: "Attiva",
+  preview: "Anteprima",
+  disabled: "Spenta",
+};
+const ETICHETTA_FONTE: Record<FonteStato, string> = {
+  eccezione: "eccezione per l'azienda",
+  piano: "dal piano",
+  piano_incluso: "inclusa nel piano",
+  predefinito: "valore predefinito",
+};
+
 function useCompaniesWithTesoreria() {
   return useQuery({
-    queryKey: ["admin", "companies-tesoreria"],
+    queryKey: ["admin", "companies-tesoreria-stato"],
     queryFn: async (): Promise<CompanyRow[]> => {
-      const [companiesRes, connectionsRes] = await Promise.all([
+      const [companiesRes, connectionsRes, overridesRes, defaultsRes, flagRes, plansRes] = await Promise.all([
+        supabase.from("companies").select("id, name, subscription_plan_id").order("name"),
+        supabase.from("bank_connections").select("company_id").eq("status", "active"),
         supabase
-          .from("companies")
-          .select("id, name, tesoreria_enabled")
-          .order("name"),
+          .from("company_feature_overrides")
+          .select("company_id, access_level, is_enabled, expires_at")
+          .eq("feature_key", "tesoreria"),
         supabase
-          .from("bank_connections")
-          .select("company_id")
-          .eq("status", "active"),
+          .from("plan_feature_defaults")
+          .select("plan_id, access_level, is_enabled")
+          .eq("feature_key", "tesoreria"),
+        supabase
+          .from("platform_feature_flags")
+          .select("default_value, plans_included")
+          .eq("key", "tesoreria")
+          .maybeSingle(),
+        supabase.from("subscription_plans").select("id, slug"),
       ]);
 
-      if (companiesRes.error) throw new Error(companiesRes.error.message);
-      if (connectionsRes.error) throw new Error(connectionsRes.error.message);
+      for (const r of [companiesRes, connectionsRes, overridesRes, defaultsRes, flagRes, plansRes]) {
+        if (r.error) throw new Error(r.error.message);
+      }
 
-      // Aggregazione in-memory: O(N) sul numero di connessioni
       const counts = new Map<string, number>();
       for (const row of connectionsRes.data ?? []) {
         const id = (row as { company_id: string }).company_id;
         counts.set(id, (counts.get(id) ?? 0) + 1);
       }
+      const overrides = new Map(
+        ((overridesRes.data ?? []) as unknown as Override[]).map((o) => [o.company_id, o]),
+      );
+      const defaults = new Map(
+        ((defaultsRes.data ?? []) as unknown as Array<{ plan_id: string; access_level: LivelloAccesso | null; is_enabled: boolean | null }>)
+          .map((d) => [d.plan_id, d]),
+      );
+      const slugs = new Map(((plansRes.data ?? []) as Array<{ id: string; slug: string | null }>).map((p) => [p.id, p.slug]));
+      const flag = flagRes.data as { default_value: boolean | null; plans_included: string[] | null } | null;
 
-      return (companiesRes.data ?? []).map((c) => ({
-        id: c.id,
-        name: c.name,
-        tesoreria_enabled: c.tesoreria_enabled ?? false,
-        active_connections: counts.get(c.id) ?? 0,
-      }));
+      return ((companiesRes.data ?? []) as Array<{ id: string; name: string; subscription_plan_id: string | null }>).map((c) => {
+        const stato = statoTesoreria({
+          override: overrides.get(c.id) ?? null,
+          pianoDefault: c.subscription_plan_id ? defaults.get(c.subscription_plan_id) ?? null : null,
+          pianoSlug: c.subscription_plan_id ? slugs.get(c.subscription_plan_id) ?? null : null,
+          pianiInclusi: flag?.plans_included ?? null,
+          predefinito: flag?.default_value ?? false,
+        });
+        return {
+          id: c.id,
+          name: c.name,
+          livello: stato.livello,
+          fonte: stato.fonte,
+          active_connections: counts.get(c.id) ?? 0,
+        };
+      });
     },
     staleTime: 2 * 60 * 1000,
   });
 }
 
-function useToggleTesoreria() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ companyId, value }: { companyId: string; value: boolean }) => {
-      const { error } = await supabase
-        .from("companies")
-        .update({ tesoreria_enabled: value } as never)
-        .eq("id", companyId);
-      if (error) throw new Error(error.message);
-      return { companyId, value };
-    },
-    // Optimistic update: toggle istantaneo in UI; rollback se la server call fallisce
-    onMutate: async ({ companyId, value }) => {
-      await qc.cancelQueries({ queryKey: ["admin", "companies-tesoreria"] });
-      const prev = qc.getQueryData<CompanyRow[]>(["admin", "companies-tesoreria"]);
-      qc.setQueryData<CompanyRow[]>(["admin", "companies-tesoreria"], (rows) =>
-        (rows ?? []).map((r) =>
-          r.id === companyId ? { ...r, tesoreria_enabled: value } : r,
-        ),
-      );
-      return { prev };
-    },
-    onError: (err: Error, _vars, ctx) => {
-      if (ctx?.prev) {
-        qc.setQueryData(["admin", "companies-tesoreria"], ctx.prev);
-      }
-      toast.error("Errore: " + err.message);
-    },
-    onSuccess: (_data, vars) => {
-      toast.success(vars.value ? "Tesoreria abilitata" : "Tesoreria disabilitata");
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ["admin", "companies-tesoreria"] });
-    },
-  });
-}
+type Filtro = "tutte" | LivelloAccesso;
 
 export default function CompanyTesoreriaCard() {
   const { data: companies = [], isLoading, error } = useCompaniesWithTesoreria();
-  const toggleMutation = useToggleTesoreria();
   const [search, setSearch] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("tutte");
 
-  const enabledCount = useMemo(
-    () => companies.filter((c) => c.tesoreria_enabled).length,
-    [companies],
-  );
+  const conteggi = useMemo(() => {
+    const c = { enabled: 0, preview: 0, disabled: 0 };
+    for (const r of companies) c[r.livello] += 1;
+    return c;
+  }, [companies]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter((c) => c.name.toLowerCase().includes(q));
-  }, [companies, search]);
+    return companies.filter(
+      (c) => (filtro === "tutte" || c.livello === filtro) && (!q || c.name.toLowerCase().includes(q)),
+    );
+  }, [companies, search, filtro]);
 
   if (error) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Impossibile caricare le aziende:{" "}
-          {error instanceof Error ? error.message : "errore sconosciuto"}
+          Non riesco a leggere le aziende: {error instanceof Error ? error.message : "errore sconosciuto"}
         </AlertDescription>
       </Alert>
     );
   }
 
+  const filtri: Array<{ id: Filtro; label: string; n: number }> = [
+    { id: "tutte", label: "Tutte", n: companies.length },
+    { id: "enabled", label: "Attiva", n: conteggi.enabled },
+    { id: "preview", label: "Anteprima", n: conteggi.preview },
+    { id: "disabled", label: "Spenta", n: conteggi.disabled },
+  ];
+
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 max-sm:hidden">
               <Building2 className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <CardTitle className="text-lg">Aziende con Tesoreria</CardTitle>
-              <CardDescription>
-                Abilita o disabilita la tesoreria per singola azienda
+            <div className="min-w-0">
+              <CardTitle className="text-base">Tesoreria per azienda</CardTitle>
+              <CardDescription className="max-sm:hidden">
+                Stato vero della funzionalità «Tesoreria». Si cambia da Funzionalità, non da qui.
               </CardDescription>
             </div>
           </div>
-          {!isLoading && (
-            <Badge variant="outline">
-              {enabledCount}/{companies.length} abilitate
-            </Badge>
-          )}
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/feature-flags">
+              Cambia in Funzionalità
+              <ExternalLink className="ml-1 h-3 w-3" />
+            </Link>
+          </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
             ))}
           </div>
         ) : (
           <>
-            {companies.length > 5 && (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cerca azienda..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            )}
-            {filtered.length === 0 ? (
-              <p className="text-muted-foreground text-sm text-center py-6">
-                {companies.length === 0
-                  ? "Nessuna azienda trovata"
-                  : "Nessun risultato per la ricerca"}
-              </p>
-            ) : (
-              <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-                {filtered.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between py-3 px-4 rounded-lg border hover:bg-muted/50 transition-colors"
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted/60 p-1 [scrollbar-width:none]" role="group" aria-label="Filtra per stato">
+                {filtri.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    aria-pressed={filtro === f.id}
+                    onClick={() => setFiltro(f.id)}
+                    className={cn(
+                      "whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
+                      filtro === f.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
                   >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{c.name}</p>
-                      {c.tesoreria_enabled && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Link2 className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            {c.active_connections}{" "}
-                            {c.active_connections === 1
-                              ? "connessione attiva"
-                              : "connessioni attive"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <Switch
-                      checked={c.tesoreria_enabled}
-                      disabled={toggleMutation.isPending}
-                      onCheckedChange={(val) =>
-                        toggleMutation.mutate({ companyId: c.id, value: val })
-                      }
-                    />
-                  </div>
+                    {f.label} <span className="tabular-nums text-muted-foreground">{f.n}</span>
+                  </button>
                 ))}
               </div>
+              {companies.length > 5 && (
+                <div className="relative sm:ml-auto sm:w-72">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca azienda…"
+                    aria-label="Cerca azienda"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              )}
+            </div>
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {companies.length === 0 ? "Nessuna azienda" : "Nessuna azienda con questi filtri"}
+              </p>
+            ) : (
+              <ul className="grid max-h-[520px] grid-cols-1 gap-1.5 overflow-y-auto lg:grid-cols-2 2xl:grid-cols-3">
+                {filtered.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{c.name}</p>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span>{ETICHETTA_FONTE[c.fonte]}</span>
+                        {c.active_connections > 0 && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <Link2 className="h-3 w-3" />
+                            {c.active_connections} {c.active_connections === 1 ? "conto collegato" : "conti collegati"}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0",
+                        c.livello === "enabled" && "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+                        c.livello === "preview" && "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+                      )}
+                    >
+                      {ETICHETTA_LIVELLO[c.livello]}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
             )}
           </>
         )}

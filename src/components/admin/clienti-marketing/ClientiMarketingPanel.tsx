@@ -355,7 +355,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo
       <CostiMeseDialog key={`${mese}-${costiDi?.company_id ?? ""}`} cliente={costiDi} mese={mese} meseLeggibile={leggibile} oggi={oggi} open={!!costiDi} onOpenChange={(v) => { if (!v) setCostiDi(null); }} />
 
       <SoglieDialog
-        key={soglieDi?.service_client_id ?? "nessuno"}
+        key={`soglie-${soglieDi?.service_client_id ?? "nessuno"}`}
         cliente={soglieDi}
         soglia={soglieDi ? motore.data?.soglie.get(soglieDi.service_client_id) ?? null : null}
         benchmark={motore.data?.benchmark ?? []}
@@ -367,7 +367,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo
       {/* Il promemoria è un'attività della piattaforma sull'azienda del cliente:
           finisce in Attività e torna qui nella scheda e nella lista del mattino. */}
       <NewTaskDialog
-        key={promemoriaDi?.service_client_id ?? "nessuno"}
+        key={`promemoria-${promemoriaDi?.service_client_id ?? "nessuno"}`}
         open={!!promemoriaDi}
         onOpenChange={(v) => { if (!v) setPromemoriaDi(null); }}
         prefill={promemoriaDi ? { companyId: promemoriaDi.company_id, type: "follow_up", title: `${promemoriaDi.cliente_nome}: ` } : undefined}

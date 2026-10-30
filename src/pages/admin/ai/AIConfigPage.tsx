@@ -54,13 +54,13 @@ const fallback = (
 );
 
 const TABS = [
-  { value: "routing", label: "Routing", icon: Sliders },
-  { value: "personas", label: "Personas", icon: Users },
-  { value: "knowledge", label: "Knowledge", icon: BookOpen },
-  { value: "pricing", label: "Pricing", icon: Coins },
-  { value: "governance", label: "Governance", icon: ShieldAlert },
-  { value: "voices", label: "Voci TTS", icon: Mic },
-  { value: "public-chat", label: "Chatbot Pubblico", icon: MessageCircle },
+  { value: "routing", label: "Modelli", icon: Sliders },
+  { value: "personas", label: "Assistenti", icon: Users },
+  { value: "knowledge", label: "Conoscenze", icon: BookOpen },
+  { value: "pricing", label: "Prezzi", icon: Coins },
+  { value: "governance", label: "Limiti e controlli", icon: ShieldAlert },
+  { value: "voices", label: "Voci", icon: Mic },
+  { value: "public-chat", label: "Chat del sito", icon: MessageCircle },
 ];
 
 export default function AIConfigPage() {
@@ -92,8 +92,8 @@ export default function AIConfigPage() {
           subtitle="Configurazione"
           description="Imposta come il sistema AI ragiona, parla, costa e si comporta. Routing modelli, personas, knowledge base, pricing e governance — il setup che rende tutto il resto operativo."
           quickLinks={[
-            { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
-            { label: "Operate (azioni)", to: "/admin/ai-operate", icon: Bot },
+            { label: "Controllo", to: "/admin/ai?section=monitor", icon: Activity },
+            { label: "Operativo", to: "/admin/ai", icon: Bot },
           ]}
         />
       )}
@@ -105,7 +105,7 @@ export default function AIConfigPage() {
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <Activity className="h-3 w-3" />
-            Monitor
+            Controllo
           </button>
           <button
             type="button"
@@ -113,7 +113,7 @@ export default function AIConfigPage() {
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <Bot className="h-3 w-3" />
-            Operate
+            Operativo
           </button>
         </div>
       )}
@@ -134,8 +134,8 @@ export default function AIConfigPage() {
                   "Stima costi mensili basata su usage storico",
                 ]}
                 related={[
-                  { label: "Costi reali", to: "/admin/ai-monitor?tab=usage" },
-                  { label: "Test modelli A/B", to: "/admin/ai-monitor?tab=test-lab" },
+                  { label: "Costi reali", to: "/admin/ai?section=monitor&tab=usage" },
+                  { label: "Test modelli A/B", to: "/admin/ai?section=monitor&tab=test-lab" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -154,7 +154,7 @@ export default function AIConfigPage() {
                   "Modifiche al system prompt sono immediate e applicate a TUTTI i clienti",
                 ]}
                 related={[
-                  { label: "Personas Admin (C-suite)", to: "/admin/ai-operate?tab=personas" },
+                  { label: "Personas Admin (C-suite)", to: "/admin/ai?tab=personas" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -174,7 +174,7 @@ export default function AIConfigPage() {
                   "Playground = simula query e vedi i top-K chunks recuperati",
                 ]}
                 related={[
-                  { label: "Self-learning loop", to: "/admin/ai-operate?tab=learning" },
+                  { label: "Self-learning loop", to: "/admin/ai?tab=learning" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -194,7 +194,7 @@ export default function AIConfigPage() {
                   "Dashboard margini real-time: revenue vs cost giornaliero",
                 ]}
                 related={[
-                  { label: "Costi & Ricavi live", to: "/admin/ai-monitor?tab=usage" },
+                  { label: "Costi & Ricavi live", to: "/admin/ai?section=monitor&tab=usage" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -217,7 +217,7 @@ export default function AIConfigPage() {
                   "Esempio: cancel_subscription è policy=blocked di default → nessun cliente può cancellarla via AI, neanche se gli desti auto_execute qui.",
                 ]}
                 related={[
-                  { label: "Policy globali platform", to: "/admin/ai-operate?tab=policies" },
+                  { label: "Policy globali platform", to: "/admin/ai?tab=policies" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -231,7 +231,7 @@ export default function AIConfigPage() {
                   "Tipicamente popolata automaticamente da silvio-memory-extract cron",
                 ]}
                 related={[
-                  { label: "Memoria Personas Admin", to: "/admin/ai-operate?tab=memory" },
+                  { label: "Memoria Personas Admin", to: "/admin/ai?tab=memory" },
                 ]}
               />
               <Suspense fallback={fallback}>
@@ -246,7 +246,7 @@ export default function AIConfigPage() {
                 title="Voci ElevenLabs (TTS)"
                 description="Sintesi vocale per assistenti AI in modalità voice (chiamate outbound, vocaletti). Mappa voice_id → persona/scenario."
                 related={[
-                  { label: "Routing modelli (incluso STT/TTS)", to: "/admin/ai-config?tab=routing" },
+                  { label: "Routing modelli (incluso STT/TTS)", to: "/admin/ai?section=config&tab=routing" },
                 ]}
               />
               <Suspense fallback={fallback}>

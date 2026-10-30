@@ -110,7 +110,7 @@ describe("Superadmin: gestione pipeline interna", () => {
     expect(await screen.findByText("Vendita SaaS")).toBeInTheDocument();
     expect(screen.queryByText("Pipeline del cliente")).not.toBeInTheDocument();
     expect(state.calls[0].filters).toContainEqual(["company_id", PLATFORM_ADMIN_COMPANY_ID]);
-    expect(screen.getByRole("link", { name: "Torna alle opportunità" })).toHaveAttribute("href", "/admin/marketing/opportunita");
+    expect(screen.getByRole("link", { name: "Apri le opportunità" })).toHaveAttribute("href", "/admin/marketing/opportunita");
   });
 
   it("crea pipeline e fasi esclusivamente nel CRM interno", async () => {

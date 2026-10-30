@@ -29,12 +29,15 @@ function DonutCard({
   slices,
   isLoading,
   emptyText,
+  note,
 }: {
   title: string;
   icon: typeof Thermometer;
   slices: Slice[];
   isLoading: boolean;
   emptyText: string;
+  /** Nota a destra del titolo (periodo). */
+  note?: string;
 }) {
   const data = slices.filter((s) => s.value > 0);
   const [active, setActive] = useState<string | null>(null);
@@ -47,6 +50,7 @@ function DonutCard({
       <CardContent className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" aria-hidden="true" /> {title}
+          {note && <span className="ml-auto text-xs font-normal text-muted-foreground">{note}</span>}
         </div>
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -183,9 +187,11 @@ const LOSS_COLORS = [
   "hsl(var(--muted-foreground))",
 ];
 
-export function CrmWinLossCard({ companyId }: { companyId: string }) {
+export function CrmWinLossCard({ companyId, days }: { companyId: string; days: number }) {
+  const [nowMs] = useState(() => Date.now());
+  const sinceIso = useMemo(() => new Date(nowMs - days * 86_400_000).toISOString(), [nowMs, days]);
   const q = useQuery({
-    queryKey: ["crm-dash", "winloss", companyId],
+    queryKey: ["crm-dash", "winloss", companyId, sinceIso],
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -194,6 +200,8 @@ export function CrmWinLossCard({ companyId }: { companyId: string }) {
         .eq("company_id", companyId)
         .eq("status", "lost")
         .is("deleted_at", null)
+        // Perse NEL periodo: data di chiusura (lost_at).
+        .gte("lost_at", sinceIso)
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as { lost_reason_category: string | null; loss_reason: string | null }[];
@@ -215,10 +223,11 @@ export function CrmWinLossCard({ companyId }: { companyId: string }) {
   return (
     <DonutCard
       title="Perché perdiamo"
+      note={`ultimi ${days} giorni`}
       icon={CircleX}
       slices={slices}
       isLoading={q.isLoading}
-      emptyText="Nessuna trattativa persa nel CRM."
+      emptyText="Nessuna trattativa persa nel periodo."
     />
   );
 }

@@ -90,6 +90,7 @@ export function ServiceBillingsDialog({
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin", "service-billings", client?.id] });
+    qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] });
     qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] });
   };
 

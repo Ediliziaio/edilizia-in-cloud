@@ -172,7 +172,13 @@ describe("chi crea un'azienda non ingoia più l'errore sulle fasi", () => {
     expect(inizio).toBeGreaterThan(-1);
     expect(inizio).toBeLessThan(fine);
     const seFallisce = codice.slice(inizio, fine);
-    expect(seFallisce).toContain('.from("companies").delete().eq("id", companyId)');
+    // la cancellazione può stare in un aiuto comune a tutti i passi (create-company:
+    // annullaAzienda), purché sia chiamato qui e cancelli davvero l'azienda
+    if (seFallisce.includes("annullaAzienda()")) {
+      expect(codice).toMatch(/const annullaAzienda = async[\s\S]{0,200}\.from\("companies"\)\.delete\(\)\.eq\("id", companyId\)/);
+    } else {
+      expect(seFallisce).toContain('.from("companies").delete().eq("id", companyId)');
+    }
     expect(seFallisce).toMatch(/return (errorResponse|json)\(/);
     // nessun modello proprio e nessun INSERT diretto sulle fasi
     expect(codice).not.toMatch(/from\("order_statuses"\)\s*\.(insert|upsert)\(/);

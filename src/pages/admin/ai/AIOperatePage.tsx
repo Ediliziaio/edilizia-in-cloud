@@ -1,7 +1,7 @@
 /**
  * AIOperatePage — Operatività AI (sostituisce vecchia /admin/silvio-hub)
  *
- * 8 tab: Approvals · Queue · Policies · Agents · Chief · Personas Admin · Memory · Learning
+ * Schede: Da approvare · Coda · Regole · Agenti · Coordinatore · Assistenti del team · Memoria · Mappa 3D · Apprendimento
  *
  * Refactor Strategia C — consolida tutto ciò che è "operativo" del sistema AI
  * (azioni day-by-day, governance run-time). La vecchia /admin/silvio-hub
@@ -89,7 +89,7 @@ export default function AIOperatePage() {
   const TABS = [
     {
       value: "approvals",
-      label: "Approvals",
+      label: "Da approvare",
       icon: Inbox,
       count: counters?.approvals,
       countTone: counters?.approvals ? ("danger" as const) : ("default" as const),
@@ -101,7 +101,7 @@ export default function AIOperatePage() {
       count: counters?.queue,
       countTone: counters?.queue ? ("warning" as const) : ("default" as const),
     },
-    { value: "policies", label: "Policies", icon: ShieldCheck },
+    { value: "policies", label: "Regole", icon: ShieldCheck },
     {
       value: "agents",
       label: "Agenti",
@@ -109,11 +109,11 @@ export default function AIOperatePage() {
       count: counters?.missions,
       countTone: "default" as const,
     },
-    { value: "chief", label: "Chief", icon: Activity },
-    { value: "personas", label: "Personas Admin", icon: Users },
-    { value: "memory", label: "Memoria Admin", icon: Brain },
-    { value: "cervello", label: "Cervello 3D", icon: Network },
-    { value: "learning", label: "Learning", icon: Zap },
+    { value: "chief", label: "Coordinatore", icon: Activity },
+    { value: "personas", label: "Assistenti del team", icon: Users },
+    { value: "memory", label: "Memoria", icon: Brain },
+    { value: "cervello", label: "Mappa 3D", icon: Network },
+    { value: "learning", label: "Apprendimento", icon: Zap },
   ];
 
   return (
@@ -124,10 +124,10 @@ export default function AIOperatePage() {
           icon={Bot}
           title="AI · Operatività"
           subtitle="Operatività"
-          description="Cosa fa Silvio in questo momento. Approvazioni in attesa, azioni in coda, policy run-time, missioni multi-agent, brief strategici, memoria e self-learning."
+          description="Cosa fa Silvio adesso: azioni da approvare, coda, regole, missioni degli agenti, riepiloghi, memoria e apprendimento."
           quickLinks={[
-            { label: "Configurazione", to: "/admin/ai-config", icon: Settings },
-            { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
+            { label: "Configurazione", to: "/admin/ai?section=config", icon: Settings },
+            { label: "Controllo", to: "/admin/ai?section=monitor", icon: Activity },
           ]}
           actions={
             counters && (counters.approvals > 0 || counters.queue > 0) ? (
@@ -173,7 +173,7 @@ export default function AIOperatePage() {
                 className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
               >
                 <Settings className="h-3 w-3" />
-                Config
+                Configurazione
               </button>
               <button
                 type="button"
@@ -181,7 +181,7 @@ export default function AIOperatePage() {
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
               >
                 <Activity className="h-3 w-3" />
-                Monitor
+                Controllo
               </button>
             </>
           )}
@@ -196,12 +196,12 @@ export default function AIOperatePage() {
           approvals: (
             <>
               <SectionAlert.warning
-                title="Approvals — azioni che richiedono il tuo OK"
-                description="Silvio propone azioni rischiose (yellow/red risk level) e si ferma in attesa che tu approvi o rifiuti. Click 'Approva' → eseguito. Click 'Rifiuta' → scartato con motivazione."
+                title="Azioni che aspettano il tuo OK"
+                description="Silvio propone le azioni a rischio medio o alto e aspetta: con «Approva» l'azione parte, con «Rifiuta» si scarta e scrivi il motivo."
                 bullets={[
-                  "Le approvazioni scadono dopo X minuti (default 60min)",
-                  "Reject + feedback alimenta self-learning loop",
-                  "Audit log completo: chi/quando/cosa/risultato",
+                  "Una proposta scade dopo 60 minuti se nessuno risponde",
+                  "Il motivo di un rifiuto insegna a Silvio cosa non proporre",
+                  "Ogni scelta resta nel registro: chi, quando, cosa, com'è andata",
                 ]}
               />
               <ApprovalsTab />
@@ -210,8 +210,8 @@ export default function AIOperatePage() {
           queue: (
             <>
               <SectionAlert.info
-                title="Coda azioni outbound"
-                description="Tutto ciò che Silvio sta eseguendo o ha eseguito di recente. Filtri per status (queued/running/done/failed/cancelled). Retry su failure."
+                title="Coda delle azioni"
+                description="Quello che Silvio sta facendo o ha fatto da poco. Filtra per stato (in coda, in corso, fatta, fallita, annullata); quelle fallite si possono rilanciare."
                 bullets={[
                   "Runner esegue ogni 30s (silvio-action-runner cron)",
                   "Cancella o retry actions specifiche",
@@ -224,15 +224,15 @@ export default function AIOperatePage() {
           policies: (
             <>
               <SectionAlert.warning
-                title="Automation Policies (gate globale)"
-                description="Definisci per ogni action_type quale modalità di esecuzione applicare globalmente: auto / auto+notify / approval_required / blocked."
+                title="Regole di esecuzione"
+                description="Per ogni tipo di azione scegli come la esegue Silvio, per tutte le aziende: da solo, da solo avvisando, solo dopo il tuo OK, mai."
                 bullets={[
                   "Override hard: blocked = nessuno può eseguire, mai",
                   "I permessi per-azienda (in AI Config → Governance) si applicano DOPO questi",
                   "cancel_subscription, refund, delete_data sono blocked di default",
                 ]}
                 related={[
-                  { label: "Permessi per-azienda", to: "/admin/ai-config?tab=governance" },
+                  { label: "Permessi per-azienda", to: "/admin/ai?section=config&tab=governance" },
                 ]}
               />
               <PoliciesTab />
@@ -241,8 +241,8 @@ export default function AIOperatePage() {
           agents: (
             <>
               <SectionAlert.info
-                title="Multi-Agent Missions"
-                description="Sistema multi-agent orchestrato (8 agent: planner, growth, sales, finance, product_tech, customer_success, qa_compliance, coordinator). Mode: solo / panel / debate / chain / supervised_execution."
+                title="Missioni degli agenti"
+                description="Otto agenti specializzati (pianificazione, crescita, vendite, finanza, prodotto, assistenza clienti, controlli, coordinamento) lavorano da soli, a confronto o in catena su una missione."
                 bullets={[
                   "Templates rapidi: MRR+cassa, SEO/Ads, Bug/UX, Sales OS, GDPR/AI Act",
                   "Blackboard pattern: agent condividono fact/insight/risk/recommendation",
@@ -256,8 +256,8 @@ export default function AIOperatePage() {
           chief: (
             <>
               <SectionAlert.success
-                title="Chief of Staff — strategic OS"
-                description="Brief strategici giornalieri, KPI permanenti, monitor events e growth experiments. Cron daily 06:15 UTC."
+                title="Coordinatore"
+                description="Riepilogo strategico ogni mattina, indicatori fissi, eventi da tenere d'occhio ed esperimenti di crescita. Si aggiorna ogni giorno alle 08:15."
                 bullets={[
                   "Brief: top_priorities, decisions_needed, risks, experiments_suggested",
                   "Strategic objectives: MRR growth, lead conversion, churn, AI cost, stability",
@@ -271,8 +271,8 @@ export default function AIOperatePage() {
           personas: (
             <>
               <SectionAlert.warning
-                title="Personas Admin C-suite"
-                description="Le 21 personas che Silvio attiva quando rispondi a una domanda strategica nella chat /admin/silvio: Beatrice CFO, Marco CMO, Sofia COO, ecc."
+                title="Assistenti del team"
+                description="I 21 assistenti che Silvio chiama in causa per le domande strategiche nella chat di Silvio: Beatrice (finanza), Marco (marketing), Sofia (operazioni) e gli altri."
                 bullets={[
                   "Diverse dalle Personas Cliente (in AI Config → Personas)",
                   "system_prompt_addendum aggiunto al prompt costituzionale base",
@@ -280,7 +280,7 @@ export default function AIOperatePage() {
                   "panel_partners + debate_opponent abilitano modalità multi-voice",
                 ]}
                 related={[
-                  { label: "Personas Cliente", to: "/admin/ai-config?tab=personas" },
+                  { label: "Personas Cliente", to: "/admin/ai?section=config&tab=personas" },
                 ]}
               />
               <AdminPersonasTab />
@@ -289,16 +289,16 @@ export default function AIOperatePage() {
           memory: (
             <>
               <SectionAlert.info
-                title="Memoria persona-specific"
-                description="silvio_persona_memory — fatti/preferenze/decisioni/pattern/avoid che ogni persona admin ricorda nel tempo. Alimentata dal self-learning loop."
+                title="Memoria degli assistenti"
+                description="Fatti, preferenze, decisioni e cose da evitare che ogni assistente ricorda nel tempo. Cresce da sola con le risposte e i rifiuti."
                 bullets={[
                   "5 tipi: fact, preference, decision, pattern (good), avoid (negative)",
                   "Confidence + hits_count: i pattern usati più spesso salgono di priorità",
                   "Cron self-improvement (Domenica 03:00 UTC) promuove gold patterns",
                 ]}
                 related={[
-                  { label: "Memoria sistema/azienda", to: "/admin/ai-config?tab=governance" },
-                  { label: "Visualizza in 3D", to: "/admin/ai-operate?tab=cervello" },
+                  { label: "Memoria sistema/azienda", to: "/admin/ai?section=config&tab=governance" },
+                  { label: "Visualizza in 3D", to: "/admin/ai?tab=cervello" },
                 ]}
               />
               <MemoryTab />
@@ -307,8 +307,8 @@ export default function AIOperatePage() {
           cervello: (
             <>
               <SectionAlert.info
-                title="Cervello 3D — knowledge graph piattaforma"
-                description="Visualizzazione 3D delle 21 Personas Admin e delle loro memorie. Naviga le connessioni semantiche, scopri pattern cross-persona, esplora la galassia della conoscenza Superadmin."
+                title="Mappa 3D della conoscenza"
+                description="I 21 assistenti e le loro memorie in 3D: si vede cosa sanno e cosa li collega."
                 bullets={[
                   "Sorgente dati: silvio_admin_personas + silvio_persona_memory (scope globale platform)",
                   "Modalità vista: 2D piatto · 3D libero · Nucleo rotante (orbit camera)",
@@ -316,8 +316,8 @@ export default function AIOperatePage() {
                   "Real-time: nuove memorie appaiono live con pulse animation",
                 ]}
                 related={[
-                  { label: "Gestisci memorie", to: "/admin/ai-operate?tab=memory" },
-                  { label: "Configura Personas", to: "/admin/ai-operate?tab=personas" },
+                  { label: "Gestisci memorie", to: "/admin/ai?tab=memory" },
+                  { label: "Configura Personas", to: "/admin/ai?tab=personas" },
                 ]}
               />
               <Suspense fallback={<BrainGraphSkeleton />}>
@@ -328,8 +328,8 @@ export default function AIOperatePage() {
           learning: (
             <>
               <SectionAlert.success
-                title="Self-Learning Loop"
-                description="Sistema MP-05: aggrega rating utenti settimanali → estrae gold (top-rated) e avoid (bottom-rated) patterns → promuove in persona memory automaticamente."
+                title="Apprendimento"
+                description="Ogni settimana raccoglie i voti degli utenti alle risposte: le migliori diventano esempi da seguire, le peggiori cose da evitare, e finiscono nella memoria degli assistenti."
                 bullets={[
                   "Cron Domenica 03:00 UTC (silvio-self-improvement)",
                   "Threshold promozione: hits_count >= 5 in 7gg",
@@ -337,7 +337,7 @@ export default function AIOperatePage() {
                   "Embedding OpenAI text-embedding-3-small per similarity",
                 ]}
                 related={[
-                  { label: "Test Lab (rating system)", to: "/admin/ai-monitor?tab=test-lab" },
+                  { label: "Test Lab (rating system)", to: "/admin/ai?section=monitor&tab=test-lab" },
                 ]}
               />
               <LearningTab />

@@ -23,7 +23,7 @@ export function AdminQuickActions() {
         <DropdownMenuItem onClick={() => navigate("/admin/aziende/nuova")} className="gap-2">
           <Building className="h-4 w-4" /> Nuova Azienda
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/admin/piani")} className="gap-2">
+        <DropdownMenuItem onClick={() => navigate("/admin/fatturato?tab=piani")} className="gap-2">
           <CreditCard className="h-4 w-4" /> Gestisci Piani
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate("/admin/annunci")} className="gap-2">

@@ -1,36 +1,45 @@
 /**
  * AdminOperazioniHub — pagina hub per le Operazioni di piattaforma
  *
- * Consolida 5 voci sidebar separate (Sync Logs, Alert Failure, Import CSV,
- * Audit Log, GDPR) in un'unica pagina con 5 tab in alto.
+ * Tre schede: Sincronizzazioni, Import CSV, GDPR.
  *
- * Stesso pattern del Fatturato hub e di /azienda/ordini.
- * Le route legacy fanno redirect verso il tab corrispondente.
+ * Tolte (30/10/2026):
+ *  - «Alert Failure»: la tabella failure_alerts è vuota e nessuno ci scrive;
+ *    errori e allarmi di piattaforma stanno in /admin/salute.
+ *  - «Audit Log»: leggeva solo company_flag_audit_log, doppione del Registro
+ *    attività (/admin/impostazioni/audit), che li unisce tutti.
+ * Al loro posto due collegamenti sotto le schede. I vecchi link
+ * ?tab=alert / ?tab=audit aprono la prima scheda e mettono in evidenza il
+ * collegamento giusto.
+ *
+ * Le schede cambiano solo il parametro ?tab= sul percorso corrente
+ * (setSearchParams): la pagina funziona uguale sotto /admin/operazioni e
+ * sotto /admin/impostazioni/operazioni.
  */
 import { lazy, Suspense } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
-  AlertTriangle,
   FileUp,
   ShieldAlert,
   ShieldCheck,
+  HeartPulse,
   Wrench,
+  ArrowRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
 import { AdminHubTabs, type AdminHubTab } from "@/components/admin/AdminHubTabs";
 
 const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
-const FailureAlertsPage = lazy(() => import("@/pages/admin/FailureAlertsPage"));
 const CsvImportPage = lazy(() => import("@/pages/admin/CsvImportPage"));
-const AuditLogPage = lazy(() => import("@/pages/admin/AuditLogPage"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 
-type OperazioniTab = "sync" | "alert" | "import" | "audit" | "gdpr";
+type OperazioniTab = "sync" | "import" | "gdpr";
 
-const VALID_TABS: readonly OperazioniTab[] = ["sync", "alert", "import", "audit", "gdpr"];
+const VALID_TABS: readonly OperazioniTab[] = ["sync", "import", "gdpr"];
 
 function isValidTab(value: string | null): value is OperazioniTab {
   return value != null && (VALID_TABS as readonly string[]).includes(value);
@@ -46,38 +55,24 @@ export default function AdminOperazioniHub() {
   const tabs = [
     {
       id: "sync" as const,
-      label: "Sync Logs",
+      label: "Sincronizzazioni",
       icon: RefreshCw,
       show: permissions.can_view_platform_stats,
-      description: "Log integrazioni e job batch",
-    },
-    {
-      id: "alert" as const,
-      label: "Alert Failure",
-      icon: AlertTriangle,
-      show: permissions.can_manage_companies,
-      description: "Errori di sistema con notifica",
+      description: "Registro delle integrazioni e dei lavori automatici",
     },
     {
       id: "import" as const,
       label: "Import CSV",
       icon: FileUp,
       show: permissions.can_manage_companies,
-      description: "Importazione massiva dati",
-    },
-    {
-      id: "audit" as const,
-      label: "Audit Log",
-      icon: ShieldAlert,
-      show: permissions.can_manage_companies,
-      description: "Tracciato azioni utenti",
+      description: "Caricamento di molti dati in una volta",
     },
     {
       id: "gdpr" as const,
       label: "GDPR",
       icon: ShieldCheck,
       show: permissions.can_manage_companies,
-      description: "Compliance privacy e diritti GDPR",
+      description: "Privacy e richieste GDPR",
     },
   ].filter((t) => t.show);
 
@@ -103,7 +98,7 @@ export default function AdminOperazioniHub() {
       <AdminHeroHeader
         icon={Wrench}
         title="Operazioni"
-        subtitle="Sync, alert, import, audit log e GDPR in un'unica vista."
+        subtitle="Sincronizzazioni, import CSV e GDPR in un'unica vista."
       />
 
       {/* ─── Tab navigation ─────────────────────────────────────────────── */}
@@ -114,12 +109,40 @@ export default function AdminOperazioniHub() {
         tabs={tabs as AdminHubTab<OperazioniTab>[]}
       />
 
+      {/* ─── Dove sono finiti allarmi e registro ─────────────────────────── */}
+      <div className="flex flex-wrap gap-2">
+        {permissions.can_view_platform_stats && (
+        <Link
+          to="/admin/salute"
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/60",
+            tabParam === "alert" && "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950/30 dark:text-orange-200",
+          )}
+        >
+          <HeartPulse className="h-3.5 w-3.5" />
+          Errori e allarmi: Salute piattaforma
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+        )}
+        {permissions.can_manage_companies && (
+          <Link
+            to="/admin/impostazioni/audit"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/60",
+              tabParam === "audit" && "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950/30 dark:text-orange-200",
+            )}
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />
+            Registro attività
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
+      </div>
+
       {/* ─── Tab content ────────────────────────────────────────────────── */}
       <Suspense fallback={<HubTabSkeleton />}>
         {activeTab === "sync" && <SyncLogs />}
-        {activeTab === "alert" && <FailureAlertsPage />}
         {activeTab === "import" && <CsvImportPage />}
-        {activeTab === "audit" && <AuditLogPage />}
         {activeTab === "gdpr" && <AdminGDPR />}
       </Suspense>
     </div>

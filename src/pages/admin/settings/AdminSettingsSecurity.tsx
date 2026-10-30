@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { formatDistanceToNow, format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  ShieldCheck, ShieldAlert, KeyRound, MonitorSmartphone, Ban, UserCog,
+  ShieldCheck, ShieldAlert, KeyRound, MonitorSmartphone, Ban, UserCog, Network,
 } from "lucide-react";
+import { AdminHubTabs } from "@/components/admin/AdminHubTabs";
+import { IpAutorizzatiPanel } from "@/components/admin/settings/IpAutorizzatiPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,8 +74,49 @@ function Tessera({
  * Questa pagina era un file di cinque righe. Ora mostra i fatti che contano:
  * chi ha le chiavi e se le protegge con un secondo fattore, chi è bloccato,
  * quali sessioni sono aperte e da dove, quali email vengono attaccate.
+ *
+ * Due schede (?scheda= nell'URL): «Situazione» (predefinita) e «IP autorizzati» (?scheda=ip),
+ * che monta la lista IP che prima stava solo in /admin/impostazioni/ip-allowlist.
  */
+type SchedaSicurezza = "situazione" | "ip";
+
 export default function AdminSettingsSecurity() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scheda: SchedaSicurezza = searchParams.get("scheda") === "ip" ? "ip" : "situazione";
+  const cambiaScheda = (prossima: SchedaSicurezza) =>
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (prossima === "situazione") sp.delete("scheda");
+        else sp.set("scheda", prossima);
+        return sp;
+      },
+      { replace: true },
+    );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold">Sicurezza</h1>
+        <p className="text-muted-foreground max-sm:hidden">
+          Accessi privilegiati, blocchi, sessioni e tentativi falliti su tutta la piattaforma
+        </p>
+      </div>
+      <AdminHubTabs<SchedaSicurezza>
+        activeTab={scheda}
+        onChange={cambiaScheda}
+        ariaLabel="Sezioni sicurezza"
+        tabs={[
+          { id: "situazione", label: "Situazione", icon: ShieldCheck },
+          { id: "ip", label: "IP autorizzati", icon: Network },
+        ]}
+      />
+      {scheda === "situazione" ? <SituazioneSicurezza /> : <IpAutorizzatiPanel />}
+    </div>
+  );
+}
+
+function SituazioneSicurezza() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-security-overview"],
     queryFn: async () => {
@@ -88,13 +132,6 @@ export default function AdminSettingsSecurity() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Sicurezza</h1>
-        <p className="text-muted-foreground">
-          Accessi privilegiati, blocchi, sessioni e tentativi falliti su tutta la piattaforma
-        </p>
-      </div>
-
       {error && (
         <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
@@ -173,7 +210,9 @@ export default function AdminSettingsSecurity() {
             />
           </div>
 
-          <Card>
+          {/* Da xl le tabelle brevi stanno affiancate invece di lasciare metà schermo vuota. */}
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+          <Card className="min-w-0">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <UserCog className="h-4 w-4 text-blue-500" />
@@ -224,7 +263,7 @@ export default function AdminSettingsSecurity() {
           </Card>
 
           {(data?.tentativi_falliti ?? []).length > 0 && (
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-amber-500" />
@@ -267,7 +306,7 @@ export default function AdminSettingsSecurity() {
           )}
 
           {(data?.bloccati ?? []).length > 0 && (
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Ban className="h-4 w-4 text-destructive" />
@@ -305,6 +344,7 @@ export default function AdminSettingsSecurity() {
               </CardContent>
             </Card>
           )}
+          </div>
 
           <Card>
             <CardHeader className="pb-3">

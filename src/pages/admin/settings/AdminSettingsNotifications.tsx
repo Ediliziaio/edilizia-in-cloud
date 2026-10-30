@@ -5,7 +5,7 @@ export default function AdminSettingsNotifications() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Notifiche</h1>
-        <p className="text-muted-foreground">Configura le tue preferenze di notifica</p>
+        <p className="text-muted-foreground max-sm:hidden">Quali avvisi ricevere e su quale canale</p>
       </div>
       <NotificationsTab />
     </div>

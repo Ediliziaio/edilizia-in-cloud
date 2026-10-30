@@ -1,56 +1,60 @@
+/**
+ * Info Piattaforma — quattro schede, con la scheda attiva nell'URL (?scheda=):
+ *   generale (predefinita) · branding · analytics · richiamo
+ */
+import { useSearchParams } from "react-router-dom";
 import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import { PlatformBrandingTab } from "@/components/admin/settings/PlatformBrandingTab";
 import { PlatformAnalyticsTab } from "@/components/admin/settings/PlatformAnalyticsTab";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichiamoACaldoTab } from "@/components/admin/settings/RichiamoACaldoTab";
+import { AdminHubTabs } from "@/components/admin/AdminHubTabs";
 import { Server, Palette, ChartBar, PhoneOutgoing } from "lucide-react";
 
+type SchedaPiattaforma = "generale" | "branding" | "analytics" | "richiamo";
+const SCHEDE: readonly SchedaPiattaforma[] = ["generale", "branding", "analytics", "richiamo"];
+
 export default function AdminSettingsPlatform() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const richiesta = searchParams.get("scheda");
+  const scheda: SchedaPiattaforma = SCHEDE.includes(richiesta as SchedaPiattaforma)
+    ? (richiesta as SchedaPiattaforma)
+    : "generale";
+  const cambiaScheda = (prossima: SchedaPiattaforma) =>
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (prossima === "generale") sp.delete("scheda");
+        else sp.set("scheda", prossima);
+        return sp;
+      },
+      { replace: true },
+    );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Piattaforma</h1>
-        <p className="text-muted-foreground">
-          Configurazione generale, branding e SEO della piattaforma
+        <h1 className="text-2xl font-bold">Info Piattaforma</h1>
+        <p className="text-muted-foreground max-sm:hidden">
+          Numeri, manutenzione e stato dei servizi, branding e SEO, analytics, richiamo a caldo
         </p>
       </div>
 
-      <Tabs defaultValue="generale" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="generale" className="gap-2">
-            <Server className="h-4 w-4" />
-            Generale
-          </TabsTrigger>
-          <TabsTrigger value="branding" className="gap-2">
-            <Palette className="h-4 w-4" />
-            Branding &amp; SEO
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-2">
-            <ChartBar className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="richiamo" className="gap-2">
-            <PhoneOutgoing className="h-4 w-4" />
-            Richiamo a caldo
-          </TabsTrigger>
-        </TabsList>
+      <AdminHubTabs<SchedaPiattaforma>
+        activeTab={scheda}
+        onChange={cambiaScheda}
+        ariaLabel="Sezioni info piattaforma"
+        tabs={[
+          { id: "generale", label: "Generale", icon: Server },
+          { id: "branding", label: "Branding e SEO", icon: Palette },
+          { id: "analytics", label: "Analytics", icon: ChartBar },
+          { id: "richiamo", label: "Richiamo a caldo", icon: PhoneOutgoing },
+        ]}
+      />
 
-        <TabsContent value="generale">
-          <PlatformInfoTab />
-        </TabsContent>
-
-        <TabsContent value="branding">
-          <PlatformBrandingTab />
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <PlatformAnalyticsTab />
-        </TabsContent>
-
-        <TabsContent value="richiamo">
-          <RichiamoACaldoTab />
-        </TabsContent>
-      </Tabs>
+      {scheda === "generale" && <PlatformInfoTab />}
+      {scheda === "branding" && <PlatformBrandingTab />}
+      {scheda === "analytics" && <PlatformAnalyticsTab />}
+      {scheda === "richiamo" && <RichiamoACaldoTab />}
     </div>
   );
 }

@@ -8,6 +8,8 @@
  *   · Il piè di pagina di disiscrizione sostituisce quello standard così com'è: senza `{{unsubscribe_url}}` le campagne
  *     partirebbero senza il link per disiscriversi, obbligatorio per legge.
  *   · «Salva» spento senza spiegazione: ora dice cosa manca (il «Reply-to» era obbligatorio senza dirlo).
+ *   · 30/10/2026: pagina divisa per tipo di email e per brand; «Salva» sta in una barra che compare solo con
+ *     modifiche non salvate (prima era un pulsante sempre spento in alto).
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -78,6 +80,7 @@ function monta() {
 }
 
 const salva = () => screen.getByRole("button", { name: /Salva preferenze/ }) as HTMLButtonElement;
+const senzaBarra = () => expect(screen.queryByRole("button", { name: /Salva preferenze/ })).toBeNull();
 const SOLO_LETTURA = /Stai solo consultando: per cambiare mittente e aspetto serve il permesso «Email Marketing»/;
 
 beforeEach(() => {
@@ -92,13 +95,15 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("chi può cambiarle", () => {
-  it("chi amministra: i campi sono attivi, «Salva» parte da spento e si accende con una modifica", async () => {
+  it("chi amministra: i campi sono attivi, la barra «Salva» compare solo con una modifica", async () => {
     monta();
     const nome = await screen.findByLabelText("Nome che vede il cliente");
     expect(nome).not.toBeDisabled();
     expect(screen.queryByText(SOLO_LETTURA)).toBeNull();
-    expect(salva().disabled).toBe(true);
+    senzaBarra();
+    expect(screen.getByRole("status")).toHaveTextContent("Nessuna modifica da salvare");
     fireEvent.change(nome, { target: { value: "Rossi SRL" } });
+    expect(screen.getByText("Hai modifiche non salvate")).toBeTruthy();
     expect(salva().disabled).toBe(false);
     expect(screen.getByRole("status")).toHaveTextContent("Modifiche non salvate");
   });
@@ -147,7 +152,7 @@ describe("chi può solo consultare", () => {
     expect(screen.getByLabelText("Nome che vede il cliente")).toBeDisabled();
     expect(screen.getByLabelText("Risposte a")).toBeDisabled();
     expect(screen.getByLabelText("Scrivi «Inviato con EdiliziaInCloud» in fondo alle email")).toBeDisabled();
-    expect(salva()).toBeDisabled();
+    senzaBarra();
     expect(db.upserts).toHaveLength(0);
   });
 
@@ -242,7 +247,7 @@ describe("testi veri e ordine", () => {
     expect(document.body.textContent).not.toMatch(/white-label/i);
   });
 
-  it("titolo vero nella pagina e sezioni nell'ordine in cui si cercano: chi scrive, dominio, aspetto, avanzate", async () => {
+  it("titolo vero nella pagina e sezioni: chi scrive, dominio per tipo di email, brand", async () => {
     monta();
     await screen.findByLabelText("Nome che vede il cliente");
     expect(screen.getByRole("heading", { level: 2, name: "Mittente e aspetto delle email" })).toBeTruthy();
@@ -250,28 +255,47 @@ describe("testi veri e ordine", () => {
       "Mittente e aspetto delle email",
       "Chi scrive",
       "Da quale dominio partono le email",
-      "Aspetto delle email",
+      "Brand",
     ]);
-    const avanzate = screen.getByText("Avanzate").closest("details") as HTMLDetailsElement;
-    expect(avanzate.open).toBe(false);
-    expect(avanzate.textContent).toContain("Piè di pagina delle campagne");
-    expect(avanzate.textContent).toContain("Solo campagne");
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim())).toEqual([
+      "Messaggi di servizio",
+      "Campagne e newsletterSolo campagne",
+    ]);
+    // Il piè di pagina di disiscrizione sta con le campagne, chiuso finché non serve.
+    const piede = screen.getByLabelText("Piè di pagina delle campagne").closest("details") as HTMLDetailsElement;
+    expect(piede.open).toBe(false);
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
+  });
+
+  it("riepilogo per tipo di email: senza dominio tuo si parte da quello della piattaforma", async () => {
+    db.domini = [{
+      id: "d1", domain: "rossi.it", is_verified: true, is_active: true,
+      sg_cname_1_valid: false, sg_cname_2_valid: false, sg_cname_3_valid: false,
+      resend_status: "verified", ee_spf_verified: false, ee_dkim_verified: false,
+    }];
+    db.prefs = { ...salvate(), transactional_domain_id: "d1", marketing_domain_id: "d1" };
+    monta();
+    await screen.findByLabelText("Nome che vede il cliente");
+    // Nel riepilogo (e nella riga «Da:» dell'anteprima).
+    expect((await screen.findAllByText("Rossi Costruzioni <info@rossi.it>")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Dominio tuo, verificato")).toBeTruthy();
+    // Per le campagne rossi.it non è verificato: lo dice, e il mittente vero è quello della piattaforma.
+    expect(screen.getByText("Rossi Costruzioni via EdiliziaInCloud · mkt.eic-mail.com")).toBeTruthy();
+    expect(screen.getByText(/Il dominio scelto non è verificato per questo tipo di email/)).toBeTruthy();
   });
 
   it("parole di tutti i giorni: niente «Reply-to», «Dominio per stream», «Footer unsubscribe», «transazionali»", async () => {
     monta();
     await screen.findByLabelText("Nome che vede il cliente");
     expect(document.body.textContent).not.toMatch(/Reply-to|per stream|Footer unsubscribe|transazional|Parte locale|Branding email/);
-    expect(screen.getByLabelText("Messaggi di servizio (notifiche, documenti, codici)")).toBeTruthy();
-    expect(screen.getByLabelText("Campagne e newsletter")).toBeTruthy();
+    expect(screen.getByLabelText("Dominio dei messaggi di servizio")).toBeTruthy();
+    expect(screen.getByLabelText("Dominio delle campagne")).toBeTruthy();
   });
 
   it("«Dominio» rimanda alla pagina accanto (qui e nel pannello admin)", async () => {
     monta();
     await screen.findByLabelText("Nome che vede il cliente");
-    // C'è anche la voce «Dominio» dell'indice in cima (#dominio): qui si cerca quella che porta alla pagina del dominio.
-    const link = screen.getAllByRole("link", { name: "Dominio" }).find((a) => a.getAttribute("href") !== "#dominio");
+    const link = screen.getAllByRole("link", { name: "Dominio" })[0];
     expect(link?.getAttribute("href")).toBe("/azienda/impostazioni/dominio-email");
   });
 });

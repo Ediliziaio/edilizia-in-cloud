@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useRef, useState, useMemo } from "react";
+import { RigaRiepilogo } from "@/components/admin/fatturato/AreaUI";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,6 +130,8 @@ export default function SubscriptionPlans() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeletePlanTarget | null>(null);
+  // disattivare un piano è una scelta per tutte le sue aziende: si conferma
+  const [daDisattivare, setDaDisattivare] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [featuresText, setFeaturesText] = useState("");
   // v8.6.77 — tri-state per ogni feature flag (disabled / preview / enabled)
@@ -158,7 +161,7 @@ export default function SubscriptionPlans() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
-        .select("key, name, description, category, is_beta, supports_preview, sort_order")
+        .select("key, name, description, category, is_beta, supports_preview, sort_order, default_value, plans_included")
         .order("category", { ascending: true })
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -170,13 +173,15 @@ export default function SubscriptionPlans() {
         is_beta: boolean | null;
         supports_preview: boolean | null;
         sort_order: number | null;
+        default_value: boolean | null;
+        plans_included: string[] | null;
       }>;
     },
     staleTime: 10 * 60 * 1000,
   });
 
   // v8.6.77 — Defaults attuali per il piano in editing
-  const { data: existingDefaults = [] } = useQuery({
+  const { data: existingDefaults = [], isLoading: caricoDefaults } = useQuery({
     queryKey: ["plan-feature-defaults", editingId],
     queryFn: async () => {
       if (!editingId) return [];
@@ -190,16 +195,28 @@ export default function SubscriptionPlans() {
     enabled: !!editingId && dialogOpen,
   });
 
-  // Sync existingDefaults → featureDefaults state quando arrivano
+  // Lo stato di partenza è quello VERO del piano, con la regola di
+  // resolve_company_feature: riga del piano → slug in plans_included →
+  // default_value del flag. Prima tutto ciò che non aveva una riga partiva
+  // «spento», e salvando (anche solo per cambiare il prezzo) si spegnevano
+  // funzioni accese da plans_included a tutte le aziende del piano.
+  const slugInModifica = editingId ? (plans as Array<{ id: string; slug: string | null }> | undefined)?.find((p) => p.id === editingId)?.slug ?? null : null;
+  const statoIniziale = useRef<Record<string, PlanFeatureAccess>>({});
+  const conRiga = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!dialogOpen) return;
     const map: Record<string, PlanFeatureAccess> = {};
-    platformFlags.forEach(f => { map[f.key] = "disabled"; });
+    platformFlags.forEach(f => {
+      const dalPiano = !!slugInModifica && (f.plans_included ?? []).includes(slugInModifica);
+      map[f.key] = dalPiano || f.default_value ? "enabled" : "disabled";
+    });
     existingDefaults.forEach(d => {
       map[d.feature_key] = d.access_level ?? (d.is_enabled ? "enabled" : "disabled");
     });
+    statoIniziale.current = { ...map };
+    conRiga.current = new Set(existingDefaults.map((d) => d.feature_key));
     setFeatureDefaults(map);
-  }, [existingDefaults, platformFlags, dialogOpen]);
+  }, [existingDefaults, platformFlags, dialogOpen, slugInModifica]);
 
   const { data: companyCounts } = useQuery({
     queryKey: ["admin-plan-usage"],
@@ -405,21 +422,25 @@ export default function SubscriptionPlans() {
     },
   });
 
-  // v8.6.77 — Upsert plan_feature_defaults per ogni flag piattaforma con
-  // l'access_level scelto nel dialog. is_enabled tenuto allineato via trigger DB.
+  // Scrive in plan_feature_defaults solo le funzioni cambiate nel dialog o che
+  // avevano già una riga: le altre restano decise da plans_included e dal
+  // valore predefinito del flag (scriverle «congelava» lo stato di oggi).
+  // is_enabled lo allinea il trigger DB all'access_level.
   async function syncPlanFeatureDefaults(planId: string) {
-    const rows = Object.entries(featureDefaults).map(([feature_key, access_level]) => ({
-      plan_id: planId,
-      feature_key,
-      access_level,
-      is_enabled: access_level === "enabled",
-    }));
+    const rows = Object.entries(featureDefaults)
+      .filter(([feature_key, access_level]) => conRiga.current.has(feature_key) || statoIniziale.current[feature_key] !== access_level)
+      .map(([feature_key, access_level]) => ({
+        plan_id: planId,
+        feature_key,
+        access_level,
+        is_enabled: access_level === "enabled",
+      }));
     if (rows.length === 0) return;
-    // upsert con onConflict (plan_id, feature_key) — chiave unica naturale
     const { error } = await supabase
       .from("plan_feature_defaults")
       .upsert(rows as never, { onConflict: "plan_id,feature_key" } as never);
-    if (error) console.warn("syncPlanFeatureDefaults error:", error.message);
+    // prima finiva in console e il messaggio diceva «Piano aggiornato»
+    if (error) throw new Error(`Piano salvato, ma le funzionalità no: ${error.message}`);
   }
 
   const toggleActiveMutation = useMutation({
@@ -575,61 +596,30 @@ export default function SubscriptionPlans() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Piani Tariffari</h1>
-          <p className="text-muted-foreground">Gestisci i piani di abbonamento della piattaforma</p>
-        </div>
-        <Button onClick={openCreate} className="self-end sm:self-auto">
+      {/* Titolo e sottotitolo li dà già l'hub Fatturato (unico punto d'accesso): qui solo le azioni. */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="hidden text-sm text-muted-foreground sm:block">
+          Prima i piani attivi, poi quelli disattivati. Ogni scheda dice quante aziende lo usano e quanto rende.
+        </p>
+        <Button onClick={openCreate} className="flex-1 sm:flex-none">
           <Plus className="h-4 w-4 mr-2" />
-          Nuovo Piano
+          Nuovo piano
         </Button>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Piani Attivi</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activePlans}</div>
-            <p className="text-xs text-muted-foreground">{stats.inactivePlans} disattivi su {stats.totalPlans} totali</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Aziende con accesso</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.subscribedCompanies}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Aziende paganti</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.payingCompanies}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">MRR pagante</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.paidMrr)}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Numeri che contano, densi anche da telefono. */}
+      <RigaRiepilogo
+        voci={[
+          { etichetta: "Piani attivi", icona: Package, valore: stats.activePlans, dettaglio: `${stats.inactivePlans} disattivi su ${stats.totalPlans}` },
+          { etichetta: "Aziende con accesso", icona: Building2, valore: stats.subscribedCompanies },
+          { etichetta: "Aziende paganti", icona: Users, valore: stats.payingCompanies, tono: "buono" },
+          { etichetta: "MRR pagante", icona: TrendingUp, valore: formatCurrency(stats.paidMrr), tono: "buono" },
+        ]}
+      />
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {plans?.length === 0 && (
-          <Card className="md:col-span-2 lg:col-span-3">
+          <Card className="col-span-full">
             <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <Package className="h-10 w-10 text-muted-foreground" />
               <div>
@@ -643,7 +633,9 @@ export default function SubscriptionPlans() {
             </CardContent>
           </Card>
         )}
-        {plans?.map((plan: any) => {
+        {/* Attivi prima, disattivati dopo sotto un'intestazione propria. */}
+        {[...(plans ?? [])].sort((a: any, b: any) => Number(!!b.is_active) - Number(!!a.is_active)).map((plan: any, idx: number, ordinati: any[]) => {
+          const primoDisattivo = !plan.is_active && (idx === 0 || ordinati[idx - 1]?.is_active);
           const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
           const usage: PlanUsageStats = {
             ...emptyUsage,
@@ -651,7 +643,11 @@ export default function SubscriptionPlans() {
             ...(planRevenue[plan.id] ?? {}),
           };
           return (
-            <Card key={plan.id} className={`relative ${!plan.is_active ? "opacity-60" : ""}`}>
+            <Fragment key={plan.id}>
+            {primoDisattivo && (
+              <h2 className="col-span-full pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Piani disattivati</h2>
+            )}
+            <Card className={`relative ${!plan.is_active ? "opacity-60" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl">{plan.name}</CardTitle>
@@ -766,7 +762,9 @@ export default function SubscriptionPlans() {
                     size="sm"
                     className="flex-1 min-w-[110px]"
                     disabled={toggleActiveMutation.isPending}
-                    onClick={() => toggleActiveMutation.mutate({ id: plan.id, is_active: !plan.is_active })}
+                    onClick={() => plan.is_active
+                      ? setDaDisattivare({ id: plan.id, name: plan.name })
+                      : toggleActiveMutation.mutate({ id: plan.id, is_active: true })}
                   >
                     {plan.is_active ? "Disattiva" : "Attiva"}
                   </Button>
@@ -782,6 +780,7 @@ export default function SubscriptionPlans() {
                 </div>
               </CardContent>
             </Card>
+            </Fragment>
           );
         })}
       </div>
@@ -1005,13 +1004,34 @@ export default function SubscriptionPlans() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+            {/* finché le funzionalità del piano non sono lette, salvare le scriverebbe sbagliate */}
+            <Button onClick={handleSave} disabled={saveMutation.isPending || (!!editingId && caricoDefaults)}>
               {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingId ? "Salva Modifiche" : "Crea Piano"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!daDisattivare} onOpenChange={(o) => { if (!o) setDaDisattivare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disattivare il piano «{daDisattivare?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Non si potrà più scegliere per le aziende nuove né per i cambi di piano.
+              {(daDisattivare && (companyCounts?.[daDisattivare.id] ?? 0) > 0)
+                ? ` Le ${companyCounts?.[daDisattivare.id]} aziende che lo usano oggi restano su questo piano finché non le sposti.`
+                : " Nessuna azienda lo usa oggi."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (daDisattivare) toggleActiveMutation.mutate({ id: daDisattivare.id, is_active: false }); setDaDisattivare(null); }}>
+              Disattiva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirm save for plan with active companies */}
       <AlertDialog open={confirmSaveOpen} onOpenChange={setConfirmSaveOpen}>

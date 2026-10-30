@@ -5,15 +5,17 @@
 // `company_email_preferences` usata dal template renderer (_shared/renderTemplate.ts)
 // e dal resolveSender delle Edge Function.
 //
-// Sezioni (nell'ordine in cui si cercano di più, 09/10/2026):
-//   1. Chi scrive          — sender_name, sender_prefix, reply-to
-//   2. Dominio             — transactional_domain_id + marketing_domain_id
-//                            (dropdown da company_email_domains verificati;
-//                            NULL = fallback sottodomini EiC)
-//   3. Aspetto             — logo, colori, testo in fondo
-//   4. Avanzate (chiusa)   — «Inviato con EdiliziaInCloud», piè di pagina di disiscrizione (HTML)
-//                            (non è nell'indice in cima: si apre da sola solo con un clic)
+// Struttura (30/10/2026, divisa per tipo di email e per brand):
+//   0. Riepilogo per canale — «Messaggi di servizio» e «Campagne e newsletter» (i due soli
+//                             canali che resolveSender conosce): mittente, dominio, stato
+//   1. Chi scrive          — sender_name, sender_prefix, reply-to (un valore solo per i due canali)
+//   2. Dominio, per canale — transactional_domain_id | marketing_domain_id (+ piè di pagina
+//                            di disiscrizione, che vale solo per le campagne)
+//   3. Brand               — logo, colori, testo in fondo, «Inviato con», con anteprima a destra.
+//                            Un brand solo per azienda: nel database non esistono brand multipli.
+//   Barra «Hai modifiche non salvate · Annulla · Salva» in basso, solo con modifiche.
 //
+// Montata anche nella scheda «Mittente e aspetto» della pagina Email admin (`AdminSettingsEmailPreferences`).
 // Stessa pagina del pannello super admin (`AdminSettingsEmailPreferences`).
 // ============================================================================
 
@@ -32,14 +34,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Save, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, AlertTriangle, Save, Info, Mail, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AmbitoImpostazione,
-  IndiceSezioni,
   RigaImpostazione,
   SezioneImpostazione,
-  type VoceIndice,
 } from "@/components/impostazioni/SezioneImpostazione";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
@@ -78,11 +79,53 @@ interface DomainOption {
   marketingReady: boolean;
 }
 
-const SEZIONI: VoceIndice[] = [
-  { id: "chi-scrive", etichetta: "Chi scrive" },
-  { id: "dominio", etichetta: "Dominio" },
-  { id: "aspetto", etichetta: "Aspetto" },
-];
+/** I sottodomini della piattaforma da cui partono le email quando l'azienda non ha un dominio suo (resolveSender). */
+const DOMINIO_PIATTAFORMA = {
+  transactional: "notifiche.ediliziaincloud.it",
+  // Il valore vero è email_marketing_fallback_subdomain (21/09/2026).
+  marketing: "mkt.eic-mail.com",
+} as const;
+
+interface RiepilogoCanale {
+  titolo: string;
+  mittente: string;
+  stato: string;
+  tuo: boolean;
+  nota: string | null;
+}
+
+/**
+ * Riepilogo di un canale (messaggi di servizio / campagne) dai campi della pagina. Stessa regola di resolveSender:
+ * il dominio scelto vale solo se è verificato per quel canale, altrimenti si parte dal dominio della piattaforma
+ * (e lì il mittente è «Nome via EdiliziaInCloud», senza la parte prima della @ scelta qui).
+ */
+function riepilogoCanale(args: {
+  titolo: string;
+  sottotitolo: string;
+  dominioScelto: string | null;
+  pronti: DomainOption[];
+  fallback: string;
+  nome: string;
+  prefisso: string;
+}): RiepilogoCanale {
+  const scelto = args.dominioScelto ? args.pronti.find((d) => d.id === args.dominioScelto) ?? null : null;
+  if (scelto) {
+    return {
+      titolo: args.titolo,
+      mittente: `${args.nome} <${args.prefisso || "noreply"}@${scelto.domain}>`,
+      stato: "Dominio tuo, verificato",
+      tuo: true,
+      nota: null,
+    };
+  }
+  return {
+    titolo: args.titolo,
+    mittente: `${args.nome} via EdiliziaInCloud · ${args.fallback}`,
+    stato: "Dominio della piattaforma",
+    tuo: false,
+    nota: args.dominioScelto ? "Il dominio scelto non è verificato per questo tipo di email: si parte da quello della piattaforma." : null,
+  };
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // Regex/validators importati da @/lib/email/preferencesValidators per condividere
@@ -144,8 +187,69 @@ const defaultPrefs = (cid: string): EmailPreferencesRow => ({
   unsubscribe_footer_html: null,
 });
 
+/**
+ * Anteprima indicativa: mostra come cambiano logo, colori e testo in fondo mentre si scrive.
+ * Non è il modello vero (quello lo compone renderTemplate nelle edge function). Da telefono non c'è: lo spazio serve ai campi.
+ */
+function AnteprimaEmail({
+  logoUrl,
+  nomeMittente,
+  mittente,
+  colorePrincipale,
+  coloreRisalto,
+  testoInFondo,
+  inviatoCon,
+}: {
+  logoUrl: string | null;
+  nomeMittente: string;
+  mittente: string;
+  colorePrincipale: string;
+  coloreRisalto: string;
+  testoInFondo: string | null;
+  inviatoCon: boolean;
+}) {
+  return (
+    <div className="hidden min-w-0 lg:block" aria-hidden="true">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">Anteprima (indicativa)</p>
+      <div className="overflow-hidden rounded-lg border bg-white text-slate-800 shadow-sm">
+        <div className="border-b bg-slate-50 px-5 py-2 text-[11px] text-slate-500">
+          <p className="truncate"><span className="font-medium text-slate-700">Da:</span> {mittente}</p>
+        </div>
+        <div className="flex items-center gap-3 px-5 py-4" style={{ backgroundColor: colorePrincipale }}>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="h-8 max-w-[160px] object-contain" />
+          ) : (
+            <span className="text-sm font-semibold text-white">{nomeMittente}</span>
+          )}
+        </div>
+        <div className="space-y-3 px-5 py-5 text-sm">
+          <p>Gentile cliente,</p>
+          <p className="text-slate-600">ti inviamo il preventivo richiesto. Lo trovi qui sotto.</p>
+          <span
+            className="inline-block rounded-md px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: coloreRisalto }}
+          >
+            Apri il preventivo
+          </span>
+          <p className="text-slate-600">{nomeMittente}</p>
+        </div>
+        <div className="space-y-1 border-t bg-slate-50 px-5 py-3 text-[11px] text-slate-500">
+          {testoInFondo && <p className="whitespace-pre-line">{testoInFondo}</p>}
+          {inviatoCon && <p>Inviato con EdiliziaInCloud</p>}
+          {!testoInFondo && !inviatoCon && <p>Nessun testo in fondo</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
-export default function SettingsEmailPreferences() {
+export default function SettingsEmailPreferences({
+  linkDominio,
+}: {
+  /** Dove sta la pagina del dominio quando questa è montata altrove (es. la scheda «Mittente e aspetto» della pagina Email admin). */
+  linkDominio?: string;
+} = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -155,7 +259,7 @@ export default function SettingsEmailPreferences() {
   // (policy «Permesso email: preferenze» e `cep_write`). Prima i campi erano attivi per tutti e il rifiuto arrivava dopo il clic.
   const puoModificare = !permissions.isLoading && puoModificareEmail(permissions);
   // Il dominio e le preferenze sono due pagine sorelle, sia nelle Impostazioni sia nel pannello admin.
-  const vaiAlDominio = pathname.replace(/\/preferenze-email\/?$/, "/dominio-email");
+  const vaiAlDominio = linkDominio ?? pathname.replace(/\/preferenze-email\/?$/, "/dominio-email");
 
   // Load current preferences
   const prefsQuery = useQuery<EmailPreferencesRow | null>({
@@ -207,7 +311,7 @@ export default function SettingsEmailPreferences() {
     setModifiche((m) => ({ ...m, [campo]: valore }));
   const dirty = !!saved && (Object.keys(modifiche) as (keyof EmailPreferencesRow)[]).some((k) => modifiche[k] !== saved[k]);
   useSettingsDraftGuard(puoModificare && dirty);
-  const { evidenziata, vai } = useVaiASezione(!prefsQuery.isLoading && !!form);
+  const { evidenziata } = useVaiASezione(!prefsQuery.isLoading && !!form);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: EmailPreferencesRow) => {
@@ -296,13 +400,40 @@ export default function SettingsEmailPreferences() {
   const domains = domainsQuery.data ?? [];
   const transactionalDomains = domains.filter((d) => d.transactionalReady);
   const marketingDomains = domains.filter((d) => d.marketingReady);
+  const nomeMittente = form.sender_name || effectiveCompany?.name || "La tua azienda";
+  const riepilogo: RiepilogoCanale[] = [
+    riepilogoCanale({
+      titolo: "Messaggi di servizio",
+      sottotitolo: "Notifiche, documenti, codici",
+      dominioScelto: form.transactional_domain_id,
+      pronti: transactionalDomains,
+      fallback: DOMINIO_PIATTAFORMA.transactional,
+      nome: nomeMittente,
+      prefisso: form.sender_prefix,
+    }),
+    riepilogoCanale({
+      titolo: "Campagne e newsletter",
+      sottotitolo: "Email di marketing",
+      dominioScelto: form.marketing_domain_id,
+      pronti: marketingDomains,
+      fallback: DOMINIO_PIATTAFORMA.marketing,
+      nome: nomeMittente,
+      prefisso: form.sender_prefix,
+    }),
+  ];
+  const testoStato = saveMutation.isPending
+    ? "Salvataggio…"
+    : dirty
+      ? motivoNonSalva ?? "Modifiche non salvate"
+      : "Nessuna modifica da salvare";
 
   return (
-    <div className="max-w-3xl space-y-4">
+    // Tutta la larghezza (fino a 1600px): le sezioni stanno affiancate invece di lasciare metà pagina vuota.
+    <div className="max-w-[1600px] space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Mittente e aspetto delle email</h2>
-        <p className="text-sm text-muted-foreground">
-          Chi vede il cliente come mittente, da quale dominio partono le email e che aspetto hanno. Vale per tutte le email dell'azienda.
+        <p className="text-sm text-muted-foreground max-sm:hidden">
+          Chi vede il cliente come mittente, da quale dominio parte ogni tipo di email e che aspetto hanno.
         </p>
       </div>
 
@@ -315,56 +446,38 @@ export default function SettingsEmailPreferences() {
         </Alert>
       )}
 
-      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
-      <fieldset disabled={!puoModificare || saveMutation.isPending} className="m-0 min-w-0 space-y-6 border-0 p-0">
-        {/* Indice e salvataggio restano in vista mentre si scorre. Il motivo per cui «Salva» è spento sta su una riga
-            sua, sotto, per non schiacciare le voci dell'indice. */}
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
-          {/* Da telefono le voci dell'indice hanno una riga tutta per loro, i pulsanti quella sotto. */}
-          <div className="flex min-w-0 basis-full items-start sm:flex-1 sm:basis-auto">
-            <IndiceSezioni voci={SEZIONI} onVai={vai} />
+      {/* Riepilogo per canale: chi scrive, da quale dominio, e se il dominio è il tuo o quello della piattaforma.
+          Segue quello che c'è nei campi qui sotto, modifiche non salvate comprese. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Riepilogo per tipo di email">
+        {riepilogo.map((c) => (
+          <div key={c.titolo} className="flex items-start gap-3 rounded-lg border bg-card px-3 py-2.5">
+            <div className={cn("mt-0.5 rounded-md p-1.5", c.tuo ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground")}>
+              {c.titolo === "Campagne e newsletter" ? <Megaphone className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p className="text-sm font-medium">{c.titolo}</p>
+                <Badge variant="outline" className={cn("px-1.5 py-0 text-[11px] font-normal", c.tuo && "border-emerald-300 text-emerald-700 dark:text-emerald-300")}>
+                  {c.stato}
+                </Badge>
+              </div>
+              <p className="truncate text-xs text-muted-foreground" title={c.mittente}>{c.mittente}</p>
+              {c.nota && <p className="text-xs text-amber-700 dark:text-amber-400">{c.nota}</p>}
+            </div>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {dirty && (
-              <Button size="sm" variant="outline" className="h-11 sm:h-9" onClick={() => setModifiche({})} disabled={saveMutation.isPending}>
-                Annulla modifiche
-              </Button>
-            )}
-            <Button size="sm" className="h-11 sm:h-9" onClick={() => saveMutation.mutate(form)} disabled={!dirty || !canSave || saveMutation.isPending}>
-              {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 sm:mr-2" />
-              )}
-              <span className="max-sm:sr-only">Salva preferenze</span>
-            </Button>
-          </div>
-          {/* A riposo lo stato lo legge solo il lettore di schermo. */}
-          <p
-            role="status"
-            className={cn(
-              "basis-full text-xs",
-              saveMutation.isPending || dirty ? "text-muted-foreground" : "sr-only",
-              dirty && !saveMutation.isPending && !motivoNonSalva && "font-medium text-amber-700 dark:text-amber-400",
-              dirty && !saveMutation.isPending && motivoNonSalva && "font-medium text-destructive",
-            )}
-          >
-            {saveMutation.isPending
-              ? "Salvataggio…"
-              : dirty
-                ? motivoNonSalva ?? "Modifiche non salvate"
-                : "Nessuna modifica da salvare"}
-          </p>
-        </div>
+        ))}
+      </div>
 
-        {/* ─── Chi scrive ─────────────────────────────────────────────── */}
+      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
+      <fieldset disabled={!puoModificare || saveMutation.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0">
+        {/* ─── Chi scrive (vale per tutti e due i canali: nel database è un valore solo) ─── */}
         <SezioneImpostazione
           id="chi-scrive"
           titolo="Chi scrive"
-          descrizione="Il nome e l'indirizzo che vede il cliente nelle email."
+          descrizione="Il nome e l'indirizzo che vede il cliente. Valgono per i messaggi di servizio e per le campagne."
           evidenziata={evidenziata === "chi-scrive"}
         >
-          <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="sender_name">Nome che vede il cliente</Label>
               <Input
@@ -391,14 +504,15 @@ export default function SettingsEmailPreferences() {
                 className={!prefixValid ? "border-destructive" : ""}
               />
               <p id="sender_prefix-aiuto" className="text-xs text-muted-foreground">
-                Per esempio «info» o «preventivi». Solo lettere minuscole, numeri e <code>. _ -</code> (massimo 30).
+                Per esempio «info» o «preventivi». Solo lettere minuscole, numeri e <code>. _ -</code> (massimo 30). Vale
+                quando le email partono da un dominio tuo.
               </p>
               {!prefixValid && (
                 <p className="text-xs text-destructive">C'è un carattere non consentito.</p>
               )}
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 sm:col-span-2 xl:col-span-1">
               <Label htmlFor="reply_to_email">Risposte a</Label>
               <Input
                 id="reply_to_email"
@@ -412,7 +526,7 @@ export default function SettingsEmailPreferences() {
                 className={!replyToValid ? "border-destructive" : ""}
               />
               <p id="reply_to_email-aiuto" className="text-xs text-muted-foreground">
-                L'indirizzo a cui arrivano le risposte dei clienti. Deve essere una casella che controlli tu. Obbligatorio.
+                Dove arrivano le risposte dei clienti: una casella che controlli tu. Obbligatorio.
               </p>
               {!replyToValid && !replyToVuoto && (
                 <p className="text-xs text-destructive">L'indirizzo non è valido.</p>
@@ -421,26 +535,30 @@ export default function SettingsEmailPreferences() {
           </div>
         </SezioneImpostazione>
 
-        {/* ─── Dominio ────────────────────────────────────────────────── */}
+        {/* ─── Dominio, per canale ─────────────────────────────────────── */}
         <SezioneImpostazione
           id="dominio"
           titolo="Da quale dominio partono le email"
-          descrizione="Se non scegli niente le email partono dal dominio della piattaforma."
+          descrizione="Uno per tipo di email. Se non scegli niente partono dal dominio della piattaforma."
           evidenziata={evidenziata === "dominio"}
         >
-          <div className="space-y-4 px-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="transactional_domain">Messaggi di servizio (notifiche, documenti, codici)</Label>
+          <div className="grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+            <div className="space-y-2 px-4 py-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="h-4 w-4 text-muted-foreground" /> Messaggi di servizio
+              </h3>
+              <p className="text-xs text-muted-foreground">Notifiche, documenti da firmare, codici di accesso.</p>
+              <Label htmlFor="transactional_domain" className="sr-only">Dominio dei messaggi di servizio</Label>
               <Select
                 value={form.transactional_domain_id ?? "__none__"}
                 onValueChange={(v) => setCampo("transactional_domain_id", v === "__none__" ? null : v)}
               >
-                <SelectTrigger id="transactional_domain">
+                <SelectTrigger id="transactional_domain" aria-label="Dominio dei messaggi di servizio">
                   <SelectValue placeholder="Scegli il dominio" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">
-                    Il dominio della piattaforma (notifiche.ediliziaincloud.it)
+                    Il dominio della piattaforma ({DOMINIO_PIATTAFORMA.transactional})
                   </SelectItem>
                   {transactionalDomains.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
@@ -457,19 +575,24 @@ export default function SettingsEmailPreferences() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="marketing_domain">Campagne e newsletter</Label>
+            <div className="space-y-2 px-4 py-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Megaphone className="h-4 w-4 text-muted-foreground" /> Campagne e newsletter
+                <AmbitoImpostazione>Solo campagne</AmbitoImpostazione>
+              </h3>
+              <p className="text-xs text-muted-foreground">Le email di marketing mandate a liste di contatti.</p>
+              <Label htmlFor="marketing_domain" className="sr-only">Dominio delle campagne</Label>
               <Select
                 value={form.marketing_domain_id ?? "__none__"}
                 onValueChange={(v) => setCampo("marketing_domain_id", v === "__none__" ? null : v)}
               >
-                <SelectTrigger id="marketing_domain">
+                <SelectTrigger id="marketing_domain" aria-label="Dominio delle campagne">
                   <SelectValue placeholder="Scegli il dominio" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">
                     {/* Il valore vero è email_marketing_fallback_subdomain (21/09/2026). */}
-                    Il dominio della piattaforma (mkt.eic-mail.com)
+                    Il dominio della piattaforma ({DOMINIO_PIATTAFORMA.marketing})
                   </SelectItem>
                   {marketingDomains.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
@@ -484,119 +607,161 @@ export default function SettingsEmailPreferences() {
                   <Link to={vaiAlDominio} className="text-primary underline">Dominio</Link>.
                 </p>
               )}
+
+              {/* Il piè di pagina di disiscrizione vale solo per le campagne: sta qui, non in «Avanzate». Chiuso finché
+                  non serve, ma si apre da solo se il testo scritto non va bene. */}
+              <details className="rounded-md border" open={!footerValid || undefined}>
+                <summary className="cursor-pointer px-3 py-2 text-sm">
+                  Piè di pagina delle campagne <span className="text-xs text-muted-foreground">(facoltativo)</span>
+                </summary>
+                <div className="space-y-2 border-t px-3 py-3">
+                  <Label htmlFor="unsubscribe_footer_html" className="text-sm font-medium">Piè di pagina delle campagne</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Testo con il link per disiscriversi, obbligatorio per legge. Se lo lasci vuoto usiamo quello standard.
+                  </p>
+                  <Textarea
+                    id="unsubscribe_footer_html"
+                    rows={4}
+                    placeholder='<p style="font-size:11px;color:#94a3b8">…</p>'
+                    value={form.unsubscribe_footer_html ?? ""}
+                    onChange={(e) => setCampo("unsubscribe_footer_html", e.target.value || null)}
+                    aria-invalid={!footerValid}
+                    aria-describedby="unsubscribe_footer_html-aiuto"
+                    className={cn("font-mono text-xs", !footerValid && "border-destructive")}
+                  />
+                  <p id="unsubscribe_footer_html-aiuto" className="text-xs text-muted-foreground">
+                    Scrivi <code>{"{{unsubscribe_url}}"}</code> dove vuoi il link: al suo posto compare quello vero.
+                  </p>
+                  {!footerValid && (
+                    <p className="text-xs text-destructive">
+                      Manca il link per disiscriversi: scrivi <code>{"{{unsubscribe_url}}"}</code> nel testo.
+                    </p>
+                  )}
+                </div>
+              </details>
             </div>
           </div>
         </SezioneImpostazione>
 
-        {/* ─── Aspetto ────────────────────────────────────────────────── */}
+        {/* ─── Brand ──────────────────────────────────────────────────────
+            Un'identità sola per azienda: company_email_preferences ha una riga per azienda, non esistono più brand
+            per mittente. Si presenta come «Brand» per leggerla come tale. */}
         <SezioneImpostazione
           id="aspetto"
-          titolo="Aspetto delle email"
-          descrizione="Logo, colori e testo in fondo: valgono per tutti i modelli di email."
+          titolo="Brand"
+          descrizione="Logo, colori e testo in fondo: valgono per tutte le email. L'anteprima a destra cambia mentre scrivi."
           evidenziata={evidenziata === "aspetto"}
         >
-          <div className="space-y-4 px-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="logo_url">Indirizzo del logo (https://)</Label>
-              <Input
-                id="logo_url"
-                type="url"
-                placeholder="https://tuaazienda.it/logo.png"
-                value={form.logo_url ?? ""}
-                onChange={(e) => setCampo("logo_url", e.target.value || null)}
-                aria-invalid={!logoUrlValid}
-                aria-describedby="logo_url-aiuto"
-                className={!logoUrlValid ? "border-destructive" : ""}
-              />
-              <p id="logo_url-aiuto" className="text-xs text-muted-foreground">
-                Massimo 200 KB, meglio un PNG con sfondo trasparente. Se lo lasci vuoto usiamo il logo dell'azienda.
-              </p>
-              {!logoUrlValid && (
-                <p className="text-xs text-destructive">L'indirizzo del logo deve cominciare con https://</p>
-              )}
-            </div>
+          <div className="grid grid-cols-1 gap-6 px-4 py-4 lg:grid-cols-2">
+            <div className="min-w-0 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="logo_url">Indirizzo del logo (https://)</Label>
+                <Input
+                  id="logo_url"
+                  type="url"
+                  placeholder="https://tuaazienda.it/logo.png"
+                  value={form.logo_url ?? ""}
+                  onChange={(e) => setCampo("logo_url", e.target.value || null)}
+                  aria-invalid={!logoUrlValid}
+                  aria-describedby="logo_url-aiuto"
+                  className={!logoUrlValid ? "border-destructive" : ""}
+                />
+                <p id="logo_url-aiuto" className="text-xs text-muted-foreground">
+                  Massimo 200 KB, meglio un PNG con sfondo trasparente. Se lo lasci vuoto usiamo il logo dell'azienda.
+                </p>
+                {!logoUrlValid && (
+                  <p className="text-xs text-destructive">L'indirizzo del logo deve cominciare con https://</p>
+                )}
+              </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <HexColorInput
-                id="primary_color"
-                label="Colore principale"
-                value={form.primary_color}
-                onChange={(v) => setCampo("primary_color", v)}
-              />
-              <HexColorInput
-                id="secondary_color"
-                label="Colore di risalto"
-                value={form.secondary_color}
-                onChange={(v) => setCampo("secondary_color", v)}
-              />
-            </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <HexColorInput
+                  id="primary_color"
+                  label="Colore principale"
+                  value={form.primary_color}
+                  onChange={(v) => setCampo("primary_color", v)}
+                />
+                <HexColorInput
+                  id="secondary_color"
+                  label="Colore di risalto"
+                  value={form.secondary_color}
+                  onChange={(v) => setCampo("secondary_color", v)}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="footer_text">Testo in fondo alle email (facoltativo)</Label>
-              <Textarea
-                id="footer_text"
-                rows={2}
-                placeholder="Es. Rossi Costruzioni SRL · Via Roma 1, 20100 Milano · P.IVA 12345678901"
-                value={form.footer_text ?? ""}
-                onChange={(e) => setCampo("footer_text", e.target.value || null)}
-                aria-describedby="footer_text-aiuto"
-              />
-              <p id="footer_text-aiuto" className="text-xs text-muted-foreground">
-                Per le campagne conviene metterci i dati dell'azienda (indirizzo, partita IVA).
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="footer_text">Testo in fondo alle email (facoltativo)</Label>
+                <Textarea
+                  id="footer_text"
+                  rows={2}
+                  placeholder="Es. Rossi Costruzioni SRL · Via Roma 1, 20100 Milano · P.IVA 12345678901"
+                  value={form.footer_text ?? ""}
+                  onChange={(e) => setCampo("footer_text", e.target.value || null)}
+                  aria-describedby="footer_text-aiuto"
+                />
+                <p id="footer_text-aiuto" className="text-xs text-muted-foreground">
+                  Per le campagne conviene metterci i dati dell'azienda (indirizzo, partita IVA).
+                </p>
+              </div>
+
+              <div className="-mx-4 border-t">
+                <RigaImpostazione
+                  titolo="Scrivi «Inviato con EdiliziaInCloud» in fondo alle email"
+                  htmlFor="powered_by"
+                  descrizione="Se lo spegni la scritta sparisce dalle email."
+                  comando={
+                    <Switch
+                      id="powered_by"
+                      checked={form.footer_show_powered_by}
+                      onCheckedChange={(checked) => setCampo("footer_show_powered_by", checked)}
+                      aria-describedby="powered_by-descrizione"
+                    />
+                  }
+                />
+              </div>
             </div>
+            <AnteprimaEmail
+              logoUrl={logoUrlValid ? form.logo_url : null}
+              nomeMittente={nomeMittente}
+              mittente={riepilogo[0].mittente}
+              colorePrincipale={primaryValid ? form.primary_color : "#1E3A5F"}
+              coloreRisalto={secondaryValid ? form.secondary_color : "#F97316"}
+              testoInFondo={form.footer_text}
+              inviatoCon={form.footer_show_powered_by}
+            />
           </div>
         </SezioneImpostazione>
 
-        {/* ─── Avanzate (chiuse) ──────────────────────────────────────── */}
-        <details id="avanzate" className="scroll-mt-28 rounded-lg border bg-card">
-          <summary className="cursor-pointer px-4 py-3">
-            <span className="text-base font-semibold">Avanzate</span>
-            <span className="ml-2 text-sm text-muted-foreground">La scritta «Inviato con» e il piè di pagina delle campagne</span>
-          </summary>
-          <div className="divide-y border-t">
-            <RigaImpostazione
-              titolo="Scrivi «Inviato con EdiliziaInCloud» in fondo alle email"
-              htmlFor="powered_by"
-              descrizione="Se lo spegni la scritta sparisce dalle email."
-              comando={
-                <Switch
-                  id="powered_by"
-                  checked={form.footer_show_powered_by}
-                  onCheckedChange={(checked) => setCampo("footer_show_powered_by", checked)}
-                  aria-describedby="powered_by-descrizione"
-                />
-              }
-            />
-            <div className="space-y-2 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Label htmlFor="unsubscribe_footer_html" className="text-sm font-medium">Piè di pagina delle campagne</Label>
-                <AmbitoImpostazione>Solo campagne</AmbitoImpostazione>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Testo con il link per disiscriversi, obbligatorio per legge. Se lo lasci vuoto usiamo quello standard.
-              </p>
-              <Textarea
-                id="unsubscribe_footer_html"
-                rows={4}
-                placeholder='<p style="font-size:11px;color:#94a3b8">…</p>'
-                value={form.unsubscribe_footer_html ?? ""}
-                onChange={(e) => setCampo("unsubscribe_footer_html", e.target.value || null)}
-                aria-invalid={!footerValid}
-                aria-describedby="unsubscribe_footer_html-aiuto"
-                className={cn("font-mono text-xs", !footerValid && "border-destructive")}
-              />
-              <p id="unsubscribe_footer_html-aiuto" className="text-xs text-muted-foreground">
-                Scrivi <code>{"{{unsubscribe_url}}"}</code> dove vuoi il link: al suo posto compare quello vero.
-              </p>
-              {!footerValid && (
-                <p className="text-xs text-destructive">
-                  Manca il link per disiscriversi: scrivi <code>{"{{unsubscribe_url}}"}</code> nel testo.
-                </p>
+        {/* Lo stato lo legge sempre il lettore di schermo; la barra si vede solo con modifiche da salvare. */}
+        <p role="status" className="sr-only">{testoStato}</p>
+
+        {/* ─── Barra di salvataggio: compare solo con modifiche non salvate ─── */}
+        {puoModificare && (dirty || saveMutation.isPending) && (
+          <div className="sticky bottom-2 max-md:bottom-20 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-lg backdrop-blur">
+            <p
+              aria-hidden="true"
+              className={cn(
+                "min-w-0 flex-1 text-sm",
+                motivoNonSalva && !saveMutation.isPending ? "font-medium text-destructive" : "text-amber-700 dark:text-amber-400",
               )}
+            >
+              {saveMutation.isPending ? "Salvataggio…" : motivoNonSalva ?? "Hai modifiche non salvate"}
+            </p>
+            <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
+              <Button size="sm" variant="outline" className="h-11 sm:h-9" onClick={() => setModifiche({})} disabled={saveMutation.isPending}>
+                Annulla modifiche
+              </Button>
+              <Button size="sm" className="h-11 flex-1 sm:h-9 sm:flex-none" onClick={() => saveMutation.mutate(form)} disabled={!canSave || saveMutation.isPending}>
+                {saveMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                Salva preferenze
+              </Button>
             </div>
           </div>
-        </details>
+        )}
       </fieldset>
     </div>
   );

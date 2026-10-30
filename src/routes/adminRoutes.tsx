@@ -47,19 +47,12 @@ const AdminSettingsCustomFields = lazy(() => import("@/pages/admin/settings/Admi
 const AdminSettingsProductLines = lazy(() => import("@/pages/admin/settings/AdminSettingsProductLines"));
 const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/AdminSettingsNotifications"));
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
-const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
 const AdminChangelog = lazy(() => import("@/pages/admin/AdminChangelog"));
 const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
-const AdminSettingsEmailPreferences = lazy(() => import("@/pages/admin/settings/AdminSettingsEmailPreferences"));
-const AdminSettingsEmailDomain = lazy(() => import("@/pages/admin/settings/AdminSettingsEmailDomain"));
-const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 // Silvio Superadmin (co-founder AI per Florin)
 const SilvioAdminPage = lazy(() => import("@/pages/admin/SilvioAdminPage"));
 // AI Test Lab (confronto costi/latency/quality per modello) — usato come tab dentro AIMonitorPage
-const AdminAITestLab = lazy(() => import("@/pages/admin/AdminAITestLab"));
 // Silvio Hub (approvazioni + queue + policies) — usato come tab dentro AIOperatePage
-const SilvioAdminHub = lazy(() => import("@/pages/admin/SilvioAdminHub"));
-const SilvioApprovalsPage = lazy(() => import("@/pages/admin/SilvioApprovalsPage"));
 // ============================================================================
 // REFACTOR Strategia C: nuove 3 pagine AI consolidate
 // ============================================================================
@@ -90,18 +83,14 @@ const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPa
 const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
 const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
-const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 const AdminSettingsMetaLeadDenylist = lazy(() => import("@/pages/admin/settings/AdminSettingsMetaLeadDenylist"));
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
 const AdminSettingsApiMcp = lazy(() => import("@/pages/admin/settings/AdminSettingsApiMcp"));
-const AdminSettingsWhatsappLocale = lazy(() => import("@/pages/admin/settings/AdminSettingsWhatsappLocale"));
 const AdminSettingsMarketingCalendars = lazy(() => import("@/pages/admin/settings/AdminSettingsMarketingCalendars"));
 const AdminSettingsPipelines = lazy(() => import("@/pages/admin/settings/AdminSettingsPipelines"));
 const AdminSettingsBanking = lazy(() => import("@/pages/admin/settings/AdminSettingsBanking"));
 const AdminSettingsWebhooks = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhooks"));
 const AdminSettingsWebhookLogs = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhookLogs"));
-const AdminSettingsBankingOverview = lazy(() => import("@/pages/admin/settings/AdminSettingsBankingOverview"));
-const AdminSettingsAIUsage = lazy(() => import("@/pages/admin/settings/AdminSettingsAIUsage"));
 const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
 const AdminMarketingCommercialDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingCommercialDashboard"));
 const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
@@ -144,10 +133,8 @@ const AdminPortalePage = lazy(() => import("@/pages/admin/AdminPortalePage"));
 // e mostra suggerimenti contestuali admin.
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const SmsSuperAdminPage = lazy(() => import("@/pages/admin/sms/SmsSuperAdminPage"));
-const AdminCRM = lazy(() => import("@/pages/admin/AdminCRM"));
 const AdminServiceClients = lazy(() => import("@/pages/admin/AdminServiceClients"));
 // Campagne AB Test (Feature 7)
-const CampaignsPage = lazy(() => import("@/pages/admin/CampaignsPage"));
 const CampaignAnalyticsPage = lazy(() => import("@/pages/admin/CampaignAnalyticsPage"));
 // Cohort Chart (Feature 3)
 const CohortPage = lazy(() => import("@/pages/admin/CohortPage"));
@@ -266,16 +253,17 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
         <Route path="impostazioni/campi-personalizzati" element={<RequireSuperAdmin><AdminSettingsCustomFields /></RequireSuperAdmin>} />
         <Route path="impostazioni/prodotti-servizi" element={<RequireSuperAdmin><AdminSettingsProductLines /></RequireSuperAdmin>} />
-        <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
+        {/* solo super admin: la tabella delle preferenze accetta scritture solo da loro */}
+        <Route path="impostazioni/notifiche" element={<RequireSuperAdmin><AdminSettingsNotifications /></RequireSuperAdmin>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AuditUnifiedPage /></RequireSuperAdmin>} />
-        {/* Il vecchio registro (solo admin_audit_log) resta raggiungibile finché
-            il nuovo non è collaudato su tutte le sorgenti. */}
-        <Route path="impostazioni/audit-legacy" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
+        {/* Il vecchio registro (solo admin_audit_log) è compreso nel Registro attività. */}
+        <Route path="impostazioni/audit-legacy" element={<Navigate to="/admin/impostazioni/audit" replace />} />
         <Route path="changelog" element={<RequireSuperAdmin><AdminChangelog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
-        <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
-        <Route path="impostazioni/dominio-email" element={<RequireSuperAdmin><AdminSettingsEmailDomain /></RequireSuperAdmin>} />
+        {/* mittente, aspetto e dominio sono schede della pagina Email */}
+        <Route path="impostazioni/preferenze-email" element={<Navigate to="/admin/impostazioni/email?scheda=mittente" replace />} />
+        <Route path="impostazioni/dominio-email" element={<Navigate to="/admin/impostazioni/email?scheda=dominio" replace />} />
         {/* Profilo personale + OAuth callback: aperti a tutti i ruoli admin
             (platform_manager / support / sales / marketing / implementation) —
             ognuno collega la sua casella, isolamento via user_id. */}
@@ -298,38 +286,36 @@ export default function AdminRoutesContainer() {
         <Route path="messaggi-programmati" element={<RequireSuperAdmin><AdminBulkSchedulesPage /></RequireSuperAdmin>} />
 
         {/* Redirect dalle VECCHIE route → nuove pagine (backward-compat bookmark) */}
-        <Route path="impostazioni/agenti-ai" element={<Navigate to="/admin/ai-config" replace />} />
-        <Route path="ai-test-lab" element={<Navigate to="/admin/ai-monitor?tab=test-lab" replace />} />
-        <Route path="silvio-hub" element={<Navigate to="/admin/ai-operate" replace />} />
-        <Route path="silvio/approvazioni" element={<Navigate to="/admin/ai-operate?tab=approvals" replace />} />
+        {/* diretti alla destinazione: prima passavano per due rimandi */}
+        <Route path="impostazioni/agenti-ai" element={<Navigate to="/admin/ai?section=config" replace />} />
+        <Route path="ai-test-lab" element={<Navigate to="/admin/ai?section=monitor&tab=test-lab" replace />} />
+        <Route path="silvio-hub" element={<Navigate to="/admin/ai" replace />} />
+        <Route path="silvio/approvazioni" element={<Navigate to="/admin/ai?tab=approvals" replace />} />
 
         {/* Silvio Admin chat (entry point chat dedicata, separata) */}
         <Route path="silvio" element={<RequireSuperAdmin><SilvioAdminPage /></RequireSuperAdmin>} />
 
-        {/* Vecchie pagine ancora montate ma raggiungibili solo via redirect sopra
-            (rimangono disponibili come component se servono) */}
-        <Route path="legacy/silvio-hub" element={<RequireSuperAdmin><SilvioAdminHub /></RequireSuperAdmin>} />
-        <Route path="legacy/agenti-ai" element={<RequireSuperAdmin><AdminSettingsAI /></RequireSuperAdmin>} />
-        <Route path="legacy/silvio-approvazioni" element={<RequireSuperAdmin><SilvioApprovalsPage /></RequireSuperAdmin>} />
-        <Route path="legacy/ai-test-lab" element={<RequireSuperAdmin><AdminAITestLab /></RequireSuperAdmin>} />
-        <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
+        {/* Le vecchie pagine AI montate a parte erano doppioni dell'hub: ora rimandano lì. */}
+        <Route path="legacy/*" element={<Navigate to="/admin/ai" replace />} />
+        {/* gli IP autorizzati sono una scheda di Sicurezza */}
+        <Route path="impostazioni/ip-allowlist" element={<Navigate to="/admin/impostazioni/sicurezza?scheda=ip" replace />} />
         <Route path="impostazioni/meta-lead-esclusioni" element={<RequireSuperAdmin><AdminSettingsMetaLeadDenylist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="impostazioni/integrazioni" element={<RequireSuperAdmin><AdminSettingsIntegrations /></RequireSuperAdmin>} />
         <Route path="impostazioni/api-mcp" element={<RequireSuperAdmin><AdminSettingsApiMcp /></RequireSuperAdmin>} />
-        <Route path="impostazioni/whatsapp-locale" element={<RequireSuperAdmin><AdminSettingsWhatsappLocale /></RequireSuperAdmin>} />
+        {/* era lo stesso pannello del Marketing: una sola casa */}
+        <Route path="impostazioni/whatsapp-locale" element={<Navigate to="/admin/marketing/whatsapp-locale/numeri" replace />} />
         <Route path="impostazioni/calendari" element={<RequireSuperAdmin><AdminSettingsMarketingCalendars /></RequireSuperAdmin>} />
         <Route path="impostazioni/sequenze" element={<RequireSuperAdmin><AdminSettingsPipelines /></RequireSuperAdmin>} />
         <Route path="impostazioni/banking" element={<RequireSuperAdmin><AdminSettingsBanking /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhook-logs" element={<RequireSuperAdmin><AdminSettingsWebhookLogs /></RequireSuperAdmin>} />
-        <Route path="impostazioni/banking-overview" element={<RequireSuperAdmin><AdminSettingsBankingOverview /></RequireSuperAdmin>} />
+        {/* la situazione per azienda è una scheda di Banking */}
+        <Route path="impostazioni/banking-overview" element={<Navigate to="/admin/impostazioni/banking?scheda=situazione" replace />} />
         {/* Vecchia route ai-usage → redirect alla nuova AI Monitor con tab Usage */}
-        <Route path="ai-usage" element={<Navigate to="/admin/ai-monitor?tab=usage" replace />} />
-        <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-monitor?tab=usage" replace />} />
-        {/* Legacy route della pagina AIUsage standalone, raggiungibile solo via redirect */}
-        <Route path="legacy/ai-usage" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsAIUsage /></RequireAdminPermission>} />
+        <Route path="ai-usage" element={<Navigate to="/admin/ai?section=monitor&tab=usage" replace />} />
+        <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai?section=monitor&tab=usage" replace />} />
         {/* /admin/piani standalone → ora redirect al tab dentro l'hub Fatturato (vedi sotto). */}
         {/* La pagina singola di un piano (/admin/piani/:id) resta accessibile direttamente. */}
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
@@ -350,13 +336,15 @@ export default function AdminRoutesContainer() {
         <Route path="manodopera-tariffe" element={<RequireSuperAdmin><ManodoperaTariffe /></RequireSuperAdmin>} />
         {/* Hub Customer Success — 5 tab in alto. */}
         <Route path="cs" element={<RequireAdminPermission permission="can_manage_companies"><AdminCustomerSuccessHub /></RequireAdminPermission>} />
-        {/* Hub Operazioni — 5 tab in alto. */}
-        <Route path="operazioni" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminOperazioniHub /></RequireAdminPermission>} />
+        {/* Hub Operazioni: dentro le Impostazioni (prima, aprendolo dal loro
+            menu, la barra laterale delle impostazioni spariva). */}
+        <Route path="impostazioni/operazioni" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminOperazioniHub /></RequireAdminPermission>} />
+        <Route path="operazioni" element={<PreserveQueryRedirect to="/admin/impostazioni/operazioni" />} />
         {/* Route legacy CS → redirect verso tab corrispondente. */}
         <Route path="lifecycle" element={<Navigate to="/admin/cs?tab=lifecycle" replace />} />
         <Route path="customer-success" element={<Navigate to="/admin/cs?tab=onboarding" replace />} />
         {/* Route legacy Operazioni → redirect verso tab corrispondente. */}
-        <Route path="sync-logs" element={<Navigate to="/admin/operazioni?tab=sync" replace />} />
+        <Route path="sync-logs" element={<Navigate to="/admin/impostazioni/operazioni?tab=sync" replace />} />
         <Route path="annunci" element={<RequireAdminPermission permission="can_view_platform_stats"><Announcements /></RequireAdminPermission>} />
         {/* Cruscotto top section: Attività & Chat (replicate dalla sidebar Azienda).
             La gestione completa task vive ora dentro Attività come tab "Tutte le
@@ -373,7 +361,7 @@ export default function AdminRoutesContainer() {
         <Route path="email-triage" element={<Navigate to="/admin/email" replace />} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
-        <Route path="gdpr" element={<Navigate to="/admin/operazioni?tab=gdpr" replace />} />
+        <Route path="gdpr" element={<Navigate to="/admin/impostazioni/operazioni?tab=gdpr" replace />} />
         <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
         <Route path="marketing/dashboard" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCommercialDashboard /></RequireAdminPermission>} />
         <Route path="marketing/clienti-servizio" element={<RequireAdminPermission permission="can_manage_marketing"><AdminServiceClients /></RequireAdminPermission>} />
@@ -408,25 +396,29 @@ export default function AdminRoutesContainer() {
         <Route path="fatturazione-elettronica" element={<RequireSuperAdmin><AdminFatturazioneElettronica /></RequireSuperAdmin>} />
         {/* Route legacy → redirect verso il tab corrispondente nell'hub.
            Manteniamo bookmark/link esterni funzionanti senza esporre 5 voci. */}
-        <Route path="revenue" element={<Navigate to="/admin/fatturato?tab=revenue" replace />} />
-        <Route path="piani" element={<Navigate to="/admin/fatturato?tab=piani" replace />} />
-        <Route path="fatture" element={<Navigate to="/admin/fatturato?tab=fatture" replace />} />
-        <Route path="promo-codes" element={<Navigate to="/admin/fatturato?tab=promo" replace />} />
-        <Route path="dunning" element={<Navigate to="/admin/fatturato?tab=dunning" replace />} />
+        {/* con la query: «Modifica» del dettaglio piano passa ?edit=, che un
+            Navigate fisso perdeva (la modifica non si apriva) */}
+        <Route path="revenue" element={<PreserveQueryRedirect to="/admin/fatturato" addParams="tab=revenue" />} />
+        <Route path="piani" element={<PreserveQueryRedirect to="/admin/fatturato" addParams="tab=piani" />} />
+        <Route path="fatture" element={<PreserveQueryRedirect to="/admin/fatturato" addParams="tab=fatture" />} />
+        <Route path="promo-codes" element={<PreserveQueryRedirect to="/admin/fatturato" addParams="tab=promo" />} />
+        <Route path="dunning" element={<PreserveQueryRedirect to="/admin/fatturato" addParams="tab=dunning" />} />
         <Route path="cs-dashboard" element={<Navigate to="/admin/cs?tab=dashboard" replace />} />
         <Route path="sms" element={<RequireSuperAdmin><SmsSuperAdminPage /></RequireSuperAdmin>} />
-        <Route path="crm" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminCRM /></RequireAdminPermission>} />
-        {/* Campagne AB Test — Feature 7 */}
-        <Route path="campagne" element={<RequireAdminPermission permission="can_manage_marketing"><CampaignsPage /></RequireAdminPermission>} />
+        {/* Il vecchio CRM non filtrava per azienda (mescolava i contatti di tutte
+            le aziende clienti): il CRM della piattaforma è Contatti. */}
+        <Route path="crm" element={<Navigate to="/admin/marketing/contatti" replace />} />
+        {/* Le vecchie campagne leggevano una tabella vuota: l'email marketing è qui. */}
+        <Route path="campagne" element={<Navigate to="/admin/marketing/email" replace />} />
         <Route path="campagne/:id/analytics" element={<RequireAdminPermission permission="can_manage_marketing"><CampaignAnalyticsPage /></RequireAdminPermission>} />
         {/* Playbook Automatici — ora dentro hub CS come tab "playbook". */}
         <Route path="playbooks" element={<Navigate to="/admin/cs?tab=playbook" replace />} />
         {/* Ticket assistenza → tab "assistenza" dentro hub CS. */}
         <Route path="ticket" element={<Navigate to="/admin/cs?tab=assistenza" replace />} />
         {/* Operazioni — redirect verso tab corrispondente nell'hub. */}
-        <Route path="csv-import" element={<Navigate to="/admin/operazioni?tab=import" replace />} />
-        <Route path="audit-log" element={<Navigate to="/admin/operazioni?tab=audit" replace />} />
-        <Route path="failure-alerts" element={<Navigate to="/admin/operazioni?tab=alert" replace />} />
+        <Route path="csv-import" element={<Navigate to="/admin/impostazioni/operazioni?tab=import" replace />} />
+        <Route path="audit-log" element={<Navigate to="/admin/impostazioni/operazioni?tab=audit" replace />} />
+        <Route path="failure-alerts" element={<Navigate to="/admin/impostazioni/operazioni?tab=alert" replace />} />
         {/* Cohort Chart — Feature 3 */}
         <Route path="cohort" element={<RequireAdminPermission permission="can_view_platform_stats"><CohortPage /></RequireAdminPermission>} />
         {/* Dunning Templates — Feature 4 */}

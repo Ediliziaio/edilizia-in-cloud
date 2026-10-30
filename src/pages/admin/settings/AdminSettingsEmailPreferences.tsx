@@ -18,11 +18,11 @@ const SettingsEmailPreferences = lazy(
   () => import("@/pages/azienda/settings/SettingsEmailPreferences"),
 );
 
-export default function AdminSettingsEmailPreferences() {
+export default function AdminSettingsEmailPreferences({ linkDominio }: { /** Dove sta il dominio quando la pagina è montata nella pagina Email (scheda «Dominio»). */ linkDominio?: string } = {}) {
   return (
     <PlatformCompanyProvider>
       <Suspense fallback={<Skeleton className="h-[600px] w-full" />}>
-        <SettingsEmailPreferences />
+        <SettingsEmailPreferences linkDominio={linkDominio} />
       </Suspense>
     </PlatformCompanyProvider>
   );

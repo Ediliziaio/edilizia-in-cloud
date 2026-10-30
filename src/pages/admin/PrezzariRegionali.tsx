@@ -35,6 +35,16 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
@@ -170,6 +180,9 @@ export default function PrezzariRegionali() {
   const qc = useQueryClient();
 
   const [form, setForm] = useState<FonteForm>(EMPTY_FORM);
+  // Conferma prima di archiviare: un prezzario archiviato sparisce per TUTTE
+  // le aziende (prima bastava un clic, senza conferma).
+  const [archiviaTarget, setArchiviaTarget] = useState<PrezzarioFonte | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -358,7 +371,7 @@ export default function PrezzariRegionali() {
   const canImport = Boolean(result) && (summary?.valid ?? 0) > 0 && !importMutation.isPending;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-4 md:p-6 max-w-[1600px]">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="rounded-lg bg-sidebar-primary/10 p-2">
@@ -372,6 +385,29 @@ export default function PrezzariRegionali() {
         </div>
       </div>
 
+      {/* Riepilogo: quante fonti per stato e quante regioni hanno un prezzario pubblicato. */}
+      {fonti && fonti.length > 0 && (() => {
+        const pubblicate = fonti.filter((f: PrezzarioFonte) => f.stato === "pubblicato");
+        const regioniCoperte = new Set(pubblicate.map((f: PrezzarioFonte) => f.regione)).size;
+        const kpi = [
+          { etichetta: "Pubblicati", valore: pubblicate.length, dettaglio: "visibili alle aziende" },
+          { etichetta: "Regioni coperte", valore: `${regioniCoperte}/${REGIONI_ITALIANE.length}`, dettaglio: "con almeno un prezzario pubblicato" },
+          { etichetta: "Bozze", valore: fonti.filter((f: PrezzarioFonte) => f.stato === "bozza").length, dettaglio: "da controllare e pubblicare" },
+          { etichetta: "Archiviati", valore: fonti.filter((f: PrezzarioFonte) => f.stato === "archiviato").length, dettaglio: "ritirati" },
+        ];
+        return (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {kpi.map((k) => (
+              <div key={k.etichetta} className="rounded-lg border bg-card p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.etichetta}</p>
+                <p className="text-2xl font-semibold tabular-nums leading-tight">{k.valore}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{k.dettaglio}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Guardrail legale */}
       <Alert>
         <AlertCircle className="h-4 w-4" />
@@ -383,6 +419,8 @@ export default function PrezzariRegionali() {
       </Alert>
 
       {/* Form fonte + upload */}
+      {/* Caricamento da file e da AI affiancati su schermo largo. */}
+      <div className="grid gap-6 2xl:grid-cols-2 items-start">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -553,6 +591,7 @@ export default function PrezzariRegionali() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Anteprima */}
       {result && (
@@ -780,7 +819,7 @@ export default function PrezzariRegionali() {
                                 size="sm"
                                 variant="outline"
                                 disabled={pending}
-                                onClick={() => statoMutation.mutate({ id: f.id, stato: "archiviato" })}
+                                onClick={() => setArchiviaTarget(f)}
                               >
                                 <Archive className="mr-1.5 h-3.5 w-3.5" />
                                 Archivia
@@ -797,6 +836,30 @@ export default function PrezzariRegionali() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!archiviaTarget} onOpenChange={(open) => { if (!open) setArchiviaTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archiviare «{archiviaTarget?.nome}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il prezzario {archiviaTarget?.regione} {archiviaTarget?.anno} non sarà più disponibile per{" "}
+              <strong>nessuna azienda</strong>: non comparirà più tra i prezzari da consultare. Potrai ripubblicarlo quando vuoi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (archiviaTarget) statoMutation.mutate({ id: archiviaTarget.id, stato: "archiviato" });
+                setArchiviaTarget(null);
+              }}
+            >
+              Archivia per tutte
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

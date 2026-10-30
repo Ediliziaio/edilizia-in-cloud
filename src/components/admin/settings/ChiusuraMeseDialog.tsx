@@ -268,9 +268,10 @@ function CorpoChiusura({ data, periodo, nomiServizi, onOpenChange }: { data: Dat
       toast.success(`Mese chiuso su ${n} client${n === 1 ? "e" : "i"}`, {
         description: "Gli importi sono ora nel Fatturato Servizi.",
       });
-      qc.invalidateQueries({ queryKey: ["aedix-service-billings"] });
+      qc.invalidateQueries({ queryKey: ["admin", "service-billings"] });
+      qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] });
       qc.invalidateQueries({ queryKey: ["chiusura-mese"] });
-      qc.invalidateQueries({ queryKey: ["servizi-fatturato"] });
+      qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] });
       qc.invalidateQueries({ queryKey: ["clienti-marketing"] });
       onOpenChange(false);
     },

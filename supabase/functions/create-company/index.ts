@@ -45,11 +45,12 @@ Deno.serve(conMetriche("create-company", async (req) => {
       operationalProvince,
       operationalPostalCode,
       planId,
+      inviaBenvenuto,
     } = await req.json();
 
     // --- Input Validation ---
     if (!companyName || !companyEmail || !adminEmail || !adminPassword || !sector) {
-      return errorResponse("Missing required fields");
+      return errorResponse("Mancano dati obbligatori: nome ed email dell'azienda, settore, email e password dell'amministratore");
     }
 
     const trimmedCompanyName = String(companyName).trim().slice(0, 200);
@@ -118,7 +119,12 @@ Deno.serve(conMetriche("create-company", async (req) => {
       .single();
 
     if (companyError) {
-      return errorResponse(`Company error: ${companyError.message}`);
+      // il controllo della P. IVA e dell'email unica sta nel database: il suo
+      // messaggio va detto in chiaro, non dopo «Company error:»
+      const doppia = companyError.code === "23505";
+      return errorResponse(doppia
+        ? "Esiste già un'azienda con questi dati (email o P. IVA): controlla nell'elenco Aziende"
+        : `Azienda non creata: ${companyError.message}`);
     }
 
     const companyId = companyData.id;
@@ -126,10 +132,21 @@ Deno.serve(conMetriche("create-company", async (req) => {
     // Fasi commessa del settore, prima dell'utente: se non si creano, l'azienda
     // non nasce e il form mostra il motivo. Fino al 24/09 l'errore finiva solo
     // nel log e l'azienda restava con la sola «Assistenza» (_shared/fasiCommessa.ts).
+    // Se un passo fallisce si toglie quello che è già nato. Se anche la pulizia
+    // fallisce (righe create dai trigger) va detto: prima restava un'azienda
+    // senza amministratore e il messaggio parlava d'altro.
+    const annullaAzienda = async (): Promise<string> => {
+      const { error } = await supabaseAdmin.from("companies").delete().eq("id", companyId);
+      if (error) {
+        console.error("[create-company] pulizia dell'azienda non riuscita:", error.message);
+        return ` L'azienda «${trimmedCompanyName}» però è rimasta: eliminala dall'elenco Aziende prima di riprovare.`;
+      }
+      return "";
+    };
+
     const fasi = await creaFasiCommessa(supabaseAdmin, companyId, sector);
     if (fasi.errore) {
-      await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      return errorResponse(`Fasi commessa non create: ${fasi.errore}`);
+      return errorResponse(`Fasi commessa non create: ${fasi.errore}.${await annullaAzienda()}`);
     }
 
     // Create admin user in auth.users
@@ -141,8 +158,11 @@ Deno.serve(conMetriche("create-company", async (req) => {
       });
 
     if (authError) {
-      await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      return errorResponse(`Auth error: ${authError.message}`);
+      const resto = await annullaAzienda();
+      const giaRegistrata = /already been registered|already exists|email_exists/i.test(authError.message);
+      return errorResponse(giaRegistrata
+        ? `Esiste già un utente con l'email ${trimmedAdminEmail}: usa un'altra email per l'amministratore.${resto}`
+        : `Utente amministratore non creato: ${authError.message}.${resto}`);
     }
 
     const newUserId = authData.user.id;
@@ -160,8 +180,7 @@ Deno.serve(conMetriche("create-company", async (req) => {
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
-      await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      return errorResponse(`Profile error: ${profileError.message}`);
+      return errorResponse(`Profilo dell'amministratore non creato: ${profileError.message}.${await annullaAzienda()}`);
     }
 
     // Assign company_admin role
@@ -175,9 +194,16 @@ Deno.serve(conMetriche("create-company", async (req) => {
     if (roleError) {
       await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
-      await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      return errorResponse(`Role error: ${roleError.message}`);
+      return errorResponse(`Ruolo dell'amministratore non assegnato: ${roleError.message}.${await annullaAzienda()}`);
     }
+
+    // L'amministratore creato qui è il titolare: prima restava vuoto (tra le
+    // ultime 12 aziende create, solo una lo aveva). Non blocca la creazione.
+    const { error: titolareError } = await supabaseAdmin
+      .from("companies")
+      .update({ titolare_user_id: newUserId })
+      .eq("id", companyId);
+    if (titolareError) console.error("[create-company] titolare non impostato:", titolareError.message);
 
     // Trigger di PIATTAFORMA: notifica il motore automazioni admin (best-effort).
     await emitPlatformEvent(supabaseAdmin, PLATFORM_EVENTS.COMPANY_CREATED, {
@@ -197,8 +223,9 @@ Deno.serve(conMetriche("create-company", async (req) => {
     });
 
     // Email di BENVENUTO all'admin (1.1 — subito). Best-effort: un errore di invio
-    // NON annulla la creazione dell'azienda (già committata sopra).
-    try {
+    // NON annulla la creazione dell'azienda (già committata sopra). Si può non
+    // mandare (spunta nel modulo): in mancanza del campo parte, come prima.
+    if (inviaBenvenuto !== false) try {
       const siteUrl =
         (await getPlatformSetting("site_url", "SITE_URL")) ||
         Deno.env.get("SITE_URL") ||
@@ -212,12 +239,10 @@ Deno.serve(conMetriche("create-company", async (req) => {
       // "Email link is invalid or has expired" e restava fuori. Successo davvero
       // (Best Infissi, 21/07: email alle 09:14, primo clic tre giorni dopo).
       //
-      // Il token va creato quando l'utente lo chiede: `?reset=1` apre il
-      // recupero password già compilato e ne genera uno fresco, valido da
-      // quell'istante. La password iniziale scelta nel form resta comunque buona.
-      const loginUrl = base
-        ? `${base}/login?reset=1&email=${encodeURIComponent(trimmedAdminEmail)}`
-        : "";
+      // La password l'ha scelta chi crea l'azienda: l'email la scrive e il
+      // bottone porta dritto all'accesso. Senza password scritta il cliente non
+      // saprebbe con cosa entrare (30/10: il benvenuto lo mandava a reimpostarla).
+      const loginUrl = base ? `${base}/login` : "";
       const rendered = await renderEmailTemplate({
         templateName: "welcome",
         companyId,
@@ -227,6 +252,9 @@ Deno.serve(conMetriche("create-company", async (req) => {
           recipientName: adminFirstName || "Admin",
           loginUrl,
           roleLabel: "Amministratore",
+          companyName: trimmedCompanyName,
+          loginEmail: trimmedAdminEmail,
+          password: String(adminPassword),
         },
       });
       await sendEmailUnified({
@@ -245,40 +273,13 @@ Deno.serve(conMetriche("create-company", async (req) => {
       console.error("[create-company] invio email benvenuto fallito:", emailErr);
     }
 
-    // Email 6 — copia dei documenti/termini accettati (prova legale B2B). Best-effort.
-    try {
-      const baseUrl = (await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "";
-      const legalBase = baseUrl ? `${baseUrl.replace(/\/$/, "")}/legal` : "";
-      const now = new Date();
-      const dz = (opts: Intl.DateTimeFormatOptions) =>
-        new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", ...opts }).format(now);
-      const rendered = await renderEmailTemplate({
-        templateName: "terms_accepted",
-        companyId,
-        adminClient: supabaseAdmin,
-        props: {
-          recipientName: adminFirstName || "Admin",
-          acceptedDate: dz({ day: "2-digit", month: "2-digit", year: "numeric" }),
-          acceptedTime: dz({ hour: "2-digit", minute: "2-digit" }),
-          // Nomi file REALI in public/legal/ — i nomi corti (termini.pdf ecc.) sono 404
-          tcUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Termini-e-Condizioni.pdf` : "", tcVersion: "1.0",
-          privacyUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Privacy-Policy.pdf` : "", privacyVersion: "1.0",
-          dpaUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_DPA.pdf` : "", dpaVersion: "1.0",
-          cookieUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Cookie-Policy.pdf` : "", cookieVersion: "1.0",
-        },
-      });
-      await sendEmailUnified({
-        companyId, stream: "transactional", to: [trimmedAdminEmail],
-        subject: rendered.subject, html: rendered.html, text: rendered.text,
-        templateName: "terms_accepted", skipCredits: true, adminClient: supabaseAdmin,
-      });
-    } catch (emailErr) {
-      console.error("[create-company] invio email termini fallito:", emailErr);
-    }
+    // Niente email «copia dei termini accettati»: l'azienda la crea il super
+    // admin e il cliente non ha accettato niente. Quell'email dava data e ora di
+    // un'accettazione mai avvenuta; si manda quando il cliente accetta davvero.
 
     return jsonResponse({
       success: true,
-      message: "Company created successfully",
+      message: "Azienda creata",
       company: companyData,
       adminUserId: newUserId,
     });

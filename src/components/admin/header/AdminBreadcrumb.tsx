@@ -9,71 +9,87 @@ interface BreadcrumbSegment {
   href?: string;
 }
 
+// Una voce per ogni pagina vera (i rimandi non servono: l'indirizzo cambia
+// prima che il breadcrumb si veda). Senza voce il titolo restava vuoto.
 const ROUTE_MAP: Record<string, string> = {
   "/admin": "Dashboard",
   "/admin/aziende": "Aziende",
   "/admin/utenti": "Utenti",
-  "/admin/aziende/nuova": "Nuova Azienda",
-  "/admin/ticket": "Assistenza",
-  "/admin/lifecycle": "Lifecycle",
-  "/admin/customer-success": "CS Onboarding",
   "/admin/attivita": "Attività",
   "/admin/chat": "Chat team",
-  "/admin/cs-tasks": "Attività", // alias retrocompat (redirige a /admin/attivita?tab=tutte)
-  "/admin/piani": "Piani",
+  "/admin/email": "Email",
+  "/admin/email/ai": "AI della casella email",
   "/admin/fatturato": "Fatturato",
   "/admin/insoluti": "Insoluti",
-  "/admin/revenue": "Revenue",
-  "/admin/fatture": "Fatture",
-  "/admin/promo-codes": "Promo",
-  "/admin/dunning": "Dunning",
-  "/admin/cs": "Assistenza Clienti",
-  "/admin/cs-dashboard": "Assistenza Clienti",
-  "/admin/portale-formazione": "Portale Formazione",
-  "/admin/operazioni": "Operazioni",
-  "/admin/ai": "Intelligenza Artificiale",
-  "/admin/ai-operate": "AI · Operate",
-  "/admin/ai-monitor": "AI · Monitor",
-  "/admin/ai-config": "AI · Config",
-  "/admin/ai-memoria": "AI · Memoria",
-  "/admin/sync-logs": "Sync Logs",
-  "/admin/failure-alerts": "Alert Failure",
-  "/admin/csv-import": "Import CSV",
-  "/admin/audit-log": "Audit Log",
-  "/admin/feature-flags": "Funzionalità Azienda",
-  "/admin/annunci": "Annunci",
-  "/admin/gdpr": "GDPR",
+  "/admin/fatturazione-elettronica": "Fatturazione elettronica",
+  "/admin/cohort": "Coorti di ricavo",
+  "/admin/dunning-templates": "Modelli recupero pagamenti",
   "/admin/referral": "Referral",
-  "/admin/ai-usage": "Monitor AI",
+  "/admin/produttori": "Produttori",
+  "/admin/commercialisti": "Commercialisti",
+  "/admin/cs": "Assistenza Clienti",
+  "/admin/portale-formazione": "Portale Formazione",
+  "/admin/ai": "Intelligenza Artificiale",
+  "/admin/silvio": "Silvio",
+  "/admin/messaggi-programmati": "Messaggi programmati",
+  "/admin/feature-flags": "Funzionalità Azienda",
+  "/admin/feature-bundles": "Gruppi di funzionalità",
+  "/admin/annunci": "Annunci",
+  "/admin/changelog": "Novità",
+  "/admin/fv-modulo": "Modulo fotovoltaico",
+  "/admin/prezzari-regionali": "Prezzari regionali",
+  "/admin/template-articoli": "Libreria listino",
+  "/admin/manodopera-tariffe": "Manodopera (costo orario)",
+  "/admin/salute": "Salute piattaforma",
+  "/admin/sito": "Traffico sito",
+  "/admin/siti": "Siti e Google",
+  "/admin/connessioni": "Connessioni",
+  "/admin/sms": "Prezzi e pacchetti SMS",
   "/admin/marketing": "Marketing",
+  "/admin/marketing/dashboard": "Dashboard CRM",
+  "/admin/marketing/clienti-servizio": "Clienti Servizi",
   "/admin/marketing/contatti": "Contatti",
+  "/admin/marketing/lead-scraper": "Lead scraper",
   "/admin/marketing/opportunita": "Opportunità",
   "/admin/marketing/calendario": "Calendario",
   "/admin/marketing/email": "Email Marketing",
-  "/admin/marketing/whatsapp": "WhatsApp",
+  "/admin/marketing/sms": "SMS Marketing",
+  "/admin/marketing/whatsapp": "WhatsApp (Meta)",
+  "/admin/marketing/whatsapp-locale": "WhatsApp dal telefono",
+  "/admin/marketing/whatsapp-locale/campagne": "WhatsApp dal telefono",
+  "/admin/marketing/whatsapp-locale/numeri": "WhatsApp dal telefono",
   "/admin/marketing/automazioni": "Automazioni",
+  "/admin/marketing/automazioni/nuova": "Nuova automazione",
   "/admin/marketing/agenti-ai": "Agenti AI",
+  "/admin/marketing/lead-forms": "Moduli lead Meta",
+  "/admin/marketing/form-builder": "Form Builder",
+  "/admin/marketing/reportistica": "Report",
+  "/admin/marketing/sales-os": "Sales OS",
+  "/admin/marketing/simulatore-roi": "Simulatore ROI",
+  "/admin/marketing/preventivi": "Preventivi",
+  "/admin/marketing/preventivi/nuovo": "Nuovo preventivo",
   "/admin/impostazioni": "Impostazioni",
-  "/admin/impostazioni/profilo": "Profilo",
   "/admin/impostazioni/mio-profilo": "Il mio profilo",
-  "/admin/impostazioni/preferenze-email": "Preferenze email",
-  "/admin/impostazioni/dominio-email": "Dominio email",
-  "/admin/email": "Email",
-  "/admin/email/ai": "AI della casella email",
-  "/admin/impostazioni/piattaforma": "Piattaforma",
-  "/admin/impostazioni/sequenze": "Pipeline di vendita",
-  "/admin/impostazioni/notifiche": "Notifiche",
-  "/admin/impostazioni/super-admin": "Super Admin",
-  "/admin/impostazioni/audit": "Registro Attività",
-  "/admin/impostazioni/email": "Email",
-  "/admin/impostazioni/agenti-ai": "Agenti AI",
-  "/admin/impostazioni/ip-allowlist": "IP Allowlist",
-  "/admin/impostazioni/meta-lead-esclusioni": "Filtro Lead Meta",
-  "/admin/impostazioni/sicurezza": "Sicurezza",
+  "/admin/impostazioni/super-admin": "Gestione Team",
+  "/admin/impostazioni/piattaforma": "Info Piattaforma",
+  "/admin/impostazioni/campi-personalizzati": "Campi personalizzati",
+  "/admin/impostazioni/prodotti-servizi": "Prodotti & Servizi",
   "/admin/impostazioni/integrazioni": "Integrazioni",
-  "/admin/impostazioni/api-mcp": "API & MCP",
-  "/admin/impostazioni/whatsapp-locale": "WhatsApp Locale",
+  "/admin/impostazioni/calendari": "Calendari marketing",
+  "/admin/impostazioni/sequenze": "Pipeline di vendita",
   "/admin/impostazioni/banking": "Banking",
+  "/admin/impostazioni/email": "Email",
+  "/admin/impostazioni/preferenze-email": "Mittente e aspetto email",
+  "/admin/impostazioni/dominio-email": "Dominio email",
+  "/admin/impostazioni/notifiche": "Notifiche",
+  "/admin/impostazioni/meta-lead-esclusioni": "Filtro Lead Meta",
+  "/admin/impostazioni/operazioni": "Operazioni",
+  "/admin/impostazioni/audit": "Registro Attività",
+  "/admin/impostazioni/sicurezza": "Sicurezza",
+  "/admin/impostazioni/ip-allowlist": "IP autorizzati",
+  "/admin/impostazioni/api-mcp": "API e MCP",
+  "/admin/impostazioni/webhooks": "Webhook in uscita",
+  "/admin/impostazioni/webhook-logs": "Registro webhook",
 };
 
 export function AdminBreadcrumb() {
@@ -104,11 +120,23 @@ export function AdminBreadcrumb() {
 
     // Settings section
     if (path.startsWith("/admin/impostazioni")) {
-      result.push({ label: "Impostazioni", href: "/admin/impostazioni/profilo" });
+      result.push({ label: "Impostazioni", href: "/admin/impostazioni/mio-profilo" });
       const settingsPage = ROUTE_MAP[path];
       if (settingsPage && path !== "/admin/impostazioni") {
         result.push({ label: settingsPage });
       }
+      return result;
+    }
+
+    // Nuova azienda e dettaglio piano: sotto la loro pagina madre
+    if (path === "/admin/aziende/nuova") {
+      result.push({ label: "Aziende", href: "/admin/aziende" });
+      result.push({ label: "Nuova Azienda" });
+      return result;
+    }
+    if (path.match(/\/admin\/piani\/[^/]+/)) {
+      result.push({ label: "Fatturato", href: "/admin/fatturato?tab=piani" });
+      result.push({ label: "Piano" });
       return result;
     }
 

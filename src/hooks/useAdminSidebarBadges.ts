@@ -153,7 +153,9 @@ export function getBadgeForNavItem(
 ): { count?: number; dot?: boolean; variant: "default" | "warning" | "destructive" } | null {
   if (!badges) return null;
 
-  if (url === "/admin/ticket" && badges.openTickets > 0) {
+  // La voce di menu è «Assistenza Clienti» (/admin/cs): legato solo al vecchio
+  // /admin/ticket il numero dei ticket aperti non compariva mai.
+  if ((url === "/admin/cs" || url === "/admin/ticket") && badges.openTickets > 0) {
     return { count: badges.openTickets, variant: badges.openTickets > 10 ? "destructive" : "default" };
   }
 
@@ -185,7 +187,8 @@ export function getBadgeForNavItem(
     return { count: badges.emailUnread, variant: "default" };
   }
 
-  if (url === "/admin/lifecycle" && badges.trialsExpiring > 0) {
+  // prove in scadenza: senza ticket aperti, il numero va su Assistenza Clienti
+  if ((url === "/admin/cs" || url === "/admin/lifecycle") && badges.trialsExpiring > 0) {
     return { count: badges.trialsExpiring, variant: "warning" };
   }
 

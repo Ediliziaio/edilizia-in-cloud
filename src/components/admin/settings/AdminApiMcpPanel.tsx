@@ -24,6 +24,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   generateApiKey, hashApiKey, apiKeyPrefix,
@@ -138,6 +142,8 @@ export default function AdminApiMcpPanel() {
   const [ambito, setAmbito] = useState<string>("platform"); // "platform" | company uuid
   const [expiry, setExpiry] = useState<string>("never"); // never | 30 | 90 | 365
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  // Conferma dell'eliminazione con la finestra dell'app (prima era window.confirm del browser).
+  const [daEliminare, setDaEliminare] = useState<ApiKeyRow | null>(null);
 
   const resetForm = () => {
     setName("");
@@ -203,6 +209,7 @@ export default function AdminApiMcpPanel() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-api-keys"] });
+      setDaEliminare(null);
       toast.success("Chiave eliminata definitivamente");
     },
     onError: (e) => toast.error((e as Error).message),
@@ -320,11 +327,8 @@ export default function AdminApiMcpPanel() {
                             variant="ghost" size="sm"
                             className="h-7 gap-1 text-xs text-rose-600 hover:text-rose-700"
                             disabled={deleteMutation.isPending}
-                            onClick={() => {
-                              if (window.confirm(`Eliminare definitivamente la chiave "${k.name}"? Chi la usa perderà l'accesso.`)) {
-                                deleteMutation.mutate(k.id);
-                              }
-                            }}
+                            aria-label={`Elimina la chiave ${k.name}`}
+                            onClick={() => setDaEliminare(k)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -567,6 +571,26 @@ export default function AdminApiMcpPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la chiave?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daEliminare && <>La chiave «{daEliminare.name}» viene eliminata definitivamente: chi la usa perde l'accesso. Non si può annullare.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => daEliminare && deleteMutation.mutate(daEliminare.id)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
