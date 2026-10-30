@@ -15,8 +15,8 @@ import { CAMPI_CONTESTO_TECNICO, CAMPI_RISCHIO_TECNICO, CAMPI_ATTREZZATURA_TECNI
  * poter girare come POS valido.
  */
 import {
-  ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, type Lavorazione, nessuno, type PosContenuto, type ProdottoPos, type Recapito, type Soggetto,
-  SVOLGIMENTO_LABEL, vociMancanti,
+  ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, LIVELLO_RISCHIO_LABEL, type Lavorazione, nessuno, type PosContenuto, type ProdottoPos, type Recapito,
+  righeDiTesto, type Soggetto, SVOLGIMENTO_LABEL, valutazioneAttiva, type ValutazioneLavorazione, vociMancanti,
 } from "./posModello.ts";
 
 export interface RevisionePos {
@@ -89,6 +89,18 @@ function sdsDelProdotto(pr: ProdottoPos): string {
   if (pr.sds_necessaria === "si") return `SDS rev. ${pr.sds_revisione || "da indicare"} del ${pr.sds_data || "da indicare"}`;
   if (pr.sds_necessaria === "no") return "SDS non necessaria";
   return "SDS da valutare";
+}
+
+/** Rischi, misure e DPI di una lavorazione legati fra loro, rischio per rischio (lettera g). */
+function rischiMisureHtml(l: Lavorazione, n: number, v: ValutazioneLavorazione): string {
+  const righe = v.righe.map((r) => `<tr><td>${testo(r.rischio)}</td><td>${testo(r.misure)}</td><td>${testo(r.dpi)}</td><td class="centro">${esc(r.residuo ? LIVELLO_RISCHIO_LABEL[r.residuo] : "")}</td></tr>`).join("");
+  const comuni = righeDiTesto(v.misure_comuni).length || righeDiTesto(v.dpi_comuni).length
+    ? `<tr><td>Comuni a tutta la lavorazione</td><td>${testo(v.misure_comuni)}</td><td>${testo(v.dpi_comuni)}</td><td></td></tr>`
+    : "";
+  const conResiduo = v.righe.some((r) => r.residuo);
+  return `<h4>Rischi, misure e DPI — ${esc(l.titolo || `Lavorazione n. ${n}`)}</h4>`
+    + `<table class="rischi"><tr><th style="width:24%">Rischio</th><th>Misure preventive e protettive</th><th style="width:25%">DPI</th><th class="centro" style="width:11%">Rischio residuo</th></tr>${righe}${comuni}</table>`
+    + (conResiduo ? `<p class="nota">Il rischio residuo è la valutazione di chi redige il POS dopo l'applicazione delle misure indicate.</p>` : "");
 }
 
 /** Gli elenchi di cantiere (lettere d ed e) a partire dalle lavorazioni; vuoti se non c'è nessuna lavorazione. */
@@ -277,12 +289,12 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
         <tr><td class="et" colspan="2">Macchine</td><td>${testo(l.macchine)}</td></tr>
         <tr><td class="et" colspan="2">Impianti</td><td>${testo(l.impianti)}</td></tr>
         <tr><td class="et" colspan="2">Turni di lavoro</td><td>${testo(l.turni)}</td></tr>
-        <tr><td class="et" colspan="2">Rischi</td><td>${testo(l.rischi)}</td></tr>
+        ${valutazioneAttiva(l) ? "" : `<tr><td class="et" colspan="2">Rischi</td><td>${testo(l.rischi)}</td></tr>
         <tr><td class="et" colspan="2">Misure preventive e protettive</td><td>${testo(l.misure)}</td></tr>
-        <tr><td class="et" colspan="2">DPI</td><td>${testo(l.dpi)}</td></tr>
+        <tr><td class="et" colspan="2">DPI</td><td>${testo(l.dpi)}</td></tr>`}
         <tr><td class="et" colspan="2">Durata presunta in giorni</td><td>${l.durata_giorni != null ? esc(l.durata_giorni) : testo("")}</td></tr>
         <tr><td class="et" colspan="2">Modalità di svolgimento</td><td>${casella(l.svolgimento === "diretto", SVOLGIMENTO_LABEL.diretto)}<br>${casella(l.svolgimento === "subappalto", `${SVOLGIMENTO_LABEL.subappalto}${l.svolgimento === "subappalto" ? `: ${l.svolgimento_con}` : ""}`)}<br>${casella(l.svolgimento === "collaborazione", `${SVOLGIMENTO_LABEL.collaborazione}${l.svolgimento === "collaborazione" ? `: ${l.svolgimento_con}` : ""}`)}</td></tr>
-      </table>${normalizzaSegnaliPos(l.segnaletica).length?`<h4>Segnaletica della lavorazione</h4><p class="nota">Pittogrammi schematici per la documentazione. Ubicazione dichiarata dal compilatore; posa e presenza effettiva da verificare sul cantiere.</p>${normalizzaSegnaliPos(l.segnaletica).map(s=>`<div class="segnale-pos" data-segnale="${s.id}" style="display:flex;gap:12px;align-items:center;margin:8px 0">${segnalePosSvg(s.id)}<p>${esc(SEGNALI_POS.find(x=>x.id===s.id)!.nome)}<br>Ubicazione: ${esc(s.ubicazione||"Da definire")}<br>${esc(s.note)}</p></div>`).join("")}`:""}${p.versione_requisiti_addetti===1?requisitiAddettiHtml(l):""}${p.versione_tecnica===1?dettaglioTecnicoHtml(l.tecnica||tecnicaPosVuota(),l.titolo||`Lavorazione ${i+1}`,p.versione_fonti_tecniche===1,p.versione_mezzi===1,p.versione_documenti_mezzi===1):""}`).join("")
+      </table>${valutazioneAttiva(l) ? rischiMisureHtml(l, i + 1, valutazioneAttiva(l)!) : ""}${normalizzaSegnaliPos(l.segnaletica).length?`<h4>Segnaletica della lavorazione</h4><p class="nota">Pittogrammi schematici per la documentazione. Ubicazione dichiarata dal compilatore; posa e presenza effettiva da verificare sul cantiere.</p>${normalizzaSegnaliPos(l.segnaletica).map(s=>`<div class="segnale-pos" data-segnale="${s.id}" style="display:flex;gap:12px;align-items:center;margin:8px 0">${segnalePosSvg(s.id)}<p>${esc(SEGNALI_POS.find(x=>x.id===s.id)!.nome)}<br>Ubicazione: ${esc(s.ubicazione||"Da definire")}<br>${esc(s.note)}</p></div>`).join("")}`:""}${p.versione_requisiti_addetti===1?requisitiAddettiHtml(l):""}${p.versione_tecnica===1?dettaglioTecnicoHtml(l.tecnica||tecnicaPosVuota(),l.titolo||`Lavorazione ${i+1}`,p.versione_fonti_tecniche===1,p.versione_mezzi===1,p.versione_documenti_mezzi===1):""}`).join("")
     : `<p class="vuoto-blocco">Nessuna lavorazione descritta.</p>`;
 
   // The phase list states planned DPI; it does not prove delivery to a worker.
