@@ -63,10 +63,10 @@ const UTILE = LARGHEZZA - MARGINE * 2;
 
 const dueCifre = (n: number) => String(n).padStart(2, "0");
 const oggi = () => new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
-const quantita = (q: number): string => {
-  const n = Number(q) || 0;
-  return Number.isInteger(n) ? String(n) : n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
-};
+// Le quantità col punto delle migliaia anche a quattro cifre («1.250 kg», non «1250»), come
+// gli importi di formatCurrency; fino a due decimali, senza zeri inutili.
+const FORMATO_QUANTITA = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2, useGrouping: "always" } as unknown as Intl.NumberFormatOptions);
+const quantita = (q: number): string => FORMATO_QUANTITA.format(Number(q) || 0);
 // Percentuali all'italiana («7,5%», «7,25%»): il punto decimale e il decimale tagliato non vanno su un documento italiano.
 const percento = (v: number): string => percentualeIt(v);
 /** «IVA 10% inclusa», oppure «IVA 10% e 22% inclusa» quando i beni significativi superano il resto dei lavori. */
@@ -640,12 +640,16 @@ function emailACapo(email: string | null): string | null {
 }
 
 /** Una riga da firmare: filetto e, sotto, che cosa ci va scritto. */
-function LineaFirma({ tema, etichetta, chi, larghezza, altezza = 34 }: {
+function LineaFirma({ tema, etichetta, chi, larghezza, altezza = 34, timbro }: {
   tema: TemaDocumento; etichetta: string; chi?: string; larghezza?: number; altezza?: number;
+  /** Il timbro dell'impresa: poggia sulla riga, nello spazio della firma, e può salire di 14 punti. */
+  timbro?: string | null;
 }) {
   return (
     <View style={{ width: larghezza, flex: larghezza ? undefined : 1 }}>
-      <View style={{ height: altezza }} />
+      <View style={{ height: altezza }}>
+        {timbro ? <Image src={timbro} style={{ position: "absolute", left: 0, bottom: 2, width: 110, height: altezza + 14, objectFit: "contain", objectPositionX: 0, objectPositionY: "100%" }} /> : null}
+      </View>
       <View style={{ borderTopWidth: 0.7, borderTopColor: tema.inchiostro, paddingTop: 4 }}>
         <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, letterSpacing: 0.9 }}>{etichetta}</Text>
         {chi ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{chi}</Text> : null}
@@ -1993,7 +1997,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
             <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
             <View style={{ width: 16 }} />
-            <LineaFirma tema={tema} etichetta="PER L'IMPRESA" chi={dati.azienda.nome} />
+            {/* Timbro e chi firma per l'impresa, scritti nel modello (25/09/2026). */}
+            <LineaFirma tema={tema} etichetta="PER L'IMPRESA" chi={[dati.azienda.nome, dati.azienda.firmatario].map((v) => String(v ?? "").trim()).filter(Boolean).join(" — ")} timbro={dati.azienda.timbroUrl} />
             <View style={{ width: 16 }} />
             <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />
           </View>

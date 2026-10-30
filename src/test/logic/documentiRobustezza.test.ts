@@ -47,7 +47,11 @@ describe("testoPerPdf: quello che le aziende incollano da WhatsApp e da Word", (
   it("i tre motori passano dal filtro", () => {
     expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toMatch(/return testiPerPdf\(\{/);
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/\} = testiPerPdf\(propsGrezze\);/);
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toMatch(/return testoPerPdf\(String\(str\)\)/);
+    // Il preventivo generico (dal 27/10/2026) è il documento edile: costruisciDatiEdile passa dal
+    // filtro, e l'adattatore generico rifiltra quello che aggiunge dopo (cliente, note, accordi).
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain('import { renderGenerico } from "../_shared/preventivoRenderer.mjs";');
+    expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toContain("const dati = costruisciDatiEdile({");
+    expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toMatch(/return testiPerPdf\(dati\);/);
   });
 });
 
@@ -113,7 +117,8 @@ describe("impaginazione: i casi limite del collaudo", () => {
 
   it("la firma dell'impresa non si tronca a metà parola", () => {
     expect(doc).not.toContain(".slice(0, 44)");
-    expect(doc).toContain('etichetta="PER L\'IMPRESA" chi={dati.azienda.nome}');
+    // Col nome di chi firma per l'impresa, se il modello lo dice (vedi timbroImpresaPreventivo).
+    expect(doc).toContain('etichetta="PER L\'IMPRESA" chi={[dati.azienda.nome, dati.azienda.firmatario]');
   });
 
   it("Fotovoltaico: le condizioni stanno in due pagine, non tre mezze vuote", () => {
@@ -121,7 +126,9 @@ describe("impaginazione: i casi limite del collaudo", () => {
   });
 
   it("preventivo generico: accanto alla firma si dice che valgono anche le condizioni", () => {
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("accetta il preventivo e le condizioni generali di contratto allegate");
+    // Il generico è il documento edile: la dichiarazione sopra le firme nomina le condizioni.
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("renderGenerico({");
+    expect(doc).toContain("dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano");
   });
 });
 
@@ -143,32 +150,47 @@ describe("Serramenti: le sezioni brevi consecutive condividono le pagine", () =>
 });
 
 describe("preventivo generico: l'impaginato classico parla la lingua del documento edile", () => {
+  // Dal 27/10/2026 (2f5ea4316) il generico non imita più il documento edile con pdf-lib:
+  // lo disegna DocumentoEdilePDF, attraverso l'adattatore generico. Le promesse restano.
   const src = leggi("supabase/functions/generate-quote-pdf/index.ts");
+  const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+  const entry = leggi("scripts/preventivi-render/entry.tsx");
 
-  it("il piè di pagina è un filetto con nome e pagina, non una banda piena", () => {
-    expect(src).toContain("drawRight(page, `Pag. ${pageNum} / ${totalPages}`");
-    expect(src).not.toContain("page.drawRectangle({ x: pageWidth * 0.78, y: 22, width: pageWidth * 0.22, height: 3, color: accentStrongC });");
+  it("il generico passa dal documento edile", () => {
+    expect(src).toContain("const pdfDoc = await PDFDocument.load(await renderGenerico({");
+    expect(entry).toContain("export const renderGenerico = (input: Parameters<typeof datiGenerici>[0]) => render(datiGenerici(input));");
+    expect(entry).toContain("<DocumentoEdilePDF dati={pronto} />");
   });
 
-  it("intestazione: occhiello, titolo con il corsivo, la riga dei dati, le due parti senza riquadri", () => {
-    expect(src).toContain('const occhiello = "LA NOSTRA OFFERTA";');
-    expect(src).toContain('titolino("L\'IMPRESA", margin, y, boxW);');
-    expect(src).not.toContain('chipBox(margin, boxTop, boxW, boxH, "DATI AZIENDA");');
+  it("il piè di pagina è un filetto con nome e pagina, non una banda piena", () => {
+    expect(doc).toMatch(/<View fixed style=\{\{ position: "absolute", bottom: 26, left: MARGINE, right: MARGINE, borderTopWidth: 0\.6, borderTopColor: tema\.filetto/);
+    expect(doc).toContain("render={({ pageNumber, totalPages }) => `Pag. ${pageNumber} / ${totalPages}`}");
+  });
+
+  it("intestazione: occhiello, titolo con il corsivo", () => {
+    expect(doc).toContain(">LA TUA PROPOSTA</Text>");
+    expect(doc).toContain('<TitoloAccento tema={tema} testo={dati.clienteNome ? `Per *${dati.clienteNome}*,` : "Gentile *cliente*,"}');
   });
 
   it("il totale è la fascia a tutta larghezza nel colore dell'azienda, staccata dall'ultima riga", () => {
-    expect(src).toContain("page.drawRectangle({ x: 0, y: y - h + 22, width: pageWidth, height: h, color: fondoEdC });");
-    expect(src).toMatch(/y -= 18;\n\s+const h = 42;/);
+    expect(doc).toContain('<View style={{ marginHorizontal: -MARGINE, marginTop: 16, backgroundColor: tema.fondo, paddingHorizontal: MARGINE, paddingVertical: 22,');
   });
 
   it("le firme sono righe da firmare con il nome sotto", () => {
-    expect(src).toContain('sigBox(margin, "LUOGO, DATA E FIRMA DEL CLIENTE", String(quote.client_name ?? ""));');
+    expect(doc).toContain('<LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />');
+    expect(doc).toMatch(/borderTopWidth: 0\.7, borderTopColor: tema\.inchiostro, paddingTop: 4 \}\}>\n\s+<Text[^\n]*\{etichetta\}<\/Text>\n\s+\{chi \?/);
   });
 
+  // ROSSO DI PROPOSITO (30/10/2026): l'editor dei modelli fa ancora scegliere Classic, Modern,
+  // Minimal e Bold (e l'anteprima li mostra), ma dal 27/10/2026 (2f5ea4316) il PDF esce sempre
+  // col documento edile: nessuno legge più `layout`. Va deciso se togliere la scelta dall'editor
+  // o riportare gli impaginati nel motore unico; finché no, questa promessa non è mantenuta.
   it("gli altri impaginati (moderno, minimale, bold) restano com'erano", () => {
-    expect(src).toContain('page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC });');
-    // L'intestazione della tabella del classico: la fascia nel colore dell'azienda (25/09/2026).
-    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Una fascia nel colore dell'azienda con le etichette in bianco/);
+    const editor = leggi("src/pages/azienda/settings/SettingsQuoteTemplates.tsx");
+    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+    const scelta = editor.includes("onClick={() => updateForm({ layout: l.key })}");
+    expect(!scelta || /\bt\.layout\b/.test(adattatore) || /\bt\.layout\b/.test(src),
+      "l'editor fa scegliere l'impaginato ma il PDF non lo legge").toBe(true);
   });
 });
 
@@ -189,7 +211,8 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain('if (haModuloRecesso(d)) append("recesso", pageModuloRecesso(d, ++pageN, TOTAL));');
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("return haPaginaCondizioni(d) && d.template?.modulo_recesso_attivo === true;");
     expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toContain("modulo_recesso_attivo: template.modulo_recesso_attivo === true,");
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("if (t.modulo_recesso_attivo === true) {");
+    // Il generico passa il modello intero all'adattatore edile (conRecesso, qui sopra).
+    expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toContain("template: { ...t, color_primary: t.primary_color,");
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("condizioniLegaliTesto && moduloRecessoAttivo && (");
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("const moduloRecessoAttivo = tpl.modulo_recesso_attivo === true;");
     expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("${renderModuloRecesso(d, totalPages(d), totalPages(d))}");

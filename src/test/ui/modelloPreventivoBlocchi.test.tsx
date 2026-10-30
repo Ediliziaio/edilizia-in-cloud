@@ -12,6 +12,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { datiGenerici } from "@/components/preventivi/pdf/adattatoreGenerico";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import {
   COLORE_ACCENTO_DI_FABBRICA,
@@ -130,27 +131,48 @@ describe("il PDF (generate-quote-pdf)", () => {
     expect(pdf).toContain("if (company) Object.assign(company, contattiImpresa(t, company));");
     expect(pdf.indexOf("if (company) Object.assign(company, contattiImpresa(t, company));"))
       .toBeLessThan(pdf.indexOf("const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact, template: t });"));
-    // «L'impresa» e il modulo di recesso leggono company: ora con i contatti giusti.
-    expect(pdf).toContain("company?.email ? [String(company.email), false] : null,");
+    // «L'impresa» e il modulo di recesso leggono company (dal 27/10/2026 attraverso l'adattatore generico).
+    expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toContain("email: str(c?.email), telefono: str(c?.phone)");
+    expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toContain('{dati.azienda.email ? ` — ${dati.azienda.email}` : ""}');
   });
 
   it("la copertina ha il colore della copertina collegata", () => {
-    expect(pdf).toContain("const fondoHex = fondoPerTestoBianco(coloreCopertina(t.primary_color, t.composed_cover));");
+    // Il fondo della copertina del documento edile (pdf_cover_bg_color), se il modello non ne ha uno suo.
+    expect(pdf).toContain("const fondoCopertina = coloreDelBlocco(t.composed_cover?.primary_color);");
+    expect(pdf).toContain("if (fondoCopertina && !t.pdf_cover_bg_color && !t.cover_bg_color) t.pdf_cover_bg_color = fondoCopertina;");
   });
 
+  it("schede prodotto e sezioni collegate escono nel PDF, una per capitolo", () => {
+    const dati = datiGenerici({
+      quote: { quote_number: "P-1" }, items: [], company: null,
+      template: {
+        composed_products: [{ id: "p1", name: "Caldaia", product_category: "Riscaldamento", product_short_description: "<p>A condensazione</p>", product_specs: [{ label: "Potenza", value: "24 kW" }], product_indicative_price: 1500, product_unit: "pz" }],
+        composed_sections: [{ id: "s1", name: "Garanzie", body_html: "<h2>Dieci anni</h2><p>Sui lavori eseguiti.</p>" }],
+      },
+    });
+    const scheda = dati.sezioniTecniche?.find((x) => x.id === "scheda-p1");
+    expect(scheda?.titolo).toBe("Caldaia");
+    expect(scheda?.testo).toBe("A condensazione");
+    expect(scheda?.righe).toEqual(expect.arrayContaining([{ etichetta: "Categoria", valore: "Riscaldamento" }, { etichetta: "Potenza", valore: "24 kW" }]));
+    const sezione = dati.sezioniTecniche?.find((x) => x.id === "sezione-s1");
+    expect(sezione?.titolo).toBe("Garanzie");
+    expect(sezione?.testo).toContain("Dieci anni");
+    expect(sezione?.testo).toContain("Sui lavori eseguiti.");
+  });
+
+  // ROSSI DI PROPOSITO (30/10/2026): il vecchio motore pdf-lib dava a condizioni, sezioni e schede
+  // il colore scelto nel blocco collegato. Dal 27/10/2026 (2f5ea4316) il documento edile usa un
+  // colore solo, quello del preventivo: i colori del singolo blocco non arrivano più al PDF.
   it("condizioni e sezioni: i titoli nel colore del blocco", () => {
-    expect(pdf).toContain("const titoliC = opts.colore ? rgbColor(opts.colore) : primaryC;");
-    // Gli articoli nel colore del blocco (un titolo di primo livello dentro il testo nel nero del documento).
-    expect(pdf).toContain("const stile: StileTesto = { f: fontBoldB, size, c: livello === 1 ? inchiostroC : titoliC };");
-    expect(pdf).toContain("colore: coloreDelBlocco(section.primary_color),");
-    expect(pdf).toContain("colore: coloreDelBlocco(t.composed_terms?.primary_color) ?? coloreDelBlocco(t.composed_legal?.primary_color),");
+    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+    expect(adattatore).toMatch(/coloreDelBlocco\(sezione\.primary_color\)/);
+    expect(adattatore).toMatch(/coloreDelBlocco\(t\.composed_terms\?\.primary_color\)/);
   });
 
   it("le schede prodotto nei colori della scheda", () => {
-    expect(pdf).toContain("const primarioScheda = coloreDelBlocco(product.primary_color);");
-    expect(pdf).toContain("const accentoScheda = coloreDelBlocco(product.accent_color, COLORE_ACCENTO_DI_FABBRICA);");
-    expect(pdf).toContain("color: fondoSchedaC,");
-    expect(pdf).toContain("borderColor: schedaC,");
+    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+    expect(adattatore).toMatch(/coloreDelBlocco\(p\.primary_color\)/);
+    expect(adattatore).toMatch(/coloreDelBlocco\(p\.accent_color, COLORE_ACCENTO_DI_FABBRICA\)/);
   });
 });
 
@@ -163,10 +185,21 @@ describe("le condizioni scritte in HTML tengono i titoli", () => {
   });
 
   it("il PDF li converte prima di normalizzare, per condizioni e legali (serve anche alla seconda firma)", () => {
-    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
-    expect(pdf).toContain("normalizeTemplateText(titoliMarkdown(t.contractual_terms_text))");
-    expect(pdf).toContain("normalizeTemplateText(titoliMarkdown(t.legal_terms_text))");
+    // Dal 27/10/2026 le condizioni del generico le legge l'adattatore edile (leggiTestoRiccoContratto),
+    // che tiene i titoli HTML: «Garanzie» resta un titolo e le clausole dell'art. 1341 si trovano.
+    const dati = datiGenerici({
+      quote: { quote_number: "P-1" }, items: [], company: null,
+      template: {
+        contractual_terms_text: "<h2>Garanzie</h2><p>Dieci anni.</p>",
+        legal_terms_text: "<h2>Clausole da approvare specificamente (art. 1341 c.c.)</h2><ul><li>Art. 3 — Recesso</li></ul>",
+      },
+    });
+    const righe = dati.modello.condizioniLegali;
+    expect(righe.some((r) => (r.tipo === "h1" || r.tipo === "h2") && r.testo.includes("Garanzie"))).toBe(true);
+    expect(righe.some((r) => r.testo.startsWith("<"))).toBe(false);
+    expect(dati.modello.clausoleDaApprovare.join(" ")).toContain("Recesso");
   });
+
 });
 
 describe("dove si scrivono mail e telefono", () => {

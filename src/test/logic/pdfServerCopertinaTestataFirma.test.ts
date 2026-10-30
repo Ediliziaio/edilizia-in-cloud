@@ -2,9 +2,9 @@
  * I PDF che si generano sul server dopo le richieste di Renova (05/10/2026, valgono per tutti i preventivi):
  *  - la versione HTML dei serramenti (il link da mandare al cliente): in testata l'azienda e il numero del preventivo, non il
  *    nome del cliente; nel riquadro del consulente il telefono sì, l'email del profilo no; l'Art. 1 dice dove sono i lavori;
- *  - il preventivo standard (pdf-lib): col logo il nome dell'azienda non si ripete, la firma è «ACCETTAZIONE PROPOSTA».
- * L'HTML dei serramenti è una funzione pura e si prova com'è; il preventivo standard vive dentro una funzione edge di
- * duemila righe e, come per gli altri controlli sulle edge, si guarda il codice (vedi pdfEdgeImpaginazioneFix).
+ *  - il preventivo standard: col logo il nome dell'azienda non si ripete, la firma è «ACCETTAZIONE PROPOSTA».
+ * L'HTML dei serramenti è una funzione pura e si prova com'è; il preventivo standard dal 27/10/2026 è il documento
+ * edile (DocumentoEdilePDF) e, come per gli altri controlli sui PDF, si guarda il codice.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -65,30 +65,33 @@ describe("serramenti, versione HTML sul server", () => {
   });
 });
 
-describe("preventivo standard (pdf-lib, generate-quote-pdf)", () => {
+// Dal 27/10/2026 (2f5ea4316) il preventivo standard non è più disegnato con pdf-lib dentro la
+// funzione: generate-quote-pdf chiama renderGenerico (il documento edile, DocumentoEdilePDF).
+describe("preventivo standard (generate-quote-pdf, documento edile)", () => {
   const src = leggi("supabase/functions/generate-quote-pdf/index.ts");
+  const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
   it("la firma si chiama «ACCETTAZIONE PROPOSTA», come in tutti gli altri PDF dei preventivi", () => {
-    expect(src).toContain('titolinoSu(page, "ACCETTAZIONE PROPOSTA", margin, y, contentWidth);');
+    expect(src).toContain("renderGenerico({");
+    expect(doc).toContain('<TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA"');
+    expect(doc).not.toContain("ACCETTAZIONE DEL PREVENTIVO");
     expect(src).not.toContain("ACCETTAZIONE DEL PREVENTIVO");
   });
 
-  it("copertina: col logo a destra restano i contatti dell'impresa, non il suo nome", () => {
-    const riquadro = src.slice(src.indexOf("const righeEmittente"), src.indexOf("const largoDestra"));
-    expect(riquadro).toContain("contattiC");
-    expect(riquadro).not.toContain("company.name");
+  it("copertina: col logo restano i recapiti dell'impresa, non il suo nome", () => {
+    const copertina = doc.slice(doc.indexOf("export function CopertinaDocumento"), doc.indexOf("const Copertina = CopertinaDocumento;"));
+    const conLogo = copertina.slice(copertina.indexOf("<Image src={logo}"), copertina.indexOf(") : (", copertina.indexOf("<Image src={logo}")));
+    expect(conLogo).toContain("dati.azienda.indirizzo");
+    expect(conLogo).not.toContain("dati.azienda.nome");
   });
 
-  it("layout «modern» e «minimal»: il nome dell'azienda si scrive solo se non c'è il logo", () => {
-    const modern = src.slice(src.indexOf('if (t.layout === "modern")'), src.indexOf('} else if (t.layout === "minimal")'));
-    const minimal = src.slice(src.indexOf('} else if (t.layout === "minimal")'), src.indexOf('} else if (t.layout === "bold")'));
-    for (const blocco of [modern, minimal]) {
-      const logo = blocco.indexOf("drawLogo(page");
-      const nome = blocco.indexOf('company?.name || "Azienda"');
-      expect(logo, "il logo").toBeGreaterThan(0);
-      expect(nome, "il nome").toBeGreaterThan(logo);
-      // Tra il logo e il nome c'è l'else: il nome sta nel ramo «senza logo».
-      expect(blocco.slice(logo, nome)).toContain("} else {");
-    }
+  it("il nome dell'azienda si scrive solo se non c'è il logo", () => {
+    const copertina = doc.slice(doc.indexOf("export function CopertinaDocumento"), doc.indexOf("const Copertina = CopertinaDocumento;"));
+    const logo = copertina.indexOf("<Image src={logo}");
+    const nome = copertina.indexOf("{dati.azienda.nome.toUpperCase()}");
+    expect(logo, "il logo").toBeGreaterThan(0);
+    expect(nome, "il nome").toBeGreaterThan(logo);
+    // Tra il logo e il nome c'è il ramo «senza logo» del ternario.
+    expect(copertina.slice(logo, nome)).toContain(") : (");
   });
 });

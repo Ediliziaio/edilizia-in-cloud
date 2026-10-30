@@ -141,6 +141,9 @@ describe("chi usa il logo aziendale come riserva", () => {
     // Il logo del modello (se è un percorso, solo dalla cartella dell'azienda), altrimenti quello aziendale.
     expect(sorgente).toContain("const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));");
     expect(sorgente).toContain("await leggiLogo(supabaseAdmin, logoPath, {");
+    expect(sorgente).toContain("immagineDelLogo(logoPath),");
+    // Il formato dai byte (formatoImmagine), non dall'estensione: il logo aziendale finisce con ?t=…
+    expect(sorgente).toContain("const formato = formatoImmagine(bytes);");
     expect(sorgente).not.toContain('logoPath.endsWith(".png")');
   });
 

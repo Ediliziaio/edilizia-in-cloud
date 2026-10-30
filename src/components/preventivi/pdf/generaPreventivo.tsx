@@ -13,7 +13,7 @@ export async function preparaImmaginiPreventivo(dati: DocEdileDati): Promise<Doc
   const visita = (value: unknown) => {
     if (!value || typeof value !== "object") return;
     for (const [key, item] of Object.entries(value)) {
-      if (["immagine", "immagineUrl", "fotoUrl", "logoUrl", "logoChiaroUrl", "chiSiamoFotoUrl", "url", "src", "foto"].includes(key) && typeof item === "string" && item) {
+      if (["immagine", "immagineUrl", "fotoUrl", "logoUrl", "logoChiaroUrl", "timbroUrl", "chiSiamoFotoUrl", "url", "src", "foto"].includes(key) && typeof item === "string" && item) {
         lavori.push(async () => {
           if (!cache.has(item)) cache.set(item, toDataUrl(item).catch((): null => null));
           (value as Record<string, unknown>)[key] = await cache.get(item) ?? null;

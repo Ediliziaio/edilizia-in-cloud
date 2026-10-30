@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { datiGenerici } from "@/components/preventivi/pdf/adattatoreGenerico";
 import { agevolazioniPreventivo, riepilogoPrezzi, type RigaPrezzo } from "../../../supabase/functions/_shared/prezziPreventivo";
 import { DETRAZIONI_EDILIZIE } from "@/lib/fatturazione/detrazioniEdilizie";
 
@@ -56,12 +57,21 @@ describe("il riepilogo economico", () => {
   });
 
   it("nel PDF il risparmio nasce da uno sconto vero, non dai centesimi dell'IVA", () => {
-    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
-    expect(pdf).toContain("const conRisparmio = scontiInVista && (conListino || Number(quote.discount_amount || 0) >= 0.01) && prezzi.risparmio >= 0.5;");
+    // Dal 27/10/2026 il generico è il documento edile: lo sconto lo decide l'adattatore generico.
+    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+    expect(adattatore).toContain("dati.totali.mostraSconti = q.pdf_mostra_sconti !== false && num(q.discount_amount) >= 0.01;");
+    // Senza sconto vero, un centesimo di IVA negativa finito nello sconto non si stampa.
+    const centesimo = datiGenerici({ quote: { subtotal: 100, discount_amount: 0, total: 99.99 }, items: [], company: null, template: {} });
+    expect(centesimo.totali.scontoEur).toBeCloseTo(0.01, 5);
+    expect(centesimo.totali.mostraSconti).toBe(false);
+    const vero = datiGenerici({ quote: { subtotal: 1000, discount_amount: 100, total: 1098 }, items: [], company: null, template: {} });
+    expect(vero.totali.mostraSconti).toBe(true);
     // L'azienda che nasconde gli sconti non li vede comparire nel riepilogo.
-    expect(pdf).toContain("&& opzione(\"pdf_mostra_sconti\", pdfImp.pdf_mostra_sconti !== false);");
-    expect(pdf).toContain("drawTotal(\"Totale a listino\", fmtEur(prezzi.listino));");
-    expect(pdf).toContain("`Voci opzionali, non comprese nel totale: + ${fmtEur(prezzi.opzionali)} IVA inclusa.`");
+    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
+    expect(pdf).toContain('pdf_mostra_sconti: opzione("pdf_mostra_sconti", pdfImp.pdf_mostra_sconti !== false),');
+    // Le voci opzionali stanno in un capitolo loro, fuori dal totale.
+    expect(adattatore).toContain('const categoria = r.is_optional ? "Opzioni escluse dal totale"');
+    expect(adattatore).toContain("fuoriTotale: righe.every(r => r.is_optional === true)");
   });
 });
 
@@ -102,7 +112,14 @@ describe("le agevolazioni fiscali", () => {
 
   it("i preset delle detrazioni si leggono ancora dal vecchio percorso, e il PDF stampa i bonus salvati sul preventivo", () => {
     expect(DETRAZIONI_EDILIZIE.find((p) => p.id === "ecobonus")?.tettoSpesa).toBe(60_000);
-    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
-    expect(pdf).toContain("agevolazioniPreventivo((quote as any).bonus_lines, { imponibile: round2q(subTotShown - scontoShown), totale: totShown })");
+    // Il generico (documento edile, dal 27/10/2026): imponibile dopo lo sconto, totale IVA inclusa.
+    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
+    expect(adattatore).toContain("const imponibile = iva.subTotShown - iva.scontoShown;");
+    expect(adattatore).toContain("const bonus = agevolazioniPreventivo(q.bonus_lines, { imponibile, totale });");
+    const dati = datiGenerici({
+      quote: { subtotal: 10000, discount_amount: 0, total: 11000, bonus_lines: [{ position: 0, preset_id: "ecobonus", label: "Ecobonus", imponibile: 10000, aliquota_detrazione: 50 }] },
+      items: [], company: null, template: {},
+    });
+    expect(dati.sezioniTecniche?.find((s) => s.id === "agevolazioni")?.righe?.[0]?.etichetta).toBe("Ecobonus (50%)");
   });
 });
