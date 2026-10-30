@@ -10,6 +10,7 @@ import { CambioStato } from "@/components/orders/generali/unita/CambioStato";
 import { DatiUnita } from "@/components/orders/generali/unita/DatiUnita";
 import { MargineUnita } from "@/components/orders/generali/unita/MargineUnita";
 import { PagamentiUnita } from "@/components/orders/generali/unita/PagamentiUnita";
+import { VariantiUnita } from "@/components/orders/generali/varianti/VariantiUnita";
 import { STILE_STATO, dataBreve, euro } from "@/components/orders/generali/unita/aspetto";
 import { NOMI_STATO, etichettaPiano, prezzoCorrente, type ElencoUnita, type UnitaGenerale } from "@/lib/orders/generali/unita";
 import { formattaNumero, pagamentiUnita, type ContiUnita } from "@/lib/orders/generali/unitaConti";
@@ -72,11 +73,13 @@ function Contenuto({ generaleId, u, elenco, conti, gestisci, telefono, onDividi 
           <TabsList>
             <TabsTrigger value="vendita">Vendita</TabsTrigger>
             {p.importi && <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>}
+            {elenco.varianti && <TabsTrigger value="varianti">Varianti</TabsTrigger>}
             {gestisci && <TabsTrigger value="dati">Dati</TabsTrigger>}
             {conMargine && <TabsTrigger value="margine">Margine</TabsTrigger>}
           </TabsList>
           <TabsContent value="vendita" className="mt-3">{vendita}</TabsContent>
           {p.importi && <TabsContent value="pagamenti" className="mt-3"><PagamentiUnita generaleId={generaleId} unita={u} gestisci={gestisci} /></TabsContent>}
+          {elenco.varianti && <TabsContent value="varianti" className="mt-3"><VariantiUnita generaleId={generaleId} unita={u} elenco={elenco} gestisci={gestisci} /></TabsContent>}
           {gestisci && <TabsContent value="dati" className="mt-3"><DatiUnita generaleId={generaleId} unita={u} vedeImporti={p.importi} /></TabsContent>}
           {conMargine && <TabsContent value="margine" className="mt-3"><MargineUnita unita={u} conti={conti} /></TabsContent>}
         </Tabs>
@@ -108,6 +111,7 @@ function Riepilogo({ u, vedeImporti }: { u: UnitaGenerale; vedeImporti: boolean 
   if (vedeImporti) {
     if (u.listino !== null) righe.push(["Listino", euro(u.listino)]);
     if (u.stato !== "libera" && prezzoCorrente(u) !== null) righe.push([u.stato === "rogitata" ? "Prezzo di rogito" : "Prezzo trattato", euro(prezzoCorrente(u))]);
+    if (u.variantiAccettate) righe.push(["Varianti accettate", euro(u.variantiAccettate)]);
     if (u.stato !== "libera") righe.push(["Pagato", `${euro(pag.pagato)}${pag.residuo ? ` · da incassare ${euro(pag.residuo)}` : ""}`]);
   }
   if (u.agenzia) righe.push(["Agenzia", u.agenzia]);

@@ -608,6 +608,8 @@ export interface InputPiano {
   /** Il criterio scelto per i costi comuni (Modifica della generale); assente = automatico. */
   criterio?: CriterioScelto;
   scenario?: Scenario | null;
+  /** Varianti accettate dagli acquirenti delle unità (varianti.ts): ricavo e costo previsto. */
+  varianti?: { ricavo: number; costo: number } | null;
 }
 
 export interface PianoCalcolato {
@@ -627,10 +629,40 @@ export interface PianoCalcolato {
 const costiCantiere = (c: Confronto, colonna: "previsto" | "stima") =>
   somma(c.costi.filter((r) => CATEGORIE_CANTIERE.has(r.categoria)).map((r) => r[colonna]));
 
+/** La categoria delle righe che portano nel piano le varianti accettate dagli acquirenti. */
+export const CATEGORIA_VARIANTI = "varianti_acquirenti";
+
+/**
+ * Le varianti accettate dagli acquirenti non sono nel previsto (il piano non le conosceva):
+ * entrano «a finire», quindi nella stima finale e nello scostamento, con una riga di ricavo e
+ * una del loro costo previsto. Restano fuori dal flusso di cassa (non hanno un mese).
+ */
+export function conVariantiAcquirenti(c: Confronto, v: InputPiano["varianti"]): Confronto {
+  if (!v || (v.ricavo === 0 && v.costo === 0)) return c;
+  const riga = (tipo: TipoVoce, importo: number, etichetta: string): RigaConfronto => ({
+    chiave: `${CATEGORIA_VARIANTI}:${tipo}`, voce: null, tipo, etichetta, categoria: CATEGORIA_VARIANTI,
+    previsto: 0, approvato: null, reale: 0, aFinire: arrotonda(importo), aFinireManuale: false,
+    stima: arrotonda(importo), scostamento: arrotonda(importo), righe: [],
+  });
+  const piu = (t: TotaliColonne, x: number): TotaliColonne => ({
+    ...t, aFinire: arrotonda(t.aFinire + x), stima: arrotonda(t.stima + x), scostamento: arrotonda(t.scostamento + x),
+  });
+  return {
+    ...c,
+    ricavi: v.ricavo !== 0 ? [...c.ricavi, riga("ricavo", v.ricavo, "Varianti accettate dagli acquirenti")] : c.ricavi,
+    costi: v.costo !== 0 ? [...c.costi, riga("costo", v.costo, "Costo previsto delle varianti accettate")] : c.costi,
+    totali: {
+      ricavi: piu(c.totali.ricavi, v.ricavo),
+      costi: piu(c.totali.costi, v.costo),
+      margine: piu(c.totali.margine, v.ricavo - v.costo),
+    },
+  };
+}
+
 /** Tutti i numeri del piano in una chiamata: la pagina, il riquadro in Panoramica e gli investitori. */
 export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const oggi = meseDi(input.oggi, input.oggi.slice(0, 7));
-  const confronto = confrontoVoci(input.voci, input.righe, input.approvate ?? null);
+  const confronto = conVariantiAcquirenti(confrontoVoci(input.voci, input.righe, input.approvate ?? null), input.varianti);
   const mqTotali = (() => {
     if (!input.unita) return null;
     const valori = input.figlie.map((f) => input.unita!.get(f.id)?.mq ?? null);
@@ -654,7 +686,10 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   let indScenario: Indicatori | null = null;
   if (!scenarioNeutro(input.scenario)) {
     const s = input.scenario!;
-    confrontoScenario = confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct });
+    confrontoScenario = conVariantiAcquirenti(
+      confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct }),
+      input.varianti,
+    );
     cassaScenario = flussoStima(confrontoScenario, input.righe, input.incassi, oggi, { ritardoMesi: s.ritardoMesi });
     indScenario = indicatori(
       {
@@ -676,7 +711,7 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
       ? `«${senzaMese[0].descrizione || CATEGORIE_PIANO[senzaMese[0].categoria].nome}» non ha il mese: non entra nel flusso di cassa né nel rendimento.`
       : `${senzaMese.length} voci non hanno il mese: non entrano nel flusso di cassa né nel rendimento.`);
   }
-  const fuori = [...confronto.costi, ...confronto.ricavi].filter((r) => r.voce === null);
+  const fuori = [...confronto.costi, ...confronto.ricavi].filter((r) => r.voce === null && r.categoria !== CATEGORIA_VARIANTI);
   if (fuori.length > 0) {
     const tot = somma(fuori.map((r) => Math.abs(r.reale)));
     avvisi.push(`${fuori.length === 1 ? "Una parte" : `${fuori.length} parti`} del reale (${tot.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €) non ha una voce nel piano: aggiungila o aggancia la categoria a una voce.`);

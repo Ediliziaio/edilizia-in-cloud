@@ -5,6 +5,7 @@
 // qui servono a chiedere solo il necessario e a dire prima perché una cosa non si può fare.
 // Conti (ripartizione, margine, incassi): unitaConti.ts. Serie e incolla da Excel: unitaSerie.ts.
 import { isModelloGenerale, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
+import type { DatiVarianti } from "@/lib/orders/generali/varianti";
 
 export const STATI_VENDITA = ["libera", "prenotata", "compromesso", "rogitata"] as const;
 export type StatoVendita = typeof STATI_VENDITA[number];
@@ -79,6 +80,8 @@ export interface UnitaGenerale {
   importoCommessa: number | null;
   /** Costi registrati sulla figlia (null = non visibili). */
   costoDiretto: number | null;
+  /** Ricavo delle varianti accettate dall'acquirente (varianti.ts); assente = nessuna. */
+  variantiAccettate?: number;
 }
 
 export interface PermessiUnita { importi: boolean; costi: boolean; margini: boolean; modifica: boolean }
@@ -89,6 +92,8 @@ export interface ElencoUnita {
   costiGenerale: number | null;
   unita: UnitaGenerale[];
   permessi: PermessiUnita;
+  /** Le varianti chieste dagli acquirenti (varianti.ts); null = non lette. */
+  varianti?: DatiVarianti | null;
 }
 
 const numero = (v: unknown): number | null => {
@@ -164,6 +169,12 @@ export const unitaVive = (unita: UnitaGenerale[]) => unita.filter((u) => !u.divi
 /** Il prezzo di oggi: quello dell'atto, altrimenti il trattato, altrimenti il listino. */
 export const prezzoCorrente = (u: Pick<UnitaGenerale, "rogito" | "trattato" | "listino">): number | null =>
   u.rogito ?? u.trattato ?? u.listino;
+
+/** Il prezzo di oggi più le varianti accettate dall'acquirente: quello che paga davvero. */
+export const prezzoConVarianti = (u: Pick<UnitaGenerale, "rogito" | "trattato" | "listino" | "variantiAccettate">): number | null => {
+  const prezzo = prezzoCorrente(u);
+  return prezzo === null ? null : Math.round((prezzo + (u.variantiAccettate ?? 0)) * 100) / 100;
+};
 
 // ── Stati di vendita ─────────────────────────────────────────────────────────
 

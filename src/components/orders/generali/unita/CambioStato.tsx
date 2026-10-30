@@ -75,7 +75,8 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
   const r = requisitiStato(verso);
   const proposto = prezzoProposto(u, verso);
   const dataEsistente = verso === "prenotata" ? u.dataPrenotazione : verso === "compromesso" ? u.dataCompromesso : verso === "rogitata" ? u.dataRogito : null;
-  const residuo = verso === "rogitata" && proposto !== null ? Math.max(0, proposto - (pagamentiUnita(u).pagato ?? 0)) : null;
+  // Al rogito si salda anche il prezzo delle varianti accettate.
+  const residuo = verso === "rogitata" && proposto !== null ? Math.max(0, proposto + (u.variantiAccettate ?? 0) - (pagamentiUnita(u).pagato ?? 0)) : null;
 
   const [acquirenteId, setAcquirenteId] = useState<string | null>(u.acquirenteId);
   const [data, setData] = useState(dataEsistente ?? oggi());

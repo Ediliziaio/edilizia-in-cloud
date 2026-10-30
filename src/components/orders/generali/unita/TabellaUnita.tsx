@@ -1,7 +1,7 @@
 // src/components/orders/generali/unita/TabellaUnita.tsx
 // Le unità in tabella (da tablet e computer): prezzi, stato, acquirente, pagato, margine.
 // Una riga si apre come una casella del tabellone.
-import { NOMI_STATO, confrontaSigle, etichettaPiano, prezzoCorrente, unitaVive, type ElencoUnita } from "@/lib/orders/generali/unita";
+import { NOMI_STATO, confrontaSigle, etichettaPiano, prezzoConVarianti, unitaVive, type ElencoUnita } from "@/lib/orders/generali/unita";
 import { formattaNumero, pagamentiUnita, type ContiUnita, type RiepilogoVendite } from "@/lib/orders/generali/unitaConti";
 import { STILE_STATO, euro } from "@/components/orders/generali/unita/aspetto";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri }: Props) {
                 <td className="px-2 py-2 text-right tabular-nums">{u.mq !== null ? formattaNumero(u.mq) : "—"}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{u.millesimi !== null ? formattaNumero(u.millesimi) : "—"}</td>
                 {p.importi && <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{euro(u.listino)}</td>}
-                {p.importi && <td className="px-2 py-2 text-right tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoCorrente(u))}</td>}
+                {p.importi && <td className="px-2 py-2 text-right tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoConVarianti(u))}</td>}
                 <td className="px-2 py-2 text-xs">
                   <span className="inline-flex items-center gap-1.5">
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", STILE_STATO[u.stato].punto)} aria-hidden="true" />
@@ -79,7 +79,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri }: Props) {
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.mq)}</td>
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.millesimi)}</td>
               {p.importi && <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{euro(somma((u) => u.listino))}</td>}
-              {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(somma((u) => (u.stato === "libera" ? null : prezzoCorrente(u))))}</td>}
+              {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(somma((u) => (u.stato === "libera" ? null : prezzoConVarianti(u))))}</td>}
               <td className="px-2 py-2" colSpan={2} />
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro((riepilogo.incassato ?? 0) + (riepilogo.permute ?? 0))}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(riepilogo.daIncassare)}</td>}
