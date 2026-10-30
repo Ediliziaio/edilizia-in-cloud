@@ -3,7 +3,7 @@
  * `data-tipo` e `data-id`, e l'editor capisce dal bersaglio cosa è stato toccato.
  */
 import { forwardRef, type SVGProps } from "react";
-import { contornoInterno, quantitaLocale, type Pianta, type Punto, type TipoApertura } from "./adattatore";
+import type { DatiVista, Pianta, Punto, TipoApertura } from "./adattatore";
 import { visibile, type Vista } from "./comandi";
 import {
   COLORE_STANZA,
@@ -43,6 +43,10 @@ type Gestori = Pick<SVGProps<SVGSVGElement>, "onPointerDown" | "onPointerMove" |
 
 interface Props extends Gestori {
   pianta: Pianta;
+  /** Stanze, arredi e testi della vista, letti dal documento. */
+  dati: Pick<DatiVista, "locali" | "elementi" | "testi">;
+  /** Stanze di cui si possono scrivere le misure dei lati in questa vista. */
+  latiModificabili: ReadonlySet<string>;
   vista: Vista;
   selezione: Selezione | null;
   camera: Camera;
@@ -55,23 +59,38 @@ interface Props extends Gestori {
 }
 
 const STIMATA = "#7c3aed";
+
+const NOMI_ELEMENTI: Record<string, string> = {
+  wc: "WC",
+  lavabo: "lavabo",
+  doccia: "doccia",
+  vasca: "vasca",
+  bidet: "bidet",
+  letto_matrimoniale: "letto",
+  letto_singolo: "letto",
+  divano: "divano",
+  cucina_lineare: "cucina",
+  tavolo: "tavolo",
+  armadio: "armadio",
+};
 const SELEZIONE = "#2563eb";
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
     const muri = pianta.muri.filter((m) => visibile(m.stato, vista));
     const aperture = pianta.aperture.filter((a) => visibile(a.stato, vista) && muri.some((m) => m.id === a.muroId));
-    const locali = pianta.locali.filter((l) => visibile(l.stato, vista));
+    const stanzeDiLavoro = pianta.locali.filter((l) => visibile(l.stato, vista));
+    const locali = dati.locali;
     const sel = (tipo: Selezione["tipo"], id: string) => selezione?.tipo === tipo && selezione.id === id;
     const testo = 12;
 
     // Pareti che stanno su un lato di una stanza: la loro misura la scrive la stanza.
     const dellaStanza = new Set(
       muri
-        .filter((m) => locali.some((l) => l.contorno.some((a, i) => {
+        .filter((m) => stanzeDiLavoro.some((l) => l.contorno.some((a, i) => {
           const b = l.contorno[(i + 1) % l.contorno.length];
           return sulSegmento(m.p1, a, b) && sulSegmento(m.p2, a, b);
         })))
@@ -124,6 +143,28 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             />
           ))}
 
+          {/* arredi e sanitari (dal documento; si spostano in una fase successiva) */}
+          {dati.elementi.map((e) => (
+            <g key={e.id} transform={`translate(${e.centro.x} ${e.centro.y}) rotate(${e.rotazione})`} pointerEvents="none">
+              <rect
+                x={-e.larghezza / 2}
+                y={-e.profondita / 2}
+                width={e.larghezza}
+                height={e.profondita}
+                rx={2}
+                fill="#ffffff"
+                fillOpacity={0.7}
+                stroke="#94a3b8"
+                strokeWidth={px(1)}
+              />
+              {Math.min(e.larghezza, e.profondita) * camera.s > 28 && (
+                <text y={px(4)} textAnchor="middle" fontSize={px(10)} fill="#64748b">
+                  {e.etichetta ?? NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ")}
+                </text>
+              )}
+            </g>
+          ))}
+
           {/* pareti */}
           {muri.map((m) => {
             const c = colorePareti(m.stato, vista);
@@ -164,6 +205,12 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   simboloFinestra(a, m).map(([p, q], i) => (
                     <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(1.2)} data-tipo="apertura" data-id={a.id} />
                   ))
+                ) : a.tipo === "varco" || a.manovra === "nessuna" ? null : a.manovra === "scorrevole" ? (
+                  simboloFinestra(a, m)
+                    .slice(1, 2)
+                    .map(([p, q], i) => (
+                      <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(2)} data-tipo="apertura" data-id={a.id} />
+                    ))
                 ) : (
                   <SimboloPorta a={a} m={m} colore={colore} px={px} />
                 )}
@@ -176,9 +223,10 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
 
           {/* misure delle stanze: nome, mq, lati interni */}
           {locali.map((l) => {
-            const q = quantitaLocale(pianta, l);
-            const interno = contornoInterno(pianta, l);
+            const q = l;
+            const interno = l.contorno;
             const centro = baricentro(interno);
+            const misurabile = latiModificabili.has(l.id);
             const coloreTesto = q.stimata ? STIMATA : "#0f172a";
             return (
               <g key={`m-${l.id}`}>
@@ -231,7 +279,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                       stimata={stimata}
                       px={px}
                       dimensione={testo}
-                      dati={{ "data-tipo": "lato", "data-id": l.id, "data-lato": String(i) }}
+                      dati={misurabile ? { "data-tipo": "lato", "data-id": l.id, "data-lato": String(i) } : { "data-tipo": "locale", "data-id": l.id }}
                       lineaDa={{ x: a.x + verso.x * px(4) + u.x * px(2), y: a.y + verso.y * px(4) + u.y * px(2) }}
                       lineaA={{ x: b.x + verso.x * px(4) - u.x * px(2), y: b.y + verso.y * px(4) - u.y * px(2) }}
                     />
@@ -260,6 +308,19 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
               />
             );
           })}
+
+          {dati.testi.map((t) => (
+            <text
+              key={t.id}
+              transform={`translate(${t.posizione.x} ${t.posizione.y}) rotate(${t.rotazione})`}
+              textAnchor="middle"
+              fontSize={px(12)}
+              fill="#334155"
+              pointerEvents="none"
+            >
+              {t.testo}
+            </text>
+          ))}
 
           {/* maniglie agli estremi della parete selezionata */}
           {selezione?.tipo === "muro" &&

@@ -3,13 +3,13 @@
  * selezionato. Le misure si scrivono qui come sulla pianta.
  */
 import { useEffect, useState } from "react";
-import { Check, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Check, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DESTINAZIONI, quantitaLocale, type Apertura, type Destinazione, type Locale, type Muro, type Pianta, type TipoApertura } from "./adattatore";
+import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type LocaleVista, type Muro, type Pianta, type TipoApertura } from "./adattatore";
 import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
@@ -31,6 +31,9 @@ export interface AzioniPannello {
 
 interface Props {
   pianta: Pianta;
+  /** Stanze, mq e problemi della vista, letti dal documento. */
+  dati: DatiVista;
+  latiModificabili: ReadonlySet<string>;
   vista: Vista;
   selezione: Selezione | null;
   azioni: AzioniPannello;
@@ -40,10 +43,22 @@ interface Props {
   focusNome?: boolean;
 }
 
-export function PannelloDettagli({ pianta, vista, selezione, azioni, essenziale, focusNome }: Props) {
+export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
   if (selezione?.tipo === "locale") {
-    const l = pianta.locali.find((x) => x.id === selezione.id);
-    if (l) return <DettaglioStanza pianta={pianta} vista={vista} locale={l} azioni={azioni} essenziale={essenziale} focusNome={focusNome} />;
+    const l = dati.locali.find((x) => x.id === selezione.id);
+    if (l) {
+      return (
+        <DettaglioStanza
+          pianta={pianta}
+          vista={vista}
+          locale={l}
+          misurabile={latiModificabili.has(l.id)}
+          azioni={azioni}
+          essenziale={essenziale}
+          focusNome={focusNome}
+        />
+      );
+    }
   }
   if (selezione?.tipo === "muro") {
     const m = pianta.muri.find((x) => x.id === selezione.id);
@@ -53,15 +68,15 @@ export function PannelloDettagli({ pianta, vista, selezione, azioni, essenziale,
     const a = pianta.aperture.find((x) => x.id === selezione.id);
     if (a) return <DettaglioApertura vista={vista} apertura={a} azioni={azioni} essenziale={essenziale} />;
   }
-  return <ElencoStanze pianta={pianta} vista={vista} azioni={azioni} />;
+  return <ElencoStanze pianta={pianta} dati={dati} vista={vista} azioni={azioni} />;
 }
 
-function ElencoStanze({ pianta, vista, azioni }: { pianta: Pianta; vista: Vista; azioni: AzioniPannello }) {
-  const locali = pianta.locali.filter((l) => visibile(l.stato, vista));
-  const quantita = locali.map((l) => ({ l, q: quantitaLocale(pianta, l) }));
+function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: DatiVista; vista: Vista; azioni: AzioniPannello }) {
+  const locali = dati.locali;
+  const quantita = locali.map((l) => ({ l, q: l }));
   const totale = quantita.reduce((s, x) => s + x.q.mq, 0);
   const stimate = contaStimate(pianta);
-  const porte = pianta.aperture.filter((a) => a.tipo !== "finestra" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
+  const porte = pianta.aperture.filter((a) => a.tipo !== "finestra" && a.tipo !== "varco" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
   const finestre = pianta.aperture.filter((a) => a.tipo === "finestra" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
   return (
     <div className="space-y-4">
@@ -111,6 +126,52 @@ function ElencoStanze({ pianta, vista, azioni }: { pianta: Pianta; vista: Vista;
           </Button>
         </div>
       )}
+      <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />
+    </div>
+  );
+}
+
+/** I problemi del controllo della fase 1, in parole semplici; un clic porta all'oggetto. */
+function DaSistemare({ pianta, dati, azioni }: { pianta: Pianta; dati: DatiVista; azioni: AzioniPannello }) {
+  const problemi = [...dati.problemi].sort((a, b) => (a.gravita === b.gravita ? 0 : a.gravita === "errore" ? -1 : 1));
+  if (!problemi.length) return null;
+  const tipoDi = (id?: string): Selezione["tipo"] | null =>
+    !id
+      ? null
+      : pianta.muri.some((m) => m.id === id)
+        ? "muro"
+        : pianta.aperture.some((a) => a.id === id)
+          ? "apertura"
+          : dati.locali.some((l) => l.id === id)
+            ? "locale"
+            : null;
+  return (
+    <div>
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+        <AlertTriangle className="h-4 w-4 text-amber-600" /> Da controllare
+      </h3>
+      <ul className="mt-2 space-y-1">
+        {problemi.slice(0, 8).map((p, i) => {
+          const tipo = tipoDi(p.oggettoId);
+          return (
+            <li key={`${p.codice}-${p.oggettoId ?? i}`}>
+              <button
+                type="button"
+                disabled={!tipo}
+                onClick={() => tipo && p.oggettoId && azioni.seleziona({ tipo, id: p.oggettoId })}
+                className={cn(
+                  "w-full rounded-md border px-2.5 py-1.5 text-left text-xs",
+                  p.gravita === "errore" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900",
+                  tipo && "hover:brightness-95",
+                )}
+              >
+                {p.messaggio}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {problemi.length > 8 && <p className="mt-1 text-xs text-muted-foreground">e altri {problemi.length - 8}.</p>}
     </div>
   );
 }
@@ -119,19 +180,22 @@ function DettaglioStanza({
   pianta,
   vista,
   locale,
+  misurabile,
   azioni,
   essenziale,
   focusNome,
 }: {
   pianta: Pianta;
   vista: Vista;
-  locale: Locale;
+  locale: LocaleVista;
+  misurabile: boolean;
   azioni: AzioniPannello;
   essenziale?: boolean;
   focusNome?: boolean;
 }) {
-  const q = quantitaLocale(pianta, locale);
-  const misurabile = modificabile(locale.stato, vista);
+  const q = locale;
+  // la stanza disegnata nell'editor, se c'è (nel progetto una stanza può nascere dalle pareti)
+  const diLavoro = pianta.locali.find((l) => l.id === locale.id);
   const [nome, setNome] = useState(locale.nome);
   useEffect(() => setNome(locale.nome), [locale.id, locale.nome]);
   return (
@@ -203,9 +267,9 @@ function DettaglioStanza({
             <Check /> Misure controllate
           </Button>
         )}
-        {!essenziale && (
+        {!essenziale && diLavoro && (
           <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "locale", id: locale.id })}>
-            <Trash2 /> {vista === "progetto" && locale.stato !== "nuovo" ? "Demolisci la stanza" : "Elimina la stanza"}
+            <Trash2 /> {vista === "progetto" && diLavoro.stato !== "nuovo" ? "Demolisci la stanza" : "Elimina la stanza"}
           </Button>
         )}
       </div>
@@ -265,7 +329,7 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
   );
 }
 
-const NOMI_APERTURA: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra" };
+const NOMI_APERTURA: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Passaggio senza porta" };
 
 function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: Vista; apertura: Apertura; azioni: AzioniPannello; essenziale?: boolean }) {
   const misurabile = modificabile(a.stato, vista);

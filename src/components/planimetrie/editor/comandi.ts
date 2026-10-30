@@ -3,8 +3,11 @@
  * `(pianta, …) → pianta nuova`. Niente stato nascosto: l'annulla/ripeti tiene
  * le piante una dopo l'altra (vedi storia.ts).
  */
+import { areaPoligono, puntoInterno, puntoNelPoligono, ricostruisciLocali } from "../../../../shared/planimetrie/geometria.ts";
 import {
   ALTEZZA_PIANO,
+  capovolgi,
+  contornoInterno,
   SPESSORE_TRAMEZZO,
   muroDelLato,
   quantitaLocale,
@@ -352,6 +355,7 @@ export const MISURE_APERTURA: Record<TipoApertura, { larghezza: number; altezza:
   porta: { larghezza: 80, altezza: 210, davanzale: 0 },
   finestra: { larghezza: 120, altezza: 140, davanzale: 90 },
   portafinestra: { larghezza: 120, altezza: 240, davanzale: 0 },
+  varco: { larghezza: 90, altezza: 210, davanzale: 0 },
 };
 
 /** Tiene l'apertura dentro la parete. */
@@ -380,6 +384,7 @@ export function aggiungiApertura(
     larghezza,
     altezza: misure.altezza,
     davanzale: misure.davanzale,
+    manovra: tipo === "varco" ? "nessuna" : "battente",
     verso: { cerniera: "inizio", lato: "sinistra" },
     stato: o.stato ?? "esistente",
     origine: o.origine ?? "rilevata",
@@ -481,4 +486,54 @@ export function contaStimate(pianta: Pianta): number {
 export function confermaTutte(pianta: Pianta): Pianta {
   const r = <T extends { origine: Origine }>(x: T): T => (x.origine === "stimata" ? { ...x, origine: "rilevata" } : x);
   return { ...pianta, muri: pianta.muri.map(r), aperture: pianta.aperture.map(r), locali: pianta.locali.map(r) };
+}
+
+// ─── Stanze che si chiudono da sole, nomi del progetto ───────────────────────
+
+/**
+ * Dopo aver disegnato pareti: ogni giro chiuso che non contiene ancora una stanza
+ * diventa una stanza nuova (nel progetto, una stanza «nuova»).
+ */
+export function chiudiStanze(pianta: Pianta, vista: Vista = "fatto"): Pianta {
+  const muri = pianta.muri.filter((m) => (vista === "progetto" ? m.stato !== "da_demolire" : m.stato !== "nuovo"));
+  if (muri.length < 3) return pianta;
+  const facce = ricostruisciLocali(muri.map((m) => ({ ...m, p1: capovolgi(m.p1), p2: capovolgi(m.p2), stato: "esistente" as const })));
+  const stanze = pianta.locali
+    .filter((l) => visibile(l.stato, vista))
+    .map((l) => ({ locale: l, contorno: contornoInterno(pianta, l).map(capovolgi) }));
+  const contiene = (contenitore: Punto[], c: Punto[]) => {
+    const p = puntoInterno(c);
+    return !!p && puntoNelPoligono(p, contenitore);
+  };
+  let nuova = pianta;
+  for (const f of facce) {
+    const dentro = stanze.filter((s) => contiene(f.contorno, s.contorno));
+    if (!dentro.length) {
+      nuova = aggiungiStanza(nuova, f.contornoAsse.map(capovolgi), { stato: statoNuovo(vista) }).pianta;
+      continue;
+    }
+    // Una parete ha tagliato la stanza: dove si può modificare, si restringe al suo pezzo
+    // (nel progetto la stanza di oggi resta com'è: il pezzo dopo i lavori lo fa il documento).
+    for (const s of dentro) {
+      if (!modificabile(s.locale.stato, vista) || areaPoligono(s.contorno) <= areaPoligono(f.contorno) + 1) continue;
+      nuova = { ...nuova, locali: nuova.locali.map((l) => (l.id === s.locale.id ? { ...l, contorno: f.contornoAsse.map(capovolgi) } : l)) };
+    }
+  }
+  return nuova;
+}
+
+/**
+ * Nome e destinazione di una stanza. Nel progetto, le stanze di oggi (o quelle nate
+ * dalle pareti) cambiano nome solo nel progetto: oggi restano come sono.
+ */
+export function rinominaStanza(
+  pianta: Pianta,
+  id: string,
+  attuale: { nome: string; destinazione: Destinazione },
+  campi: Partial<{ nome: string; destinazione: Destinazione }>,
+  vista: Vista,
+): Pianta {
+  const diLavoro = pianta.locali.find((l) => l.id === id);
+  if (diLavoro && (vista === "fatto" || diLavoro.stato === "nuovo")) return modificaLocale(pianta, id, campi);
+  return { ...pianta, nomiProgetto: { ...pianta.nomiProgetto, [id]: { ...attuale, ...campi } } };
 }

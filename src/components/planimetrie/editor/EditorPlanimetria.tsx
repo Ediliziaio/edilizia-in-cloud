@@ -18,7 +18,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { DESTINAZIONI, piantaVuota, type Destinazione, type Pianta, type Punto, type TipoApertura } from "./adattatore";
+import {
+  DESTINAZIONI,
+  aPlanimetria,
+  daPlanimetria,
+  datiVista,
+  piantaVuota,
+  type Destinazione,
+  type Pianta,
+  type Planimetria,
+  type Punto,
+  type TipoApertura,
+} from "./adattatore";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
 import { leggiMisura, scriviMetri } from "./misure";
@@ -29,8 +40,10 @@ import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } fr
 export type Strumento = "seleziona" | "stanza" | "parete" | "porta" | "finestra";
 
 interface Props {
-  piantaIniziale?: Pianta;
-  onChange?: (pianta: Pianta) => void;
+  /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
+  piantaIniziale?: Planimetria;
+  /** Ogni modifica completa dà il documento aggiornato, pronto per il salvataggio. */
+  onChange?: (planimetria: Planimetria) => void;
   /** Forza la vista da telefono (solo guardare e correggere misure). */
   soloVista?: boolean;
   className?: string;
@@ -73,9 +86,12 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const telefono = useIsMobile();
   const sola = soloVista ?? telefono;
 
-  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ?? piantaVuota()));
+  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale) : piantaVuota()));
   const [anteprima, setAnteprima] = useState<Pianta | null>(null);
   const pianta = anteprima ?? storia.presente;
+  // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
+  const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
+  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current), [pianta]);
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
@@ -94,13 +110,22 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const ultimoCursore = useRef<Punto | null>(null);
   const spazioPremuto = useRef(false);
 
+  // Stanze, mq e problemi come li calcola il modello della fase 1.
+  const dati = useMemo(() => datiVista(pianta, documento, vista), [pianta, documento, vista]);
+  const latiModificabili = useMemo(
+    () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
+    [pianta, vista, dati],
+  );
+
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati };
 
   useEffect(() => {
-    onChange?.(storia.presente);
-  }, [storia.presente, onChange]);
+    if (anteprima) return;
+    documentoBase.current = documento;
+    onChange?.(documento);
+  }, [documento, anteprima, onChange]);
 
   useEffect(() => {
     if (!avviso) return;
@@ -306,7 +331,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         return;
       }
       const r = C.aggiungiParete(stato.current.storia.presente, inizio, a.punto, { stato: C.statoNuovo(v) });
-      applica(r.pianta);
+      applica(C.chiudiStanze(r.pianta, v));
       // se si chiude su un angolo esistente, la parete finisce lì
       if (a.guida === "angolo") {
         setInizioParete(null);
@@ -506,7 +531,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   anteprimaRef.current = anteprima;
 
   // ─── porta e finestra trascinate dalla barra ──────────────────────────────
-  const trascinaDallaBarra = (quale: TipoApertura) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+  const trascinaDallaBarra = (quale: "porta" | "finestra") => (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
     const da = { x: e.clientX, y: e.clientY };
     let mosso = false;
@@ -573,7 +598,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const u = direzione({ p1: inizio, p2: dist(inizio, a.punto) > 1 ? a.punto : { x: inizio.x + 1, y: inizio.y } });
       const fine = { x: inizio.x + u.x * cm, y: inizio.y + u.y * cm };
       const r = C.aggiungiParete(stato.current.storia.presente, inizio, fine, { stato: C.statoNuovo(stato.current.vista) });
-      applica(r.pianta);
+      applica(C.chiudiStanze(r.pianta, stato.current.vista));
       setInizioParete(fine);
       setSovrapposizioni({ pareteInCorso: { a: fine, b: fine } });
     },
@@ -637,9 +662,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         ? pianta.muri.find((m) => m.id === selezione.id)
         : selezione.tipo === "apertura"
           ? pianta.aperture.find((a) => a.id === selezione.id)
-          : pianta.locali.find((l) => l.id === selezione.id);
-    if (!esiste || !C.visibile(esiste.stato, vista)) setSelezione(null);
-  }, [pianta, selezione, vista]);
+          : dati.locali.find((l) => l.id === selezione.id);
+    if (!esiste || ("stato" in esiste && !C.visibile(esiste.stato, vista))) setSelezione(null);
+  }, [pianta, dati, selezione, vista]);
 
   useEffect(() => {
     if (focusNome) {
@@ -652,13 +677,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const azioni: AzioniPannello = useMemo(() => {
     const p = () => stato.current.storia.presente;
     return {
-      nomeStanza: (id, nome) => applica(C.modificaLocale(p(), id, { nome })),
+      nomeStanza: (id, nome) => {
+        const l = stato.current.dati.locali.find((x) => x.id === id);
+        if (l) applica(C.rinominaStanza(p(), id, l, { nome }, stato.current.vista));
+      },
       destinazioneStanza: (id, d) => {
-        const l = p().locali.find((x) => x.id === id);
-        const etichetta = DESTINAZIONI.find((x) => x.valore === d)?.etichetta.split(" /")[0];
+        const l = stato.current.dati.locali.find((x) => x.id === id);
+        if (!l) return;
+        const etichetta = DESTINAZIONI.find((x) => x.valore === d)?.etichetta;
         // se il nome era quello automatico, prende quello della destinazione
-        const nome = l && /^Stanza \d+$/.test(l.nome) && etichetta && d !== "altro" ? nomeUnico(p(), etichetta) : undefined;
-        applica(C.modificaLocale(p(), id, nome ? { destinazione: d, nome } : { destinazione: d }));
+        const nome = /^Stanza( \d+)?$/.test(l.nome) && etichetta && d !== "altro" ? nomeUnico(stato.current.dati.locali, etichetta) : undefined;
+        applica(C.rinominaStanza(p(), id, l, nome ? { destinazione: d, nome } : { destinazione: d }, stato.current.vista));
       },
       latoStanza: (id, lato, cm) => applica(C.impostaLatoStanza(p(), id, lato, cm)),
       lunghezzaParete: (id, cm) => applica(C.impostaLunghezzaParete(p(), id, cm)),
@@ -798,6 +827,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           <TelaPlanimetria
             ref={svgRef}
             pianta={pianta}
+            dati={dati}
+            latiModificabili={latiModificabili}
             vista={vista}
             selezione={selezione}
             camera={camera}
@@ -864,7 +895,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         {/* pannello */}
         {!telefono && (
           <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
-            <PannelloDettagli pianta={pianta} vista={vista} selezione={selezione} azioni={azioni} focusNome={focusNome} essenziale={sola} />
+            <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={focusNome} essenziale={sola} />
           </aside>
         )}
       </div>
@@ -876,7 +907,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               Chiudi
             </Button>
           </div>
-          <PannelloDettagli pianta={pianta} vista={vista} selezione={selezione} azioni={azioni} essenziale />
+          <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
         </div>
       )}
 
@@ -890,10 +921,10 @@ function sulLato(m: { p1: Punto; p2: Punto }, a: Punto, b: Punto) {
   return su(m.p1) && su(m.p2);
 }
 
-function nomeUnico(pianta: Pianta, base: string) {
-  if (!pianta.locali.some((l) => l.nome === base)) return base;
+function nomeUnico(locali: ReadonlyArray<{ nome: string }>, base: string) {
+  if (!locali.some((l) => l.nome === base)) return base;
   let n = 2;
-  while (pianta.locali.some((l) => l.nome === `${base} ${n}`)) n++;
+  while (locali.some((l) => l.nome === `${base} ${n}`)) n++;
   return `${base} ${n}`;
 }
 
