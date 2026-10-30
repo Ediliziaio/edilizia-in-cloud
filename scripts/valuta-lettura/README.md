@@ -15,7 +15,9 @@ letto/fattura-01.json     ← cosa ha letto l'AI (la risposta della funzione)
 bun run scripts/valuta-lettura/cli.ts --atteso=scripts/valuta-lettura/esempio/atteso --letto=scripts/valuta-lettura/esempio/letto
 ```
 
-Funziona anche con `node --experimental-strip-types` (Node 22.6 o più recente).
+Provato con Node 25 (`node --experimental-strip-types scripts/valuta-lettura/cli.ts …`).
+Con bun dovrebbe girare come gli altri script di `scripts/`, ma non l'ho provato; Node 22.6–24
+richiede lo stesso flag e non l'ho provato.
 Opzioni: `--json=<file>` salva il rapporto completo, `--soglia=0.9` esce con
 errore se i campi giusti sono meno del 90% (utile prima di cambiare un prompt).
 
