@@ -33,6 +33,9 @@ export interface FvContactLite {
   last_name: string | null;
   email: string | null;
   phone: string | null;
+  company_name?: string | null;
+  fiscal_code?: string | null;
+  vat_number?: string | null;
 }
 
 const contactLabel = (c: {
@@ -61,7 +64,7 @@ export function FvContactPicker({
     queryFn: async (): Promise<FvContactLite[]> => {
       let q = supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, company_name, fiscal_code, vat_number")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .limit(20);

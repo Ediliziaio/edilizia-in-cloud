@@ -534,6 +534,14 @@ Deno.serve(async (req: Request) => {
       cliente_telefono: prog.cliente_telefono,
       cliente_email: prog.cliente_email,
       cliente_citta: prog.cliente_citta,
+      // Privato o azienda (30/10/2026): un'azienda è intestata con la ragione sociale, coi suoi dati fiscali.
+      cliente_intestatario: prog.cliente_tipo === "azienda" && (prog.cliente_ragione_sociale ?? "").trim() ? prog.cliente_ragione_sociale.trim() : null,
+      cliente_dati_fiscali: (() => {
+        const cf = (prog.cliente_codice_fiscale ?? "").replace(/\s+/g, "").toUpperCase();
+        const piva = (prog.cliente_partita_iva ?? "").replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
+        if (prog.cliente_tipo !== "azienda") return cf ? `C.F. ${cf}` : null;
+        return [piva && `P.IVA ${piva}`, cf && cf !== piva && `C.F. ${cf}`].filter(Boolean).join(" · ") || null;
+      })(),
       // Preventivo cointestato: il secondo intestatario (vuoto se non c'è).
       cointestatario: [prog.cointestatario_nome, prog.cointestatario_cognome].map((s: string | null) => (s ?? "").trim()).filter(Boolean).join(" ") || null,
       cointestatario_codice_fiscale: prog.cointestatario_codice_fiscale ?? null,

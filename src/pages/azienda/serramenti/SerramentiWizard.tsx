@@ -18,6 +18,7 @@
  * Fluidità: il cambio step salva al volo (autosave) e naviga senza modale di
  * conferma "Modifiche non salvate" — coerente col bottone "Salva e continua".
  */
+import { DatiFiscaliCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -394,6 +395,10 @@ export default function SerramentiWizard() {
             patch.cantiere_provincia = c.province ?? null;
             patch.cantiere_cap = c.postal_code ?? null;
             patch.cliente_codice_fiscale = c.fiscal_code ?? null;
+            // Privato o azienda, dal contatto (30/10/2026).
+            patch.cliente_tipo = c.company_name?.trim() || c.vat_number?.trim() ? "azienda" : "privato";
+            patch.cliente_ragione_sociale = c.company_name?.trim() || null;
+            patch.cliente_partita_iva = c.vat_number?.trim() || null;
           }
         }
         if (urlOpportunityId) {
@@ -1380,6 +1385,8 @@ function StepCliente({
           />
         </div>
       </div>
+
+      <DatiFiscaliCliente className="mt-3" form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 
       <div className="mt-3">
         <Cointestatario form={form} onChange={(campo, valore) => onChange(campo, valore)} />

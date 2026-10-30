@@ -26,6 +26,9 @@ export interface SrPdfData {
   cliente_telefono: string | null;
   cliente_email: string | null;
   cliente_citta: string | null;
+  /** Un'azienda si intesta con la ragione sociale; i dati fiscali escono accanto (30/10/2026). */
+  cliente_intestatario?: string | null;
+  cliente_dati_fiscali?: string | null;
   /** Preventivo cointestato: «Anna Bianchi» e il suo codice fiscale. */
   cointestatario?: string | null;
   cointestatario_codice_fiscale?: string | null;
@@ -325,7 +328,8 @@ function renderPage1(d: SrPdfData, total = totalPages(d)): string {
 
       <h2 class="section-title">ANAGRAFICA CLIENTE</h2>
       <div class="info-grid">
-        <div class="info-row"><span class="info-label">Intestatario</span><span class="info-val">${esc([d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" "))}</span></div>
+        <div class="info-row"><span class="info-label">Intestatario</span><span class="info-val">${esc(d.cliente_intestatario || [d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" "))}</span></div>
+        ${d.cliente_dati_fiscali ? `<div class="info-row"><span class="info-label">Dati fiscali</span><span class="info-val">${esc(d.cliente_dati_fiscali)}</span></div>` : ""}
         ${d.cointestatario ? `<div class="info-row"><span class="info-label">Cointestatario</span><span class="info-val">${esc([d.cointestatario, d.cointestatario_codice_fiscale].filter(Boolean).join(" · "))}</span></div>` : ""}
         ${d.cliente_indirizzo ? `<div class="info-row"><span class="info-label">Indirizzo</span><span class="info-val">${esc(d.cliente_indirizzo)}</span></div>` : ""}
         ${d.cliente_telefono ? `<div class="info-row"><span class="info-label">Telefono</span><span class="info-val">${esc(d.cliente_telefono)}</span></div>` : ""}
