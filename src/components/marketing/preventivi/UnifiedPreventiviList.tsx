@@ -43,7 +43,7 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
-  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator } from "lucide-react";
+  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -73,8 +73,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, etichettaEta, giorniDa,
-  GIORNI_DA_SEGUIRE, vistaDaTesto, type VistaElenco,
+  appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, eInScadenza, etichettaEta, etichettaScadenza, giorniAllaScadenza, giorniDa,
+  GIORNI_DA_SEGUIRE, GIORNI_IN_SCADENZA, vistaDaTesto, type VistaElenco,
 } from "@/lib/preventivi/elencoPreventivi";
 import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
@@ -99,6 +99,9 @@ export interface UnifiedRow {
   /** Privato, azienda o ente pubblico, e i dati fiscali: si cercano e vanno nell'Excel (31/10/2026). */
   clienteTipo?: TipoCliente;
   fiscale?: string | null;
+  /** Fin quando vale l'offerta, e quando il cliente l'ha aperta (preventivo classico, 31/10/2026). */
+  scadenza?: string | null;
+  apertoIl?: string | null;
   commerciale_id: string | null;
   commerciale_nome: string | null;
   stato_unif: UnifiedStato;
@@ -297,7 +300,7 @@ export function UnifiedPreventiviList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, client_company, client_tipo, client_fiscal_code, client_vat_number, status, total, salesperson_id, created_at, updated_at, revision_number, source")
+        .select("id, quote_number, client_name, client_company, client_tipo, client_fiscal_code, client_vat_number, expires_at, viewed_at, status, total, salesperson_id, created_at, updated_at, revision_number, source")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
@@ -307,7 +310,7 @@ export function UnifiedPreventiviList() {
       // modulo, che l'elenco mostra già dalla sua tabella: contarle qui lo
       // faceva comparire due volte, una come «Classico» vuoto.
       return (data as Array<{
-        id: string; quote_number: string; client_name: string | null; client_company?: string | null; client_tipo?: string | null; client_fiscal_code?: string | null; client_vat_number?: string | null;
+        id: string; quote_number: string; client_name: string | null; client_company?: string | null; client_tipo?: string | null; client_fiscal_code?: string | null; client_vat_number?: string | null; expires_at?: string | null; viewed_at?: string | null;
         status: string; total: number | null; salesperson_id: string | null;
         created_at: string; updated_at: string | null;
         revision_number: number | null; source: string | null;
@@ -643,6 +646,7 @@ export function UnifiedPreventiviList() {
         // Un'azienda o un ente pubblico in colonna col suo nome (un preventivo di prima con l'azienda scritta conta come azienda).
         cliente: (q.client_tipo !== "privato" && q.client_company?.trim()) || q.client_name || "—",
         referente: q.client_tipo !== "privato" && q.client_company?.trim() ? q.client_name : null,
+        scadenza: q.expires_at ?? null, apertoIl: q.viewed_at ?? null,
         ...(() => {
           // Un preventivo di prima senza tipo è un'azienda se ha ragione sociale o partita IVA, come nel preventivo.
           const t = q.client_tipo ? tipoCliente(q.client_tipo) : q.client_company?.trim() || q.client_vat_number?.trim() ? "azienda" : "privato";
@@ -1091,6 +1095,7 @@ export function UnifiedPreventiviList() {
   const conteggiVista = {
     da_seguire: allRows.filter((r) => eDaSeguire(r, adessoElenco)).length,
     bozze_vuote: allRows.filter((r) => eBozzaVuota(r)).length,
+    in_scadenza: allRows.filter((r) => eInScadenza(r, adessoElenco)).length,
   };
   // Tipi presenti con quanti sono: i bottoni rapidi sopra la tabella.
   const tipiConteggio = (Object.keys(TIPO_LABEL) as PreventivoTipo[])
@@ -1265,6 +1270,7 @@ export function UnifiedPreventiviList() {
           scelte={[
             { value: "tutte", label: "Tutti" },
             { value: "da_seguire", label: `Da seguire (>${GIORNI_DA_SEGUIRE}gg)`, n: conteggiVista.da_seguire },
+            { value: "in_scadenza", label: "In scadenza", n: conteggiVista.in_scadenza },
             { value: "bozze_vuote", label: "Bozze vuote", n: conteggiVista.bozze_vuote },
           ]}
         />
@@ -1384,6 +1390,15 @@ export function UnifiedPreventiviList() {
           titolo={`Preventivi in corso fermi da almeno ${GIORNI_DA_SEGUIRE} giorni`}
           tono="amber"
         />
+        {(conteggiVista.in_scadenza > 0 || vista === "in_scadenza") && <VistaChip
+          attiva={vista === "in_scadenza"}
+          onClick={() => setVista(vista === "in_scadenza" ? "tutte" : "in_scadenza")}
+          icon={<Hourglass className="h-3 w-3" />}
+          label="In scadenza"
+          n={conteggiVista.in_scadenza}
+          titolo={`Preventivi in corso che scadono entro ${GIORNI_IN_SCADENZA} giorni o sono già scaduti: da richiamare prima che decadano`}
+          tono="amber"
+        />}
         <VistaChip
           attiva={vista === "bozze_vuote"}
           onClick={() => setVista(vista === "bozze_vuote" ? "tutte" : "bozze_vuote")}
@@ -1540,6 +1555,18 @@ export function UnifiedPreventiviList() {
                               </p>
                             )}
                             {eBozzaVuota(r) && <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">Da completare</p>}
+                            {r.stato_unif === "in_corso" && etichettaScadenza(r, adessoElenco) && (
+                              <p className={cn("mt-0.5 whitespace-nowrap text-[10px] font-medium",
+                                (giorniAllaScadenza(r, adessoElenco) ?? 99) < 0 ? "text-rose-700" : eInScadenza(r, adessoElenco) ? "text-amber-700" : "text-muted-foreground")}
+                                title={r.scadenza ? `Offerta valida fino al ${formatDateSafe(r.scadenza)}` : undefined}>
+                                {etichettaScadenza(r, adessoElenco)}
+                              </p>
+                            )}
+                            {r.stato_unif === "in_corso" && r.tipo === "classico" && (
+                              <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground" title={r.apertoIl ? `Aperto dal cliente il ${formatDateSafe(r.apertoIl)}` : undefined}>
+                                {r.apertoIl ? `aperto ${etichettaEta(r.apertoIl, adessoElenco)}` : "non ancora aperto"}
+                              </p>
+                            )}
                           </TableCell>
                           <TableCell className="text-xs text-right tabular-nums font-medium">
                             {r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
@@ -1601,7 +1628,8 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, r.numero === tipoCfg.label ? null : tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
+                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, r.numero === tipoCfg.label ? null : tipoCfg.label, formatDateSafe(r.data),
+                        eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : null].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>
