@@ -42,6 +42,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
+import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
 import {
   useCreaPos,
   useModelliPos,
@@ -263,6 +264,9 @@ export function PosElencoTab({ orders }: Props) {
                 <p className="text-xs text-muted-foreground">
                   Firma datore registrata: {dataIt(p.iter.firma_datore_il)}
                 </p>
+              )}
+              {verificaIterNegativa(p.contenuto, p.iter) && (
+                <p className="text-xs font-medium text-red-700">Verifica negativa: i lavori non possono iniziare</p>
               )}
             </>
           )}

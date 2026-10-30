@@ -165,6 +165,8 @@ export interface PosContenuto {
     descrizione_attivita: string;
     /** Lettera c): modalità organizzative. */
     modalita_organizzative: string;
+    /** Vero finché il testo è quello proposto dall'AI e nessuno l'ha riletto e confermato: blocca l'approvazione. */
+    modalita_organizzative_da_verificare?: boolean;
     /** Lettera c): turni di lavoro. */
     turni_lavoro: string;
     data_inizio: string;
@@ -346,6 +348,7 @@ export function normalizzaPos(v: unknown): PosContenuto {
       cantiere: { via: str(cantiere.via), localita: str(cantiere.localita), provincia: str(cantiere.provincia) },
       descrizione_attivita: str(opera.descrizione_attivita),
       modalita_organizzative: str(opera.modalita_organizzative),
+      ...(bool(opera.modalita_organizzative_da_verificare) ? { modalita_organizzative_da_verificare: true as const } : {}),
       turni_lavoro: str(opera.turni_lavoro),
       data_inizio: str(opera.data_inizio),
       data_fine: str(opera.data_fine),
@@ -449,8 +452,23 @@ export interface VoceMancante {
 }
 
 const vuoto = (s: string | null | undefined) => !s || !s.trim();
-/** «Nessuna» o «nessun» contano come risposta: la voce è stata considerata. */
-const nessuno = (s: string) => /^\s*(nessun[oa]?|non (previst|utilizzat)[aeio]|-)\s*\.?\s*$/i.test(s);
+/**
+ * «Nessuna», «non presenti», «assenti», «N/A», «nessuna sostanza pericolosa»… contano come risposta: la voce è stata
+ * considerata. Solo la risposta intera: «Nessuna, salvo il collante» o «Nessuna scheda disponibile» NO.
+ */
+const PAROLE_NESSUNO = "(?:sostanz[ae]|prodott[oi]|pericolos[aeio]|chimic[hoi]+|preparat[oi]|miscel[ae]|macchin[ae]|attrezzatur[ae]|impiant[oi]|opere?|provvisional[ei]|ponteggi?|utilizzat[aeio]|previst[aeio]|presenti|specific[ao]|particolar[ei]|in|di|per|nel|le|la|il|lo|i|gli|cantiere|lavorazione|sono)";
+const NESSUNO = new RegExp(
+  `^\\s*(?:(?:nessun[oa]?|nulla|assent[ei]|non(?:\\s+(?:sono|è|ci\\s+sono))?\\s+(?:previst[eaoi]|present[ei]|utilizzat[eaoi]|necessari[eaoi]|applicabil[ei]))(?:\\s+${PAROLE_NESSUNO}){0,4}|n\\s*\\/\\s*a|n\\.\\s*a\\.?|-+|—)\\s*[.;]?\\s*$`,
+  "i",
+);
+const nessuno = (s: string) => NESSUNO.test(s);
+/** Data ISO (aaaa-mm-gg) che esiste davvero nel calendario. */
+const dataIsoValida = (s: string): boolean => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+};
 
 /**
  * Le voci che mancano perché il POS abbia i contenuti minimi dell'Allegato XV.
@@ -469,6 +487,14 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   if (vuoto(opera.descrizione_attivita)) add("3.2.1 c)", "opera", "Descrizione dell'attività di cantiere");
   if (vuoto(opera.modalita_organizzative)) add("3.2.1 c)", "opera", "Modalità organizzative del cantiere");
   if (vuoto(opera.turni_lavoro)) add("3.2.1 c)", "opera", "Turni di lavoro");
+  if (opera.modalita_organizzative_da_verificare) add("3.2.1 c)", "opera", "Modalità organizzative proposte dall'AI: rileggile, adattale a questo cantiere e conferma");
+  // Le date si dichiarano quando ci sono, ma una data che non esiste o una fine prima dell'inizio non passano:
+  // le guardie del database (requisiti, attrezzature) le leggono e l'approvazione cadrebbe in fondo, con un errore.
+  const da = opera.data_inizio.trim();
+  const a = opera.data_fine.trim();
+  if (da && !dataIsoValida(da)) add("3.2.1 c)", "opera", "Data di inizio lavori non valida");
+  if (a && !dataIsoValida(a)) add("3.2.1 c)", "opera", "Data di fine lavori non valida");
+  if (da && a && dataIsoValida(da) && dataIsoValida(a) && a < da) add("3.2.1 c)", "opera", "Fine lavori prima dell'inizio: controlla le date");
 
   // Impresa
   if (vuoto(impresa.ragione_sociale)) add("3.2.1 a) 1", "impresa", "Ragione sociale dell'impresa");
@@ -541,7 +567,12 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     if (vuoto(l.rischi)) manca.push("rischi");
     if (vuoto(l.misure)) manca.push("misure preventive e protettive");
     if (vuoto(l.dpi)) manca.push("DPI");
-    if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) manca.push("macchine, opere provvisionali e impianti (anche «nessuna»)");
+    if (pos.versione_controlli === 2) {
+      // Ognuna delle tre voci va detta, anche con «Nessuna»: un montaggio di ponteggio senza opere provvisionali non è «completo».
+      if (vuoto(l.macchine)) manca.push("macchine (anche «nessuna»)");
+      if (vuoto(l.opere_provvisionali)) manca.push("opere provvisionali (anche «nessuna»)");
+      if (vuoto(l.impianti)) manca.push("impianti (anche «nessuno»)");
+    } else if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) manca.push("macchine, opere provvisionali e impianti (anche «nessuna»)");
     if (vuoto(l.sostanze)) manca.push("sostanze pericolose (anche «nessuna»)");
     if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push("impresa con cui si svolge");
     if (manca.length) add("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);

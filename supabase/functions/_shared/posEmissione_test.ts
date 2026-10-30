@@ -49,6 +49,24 @@ Deno.test("ZIP: non legge allegati di un altro POS o di un’altra azienda",asyn
  await assert.rejects(()=>preparaPacchettoPos(identita,d,async()=>{chiamate++;return byteAllegato;},{}),/non appartiene/);
  assert.equal(chiamate,0);
 });
+Deno.test("ZIP: %2e%2e, query o frammento in un percorso non escono dalla cartella del POS e non si scarica nulla",async()=>{
+ // supabase-js attacca il percorso all'URL senza codificarlo: con %2e%2e la richiesta usciva dallo storage verso /rest/v1/ con la chiave di servizio.
+ const base=`${companyId}/pos/${posId}/`;
+ for(const brutto of [`${base}%2e%2e/%2e%2e/rest/v1/profiles?select=*`,`${base}x?y=1`,`${base}a#b`,`${base}..%2f..%2fx.pdf`,`${base}%2E%2E`,`${base}a/b.pdf`,`${base}con spazio.pdf`,`${base}a\u202efdp.exe`,`${base}.nascosto`,`${base}`]){
+  const d=dati();d.contenuto.allegati[0].file_path=brutto;let chiamate=0;
+  await assert.rejects(()=>preparaPacchettoPos(identita,d,async()=>{chiamate++;return byteAllegato;},{}),/non appartiene/,brutto);
+  assert.equal(chiamate,0,brutto);
+ }
+});
+Deno.test("ZIP: anche i percorsi risolti da altre fonti rifiutano %, ? e # prima di scaricare",async()=>{
+ const evidenza="55555555-5555-4555-8555-555555555555";
+ for(const brutto of [`${companyId}/${evidenza}/%2e%2e/%2e%2e/rest/v1/profiles?select=*`,`${companyId}/${evidenza}/x?y=1`,`${companyId}/${evidenza}/a#b`]){
+  let chiamate=0;
+  await assert.rejects(()=>preparaPacchettoPos(identita,{...dati(),contenuto:{...dati().contenuto,allegati:[],versione_prodotti:1}},async()=>{chiamate++;return byteAllegato;},{riferimento:"TEST"},
+   {versione:1,prodotti:[],allegati:[{evidenza_id:evidenza,bucket:"fascicoli-cantiere",path:brutto,nome:"sds.pdf",impronta:"a".repeat(64)}]}),/non valido/,brutto);
+  assert.equal(chiamate,0,brutto);
+ }
+});
 Deno.test("JSON canonico: ordinamento stabile e valori non serializzabili respinti",()=>{
  assert.equal(jsonCanonico({b:2,a:{z:1,c:0}}),jsonCanonico({a:{c:0,z:1},b:2}));
  assert.throws(()=>jsonCanonico({a:undefined}),/non serializzabile/);
@@ -311,4 +329,58 @@ Deno.test("PSC: riferimento non verificato o ricostruzione storica non leggono l
  d.contenuto.procedure_psc={psc_presente:true,richieste:false,voci:[],documento:r};let letture=0;const scarica=async()=>{letture++;return byteAllegato;};
  await assert.rejects(()=>preparaPacchettoPos(identita,d,scarica,{}),/PSC non verificato/);
  await assert.rejects(()=>preparaPacchettoPos({...identita,origine:"ricostruzione_da_contenuto_archiviato"},d,scarica,{},undefined,undefined,undefined,undefined,undefined,r),/PSC non verificato/);assert.equal(letture,0);
+});
+
+Deno.test("PDF: frecce, spunte, avvisi, emoji e spazi stretti non fermano più anteprima ed emissione",async()=>{
+ const d=dati();
+ d.contenuto.lavorazioni[0].misure="Prima → durante → dopo\n✓ Elmetto\n⚠ Carichi sospesi 📞";
+ d.contenuto.impresa.datore_lavoro="Mario Rossi";
+ d.contenuto.opera.committente.telefono="☎ 02 1234567";
+ const pdf=await generaPdfPos(d,identita.emessoIl);
+ assert.equal(new TextDecoder().decode(pdf.bytes.slice(0,5)),"%PDF-");
+ // L'HTML conservato resta il testo scritto dall'utente: la sostituzione riguarda solo il PDF.
+ assert.match(pdf.html,/Prima → durante → dopo/);
+});
+Deno.test("PDF: un carattere senza glifo che non si sa sostituire ferma la generazione e dice dove sta",async()=>{
+ const d=dati();d.contenuto.lavorazioni[0].descrizione="Posa del cappotto 测试 sulla facciata nord";
+ await assert.rejects(()=>generaPdfPos(d,identita.emessoIl),/font aggiuntivo.*U\+6D4B.*Posa del cappotto/);
+});
+Deno.test("PDF: e-mail, impronte e nomi di file lunghi stanno nella pagina e il valore non sparisce",async()=>{
+ const d=dati();
+ d.contenuto.impresa.sede_legale={indirizzo:"Via dei Cantieri 1, Sesto San Giovanni",telefono:"02 1234567",email:"amministrazione.contabilita@costruzionirossi-edilizia.it"};
+ d.contenuto.impresa.ragione_sociale="Costruzioni Rossi "+"s".repeat(70)+" S.r.l.";
+ d.contenuto.procedure_psc={psc_presente:true,richieste:false,voci:[],documento:{archivio:"sicurezza_documenti",id:"33333333-3333-4333-8333-333333333333",company_id:companyId,order_id:"44444444-4444-4444-8444-444444444444",titolo:"PSC",file_name:"PSC-revisione-02-definitivo-firmato-digitalmente-coordinatore.pdf",file_path:`${companyId}/documenti/ordine/PSC.pdf`,data_documento:"2026-10-27",revisione:"02",sha256:"a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"}};
+ const {layoutPdfPos}=await import("./posPdfLayout.ts");
+ const layout=layoutPdfPos(d.contenuto?(await import("./posHtml.ts")).costruisciHtmlPos({...d,stato:"approvato"}):"",d.codiceCommessa||"X",0,identita.emessoIl);
+ // I testi veri dei blocchi (non la loro concatenazione): nessuna parola più lunga di 28 caratteri senza un punto dove andare a capo
+ const ZW=String.fromCharCode(0x200b);
+ const testi:string[]=[];
+ const raccogli=(x:unknown):void=>{if(Array.isArray(x))x.forEach(raccogli);else if(x&&typeof x==="object"){for(const [k,v] of Object.entries(x as Record<string,unknown>)){if(k==="text"&&typeof v==="string")testi.push(v);else raccogli(v);}}};
+ raccogli(layout.definizione.content);
+ assert.ok(testi.length>100);
+ for(const t of testi)for(const parola of t.split(new RegExp("[\\s"+ZW+"]+")))assert.ok(parola.length<=28,`parola troppo lunga: ${parola}`);
+ // e togliendo i separatori il valore c'è tutto
+ const piatto=testi.join("\n").replaceAll(ZW,"");
+ assert.ok(piatto.includes("amministrazione.contabilita@costruzionirossi-edilizia.it"));
+ assert.ok(piatto.includes("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"));
+ const pdf=await generaPdfPos(d,identita.emessoIl);
+ assert.equal(new TextDecoder().decode(pdf.bytes.slice(0,5)),"%PDF-");
+});
+Deno.test("PDF: sopra i 90 KB di HTML i sottotitoli non entrano nella regola di salto pagina (costo CPU), sotto sì",async()=>{
+ const {layoutPdfPos}=await import("./posPdfLayout.ts");
+ const {costruisciHtmlPos}=await import("./posHtml.ts");
+ const livelli=(html:string)=>{
+  const l=layoutPdfPos(html,"X",0,identita.emessoIl,true);
+  const soloTesto=(l.definizione.content as Array<Record<string,unknown>>).filter(b=>typeof b.text==="string"&&b.headlineLevel!==undefined);
+  return {h3:soloTesto.filter(b=>b.fontSize===11).map(b=>b.headlineLevel),sezioni:l.sezioni.length};
+ };
+ const piccolo=dati();piccolo.stato="bozza";
+ const lp=livelli(costruisciHtmlPos(piccolo));
+ assert.ok(lp.h3.length>0);assert.ok(lp.h3.every(x=>x===1),"documento piccolo: regola piena");
+ const grande=dati();grande.stato="bozza";
+ const l0=grande.contenuto.lavorazioni[0];
+ grande.contenuto.lavorazioni=Array.from({length:40},(_,i)=>({...l0,id:`l${i}`,titolo:`Lavorazione ${i+1}`,descrizione:"Descrizione ".repeat(80)}));
+ const html=costruisciHtmlPos(grande);assert.ok(html.length>90_000,`serve un HTML grande, è ${html.length}`);
+ const lg=livelli(html);
+ assert.ok(lg.h3.length>0);assert.ok(lg.h3.every(x=>x===2),"documento grande: i sottotitoli fuori dalla regola");assert.equal(lg.sezioni,11);
 });

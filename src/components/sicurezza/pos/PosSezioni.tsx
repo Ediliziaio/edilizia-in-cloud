@@ -104,6 +104,12 @@ export function SezioneOpera({ d, modifica, ro, mancanti }: BaseProps) {
           placeholder="Es.: turno unico diurno, 8:00-12:00 e 13:00-17:00, dal lunedì al venerdì"
           onChange={(v) => modifica((x) => { x.opera.turni_lavoro = v; })} />
       </div>
+      {o.modalita_organizzative_da_verificare && (
+        <label className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+          <Checkbox checked={false} disabled={ro} onCheckedChange={(c) => c === true && modifica((x) => { x.opera.modalita_organizzative_da_verificare = false; })} />
+          Le modalità organizzative le ha proposte l'AI: le ho rilette e adattate a questo cantiere.
+        </label>
+      )}
     </Sezione>
   );
 }
@@ -486,12 +492,13 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
     <Sezione id="lavorazioni" numero={8} titolo="Lavorazioni svolte in cantiere" riferimento={RIFERIMENTI_SEZIONE.lavorazioni} mancanti={mancanti}
       descrizione="Una scheda per lavorazione: sostanze, opere provvisionali, macchine, rischi, misure e DPI. Le schede proposte dall'AI o riprese da altri POS e modelli richiedono adattamento e conferma."
       azioni={!ro ? (
+        // Telefono: due icone (prima i due pulsanti col testo uscivano dallo schermo e «Scheda vuota» si tagliava).
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={onProponiAi} disabled={proponendo}>
-            {proponendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}Proponi con l'AI
+          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Proponi con l'AI" title="Proponi le lavorazioni con l'AI" onClick={onProponiAi} disabled={proponendo}>
+            {proponendo ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden="true" /> : <Sparkles className="h-4 w-4 sm:mr-1" aria-hidden="true" />}<span className="max-sm:hidden">Proponi con l'AI</span>
           </Button>
-          <Button size="sm" variant="outline" onClick={() => modifica((x) => { x.lavorazioni.push(lavorazioneVuota(nuovoId())); })}>
-            <Plus className="mr-1 h-4 w-4" />Scheda vuota
+          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Aggiungi una scheda vuota" title="Aggiungi una scheda vuota" onClick={() => modifica((x) => { x.lavorazioni.push(lavorazioneVuota(nuovoId())); })}>
+            <Plus className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Scheda vuota</span>
           </Button>
         </div>
       ) : undefined}>

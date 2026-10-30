@@ -79,7 +79,8 @@ export interface DatiControllo {
   oggi: string; // yyyy-mm-dd
   /** Documenti della commessa più quelli di tutta l'azienda (order_id null). */
   documenti: DocumentoSicurezza[];
-  pos: Array<{ status: string | null }>;
+  /** `verificaNegativa`: l'affidataria o il CSE hanno dato esito negativo (art. 101 c. 3): i lavori non possono iniziare. */
+  pos: Array<{ status: string | null; verificaNegativa?: boolean }>;
   subappaltatori: Array<{ id: string; ragione_sociale: string | null; durc_scadenza: string | null }>;
   ponteggiMontati: boolean;
 }
@@ -131,11 +132,15 @@ export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
   const docsCantiere=d.documenti.filter(x=>!!x.order_id&&(!d.orderId||x.order_id===d.orderId)&&!x.subappaltatore_id);
 
   // POS della propria impresa: sempre.
-  const posApprovato = d.pos.some((p) => p.status === "approvato" || p.status === "firmato" || p.status === "consegnato");
+  const approvati = d.pos.filter((p) => p.status === "approvato" || p.status === "firmato" || p.status === "consegnato");
+  const posApprovato = approvati.length > 0;
+  // Approvato nell'app ma con esito negativo di chi verifica (art. 101 c. 3): non è «ok», i lavori non possono iniziare.
+  const verificaNegativa = approvati.some((p) => p.verificaNegativa);
   voci.push({
     chiave: "pos", titolo: "POS della tua impresa", perche: "Controlla il POS pertinente, la sua revisione e l’iter applicabile; l’approvazione nell’app non attesta firme o consegne.",
-    stato: posApprovato ? "ok" : d.pos.length ? "in_corso" : "manca", nelPos: true,
-    dettaglio: posApprovato ? "Approvato" : d.pos.length ? "In preparazione: completalo e approvalo" : undefined,
+    stato: posApprovato ? (verificaNegativa ? "in_corso" : "ok") : d.pos.length ? "in_corso" : "manca", nelPos: true,
+    dettaglio: verificaNegativa ? "Verifica negativa dell’impresa affidataria o del coordinatore: i lavori non possono iniziare. Apri una nuova revisione e correggi il POS."
+      : posApprovato ? "Approvato" : d.pos.length ? "In preparazione: completalo e approvalo" : undefined,
   });
 
   // Impresa: patente a crediti e DURC (anche caricati per tutta l'azienda).

@@ -4,7 +4,12 @@ import { supportaMezziPos } from "../_shared/posMezzi.ts";
 import { supportaFontiTecnichePos } from "../_shared/posFontiTecniche.ts";
 import { supportaTecnicaPos } from "../_shared/posTecnica.ts";
 import { supportaProdottiPos } from "../_shared/posProdotti.ts";
-import { verificaVersionePos } from "../_shared/posVersione.ts";
+import { percorsoStorageSicuro } from "../_shared/posPercorsi.ts";
+import { oggiRoma } from "../_shared/posData.ts";
+import { AZIONI_POS, eAzioneBrowserPos, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
+import { lavorazioniDaRispostaAi } from "../_shared/posAi.ts";
+import { controlliApprovazione } from "../_shared/posApprovazione.ts";
+import { leggiRichiestaPos } from "../_shared/posRichiesta.ts";
 /**
  * genera-pos — Piano Operativo di Sicurezza sul modello ufficiale
  * (DI 9 settembre 2014, Allegato I; Allegato XV punto 3.2.1 del D.Lgs 81/2008).
@@ -20,6 +25,10 @@ import { verificaVersionePos } from "../_shared/posVersione.ts";
  *   approva        { company_id, pos_id } → approva solo se non manca nessuno dei
  *                  contenuti minimi. È l'unica strada: il database rifiuta
  *                  l'approvazione fatta da un utente direttamente.
+ *   anteprima_html, prepara_emissione, completa_emissione, annulla_emissione
+ *                  Il PDF lo disegna il browser (il server ha 2 s di CPU per richiesta): vedi
+ *                  _shared/posAzioniBrowser.ts. anteprima_pdf, approva ed emetti, dove il PDF lo
+ *                  disegna il server, restano per le app già installate.
  *
  * Chi chiama deve avere il permesso Sicurezza Cantiere nell'azienda; per le
  * azioni che scrivono non deve essere in sola lettura.
@@ -30,15 +39,14 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { colonneRiassunto, preparaPosDaApp } from "../_shared/posDatiApp.ts";
-import { normalizzaLavorazione, normalizzaPos, vociMancanti, type Lavorazione } from "../_shared/posModello.ts";
+import { normalizzaLavorazione, normalizzaPos, type Lavorazione } from "../_shared/posModello.ts";
 
 import { applicaRiusoPos, lavorazioniRiutilizzabili } from "../_shared/posRiuso.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const AZIONI = ["apri_originale_addetto","apri_documento_mezzo","crea", "dati_app", "lavorazioni_ai", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"] as const;
-type Azione = typeof AZIONI[number];
+type Azione = AzionePos;
 
 async function verificaPermesso(db: Db, userId: string, companyId: string, scrive: boolean, cors: Record<string, string>) {
   const { data: ok, error: permessoError } = await db.rpc("has_permission_for_company", {
@@ -62,6 +70,12 @@ async function verificaPermesso(db: Db, userId: string, companyId: string, scriv
   }
 }
 
+/** Un RAISE EXCEPTION dei nostri trigger (P0001) dice all'utente cosa correggere; gli altri errori del database restano nei log del server. */
+function erroreDb(contesto: string, error: { message: string; code?: string }, cors: Record<string, string>) {
+  console.error(`genera-pos: ${contesto}`, error.code ?? "", error.message);
+  return errorResponse(error.code === "P0001" ? `${contesto}: ${error.message}` : `${contesto}: riprova tra poco`, 500, cors);
+}
+
 async function caricaPos(db: Db, companyId: string, posId: string, cors: Record<string, string>) {
   const { data, error } = await db
     .from("pos_documents")
@@ -69,7 +83,7 @@ async function caricaPos(db: Db, companyId: string, posId: string, cors: Record<
     .eq("id", posId)
     .eq("company_id", companyId)
     .maybeSingle();
-  if (error) throw errorResponse(`POS non leggibile: ${error.message}`, 500, cors);
+  if (error) throw erroreDb("POS non leggibile", error, cors);
   if (!data || (data.document_type && data.document_type !== "pos")) throw errorResponse("POS non trovato", 404, cors);
   return data;
 }
@@ -151,16 +165,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   const elenco = Array.isArray((parsed as { lavorazioni?: unknown })?.lavorazioni)
     ? (parsed as { lavorazioni: unknown[] }).lavorazioni
     : [];
-  const base = Date.now().toString(36);
-  // Rischi, misure e DPI arrivano come elenchi: nella scheda diventano righe.
-  const righe = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).join("\n") : v);
-  const lavorazioni = elenco
-    .map((l, i) => {
-      const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
-      const conRighe = { ...o, tecnica:undefined, requisiti_addetti:undefined, rischi: righe(o.rischi), misure: righe(o.misure), dpi: righe(o.dpi), sostanze: righe(o.sostanze) };
-      return { ...normalizzaLavorazione(conRighe, `ai-${base}-${i + 1}`), origine: "ai" as const, verificata: false };
-    })
-    .filter((l) => l.titolo.trim() || l.descrizione.trim());
+  const lavorazioni = lavorazioniDaRispostaAi(elenco, `ai-${Date.now().toString(36)}`);
   if (!lavorazioni.length) throw errorResponse("L'AI non ha proposto lavorazioni: riprova o scrivile a mano", 502, cors);
   const modalita = (parsed as { modalita_organizzative?: unknown })?.modalita_organizzative;
   return { lavorazioni, modalita_organizzative: typeof modalita === "string" ? modalita.trim() : "" };
@@ -174,22 +179,22 @@ Deno.serve(async (req: Request) => {
     if (req.method !== "POST") return errorResponse("Metodo non consentito", 405, cors);
     const { userId, supabaseAdmin: db } = await requireAuth(req, cors);
 
-    const body = await req.json().catch(() => ({}));
+    const { body, pdf } = await leggiRichiestaPos(req);
     // Compatibilità: chi chiamava senza azione con order_id voleva creare un POS.
     const azione: Azione = body.azione == null && body.order_id ? "crea" : body.azione;
     const companyId = typeof body.company_id === "string" ? body.company_id : "";
-    if (!AZIONI.includes(azione)) return errorResponse("Azione non riconosciuta", 400, cors);
+    if (!AZIONI_POS.includes(azione)) return errorResponse("Azione non riconosciuta", 400, cors);
     if (!companyId) return errorResponse("company_id obbligatorio", 400, cors);
 
     await requireCompanyAccess(db, userId, companyId, cors);
-    await verificaPermesso(db, userId, companyId, ["crea", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"].includes(azione), cors);
+    await verificaPermesso(db, userId, companyId, scriveAzionePos(azione), cors);
 
     if(azione === "apri_originale_addetto") {
       const persona=String(body.persona_id||"");
       const {data:fonte,error}=await db.rpc("pos_originale_addetto_per_autore",{_company:companyId,_ordine:String(body.order_id||""),_riesame:String(body.riesame_id||""),_persona:persona,_documento:String(body.documento_id||""),_impronta:String(body.impronta||""),_autore:userId});
       if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
       const path=fonte?.path;
-      if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale formativo non disponibile",403,cors);
+      if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale formativo non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("hr-documenti").createSignedUrl(path,300);
       if(err||!link?.signedUrl)return errorResponse("Originale formativo non disponibile",503,cors);
       return jsonResponse({ok:true,url:link.signedUrl},200,cors);
@@ -198,7 +203,7 @@ Deno.serve(async (req: Request) => {
       const ordine=String(body.order_id||""),mezzo=String(body.mezzo_id||""),documento=String(body.documento_id||""),impronta=String(body.impronta||"");
       const {data:path,error}=await db.rpc("pos_documento_mezzo_per_autore",{_company:companyId,_ordine:ordine,_mezzo:mezzo,_documento:documento,_impronta:impronta,_autore:userId});
       if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
-      if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale attrezzatura non disponibile",403,cors);
+      if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale attrezzatura non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("mezzi-documenti").createSignedUrl(path,300);
       if(err||!link?.signedUrl)return errorResponse("Originale attrezzatura non disponibile",503,cors);
       return jsonResponse({ok:true,url:link.signedUrl},200,cors);
@@ -208,6 +213,11 @@ Deno.serve(async (req: Request) => {
       const {scaricaEmissionePos}=await import("../_shared/posEmissione.ts");
       const r=await scaricaEmissionePos(db,companyId,String(body.emissione_id||""),body.tipo);
       return jsonResponse({ok:true,...r},200,cors);
+    }
+    if (eAzioneBrowserPos(azione)) {
+      const { gestisciAzioneBrowserPos } = await import("../_shared/posAzioniBrowser.ts");
+      const r = await gestisciAzioneBrowserPos({ azione, db, userId, companyId, body, pdf, caricaPos: (id) => caricaPos(db, companyId, id, cors) });
+      return jsonResponse(r.corpo, r.status, cors);
     }
     if (azione === "archivia_modello") {
       const {data,error}=await db.from("pos_modelli_aziendali").update({archiviato:true}).eq("company_id",companyId).eq("id",body.modello_id).select("id").maybeSingle();
@@ -277,7 +287,7 @@ Deno.serve(async (req: Request) => {
       if (["affidataria", "affidataria_esecutrice", "esecutrice_subappalto"].includes(body.ruolo_impresa)) {
         contenuto.impresa.ruolo = body.ruolo_impresa;
       }
-      const oggi = new Date().toISOString().slice(0, 10);
+      const oggi = oggiRoma();
       const { data: doc, error } = await db
         .from("pos_documents")
         .insert({
@@ -296,7 +306,7 @@ Deno.serve(async (req: Request) => {
         })
         .select("id")
         .single();
-      if (error) return errorResponse(`POS non salvato: ${error.message}`, 500, cors);
+      if (error) return erroreDb("POS non salvato", error, cors);
       return jsonResponse({ ok: true, pos_id: doc.id, avvisi: preparato.contesto.avvisi, contesto: preparato.contesto }, 200, cors);
     }
 
@@ -342,25 +352,13 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: true, ...proposta }, 200, cors);
     }
 
-    // approva: check the editor token before any approval, rendering or replay.
-    verificaVersionePos(pos,body);
-    if (pos.contenuto?.versione_controlli === 2 && body.versione_client !== 2) return errorResponse("Questo POS richiede l’editor aggiornato: ricarica l’app prima di approvare",409,cors);
-    if (pos.status === "approvato") return jsonResponse({ ok: true, gia_approvato: true }, 200, cors);
-    if(pos.status!=="bozza") return errorResponse("Apri una bozza prima di approvare il POS",409,cors);
-    if(body.versione_client===2 && pos.contenuto?.versione_controlli!==2) return errorResponse("Apri il POS nell’editor aggiornato, verifica i controlli e salva la bozza prima di approvare",409,cors);
-    const contenuto = normalizzaPos(pos.contenuto);
-    if (contenuto.versione_prodotti===1 && !supportaProdottiPos(body)) return errorResponse("Ricarica l’editor per riesaminare i prodotti di questo POS",409,cors);
-    if(contenuto.versione_tecnica===1&&!supportaTecnicaPos(body)) return errorResponse("Ricarica l’editor per riesaminare le schede tecniche di questo POS",409,cors);
-    if(contenuto.versione_mezzi===1&&!supportaMezziPos(body))return errorResponse("Ricarica l’editor per verificare le attrezzature",409,cors);
-    if(contenuto.versione_fonti_tecniche===1&&!supportaFontiTecnichePos(body))return errorResponse("Ricarica l’editor per verificare le fonti tecniche",409,cors);
-    if(contenuto.versione_requisiti_addetti===1&&!supportaRequisitiAddettiPos(body))return errorResponse("Ricarica l’editor per i riscontri nominativi della propria impresa",409,cors);
-    if(contenuto.versione_documenti_mezzi===1&&!supportaDocumentiMezziPos(body))return errorResponse("Ricarica l’editor per verificare documenti e controlli delle attrezzature",409,cors);
-    if(contenuto.versione_psc===1 && body.versione_psc_client!==1)return errorResponse("Ricarica l’editor per il riferimento originale del PSC",409,cors);
-    const mancanti = vociMancanti(contenuto);
-    if (mancanti.length) {
-      return jsonResponse({ ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti }, 422, cors);
-    }
-    const { data: profilo } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
+    // approva: i controlli sono gli stessi di prepara_emissione (controlliApprovazione).
+    const verificato = controlliApprovazione(pos, body);
+    if (verificato.tipo === "risposta") return jsonResponse(verificato.corpo, verificato.status, cors);
+    const contenuto = verificato.contenuto;
+    // Il nome di chi approva resta nel PDF immutabile e in approvato_da_nome: se il profilo non si legge, si riprova.
+    const { data: profilo, error: profiloError } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
+    if (profiloError) return errorResponse("Profilo di chi approva non leggibile: riprova tra poco", 503, cors);
     const nome = [profilo?.first_name, profilo?.last_name].filter(Boolean).join(" ") || profilo?.email || "utente";
     if(body.versione_client===2) {
       const {conservaEmissionePos}=await import("../_shared/posEmissione.ts");
@@ -389,7 +387,7 @@ Deno.serve(async (req: Request) => {
       .eq("status", pos.status);
     approvazione = pos.updated_at ? approvazione.eq("updated_at",pos.updated_at) : approvazione.is("updated_at",null);
     const {data:approvato,error}=await approvazione.select('id').maybeSingle();
-    if (error) return errorResponse(`POS non approvato: ${error.message}`, 500, cors);
+    if (error) return erroreDb("POS non approvato", error, cors);
     if(!approvato) return errorResponse("Il POS è cambiato durante la verifica. Ricarica e ricontrolla la bozza.",409,cors);
     return jsonResponse({ ok: true, approvato_da_nome: nome }, 200, cors);
   } catch (err) {

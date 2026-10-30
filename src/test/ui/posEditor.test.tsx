@@ -12,14 +12,22 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase/functions/_shared/posModello";
 
 const stato = vi.hoisted(() => ({
+  errore: null as Error | null,
   pos: null as unknown,
   approva: vi.fn(),
   salva: vi.fn(),
+  // l'avanzamento del PDF: approvazione e anteprima
+  approvaInCorso: false,
+  fase: null as string | null,
+  annulla: vi.fn(),
+  anteprimaInCorso: false,
+  apriAnteprima: vi.fn(),
 }));
 
 vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[] as never[],isPending:false,isError:false,isFetching:false,refetch:vi.fn()}),identificaPsc:vi.fn()}));
 vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:(): null =>null}));
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
+vi.mock("@/hooks/useAnteprimaPos",()=>({useAnteprimaPos:()=>({apri:stato.apriAnteprima,inCorso:stato.anteprimaInCorso,fase:stato.anteprimaInCorso?stato.fase:null,annulla:stato.annulla})}));
 vi.mock("@/hooks/useEmissioniPos",()=>({
  useEmissioniPos:()=>({data:[] as never[],isLoading:false,isError:false}),
  useContenutiPerEmissione:()=>({data:[] as never[],isLoading:false,isError:false}),
@@ -33,9 +41,9 @@ vi.mock("@/hooks/usePos", () => {
   }
   return {
     ErrorePos,
-    usePos: () => ({ data: stato.pos, isLoading: false, error: null as Error | null, refetch: vi.fn() }),
+    usePos: () => ({ data: stato.pos, isLoading: false, error: stato.errore, refetch: vi.fn() }),
     useSalvaPos: () => ({mutate:stato.salva,mutateAsync:stato.salva,isPending:false}),
-    useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: false }),
+    useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: stato.approvaInCorso, fase: stato.approvaInCorso ? stato.fase : null, annulla: stato.annulla }),
     useNuovaRevisione: mut,
     datiAppPos: vi.fn(() => new Promise(() => {})),
     lavorazioniAiPos: vi.fn(),
@@ -48,7 +56,7 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 
-import { datiAppPos } from "@/hooks/usePos";
+import { datiAppPos, lavorazioniAiPos } from "@/hooks/usePos";
 import PosEditor from "@/pages/azienda/sicurezza/PosEditor";
 
 beforeAll(() => {
@@ -60,7 +68,7 @@ beforeAll(() => {
     (globalThis as unknown as { structuredClone: unknown }).structuredClone = (v: unknown) => JSON.parse(JSON.stringify(v));
   }
 });
-afterEach(() => { cleanup(); stato.approva.mockReset(); stato.salva.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
+afterEach(() => { cleanup(); stato.errore = null; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
 
 function riga(contenuto: PosContenuto, status = "bozza") {
   // The complete fixture now includes a declared PSC original; this suite exercises save concurrency, not source verification.
@@ -190,4 +198,150 @@ describe('La conferma riguarda il documento effettivamente letto',()=>{
   const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;let termina:(v:typeof originale)=>void=()=>{};stato.salva.mockImplementation(()=>new Promise(resolve=>{termina=resolve;}));mostra();fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Prima modifica'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledOnce());fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Seconda modifica durante la richiesta'}});await act(async()=>{termina({...originale,updated_at:'2026-10-27T12:03:00Z'});});expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();expect((screen.getByLabelText('Datore di lavoro') as HTMLInputElement).value).toBe('Seconda modifica durante la richiesta');
   stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:04:00Z'});fireEvent.click(screen.getByRole('button',{name:'Salva'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledTimes(2));expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe('2026-10-27T12:03:00Z');
  });
+});
+
+
+describe("la proposta dell'AI", () => {
+  const proposta = (modalita: string) => ({
+    lavorazioni: [{ ...lavorazioneVuota("ai-1"), titolo: "Demolizione tramezzi", origine: "ai" as const, verificata: false }],
+    modalita_organizzative: modalita,
+  });
+  const bozzaSenzaModalita = () => {
+    const c = esempioPdfPos().contenuto;
+    c.opera.modalita_organizzative = "";
+    const originale = riga(c);
+    stato.pos = originale;
+    stato.salva.mockResolvedValue({ ...originale, updated_at: "2026-10-30T09:00:00Z" });
+    return originale;
+  };
+  const testoModalita = () => (screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement).value;
+
+  it("le modalità organizzative scritte dall'AI restano «da verificare» e fermano l'approvazione finché non si conferma", async () => {
+    bozzaSenzaModalita();
+    vi.mocked(lavorazioniAiPos).mockResolvedValue(proposta("Accesso dal cancello su via Roma"));
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    await waitFor(() => expect(testoModalita()).toBe("Accesso dal cancello su via Roma"));
+    expect(screen.getByText(/le ha proposte l'AI/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" })); // chiude la finestra delle proposte
+    await waitFor(() => expect(screen.queryByText("Lavorazioni proposte dall'AI")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /Approva e prepara/ }));
+    expect(await screen.findByText(/Modalità organizzative proposte dall'AI/)).toBeTruthy();
+    expect(stato.approva).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText("Il POS non ha ancora tutti i contenuti minimi")).toBeNull());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /le ha proposte l'AI/ }));
+    await waitFor(() => expect(screen.queryByText(/le ha proposte l'AI/)).toBeNull());
+    expect(testoModalita()).toBe("Accesso dal cancello su via Roma");
+  });
+
+  it("quello che si scrive mentre l'AI risponde non viene sovrascritto", async () => {
+    bozzaSenzaModalita();
+    let rispondi: (v: ReturnType<typeof proposta>) => void = () => {};
+    vi.mocked(lavorazioniAiPos).mockImplementation(() => new Promise((resolve) => { rispondi = resolve as never; }));
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    await waitFor(() => expect(lavorazioniAiPos).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Modalità organizzative"), { target: { value: "Scritto a mano nell'attesa" } });
+    await act(async () => { rispondi(proposta("Testo dell'AI")); });
+    await waitFor(() => expect(screen.getByText("Lavorazioni proposte dall'AI")).toBeTruthy());
+    expect(testoModalita()).toBe("Scritto a mano nell'attesa");
+    expect(screen.queryByText(/le ha proposte l'AI/)).toBeNull();
+  });
+});
+
+describe("approvato ma con una verifica negativa", () => {
+  it("lo stato non resta verde: l'esito negativo del CSE si vede nell'intestazione", () => {
+    const c = esempioPdfPos().contenuto;
+    c.procedure_psc.psc_presente = true;
+    stato.pos = { ...riga(c, "approvato"), iter: { cse_esito: "negativo" } };
+    mostra();
+    expect(screen.getByText("Approvato, verifica negativa")).toBeTruthy();
+    expect(screen.queryByText("Approvato")).toBeNull();
+  });
+  it("un esito negativo che non si applica a questo POS (né subappalto né PSC) non cambia lo stato", () => {
+    const c = esempioPdfPos().contenuto;
+    c.impresa.ruolo = "affidataria";
+    c.impresa.subappalto_a = "";
+    c.procedure_psc.psc_presente = false;
+    stato.pos = { ...riga(c, "approvato"), iter: { affidataria_esito: "negativo", cse_esito: "negativo" } };
+    mostra();
+    expect(screen.getByText("Approvato")).toBeTruthy();
+  });
+});
+
+describe("nuova revisione con firme non salvate", () => {
+  it("«Nuova revisione» aspetta il salvataggio delle date di firma, che altrimenti andrebbero perse", () => {
+    stato.pos = riga(esempioPdfPos().contenuto, "approvato");
+    mostra();
+    const nuova = screen.getByRole("button", { name: /Nuova revisione/ }) as HTMLButtonElement;
+    expect(nuova.disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Firmato dal datore di lavoro il"), { target: { value: "2026-10-29" } });
+    expect((screen.getByRole("button", { name: /Nuova revisione/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("ricarica in background fallita", () => {
+  it("con un POS già letto l'editor resta aperto e la bozza non si perde", () => {
+    stato.pos = riga(esempioPdfPos().contenuto);
+    stato.errore = new Error("rete caduta");
+    mostra();
+    expect(screen.getByRole("heading", { name: "Piano Operativo di Sicurezza" })).toBeTruthy();
+    expect(screen.queryByText("Non riesco a caricare il POS.")).toBeNull();
+  });
+  it("senza nessun dato l'errore si vede, con «Riprova»", () => {
+    stato.pos = null;
+    stato.errore = new Error("rete caduta");
+    mostra();
+    expect(screen.getByText("Non riesco a caricare il POS.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Riprova" })).toBeTruthy();
+  });
+});
+
+
+describe("Avanzamento del PDF nell'editor", () => {
+  const apri = (status = "bozza") => { stato.pos = riga(esempioPdfPos().contenuto, status); mostra(); };
+
+  it("mentre si approva il pulsante dice a che punto è e, finché si disegna, c'è «Annulla» (a sola icona) che ferma tutto", () => {
+    stato.approvaInCorso = true; stato.fase = "disegna";
+    apri();
+    expect(screen.getByRole("button", { name: /Disegno il PDF…/ })).toBeDisabled();
+    const annulla = screen.getByRole("button", { name: "Annulla" });
+    expect(annulla.textContent).toBe("");
+    fireEvent.click(annulla);
+    expect(stato.annulla).toHaveBeenCalledOnce();
+  });
+
+  it("quando il documento sta partendo verso il server (si conserva) e quando lavora il server non c'è più «Annulla»", () => {
+    stato.approvaInCorso = true;
+    for (const [fase, testo] of [["conserva", /Lo conservo…/], ["server", /Lo preparo sul server…/]] as const) {
+      stato.fase = fase;
+      apri();
+      expect(screen.getByRole("button", { name: testo })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Annulla" })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("senza nulla in corso il pulsante è quello di sempre e «Annulla» non c'è", () => {
+    apri();
+    expect(screen.getByRole("button", { name: /Approva e prepara PDF/ })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Annulla" })).toBeNull();
+  });
+
+  it("l'anteprima mostra la fase nel suo pulsante e ha il suo «Annulla»", () => {
+    stato.anteprimaInCorso = true; stato.fase = "prepara";
+    apri();
+    expect(screen.getByRole("button", { name: /Preparo il documento…/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(stato.annulla).toHaveBeenCalledOnce();
+  });
+
+  it("«Anteprima PDF» apre l'anteprima di questo POS", () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: /Anteprima PDF/ }));
+    expect(stato.apriAnteprima).toHaveBeenCalledWith("az-1", "pos-1");
+  });
 });

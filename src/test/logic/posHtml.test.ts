@@ -37,6 +37,14 @@ describe("POS stampabile", () => {
     expect(html).toContain("Approvato nell'app da Mario Rossi il 21/09/2026");
   });
 
+  it("la data dell'approvazione è il giorno italiano, anche a cavallo della mezzanotte UTC", () => {
+    const html = costruisciHtmlPos({
+      contenuto: base(), stato: "approvato", revisione: 0, revisioni: [],
+      approvatoDa: "Mario Rossi", approvatoIl: "2026-10-30T23:30:00Z",
+    });
+    expect(html).toContain("Approvato nell'app da Mario Rossi il 31/10/2026");
+  });
+
   it("il testo scritto dall'utente non diventa HTML", () => {
     const html = costruisciHtmlPos({ contenuto: base((p) => { p.opera.descrizione_attivita = "<script>alert(1)</script> & co"; }), stato: "bozza", revisione: 0, revisioni: [] });
     expect(html).not.toContain("<script>alert(1)</script>");

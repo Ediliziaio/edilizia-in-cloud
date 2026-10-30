@@ -4,10 +4,12 @@ import type {DocumentazioneMezzoPos} from "./posDocumentiMezzi.ts";
 import type { SceltaMezzoPos } from "./posMezzi.ts";
 import type { FontiTecnicheScheda } from "./posFontiTecniche.ts";
 import { zipSync, strToU8 } from "fflate";
-import { generaPdfPos, VERSIONE_RENDERER_POS } from "./posPdf.ts";
+import { LAYOUT_POS_VERSIONE } from "./posRenderer.ts";
 import type { ProdottoPos } from "./posProdotti.ts";
 import type { DatiStampaPos } from "./posHtml.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
+import { percorsoStorageSicuro } from "./posPercorsi.ts";
+export { percorsoStorageSicuro };
 
 export const BUCKET_EMISSIONI_POS = "pos-emissioni";
 const LIMITE_ALLEGATO = 20 * 1024 * 1024;
@@ -24,10 +26,19 @@ export interface FileEmissionePos {
   mezzo_id?: string; persona_id?: string;
   evidenza_id?: string; impronta_metadati?: string;
 }
+/**
+ * Come si rifà il PDF di un'emissione: dal modello HTML congelato (il file con ruolo modello_html) e da questi parametri,
+ * con pdfmake della stessa versione. Chi verifica dopo lo rifà e ne confronta l'impronta con `pdfSha256`: lo stesso PDF, byte per byte.
+ */
+export interface RenderEmissionePos {
+  disegnatoDa: "server" | "browser"; generatore: string; layout: string;
+  codice: string; revisione: number; emessoIl: string; htmlSha256: string; pdfSha256: string;
+}
 export interface ManifestEmissionePos {
   versione: 1; emissioneId: string; companyId: string; posId: string; revisione: number;
   preparataIl: string; origine: IdentitaEmissionePos["origine"]; snapshotId?: string;
   generatore: string; contenutoSha256: string; fonts: Array<{ nome: string; sha256: string }>;
+  render?: RenderEmissionePos;
   file: FileEmissionePos[];
   avvertenza: string;
   psc?: RiferimentoPsc;
@@ -45,6 +56,8 @@ export interface FontiProdottiPos {
  versione:1;prodotti:ProdottoPos[];
  allegati:Array<{evidenza_id:string;bucket:"fascicoli-cantiere";path:string;nome:string;impronta:string}>;
 }
+/** Un PDF già disegnato (dal browser) con il suo modello HTML: il pacchetto lo conserva com'è invece di disegnarlo con pdfmake. */
+export interface PdfProntoPos { bytes: Uint8Array; html: string; fonts: Array<{ nome: string; sha256: string }>; generatore: string }
 export function jsonCanonico(v: unknown): string {
   if (v === null || typeof v === "string" || typeof v === "boolean") return JSON.stringify(v);
   if (typeof v === "number" && Number.isFinite(v)) return JSON.stringify(v);
@@ -57,9 +70,10 @@ function nomeSicuro(nome: string): string {
   const n = nome.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^\.+/, "").slice(-120);
   return n || "documento";
 }
+/** Gli allegati del POS li carica l'editor: <azienda>/pos/<pos>/<uuid>-<nome senza caratteri speciali>. */
 export function validaPathAllegatoPos(path: string, companyId: string, posId: string) {
   const prefisso = `${companyId}/pos/${posId}/`;
-  if (!path.startsWith(prefisso) || path.length <= prefisso.length || path.includes("\\") || path.split("/").some(s => !s || s === "." || s === "..")) {
+  if (!percorsoStorageSicuro(path) || !path.startsWith(prefisso) || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(path.slice(prefisso.length))) {
     throw new Error("Un allegato non appartiene al fascicolo di questo POS: correggi l’associazione prima di emettere");
   }
 }
@@ -76,6 +90,7 @@ export async function preparaPacchettoPos(
   documentiMezzi?:FontiDocumentiMezziEmissione,
   requisitiAddetti?:FontiRequisitiAddettiEmissione,
   pscVerificato?:RiferimentoPsc,
+  pdfPronto?:PdfProntoPos,
 ) {
   if (dati.stato !== "approvato") throw new Error("Il contenuto POS deve essere approvato prima dell’emissione");
   for (const id of [identita.id, identita.tentativoId, identita.companyId, identita.posId]) if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error("Identità emissione non valida");
@@ -121,7 +136,7 @@ export async function preparaPacchettoPos(
   const idsSds=new Set<string>();
   for(const [i,a] of (prodottiSds?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.evidenza_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsSds.has(a.evidenza_id)) throw new Error("Riferimento SDS del fascicolo non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsSds.has(a.evidenza_id)) throw new Error("Riferimento SDS del fascicolo non valido");
     idsSds.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`SDS «${a.nome}» non disponibile: emissione non completata`);}
@@ -133,7 +148,7 @@ export async function preparaPacchettoPos(
   const idsTecnici=new Set<string>();
   for(const [i,a] of (fontiTecniche?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.evidenza_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsTecnici.has(a.evidenza_id))throw new Error("Riferimento tecnico del fascicolo non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsTecnici.has(a.evidenza_id))throw new Error("Riferimento tecnico del fascicolo non valido");
     idsTecnici.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Documento tecnico «${a.nome}» non disponibile: emissione non completata`);}
@@ -145,7 +160,7 @@ export async function preparaPacchettoPos(
   const idsDocumentiMezzi=new Set<string>();
   for(const [i,a] of (documentiMezzi?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.mezzo_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.mezzo_id)||a.bucket!=="mezzi-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").length!==3||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsDocumentiMezzi.has(a.evidenza_id))throw new Error("Riferimento originale dell’attrezzatura non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.mezzo_id)||a.bucket!=="mezzi-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||a.path.split("/").length!==3||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsDocumentiMezzi.has(a.evidenza_id))throw new Error("Riferimento originale dell’attrezzatura non valido");
     idsDocumentiMezzi.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Originale attrezzatura «${a.nome}» non disponibile: emissione non completata`);}
@@ -156,7 +171,7 @@ export async function preparaPacchettoPos(
   const idsFormativi=new Set<string>();
   for(const [i,a] of (requisitiAddetti?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.persona_id}/`;
-    if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.persona_id)||a.bucket!=="hr-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").length!==3||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsFormativi.has(a.evidenza_id))throw new Error("Riferimento formativo non pertinente all’addetto della propria impresa");
+    if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.persona_id)||a.bucket!=="hr-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||a.path.split("/").length!==3||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsFormativi.has(a.evidenza_id))throw new Error("Riferimento formativo non pertinente all’addetto della propria impresa");
     idsFormativi.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Originale formativo «${a.nome}» non disponibile: emissione non completata`);}
@@ -164,7 +179,10 @@ export async function preparaPacchettoPos(
     totale+=bytes.length;if(bytes.length>LIMITE_ALLEGATO||totale>LIMITE_ALLEGATI)throw new Error("Il fascicolo supera i limiti di emissione: 20 MB per allegato, 30 MB complessivi");
     await aggiungi(`allegati/FORMAZIONE-${String(i+1).padStart(3,'0')}-${nomeSicuro(a.nome)}`,bytes,"allegato","application/octet-stream",{tipo:"qualifica_addetto",nomeOriginale:a.nome,evidenza_id:a.evidenza_id,persona_id:a.persona_id,impronta_metadati:a.impronta,fonte:{bucket:a.bucket,path:a.path}});
   }
-  const pdf = await generaPdfPos(dati, identita.emessoIl);
+  // pdfmake si carica solo se il PDF lo disegna il server: un avvio a freddo che non lo usa non ne paga l'importazione.
+  const server = pdfPronto ? null : await import("./posPdf.ts");
+  const pdf = pdfPronto ?? await server!.generaPdfPos(dati, identita.emessoIl);
+  const generatore = pdfPronto?.generatore ?? server!.VERSIONE_RENDERER_POS;
   await aggiungi("POS.pdf", pdf.bytes, "pdf", "application/pdf");
   await aggiungi("modello.html", strToU8(pdf.html), "modello_html", "text/html");
   await aggiungi("fonti.json", strToU8(jsonCanonico(fonti)), "fonti", "application/json");
@@ -176,7 +194,9 @@ export async function preparaPacchettoPos(
     ...(prodottiSds?{prodotti_sds:{versione:1 as const,prodotti:prodottiSds.prodotti}}:{}),
     ...(requisitiAddetti?{requisiti_addetti:{versione:1 as const,collegamenti:requisitiAddetti.collegamenti}}:{}),
     ...(documentiMezzi?{documenti_mezzi:{versione:1 as const,collegamenti:documentiMezzi.collegamenti}}:{}),...(fontiMezzi?{mezzi_pos:fontiMezzi}:{}),...(fontiTecniche?{fonti_tecniche:{versione:1 as const,collegamenti:fontiTecniche.collegamenti}}:{}),
-    generatore: VERSIONE_RENDERER_POS, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    generatore, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    render: { disegnatoDa: pdfPronto ? "browser" : "server", generatore, layout: LAYOUT_POS_VERSIONE, codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl: identita.emessoIl,
+      htmlSha256: file.find(f => f.ruolo === "modello_html")!.sha256, pdfSha256: file.find(f => f.ruolo === "pdf")!.sha256 },
     avvertenza: identita.origine === "approvazione_corrente"
       ? "L’approvazione interna non sostituisce le firme. Gli allegati sono conservati separatamente nei byte originali, senza fusione o modifica."
       : "Copia preparata ora dal contenuto archiviato. Non ricostruisce i byte di un PDF o di allegati storici non conservati all’epoca; non attesta firme precedenti.",

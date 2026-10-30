@@ -1,6 +1,7 @@
 import {SEGNALI_POS,segnalePosSvg} from "./posSegnaletica.ts";
 import { ICONE_POS, iconaPosSvg } from "./posIcone.ts";
 import { parse } from "parse5";
+import { testoPerPdf } from "./posTestoPdf.ts";
 
 interface HtmlNode {
   nodeName: string;
@@ -19,7 +20,7 @@ function trova(n: HtmlNode, tag: string): HtmlNode | undefined {
 }
 /** Only our own escaped template is accepted. No CSS, URL, image or executable HTML is interpreted. */
 export function testoHtmlPos(n: HtmlNode): string {
-  if (n.nodeName === "#text") return (n.value || "").replace(/[\t\r\n ]+/g, " ");
+  if (n.nodeName === "#text") return testoPerPdf((n.value || "").replace(/[\t\r\n ]+/g, " "));
   if (n.tagName === "br") return "\n";
   let testo = children(n).map(testoHtmlPos).join("");
   // Explicit textual checkboxes avoid a missing glyph being mistaken for a checked box.
@@ -74,6 +75,13 @@ export function layoutPdfPos(html: string, codice: string, revisione: number, da
   if (!pagina) throw new Error("Modello di stampa POS non riconosciuto");
   const content: PdfBlock[] = [];
   const sezioni: string[] = [];
+  // pdfmake rifà l'impaginazione dell'intero documento a ogni salto di pagina deciso da pageBreakBefore: con i titoli
+  // di terzo livello nella regola un POS di 50 pagine costa il 35-55% di CPU in più (provato a freddo: 1,05 s contro
+  // 0,70 s a 53 pagine, 2,05 s contro 0,96 s a 99) e le Edge Functions hanno 2 s per richiesta. Oltre i ~90 KB di
+  // HTML la regola vale solo per i titoli di sezione; sotto, anche per i sottotitoli (costa pochi millisecondi).
+  const documentoGrande = html.length > 90_000;
+  const livelloH3 = documentoGrande ? 2 : 1;
+  const livelloH4 = documentoGrande ? 3 : 2;
   let indice = false;
   let avvertenzeBozza = "";
   for (const n of children(pagina)) {
@@ -91,8 +99,8 @@ export function layoutPdfPos(html: string, codice: string, revisione: number, da
       content.push({unbreakable:true,columns:[{svg:segnalePosSvg(segnale.id),width:38},{text:descrizione?testo(descrizione):segnale.nome,fontSize:9}],columnGap:12,margin:[0,5,0,9]});
     } else if (n.tagName === "table") content.push(tabella(n));
     else if (n.tagName === "h1") content.push({ text: t, alignment: "center", bold: true, fontSize: 22, color: "#183451", margin: [0, 45, 0, 16] });
-    else if (n.tagName === "h3") content.push({ text: t, fontSize: 11, bold: true, headlineLevel: 1, margin: [0, 12, 0, 6] });
-    else if (n.tagName === "h4") content.push({ text: t, fontSize: 10, bold: true, headlineLevel: 2, margin: [0, 9, 0, 5] });
+    else if (n.tagName === "h3") content.push({ text: t, fontSize: 11, bold: true, headlineLevel: livelloH3, margin: [0, 12, 0, 6] });
+    else if (n.tagName === "h4") content.push({ text: t, fontSize: 10, bold: true, headlineLevel: livelloH4, margin: [0, 9, 0, 5] });
     else if (n.tagName === "ul") content.push({ ul: children(n).filter(c => c.tagName === "li").map(testo), margin: [0, 4, 0, 10] });
     else if (n.tagName === "p" || n.tagName === "div") {
       if (classe(n, "bozza")) {
@@ -113,7 +121,7 @@ export function layoutPdfPos(html: string, codice: string, revisione: number, da
       defaultStyle: { font: "Roboto", fontSize: 9.5, lineHeight: 1.12 },
       info: { title: `POS ${codice} — revisione ${revisione}`, author: "Edilizia in Cloud", creator: "Edilizia in Cloud — POS 1", creationDate: new Date(dataEmissione), modDate: new Date(dataEmissione) },
       footer: (corrente: number, totale: number) => ({ id:"pos-footer",text: `POS ${codice} · Rev. ${revisione}    |    Pagina ${corrente} di ${totale}`, alignment: "center", fontSize: 8, color: "#42566d", margin: [40, 14, 40, 0] }),
-      pageBreakBefore: (node: { headlineLevel?: number; startPosition?:{pageInnerHeight:number;verticalRatio:number} }, container: { getFollowingNodesOnPage: () => Array<{id?:string;headlineLevel?:number;text?:unknown;table?:unknown;ul?:unknown}> }) => node.headlineLevel === 1 && ((node.startPosition && node.startPosition.pageInnerHeight*(1-node.startPosition.verticalRatio)<110) || !container.getFollowingNodesOnPage().some(n=>n.id!=="pos-footer"&&(n.table||n.ul||(n.text&&n.headlineLevel!==1)))),
+      pageBreakBefore: (node: { headlineLevel?: number; startPosition?:{pageInnerHeight:number;verticalRatio:number} }, container: { getFollowingNodesOnPage: () => Array<{id?:string;headlineLevel?:number;text?:unknown;table?:unknown;ul?:unknown}> }) => node.headlineLevel === 1 && ((node.startPosition && node.startPosition.pageInnerHeight*(1-node.startPosition.verticalRatio)<110) || !container.getFollowingNodesOnPage().some(n=>n.id!=="pos-footer"&&(n.table||n.ul||(n.text&&!n.headlineLevel)))),
       ...(anteprima ? {watermark:{text:"BOZZA — ANTEPRIMA",color:"#b91c1c",opacity:0.1,bold:true,angle:-45}} : {}),
       content,
     },

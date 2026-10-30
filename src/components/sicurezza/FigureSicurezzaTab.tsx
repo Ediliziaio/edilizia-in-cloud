@@ -25,6 +25,7 @@ import {
   useEliminaFigura, useFigureSicurezza, useSalvaFigura, type FiguraInput, type FiguraSicurezza, type RuoloFigura,
 } from "@/hooks/usePos";
 import { MANSIONI_PREDEFINITE } from "../../../supabase/functions/_shared/posModello";
+import { oggiRoma } from "../../../supabase/functions/_shared/posData";
 
 const RUOLI: Array<{ value: RuoloFigura; label: string; obbligatoria: boolean }> = [
   { value: "datore_lavoro", label: "Datore di lavoro", obbligatoria: true },
@@ -60,7 +61,7 @@ export function FigureSicurezzaTab() {
   const mancano = RUOLI.filter((r) => r.obbligatoria && !presenti.has(r.value)).map((r) => r.label);
   if (!haRls) mancano.push("RLS o RLST");
 
-  const oggi = new Date().toISOString().slice(0, 10);
+  const oggi = oggiRoma();
 
   const salvaModulo = async () => {
     if (!modulo || !modulo.nominativo.trim()) return;

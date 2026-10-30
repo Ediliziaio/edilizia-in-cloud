@@ -58,6 +58,7 @@ import {
   documentoDaEvidenza,
   type VoceControllo,
 } from "@/lib/sicurezza/documentiSicurezza";
+import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
 import {
   CaricaDocumentoSicurezzaDialog,
   DocumentiSicurezza,
@@ -218,7 +219,7 @@ export function SicurezzaCommessa({
     orderId,
     oggi,
     documenti: [...documenti, ...native],
-    pos,
+    pos: pos.map((p) => ({ status: p.status, verificaNegativa: verificaIterNegativa(p.contenuto, p.iter) })),
     subappaltatori,
     ponteggiMontati,
   });

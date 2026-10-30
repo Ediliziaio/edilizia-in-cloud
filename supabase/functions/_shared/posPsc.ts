@@ -51,11 +51,14 @@ export function stessaFontePsc(
   f: FontePsc,
 ): boolean {
   // Revision may be declared by the editor for archives without a revision field.
+  // Il riferimento salvato nel POS è già senza spazi di testa e di coda (normalizzaRiferimentoPsc): la fonte si
+  // confronta allo stesso modo, altrimenti un titolo o una revisione scritti con uno spazio non tornano mai uguali.
+  const t = (v: string | null | undefined) => (v ?? "").trim();
   return r.archivio === f.archivio && r.id === f.id &&
     r.company_id === f.company_id && r.order_id === f.order_id &&
-    r.titolo === f.titolo && r.file_name === f.file_name &&
+    t(r.titolo) === t(f.titolo) && t(r.file_name) === t(f.file_name) &&
     r.file_path === f.file_path && r.data_documento === f.data_documento &&
-    (!f.revisione || r.revisione === f.revisione);
+    (!t(f.revisione) || t(r.revisione) === t(f.revisione));
 }
 export async function improntaPsc(file: Blob): Promise<string> {
   if (!file.size || file.size > 50 * 1024 * 1024) {
