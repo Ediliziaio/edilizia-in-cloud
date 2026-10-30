@@ -10,6 +10,7 @@ import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPlanimetria, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
 
 export type ParteContenuto =
@@ -61,7 +62,7 @@ export function messaggiIniziali(req: RichiestaGenerazione): Messaggio[] {
   const system = req.ingresso === "documento" ? PROMPT_DOCUMENTO : req.ingresso === "schizzo" ? PROMPT_SCHIZZO : PROMPT_DESCRIZIONE;
   const nota = req.nota?.trim() ? `\nIndicazione di chi ha caricato il file: ${req.nota.trim().slice(0, 500)}` : "";
   if (req.ingresso === "descrizione") {
-    return [{ role: "system", content: system }, { role: "user", content: `Descrizione dell'appartamento:\n${(req.testo ?? "").slice(0, 3000)}${nota}` }];
+    return [{ role: "system", content: conRegoleDocumento(system) }, { role: "user", content: `Descrizione dell'appartamento:\n${(req.testo ?? "").slice(0, 3000)}${nota}` }];
   }
   const f = req.file!;
   const allegato: ParteContenuto = f.mime === "application/pdf"
@@ -70,7 +71,7 @@ export function messaggiIniziali(req: RichiestaGenerazione): Messaggio[] {
   const istruzione = req.ingresso === "documento"
     ? "Ricalca questa pianta nel formato JSON richiesto."
     : "Trasforma questo schizzo nel formato JSON richiesto.";
-  return [{ role: "system", content: system }, { role: "user", content: [{ type: "text", text: istruzione + nota }, allegato] }];
+  return [{ role: "system", content: conRegoleDocumento(system) }, { role: "user", content: [{ type: "text", text: istruzione + nota }, allegato] }];
 }
 
 interface Lettura {
