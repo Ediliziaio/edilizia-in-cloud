@@ -93,6 +93,8 @@ export interface UnifiedRow {
   /** Una riga di descrizione sotto il numero (il titolo del computo), quando il numero da solo non dice cosa sia. */
   titolo?: string | null;
   cliente: string;
+  /** Per un'azienda o un ente pubblico, la persona di riferimento: non si vede in colonna ma si trova cercando. */
+  referente?: string | null;
   commerciale_id: string | null;
   commerciale_nome: string | null;
   stato_unif: UnifiedStato;
@@ -132,6 +134,17 @@ export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: 
 const PAGE_SIZE = 50;
 
 /** Format date sicuro: ritorna "—" se la stringa non è una data valida. */
+type ClienteDellaRiga = { cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null };
+const eEnte = (r: ClienteDellaRiga) => (r.cliente_tipo === "azienda" || r.cliente_tipo === "pa") && !!r.cliente_ragione_sociale?.trim();
+/** In colonna Cliente: la ragione sociale di un'azienda o di un ente pubblico, altrimenti nome e cognome (31/10/2026). */
+function nomeClienteRiga(r: ClienteDellaRiga): string {
+  return eEnte(r) ? r.cliente_ragione_sociale!.trim() : [r.cliente_nome, r.cliente_cognome].filter(Boolean).join(" ") || "—";
+}
+/** La persona dietro l'azienda o l'ente: si trova cercando. */
+function referenteRiga(r: ClienteDellaRiga): string | null {
+  return eEnte(r) ? [r.cliente_nome, r.cliente_cognome].filter(Boolean).join(" ") || null : null;
+}
+
 function formatDateSafe(s: string | null | undefined): string {
   if (!s) return "—";
   const d = new Date(s);
@@ -276,7 +289,7 @@ export function UnifiedPreventiviList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at, revision_number, source")
+        .select("id, quote_number, client_name, client_company, client_tipo, status, total, salesperson_id, created_at, updated_at, revision_number, source")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
@@ -286,7 +299,7 @@ export function UnifiedPreventiviList() {
       // modulo, che l'elenco mostra già dalla sua tabella: contarle qui lo
       // faceva comparire due volte, una come «Classico» vuoto.
       return (data as Array<{
-        id: string; quote_number: string; client_name: string | null;
+        id: string; quote_number: string; client_name: string | null; client_company?: string | null; client_tipo?: string | null;
         status: string; total: number | null; salesperson_id: string | null;
         created_at: string; updated_at: string | null;
         revision_number: number | null; source: string | null;
@@ -328,14 +341,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("sr_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale_min, totale_max, consulente_id, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale_min, totale_max, consulente_id, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale_min: number | null; totale_max: number | null;
         consulente_id: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -355,7 +368,7 @@ export function UnifiedPreventiviList() {
         .from("fv_progetti")
         .select(`
           id, numero, stato, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, kit_bundle_id, kit_prezzo, iva_aliquota,
-          created_by, created_at, updated_at,
+          created_by, created_at, updated_at, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale,
           cliente:marketing_contacts(first_name, last_name)
         `)
         .eq("company_id", companyId!)
@@ -371,6 +384,7 @@ export function UnifiedPreventiviList() {
         created_by: string | null;
         created_at: string; updated_at: string | null;
         cliente: ClienteJoin;
+        cliente_nome?: string | null; cliente_cognome?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
       };
       return ((data ?? []) as Row[]).map((r) => ({
         id: r.id,
@@ -382,9 +396,10 @@ export function UnifiedPreventiviList() {
         created_by: r.created_by,
         created_at: r.created_at,
         updated_at: r.updated_at,
-        cliente_nome: r.cliente
-          ? [r.cliente.first_name, r.cliente.last_name].filter(Boolean).join(" ") || null
-          : null,
+        // Prima il cliente scritto nel preventivo (e la ragione sociale, se è un'azienda o un ente), poi il contatto collegato.
+        cliente_nome: nomeClienteRiga({ cliente_nome: r.cliente_nome ?? null, cliente_cognome: r.cliente_cognome ?? null, cliente_tipo: r.cliente_tipo, cliente_ragione_sociale: r.cliente_ragione_sociale }).replace(/^—$/, "")
+          || (r.cliente ? [r.cliente.first_name, r.cliente.last_name].filter(Boolean).join(" ") || null : null),
+        referente: referenteRiga({ cliente_nome: r.cliente_nome ?? null, cliente_cognome: r.cliente_cognome ?? null, cliente_tipo: r.cliente_tipo, cliente_ragione_sociale: r.cliente_ragione_sociale }),
       }));
     },
   });
@@ -399,14 +414,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("rst_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -422,14 +437,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("bgn_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -444,14 +459,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tet_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -466,14 +481,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("clm_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -488,14 +503,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("ele_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -510,14 +525,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("idr_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -532,7 +547,7 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("pav_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         // La colonna deleted_at c'è dal 30/08/2026 (20280248000000_pav_progetti_cestino): senza
         // il filtro un progetto pavimenti spostato nel Cestino restava in elenco e nei KPI.
@@ -541,7 +556,7 @@ export function UnifiedPreventiviList() {
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -556,14 +571,14 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("pis_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -615,7 +630,9 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: q.id, tipo: "classico",
         numero: (q.quote_number ?? "—") + (q.revision_number ? ` · Rev. ${q.revision_number}` : ""),
-        cliente: q.client_name ?? "—",
+        // Un'azienda o un ente pubblico in colonna col suo nome (un preventivo di prima con l'azienda scritta conta come azienda).
+        cliente: (q.client_tipo !== "privato" && q.client_company?.trim()) || q.client_name || "—",
+        referente: q.client_tipo !== "privato" && q.client_company?.trim() ? q.client_name : null,
         commerciale_id: q.salesperson_id,
         commerciale_nome: q.salesperson_id ? commercialeNameById.get(q.salesperson_id) ?? null : null,
         stato_unif: mapClassicoStato(q.status),
@@ -632,7 +649,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: s.id, tipo: "serramenti",
         numero: s.code ?? "—",
-        cliente: [s.cliente_nome, s.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(s), referente: referenteRiga(s),
         commerciale_id: s.consulente_id,
         commerciale_nome: s.consulente_id ? commercialeNameById.get(s.consulente_id) ?? null : null,
         stato_unif: mapSerramentiStato(s.stato),
@@ -646,7 +663,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: f.id, tipo: "fotovoltaico",
         numero: f.numero ?? "—",
-        cliente: f.cliente_nome ?? "—",
+        cliente: f.cliente_nome ?? "—", referente: f.referente,
         commerciale_id: f.created_by,
         commerciale_nome: f.created_by ? commercialeNameById.get(f.created_by) ?? null : null,
         stato_unif: mapFotovoltaicoStato(f.stato),
@@ -660,7 +677,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: r.id, tipo: "ristrutturazione",
         numero: r.code ?? "—",
-        cliente: [r.cliente_nome, r.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(r), referente: referenteRiga(r),
         commerciale_id: r.created_by,
         commerciale_nome: r.created_by ? commercialeNameById.get(r.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(r.stato),
@@ -674,7 +691,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: b.id, tipo: "bagni",
         numero: b.code ?? "—",
-        cliente: [b.cliente_nome, b.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(b), referente: referenteRiga(b),
         commerciale_id: b.created_by,
         commerciale_nome: b.created_by ? commercialeNameById.get(b.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(b.stato),
@@ -688,7 +705,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: t.id, tipo: "tetti",
         numero: t.code ?? "—",
-        cliente: [t.cliente_nome, t.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(t), referente: referenteRiga(t),
         commerciale_id: t.created_by,
         commerciale_nome: t.created_by ? commercialeNameById.get(t.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(t.stato),
@@ -702,7 +719,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: c.id, tipo: "climatizzazione",
         numero: c.code ?? "—",
-        cliente: [c.cliente_nome, c.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(c), referente: referenteRiga(c),
         commerciale_id: c.created_by,
         commerciale_nome: c.created_by ? commercialeNameById.get(c.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(c.stato),
@@ -716,7 +733,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: e.id, tipo: "elettrico",
         numero: e.code ?? "—",
-        cliente: [e.cliente_nome, e.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(e), referente: referenteRiga(e),
         commerciale_id: e.created_by,
         commerciale_nome: e.created_by ? commercialeNameById.get(e.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(e.stato),
@@ -730,7 +747,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: td.id, tipo: "termoidraulico",
         numero: td.code ?? "—",
-        cliente: [td.cliente_nome, td.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(td), referente: referenteRiga(td),
         commerciale_id: td.created_by,
         commerciale_nome: td.created_by ? commercialeNameById.get(td.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(td.stato),
@@ -744,7 +761,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: pv.id, tipo: "pavimenti",
         numero: pv.code ?? "—",
-        cliente: [pv.cliente_nome, pv.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(pv), referente: referenteRiga(pv),
         commerciale_id: pv.created_by,
         commerciale_nome: pv.created_by ? commercialeNameById.get(pv.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(pv.stato),
@@ -758,7 +775,7 @@ export function UnifiedPreventiviList() {
       rows.push({
         id: ps.id, tipo: "piscine",
         numero: ps.code ?? "—",
-        cliente: [ps.cliente_nome, ps.cliente_cognome].filter(Boolean).join(" ") || "—",
+        cliente: nomeClienteRiga(ps), referente: referenteRiga(ps),
         commerciale_id: ps.created_by,
         commerciale_nome: ps.created_by ? commercialeNameById.get(ps.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(ps.stato),
@@ -897,7 +914,7 @@ export function UnifiedPreventiviList() {
         }
       }
       if (s) {
-        const blob = `${r.numero} ${r.titolo ?? ""} ${r.cliente} ${r.commerciale_nome ?? ""}`.toLowerCase();
+        const blob = `${r.numero} ${r.titolo ?? ""} ${r.cliente} ${r.referente ?? ""} ${r.commerciale_nome ?? ""}`.toLowerCase();
         if (!blob.includes(s)) return false;
       }
       return true;
