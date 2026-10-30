@@ -190,7 +190,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
       <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card px-4 py-3">
         <div className="min-w-[14rem] flex-1 space-y-1">
           <Label htmlFor="sim-nome" className="text-sm font-normal text-muted-foreground">Nome dell'ipotesi · {DEFINIZIONI_MODELLI[aperta.ipotesi.modello].nome}</Label>
-          <Input id="sim-nome" value={aperta.nome} maxLength={200} className="h-9 text-sm" placeholder="Es. Via Roma — 6 appartamenti" onChange={(e) => setAperta((a) => ({ ...a, nome: e.target.value }))} />
+          <Input id="sim-nome" value={aperta.nome} maxLength={200} className="h-9 text-sm" placeholder="Es. Residenza 6 appartamenti" onChange={(e) => setAperta((a) => ({ ...a, nome: e.target.value }))} />
         </div>
         <Button onClick={() => void salvaOra()} disabled={salva.isPending || !modificata}><Save className="mr-1 h-4 w-4" />{aperta.id ? "Salva" : "Salva l'ipotesi"}</Button>
         {aperta.id && <Button variant="outline" onClick={() => void salvaOra(true)} disabled={salva.isPending}><Copy className="mr-1 h-4 w-4" />Salva come nuova</Button>}
