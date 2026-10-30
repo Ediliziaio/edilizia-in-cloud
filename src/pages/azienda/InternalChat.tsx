@@ -31,6 +31,8 @@ import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { righeAvvisiLettura } from "@/lib/documenti/avvisiLettura";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -209,6 +211,8 @@ interface FatturaOcrExtracted {
 
 interface FatturaOcrResponse {
   extracted?: FatturaOcrExtracted | null;
+  /** Cosa non torna nella lettura (totali, P.IVA, date, fattura già registrata): vedi avvisiLettura.ts. */
+  controlli?: unknown;
 }
 
 interface TranscriptionResponse {
@@ -1881,8 +1885,12 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
         const { data, error } = await supabase.functions.invoke("ai-fattura-ricevuta-ocr", {
           body: { storage_path: path, bucket: "silvio-uploads", auto_create: false },
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(await edgeErrorMessage(error, "Lettura della fattura non riuscita"));
         const ext = (data as FatturaOcrResponse | null)?.extracted ?? {};
+        const righeAvvisi = righeAvvisiLettura((data as FatturaOcrResponse | null)?.controlli);
+        const bloccoAvvisi = righeAvvisi.length
+          ? `\n**Da controllare prima di salvare**\n${righeAvvisi.map((r) => `- ${r}`).join("\n")}\n`
+          : "";
         const summary = `📄 **Fattura OCR completato**
 
 - **Numero**: ${ext.numero_fattura ?? "—"}
@@ -1892,7 +1900,7 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
 - **IVA**: € ${Number(ext.iva_totale ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 2})}
 - **Totale**: € ${Number(ext.totale_documento ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 2})}
 - Confidence: ${ext.confidence ?? "—"}
-
+${bloccoAvvisi}
 Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         // Post user message + OCR result
         await supabase.from("internal_chat_messages").insert({

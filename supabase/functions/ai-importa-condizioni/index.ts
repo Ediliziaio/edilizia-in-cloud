@@ -17,6 +17,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_IMPORT_CONDIZIONI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SYSTEM_PROMPT = `Sei l'assistente di un gestionale per imprese edili italiane. Ricevi un documento (contratto, condizioni di vendita, preventivo con clausole, informativa privacy) e devi produrre il blocco "Condizioni contrattuali e termini legali" da stampare in coda ai preventivi.
 
@@ -69,7 +72,7 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line no-explicit-any
     const userContent: any[] = [];
     if (testo) {
-      userContent.push({ type: "text", text: `Documento "${file_name ?? "testo"}" (testo estratto):\n\n${testo}` });
+      userContent.push({ type: "text", text: `Documento "${file_name ?? "testo"}" (testo estratto):\n\n${incorniciaTestoDocumento(testo)}` });
     } else {
       const { data: file, error: dlErr } = await supabaseAdmin.storage.from(storage_bucket!).download(storage_path!);
       if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
@@ -92,7 +95,7 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
         { role: "user", content: userContent },
       ],
       params: { temperature: 0.1, max_tokens: 8000 },
@@ -102,15 +105,11 @@ Deno.serve(async (req) => {
       idempotencyKey,
     });
 
-    let parsed: { markdown?: string; note?: string[]; mancanze?: string[] } = {};
-    const raw = (aiResult.content ?? "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const start = raw.indexOf("{"); const end = raw.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors); }
-      } else return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
+    const parsed = leggiJsonDalModello(aiResult.content);
+    if (!parsed) {
+      console.error("[ai-importa-condizioni] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
     const markdown = String(parsed.markdown ?? "").trim();
     if (!markdown) return errorResponse("Nel documento non ho trovato condizioni o termini da riordinare.", 422, cors);
@@ -124,6 +123,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

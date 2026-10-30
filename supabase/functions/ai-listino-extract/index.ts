@@ -27,6 +27,8 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface ExtractPayload {
   storage_path: string;
@@ -109,7 +111,7 @@ async function callOpenAI(
   // PDF input: passato come immagine multimodale (formato OpenAI vision-style).
   // OpenRouter mappa automaticamente al formato del modello scelto.
   const messages = [
-    { role: "system" as const, content: SYSTEM_PROMPT },
+    { role: "system" as const, content: conRegoleDocumento(SYSTEM_PROMPT) },
     {
       role: "user" as const,
       content: [
@@ -287,6 +289,8 @@ serve(async (req: Request) => {
         await logAiUsage(sb, companyId, userId, 0, 0, 0, storagePath, "error", msg);
       } catch { /* ignore */ }
     }
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
   }
 });

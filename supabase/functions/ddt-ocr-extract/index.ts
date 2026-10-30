@@ -30,6 +30,8 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 const OCR_PROMPT = `Sei un esperto nell'estrazione dati da Documenti di Trasporto (DDT) italiani conformi al D.P.R. 472/96.
 Analizza il DDT in immagine e ESTRAI i dati in JSON strutturato.
@@ -131,7 +133,7 @@ Deno.serve(async (req: Request) => {
         supabase: supabaseAdmin as any,
         taskKey: "vision_cantiere",
         messages: [
-          { role: "system", content: OCR_PROMPT },
+          { role: "system", content: conRegoleDocumento(OCR_PROMPT) },
           {
             role: "user",
             content: [
@@ -178,6 +180,8 @@ Deno.serve(async (req: Request) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, getCorsHeaders(req));
     return errorResponse(`Errore interno: ${err instanceof Error ? err.message : String(err)}`, 500, getCorsHeaders(req));
   }
 });

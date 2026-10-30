@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image as ImageIcon, XCircle, Sparkles, Loader2, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { formatCurrency } from "@/lib/formatters";
 import { parseContractExtract, reconcileContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
@@ -149,7 +150,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
           ].filter(Boolean).join("\n").slice(0, 600),
         },
       });
-      if (fnErr) throw new Error(fnErr.message || "Analisi AI fallita");
+      if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
       if (data?.error) throw new Error(String(data.error));
       const parsed = reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
       setPathAnalizzato(`${bucket}/${path}`);

@@ -15,6 +15,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { StockItemDialog } from "./StockItemDialog";
@@ -520,7 +521,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           warehouse_id: warehouseId ?? null,
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Analisi DDT non riuscita"));
       const payload = data as {
         success?: boolean;
         error?: string;

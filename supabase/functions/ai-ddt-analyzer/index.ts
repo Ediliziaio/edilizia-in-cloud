@@ -25,6 +25,8 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -112,7 +114,7 @@ Deno.serve(async (req: Request) => {
         supabase: supabaseAdmin as any,
         taskKey: "ddt_ocr",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
           {
             role: "user",
             content: [
@@ -202,6 +204,8 @@ Deno.serve(async (req: Request) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, getCorsHeaders(req));
     return errorResponse(`Errore interno: ${err instanceof Error ? err.message : String(err)}`, 500, getCorsHeaders(req));
   }
 });

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileSpreadsheet, Sparkles, Loader2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { formatCurrency } from "@/lib/formatters";
 import { useManualTreasury, type ManualAccount, type ManualTxInput } from "@/hooks/useManualTreasury";
 
@@ -132,7 +133,8 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
       const { data, error } = await supabase.functions.invoke("ai-bank-statement-parser", {
         body: { file_base64: b64, mime_type: f.type || "application/pdf", account_id: account.id },
       });
-      if (error || data?.error) throw new Error(data?.error || error?.message || "Errore AI");
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore AI"));
+      if (data?.error) throw new Error(String(data.error));
       const occAi = new Map<string, number>();
       const rows: ManualTxInput[] = (data?.transactions ?? []).map((t: { date: string; description: string; amount: number }) => {
         const base = `ai:${t.date}:${t.amount}:${(t.description || "").slice(0, 40)}`;

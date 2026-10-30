@@ -21,6 +21,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 // Schema specifico per tipo doc — guida il prompt a produrre JSON tipizzato
 const SCHEMA_BY_TYPE: Record<string, string> = {
@@ -301,7 +304,7 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: conRegoleDocumento(systemPrompt) },
         { role: "user", content: userContent },
       ],
       // Contratti/computi lunghi: le voci sono l'output più costoso in token e
@@ -321,25 +324,13 @@ Deno.serve(async (req) => {
     });
     const elapsedMs = Date.now() - t0;
 
-    let extracted: Record<string, unknown> = {};
-    try {
-      const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      extracted = JSON.parse(raw);
-    } catch {
-      // Recupero: su risposte lunghe alcuni modelli aggiungono testo attorno al
-      // JSON — si tenta il blocco { … } più esterno prima di arrendersi.
-      const raw = aiResult.content ?? "";
-      const start = raw.indexOf("{");
-      const end = raw.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try {
-          extracted = JSON.parse(raw.slice(start, end + 1));
-        } catch {
-          return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
-        }
-      } else {
-        return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
-      }
+    // Su risposte lunghe alcuni modelli aggiungono testo attorno al JSON: la lettura tollerante
+    // (recinzione ```json, blocco { … } più esterno) è condivisa con le altre funzioni.
+    const extracted = leggiJsonDalModello(aiResult.content);
+    if (!extracted) {
+      console.error("[generic-doc-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
 
     const summary = (extracted.summary as string | undefined) ?? "";
@@ -363,6 +354,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

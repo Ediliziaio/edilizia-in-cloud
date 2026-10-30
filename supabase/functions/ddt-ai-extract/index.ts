@@ -16,6 +16,10 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { controllaDocumento } from "../_shared/controlliDocumento.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const DDT_EXTRACTION_PROMPT = `Sei un esperto di logistica e amministrazione edilizia italiana ed europea.
 Analizza il PDF/immagine allegato (Documento di Trasporto / DDT o CMR internazionale) ed estrai TUTTI i dati strutturati.
@@ -260,7 +264,7 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: DDT_EXTRACTION_PROMPT },
+        { role: "system", content: conRegoleDocumento(DDT_EXTRACTION_PROMPT) },
         { role: "user", content: userContent },
       ],
       params: { temperature: 0.0, max_tokens: 6000 },
@@ -271,13 +275,15 @@ Deno.serve(async (req) => {
     });
     const elapsedMs = Date.now() - t0;
 
-    let ddt;
-    try {
-      const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      ddt = normalizeDdtPayload(JSON.parse(raw));
-    } catch {
-      return errorResponse(`AI returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`, 502, cors);
+    const letto = leggiJsonDalModello(aiResult.content);
+    if (!letto) {
+      console.error("[ddt-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
+    const ddt = normalizeDdtPayload(letto);
+    // Cosa non torna nella lettura (mittente = destinatario, righe senza quantità, totali…) e quali campi guardare.
+    const controlli = controllaDocumento("ddt", ddt);
 
     // FIX 14 (A9): se il client chiede legacy_format, mappiamo il JSON strutturato
     // sullo schema piatto di ddt-ocr-extract per backward compat con NewDDTDialog.tsx
@@ -338,6 +344,7 @@ Deno.serve(async (req) => {
       ddt,
       // legacy alias per consumer ddt-ocr-extract:
       ...(extractedLegacy ? { extracted: extractedLegacy } : {}),
+      controlli: { warnings: controlli.warnings, score: controlli.score, da_verificare: controlli.daVerificare },
       ai_meta: {
         model_used: aiResult.modelUsed,
         tokens: aiResult.totalTokens,
@@ -348,6 +355,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const e = erroreAiPerUtente(err);
+    if (e) return jsonResponse(e.body, e.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

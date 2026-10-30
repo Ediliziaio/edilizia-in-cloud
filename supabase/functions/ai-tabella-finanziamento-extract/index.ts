@@ -33,6 +33,8 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface Hint {
   finanziaria?: string;
@@ -159,7 +161,7 @@ async function callOpenAIChunk(
       taskKey: "tabella_finanziamento_extract",
 
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
         {
           role: "user",
           content: [
@@ -418,6 +420,8 @@ Deno.serve(async (req: Request) => {
     if (userId && supabaseAdmin) {
       await logAiUsage(supabaseAdmin, companyId, userId, 0, 0, 0, storagePath, "error", msg);
     }
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
   }
 });

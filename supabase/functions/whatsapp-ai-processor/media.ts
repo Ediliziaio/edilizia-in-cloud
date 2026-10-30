@@ -15,6 +15,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
 import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 
 /** Quanto vale il link a un file salvato: basta per registrare DDT e foto nei giorni seguenti. */
 const DURATA_LINK_SECONDI = 60 * 60 * 24 * 30;
@@ -270,7 +271,7 @@ export async function leggiFotoOperativa(
         supabase,
         taskKey: "ddt_ocr",
         messages: [
-          { role: "system", content: PROMPT_LETTORE_DDT },
+          { role: "system", content: conRegoleDocumento(PROMPT_LETTORE_DDT) },
           {
             role: "user",
             content: [

@@ -34,6 +34,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
+import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -304,7 +307,7 @@ Deno.serve(async (req) => {
         supabase: supabaseAdmin as any,
         taskKey: "pdf_vision_extract",
         messages: [
-          { role: "system", content: CLASSIFICATION_PROMPT },
+          { role: "system", content: conRegoleDocumento(CLASSIFICATION_PROMPT) },
           { role: "user", content: userContent },
         ],
         params: { temperature: 0.0, max_tokens: 800 },
@@ -314,6 +317,11 @@ Deno.serve(async (req) => {
         idempotencyKey,
       });
     } catch (e) {
+      // Prima ogni errore diventava «AI classifier error: <testo>» con 502, anche il credito finito
+      // del provider: l'utente leggeva un testo tecnico e a volte si apriva la sua ricarica (30/10/2026).
+      console.error("[document-ai-router] classificazione fallita:", e instanceof Error ? e.message : String(e));
+      const noto = erroreAiPerUtente(e);
+      if (noto) return jsonResponse(noto.body, noto.status, cors);
       return errorResponse(
         `AI classifier error: ${e instanceof Error ? e.message : String(e)}`,
         502, cors,
@@ -322,16 +330,13 @@ Deno.serve(async (req) => {
     const elapsedMs = Date.now() - t0;
 
     // 4. Parse
-    let parsed: ClassificationResult;
-    try {
-      const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      return errorResponse(
-        `Classifier returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`,
-        502, cors,
-      );
+    const letto = leggiJsonDalModello(aiResult.content);
+    if (!letto) {
+      console.error("[document-ai-router] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      const e = letturaNonRiuscita();
+      return jsonResponse(e.body, e.status, cors);
     }
+    const parsed = letto as unknown as ClassificationResult;
 
     // 5. Sanitize doc_type
     const allowedTypes = Object.keys(NEXT_ACTION_MAP);
@@ -364,6 +369,8 @@ Deno.serve(async (req) => {
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, getCorsHeaders(req));
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });

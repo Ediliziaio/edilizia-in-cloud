@@ -1,6 +1,7 @@
 import { invalidaFontiSicurezzaMezzi } from "@/lib/sicurezza/invalidaFontiMezzi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { compressImage } from "@/lib/campo/foto-compressor";
@@ -971,7 +972,7 @@ export async function leggiDocumentoConAI(args: {
       doc_type: args.tipo,
     },
   });
-  if (error) throw new Error(error.message || "Lettura automatica non riuscita");
+  if (error) throw new Error(await edgeErrorMessage(error, "Lettura automatica non riuscita"));
   if (data?.error) throw new Error(String(data.error));
   return (data?.extracted ?? {}) as Record<string, unknown>;
 }

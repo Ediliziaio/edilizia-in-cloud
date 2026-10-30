@@ -25,6 +25,8 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface ExtractPayload {
   storage_path: string;
@@ -145,7 +147,7 @@ async function callOpenAI(
     taskKey: "customers_extract",
 
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: conRegoleDocumento(SYSTEM_PROMPT) },
       {
         role: "user",
 
@@ -327,6 +329,8 @@ serve(async (req: Request) => {
         await logAiUsage(sb, companyId, userId, 0, 0, 0, storagePath, "error", msg);
       } catch { /* ignore */ }
     }
+    const noto = erroreAiPerUtente(err);
+    if (noto) return jsonResponse(noto.body, noto.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
   }
 });
