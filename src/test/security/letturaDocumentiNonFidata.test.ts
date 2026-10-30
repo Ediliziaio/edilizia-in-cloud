@@ -56,6 +56,7 @@ const CON_REGOLE_CONDIVISE = [
   "document-ai-router",
   "generic-doc-ai-extract",
   "parse-matrix-image",
+  "planimetria-genera",
   "whatsapp-ai-processor",
 ] as const;
 

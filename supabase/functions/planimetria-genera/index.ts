@@ -36,7 +36,6 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
@@ -185,7 +184,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
             forceModel: modello,
             disableModelFallback: true,
             skipCharge: true,
-            messages: messaggi.map((m, i) => i === 0 && typeof m.content === "string" ? { ...m, content: conRegoleDocumento(m.content) } : m),
+            messages: messaggi,
             params: { temperature: 0.1, max_tokens: 12000 },
             responseFormat: { type: "json_object" },
             companyId,
